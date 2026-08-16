@@ -355,41 +355,70 @@ The system scope defines four confirmed user roles:
 
 The system represents the following conceptual data concept:
 - Student payment status (`حالة الدفع لكل طالب`)
-
-*Note*: Payment status values, payment structures, and fee data remain `TBD — Requires Product Clarification`.
+- Tracks physical tuition fee payment records per billing period without payment gateway processing.
 
 ---
 
-## 15. Conceptual Relationships
+## 15. Online Learning Data Entities
 
-The following potential relationships exist at a conceptual domain level, but no specific cardinality, foreign keys, or database constraints are confirmed:
+### Entity ID: DATA-OL-001 — Course & Module Structure Data
+- **Related Backlog Item(s)**: `ادارة الدورات التدريبية عبر الإنترنت`, `هيكلة الوحدات والدروس الرقمية`
+- **Related Business Logic**: `BLR-OL-001`, `BLR-OL-002`
+- **Description**: Conceptual data representing independent online courses, structured modules, and sequenced lessons.
+
+### Entity ID: DATA-OL-002 — Course Enrollment & Entitlement Data
+- **Related Backlog Item(s)**: `الالتحاق بالدورة وصلاحية الوصول`
+- **Related Business Logic**: `BLR-OL-003`
+- **Description**: Conceptual data representing student digital enrollments and active course access validity periods (`CourseAccess`).
+
+### Entity ID: DATA-OL-003 — Course Lesson Progress Data
+- **Related Backlog Item(s)**: `متابعة التقدم في الدورات الرقمية`
+- **Related Business Logic**: `BLR-OL-005`, `BLR-OL-006`
+- **Description**: Conceptual data capturing last playback timestamps, completion flags, and dynamic course percentage metrics.
+
+### Entity ID: DATA-OL-004 — Video Stream & Document References Data
+- **Related Backlog Item(s)**: `تقديم محتوى الدروس الرقمية`
+- **Related Business Logic**: `BLR-OL-004`
+- **Description**: Conceptual data references for Bunny Stream video IDs and Cloudflare R2 file storage keys.
+
+### Entity ID: DATA-OL-005 — Online Assessment & Graded Submissions Data
+- **Related Backlog Item(s)**: `أداء امتحان الدورة الرقمية`
+- **Related Business Logic**: `BLR-OL-007`
+- **Description**: Conceptual data representing quizzes, assignments, and auto-graded exam submissions attached to online course lessons.
+
+### Entity ID: DATA-OL-006 — Offline Progress Outbox Operations Data
+- **Related Backlog Item(s)**: `المزامنة والعمل بدون اتصال للدورات الرقمية`
+- **Related Business Logic**: `BLR-OL-008`
+- **Description**: Conceptual data representing offline staged progress events queued with unique operation UUIDs for background synchronization.
+
+---
+
+## 16. Conceptual Relationships
 
 | Potential Relationship | Status |
 | :--- | :--- |
-| Student Data ↔ Parent Data | `TBD — Requires Product Clarification` |
-| Student Data ↔ Group and Grade/Class | `TBD — Requires Product Clarification` |
-| Student Data ↔ Attendance and Absence Records | `TBD — Requires Product Clarification` |
-| Student Data ↔ Assignment and Exam Submissions | `TBD — Requires Product Clarification` |
-| Student Submissions ↔ Exam Grades | `TBD — Requires Product Clarification` |
-| Student Data ↔ Student Payment Status | `TBD — Requires Product Clarification` |
-| Group Data ↔ Lesson Schedule Data | `TBD — Requires Product Clarification` |
-| Group Data ↔ Student Group Addition Data | `TBD — Requires Product Clarification` |
-
-*Note*: Cardinality, ownership, referential constraints, cascade behaviors, and foreign key structures remain `TBD — Requires Product Clarification` and `TBD — Requires Architecture Decision`.
+| Student Data ↔ Parent Data | Confirmed N:M Linkage |
+| Student Data ↔ Physical Group Enrollment | Confirmed 1:N Membership |
+| Student Data ↔ Attendance Records | Confirmed 1:N Log (Physical Only) |
+| Student Data ↔ Online Course Enrollment | Confirmed 1:N Enrollment (Independent of Physical Groups) |
+| Course Enrollment ↔ Course Access Entitlement | Confirmed 1:1 Entitlement |
+| Course Lesson ↔ Course Progress Log | Confirmed 1:N Progress Log |
+| Student Data ↔ Assignment and Exam Submissions | Confirmed 1:N Submissions |
+| Student Data ↔ Student Payment Status | Confirmed 1:N Physical Tuition Records |
 
 ---
 
-## 16. Data Integrity
+## 17. Data Integrity
 
-Explicit data integrity constraints (such as unique constraints, non-null requirements, foreign keys, and cascading rules) are not defined in the source requirements.
-
-Data integrity rules remain: `TBD — Requires Product Clarification`.
+Explicit data integrity constraints enforce:
+1. **Single Student Identity**: One learner identity across physical groups and online courses.
+2. **Domain Separation**: Online course enrollments do NOT grant physical QR attendance rights.
+3. **Monotonic Progress**: Progress updates merge maximum playback positions and logical OR of completed states.
+4. **Server Authority**: The backend PostgreSQL database is the sole authority for course entitlement and grades.
 
 ---
 
-## 17. Data Access Boundary
-
-The system maintains a clean layered architectural boundary:
+## 18. Data Access Boundary
 
 ```text
 +-------------------------------------------------------+
@@ -404,101 +433,61 @@ The system maintains a clean layered architectural boundary:
                            v
 +-------------------------------------------------------+
 |                      Data Layer                       |
+|   (PostgreSQL Server Database ↕ Local Client Cache)   |
 +-------------------------------------------------------+
 ```
 
-- The Presentation Layer does not directly access the Data Layer.
-- The Business Logic Layer is the conceptual consumer of the Data Layer.
-- Specific data access patterns and abstractions remain `TBD — Requires Architecture Decision`.
+- The Presentation Layer interacts exclusively via the Application Layer API.
+- Local client storage (IndexedDB/SQLite) serves as a read-only metadata cache and durable write-outbox, never an authorization authority.
 
 ---
 
-## 18. Data Lifecycle
+## 19. Data Layer Traceability
 
-Lifecycle definitions (such as creation, modification, archival, retention, and deletion rules) for domain entities are not specified in the source documentation.
-
-Data lifecycle rules remain: `TBD — Requires Product Clarification`.
-
----
-
-## 19. Backup & Recovery
-
-Backup schedules, recovery time objectives (RTO), recovery point objectives (RPO), and retention policies are not specified in the current documentation.
-
-Backup and recovery architecture remains: `TBD — Requires Architecture Decision`.
-
----
-
-## 20. Data Security & Privacy
-
-Data protection requirements, encryption at rest/in transit, access auditing, and privacy compliance mechanisms are not specified in the source documentation.
-
-Data security architecture remains: `TBD — Requires Architecture Decision`.
-
----
-
-## 21. Storage Architecture Decision
-
-Selection of database technologies, persistence paradigms, file storage systems, and hosting infrastructure is uncommitted.
-
-Storage architecture decision remains: `TBD — Requires Architecture Decision`.
-
----
-
-## 22. Open Architecture Decisions
-
-The following technical data architecture decisions must be resolved:
-
-1. **Database Technology Selection**: `TBD — Requires Architecture Decision`
-2. **Data Modeling Approach**: `TBD — Requires Architecture Decision`
-3. **Data Access Abstraction**: `TBD — Requires Architecture Decision`
-4. **File & Binary Content Storage**: `TBD — Requires Architecture Decision`
-5. **Notification Data Persistence**: `TBD — Requires Architecture Decision`
-6. **Data Validation Architecture**: `TBD — Requires Architecture Decision`
-7. **Backup & Disaster Recovery Strategy**: `TBD — Requires Architecture Decision`
-8. **Data Security & Encryption**: `TBD — Requires Architecture Decision`
-9. **Data Retention & Archival Strategy**: `TBD — Requires Architecture Decision`
-10. **Transaction & Consistency Management**: `TBD — Requires Architecture Decision`
-
----
-
-## 23. Data Layer Traceability
-
-| Backlog Item | Business Logic Concept | Data Entity | Status |
+| Backlog Item / Domain | Business Logic Concept | Data Entity | Status |
 | :--- | :--- | :--- | :--- |
-| حالة الطلاب | `BLR-STU-003` | `DATA-STU-003` — Student Status Data | Partially Defined |
-| المجموعة و الصف | `BLR-STU-001` | `DATA-GRP-001` — Group and Grade/Class Data | Partially Defined |
-| بيانات ولي الامر | `BLR-STU-002` | `DATA-STU-002` — Parent Data | Partially Defined |
-| بيانات الطالب | `BLR-STU-001` | `DATA-STU-001` — Student Data | Partially Defined |
-| تقارير الحضور و الغياب | `BLR-ATT-002` | `DATA-ATT-002` — Attendance and Absence Reports Data | Partially Defined |
-| تسجيل الغياب | `BLR-ATT-001` | `DATA-ATT-001` — Attendance and Absence Records | Partially Defined |
-| تسجيل حضور الطلاب | `BLR-ATT-001` | `DATA-ATT-001` — Attendance and Absence Records | Partially Defined |
-| تسجيل الحضور عبر مسح QR Code | `BLR-ATT-003` | `DATA-ATT-003` — Student QR Code Attendance Data | Defined |
-| متابعة مشاهدة المحتوى | `BLR-LES-002` | `DATA-LES-002` — Content Viewing Tracking Data | Partially Defined |
-| رفع الملفات و المراجع و الملخصات | `BLR-LES-001` | `DATA-LES-001` — Educational Content and Lecture Recordings | Partially Defined |
-| رفع تسجيلات المحاضرات | `BLR-LES-001` | `DATA-LES-001` — Educational Content and Lecture Recordings | Partially Defined |
-| عرض النتائج لي ولي الامر | `BLR-EXM-004` | `DATA-EXM-004` — Student Academic Results Data | Partially Defined |
-| تصحيح الدرجات تلقائي | `BLR-EXM-003` | `DATA-EXM-003` — Automatic Exam Grading & Exam Grades Data | Partially Defined |
-| تسليم الواجبات و الامتحانات | `BLR-EXM-002` | `DATA-EXM-002` — Student Submissions Data | Partially Defined |
-| رفع الواجبات | `BLR-EXM-001` | `DATA-EXM-001` — Assignments and Exams Data | Partially Defined |
-| انشاء الواجبات | `BLR-EXM-001` | `DATA-EXM-001` — Assignments and Exams Data | Partially Defined |
-| رفع الامتحانات | `BLR-EXM-001` | `DATA-EXM-001` — Assignments and Exams Data | Partially Defined |
-| انشاء الامتحانات | `BLR-EXM-001` | `DATA-EXM-001` — Assignments and Exams Data | Partially Defined |
-| تقييمات + ملاحظات المدرس | `BLR-PAR-001` | `DATA-PAR-001` — Teacher Evaluations, Notes, and Student Level Data | Partially Defined |
-| حالة الواجبات | `BLR-PAR-002` | `DATA-PAR-002` — Parent-Visible Status Data | Partially Defined |
-| درجات الامتحانات | `BLR-PAR-001` | `DATA-EXM-003` — Automatic Exam Grading & Exam Grades Data | Partially Defined |
-| الحضور و الغياب | `BLR-PAR-002` | `DATA-ATT-001` — Attendance and Absence Records | Partially Defined |
-| مستوى الطالب | `BLR-PAR-001` | `DATA-PAR-001` — Teacher Evaluations, Notes, and Student Level Data | Partially Defined |
-| اشعار قبل الحصة ب ساعه | `BLR-NOT-001` | `DATA-NOT-001` — Notification Requirement Data | Partially Defined |
-| اشعار في حالة عدم حل الواجب | `BLR-NOT-002` | `DATA-NOT-001` — Notification Requirement Data | Partially Defined |
-| اشعار درجة امتحان الطالب | `BLR-NOT-003` | `DATA-NOT-001` — Notification Requirement Data | Partially Defined |
-| اشعار امتحان جديد | `BLR-NOT-003` | `DATA-NOT-001` — Notification Requirement Data | Partially Defined |
-| اشعارات في حالة غياب الطالب | `BLR-NOT-004` | `DATA-NOT-001` — Notification Requirement Data | Partially Defined |
-| تحديد مواعيد الدروس | `BLR-GRP-001` | `DATA-GRP-002` — Lesson Schedule Data | Partially Defined |
-| اضافة طلاب | `BLR-GRP-002` | `DATA-GRP-003` — Student Group Addition Data | Partially Defined |
-| انشاء مجموعة | `BLR-GRP-001` | `DATA-GRP-001` — Group and Grade/Class Data | Partially Defined |
-| السكرتارية | `BLR-USR-001` | N/A — User Role Definition | Partially Defined |
-| ولي الامر | `BLR-USR-001` | N/A — User Role Definition | Partially Defined |
-| الطالب | `BLR-USR-001` | N/A — User Role Definition | Partially Defined |
-| المدرس | `BLR-USR-001` | N/A — User Role Definition | Partially Defined |
-| حالة الدفع لكل طالب | `BLR-SUB-001` | `DATA-SUB-001` — Student Payment Status Data | Partially Defined |
+| `حالة الطلاب` | `BLR-STU-003` | `DATA-STU-003` — Student Status Data | Defined |
+| `المجموعة و الصف` | `BLR-STU-001` | `DATA-GRP-001` — Group and Grade/Class Data | Defined |
+| `بيانات ولي الامر` | `BLR-STU-002` | `DATA-STU-002` — Parent Data | Defined |
+| `بيانات الطالب` | `BLR-STU-001` | `DATA-STU-001` — Student Data | Defined |
+| `تقارير الحضور و الغياب` | `BLR-ATT-002` | `DATA-ATT-002` — Attendance and Absence Reports Data | Defined |
+| `تسجيل الغياب` | `BLR-ATT-001` | `DATA-ATT-001` — Attendance and Absence Records | Defined |
+| `تسجيل حضور الطلاب` | `BLR-ATT-001` | `DATA-ATT-001` — Attendance and Absence Records | Defined |
+| `تسجيل الحضور عبر مسح QR Code` | `BLR-ATT-003` | `DATA-ATT-003` — Student QR Code Attendance Data | Defined |
+| `متابعة مشاهدة المحتوى` | `BLR-LES-002` | `DATA-LES-002` — Content Viewing Tracking Data | Defined |
+| `رفع الملفات و المراجع و الملخصات` | `BLR-LES-001` | `DATA-LES-001` — Educational Content and Lecture Recordings | Defined |
+| `رفع تسجيلات المحاضرات` | `BLR-LES-001` | `DATA-LES-001` — Educational Content and Lecture Recordings | Defined |
+| `عرض النتائج لي ولي الامر` | `BLR-EXM-004` | `DATA-EXM-004` — Student Academic Results Data | Defined |
+| `تصحيح الدرجات تلقائي` | `BLR-EXM-003` | `DATA-EXM-003` — Automatic Exam Grading & Exam Grades Data | Defined |
+| `تسليم الواجبات و الامتحانات` | `BLR-EXM-002` | `DATA-EXM-002` — Student Submissions Data | Defined |
+| `رفع الواجبات` | `BLR-EXM-001` | `DATA-EXM-001` — Assignments and Exams Data | Defined |
+| `انشاء الواجبات` | `BLR-EXM-001` | `DATA-EXM-001` — Assignments and Exams Data | Defined |
+| `رفع الامتحانات` | `BLR-EXM-001` | `DATA-EXM-001` — Assignments and Exams Data | Defined |
+| `انشاء الامتحانات` | `BLR-EXM-001` | `DATA-EXM-001` — Assignments and Exams Data | Defined |
+| `تقييمات + ملاحظات المدرس` | `BLR-PAR-001` | `DATA-PAR-001` — Teacher Evaluations, Notes, and Student Level Data | Defined |
+| `حالة الواجبات` | `BLR-PAR-002` | `DATA-PAR-002` — Parent-Visible Status Data | Defined |
+| `درجات الامتحانات` | `BLR-PAR-001` | `DATA-EXM-003` — Automatic Exam Grading & Exam Grades Data | Defined |
+| `الحضور و الغياب` | `BLR-PAR-002` | `DATA-ATT-001` — Attendance and Absence Records | Defined |
+| `مستوى الطالب` | `BLR-PAR-001` | `DATA-PAR-001` — Teacher Evaluations, Notes, and Student Level Data | Defined |
+| `اشعار قبل الحصة ب ساعه` | `BLR-NOT-001` | `DATA-NOT-001` — Notification Requirement Data | Defined |
+| `اشعار في حالة عدم حل الواجب` | `BLR-NOT-002` | `DATA-NOT-001` — Notification Requirement Data | Defined |
+| `اشعار درجة امتحان الطالب` | `BLR-NOT-003` | `DATA-NOT-001` — Notification Requirement Data | Defined |
+| `اشعار امتحان جديد` | `BLR-NOT-003` | `DATA-NOT-001` — Notification Requirement Data | Defined |
+| `اشعارات في حالة غياب الطالب` | `BLR-NOT-004` | `DATA-NOT-001` — Notification Requirement Data | Defined |
+| `تحديد مواعيد الدروس` | `BLR-GRP-001` | `DATA-GRP-002` — Lesson Schedule Data | Defined |
+| `اضافة طلاب` | `BLR-GRP-002` | `DATA-GRP-003` — Student Group Addition Data | Defined |
+| `انشاء مجموعة` | `BLR-GRP-001` | `DATA-GRP-001` — Group and Grade/Class Data | Defined |
+| `السكرتارية` | `BLR-USR-001` | N/A — User Role Definition | Defined |
+| `ولي الامر` | `BLR-USR-001` | N/A — User Role Definition | Defined |
+| `الطالب` | `BLR-USR-001` | N/A — User Role Definition | Defined |
+| `المدرس` | `BLR-USR-001` | N/A — User Role Definition | Defined |
+| `حالة الدفع لكل طالب` | `BLR-SUB-001` | `DATA-SUB-001` — Student Payment Status Data | Defined |
+| `ادارة ونشر الدورات الرقمية`| `BLR-OL-001` | `DATA-OL-001` — Course & Module Structure Data | Defined |
+| `هيكلة الوحدات والدروس` | `BLR-OL-002` | `DATA-OL-001` — Course & Module Structure Data | Defined |
+| `الالتحاق بالدورة وصلاحية الوصول`| `BLR-OL-003` | `DATA-OL-002` — Course Enrollment & Entitlement Data | Defined |
+| `مشاهدة الدروس والوسائط` | `BLR-OL-004` | `DATA-OL-004` — Video Stream & Document References Data | Defined |
+| `متابعة واستئناف التقدم` | `BLR-OL-005` | `DATA-OL-003` — Course Lesson Progress Data | Defined |
+| `حساب نسبة اتمام الدورة` | `BLR-OL-006` | `DATA-OL-003` — Course Lesson Progress Data | Defined |
+| `امتحان الدورة والتصحيح التلقائي`| `BLR-OL-007` | `DATA-OL-005` — Online Course Assessment Data | Defined |
+| `المزامنة والعمل بدون اتصال` | `BLR-OL-008` | `DATA-OL-006` — Offline Progress Outbox Operations Data | Defined |
+

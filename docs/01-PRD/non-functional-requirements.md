@@ -3,106 +3,117 @@
 ## 1. Document Information
 - **Document Name**: Non-Functional Requirements Document
 - **Document Type**: Product Documentation
-- **Product**: Educational Management System for Teachers and Students
-- **Version**: TBD
-- **Status**: Draft
-- **Source of Truth**: Approved Backlog & Functional Requirements Document
+- **Product**: Educational Management System for Teachers and Students (El Awal)
+- **Version**: 2.0
+- **Status**: Updated Draft — Online Learning Domain Integrated
+- **Source of Truth**: Approved Backlog, Architecture Baseline, and Educational Delivery Models
 
 ---
 
 ## 2. Purpose
-This document defines the non-functional quality requirements, performance expectations, system constraints, and operational characteristics of the educational management system, derived directly from the approved product scope.
+This document defines the non-functional quality requirements, performance expectations, security constraints, and operational characteristics of the educational management system across both **Physical Learning** and **Online Learning** delivery models.
 
 ---
 
 ## 3. Scope
-This document covers the non-functional requirements and quality attributes applicable to the modules defined in the product backlog (Student Management, Attendance & Absence, Lectures & Lessons, Exams & Assignments, Parent Student Status, Notifications & WhatsApp, Groups Management, Users & Permissions, and Subscriptions).
+This document covers the non-functional quality attributes applicable across all ten confirmed product modules:
+1. Student Management
+2. Attendance & Absence (Physical Classroom)
+3. Lectures & Lessons
+4. Exams & Assignments
+5. Parent Student Status
+6. Notifications
+7. Groups Management (Physical Classroom)
+8. Users & Permissions
+9. Subscriptions (Student Payment Status)
+10. Online Learning / Courses (Asynchronous Distance Learning)
 
 ---
 
 ## 4. Non-Functional Requirements
 
-### 4.1 Performance
-`TBD — Requires Product Clarification`
-
-No explicit performance metrics, latency limits, response time thresholds, or throughput targets are defined in the backlog. High-frequency attendance scanning (e.g. sub-second camera recognition and server verification during classroom entry) is an operational performance expectation whose quantitative SLAs remain `TBD`.
-
----
-
-### 4.2 Security
-`TBD — Requires Product Clarification`
-
-No specific security protocols, authentication mechanisms (e.g., MFA, OAuth, JWT), authorization models, session management, or password policies are defined in the backlog. Student QR code tokens must be unique, non-duplicable, and protected against student tampering/forgery.
+### 4.1 Performance & Latency
+- **Physical QR Attendance Check-In**: Camera scanning and verification pipeline must complete and return affirmative idempotent confirmation in <500ms under normal connectivity.
+- **Online Course Video Playback**: Initial video playback start time must not exceed 2.0 seconds via Bunny Stream global edge network.
+- **Course Metadata & Outline Fetching**: Local cached catalog and module queries must resolve in <100ms; remote server queries in <300ms.
+- **Progress Sync Intake**: Batch progress synchronization payloads must be ingested, validated, and acknowledged by the backend in <300ms.
+- `TBD — Requires Product Clarification`: Peak concurrent student video streaming volume and classroom scanning throughput limits.
 
 ---
 
-### 4.3 Availability & Reliability
-`TBD — Requires Product Clarification`
-
-No uptime percentages, maximum allowable downtime, fault tolerance mechanisms, or recovery targets are defined in the backlog.
+### 4.2 Security & Authorization
+- **Role-Based Access Control (RBAC)**: Strict enforcement across `TEACHER`, `STUDENT`, `PARENT`, and `SECRETARIAT`.
+- **Broken Object Level Authorization (BOLA/IDOR) Prevention**:
+  - Course content, progress, and assessment submissions are cryptographically and relationally bound to the authenticated user.
+  - Parent portal endpoints strictly verify verified `ParentStudentLink` associations.
+- **Server Authority Invariant**: Client-side offline state is strictly a non-authoritative cache. The server remains the sole authority for:
+  - Course access entitlement verification.
+  - Exam auto-grading score calculation.
+  - Physical attendance recording and authorization.
+- **QR Credential Protection**: Student QR codes utilize high-entropy, opaque tokens with endpoint rate limiting to prevent brute-force enumeration.
 
 ---
 
-### 4.4 Scalability
-`TBD — Requires Product Clarification`
-
-No specific volumetric expectations, concurrent user limits, data storage growth estimates, or scaling models are defined in the backlog.
+### 4.3 Availability, Reliability & Offline Resilience
+- **Dual Offline Resilience**:
+  1. *Physical Attendance*: Teachers can record QR scans offline; scans are buffered in a local outbox and synced idempotently upon reconnection.
+  2. *Online Learning*: Students can browse cached course outlines, view cached lesson metadata, and continue offline learning. Progress heartbeat events are queued in a durable outbox (`IndexedDB`/`SQLite`) and synchronized automatically upon reconnection.
+- **Video & Large Binary Demarcation**: Video streaming and large file downloads require active network connectivity via Bunny Stream and Cloudflare R2; binary video files are NEVER replicated into local databases.
+- **Authoritative Cloud Database**: Neon PostgreSQL serves as the immutable single source of truth.
+- `TBD — Requires Product Clarification`: Formal SLA uptime percentages (target 99.9%) and allowable planned maintenance windows.
 
 ---
 
-### 4.5 Usability
-`TBD — Requires Product Clarification`
+### 4.4 Scalability & Storage Optimization
+- **Binary Storage Decoupling**: Database stores structured metadata only; Cloudflare R2 stores PDFs/documents; Bunny Stream stores video files.
+- **Normalized Relational Scaling**: PostgreSQL schema uses UUIDv4 primary keys, targeted composite B-tree indexes, and explicit foreign key constraints to support horizontal database read scaling.
+- `TBD — Requires Product Clarification`: Specific concurrent user peaks and long-term storage quotas.
 
-No specific UX/UI standards, multi-language localization requirements, or usability benchmarks are defined in the backlog. The teacher QR scanning interface must provide rapid, responsive feedback (visual and haptic/audio confirmation) upon each successful scan.
+---
+
+### 4.5 Usability & Dual-Language Localization
+- **Bilingual Interface**: Seamless bidirectional support for Arabic (`RTL`) and English (`LTR`) across physical attendance views, course catalog, lesson player, and parent portal.
+- **Interactive Feedback**: Immediate visual/audio feedback for QR scans, video playback resumption, and offline sync status badges.
 
 ---
 
 ### 4.6 Accessibility
-`TBD — Requires Product Clarification`
-
-No specific accessibility compliance levels (e.g., WCAG) or assistive technology requirements are defined in the backlog.
-
----
-
-### 4.7 Compatibility
-`TBD — Requires Product Clarification`
-
-No specific operating systems, browsers, mobile platforms, screen resolutions, or supported device matrix are defined in the backlog. The teacher scanning interface requires camera access permissions via standard modern web/mobile browser APIs (MediaDevices/getUserMedia).
+- Interfaces must provide high-contrast readability, clear focus outlines for keyboard navigation, and responsive typography across desktop, tablet, and mobile screens.
+- `TBD — Requires Product Clarification`: Formal WCAG 2.1 AA certification requirements.
 
 ---
 
-### 4.8 Maintainability
-`TBD — Requires Product Clarification`
-
-No specific software architecture standards, modularity requirements, coding conventions, or documentation standards are defined in the backlog.
+### 4.7 Compatibility & Client Environment
+- Modern evergreen web browsers (Chrome, Edge, Safari, Firefox) with WebRTC camera API support for QR scanning, modern HTML5 video players for HLS playback, and IndexedDB for offline outbox storage.
 
 ---
 
-### 4.9 Data Integrity
-`TBD — Requires Product Clarification`
+### 4.8 Maintainability & Architecture
+- Structured as a Modular Monolith in NestJS (backend) and Next.js (frontend), maintaining strict domain boundaries between Physical Groups and Online Courses.
 
-No specific data validation rules, relational database constraints, consistency models, or audit trails are defined in the backlog. Unique student QR codes must be strictly indexed and uniquely constrained in persistence to prevent collision.
+---
+
+### 4.9 Data Integrity & Concurrency Control
+- **Physical Attendance Deduplication**: Enforced via PostgreSQL composite unique constraint `uq_session_student`.
+- **Course Progress Monotonicity**: Progress tracking prevents out-of-order offline sync events from regressing completed lesson milestones.
+- **Assessment Submissions**: Enforced single-attempt constraint on `uq_assessment_student`.
 
 ---
 
 ### 4.10 Privacy & Data Protection
-`TBD — Requires Product Clarification`
-
-The system manages user information across multiple roles (Student, Parent, Teacher, Secretariat) along with attendance, exam scores, assignment submissions, and payment status. However, specific regulatory standards, data retention policies, encryption standards, and privacy compliance requirements are not defined in the backlog.
-
----
-
-### 4.11 Backup & Recovery
-`TBD — Requires Product Clarification`
-
-No backup frequency, retention windows, Recovery Point Objective (RPO), or Recovery Time Objective (RTO) are defined in the backlog.
+- Student performance, attendance, and guardian contact records are encrypted in transit (TLS 1.3) and restricted to authorized stakeholders.
+- `TBD — Requires Product Clarification`: Specific regulatory privacy frameworks (e.g., GDPR, national student privacy laws) and data retention periods.
 
 ---
 
-### 4.12 Monitoring & Logging
-`TBD — Requires Product Clarification`
+### 4.11 Backup & Disaster Recovery
+- Serverless point-in-time recovery (PITR) and daily automated snapshots supported via Neon PostgreSQL.
+- `TBD — Requires Product Clarification`: Exact RPO (Recovery Point Objective) and RTO (Recovery Time Objective) targets.
 
-No logging scope, retention duration, monitoring tools, or alert mechanisms are defined in the backlog.
+---
+
+### 4.12 Monitoring & Observability
+- Structured JSON application logging with unique request correlation IDs (`x-request-id`) across all API interactions and sync outbox dispatches.
 
 ---
 
@@ -110,12 +121,8 @@ No logging scope, retention duration, monitoring tools, or alert mechanisms are 
 
 | Clarification ID | Category | Question | Reason |
 | --- | --- | --- | --- |
-| CLR-NFR-001 | Performance | What are the target page load times, API response times, and maximum acceptable latency for content, video streaming, and QR code attendance scanning? | Necessary to design caching, CDN, and backend compute architecture. |
-| CLR-NFR-002 | Security | What authentication methods, password rules, role-based access control (RBAC) definitions, and QR token encryption/signing standards are required? | Necessary to design identity management and security architecture for teachers, students, parents, and secretariat. |
-| CLR-NFR-003 | Availability | What is the target system availability/uptime percentage (e.g., 99.9%), and what are the allowable maintenance windows? | Necessary to determine hosting tier, redundancy, and failover strategy. |
-| CLR-NFR-004 | Scalability | What is the expected initial and peak number of concurrent users, students, groups, and daily content uploads? | Necessary to determine database sizing, storage provisioning, and scaling policies. |
-| CLR-NFR-005 | Compatibility | Which platforms, operating systems, mobile versions, and web browsers must be officially supported for QR scanning and student portals? | Necessary to define frontend framework and client-side testing scope. |
-| CLR-NFR-006 | Privacy & Data Protection | What privacy laws, data protection regulations, and student data privacy rules must the system comply with? | Necessary to implement appropriate data encryption, access restrictions, and retention policies. |
-| CLR-NFR-007 | Backup & Recovery | What are the required Recovery Point Objective (RPO) and Recovery Time Objective (RTO) for backups? | Necessary to set up database backup schedules, replication, and disaster recovery plans. |
-| CLR-NFR-008 | Monitoring & Logging | What audit logging, error tracking, and performance monitoring capabilities are required? | Necessary to implement logging infrastructure and operational dashboards. |
-| CLR-NFR-009 | Usability & Localization | What languages and regional formats (dates, currencies, numbers) must be supported? | Necessary to plan internationalization (i18n) and UI structure. |
+| CLR-NFR-001 | Performance | What are the peak concurrent video streaming and QR attendance scanning volumes? | Informs CDN edge provisioning and rate limiter tuning. |
+| CLR-NFR-002 | Security | What specific two-factor authentication or SSO mechanisms will be adopted for administrative roles? | Guides identity provider integrations. |
+| CLR-NFR-003 | Availability | What is the target contractual SLA uptime percentage (e.g., 99.9%)? | Determines multi-region hosting and automated failover strategy. |
+| CLR-NFR-004 | Storage | What are the per-course and per-teacher storage quotas for uploaded instructional assets? | Sets object storage budget and billing alerts. |
+| CLR-NFR-005 | Privacy | What data retention policies apply to historical student attendance and assessment logs after graduation? | Configures automated database archival pipelines. |

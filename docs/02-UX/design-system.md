@@ -558,41 +558,25 @@ Recommended component state framework for interactive controls:
 
 ---
 
-## 23. UX Patterns
-
-High-level interaction patterns derived from the approved product backlog:
-
-### 23.1 Attendance Recording Pattern
-- **Scope**: Derived from `FR-ATT-002`, `FR-ATT-003`, `FR-ATT-004` (`تسجيل حضور الطلاب`, `تسجيل الغياب`, `تسجيل الحضور عبر مسح QR Code`).
-- **Core Requirement Flows**:
-  1. **QR Code Scanning Flow**: Teacher selects active lesson session ──► Opens QR Scanner viewfinder ──► Scans student's unique QR code ──► Immediate visual/audio recognition feedback ──► Student attendance instantly logged as `PRESENT` ──► Session attendance counter increments in real time.
-  2. **Manual Roster Flow**: Group/session context selection ──► Manual roll-call toggle (Present / Absent / Excused) ──► Confirmation of recorded attendance/absence.
-- **Detailed UI Mechanisms**: `Recommended / TBD`
+### 23.6 Online Course Discovery & Enrollment Pattern
+- **Scope**: Derived from `FR-OL-001`, `FR-OL-003` (`ادارة الدورات التدريبية عبر الإنترنت`, `الالتحاق بالدورة وصلاحية الوصول`).
+- **Core Requirement Flow**: Student browses Course Catalog ──► Inspects course details & module outline ──► Requests enrollment ──► System validates access entitlement (`CourseAccess`) ──► Lessons unlock on student dashboard.
 - **Status**: `Defined (Functional Goal)` / `Recommended (UI Pattern)`
 
-### 23.2 Educational Content Upload Pattern
-- **Scope**: Derived from `FR-LES-002`, `FR-LES-003` (`رفع الملفات و المراجع و الملخصات`, `رفع تسجيلات المحاضرات`).
-- **Core Requirement Flow**: Target group/class context ──► Select educational content type ──► Upload/add content ──► Confirm content availability.
-- **Detailed UI Mechanisms**: `Recommended / TBD`
+### 23.7 Online Lesson Consumption & Video Player Pattern
+- **Scope**: Derived from `FR-OL-004`, `FR-OL-005` (`تقديم محتوى الدروس الرقمية`, `متابعة التقدم في الدورات الرقمية`).
+- **Core Requirement Flow**: Student selects lesson ──► Interface loads video player (Bunny Stream) and side tabs (PDF summaries, reference documents) ──► Playback position saved automatically ──► Completion badge triggered upon viewing threshold.
 - **Status**: `Defined (Functional Goal)` / `Recommended (UI Pattern)`
 
-### 23.3 Student Assessment Submission Pattern
-- **Scope**: Derived from `FR-EXM-003` (`تسليم الواجبات و الامتحانات`).
-- **Core Requirement Flow**: Assessment overview ──► Student submits assignment/exam ──► Submission status is available.
-- **Detailed UI Mechanisms**: `Recommended / TBD`
+### 23.8 Offline Learning & Outbox Sync Pattern
+- **Scope**: Derived from `FR-OL-008` (`المزامنة والعمل بدون اتصال للدورات الرقمية`).
+- **Core Requirement Flow**: Network disconnect detected ──► UI switches to offline banner ("Offline Mode — Working from Local Cache") ──► Student reviews cached content ──► Lesson progress staged in durable outbox ──► Network reconnection detected ──► Sync badge pulses & flushes outbox to server.
 - **Status**: `Defined (Functional Goal)` / `Recommended (UI Pattern)`
 
-### 23.4 Parent Status Review Pattern
-- **Scope**: Derived from `FR-PAR-001..005` (Results, Teacher notes, Evaluations, Exam grades, Attendance/absence records, Student level).
-- **Core Requirement Flow**: Student context ──► Presentation of student academic standing, teacher evaluations, notes, exam grades, assignment statuses, attendance records, and student level.
-- **Detailed UI Mechanisms**: `Recommended / TBD`
+### 23.9 Parent Online Learning Review Pattern
+- **Scope**: Derived from `FR-OL-007` (`متابعة ولي الامر للتعلم عبر الإنترنت`).
+- **Core Requirement Flow**: Parent selects child ──► Opens "Online Courses" tab ──► Displays active course cards, overall completion progress bars, completed lesson checkmarks, and online exam scores.
 - **Status**: `Defined (Functional Goal)` / `Recommended (UI Pattern)`
-
-### 23.5 Notification Presentation Pattern
-- **Scope**: Derived from `FR-NOT-001..005` (Lesson reminders, Unsolved assignments, Exam notices, Grades, Absences).
-- **Core Requirement Flow**: Notification trigger occurs ──► Relevant user receives notification ──► User can understand the related event.
-- **Detailed Delivery Mechanisms**: `TBD — Requires Product Clarification`
-- **Status**: `Defined (Functional Goal)` / `TBD (Delivery Channel)`
 
 ---
 
@@ -600,10 +584,11 @@ High-level interaction patterns derived from the approved product backlog:
 
 Recommended Figma template categories organized by user persona and functional area:
 
-1. **Teacher Workspace Template** *(Recommended)*: Proposed multi-column layout for group management, lesson scheduling, attendance recording, and assessment creation.
-2. **Student Learning Portal Template** *(Recommended)*: Proposed focused layout for viewing educational materials, submitting assignments/exams, and reviewing grades.
-3. **Parent Status Portal Template** *(Recommended)*: Proposed clear, readable summary layout for reviewing student evaluations, exam grades, attendance history, and assignment statuses.
-4. **Secretariat Operations Template** *(Recommended)*: Proposed high-density layout for student enrollment, group management, and student payment status viewing.
+1. **Teacher Workspace Template** *(Recommended)*: Proposed multi-column layout for group management, lesson scheduling, attendance recording, course curriculum authoring, and assessment creation.
+2. **Student Learning Portal Template** *(Recommended)*: Proposed focused layout for viewing physical timetable, digital student card (QR code), browsing online courses, and submitting assessments.
+3. **Course Player & Lesson Viewer Template** *(Recommended)*: Dedicated asynchronous learning workspace featuring widescreen video player (Bunny Stream), collapsible module/lesson drawer, tabbed downloadable summaries (Cloudflare R2), and live progress indicator.
+4. **Parent Status Portal Template** *(Recommended)*: Proposed clear, readable summary layout with dual tabs for reviewing (1) Physical Classroom Standing (attendance logs, teacher evaluations) and (2) Online Course Progress (enrolled courses, completion rates, exam scores).
+5. **Secretariat Operations Template** *(Recommended)*: Proposed high-density layout for student enrollment, group management, course access assignment, and student payment status viewing.
 
 ---
 
@@ -622,19 +607,22 @@ Recommended organization for future Figma design system assets:
 📁 02_Components
    ├── 🔘 Actions (Buttons, Icon Buttons, Menus)
    ├── 📝 Inputs (Text Fields, Selects, File Uploaders)
-   ├── 📊 Data Display (Tables, Student Cards, Badges)
-   ├── 🎓 Education (Attendance Controls, Exam Cards, Submission Items)
-   └── 💬 Feedback (Toasts, Modals, Empty States, Skeletons)
+   ├── 📊 Data Display (Tables, Student Cards, Badges, Progress Bars)
+   ├── 🎓 Education (Attendance Controls, QR Badge, Exam Cards, Video Player Container)
+   └── 💬 Feedback (Toasts, Modals, Empty States, Offline Sync Badges)
 
 📁 03_Patterns
-   ├── 📋 Attendance Workflows
+   ├── 📋 Attendance Workflows (QR Scan & Manual Roll-Call)
+   ├── 📚 Course Management & Outline Builder
+   ├── 🎥 Asynchronous Video Lesson Playback
    ├── 📤 Content & Assessment Uploads
-   ├── 📥 Student Submissions
-   └── 👨‍👩‍👧 Parent Status Views
+   ├── 📥 Student Submissions & Auto-Grading
+   └── 👨‍👩‍👧 Parent Dual Monitoring (Physical & Online)
 
 📁 04_Templates
    ├── 🖥️ Desktop Dashboards (Teacher, Secretariat)
    ├── 📱 Mobile Portals (Parent, Student)
+   ├── 🎬 Course Player & Lesson Workspace
    └── 📑 Printable Reports (Attendance, Grade Sheets)
 
 📁 05_Screens
@@ -646,7 +634,8 @@ Recommended organization for future Figma design system assets:
    ├── 06_Notifications
    ├── 07_Groups_Management
    ├── 08_Users_Permissions
-   └── 09_Subscriptions_Payment
+   ├── 09_Subscriptions_Payment
+   └── 10_Online_Learning_Courses
 
 📁 06_Prototype
    └── 🔄 Persona Interaction Flows
@@ -661,7 +650,7 @@ Recommended design token hierarchy and management guidelines:
 1. **Token Hierarchy Model** *(Recommended Token Structure)*:
    - `Tier 1: Global Primitives` (Example: `primary-600`, `neutral-50`, `spacing-16`).
    - `Tier 2: Semantic System Tokens` (Example: `color-primary`, `color-status-present`, `typography-h2`).
-   - `Tier 3: Component-Scoped Tokens` (Example: `button-primary-bg`, `attendance-toggle-active-bg`).
+   - `Tier 3: Component-Scoped Tokens` (Example: `button-primary-bg`, `attendance-toggle-active-bg`, `course-progress-fill`).
 2. **Zero Hardcoded Values** *(Recommended)*: UI designs and frontend code should bind directly to Tier 2 semantic or Tier 3 component tokens.
 3. **Change Management** *(Recommended)*: Token updates should be verified for contrast accessibility and tested across both RTL (Arabic) and LTR (English) layouts.
 
@@ -686,6 +675,7 @@ The following foundational visual decisions require brand identity and product c
 13. **Parent Access / Navigation Model**: Interaction model for parent access (`TBD — Requires Product Clarification`).
 14. **Secretariat Navigation & Permissions**: Detailed operational interface and permission boundaries (`TBD — Requires Product Clarification`).
 15. **Payment Status Semantics**: Definitive values and lifecycle states for student payment status (`TBD — Requires Product Clarification`).
+16. **Commercial Course Checkout UI**: Shopping cart, payment gateway checkout forms, and coupon redemption components (`TBD — Requires Product Clarification`).
 
 ---
 
@@ -694,12 +684,13 @@ The following foundational visual decisions require brand identity and product c
 | Design System Area | Source Document | Reference Requirement | Status |
 |---|---|---|---|
 | **Role-Based UX Architecture** | `user-personas.md` | `UX-PER-001..004` | `Requirement Confirmed` / `UX Layout Recommended` |
-| **Attendance Interaction Model** | `functional-requirements.md` | `FR-ATT-001..003` | `Requirement Confirmed` / `UX Pattern Recommended` |
+| **Attendance Interaction Model** | `functional-requirements.md` | `FR-ATT-001..004` | `Requirement Confirmed` / `UX Pattern Recommended` |
 | **Content & Video UI Containers** | `functional-requirements.md` | `FR-LES-001..003` | `Requirement Confirmed` / `Component Recommended` |
 | **Assessment & Auto-Grading UI** | `functional-requirements.md` | `FR-EXM-001..007` | `Requirement Confirmed` / `Component Recommended` |
 | **Parent Status & Notes Views** | `functional-requirements.md` | `FR-PAR-001..005` | `Requirement Confirmed` / `UX Pattern Recommended` |
 | **Notification Display Specs** | `functional-requirements.md` | `FR-NOT-001..005` | `Requirement Confirmed` / `TBD (Delivery Channel)` |
 | **Payment Status Category** | `functional-requirements.md` | `FR-SUB-001` | `Requirement Confirmed` / `TBD (Lifecycle States)` |
+| **Online Course Catalog & Player**| `functional-requirements.md` | `FR-OL-001..008` | `Requirement Confirmed` / `UX Pattern Recommended` |
 | **Proposed Color Palette** | Section 16.3 | Design Recommendation | `Proposed / Recommended` |
 | **Accessibility Baseline** | `non-functional-requirements.md`| Section 4.6 Accessibility | `TBD — Requires Product Clarification` |
 | **Usability & Localization** | `non-functional-requirements.md`| Section 4.5, 4.7 | `TBD — Requires Product Clarification` |
@@ -724,16 +715,16 @@ PASS
 0 *(no frontend codebase currently in workspace)*
 
 ### Defined Design Decisions
-9 *(4 Confirmed User Roles, 9 Approved Product Modules, Confirmed Parent Status Data Items, Confirmed Exam Auto-Grading Scope, Dual-Language Arabic/English Requirement, Confirmed Attendance Items, Confirmed Notification Events, Confirmed Content Upload Concepts, Confirmed Student Payment Status Concept)*
+10 *(4 Confirmed User Roles, 10 Approved Product Modules, Confirmed Parent Status Data Items, Confirmed Exam Auto-Grading Scope, Dual-Language Arabic/English Requirement, Confirmed Attendance Items, Confirmed Notification Events, Confirmed Content Upload Concepts, Confirmed Student Payment Status Concept, Confirmed Online Learning Domain)*
 
 ### Recommended Design Decisions
-35 *(8pt base spacing scale, 9 typography scale levels, 14 component models, 4 radius tokens, 3 elevation levels, 4 responsive grid layouts, motion timing ranges)*
+40 *(8pt base spacing scale, 9 typography scale levels, 18 component models, 4 radius tokens, 3 elevation levels, 4 responsive grid layouts, motion timing ranges)*
 
 ### Proposed Palette Tokens
 93 *(59 Primitive Tokens, 22 Semantic Tokens, 12 Educational Domain Status Tokens)*
 
 ### TBD Design Decisions
-15 *(listed in Section 27 Open Design Decisions)*
+16 *(listed in Section 27 Open Design Decisions)*
 
 ### Traceability
 PASS

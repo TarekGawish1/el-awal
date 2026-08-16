@@ -77,57 +77,73 @@ The test scope is derived directly from the approved Product Backlog and include
 9. **Subscriptions**:
    - Verification of student payment status representation (`حالة الدفع لكل طالب`).
 
+10. **Online Learning / Courses**:
+    - Verification of course authoring and catalog publishing (`ادارة الدورات التدريبية عبر الإنترنت`).
+    - Verification of structured module and lesson ordering (`هيكلة الوحدات والدروس الرقمية`).
+    - Verification of student online course enrollment and access entitlement validation (`الالتحاق بالدورة وصلاحية الوصول`).
+    - Verification of asynchronous video lesson streaming (Bunny Stream) and PDF downloading (`تقديم محتوى الدروس الرقمية`).
+    - Verification of playback progress tracking and dynamic course completion calculation (`متابعة التقدم في الدورات الرقمية`).
+    - Verification of online course auto-graded assessments (`أداء امتحان الدورة الرقمية`).
+    - Verification of parent online learning monitoring (`متابعة ولي الامر للتعلم عبر الإنترنت`).
+    - Verification of offline metadata caching and outbox batch progress synchronization (`المزامنة والعمل بدون اتصال للدورات الرقمية`).
+
 ---
 
-## 4. Out of Scope
+## 4. Domain Boundary & Invariant Test Strategies
+
+1. **Domain Boundary Isolation Testing**:
+   - Verify that an online-only student holding `CourseEnrollment` is explicitly **rejected** if scanned in a physical QR attendance roll-call session (`NOT_ENROLLED_IN_GROUP`).
+   - Verify that dissolving or archiving a physical `AcademicGroup` has zero effect on `Course` or `CourseEnrollment` records.
+2. **Single Student Identity Testing**:
+   - Verify that a single student account can hold both physical group memberships (`GroupEnrollment`) and online course enrollments (`CourseEnrollment`) simultaneously with complete data integrity.
+3. **Offline Sync Idempotency & Monotonicity Testing**:
+   - Verify that re-transmitting duplicate offline progress batches does not duplicate or corrupt server progress states.
+   - Verify that older offline progress heartbeats cannot reverse an already-completed (`is_completed = true`) server lesson status.
+
+---
+
+## 5. Out of Scope
 
 The following areas cannot currently be formally tested against detailed acceptance criteria because their specific requirements, technologies, or thresholds remain uncommitted:
 
-- **Undefined Authentication & Credential Mechanisms**: Specific login protocols, token management, session handling (`TBD — Requires Architecture Decision`).
-- **Undefined Concrete Database Schemas & Storage Engines**: Specific SQL/NoSQL persistence implementations (`TBD — Requires Architecture Decision`).
-- **Undefined Backup, Recovery, & Redundancy Mechanics**: Specific RPO/RTO validation (`TBD — Requires Architecture Decision`).
-- **Undefined Cryptographic & Encryption Implementations**: Specific cipher suites or key management (`TBD — Requires Architecture Decision`).
-- **Undefined Performance Quantitative Thresholds**: Specific latency limits, throughput (RPS), or concurrent user limits (`TBD — Requires Product Clarification`).
-- **Undefined Browser, OS, & Device Support Matrix**: Explicit client device matrices (`TBD — Requires Product Clarification`).
-- **Undefined Accessibility Compliance Targets**: Specific WCAG levels (`TBD — Requires Product Clarification`).
-
-*Note*: These items are not permanently excluded from quality assurance, but their detailed test design is deferred until the corresponding requirements or architecture decisions are established.
+- **Commercial Course Checkout & Gateway Transactions**: External credit card or mobile wallet processing (`TBD — Requires Product Clarification`).
+- **Live Peer-to-Peer Video Streaming**: Interactive video conference classrooms (`Out of Scope`).
 
 ---
 
-## 5. Testing Objectives
+## 6. Testing Objectives
 
 The primary objectives of the testing process are:
-- Verify that all 35 approved Backlog items are implemented in accordance with functional requirements and user stories.
+- Verify that all 10 approved product modules are implemented in accordance with functional requirements and user stories.
 - Verify that user stories can be completed successfully according to their documented acceptance criteria.
-- Verify that confirmed business logic (such as automatic exam grading upon submission) executes correctly.
+- Verify that confirmed business logic (such as QR attendance 7-tier check, auto-grading, and monotonic progress sync) executes correctly.
 - Verify that data interactions adhere strictly to defined architecture boundaries (Presentation Layer $\rightarrow$ Business Logic Layer $\rightarrow$ Data Layer).
 - Identify and document defects early in the development lifecycle.
 - Maintain bidirectional traceability from Backlog items through requirements, user stories, architecture, test cases, and defect reports.
 
 ---
 
-## 6. Test Levels
+## 7. Test Levels
 
-### 6.1 Unit Testing
+### 7.1 Unit Testing
 - **Purpose**: Verify the correctness of individual business logic functions, domain concepts, and isolated components.
 - **Scope**: Core domain rules, calculations, status evaluations, and utilities.
-- **Framework**: `TBD — Requires Architecture / Implementation Decision`
+- **Framework**: Vitest / Jest (TypeScript).
 
-### 6.2 Integration Testing
+### 7.2 Integration Testing
 - **Purpose**: Verify the correct interaction and data flow between architectural layers and internal components.
 - **Scope**:
   - Presentation Layer $\rightarrow$ Business Logic Layer interactions.
   - Business Logic Layer $\rightarrow$ Data Layer interactions.
-  - Inter-module business workflows (e.g., student exam submission and automatic grading).
-- **Framework**: `TBD — Requires Architecture / Implementation Decision`
+  - Inter-module business workflows (e.g., student exam submission and automatic grading, offline progress outbox sync).
+- **Framework**: NestJS Supertest / Testcontainers.
 
-### 6.3 System Testing
+### 7.3 System Testing
 - **Purpose**: Verify end-to-end functionality of the integrated system against approved functional requirements and user stories.
-- **Scope**: Complete user-facing capabilities across all 9 modules.
-- **Environment**: Dedicated Test / QA Environment (`TBD — Requires Architecture / Deployment Decision`).
+- **Scope**: Complete user-facing capabilities across all 10 modules.
+- **Environment**: Dedicated Test / QA Environment.
 
-### 6.4 Acceptance Testing
+### 7.4 Acceptance Testing
 - **Purpose**: Verify that the implemented system satisfies product expectations and business requirements before release.
 - **Scope**: Acceptance criteria defined in Functional Requirements and User Stories.
 - **Criteria**: Adherence to approved PRD and UX baselines.
@@ -411,3 +427,4 @@ The quality assurance lifecycle produces the following standard deliverables:
 | **Backend Implementation Architecture** | `docs/03-Architecture/backend-implementation-architecture.md` | Included |
 | **API Design Specification** | `docs/03-Architecture/api-design.md` | Included |
 | **Frontend Architecture Specification** | `docs/03-Architecture/frontend-architecture.md` | Included |
+| **Offline-First & Data Sync Architecture**| `docs/03-Architecture/offline-first-sync-architecture.md` | Included |

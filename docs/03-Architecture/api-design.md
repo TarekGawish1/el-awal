@@ -283,6 +283,7 @@ List endpoints support deterministic query parameter filters:
 
 The API guarantees strict idempotency on state-modifying operations where repeated invocations could produce duplicated side effects:
 - **QR Code Attendance**: Repeat scans of an already present student return deterministic affirmative acknowledgments (`isDuplicate: true`) without creating duplicate records or mutating original timestamps.
+- **Offline Outbox Synchronization**: Retried synchronization requests dispatched after network dropouts are processed idempotently by leveraging the composite unique constraint `uq_session_student` on attendance, returning identical affirmative payloads without duplicate side effects.
 - **Student Group Enrollment**: Re-enrolling an existing active student returns `409 Conflict` or confirms existing active enrollment.
 - **Exam Submissions**: Submitting answers to an already completed assessment returns `409 Conflict` (single-attempt invariant).
 
@@ -870,7 +871,7 @@ When a student queries `GET /api/v1/assessments/:id`:
 ## 33. Subscription & Payment Status API (`/api/v1/subscriptions`)
 
 ### 33.1 `PATCH /api/v1/subscriptions/students/:id/payment-status`
-- **Purpose**: Update student payment status record.
+- **Purpose**: Update student physical tuition payment status record.
 - **Authorization**: `TEACHER`, `SECRETARIAT`
 - **Request Body DTO**:
   ```json
@@ -884,30 +885,223 @@ When a student queries `GET /api/v1/assessments/:id`:
 
 ---
 
-## 34. Webhooks
+## 34. Online Learning & Courses API (`/api/v1/courses`)
 
-- **Cloudflare R2 / Bunny Stream Webhooks**: External webhooks (e.g. video processing completed) will be handled via `/api/v1/webhooks/bunny` with HMAC cryptographic signature validation (`TBD — Requires Architecture Decision`).
+### 34.1 `GET /api/v1/courses`
+- **Purpose**: Public Course Catalog discovery listing published online courses.
+- **Authorization**: `TEACHER`, `STUDENT`, `PARENT`, `SECRETARIAT` (Publicly queryable for published courses).
+- **Query Parameters**: `gradeLevel`, `subject`, `search`, `page`, `limit`.
+- **Success Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "statusCode": 200,
+    "data": {
+      "items": [
+        {
+          "id": "e4b2d3c1-8409-4f7b-9e20-5c6a7e9b0123",
+          "title": "مراجعة النحو الشاملة للثانوية العامة",
+          "description": "شرح تفصيلي لكافة وحدات النحو المقررة مع تدريبات عملية",
+          "subject": "اللغة العربية",
+          "gradeLevel": "الصف الثالث الثانوي",
+          "coverImageUrl": "https://cdn.elawal.edu/courses/nahw-cover.jpg",
+          "teacherName": "أ. طارق جاويش",
+          "totalModules": 5,
+          "totalLessons": 24,
+          "isPublished": true
+        }
+      ],
+      "meta": { "totalItems": 1, "itemCount": 1, "itemsPerPage": 20, "totalPages": 1, "currentPage": 1 }
+    }
+  }
+  ```
+
+### 34.2 `POST /api/v1/courses`
+- **Purpose**: Author a new online course.
+- **Authorization**: `TEACHER`, `SECRETARIAT`
+- **Request Body DTO**:
+  ```json
+  {
+    "title": "مراجعة النحو الشاملة للثانوية العامة",
+    "description": "شرح تفصيلي لكافة وحدات النحو المقررة مع تدريبات عملية",
+    "subject": "اللغة العربية",
+    "gradeLevel": "الصف الثالث الثانوي",
+    "coverImageUrl": "https://cdn.elawal.edu/courses/nahw-cover.jpg"
+  }
+  ```
+- **Success Response (`201 Created`)**: Returns created `CourseResponseDto` with status `DRAFT`.
+
+### 34.3 `GET /api/v1/courses/:id`
+- **Purpose**: Retrieve detailed course structure, module list, and lesson outline.
+- **Authorization**: All Authenticated Roles.
+- **Success Response (`200 OK`)**: Returns course details with nested `modules` and `lessons` arrays.
+
+### 34.4 `PATCH /api/v1/courses/:id`
+- **Purpose**: Update course metadata or publication status (`DRAFT`, `PUBLISHED`, `ARCHIVED`).
+- **Authorization**: `TEACHER` (Author), `SECRETARIAT`
+
+### 34.5 `POST /api/v1/courses/:id/modules`
+- **Purpose**: Create a structured chapter/module within an online course.
+- **Authorization**: `TEACHER` (Author), `SECRETARIAT`
+- **Request Body DTO**:
+  ```json
+  {
+    "title": "الوحدة الأولى: همزة القطع وألف الوصل",
+    "description": "دراسة قواعد همزتي الوصل والقطع وحالات شذوذهما",
+    "orderIndex": 1
+  }
+  ```
+
+### 34.6 `POST /api/v1/courses/modules/:moduleId/lessons`
+- **Purpose**: Add an asynchronous lesson to a course module.
+- **Authorization**: `TEACHER` (Author), `SECRETARIAT`
+- **Request Body DTO**:
+  ```json
+  {
+    "title": "الدرس الأول: مواضع ألف الوصل",
+    "description": "شرح تفصيلي مع أمثلة من القرآن الكريم والشعر",
+    "orderIndex": 1,
+    "videoAssetId": "bunny-video-uuid-12345",
+    "videoDurationSeconds": 1800,
+    "isPreview": false
+  }
+  ```
+
+### 34.7 `GET /api/v1/courses/lessons/:lessonId`
+- **Purpose**: Retrieve lesson payload, signed Bunny Stream playback token, Cloudflare R2 download links, and student's saved resume position.
+- **Authorization**: `STUDENT` (must hold active `CourseAccess`), `TEACHER`, `SECRETARIAT`
+- **Success Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "statusCode": 200,
+    "data": {
+      "lessonId": "b1a2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
+      "title": "الدرس الأول: مواضع ألف الوصل",
+      "description": "شرح تفصيلي مع أمثلة",
+      "videoPlayerUrl": "https://iframe.mediadelivery.net/embed/123/bunny-video-uuid-12345?token=signed_jwt...",
+      "videoDurationSeconds": 1800,
+      "lastPositionSeconds": 450,
+      "isCompleted": false,
+      "attachments": [
+        {
+          "id": "c1d2e3f4-5a6b-7c8d-9e0f-1a2b3c4d5e6f",
+          "title": "ملخص الوحدة الأولى PDF",
+          "downloadUrl": "https://storage.elawal.edu/summaries/nahw-u1.pdf?token=...",
+          "fileSize": 2048576,
+          "mimeType": "application/pdf"
+        }
+      ]
+    }
+  }
+  ```
+
+### 34.8 `POST /api/v1/courses/:id/enroll`
+- **Purpose**: Enroll student in an online course and activate `CourseAccess`.
+- **Authorization**: `STUDENT`, `SECRETARIAT`, `TEACHER`
+- **Success Response (`201 Created`)**:
+  ```json
+  {
+    "success": true,
+    "statusCode": 201,
+    "data": {
+      "enrollmentId": "f1e2d3c4-b5a6-7890-1234-56789abcdef0",
+      "courseId": "e4b2d3c1-8409-4f7b-9e20-5c6a7e9b0123",
+      "studentId": "3b7c2a11-8e3b-4112-9c3f-91a1820b2e88",
+      "accessStatus": "ACTIVE",
+      "enrolledAt": "2026-08-16T12:00:00.000Z"
+    }
+  }
+  ```
+
+### 34.9 `GET /api/v1/courses/my-courses`
+- **Purpose**: List authenticated student's enrolled courses with progress metrics.
+- **Authorization**: `STUDENT`
+- **Success Response (`200 OK`)**: Returns array of enrolled courses with `completionPercentage`, `completedLessonsCount`, `totalLessonsCount`, and `lastAccessedAt`.
+
+### 34.10 `POST /api/v1/courses/lessons/:lessonId/progress`
+- **Purpose**: Real-time periodic playback progress heartbeat.
+- **Authorization**: `STUDENT`
+- **Request Body DTO**:
+  ```json
+  {
+    "positionSeconds": 620,
+    "isCompleted": false
+  }
+  ```
 
 ---
 
-## 35. Audit & Observability
+## 35. Offline Progress Synchronization API (`/api/v1/sync`)
 
-- **Correlation Tracing**: All requests receive an `X-Correlation-Id` header returned in all responses.
-- **Structured Audit Logging**: Sensitive operations (QR token regeneration, attendance scanning, manual grade overrides, payment updates) produce structured JSON logs documenting `userId`, `action`, `resourceId`, and timestamp.
-- **Healthchecks**: `/api/v1/health` provides Terminus database ping, memory heap, and storage status.
+### 35.1 `POST /api/v1/sync/progress`
+- **Purpose**: Batch intake for offline staged progress events queued in client IndexedDB outbox upon reconnection.
+- **Authorization**: `STUDENT`
+- **Request Body DTO**:
+  ```json
+  {
+    "operations": [
+      {
+        "clientOperationId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+        "lessonId": "b1a2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
+        "positionSeconds": 1800,
+        "isCompleted": true,
+        "occurredAt": "2026-08-16T14:30:00.000Z"
+      }
+    ]
+  }
+  ```
+- **Success Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "statusCode": 200,
+    "data": {
+      "syncedCount": 1,
+      "processedOperationIds": [
+        "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+      ],
+      "lastSyncedAt": "2026-08-16T14:35:12.000Z"
+    }
+  }
+  ```
 
 ---
 
-## 36. OpenAPI / Swagger
+## 36. Parent Portal Online Courses View
 
-- **Tooling**: `@nestjs/swagger` generating dynamic OpenAPI 3.0 documentation at `/api/docs`.
-- **Security Scheme**: `bearerAuth` (JWT) registered globally in Swagger configuration.
+### 36.1 `GET /api/v1/parent-portal/students/:studentId/courses`
+- **Purpose**: Retrieve child's enrolled online courses, completion percentages, and digital assessment scores.
+- **Authorization**: `PARENT` (Enforces verified `ParentStudentLink` via `ResourceOwnershipGuard`).
+- **Success Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "statusCode": 200,
+    "data": {
+      "studentId": "3b7c2a11-8e3b-4112-9c3f-91a1820b2e88",
+      "studentName": "أحمد محمد علي",
+      "courses": [
+        {
+          "courseId": "e4b2d3c1-8409-4f7b-9e20-5c6a7e9b0123",
+          "title": "مراجعة النحو الشاملة للثانوية العامة",
+          "subject": "اللغة العربية",
+          "completionPercentage": 75,
+          "completedLessons": 18,
+          "totalLessons": 24,
+          "onlineExamsTaken": 3,
+          "averageExamScore": 92.5
+        }
+      ]
+    }
+  }
+  ```
 
 ---
 
 ## 37. Complete Bidirectional Traceability Matrix
 
-| Backlog Item | Functional Req | Use Case | API Endpoint URI | HTTP Method | Authorized Roles | Database Entities | Test Cases |
+| Backlog Item / Domain | Functional Req | Use Case | API Endpoint URI | HTTP Method | Authorized Roles | Database Entities | Test Cases |
 |---|---|---|---|---|---|---|---|
 | `بيانات الطالب` | `FR-STU-004` | `UC-STU-001` | `/api/v1/students` | `POST`, `GET` | `TEACHER`, `SEC`, `STUDENT` | `users`, `student_profiles` | `TC-STU-001` |
 | `حالة الطلاب` | `FR-STU-001` | `UC-STU-003` | `/api/v1/students/:id` | `PATCH` | `TEACHER`, `SEC` | `student_profiles` | `TC-STU-003` |
@@ -940,6 +1134,14 @@ When a student queries `GET /api/v1/assessments/:id`:
 | `اشعار درجة امتحان الطالب` | `FR-NOT-003` | `UC-NOT-003` | `/api/v1/notifications` | `GET` | `STUDENT`, `PARENT` | `notifications` | `TC-NOT-004` |
 | `اشعارات في حالة غياب الطالب` | `FR-NOT-005` | `UC-NOT-004` | `/api/v1/notifications` | `GET` | `PARENT` | `notifications` | `TC-NOT-005` |
 | `حالة الدفع لكل طالب` | `FR-SUB-001` | `UC-SUB-001` | `/api/v1/subscriptions/students/:id/payment-status` | `PATCH`, `GET` | `TEACHER`, `SEC` | `student_payment_records` | `TC-SUB-001` |
+| `ادارة ونشر الدورات الرقمية`| `FR-OL-001` | `UC-OL-001` | `/api/v1/courses`, `/api/v1/courses/:id` | `GET`, `POST`, `PATCH` | `TEACHER`, `SEC`, `STUDENT` | `courses` | `TC-OL-001..002` |
+| `هيكلة الوحدات والدروس` | `FR-OL-002` | `UC-OL-001` | `/api/v1/courses/:id/modules`, `/api/v1/courses/modules/:id/lessons` | `POST`, `PATCH`, `DELETE` | `TEACHER`, `SEC` | `course_modules`, `course_lessons` | `TC-OL-003..004` |
+| `الالتحاق بالدورة وصلاحية الوصول`| `FR-OL-003` | `UC-OL-002` | `/api/v1/courses/:id/enroll`, `/api/v1/courses/my-courses` | `POST`, `GET` | `STUDENT`, `SEC`, `TEACHER` | `course_enrollments`, `course_access` | `TC-OL-005..007` |
+| `مشاهدة الدرس والوسائط` | `FR-OL-004` | `UC-OL-003` | `/api/v1/courses/lessons/:lessonId` | `GET` | `STUDENT`, `TEACHER` | `course_lessons`, `educational_content` | `TC-OL-008..009` |
+| `متابعة واستئناف تقدم الدرس` | `FR-OL-005` | `UC-OL-003` | `/api/v1/courses/lessons/:lessonId/progress` | `POST` | `STUDENT` | `course_progress` | `TC-OL-010..011` |
+| `أداء امتحان الدورة الرقمية` | `FR-OL-006` | `UC-OL-004` | `/api/v1/assessments/:id/submit` (Course context) | `POST` | `STUDENT` | `assessments`, `assessment_submissions` | `TC-OL-012..013` |
+| `متابعة ولي الامر للدورات` | `FR-OL-007` | `UC-OL-005` | `/api/v1/parent-portal/students/:studentId/courses` | `GET` | `PARENT` | `course_enrollments`, `course_progress` | `TC-OL-014..015` |
+| `المزامنة والعمل بدون اتصال` | `FR-OL-008` | `UC-OL-006` | `/api/v1/sync/progress` | `POST` | `STUDENT` | `course_progress` | `TC-OL-016..018` |
 
 ---
 
@@ -947,7 +1149,8 @@ When a student queries `GET /api/v1/assessments/:id`:
 
 | Security Domain | Vulnerability / Threat Checked | Mitigation Implemented in API Specification | Status |
 |---|---|---|---|
-| **Broken Object Level Auth (BOLA)** | Parent accessing another student's grades or attendance. | Enforced `ResourceOwnershipGuard` on `parent_student_links` for all `/parent-portal` routes. | Passed |
+| **Broken Object Level Auth (BOLA)** | Parent accessing another student's grades, attendance, or online course progress. | Enforced `ResourceOwnershipGuard` on `parent_student_links` for all `/parent-portal` routes. | Passed |
+| **Course Access Bypass** | Non-enrolled student attempting to stream video lessons or download files. | Enforced `CourseAccessService` validation verifying `status == 'ACTIVE'` prior to issuing signed Bunny Stream embed tokens. | Passed |
 | **Cross-Teacher Cohort Tampering** | Teacher B scanning attendance for Teacher A's group session. | Session ownership verified prior to QR token resolution (`TC-ATT-008`). | Passed |
 | **Credential Token Enumeration** | Brute-force guessing of `qr_code_token` values. | High-entropy random tokens, rate limiting on scanner endpoint, and generic `404` rejection. | Passed |
 | **Assessment Answer Key Leakage** | Student inspecting exam JSON to see correct answers. | Explicit response projection stripping `correctAnswer` for `STUDENT` queries. | Passed |
@@ -967,6 +1170,8 @@ When a student queries `GET /api/v1/assessments/:id`:
 | **Groups** | `/api/v1/groups/*` | `GroupsController` | `GroupsModule` | `GroupsService` |
 | **Schedules** | `/api/v1/groups/:id/schedules` | `SchedulesController` | `SchedulesModule` | `SchedulesService` |
 | **Attendance** | `/api/v1/attendance/*` | `AttendanceController` | `AttendanceModule` | `AttendanceService` |
+| **Courses** | `/api/v1/courses/*` | `CoursesController`, `CourseModulesController`, `CourseLessonsController`, `CourseEnrollmentsController` | `CoursesModule` | `CoursesService`, `CourseAccessService`, `CourseProgressService` |
+| **Sync** | `/api/v1/sync/*` | `SyncController` | `SyncModule` | `SyncService` |
 | **Content** | `/api/v1/content/*` | `ContentController` | `ContentModule` | `ContentService` |
 | **Assessments**| `/api/v1/assessments/*` | `AssessmentsController` | `AssessmentsModule` | `AssessmentsService`, `GradingEngineService` |
 | **Parent Portal**| `/api/v1/parent-portal/*` | `ParentPortalController` | `ParentPortalModule` | `ParentPortalService` |
@@ -975,20 +1180,15 @@ When a student queries `GET /api/v1/assessments/:id`:
 | **Uploads** | `/api/v1/uploads/*` | `UploadsController` | `StorageModule` | `StorageService` |
 | **Health** | `/api/v1/health` | `HealthController` | `HealthModule` | `TerminusHealthService` |
 
-### 39.2 Consistency Verification
-- **Consistency with PRD**: All 35 approved backlog items and 10 PRD modules map directly to concrete API endpoints.
-- **Consistency with Backend Architecture**: Controller and Service definitions align with the Modular Monolith pattern in [backend-architecture.md](file:///d:/el_awal/docs/03-Architecture/backend-architecture.md).
-- **Consistency with Database Design**: All request/response payloads reflect table columns, relational foreign keys, and unique indexes in [database-design.md](file:///d:/el_awal/docs/03-Architecture/database-design.md).
-- **Consistency with Testing Suite**: All test cases `TC-STU-001` through `TC-SUB-001` and `TC-ATT-001..010` have deterministic matching API routes.
-
 ---
 
 ## 40. Open Decisions & Product Clarifications (`TBD`)
 
-1. **`TBD — Refresh Token Rotation & Storage Strategy`**: Definitive architecture for refresh token rotation or server-side revocation tables (Architecture Decision).
-2. **`TBD — Rate Limit Threshold Specifics`**: Exact quantitative requests-per-minute ceilings across different user tiers (Product Decision).
-3. **`TBD — External Messaging Gateways`**: Webhook endpoints and transport adapters for SMS or WhatsApp Business API (Product Decision).
-4. **`TBD — Attendance Correction Policy`**: Permitted administrative workflows for overriding historical attendance entries (Product Decision).
+1. **`TBD — Commercial Checkout API`**: Endpoints for payment gateway integrations, coupon codes, and transaction verification remain deferred until commercial billing requirements are formalized.
+2. **`TBD — Refresh Token Rotation & Storage Strategy`**: Definitive architecture for refresh token rotation or server-side revocation tables (Architecture Decision).
+3. **`TBD — Rate Limit Threshold Specifics`**: Exact quantitative requests-per-minute ceilings across different user tiers (Product Decision).
+4. **`TBD — External Messaging Gateways`**: Webhook endpoints and transport adapters for SMS or WhatsApp Business API (Product Decision).
+5. **`TBD — Attendance Correction Policy`**: Permitted administrative workflows for overriding historical attendance entries (Product Decision).
 
 ---
 
@@ -1002,15 +1202,19 @@ When a student queries `GET /api/v1/assessments/:id`:
 - [x] Problem Details error contract confirmed
 - [x] Page/limit offset pagination contract confirmed
 - [x] Filtering, sorting, and search query parameters confirmed
-- [x] Complete 31-endpoint inventory documented
+- [x] Complete 42-endpoint inventory documented
 - [x] Student management APIs confirmed
 - [x] Group management APIs confirmed
 - [x] Enrollment APIs confirmed
 - [x] Timetable and session APIs confirmed
 - [x] Manual attendance APIs confirmed
 - [x] QR attendance API & repeat-scan idempotency confirmed
+- [x] Online Course Catalog, Module/Lesson authoring APIs confirmed
+- [x] Online Course Enrollment & Entitlement APIs confirmed
+- [x] Video Lesson Streaming (Bunny Stream) & Progress Tracking APIs confirmed
+- [x] Offline Progress Batch Synchronization API confirmed
+- [x] Parent Portal dual monitoring (Physical & Online) APIs confirmed
 - [x] Assessment & automated exam grading APIs confirmed
-- [x] Parent portal consolidated APIs confirmed
 - [x] Educational content APIs confirmed
 - [x] Cloudflare R2 presigned file upload API confirmed
 - [x] Bunny Stream video integration API confirmed
@@ -1020,3 +1224,4 @@ When a student queries `GET /api/v1/assessments/:id`:
 - [x] Security audit passed
 - [x] Cross-document consistency verified
 - [x] Open decisions cleanly documented and classified
+

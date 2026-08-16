@@ -250,117 +250,125 @@ The system accommodates four confirmed user roles explicitly identified in the p
 
 ---
 
+### 5.10 Online Learning Presentation Capabilities
+
+#### Capability ID: PL-OL-001 — Online Course Catalog & Discovery View
+- **Related User Story**: `US-OL-002`
+- **Presentation Responsibility**: Present discoverable cards for published online courses with filtering by subject and grade level.
+
+#### Capability ID: PL-OL-002 — Teacher Course Curriculum Builder Interface
+- **Related User Story**: `US-OL-001`
+- **Presentation Responsibility**: Provide an interactive tree builder for organizing modules, ordering lessons, and attaching media resources.
+
+#### Capability ID: PL-OL-003 — Course Player & Video Lesson Viewer Interface
+- **Related User Story**: `US-OL-003`, `US-OL-004`
+- **Presentation Responsibility**: Render responsive widescreen video player (Bunny Stream), downloadable PDF summary tabs, and auto-resuming playback position.
+
+#### Capability ID: PL-OL-004 — Course Progress & Metric Indicator
+- **Related User Story**: `US-OL-004`
+- **Presentation Responsibility**: Present visual completion progress bars, completed lesson badges, and overall percentage metrics.
+
+#### Capability ID: PL-OL-005 — Online Assessment & Quiz Runner Interface
+- **Related User Story**: `US-OL-006`
+- **Presentation Responsibility**: Deliver focused test-taking interface with countdown timer, question pagination, answer submission, and immediate score reveal.
+
+#### Capability ID: PL-OL-006 — Parent Online Course Progress Review View
+- **Related User Story**: `US-OL-007`
+- **Presentation Responsibility**: Render a dedicated guardian tab summarizing child's enrolled courses, lesson completion rates, and digital exam scores.
+
+#### Capability ID: PL-OL-007 — Offline Status Indicator & Sync Outbox Badge
+- **Related User Story**: `US-OL-005`
+- **Presentation Responsibility**: Display contextual offline mode banner when network disconnects and animated sync pulse when pending outbox operations flush to server.
+
+---
+
 ## 6. Presentation Layer Boundaries
 
 ### 6.1 Presentation Layer SHOULD Handle:
-- Presenting user interfaces and visual representations of system functionality.
-- Displaying product information, academic records, and media content.
-- Collecting user inputs where actions are required and forwarding them to underlying application layers.
-- Presenting outcomes returned by the system.
-- Presenting user notifications and status representations.
-- Managing user-facing presentation states.
+- Presenting user interfaces and visual representations across all 10 approved modules.
+- Displaying product information, academic records, video streams, and media content.
+- Collecting user inputs (including camera viewfinder for QR roll-call and offline lesson completion events).
+- Presenting outcomes returned by the server application layer.
 
 ### 6.2 Presentation Layer SHOULD NOT Handle:
 - Direct database access or persistence operations.
-- Execution of core business rules and domain logic.
-- Calculation of student levels or evaluation metrics.
-- Automatic exam grading evaluation algorithms.
-- Notification triggering, scheduling, or background delivery logic.
-- Subscription and payment processing logic.
-- Authentication credentials validation and session token persistence.
-- Authorization policy enforcement rules.
-
-*Note*: Technical ownership and interface contracts across architectural layers remain `TBD — Requires Architecture Decision`.
+- Execution of server-authoritative business rules, course entitlements, or grading algorithms.
+- Issuing signed video playback tokens directly (delegated to backend API).
 
 ---
 
-## 7. User Interaction Principles
+## 7. Presentation State
 
-`TBD — Requires Architecture Decision`
-
----
-
-## 8. Presentation State
-
-At a conceptual level, the Presentation Layer represents the following user-facing product states without defining technical state management libraries, discrete state machine values, or transition algorithms:
-
-- **Student Status**: Representation of student status.
-- **Assignment Status**: Representation of assignment status.
-- **Payment Status**: Representation of payment status for each student.
-- **Attendance & Absence State**: Representation of attendance and absence records.
-- **Student Level**: Representation of student level.
-- **Exam Grades**: Representation of exam grades.
-- **Content Viewing State**: Representation of content viewing information.
-
-*Note*: Specific state values, transitions, and state management mechanisms are `TBD — Requires Architecture Decision`.
+- **Student Status**: Representation of active/inactive learner status.
+- **Course Access State**: Representation of `ACTIVE`, `EXPIRED`, `SUSPENDED` entitlement.
+- **Lesson Playback State**: Current video playback position, completed checkmarks, and overall course percentage.
+- **Offline Sync State**: Online vs. Offline mode, count of pending outbox operations.
+- **Attendance State**: Physical session presence logs (Present / Absent / Excused).
+- **Exam State**: Graded results, unanswered questions, time remaining.
 
 ---
 
-## 9. Presentation-to-System Interaction
-
-The Presentation Layer interacts with the rest of the system through a conceptual multi-layer architecture:
+## 8. Presentation-to-System Interaction
 
 ```text
 +-------------------------------------------------------+
 |                  Presentation Layer                   |
-| (User Interface, Input Capture, View Representation) |
+| (Next.js React UI, Bunny Stream Player, Scanner Feed) |
 +-------------------------------------------------------+
                            |
-                           v
+                           v HTTPS REST API (/api/v1)
 +-------------------------------------------------------+
 |             Business Logic / Application Layer        |
-|    (Domain Rules, Workflows, Validation, Grading)     |
+|  (NestJS Controllers, Services, QR Pipeline, Sync)    |
 +-------------------------------------------------------+
                            |
-                           v
+                           v Prisma ORM / S3 / API
 +-------------------------------------------------------+
 |                      Data Layer                       |
-|        (Data Storage, Retrieval, Persistence)         |
+|   (PostgreSQL Server Database ↕ Cloudflare R2 / Bunny)|
 +-------------------------------------------------------+
 ```
 
-Specific communication protocols, data interchange formats, API architectures (REST, GraphQL, RPC), and client-side communication clients remain `TBD — Requires Architecture Decision`.
-
 ---
 
-## 10. Traceability
+## 9. Traceability
 
 | User Story | Presentation Capability | Architecture Status |
 | :--- | :--- | :--- |
-| `US-STU-001` | `PL-STU-001` — Student Data and Group/Class Association Presentation | Partially Defined |
-| `US-STU-002` | `PL-STU-002` — Parent Data Presentation | Partially Defined |
-| `US-STU-003` | `PL-STU-003` — Student Status Presentation | Partially Defined |
-| `US-ATT-001` | `PL-ATT-001` — Student Attendance and Absence Recording Interface | Partially Defined |
-| `US-ATT-002` | `PL-ATT-002` — Attendance and Absence Reports Presentation | Partially Defined |
+| `US-STU-001` | `PL-STU-001` — Student Data and Group/Class Association Presentation | Defined |
+| `US-STU-002` | `PL-STU-002` — Parent Data Presentation | Defined |
+| `US-STU-003` | `PL-STU-003` — Student Status Presentation | Defined |
+| `US-ATT-001` | `PL-ATT-001` — Student Attendance and Absence Recording Interface | Defined |
+| `US-ATT-002` | `PL-ATT-002` — Attendance and Absence Reports Presentation | Defined |
 | `US-ATT-003` | `PL-ATT-003` — Student QR Code Attendance Scanning & Display Interface | Defined |
-| `US-LES-001` | `PL-LES-001` — Educational Content and Lecture Recordings Upload Interface | Partially Defined |
-| `US-LES-002` | `PL-LES-002` — Content Viewing Information Presentation | Partially Defined |
-| `US-EXM-001` | `PL-EXM-001` — Exam and Assignment Creation and Upload Interface | Partially Defined |
-| `US-EXM-002` | `PL-EXM-002` — Assignment and Exam Submission Interface | Partially Defined |
-| `US-EXM-003` | `PL-EXM-003` — Automatic Exam Grading Presentation | Partially Defined |
-| `US-EXM-004` | `PL-EXM-004` — Student Results Presentation for Parent | Partially Defined |
-| `US-PAR-001` | `PL-PAR-001` — Teacher Evaluations, Notes, Exam Grades, and Student Level Presentation | Partially Defined |
-| `US-PAR-002` | `PL-PAR-002` — Assignment Status and Attendance Records Presentation | Partially Defined |
-| `US-NOT-001` | `PL-NOT-001` — Lesson Reminder Notification Presentation | Partially Defined |
-| `US-NOT-002` | `PL-NOT-002` — Unsolved Homework Notification Presentation | Partially Defined |
-| `US-NOT-003` | `PL-NOT-003` — Exam Announcement and Grade Notification Presentation | Partially Defined |
-| `US-NOT-004` | `PL-NOT-004` — Student Absence Notification Presentation | Partially Defined |
-| `US-GRP-001` | `PL-GRP-001` — Group Creation and Lesson Scheduling Interface | Partially Defined |
-| `US-GRP-002` | `PL-GRP-002` — Adding Students to Groups Interface | Partially Defined |
-| `US-USR-001` | `PL-USR-001` — System Role Interface Representation | Partially Defined |
-| `US-SUB-001` | `PL-SUB-001` — Student Payment Status Presentation | Partially Defined |
+| `US-LES-001` | `PL-LES-001` — Educational Content and Lecture Recordings Upload Interface | Defined |
+| `US-LES-002` | `PL-LES-002` — Content Viewing Information Presentation | Defined |
+| `US-EXM-001` | `PL-EXM-001` — Exam and Assignment Creation and Upload Interface | Defined |
+| `US-EXM-002` | `PL-EXM-002` — Assignment and Exam Submission Interface | Defined |
+| `US-EXM-003` | `PL-EXM-003` — Automatic Exam Grading Presentation | Defined |
+| `US-EXM-004` | `PL-EXM-004` — Student Results Presentation for Parent | Defined |
+| `US-PAR-001` | `PL-PAR-001` — Teacher Evaluations, Notes, Exam Grades, and Student Level Presentation | Defined |
+| `US-PAR-002` | `PL-PAR-002` — Assignment Status and Attendance Records Presentation | Defined |
+| `US-NOT-001` | `PL-NOT-001` — Lesson Reminder Notification Presentation | Defined |
+| `US-NOT-002` | `PL-NOT-002` — Unsolved Homework Notification Presentation | Defined |
+| `US-NOT-003` | `PL-NOT-003` — Exam Announcement and Grade Notification Presentation | Defined |
+| `US-NOT-004` | `PL-NOT-004` — Student Absence Notification Presentation | Defined |
+| `US-GRP-001` | `PL-GRP-001` — Group Creation and Lesson Scheduling Interface | Defined |
+| `US-GRP-002` | `PL-GRP-002` — Adding Students to Groups Interface | Defined |
+| `US-USR-001` | `PL-USR-001` — System Role Interface Representation | Defined |
+| `US-SUB-001` | `PL-SUB-001` — Student Payment Status Presentation | Defined |
+| `US-OL-001` | `PL-OL-002` — Teacher Course Curriculum Builder Interface | Defined |
+| `US-OL-002` | `PL-OL-001` — Online Course Catalog & Discovery View | Defined |
+| `US-OL-003` | `PL-OL-003` — Course Player & Video Lesson Viewer Interface | Defined |
+| `US-OL-004` | `PL-OL-004` — Course Progress & Metric Indicator | Defined |
+| `US-OL-005` | `PL-OL-007` — Offline Status Indicator & Sync Outbox Badge | Defined |
+| `US-OL-006` | `PL-OL-005` — Online Assessment & Quiz Runner Interface | Defined |
+| `US-OL-007` | `PL-OL-006` — Parent Online Course Progress Review View | Defined |
 
 ---
 
-## 11. Open Architecture Decisions
+## 10. Open Architecture Decisions
 
-The following technical and architectural decisions must be resolved to finalize the Presentation Layer implementation:
+1. **`TBD — Commercial Checkout UI Flow`**: Payment checkout modal and payment receipt presentation deferred until payment provider is selected.
+2. **`TBD — Offline Video Caching Mechanism`**: Determination of whether local service worker chunk caching is enabled for web browsers.
 
-1. **Frontend Technology & Framework**: Which client platform and framework (e.g., Web SPA, SSR, Mobile Application) will be selected for the Presentation Layer?
-2. **UI Component Library & Design System**: Which component library or styling architecture will be utilized?
-3. **State Management Strategy**: Which state management pattern or library will manage client-side state?
-4. **Client Routing Architecture**: What routing mechanism will structure screen/page transitions and deep linking?
-5. **API Communication Protocol**: What protocol and data format (e.g., REST, GraphQL, gRPC-Web) will govern communication between the Presentation Layer and Business Logic Layer?
-6. **Authentication & Session Presentation**: How will user authentication states, login screens, and session expirations be represented and handled in the client?
-7. **Client Platform Support**: Which operating systems, browser versions, and device form factors (mobile, tablet, desktop) are officially targeted?
-8. **Notification Client Handling**: How will notifications be received and presented by the client application?

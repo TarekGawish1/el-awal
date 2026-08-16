@@ -859,9 +859,368 @@ This document defines the formal test cases for verifying the functional capabil
 
 ---
 
+### 4.11 Offline-First & Data Synchronization
+
+#### Test Case ID: TC-OFF-001
+- **Test Case Title**: Verify Offline QR Code Attendance Scanning and Outbox Persistence
+- **Requirement ID**: `FR-ATT-004`, `NFR-REL-002`
+- **Backlog Item**: `تسجيل الحضور عبر مسح QR Code`
+- **User Story**: `US-ATT-003`
+- **User Scenario**: `SC-ATT-003`
+- **Test Type**: Offline / Local Data Integration
+- **Priority**: P1
+- **Preconditions**:
+  - Teacher is authenticated on client device.
+  - Active lesson session roster and student QR tokens are synchronized in local database.
+  - Network connectivity is disabled (device is offline).
+- **Test Data**: Valid student QR credential.
+- **Test Steps**:
+  1. Teacher scans student QR code while offline.
+  2. Inspect local database and pending outbox queue.
+- **Expected Result**: Attendance is saved locally with state `PENDING_CREATION`; Outbox row is created; UI displays pending sync indicator.
+- **Status**: Ready
+
+---
+
+#### Test Case ID: TC-OFF-002
+- **Test Case Title**: Verify Automatic Reconnection Synchronization and Server Confirmation
+- **Requirement ID**: `FR-ATT-004`, `NFR-REL-002`
+- **Backlog Item**: `تسجيل الحضور عبر مسح QR Code`
+- **User Story**: `US-ATT-003`
+- **User Scenario**: `SC-ATT-003`
+- **Test Type**: Synchronization / Integration
+- **Priority**: P1
+- **Preconditions**:
+  - Pending attendance operations exist in client outbox.
+- **Test Data**: `POST /api/v1/attendance/sessions/:sessionId/scan-qr`.
+- **Test Steps**:
+  1. Re-establish network connectivity.
+  2. Observe Sync Engine dispatching outbox operations to server API.
+  3. Verify server confirmation response.
+- **Expected Result**: Server returns 200 OK; Outbox queue drains; Local attendance records transition to confirmed `SYNCED` state.
+- **Status**: Ready
+
+---
+
+#### Test Case ID: TC-OFF-003
+- **Test Case Title**: Verify Server Rejection of Ineligible Student Scanned Offline
+- **Requirement ID**: `FR-ATT-004`, `NFR-REL-002`
+- **Backlog Item**: `تسجيل الحضور عبر مسح QR Code`
+- **User Story**: `US-ATT-003`
+- **User Scenario**: `SC-ATT-003`
+- **Test Type**: Conflict / Server Authority
+- **Priority**: P1
+- **Preconditions**:
+  - Student was deactivated on server while client device was offline.
+  - Teacher scanned the deactivated student badge offline.
+- **Test Data**: Pending outbox item for deactivated student.
+- **Test Steps**:
+  1. Restore network connection.
+  2. Sync Engine attempts to synchronize outbox item with server.
+- **Expected Result**: Server authoritative check rejects request with `422 Unprocessable Entity`; Outbox item transitions to `FAILED_PERMANENT`; UI displays informative rejection notice.
+- **Status**: Ready
+
+---
+
+#### Test Case ID: TC-OFF-004
+- **Test Case Title**: Verify Offline Duplicate Scan Idempotency on Server Sync
+- **Requirement ID**: `FR-ATT-004`, `NFR-REL-002`
+- **Backlog Item**: `تسجيل الحضور عبر مسح QR Code`
+- **User Story**: `US-ATT-003`
+- **User Scenario**: `SC-ATT-003`
+- **Test Type**: Idempotency / Concurrency
+- **Priority**: P1
+- **Preconditions**:
+  - Same student badge was scanned twice while offline.
+- **Test Data**: Two outbox sync requests for identical `(sessionId, studentId)`.
+- **Test Steps**:
+  1. Reconnect to network and execute synchronization.
+- **Expected Result**: First request creates attendance row; Second request caught by server unique constraint `uq_session_student` and returns `isDuplicate: true`; Zero duplicate rows created; Original timestamp preserved.
+- **Status**: Ready
+
+---
+
+#### Test Case ID: TC-OFF-005
+- **Test Case Title**: Verify Application Restart and Durable Outbox Recovery
+- **Requirement ID**: `FR-ATT-004`, `NFR-REL-002`
+- **Backlog Item**: `تسجيل الحضور عبر مسح QR Code`
+- **User Story**: `US-ATT-003`
+- **User Scenario**: `SC-ATT-003`
+- **Test Type**: Resilience / Durability
+- **Priority**: P1
+- **Preconditions**:
+  - Device is offline with pending operations in local outbox.
+- **Test Data**: Pending operations in durable local database.
+- **Test Steps**:
+  1. Force-quit application or reboot device.
+  2. Relaunch application in offline state.
+- **Expected Result**: Pending operations and local attendance records remain intact; Sync Engine resumes automatically once network returns.
+- **Status**: Ready
+
+---
+
+### 4.10 Online Learning (Courses)
+
+#### Test Case ID: TC-OL-001
+- **Test Case Title**: Verify Teacher Online Course Creation & Publication Lifecycle
+- **Requirement ID**: `FR-OL-001`, `PRD-OL-001`
+- **User Story**: `US-OL-001`
+- **User Scenario**: `SC-OL-007`
+- **Test Type**: Functional / State Transition
+- **Priority**: P0
+- **Preconditions**: Authenticated user with role `TEACHER`.
+- **Test Steps**:
+  1. Call `POST /api/v1/courses` with title, subject, grade level, and description.
+  2. Verify course record created in PostgreSQL with status `DRAFT`.
+  3. Call `PATCH /api/v1/courses/:id` setting `status: "PUBLISHED"`.
+  4. Verify course appears in public Course Catalog.
+- **Expected Result**: Course transitions cleanly from `DRAFT` to `PUBLISHED` and becomes discoverable in catalog.
+- **Status**: Ready
+
+#### Test Case ID: TC-OL-002
+- **Test Case Title**: Verify Course Module Creation & Sequential Ordering
+- **Requirement ID**: `FR-OL-002`, `PRD-OL-001`
+- **User Story**: `US-OL-001`
+- **User Scenario**: `SC-OL-007`
+- **Test Type**: Functional / Data Integrity
+- **Priority**: P1
+- **Preconditions**: Existing published course.
+- **Test Steps**:
+  1. Call `POST /api/v1/courses/:id/modules` with module 1 (`orderIndex: 1`).
+  2. Call `POST /api/v1/courses/:id/modules` with module 2 (`orderIndex: 2`).
+  3. Attempt creating another module with `orderIndex: 1` in the same course.
+- **Expected Result**: Modules created in sequence; duplicate `orderIndex` in same course is rejected by database composite unique constraint `uq_course_module_order`.
+- **Status**: Ready
+
+#### Test Case ID: TC-OL-003
+- **Test Case Title**: Verify Course Lesson Creation with Bunny Video & R2 Attachments
+- **Requirement ID**: `FR-OL-002`, `FR-OL-004`
+- **User Story**: `US-OL-001`, `US-OL-003`
+- **User Scenario**: `SC-OL-007`
+- **Test Type**: Functional / Media Integration
+- **Priority**: P1
+- **Preconditions**: Existing course module.
+- **Test Steps**:
+  1. Call `POST /api/v1/courses/modules/:moduleId/lessons` with video asset ID and duration.
+  2. Attach Cloudflare R2 PDF summary reference to the lesson.
+  3. Fetch lesson outline for course.
+- **Expected Result**: Lesson created successfully with video metadata and PDF download references.
+- **Status**: Ready
+
+#### Test Case ID: TC-OL-004
+- **Test Case Title**: Verify Student Online Course Enrollment & Entitlement Activation
+- **Requirement ID**: `FR-OL-003`, `PRD-OL-002`
+- **User Story**: `US-OL-002`
+- **User Scenario**: `SC-OL-001`
+- **Test Type**: Functional / Entitlement
+- **Priority**: P0
+- **Preconditions**: Authenticated student account, published course.
+- **Test Steps**:
+  1. Student requests `POST /api/v1/courses/:id/enroll`.
+  2. Verify creation of `CourseEnrollment` and `CourseAccess` with `access_status = 'ACTIVE'`.
+  3. Student requests `GET /api/v1/courses/my-courses`.
+- **Expected Result**: Course appears in student's "My Courses" list with unlocked lesson access.
+- **Status**: Ready
+
+#### Test Case ID: TC-OL-005
+- **Test Case Title**: Verify Course Access Denied for Unenrolled Student
+- **Requirement ID**: `FR-OL-003`, `NFR-SEC-001`
+- **User Story**: `US-OL-003`
+- **User Scenario**: `SC-OL-002`
+- **Test Type**: Security / Authorization
+- **Priority**: P0
+- **Preconditions**: Student is NOT enrolled in Course X (no `CourseAccess`).
+- **Test Steps**:
+  1. Student attempts `GET /api/v1/courses/lessons/:lessonId` for a non-preview lesson in Course X.
+- **Expected Result**: Backend rejects request with `403 Forbidden` (`COURSE_ACCESS_DENIED`); Zero signed video embed tokens are leaked.
+- **Status**: Ready
+
+#### Test Case ID: TC-OL-006
+- **Test Case Title**: Verify Online-Only Student Enrollment Rejection in Physical QR Attendance
+- **Requirement ID**: `FR-ATT-004`, `FR-OL-003`
+- **User Story**: `US-ATT-003`, `US-OL-002`
+- **User Scenario**: `SC-ATT-003`
+- **Test Type**: Domain Boundary Invariant
+- **Priority**: P0
+- **Preconditions**: Student has active `CourseEnrollment` in Teacher's online course, but is NOT enrolled in Teacher's physical `AcademicGroup`.
+- **Test Steps**:
+  1. Teacher opens active physical session scanner.
+  2. Teacher scans student's QR badge.
+- **Expected Result**: 7-tier attendance pipeline fails at Tier 5 (`GroupEnrollment` check); Returns `422 Unprocessable Entity` with `NOT_ENROLLED_IN_GROUP`; Zero attendance records created in `attendance_records`.
+- **Status**: Ready
+
+#### Test Case ID: TC-OL-007
+- **Test Case Title**: Verify Single Student Identity Across Dual Enrollments
+- **Requirement ID**: `FR-STU-004`, `FR-OL-003`, `FR-GRP-002`
+- **User Story**: `US-STU-001`, `US-OL-002`
+- **User Scenario**: `SC-STU-001`, `SC-OL-001`
+- **Test Type**: Data Integrity / Multi-Domain
+- **Priority**: P0
+- **Preconditions**: Existing student profile.
+- **Test Steps**:
+  1. Enroll student in physical `AcademicGroup A`.
+  2. Enroll same student in online `Course B`.
+  3. Inspect `users` and `student_profiles` tables.
+- **Expected Result**: Exactly ONE `users` row and ONE `student_profiles` row exists; Student holds active `group_enrollments` and active `course_enrollments` simultaneously without identity collision.
+- **Status**: Ready
+
+#### Test Case ID: TC-OL-008
+- **Test Case Title**: Verify Asynchronous Video Lesson Playback & Signed Token Generation
+- **Requirement ID**: `FR-OL-004`, `PRD-OL-003`
+- **User Story**: `US-OL-003`
+- **User Scenario**: `SC-OL-002`
+- **Test Type**: Functional / Media Delivery
+- **Priority**: P1
+- **Preconditions**: Enrolled student accessing lesson.
+- **Test Steps**:
+  1. Student requests `GET /api/v1/courses/lessons/:lessonId`.
+  2. Inspect response payload for signed video embed URL.
+- **Expected Result**: Response returns time-limited signed Bunny Stream URL (`expiresIn <= 3600s`) and existing resume playback position.
+- **Status**: Ready
+
+#### Test Case ID: TC-OL-009
+- **Test Case Title**: Verify Playback Progress Save & Resume Position Retrieval
+- **Requirement ID**: `FR-OL-005`, `PRD-OL-004`
+- **User Story**: `US-OL-004`
+- **User Scenario**: `SC-OL-002`
+- **Test Type**: Functional / Progress Tracking
+- **Priority**: P1
+- **Preconditions**: Enrolled student playing video.
+- **Test Steps**:
+  1. Video player emits `POST /api/v1/courses/lessons/:lessonId/progress` with `positionSeconds: 450`.
+  2. Reload lesson view via `GET /api/v1/courses/lessons/:lessonId`.
+- **Expected Result**: Response reflects `lastPositionSeconds = 450`; video player resumes automatically at 450s.
+- **Status**: Ready
+
+#### Test Case ID: TC-OL-010
+- **Test Case Title**: Verify Dynamic Course Completion Percentage Calculation
+- **Requirement ID**: `FR-OL-005`, `PRD-OL-004`
+- **User Story**: `US-OL-004`
+- **User Scenario**: `SC-OL-002`
+- **Test Type**: Functional / Calculation Invariant
+- **Priority**: P1
+- **Preconditions**: Course has 4 published lessons.
+- **Test Steps**:
+  1. Student completes lesson 1 (`isCompleted: true`) -> Progress = 25%.
+  2. Student completes lesson 2 (`isCompleted: true`) -> Progress = 50%.
+  3. Fetch `GET /api/v1/courses/my-courses`.
+- **Expected Result**: Progress accurately calculated as 50% (`completedCount / totalCount * 100`).
+- **Status**: Ready
+
+#### Test Case ID: TC-OL-011
+- **Test Case Title**: Verify Online Course Assessment Single Attempt & Auto-Grading
+- **Requirement ID**: `FR-OL-006`, `PRD-OL-005`
+- **User Story**: `US-OL-006`
+- **User Scenario**: `SC-OL-005`
+- **Test Type**: Functional / Assessment
+- **Priority**: P0
+- **Preconditions**: Assessment attached to course lesson with 5 MCQ questions.
+- **Test Steps**:
+  1. Student delivers answers via `POST /api/v1/assessments/:id/submit`.
+  2. Verify immediate auto-grading score response.
+  3. Student attempts second submission for same assessment.
+- **Expected Result**: First submission returns 200 OK with total score and graded answers; Second attempt rejected with `409 Conflict` (`ALREADY_SUBMITTED`).
+- **Status**: Ready
+
+#### Test Case ID: TC-OL-012
+- **Test Case Title**: Verify Parent Online Course Progress Monitoring
+- **Requirement ID**: `FR-OL-007`, `PRD-OL-006`
+- **User Story**: `US-OL-007`
+- **User Scenario**: `SC-OL-006`
+- **Test Type**: Functional / Parent Portal
+- **Priority**: P1
+- **Preconditions**: Parent authenticated and verified as guardian of Student A.
+- **Test Steps**:
+  1. Parent requests `GET /api/v1/parent-portal/students/:studentId/courses`.
+- **Expected Result**: Returns Student A's enrolled courses, completion percentage bars, completed lesson counts, and online exam scores.
+- **Status**: Ready
+
+#### Test Case ID: TC-OL-013
+- **Test Case Title**: Verify Parent BOLA / IDOR Protection on Online Courses Tab
+- **Requirement ID**: `FR-OL-007`, `NFR-SEC-001`
+- **User Story**: `US-OL-007`
+- **User Scenario**: `SC-OL-006`
+- **Test Type**: Security / IDOR Protection
+- **Priority**: P0
+- **Preconditions**: Parent X is NOT linked to Student Y in `parent_student_links`.
+- **Test Steps**:
+  1. Parent X attempts `GET /api/v1/parent-portal/students/[Student-Y-ID]/courses`.
+- **Expected Result**: Backend `ResourceOwnershipGuard` intercepts and returns `403 Forbidden` (`FORBIDDEN_PARENT_ACCESS`).
+- **Status**: Ready
+
+#### Test Case ID: TC-OL-014
+- **Test Case Title**: Verify Offline Course Outline Browsing from Local Cache
+- **Requirement ID**: `FR-OL-008`, `PRD-OL-007`
+- **User Story**: `US-OL-005`
+- **User Scenario**: `SC-OL-003`
+- **Test Type**: Offline-First / Client Cache
+- **Priority**: P1
+- **Preconditions**: Student previously loaded course outline online; Device disconnected from internet.
+- **Test Steps**:
+  1. Disconnect device network.
+  2. Navigate to Course Outline view.
+- **Expected Result**: Client loads cached modules and lesson descriptions from IndexedDB; Displays "Offline Mode" indicator without error crash.
+- **Status**: Ready
+
+#### Test Case ID: TC-OL-015
+- **Test Case Title**: Verify Staging Progress Events in Client Offline Outbox
+- **Requirement ID**: `FR-OL-008`, `PRD-OL-007`
+- **User Story**: `US-OL-005`
+- **User Scenario**: `SC-OL-003`
+- **Test Type**: Offline-First / Outbox Durability
+- **Priority**: P1
+- **Preconditions**: Device offline.
+- **Test Steps**:
+  1. Student completes lesson reading while offline.
+  2. Inspect local IndexedDB outbox store.
+- **Expected Result**: Staged event persisted in outbox table with unique `client_operation_id` UUID and timestamp.
+- **Status**: Ready
+
+#### Test Case ID: TC-OL-016
+- **Test Case Title**: Verify Batch Progress Sync on Network Reconnection
+- **Requirement ID**: `FR-OL-008`, `PRD-OL-007`
+- **User Story**: `US-OL-005`
+- **User Scenario**: `SC-OL-004`
+- **Test Type**: Offline-First / Batch Sync
+- **Priority**: P0
+- **Preconditions**: Device has 3 queued progress events in outbox.
+- **Test Steps**:
+  1. Reconnect network.
+  2. Background sync worker triggers `POST /api/v1/sync/progress`.
+- **Expected Result**: Server processes batch atomically; Updates `course_progress` in PostgreSQL; Returns `200 OK`; Outbox queue drains to 0.
+- **Status**: Ready
+
+#### Test Case ID: TC-OL-017
+- **Test Case Title**: Verify Monotonic Conflict Resolution on Outbox Sync
+- **Requirement ID**: `FR-OL-008`, `NFR-REL-002`
+- **User Story**: `US-OL-005`
+- **User Scenario**: `SC-OL-004`
+- **Test Type**: Conflict Resolution / Monotonicity
+- **Priority**: P1
+- **Preconditions**: Lesson is already marked `is_completed = true` on server with `last_position_seconds = 1800`.
+- **Test Steps**:
+  1. Sync worker transmits an older offline event with `positionSeconds: 600` and `isCompleted: false`.
+- **Expected Result**: Server applies monotonic operators (`GREATEST(1800, 600) = 1800`, `true OR false = true`); Server state remains `is_completed = true` and `1800s`.
+- **Status**: Ready
+
+#### Test Case ID: TC-OL-018
+- **Test Case Title**: Verify Batch Progress Sync Idempotency on Duplicate Retransmit
+- **Requirement ID**: `FR-OL-008`, `NFR-REL-002`
+- **User Story**: `US-OL-005`
+- **User Scenario**: `SC-OL-004`
+- **Test Type**: Idempotency / Retry Safety
+- **Priority**: P1
+- **Preconditions**: Batch with `client_operation_id = UUID-X` already processed.
+- **Test Steps**:
+  1. Retransmit identical batch with `client_operation_id = UUID-X`.
+- **Expected Result**: Server detects existing `client_operation_id`; Returns `200 OK` confirmation without duplicating progress rows or altering timestamps.
+- **Status**: Ready
+
+---
+
 ## 5. Test Case Traceability Matrix
 
-| Test Case ID | Requirement ID | Backlog Item | User Story | User Scenario | Test Case Status |
+| Test Case ID | Requirement ID | Backlog Item / Domain | User Story | User Scenario | Test Case Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `TC-STU-001` | `FR-STU-004`, `FR-STU-002` | `بيانات الطالب`, `المجموعة و الصف` | `US-STU-001` | `SC-STU-001` | Ready |
 | `TC-STU-002` | `FR-STU-003` | `بيانات ولي الامر` | `US-STU-002` | `SC-STU-002` | Ready |
@@ -876,6 +1235,11 @@ This document defines the formal test cases for verifying the functional capabil
 | `TC-ATT-008` | `FR-ATT-004`, `FR-USR-004` | `تسجيل الحضور عبر مسح QR Code` | `US-ATT-003` | `SC-ATT-003` | Ready |
 | `TC-ATT-009` | `FR-ATT-004` | `تسجيل الحضور عبر مسح QR Code` | `US-ATT-003` | `SC-ATT-003` | Ready |
 | `TC-ATT-010` | `FR-ATT-004` | `تسجيل الحضور عبر مسح QR Code` | `US-ATT-003` | `SC-ATT-003` | Ready |
+| `TC-OFF-001` | `FR-ATT-004`, `NFR-REL-002` | `تسجيل الحضور عبر مسح QR Code` | `US-ATT-003` | `SC-ATT-003` | Ready |
+| `TC-OFF-002` | `FR-ATT-004`, `NFR-REL-002` | `تسجيل الحضور عبر مسح QR Code` | `US-ATT-003` | `SC-ATT-003` | Ready |
+| `TC-OFF-003` | `FR-ATT-004`, `NFR-REL-002` | `تسجيل الحضور عبر مسح QR Code` | `US-ATT-003` | `SC-ATT-003` | Ready |
+| `TC-OFF-004` | `FR-ATT-004`, `NFR-REL-002` | `تسجيل الحضور عبر مسح QR Code` | `US-ATT-003` | `SC-ATT-003` | Ready |
+| `TC-OFF-005` | `FR-ATT-004`, `NFR-REL-002` | `تسجيل الحضور عبر مسح QR Code` | `US-ATT-003` | `SC-ATT-003` | Ready |
 | `TC-LES-001` | `FR-LES-002` | `رفع الملفات و المراجع و الملخصات` | `US-LES-001` | `SC-LES-001` | Ready |
 | `TC-LES-002` | `FR-LES-003` | `رفع تسجيلات المحاضرات` | `US-LES-001` | `SC-LES-001` | Ready |
 | `TC-LES-003` | `FR-LES-001` | `متابعة مشاهدة المحتوى` | `US-LES-002` | `SC-LES-002` | Blocked — Requires Product Clarification |
@@ -902,3 +1266,22 @@ This document defines the formal test cases for verifying the functional capabil
 | `TC-USR-003` | `FR-USR-002` | `ولي الامر` | `US-USR-001` | `SC-USR-001` | Blocked — Requires Product Clarification |
 | `TC-USR-004` | `FR-USR-001` | `السكرتارية` | `US-USR-001` | `SC-USR-001` | Blocked — Requires Product Clarification |
 | `TC-SUB-001` | `FR-SUB-001` | `حالة الدفع لكل طالب` | `US-SUB-001` | `SC-SUB-001` | Blocked — Requires Product Clarification |
+| `TC-OL-001` | `FR-OL-001` | `ادارة ونشر الدورات الرقمية` | `US-OL-001` | `SC-OL-007` | Ready |
+| `TC-OL-002` | `FR-OL-002` | `هيكلة الوحدات الرقمية` | `US-OL-001` | `SC-OL-007` | Ready |
+| `TC-OL-003` | `FR-OL-002`, `FR-OL-004` | `هيكلة الدروس والوسائط` | `US-OL-001`, `US-OL-003` | `SC-OL-007` | Ready |
+| `TC-OL-004` | `FR-OL-003` | `الالتحاق بالدورة وصلاحية الوصول` | `US-OL-002` | `SC-OL-001` | Ready |
+| `TC-OL-005` | `FR-OL-003` | `حظر الوصول لغير الملتحقين` | `US-OL-003` | `SC-OL-002` | Ready |
+| `TC-OL-006` | `FR-ATT-004`, `FR-OL-003` | `فصل نطاق الحضور الفيزيائي عن الدورات` | `US-ATT-003`, `US-OL-002` | `SC-ATT-003` | Ready |
+| `TC-OL-007` | `FR-STU-004`, `FR-OL-003` | `هوية الطالب الموحدة عبر النطاقين` | `US-STU-001`, `US-OL-002` | `SC-STU-001`, `SC-OL-001` | Ready |
+| `TC-OL-008` | `FR-OL-004` | `مشاهدة الدرس والوسائط المشفرة` | `US-OL-003` | `SC-OL-002` | Ready |
+| `TC-OL-009` | `FR-OL-005` | `حفظ واستئناف تقدم الفيديو` | `US-OL-004` | `SC-OL-002` | Ready |
+| `TC-OL-010` | `FR-OL-005` | `حساب نسبة اتمام الدورة ديناميكياً` | `US-OL-004` | `SC-OL-002` | Ready |
+| `TC-OL-011` | `FR-OL-006` | `امتحان الدورة والتصحيح التلقائي` | `US-OL-006` | `SC-OL-005` | Ready |
+| `TC-OL-012` | `FR-OL-007` | `متابعة ولي الامر لتقدم الدورة` | `US-OL-007` | `SC-OL-006` | Ready |
+| `TC-OL-013` | `FR-OL-007` | `حماية بيانات ولي الامر عبر الدورات` | `US-OL-007` | `SC-OL-006` | Ready |
+| `TC-OL-014` | `FR-OL-008` | `تصفح هيكل الدورة بدون اتصال` | `US-OL-005` | `SC-OL-003` | Ready |
+| `TC-OL-015` | `FR-OL-008` | `حفظ تقدم الدرس في صندوق الإرسال المحلي` | `US-OL-005` | `SC-OL-003` | Ready |
+| `TC-OL-016` | `FR-OL-008` | `مزامنة حزمة التقدم عند عودة الاتصال` | `US-OL-005` | `SC-OL-004` | Ready |
+| `TC-OL-017` | `FR-OL-008` | `حل تعارض التقدم بالدمج الأحادي` | `US-OL-005` | `SC-OL-004` | Ready |
+| `TC-OL-018` | `FR-OL-008` | `أمان تكرار إرسال حزمة المزامنة` | `US-OL-005` | `SC-OL-004` | Ready |
+

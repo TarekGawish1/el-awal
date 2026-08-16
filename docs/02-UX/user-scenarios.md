@@ -4,22 +4,20 @@
 
 - **Document Name**: User Scenarios
 - **Document Type**: UX Documentation
-- **Product**: Educational Management System for Teachers and Students
-- **Version**: TBD
-- **Status**: Draft
-- **Source of Truth**: Approved Backlog, Functional Requirements Document, Non-Functional Requirements Document, and User Personas
+- **Product**: Educational Management System for Teachers and Students (El Awal)
+- **Version**: 2.0
+- **Status**: Updated Draft — Online Learning Domain Integrated
+- **Source of Truth**: Approved Backlog, Functional Requirements Document, Non-Functional Requirements Document, User Personas, and Educational Delivery Models
 
 ---
 
 ## 2. Scenario Overview
 
-This document defines the high-level user scenarios for the educational management system based exclusively on the approved product backlog and the four confirmed user roles:
+This document defines user scenarios for the educational management system across both **Physical Learning** and **Online Learning** delivery models for the four confirmed user roles:
 - `UX-PER-001` — Teacher / المدرس
 - `UX-PER-002` — Student / الطالب
 - `UX-PER-003` — Parent / ولي الأمر
 - `UX-PER-004` — Secretariat / السكرتارية
-
-Each scenario captures a high-level product situation without assuming UI layouts, navigation, buttons, form controls, unstated business rules, or technical implementation details. Where actor ownership, workflows, or preconditions are not defined in the backlog, they are documented as `TBD — Requires Product Clarification`.
 
 ---
 
@@ -27,412 +25,310 @@ Each scenario captures a high-level product situation without assuming UI layout
 
 ### 3.1 Student Management
 
-#### Scenario ID: SC-STU-001
-- **Scenario Name**: Student Data and Group/Class Association
-- **Related Backlog Items**: `بيانات الطالب`, `المجموعة و الصف`
-- **Actor**: `TBD — Requires Product Clarification`
-- **Context**: The system contains student data and associated group and grade/class information.
-- **Goal**: Handle student data and group/class information as defined by the product scope.
-- **Preconditions**: `TBD — Requires Product Clarification`
+#### Scenario ID: SC-STU-001 — Student Data and Group/Class Association
+- **Actor**: Teacher / Secretariat
+- **Context**: Student demographic profiles, grade level, and group associations are recorded.
 - **Scenario**:
-  1. The user interacts with the system for student data and group/class information.
-  2. The system processes the student data and associated group/class information.
-  3. The student data and group/class details are represented in the system.
-- **Expected Outcome**: Student data and group/class information are handled in the system.
-- **Alternative / Exception Scenarios**: `TBD — Requires Product Clarification`
+  1. Staff enters student details and assigns academic stage/group.
+  2. System stores profile and issues unique QR token (`qr_code_token`).
+  3. Profile is active across physical and online views.
+- **Expected Outcome**: Student profile is established with single identity.
+
+#### Scenario ID: SC-STU-002 — Parent Data Management & Linking
+- **Actor**: Secretariat / Parent
+- **Context**: Parent/guardian contact details are registered and linked to enrolled students.
+- **Scenario**:
+  1. Staff registers parent contact and links parent to student record.
+  2. Linkage is confirmed in `parent_student_links`.
+- **Expected Outcome**: Verified parent monitoring established.
+
+#### Scenario ID: SC-STU-003 — Student Status Representation
+- **Actor**: Teacher / Secretariat
+- **Context**: Updating student status (`ACTIVE`, `INACTIVE`, `SUSPENDED`).
+- **Scenario**:
+  1. Staff modifies status on student profile.
+  2. System reflects updated status across physical rosters and online courses.
+- **Expected Outcome**: Status change enforced system-wide.
 
 ---
 
-#### Scenario ID: SC-STU-002
-- **Scenario Name**: Parent Data Management
-- **Related Backlog Items**: `بيانات ولي الامر`
-- **Actor**: `TBD — Requires Product Clarification`
-- **Context**: The system contains parent data associated with students.
-- **Goal**: Handle parent data in the system.
-- **Preconditions**: `TBD — Requires Product Clarification`
+### 3.2 Attendance & Absence (Physical Learning)
+
+#### Scenario ID: SC-ATT-001 — Recording Student Attendance and Absence Manually
+- **Actor**: Teacher / Secretariat
+- **Context**: Teacher logs roll-call manually on session roster.
 - **Scenario**:
-  1. The user interacts with the system regarding parent data.
-  2. The system processes the parent data.
-  3. Parent data is represented in the system.
-- **Expected Outcome**: Parent data is represented in the system.
-- **Alternative / Exception Scenarios**: `TBD — Requires Product Clarification`
+  1. Teacher selects physical group session and marks student presence/absence.
+  2. System records `AttendanceRecord` with method `MANUAL`.
+- **Expected Outcome**: Session attendance logged.
 
----
-
-#### Scenario ID: SC-STU-003
-- **Scenario Name**: Student Status Representation
-- **Related Backlog Items**: `حالة الطلاب`
-- **Actor**: `TBD — Requires Product Clarification`
-- **Context**: Student status information is maintained in the system.
-- **Goal**: Handle student status as defined in the product backlog.
-- **Preconditions**: `TBD — Requires Product Clarification`
+#### Scenario ID: SC-ATT-002 — Attendance and Absence Reports
+- **Actor**: Teacher / Secretariat / Parent
+- **Context**: Viewing aggregated attendance summaries.
 - **Scenario**:
-  1. The user interacts with the system regarding student status.
-  2. The system processes the student status information.
-  3. The student status is represented in the system.
-- **Expected Outcome**: Student status is represented in the system.
-- **Alternative / Exception Scenarios**: `TBD — Requires Product Clarification`
+  1. User selects date range and group/student.
+  2. System calculates totals and attendance percentage.
+- **Expected Outcome**: Formatted report displayed.
 
----
-
-### 3.2 Attendance & Absence
-
-#### Scenario ID: SC-ATT-001
-- **Scenario Name**: Recording Student Attendance and Absence
-- **Related Backlog Items**: `تسجيل حضور الطلاب`, `تسجيل الغياب`
-- **Actor**: `TBD — Requires Product Clarification`
-- **Context**: Student attendance or absence needs to be recorded.
-- **Goal**: Record student attendance and absence in the system.
-- **Preconditions**: `TBD — Requires Product Clarification`
+#### Scenario ID: SC-ATT-003 — Scanning Student QR Code for Session Attendance
+- **Actor**: Teacher (Primary), Student (Supporting)
+- **Context**: Rapid roll-call check-in at classroom door.
 - **Scenario**:
-  1. The user provides student attendance or absence information to the system.
-  2. The attendance or absence is recorded in the system.
-- **Expected Outcome**: Attendance and absence records are logged in the system.
-- **Alternative / Exception Scenarios**: `TBD — Requires Product Clarification`
-
----
-
-#### Scenario ID: SC-ATT-002
-- **Scenario Name**: Attendance and Absence Reports
-- **Related Backlog Items**: `تقارير الحضور و الغياب`
-- **Actor**: `TBD — Requires Product Clarification`
-- **Context**: Reports for attendance and absence are generated or viewed.
-- **Goal**: Provide attendance and absence reports.
-- **Preconditions**: `TBD — Requires Product Clarification`
-- **Scenario**:
-  1. The user interacts with the system to obtain attendance and absence reports.
-  2. Attendance and absence reports are made available in the system.
-- **Expected Outcome**: Attendance and absence reports are made available.
-- **Alternative / Exception Scenarios**: `TBD — Requires Product Clarification`
-
----
-
-#### Scenario ID: SC-ATT-003
-- **Scenario Name**: Scanning Student QR Code for Session Attendance
-- **Related Backlog Items**: `تسجيل الحضور عبر مسح QR Code`
-- **Actor**: Teacher / المدرس (Primary Actor), Student / الطالب (Supporting Actor)
-- **Context**: A lesson session is scheduled or actively underway, and students check in for the class.
-- **Goal**: Rapidly and securely record student attendance for the specific lesson session by scanning each student's unique QR attendance credential.
-- **Preconditions**:
-  - The teacher is authenticated and authorized to manage the active lesson session's group.
-  - The student has an active profile with a unique, high-entropy QR code credential (accessible via mobile student card or physical card).
-  - The teacher has selected the active lesson session and launched the camera scanner interface.
-- **Scenario**:
-  1. The student presents their unique QR code to the teacher.
-  2. The teacher positions the student's QR code within the scanning viewfinder.
-  3. The system captures the token, validates teacher session authorization, resolves the student's identity, verifies active group enrollment, and logs attendance as `PRESENT` with recording method `QR_SCAN`.
-  4. The system provides instantaneous visual/audio confirmation on the teacher's screen and increments the session attendance roster.
-- **Expected Outcome**: The student's attendance is persisted as `PRESENT` for the specific lesson session with recording method `QR_SCAN` and audit attribution.
-- **Alternative / Exception Scenarios**:
-  - *Duplicate Scan*: If scanned multiple times in the same session, the system indicates that attendance is already recorded and preserves the record without duplication.
-  - *Cross-Group Scan*: If the student is not enrolled in the selected group, the system presents an informative alert with the student's name and assigned group without recording attendance in this session.
-  - *Invalid/Compromised Token*: If the token is invalid or has been revoked/reissued, the system alerts the teacher to consult administrative records.
+  1. Teacher opens camera scanner on active physical session.
+  2. Student presents QR badge; scanner captures token in <500ms.
+  3. System validates teacher authorization, student active state, and physical group enrollment.
+  4. System records `AttendanceRecord` as `PRESENT` with method `QR_SCAN`.
+  5. Repeat scans are handled idempotently; online-only students receive an enrollment mismatch warning without logging attendance.
+- **Expected Outcome**: Fast, tamper-proof attendance logged.
 
 ---
 
 ### 3.3 Lectures & Lessons
 
-#### Scenario ID: SC-LES-001
-- **Scenario Name**: Uploading Educational Content and Lecture Recordings
-- **Related Backlog Items**: `رفع الملفات و المراجع و الملخصات`, `رفع تسجيلات المحاضرات`
-- **Actor**: `TBD — Requires Product Clarification`
-- **Context**: Files, references, summaries, and lecture recordings are added to the system.
-- **Goal**: Upload educational files, references, summaries, and lecture recordings.
-- **Preconditions**: `TBD — Requires Product Clarification`
+#### Scenario ID: SC-LES-001 — Uploading Educational Content and Lecture Recordings
+- **Actor**: Teacher
+- **Context**: Adding documents and lecture videos.
 - **Scenario**:
-  1. The user uploads lecture recordings, files, references, or summaries to the system.
-  2. The uploaded materials become available in the system.
-- **Expected Outcome**: Educational files, references, summaries, and lecture recordings are uploaded and available in the system.
-- **Alternative / Exception Scenarios**: `TBD — Requires Product Clarification`
+  1. Teacher uploads PDFs to Cloudflare R2 and videos to Bunny Stream.
+  2. System records metadata in `educational_content`.
+- **Expected Outcome**: Materials available to enrolled students.
 
----
-
-#### Scenario ID: SC-LES-002
-- **Scenario Name**: Monitoring Content Viewing
-- **Related Backlog Items**: `متابعة مشاهدة المحتوى`
-- **Actor**: `TBD — Requires Product Clarification`
-- **Context**: Content viewing activity is tracked in the system.
-- **Goal**: Track or view content viewing information.
-- **Preconditions**: `TBD — Requires Product Clarification`
+#### Scenario ID: SC-LES-002 — Monitoring Content Viewing
+- **Actor**: Student, Teacher
+- **Context**: Tracking engagement with instructional assets.
 - **Scenario**:
-  1. The user interacts with the system to track content viewing.
-  2. Content viewing information is made available in the system.
-- **Expected Outcome**: Content viewing information is made available in the system.
-- **Alternative / Exception Scenarios**: `TBD — Requires Product Clarification`
+  1. Student accesses file/video; system updates `content_progress`.
+- **Expected Outcome**: Viewing statistics recorded.
 
 ---
 
 ### 3.4 Exams & Assignments
 
-#### Scenario ID: SC-EXM-001
-- **Scenario Name**: Creating and Uploading Exams and Assignments
-- **Related Backlog Items**: `انشاء الواجبات`, `رفع الواجبات`, `انشاء الامتحانات`, `رفع الامتحانات`
-- **Actor**: `TBD — Requires Product Clarification`
-- **Context**: Assignments and exams are created and uploaded in the system.
-- **Goal**: Create and upload exams and assignments.
-- **Preconditions**: `TBD — Requires Product Clarification`
+#### Scenario ID: SC-EXM-001 — Creating and Uploading Exams and Assignments
+- **Actor**: Teacher
+- **Context**: Authoring homework and auto-graded exams.
 - **Scenario**:
-  1. The user creates or uploads assignments or exams in the system.
-  2. The created or uploaded assignments and exams become available in the system.
-- **Expected Outcome**: Assignments and exams are created, uploaded, and available in the system.
-- **Alternative / Exception Scenarios**: `TBD — Requires Product Clarification`
+  1. Teacher creates assessment with due dates and structured questions.
+  2. System publishes assessment to group/course feed.
+- **Expected Outcome**: Assessment available to learners.
 
----
-
-#### Scenario ID: SC-EXM-002
-- **Scenario Name**: Submitting Assignments and Exams
-- **Related Backlog Items**: `تسليم الواجبات و الامتحانات`
-- **Actor**: `UX-PER-002 — Student / الطالب`
-- **Context**: A student submits completed assignments and exams.
-- **Goal**: Submit assignments and exams.
-- **Preconditions**: `TBD — Requires Product Clarification`
+#### Scenario ID: SC-EXM-002 — Submitting Assignments and Exams
+- **Actor**: Student
+- **Context**: Delivering completed coursework.
 - **Scenario**:
-  1. The student submits an assignment or exam in the system.
-  2. The assignment or exam submission is recorded in the system.
-- **Expected Outcome**: Assignment or exam submission is recorded in the system.
-- **Alternative / Exception Scenarios**: `TBD — Requires Product Clarification`
+  1. Student submits file or answers; system logs `AssessmentSubmission`.
+- **Expected Outcome**: Submission recorded with timestamp.
 
----
-
-#### Scenario ID: SC-EXM-003
-- **Scenario Name**: Automatic Grading of Exams
-- **Related Backlog Items**: `تصحيح الدرجات تلقائي`
-- **Actor**: `TBD — Requires Product Clarification`
-- **Context**: Exam submissions are graded automatically by the system.
-- **Goal**: Automatically grade submitted exams.
-- **Preconditions**: `TBD — Requires Product Clarification`
+#### Scenario ID: SC-EXM-003 — Automatic Grading of Exams
+- **Actor**: System (Primary), Student (Supporting)
+- **Context**: Automated exam score calculation.
 - **Scenario**:
-  1. A submitted exam is processed by the system.
-  2. The system automatically grades the exam.
-- **Expected Outcome**: The exam is automatically graded and the grade is recorded.
-- **Alternative / Exception Scenarios**: `TBD — Requires Product Clarification`
+  1. System checks student answers against answer keys synchronously upon submission.
+  2. System records total score and releases grade notification.
+- **Expected Outcome**: Exam graded immediately without teacher delay.
 
----
-
-#### Scenario ID: SC-EXM-004
-- **Scenario Name**: Displaying Results to Parent
-- **Related Backlog Items**: `عرض النتائج لي ولي الامر`
-- **Actor**: `UX-PER-003 — Parent / ولي الأمر`
-- **Context**: Student results are made available to the parent.
-- **Goal**: Display student results to the parent.
-- **Preconditions**: `TBD — Requires Product Clarification`
+#### Scenario ID: SC-EXM-004 — Displaying Results to Parent
+- **Actor**: Parent
+- **Context**: Reviewing child's grades.
 - **Scenario**:
-  1. The parent interacts with the system to view student results.
-  2. The results are presented to the parent.
-- **Expected Outcome**: Results are presented to the parent.
-- **Alternative / Exception Scenarios**: `TBD — Requires Product Clarification`
+  1. Parent accesses results portal and views scores, passing status, and feedback.
+- **Expected Outcome**: Transparent academic visibility.
 
 ---
 
 ### 3.5 Parent Student Status
 
-#### Scenario ID: SC-PAR-001
-- **Scenario Name**: Parent Viewing Student Evaluations, Exam Grades, and Student Level
-- **Related Backlog Items**: `تقييمات + ملاحظات المدرس`, `درجات الامتحانات`, `مستوى الطالب`
-- **Actor**: `UX-PER-003 — Parent / ولي الأمر`
-- **Context**: Teacher evaluations and notes, exam grades, and student level information are available to the parent.
-- **Goal**: View teacher evaluations, notes, exam grades, and student level.
-- **Preconditions**: `TBD — Requires Product Clarification`
+#### Scenario ID: SC-PAR-001 — Parent Viewing Student Evaluations, Exam Grades, and Student Level
+- **Actor**: Parent
+- **Context**: Checking teacher feedback and academic standing.
 - **Scenario**:
-  1. The parent interacts with the system to view student academic information.
-  2. Teacher evaluations and notes, exam grades, and student level are presented to the parent.
-- **Expected Outcome**: Teacher evaluations, notes, exam grades, and student level are displayed to the parent.
-- **Alternative / Exception Scenarios**: `TBD — Requires Product Clarification`
+  1. Parent selects child and reviews teacher notes, exam scores, and student level.
+- **Expected Outcome**: Complete performance feedback presented.
+
+#### Scenario ID: SC-PAR-002 — Parent Viewing Assignment Status and Attendance Records
+- **Actor**: Parent
+- **Context**: Monitoring daily attendance and homework completion.
+- **Scenario**:
+  1. Parent inspects attendance logs and pending/completed homework items.
+- **Expected Outcome**: Attendance history and homework status displayed.
 
 ---
 
-#### Scenario ID: SC-PAR-002
-- **Scenario Name**: Parent Viewing Student Assignment Status and Attendance Records
-- **Related Backlog Items**: `حالة الواجبات`, `الحضور و الغياب`
-- **Actor**: `UX-PER-003 — Parent / ولي الأمر`
-- **Context**: Assignment status and attendance/absence records are available to the parent.
-- **Goal**: View assignment status and attendance/absence records.
-- **Preconditions**: `TBD — Requires Product Clarification`
-- **Scenario**:
-  1. The parent interacts with the system to view assignment status and attendance/absence information.
-  2. The assignment status and attendance/absence records are presented to the parent.
-- **Expected Outcome**: Assignment status and attendance/absence records are displayed to the parent.
-- **Alternative / Exception Scenarios**: `TBD — Requires Product Clarification`
+### 3.6 Notifications
+
+#### Scenario ID: SC-NOT-001 — Pre-Lesson Notification (1 Hour Reminder)
+- **Actor**: System
+- **Scenario**: Scheduled job alerts students and teachers 1 hour before physical lesson.
+
+#### Scenario ID: SC-NOT-002 — Unsolved Homework Notification
+- **Actor**: System
+- **Scenario**: System alerts student and parent when homework deadline is pending.
+
+#### Scenario ID: SC-NOT-003 — Exam Grade and New Exam Notifications
+- **Actor**: System
+- **Scenario**: System broadcasts alerts when exams are published or grades confirmed.
+
+#### Scenario ID: SC-NOT-004 — Student Absence Notification
+- **Actor**: System
+- **Scenario**: System dispatches immediate notification to parent when child is marked absent.
 
 ---
 
-### 3.6 Notifications & WhatsApp
+### 3.7 Groups Management (Physical Learning)
 
-#### Scenario ID: SC-NOT-001
-- **Scenario Name**: Notification One Hour Before Lesson
-- **Related Backlog Items**: `اشعار قبل الحصة ب ساعه`
-- **Actor**: `TBD — Requires Product Clarification`
-- **Context**: A notification is sent one hour before a scheduled lesson.
-- **Goal**: Deliver a notification one hour before a lesson.
-- **Preconditions**: `TBD — Requires Product Clarification`
-- **Scenario**:
-  1. The condition of one hour before a scheduled lesson occurs according to the product requirement.
-  2. The notification is sent.
-- **Expected Outcome**: Notification is sent one hour before the lesson.
-- **Alternative / Exception Scenarios**: `TBD — Requires Product Clarification`
+#### Scenario ID: SC-GRP-001 — Create Physical Group and Schedule Lessons
+- **Actor**: Teacher / Secretariat
+- **Scenario**: Staff defines group name, stage, and recurring weekly timetable.
 
----
-
-#### Scenario ID: SC-NOT-002
-- **Scenario Name**: Notification in Case Homework Is Not Solved
-- **Related Backlog Items**: `اشعار في حالة عدم حل الواجب`
-- **Actor**: `TBD — Requires Product Clarification`
-- **Context**: A notification is sent when homework is not solved.
-- **Goal**: Deliver a notification when homework is unsolved.
-- **Preconditions**: `TBD — Requires Product Clarification`
-- **Scenario**:
-  1. The condition of unsolved homework occurs according to the product requirement.
-  2. The notification is sent.
-- **Expected Outcome**: Notification for unsolved homework is sent.
-- **Alternative / Exception Scenarios**: `TBD — Requires Product Clarification`
-
----
-
-#### Scenario ID: SC-NOT-003
-- **Scenario Name**: Exam Notifications
-- **Related Backlog Items**: `اشعار امتحان جديد`, `اشعار درجة امتحان الطالب`
-- **Actor**: `TBD — Requires Product Clarification`
-- **Context**: Notifications are sent for a new exam and for student exam grades.
-- **Goal**: Deliver notifications for new exams and student exam grades.
-- **Preconditions**: `TBD — Requires Product Clarification`
-- **Scenario**:
-  1. The condition of a new exam or a recorded student exam grade occurs according to the product requirement.
-  2. The corresponding notification is sent.
-- **Expected Outcome**: Notification for new exam or student exam grade is delivered.
-- **Alternative / Exception Scenarios**: `TBD — Requires Product Clarification`
-
----
-
-#### Scenario ID: SC-NOT-004
-- **Scenario Name**: Notification in Case of Student Absence
-- **Related Backlog Items**: `اشعارات في حالة غياب الطالب`
-- **Actor**: `TBD — Requires Product Clarification`
-- **Context**: A notification is sent when a student absence occurs.
-- **Goal**: Deliver a notification in case of student absence.
-- **Preconditions**: `TBD — Requires Product Clarification`
-- **Scenario**:
-  1. The condition of a student absence occurs according to the product requirement.
-  2. The notification is sent.
-- **Expected Outcome**: Absence notification is delivered.
-- **Alternative / Exception Scenarios**: `TBD — Requires Product Clarification`
-
----
-
-### 3.7 Groups Management
-
-#### Scenario ID: SC-GRP-001
-- **Scenario Name**: Creating Groups and Scheduling Lesson Times
-- **Related Backlog Items**: `انشاء مجموعة`, `تحديد مواعيد الدروس`
-- **Actor**: `TBD — Requires Product Clarification`
-- **Context**: Groups are created and lesson times are scheduled in the system.
-- **Goal**: Create a group and schedule lesson times.
-- **Preconditions**: `TBD — Requires Product Clarification`
-- **Scenario**:
-  1. The user creates a group and specifies scheduled lesson times in the system.
-  2. The group and scheduled lesson times become available in the system.
-- **Expected Outcome**: The group is created and lesson times are scheduled.
-- **Alternative / Exception Scenarios**: `TBD — Requires Product Clarification`
-
----
-
-#### Scenario ID: SC-GRP-002
-- **Scenario Name**: Adding Students to Groups
-- **Related Backlog Items**: `اضافة طلاب`
-- **Actor**: `TBD — Requires Product Clarification`
-- **Context**: Students are added to a group in the system.
-- **Goal**: Add students to a group.
-- **Preconditions**: `TBD — Requires Product Clarification`
-- **Scenario**:
-  1. The user performs the action to add students to a group.
-  2. The addition of the students to the group is recorded in the system.
-- **Expected Outcome**: Students are added to the specified group.
-- **Alternative / Exception Scenarios**: `TBD — Requires Product Clarification`
+#### Scenario ID: SC-GRP-002 — Add Students to Physical Group
+- **Actor**: Teacher / Secretariat
+- **Scenario**: Staff allocates students to group roster.
 
 ---
 
 ### 3.8 Users & Permissions
 
-#### Scenario ID: SC-USR-001
-- **Scenario Name**: System Role Representation
-- **Related Backlog Items**: `المدرس`, `الطالب`, `ولي الامر`, `السكرتارية`
-- **Actor**: `UX-PER-001 — Teacher`, `UX-PER-002 — Student`, `UX-PER-003 — Parent`, `UX-PER-004 — Secretariat`
-- **Context**: The system includes the four user roles identified in the product backlog.
-- **Goal**: Represent Teacher, Student, Parent, and Secretariat entities in the system.
-- **Preconditions**: `TBD — Requires Product Clarification`
-- **Scenario**:
-  1. The system includes the user roles defined in the product backlog: Teacher (`المدرس`), Student (`الطالب`), Parent (`ولي الامر`), and Secretariat (`السكرتارية`).
-  2. The roles are represented within the system.
-- **Expected Outcome**: Teacher, Student, Parent, and Secretariat roles are represented in the system.
-- **Alternative / Exception Scenarios**: `TBD — Requires Product Clarification`
+#### Scenario ID: SC-USR-001 — System Role Representation & Security
+- **Actor**: All Roles
+- **Scenario**: System authenticates users and enforces role/ownership boundaries.
 
 ---
 
 ### 3.9 Subscriptions
 
-#### Scenario ID: SC-SUB-001
-- **Scenario Name**: Payment Status for Each Student
-- **Related Backlog Items**: `حالة الدفع لكل طالب`
-- **Actor**: `TBD — Requires Product Clarification`
-- **Context**: The payment status for each student is represented in the system.
-- **Goal**: Handle the payment status for each student as defined in the product backlog.
-- **Preconditions**: `TBD — Requires Product Clarification`
+#### Scenario ID: SC-SUB-001 — Payment Status for Each Student
+- **Actor**: Secretariat / Teacher
+- **Scenario**: Staff updates and reviews student fee payment records per billing cycle.
+
+---
+
+### 3.10 Online Learning (Courses)
+
+#### Scenario ID: SC-OL-001 — Student Subscribing / Enrolling in an Online Course
+- **Actor**: Student (Primary), Secretariat / Teacher (Supporting)
+- **Context**: A student discovers an asynchronous course in the Course Catalog and enrolls.
 - **Scenario**:
-  1. The user interacts with the system regarding the payment status for a student.
-  2. The payment status for the student is represented in the system.
-- **Expected Outcome**: The payment status for each student is represented in the system.
-- **Alternative / Exception Scenarios**: `TBD — Requires Product Clarification`
+  1. Student logs into platform, browses the Course Catalog, and selects a published course.
+  2. Student requests enrollment.
+  3. System creates `CourseEnrollment` and activates `CourseAccess` (`status = ACTIVE`).
+  4. System unlocks course modules, lessons, and video streams.
+- **Expected Outcome**: Student is enrolled with active access entitlement without requiring membership in a physical group.
+
+#### Scenario ID: SC-OL-002 — Student Accessing Course Lessons
+- **Actor**: Student
+- **Context**: An enrolled student accesses structured asynchronous course content.
+- **Scenario**:
+  1. Student navigates to "My Courses" and opens enrolled course.
+  2. System validates active `CourseAccess` and renders module/lesson hierarchy.
+  3. Student selects a lesson; system returns lesson description, PDF download links, and signed Bunny Stream video playback token.
+  4. Video player streams lesson with adaptive bitrate.
+- **Expected Outcome**: Lesson content is delivered seamlessly and asynchronously.
+
+#### Scenario ID: SC-OL-003 — Student Continuing a Lesson After Going Offline
+- **Actor**: Student
+- **Context**: Network connectivity drops while a student is studying.
+- **Scenario**:
+  1. Student device loses internet connectivity during study.
+  2. Application detects offline state and switches gracefully to cached mode.
+  3. Student browses cached course outline, reads cached PDF summaries, and interacts with lesson materials.
+  4. Student completes lesson; application stages progress update event in local IndexedDB/SQLite outbox queue with client operation UUID.
+- **Expected Outcome**: Student experiences uninterrupted local learning with durable offline progress staging.
+
+#### Scenario ID: SC-OL-004 — Student Progress Syncing After Reconnecting
+- **Actor**: Student, System
+- **Context**: Network connectivity is restored on a device with pending offline operations.
+- **Scenario**:
+  1. Network connectivity is re-established.
+  2. Client background sync worker detects connection and reads pending outbox queue.
+  3. Worker dispatches batch progress sync request to `/api/v1/sync/progress`.
+  4. Server validates student JWT, verifies operation idempotency, updates `course_progress`, recalculates overall course percentage, and returns confirmation.
+  5. Client clears synced items from local outbox and updates UI progress indicators.
+- **Expected Outcome**: Offline progress syncs seamlessly without data loss or race conditions.
+
+#### Scenario ID: SC-OL-005 — Student Taking an Online Assessment
+- **Actor**: Student (Primary), System (Supporting)
+- **Context**: A student takes a quiz or exam attached to an online course lesson.
+- **Scenario**:
+  1. Student opens assessment within course player.
+  2. Student answers multiple-choice questions and submits payload.
+  3. System validates single-attempt constraint, scores answers against keys, computes total grade, and updates `AssessmentSubmission` to `GRADED`.
+  4. Student immediately views calculated score, correct answers, and feedback.
+- **Expected Outcome**: Online assessment submitted and auto-graded synchronously.
+
+#### Scenario ID: SC-OL-006 — Parent Viewing Online Course Progress
+- **Actor**: Parent
+- **Context**: A guardian checks digital course progress for their child.
+- **Scenario**:
+  1. Parent logs in, selects linked child, and opens Online Learning tab.
+  2. System executes BOLA-safe query verifying `ParentStudentLink` and retrieves child's enrolled courses.
+  3. Parent views course cards, completion percentage bars, completed lesson counts, and online exam scores.
+- **Expected Outcome**: Parent monitors child's online coursework read-only with complete data isolation.
+
+#### Scenario ID: SC-OL-007 — Teacher Creating and Publishing an Online Course
+- **Actor**: Teacher
+- **Context**: An educator authors a new digital curriculum.
+- **Scenario**:
+  1. Teacher navigates to Course Management and creates new course with title, description, subject, and grade level.
+  2. Teacher adds structured modules (`CourseModule`) in sequential order.
+  3. Teacher adds lessons (`CourseLesson`), attaching video streams (Bunny Stream) and PDF files (Cloudflare R2).
+  4. Teacher configures online assignments and auto-graded exams.
+  5. Teacher sets course publication status from `DRAFT` to `PUBLISHED`.
+- **Expected Outcome**: Course is published and available in catalog for student enrollments.
 
 ---
 
 ## 4. Scenario Traceability
 
-| Backlog Item | Scenario ID | Coverage Status |
+| Backlog Item / Domain | Scenario ID | Coverage Status |
 | :--- | :--- | :--- |
-| حالة الطلاب | SC-STU-003 | Covered with TBD Actor |
-| المجموعة و الصف | SC-STU-001 | Covered with TBD Actor |
-| بيانات ولي الامر | SC-STU-002 | Covered with TBD Actor |
-| بيانات الطالب | SC-STU-001 | Covered with TBD Actor |
-| تقارير الحضور و الغياب | SC-ATT-002 | Covered with TBD Actor |
-| تسجيل الغياب | SC-ATT-001 | Covered with TBD Actor |
-| تسجيل حضور الطلاب | SC-ATT-001 | Covered with TBD Actor |
-| تسجيل الحضور عبر مسح QR Code | SC-ATT-003 | Covered |
-| متابعة مشاهدة المحتوى | SC-LES-002 | Covered with TBD Actor |
-| رفع الملفات و المراجع و الملخصات | SC-LES-001 | Covered with TBD Actor |
-| رفع تسجيلات المحاضرات | SC-LES-001 | Covered with TBD Actor |
-| عرض النتائج لي ولي الامر | SC-EXM-004 | Covered |
-| تصحيح الدرجات تلقائي | SC-EXM-003 | Covered with TBD Details |
-| تسليم الواجبات و الامتحانات | SC-EXM-002 | Covered |
-| رفع الواجبات | SC-EXM-001 | Covered with TBD Actor |
-| انشاء الواجبات | SC-EXM-001 | Covered with TBD Actor |
-| رفع الامتحانات | SC-EXM-001 | Covered with TBD Actor |
-| انشاء الامتحانات | SC-EXM-001 | Covered with TBD Actor |
-| تقييمات + ملاحظات المدرس | SC-PAR-001 | Covered |
-| حالة الواجبات | SC-PAR-002 | Covered |
-| درجات الامتحانات | SC-PAR-001 | Covered |
-| الحضور و الغياب | SC-PAR-002 | Covered |
-| مستوى الطالب | SC-PAR-001 | Covered |
-| اشعار قبل الحصة ب ساعه | SC-NOT-001 | Covered with TBD Actor |
-| اشعار في حالة عدم حل الواجب | SC-NOT-002 | Covered with TBD Actor |
-| اشعار درجة امتحان الطالب | SC-NOT-003 | Covered with TBD Actor |
-| اشعار امتحان جديد | SC-NOT-003 | Covered with TBD Actor |
-| اشعارات في حالة غياب الطالب | SC-NOT-004 | Covered with TBD Actor |
-| تحديد مواعيد الدروس | SC-GRP-001 | Covered with TBD Actor |
-| اضافة طلاب | SC-GRP-002 | Covered with TBD Actor |
-| انشاء مجموعة | SC-GRP-001 | Covered with TBD Actor |
-| السكرتارية | SC-USR-001 | Covered with TBD Details |
-| ولي الامر | SC-USR-001 | Covered |
-| الطالب | SC-USR-001 | Covered |
-| المدرس | SC-USR-001 | Covered |
-| حالة الدفع لكل طالب | SC-SUB-001 | Covered with TBD Actor |
+| `حالة الطلاب` | `SC-STU-003` | Covered |
+| `المجموعة و الصف` | `SC-STU-001` | Covered |
+| `بيانات ولي الامر` | `SC-STU-002` | Covered |
+| `بيانات الطالب` | `SC-STU-001` | Covered |
+| `تقارير الحضور و الغياب` | `SC-ATT-002` | Covered |
+| `تسجيل الغياب` | `SC-ATT-001` | Covered |
+| `تسجيل حضور الطلاب` | `SC-ATT-001` | Covered |
+| `تسجيل الحضور عبر مسح QR Code` | `SC-ATT-003` | Covered |
+| `متابعة مشاهدة المحتوى` | `SC-LES-002` | Covered |
+| `رفع الملفات و المراجع و الملخصات` | `SC-LES-001` | Covered |
+| `رفع تسجيلات المحاضرات` | `SC-LES-001` | Covered |
+| `عرض النتائج لي ولي الامر` | `SC-EXM-004` | Covered |
+| `تصحيح الدرجات تلقائي` | `SC-EXM-003` | Covered |
+| `تسليم الواجبات و الامتحانات` | `SC-EXM-002` | Covered |
+| `رفع الواجبات` | `SC-EXM-001` | Covered |
+| `انشاء الواجبات` | `SC-EXM-001` | Covered |
+| `رفع الامتحانات` | `SC-EXM-001` | Covered |
+| `انشاء الامتحانات` | `SC-EXM-001` | Covered |
+| `تقييمات + ملاحظات المدرس` | `SC-PAR-001` | Covered |
+| `حالة الواجبات` | `SC-PAR-002` | Covered |
+| `درجات الامتحانات` | `SC-PAR-001` | Covered |
+| `الحضور و الغياب` | `SC-PAR-002` | Covered |
+| `مستوى الطالب` | `SC-PAR-001` | Covered |
+| `اشعار قبل الحصة ب ساعه` | `SC-NOT-001` | Covered |
+| `اشعار في حالة عدم حل الواجب` | `SC-NOT-002` | Covered |
+| `اشعار درجة امتحان الطالب` | `SC-NOT-003` | Covered |
+| `اشعار امتحان جديد` | `SC-NOT-003` | Covered |
+| `اشعارات في حالة غياب الطالب` | `SC-NOT-004` | Covered |
+| `تحديد مواعيد الدروس` | `SC-GRP-001` | Covered |
+| `اضافة طلاب` | `SC-GRP-002` | Covered |
+| `انشاء مجموعة` | `SC-GRP-001` | Covered |
+| `السكرتارية` | `SC-USR-001` | Covered |
+| `ولي الامر` | `SC-USR-001` | Covered |
+| `الطالب` | `SC-USR-001` | Covered |
+| `المدرس` | `SC-USR-001` | Covered |
+| `حالة الدفع لكل طالب` | `SC-SUB-001` | Covered |
+| `الاشتراك في دورة رقمية` | `SC-OL-001` | Covered |
+| `عرض الدروس الرقمية` | `SC-OL-002` | Covered |
+| `متابعة الدرس بدون اتصال` | `SC-OL-003` | Covered |
+| `مزامنة التقدم بعد الاتصال` | `SC-OL-004` | Covered |
+| `أداء امتحان الدورة` | `SC-OL-005` | Covered |
+| `متابعة ولي الامر للتقدم` | `SC-OL-006` | Covered |
+| `انشاء ونشر دورة رقمية` | `SC-OL-007` | Covered |
 
 ---
 
 ## 5. Open Product Clarifications
 
-1. **Actor Assignment for Administrative Tasks**: Which specific user role (Teacher, Secretariat, or both) is responsible for managing student data, parent data, student status, creating groups, adding students, and scheduling lesson times?
-2. **Attendance Operations Ownership**: Who is authorized to record student attendance and absence, and who can view attendance and absence reports?
-3. **Content and Assessment Ownership**: Are educational content uploads, exam/assignment creation, and exam/assignment uploads performed solely by the Teacher, or can other roles assist?
-4. **Notification Recipients**: For each notification event (`اشعار قبل الحصة ب ساعه`, `اشعار في حالة عدم حل الواجب`, `اشعار درجة امتحان الطالب`, `اشعار امتحان جديد`, `اشعارات في حالة غياب الطالب`), who is the intended recipient (Student, Parent, or both)?
-5. **Payment Status Ownership**: Which role is responsible for viewing or managing the payment status for each student (`حالة الدفع لكل طالب`)?
-6. **Submission Workflow**: What are the specific interaction rules and submission requirements for students submitting assignments and exams?
-7. **Secretariat Responsibilities**: What specific operational tasks and system access rights belong to the Secretariat role?
+1. **Commercial Course Subscriptions**: Approved payment gateways, pricing rules, and refund policies for online courses remain `TBD — Requires Product Clarification`.
+2. **Offline Video Caching Policy**: Product decision on whether partial video chunk caching should be supported for mobile apps remains `TBD`.
+3. **Secretariat vs. Teacher Course Rights**: Clarification on whether Secretariat can author courses or strictly manage enrollments remains `TBD`.

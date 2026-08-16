@@ -377,49 +377,105 @@ The product domain recognizes four confirmed user roles:
 ## 14. Subscription / Payment Logic
 
 The Business Logic Layer represents student payment status:
-- **Concept**: Student payment status (`حالة الدفع لكل طالب`) is represented as a product concept.
-
-*Note*: Permitted payment status values, calculation rules, payment processing, billing cycles, and management roles are `TBD — Requires Product Clarification`.
+- **Concept**: Student payment status (`حالة الدفع لكل طالب`) is represented as an administrative record per billing cycle.
+- **Boundary Constraint**: `StudentPaymentRecord` tracks physical tuition fee status and does NOT control or merge with `CourseAccess` digital entitlements.
 
 ---
 
-## 15. Business Logic Inputs and Outputs
+## 15. Online Learning & Course Logic
+
+### Rule ID: BLR-OL-001 — Independent Course Lifecycle & Publishing Invariants
+- **Related Backlog Item**: `ادارة الدورات التدريبية عبر الإنترنت`
+- **Related User Story**: `US-OL-001`
+- **Confirmed Invariants**:
+  1. A `Course` is an independent pedagogical product entity, completely decoupled from physical `AcademicGroup`.
+  2. Lifecycle states: `DRAFT` (authoring), `PUBLISHED` (visible in catalog and discoverable for enrollment), `ARCHIVED` (closed for new enrollments).
+  3. Deletion of a course with active student completion history is restricted.
+
+### Rule ID: BLR-OL-002 — Structured Course Hierarchy Ordering Rules
+- **Related Backlog Item**: `هيكلة الوحدات والدروس الرقمية`
+- **Related User Story**: `US-OL-001`
+- **Confirmed Invariants**:
+  1. Hierarchy is strictly 3-tiered: `Course` ──► `CourseModule` ──► `CourseLesson`.
+  2. Modules and lessons enforce unique, sequential integer `order_index` within their parent context.
+
+### Rule ID: BLR-OL-003 — Course Access Entitlement & Security Invariants
+- **Related Backlog Item**: `الالتحاق بالدورة وصلاحية الوصول`
+- **Related User Story**: `US-OL-002`
+- **Confirmed Invariants**:
+  1. `Single Student Identity`: A single student profile represents the learner across physical and online domains.
+  2. `CourseAccess` states: `ACTIVE`, `EXPIRED`, `SUSPENDED`.
+  3. `Attendance Boundary`: Online course enrollment grants zero physical classroom attendance rights. Online students cannot be checked in via QR scan.
+
+### Rule ID: BLR-OL-004 — Asynchronous Video Streaming & Protected Asset Delivery
+- **Related Backlog Item**: `تقديم محتوى الدروس الرقمية`
+- **Related User Story**: `US-OL-003`
+- **Confirmed Invariants**:
+  1. Video playback requires active `CourseAccess` verification before issuing signed, time-limited Bunny Stream embed tokens.
+  2. PDF files and references are distributed via Cloudflare R2 presigned URLs.
+
+### Rule ID: BLR-OL-005 — Monotonic Lesson Progress Merging & Resumption Rules
+- **Related Backlog Item**: `متابعة التقدم في الدورات الرقمية`
+- **Related User Story**: `US-OL-004`
+- **Confirmed Invariants**:
+  1. Playback position merging is monotonic: `last_position_seconds = GREATEST(existing, payload)`.
+  2. Completion state is monotonic boolean OR: once marked completed (`is_completed = true`), it cannot be reversed by an older heartbeat.
+
+### Rule ID: BLR-OL-006 — Dynamic Course Completion Metric Calculation
+- **Related Backlog Item**: `متابعة التقدم في الدورات الرقمية`
+- **Related User Story**: `US-OL-004`
+- **Confirmed Invariants**:
+  - Overall course progress percentage is dynamically computed as:
+    $$\text{Course Progress (\%)} = \left( \frac{\text{Count of Completed Lessons}}{\text{Total Published Lessons in Course}} \right) \times 100$$
+
+### Rule ID: BLR-OL-007 — Online Assessment Single Attempt & Synchronous Auto-Grading
+- **Related Backlog Item**: `أداء امتحان الدورة الرقمية`
+- **Related User Story**: `US-OL-006`
+- **Confirmed Invariants**:
+  1. Single-attempt constraint: only one submission is permitted per student per course assessment.
+  2. Auto-graded exams evaluate MCQ/True-False questions synchronously upon submission.
+
+### Rule ID: BLR-OL-008 — Offline Progress Staging & Outbox Sync Rules
+- **Related Backlog Item**: `المزامنة والعمل بدون اتصال للدورات الرقمية`
+- **Related User Story**: `US-OL-005`
+- **Confirmed Invariants**:
+  1. Server is the sole authority for access entitlement and grading; local client cache is never an authorization authority.
+  2. Batch intake of queued progress events uses client-generated `client_operation_id` for idempotent deduplication.
+
+---
+
+## 16. Business Logic Inputs and Outputs
 
 | Domain | Conceptual Inputs | Business Processing | Conceptual Outputs |
 | :--- | :--- | :--- | :--- |
-| **Student Management** | `TBD — Requires Product Clarification` | `TBD — Requires Product Clarification` | Conceptual representation of student data, parent data, student status, group/class |
-| **Attendance & Absence** | `TBD — Requires Product Clarification` | `TBD — Requires Product Clarification` | Conceptual representation of attendance records, absence records, attendance reports |
-| **Lectures & Lessons** | `TBD — Requires Product Clarification` | `TBD — Requires Product Clarification` | Conceptual representation of educational materials, content viewing information |
-| **Exams & Assignments** | `TBD — Requires Product Clarification` | Automatic grading for exams (`TBD — Requires Product Clarification` for other processing) | Conceptual representation of assessments, submissions, graded exam outcome |
-| **Parent Student Status** | `TBD — Requires Product Clarification` | `TBD — Requires Product Clarification` | Conceptual representation of results, teacher notes, evaluations, assignment status, attendance, student level |
-| **Notifications** | `TBD — Requires Product Clarification` | `TBD — Requires Product Clarification` | Conceptual representation of notification messages |
-| **Groups Management** | `TBD — Requires Product Clarification` | `TBD — Requires Product Clarification` | Conceptual representation of groups, schedules, group rosters |
-| **Users & Permissions** | `TBD — Requires Product Clarification` | `TBD — Requires Product Clarification` | Conceptual representation of confirmed user roles |
-| **Subscriptions** | `TBD — Requires Product Clarification` | `TBD — Requires Product Clarification` | Conceptual representation of student payment status |
+| **Student Management** | Student demographic profile, stage | Identity provisioning, QR credential generation | Student profile, unique QR token |
+| **Attendance & Absence** | QR scan token, teacher session context | 7-tier verification, group enrollment check, duplicate scan filter | `AttendanceRecord` (PRESENT/ABSENT) |
+| **Lectures & Lessons** | File upload metadata, video reference | R2 presigned URL issuance, Bunny Stream registration | Accessible educational assets |
+| **Exams & Assignments** | Exam questions, student answer payload | Auto-grading score calculation, passing threshold check | Graded submission, exam grade alert |
+| **Parent Student Status** | Parent authentication, linked child ID | BOLA verification on parent-student link, record consolidation | Dual progress overview (Physical + Online) |
+| **Notifications** | System event triggers (absence, exam grade, pre-lesson) | Recipient resolution, alert formatting | Notification record |
+| **Groups Management** | Group name, stage, weekly schedule | Schedule timetable generation, cohort roster maintenance | Active group, session instances |
+| **Users & Permissions** | User credentials, role assignment | Password verification, JWT token issuance | Authenticated session |
+| **Subscriptions** | Payment status string, billing period | Administrative record persistence | Updated student payment status |
+| **Online Learning** | Course structure, lesson heartbeat, offline batch | Access entitlement verification, monotonic progress merge, dynamic percentage | Active course stream, updated progress |
 
 ---
 
-## 16. Business Logic Boundaries
+## 17. Business Logic Boundaries
 
-### 16.1 Business Logic SHOULD Handle:
-- Domain concepts and product capabilities explicitly defined in the product backlog.
-- Execution of confirmed product workflows (student exam submission and automatic grading).
+### 17.1 Business Logic SHOULD Handle:
+- Domain concepts and product capabilities across all 10 approved modules.
+- Execution of confirmed product workflows (QR attendance 7-tier check, auto-grading, monotonic progress sync).
 - Evaluation of defined notification trigger conditions.
 
-### 16.2 Business Logic SHOULD NOT Handle:
+### 17.2 Business Logic SHOULD NOT Handle:
 - User interface presentation, rendering, and visual styling.
-- Form controls, buttons, screen layouts, and client navigation.
-- Physical database schema design, direct database queries, or storage implementation.
-- Technical communication protocols, network handling, and API serialization.
-- External notification service infrastructure and message delivery transport.
-
-*Note*: Architectural service boundaries and interface contracts are `TBD — Requires Architecture Decision`.
+- Physical database connection management or SQL dialect specifics.
+- Direct binary file byte streaming (delegated to Cloudflare R2 and Bunny Stream).
 
 ---
 
-## 17. Open Business Rules
-
-The following missing product rules must be clarified by product stakeholders:
+## 18. Open Business Rules
 
 1. **Student Status Values**: What specific status values can a student hold, and what rules govern status transitions?
 2. **Attendance & Absence Rules**: What specific rules define attendance vs. absence, and are there absence limits or excuse mechanisms?
@@ -427,60 +483,56 @@ The following missing product rules must be clarified by product stakeholders:
 4. **Assignment & Exam Submission Rules**: What are the specific rules, formats, deadlines, and attempt limits for assignment and exam submissions?
 5. **Notification Recipient Assignment**: For each notification requirement, who are the designated recipients (Student, Parent, or both)?
 6. **Payment Status Definitions**: What are the defined values for `حالة الدفع لكل طالب`?
-7. **Secretariat Operational Responsibilities**: What specific business responsibilities and operational tasks are assigned to the Secretariat?
-8. **Role Authorization & Responsibility Matrix**: What specific business actions belong to each of the four roles (Teacher, Student, Parent, Secretariat)?
+7. **Commercial Course Pricing & Checkout**: Pricing, coupon rules, and payment gateways for online courses remain `TBD — Requires Product Clarification`.
 
 ---
 
-## 18. Business Logic Traceability
+## 19. Business Logic Traceability
 
-| Backlog Item | User Story | Business Rule / Domain Concept | Workflow | Status |
-| :--- | :--- | :--- | :--- | :--- |
-| حالة الطلاب | `US-STU-003` | `BLR-STU-003` | N/A — No Explicit Workflow Defined | Partially Defined |
-| المجموعة و الصف | `US-STU-001` | `BLR-STU-001` | N/A — No Explicit Workflow Defined | Partially Defined |
-| بيانات ولي الامر | `US-STU-002` | `BLR-STU-002` | N/A — No Explicit Workflow Defined | Partially Defined |
-| بيانات الطالب | `US-STU-001` | `BLR-STU-001` | N/A — No Explicit Workflow Defined | Partially Defined |
-| تقارير الحضور و الغياب | `US-ATT-002` | `BLR-ATT-002` | N/A — No Explicit Workflow Defined | Partially Defined |
-| تسجيل الغياب | `US-ATT-001` | `BLR-ATT-001` | N/A — No Explicit Workflow Defined | Partially Defined |
-| تسجيل حضور الطلاب | `US-ATT-001` | `BLR-ATT-001` | N/A — No Explicit Workflow Defined | Partially Defined |
-| تسجيل الحضور عبر مسح QR Code | `US-ATT-003` | `BLR-ATT-003` | N/A — No Explicit Workflow Defined | Defined |
-| متابعة مشاهدة المحتوى | `US-LES-002` | `BLR-LES-002` | N/A — No Explicit Workflow Defined | Partially Defined |
-| رفع الملفات و المراجع و الملخصات | `US-LES-001` | `BLR-LES-001` | N/A — No Explicit Workflow Defined | Partially Defined |
-| رفع تسجيلات المحاضرات | `US-LES-001` | `BLR-LES-001` | N/A — No Explicit Workflow Defined | Partially Defined |
-| عرض النتائج لي ولي الامر | `US-EXM-004` | `BLR-EXM-004` | N/A — No Explicit Workflow Defined | Partially Defined |
-| تصحيح الدرجات تلقائي | `US-EXM-003` | `BLR-EXM-003` | `BLW-EXM-001` | Partially Defined |
-| تسليم الواجبات و الامتحانات | `US-EXM-002` | `BLR-EXM-002` | `BLW-EXM-001` (For Exams) | Partially Defined |
-| رفع الواجبات | `US-EXM-001` | `BLR-EXM-001` | N/A — No Explicit Workflow Defined | Partially Defined |
-| انشاء الواجبات | `US-EXM-001` | `BLR-EXM-001` | N/A — No Explicit Workflow Defined | Partially Defined |
-| رفع الامتحانات | `US-EXM-001` | `BLR-EXM-001` | N/A — No Explicit Workflow Defined | Partially Defined |
-| انشاء الامتحانات | `US-EXM-001` | `BLR-EXM-001` | N/A — No Explicit Workflow Defined | Partially Defined |
-| تقييمات + ملاحظات المدرس | `US-PAR-001` | `BLR-PAR-001` | N/A — No Explicit Workflow Defined | Partially Defined |
-| حالة الواجبات | `US-PAR-002` | `BLR-PAR-002` | N/A — No Explicit Workflow Defined | Partially Defined |
-| درجات الامتحانات | `US-PAR-001` | `BLR-PAR-001` | N/A — No Explicit Workflow Defined | Partially Defined |
-| الحضور و الغياب | `US-PAR-002` | `BLR-PAR-002` | N/A — No Explicit Workflow Defined | Partially Defined |
-| مستوى الطالب | `US-PAR-001` | `BLR-PAR-001` | N/A — No Explicit Workflow Defined | Partially Defined |
-| اشعار قبل الحصة ب ساعه | `US-NOT-001` | `BLR-NOT-001` | N/A — No Explicit Workflow Defined | Partially Defined |
-| اشعار في حالة عدم حل الواجب | `US-NOT-002` | `BLR-NOT-002` | N/A — No Explicit Workflow Defined | Partially Defined |
-| اشعار درجة امتحان الطالب | `US-NOT-003` | `BLR-NOT-003` | N/A — No Explicit Workflow Defined | Partially Defined |
-| اشعار امتحان جديد | `US-NOT-003` | `BLR-NOT-003` | N/A — No Explicit Workflow Defined | Partially Defined |
-| اشعارات في حالة غياب الطالب | `US-NOT-004` | `BLR-NOT-004` | N/A — No Explicit Workflow Defined | Partially Defined |
-| تحديد مواعيد الدروس | `US-GRP-001` | `BLR-GRP-001` | N/A — No Explicit Workflow Defined | Partially Defined |
-| اضافة طلاب | `US-GRP-002` | `BLR-GRP-002` | N/A — No Explicit Workflow Defined | Partially Defined |
-| انشاء مجموعة | `US-GRP-001` | `BLR-GRP-001` | N/A — No Explicit Workflow Defined | Partially Defined |
-| السكرتارية | `US-USR-001` | `BLR-USR-001` | N/A — No Explicit Workflow Defined | Partially Defined |
-| ولي الامر | `US-USR-001` | `BLR-USR-001` | N/A — No Explicit Workflow Defined | Partially Defined |
-| الطالب | `US-USR-001` | `BLR-USR-001` | N/A — No Explicit Workflow Defined | Partially Defined |
-| المدرس | `US-USR-001` | `BLR-USR-001` | N/A — No Explicit Workflow Defined | Partially Defined |
-| حالة الدفع لكل طالب | `US-SUB-001` | `BLR-SUB-001` | N/A — No Explicit Workflow Defined | Partially Defined |
+| Backlog Item / Domain | User Story | Business Rule / Domain Concept | Status |
+| :--- | :--- | :--- | :--- |
+| `حالة الطلاب` | `US-STU-003` | `BLR-STU-003` | Partially Defined |
+| `المجموعة و الصف` | `US-STU-001` | `BLR-STU-001` | Partially Defined |
+| `بيانات ولي الامر` | `US-STU-002` | `BLR-STU-002` | Partially Defined |
+| `بيانات الطالب` | `US-STU-001` | `BLR-STU-001` | Partially Defined |
+| `تقارير الحضور و الغياب` | `US-ATT-002` | `BLR-ATT-002` | Partially Defined |
+| `تسجيل الغياب` | `US-ATT-001` | `BLR-ATT-001` | Partially Defined |
+| `تسجيل حضور الطلاب` | `US-ATT-001` | `BLR-ATT-001` | Partially Defined |
+| `تسجيل الحضور عبر مسح QR Code` | `US-ATT-003` | `BLR-ATT-003` | Defined |
+| `متابعة مشاهدة المحتوى` | `US-LES-002` | `BLR-LES-002` | Partially Defined |
+| `رفع الملفات و المراجع و الملخصات` | `US-LES-001` | `BLR-LES-001` | Partially Defined |
+| `رفع تسجيلات المحاضرات` | `US-LES-001` | `BLR-LES-001` | Partially Defined |
+| `عرض النتائج لي ولي الامر` | `US-EXM-004` | `BLR-EXM-004` | Partially Defined |
+| `تصحيح الدرجات تلقائي` | `US-EXM-003` | `BLR-EXM-003` | Defined |
+| `تسليم الواجبات و الامتحانات` | `US-EXM-002` | `BLR-EXM-002` | Partially Defined |
+| `رفع الواجبات` | `US-EXM-001` | `BLR-EXM-001` | Partially Defined |
+| `انشاء الواجبات` | `US-EXM-001` | `BLR-EXM-001` | Partially Defined |
+| `رفع الامتحانات` | `US-EXM-001` | `BLR-EXM-001` | Partially Defined |
+| `انشاء الامتحانات` | `US-EXM-001` | `BLR-EXM-001` | Partially Defined |
+| `تقييمات + ملاحظات المدرس` | `US-PAR-001` | `BLR-PAR-001` | Partially Defined |
+| `حالة الواجبات` | `US-PAR-002` | `BLR-PAR-002` | Partially Defined |
+| `درجات الامتحانات` | `US-PAR-001` | `BLR-PAR-001` | Partially Defined |
+| `الحضور و الغياب` | `US-PAR-002` | `BLR-PAR-002` | Partially Defined |
+| `مستوى الطالب` | `US-PAR-001` | `BLR-PAR-001` | Partially Defined |
+| `اشعار قبل الحصة ب ساعه` | `US-NOT-001` | `BLR-NOT-001` | Partially Defined |
+| `اشعار في حالة عدم حل الواجب` | `US-NOT-002` | `BLR-NOT-002` | Partially Defined |
+| `اشعار درجة امتحان الطالب` | `US-NOT-003` | `BLR-NOT-003` | Partially Defined |
+| `اشعار امتحان جديد` | `US-NOT-003` | `BLR-NOT-003` | Partially Defined |
+| `اشعارات في حالة غياب الطالب` | `US-NOT-004` | `BLR-NOT-004` | Partially Defined |
+| `تحديد مواعيد الدروس` | `US-GRP-001` | `BLR-GRP-001` | Partially Defined |
+| `اضافة طلاب` | `US-GRP-002` | `BLR-GRP-002` | Partially Defined |
+| `انشاء مجموعة` | `US-GRP-001` | `BLR-GRP-001` | Partially Defined |
+| `السكرتارية` | `US-USR-001` | `BLR-USR-001` | Partially Defined |
+| `ولي الامر` | `US-USR-001` | `BLR-USR-001` | Partially Defined |
+| `الطالب` | `US-USR-001` | `BLR-USR-001` | Partially Defined |
+| `المدرس` | `US-USR-001` | `BLR-USR-001` | Partially Defined |
+| `حالة الدفع لكل طالب` | `US-SUB-001` | `BLR-SUB-001` | Partially Defined |
+| `ادارة ونشر الدورات الرقمية`| `US-OL-001` | `BLR-OL-001` | Defined |
+| `هيكلة الوحدات والدروس` | `US-OL-001` | `BLR-OL-002` | Defined |
+| `الالتحاق بالدورة وصلاحية الوصول`| `US-OL-002` | `BLR-OL-003` | Defined |
+| `مشاهدة الدروس والوسائط` | `US-OL-003` | `BLR-OL-004` | Defined |
+| `متابعة واستئناف التقدم` | `US-OL-004` | `BLR-OL-005` | Defined |
+| `حساب نسبة اتمام الدورة` | `US-OL-004` | `BLR-OL-006` | Defined |
+| `امتحان الدورة والتصحيح التلقائي`| `US-OL-006`| `BLR-OL-007` | Defined |
+| `المزامنة والعمل بدون اتصال` | `US-OL-005` | `BLR-OL-008` | Defined |
 
----
-
-## 19. Open Architecture Decisions
-
-The following technical architecture decisions must be resolved:
-
-1. **Domain Service Architecture**: How will business domain logic be structured (e.g., modular monolith, clean architecture use-cases, domain-driven design services)?
-2. **Business Rule Validation Strategy**: What validation architecture will enforce domain invariants?
-3. **Automatic Grading Execution Engine**: How will automated grading logic be isolated and executed securely?
-4. **Notification Trigger & Scheduling Architecture**: What mechanism will manage the time-based (e.g., 1 hour pre-lesson) and event-based notification triggers?
-5. **Transaction & Consistency Boundaries**: What consistency models and transaction boundaries will apply across related domain updates?

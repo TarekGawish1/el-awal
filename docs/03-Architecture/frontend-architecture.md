@@ -421,6 +421,7 @@ export const CreateStudentSchema = z.object({
 
 ### 11.1 Key Frontend Scanner Invariants
 - **Non-Authority**: The frontend scanner **never** marks attendance locally or crafts fake payloads. It acts purely as an optical capture terminal forwarding raw strings to the backend.
+- **Offline Staging & Outbox**: Under offline conditions, valid scans are staged in the local database with `PENDING_SYNC` status and queued in the durable outbox for automatic background dispatch upon reconnection ([offline-first-sync-architecture.md](file:///d:/el_awal/docs/03-Architecture/offline-first-sync-architecture.md)).
 - **Audio Synthesis**: Emits synthesized web audio frequencies (e.g. 880Hz high beep for success, 220Hz low tone for error) for instant classroom sensory feedback.
 - **Continuous Scanner Flow**: The camera stream remains uninterrupted during scan evaluation; feedback overlays automatically dismiss after 2500ms to allow scanning the next student in the queue.
 
@@ -666,15 +667,15 @@ The application implements a mobile-first responsive architecture utilizing CSS 
 - **Decision**: Perform multi-megabyte file uploads directly from browser to Cloudflare R2 via presigned URLs.
 - **Rationale**: Eliminates RAM buffering on the Hetzner VPS and drastically speeds up upload speeds for teachers.
 
-### ADR-FE-004: Client-Side Scan Debouncing & Backend Idempotency Handshake
-- **Decision**: Implement a 3000ms client token cooldown while relying on backend unique constraints for authoritative deduplication.
-- **Rationale**: Delivers smooth, non-flickering camera scanner UX while maintaining 100% data integrity.
+### ADR-FE-005: Client-Side Offline Outbox & Background Sync Store
+- **Decision**: Use IndexedDB (via `idb-keyval` / `dexie`) to store cached course metadata and stage lesson progress events in a durable outbox queue.
+- **Rationale**: Enables seamless offline learning continuity; network reconnection triggers automatic idempotent background syncing to `/api/v1/sync/progress`.
 
 ---
 
 ## 29. Complete Bidirectional Traceability Matrix
 
-| Backlog Item | Functional Requirement | User Story | API Endpoint URI | Frontend Component / Page Route | QA Test Case |
+| Backlog Item / Domain | Functional Requirement | User Story | API Endpoint URI | Frontend Component / Page Route | QA Test Case |
 |---|---|---|---|---|---|
 | `بيانات الطالب` | `FR-STU-004` | `US-STU-001` | `/api/v1/students` | `/teacher/students`, `/student/dashboard` | `TC-STU-001` |
 | `حالة الطلاب` | `FR-STU-001` | `US-STU-003` | `/api/v1/students/:id` | `/teacher/students/[id]` | `TC-STU-003` |
@@ -707,11 +708,20 @@ The application implements a mobile-first responsive architecture utilizing CSS 
 | `اشعار درجة امتحان الطالب` | `FR-NOT-003` | `US-NOT-003` | `/api/v1/notifications` | `/components/layout/NotificationDrawer` | `TC-NOT-004` |
 | `اشعارات في حالة غياب الطالب` | `FR-NOT-005` | `US-NOT-004` | `/api/v1/notifications` | `/parent/child/[id]/attendance`, `NotificationDrawer` | `TC-NOT-005` |
 | `حالة الدفع لكل طالب` | `FR-SUB-001` | `US-SUB-001` | `/api/v1/subscriptions/students/:id/payment-status` | `/teacher/subscriptions`, `/secretariat/payments` | `TC-SUB-001` |
+| `ادارة ونشر الدورات الرقمية`| `FR-OL-001` | `US-OL-001` | `/api/v1/courses`, `/api/v1/courses/:id` | `/courses`, `/teacher/courses`, `/teacher/courses/[id]/edit` | `TC-OL-001..002` |
+| `هيكلة الوحدات والدروس` | `FR-OL-002` | `US-OL-001` | `/api/v1/courses/:id/modules`, `/api/v1/courses/modules/:id/lessons` | `/teacher/courses/[id]/builder` | `TC-OL-003..004` |
+| `الالتحاق بالدورة وصلاحية الوصول`| `FR-OL-003` | `US-OL-002` | `/api/v1/courses/:id/enroll`, `/api/v1/courses/my-courses` | `/courses/[id]`, `/student/my-courses` | `TC-OL-005..007` |
+| `مشاهدة الدرس والوسائط` | `FR-OL-004` | `US-OL-003` | `/api/v1/courses/lessons/:lessonId` | `/courses/[id]/lessons/[lessonId]` (`CoursePlayer`) | `TC-OL-008..009` |
+| `متابعة واستئناف التقدم` | `FR-OL-005` | `US-OL-004` | `/api/v1/courses/lessons/:lessonId/progress` | `/courses/[id]/lessons/[lessonId]`, `/student/my-courses` | `TC-OL-010..011` |
+| `أداء امتحان الدورة الرقمية` | `FR-OL-006` | `US-OL-006` | `/api/v1/assessments/:id/submit` | `/courses/[id]/exams/[examId]` | `TC-OL-012..013` |
+| `متابعة ولي الامر للدورات` | `FR-OL-007` | `US-OL-007` | `/api/v1/parent-portal/students/:studentId/courses` | `/parent/child/[id]/courses` | `TC-OL-014..015` |
+| `المزامنة والعمل بدون اتصال` | `FR-OL-008` | `US-OL-005` | `/api/v1/sync/progress` | `/components/offline/SyncStatusBadge`, `offline-sync-worker` | `TC-OL-016..018` |
 
 ---
 
 ## 30. Open Architectural Decisions & Product Clarifications (`TBD`)
 
 1. **`TBD — Frontend Refresh Token Mechanism`**: Architecture decision on whether to implement automated silent token refresh via Axios response interceptors once the backend refresh endpoint is finalized.
-2. **`TBD — Offline PWA & Camera Caching`**: Product decision on whether progressive web app (PWA) offline manifest caching is required for low-connectivity rural classrooms.
+2. **`TBD — Commercial Checkout UI`**: Checkout flow and payment modal components remain deferred until payment gateways are defined.
 3. **`TBD — Sound Theme Customization`**: Product decision on allowing teachers to select custom audio chimes for successful QR check-in events.
+
