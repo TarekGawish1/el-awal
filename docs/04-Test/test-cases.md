@@ -219,7 +219,7 @@ This document defines the formal test cases for verifying the functional capabil
 - **Test Steps**:
   1. Teacher scans the same student's QR code a second time within the same lesson session.
   2. System evaluates the scan request against existing attendance records.
-- **Expected Result**: System returns a confirmation indicating attendance is already recorded; no duplicate database record is inserted, and no application error occurs.
+- **Expected Result**: System returns a deterministic confirmation indicating attendance is already recorded; does not insert a duplicate record, does not modify the existing record (preserving original `recorded_at` timestamp), and raises no application errors.
 - **Status**: Ready
 
 ---
@@ -240,6 +240,68 @@ This document defines the formal test cases for verifying the functional capabil
   1. Teacher scans the Group B student's QR code during the Group A session.
   2. System resolves student identity and checks group enrollment for Group A.
 - **Expected Result**: System displays an informative warning alert stating the student is not enrolled in Group A (displaying student name and actual group), and does not record attendance for Group A.
+- **Status**: Ready
+
+---
+
+#### Test Case ID: TC-ATT-008
+- **Test Case Title**: Verify Teacher Authorization & Session Ownership Guard on QR Scan
+- **Requirement ID**: `FR-ATT-004`, `FR-USR-004`
+- **Backlog Item**: `تسجيل الحضور عبر مسح QR Code`
+- **User Story**: `US-ATT-003`
+- **User Scenario**: `SC-ATT-003`
+- **Test Type**: Security / Access Control
+- **Priority**: P0
+- **Preconditions**:
+  - Teacher 1 manages Group A; Teacher 2 manages Group B.
+  - Active lesson session belongs to Group A.
+- **Test Data**: Valid student QR code in Group A, authenticated session for Teacher 2.
+- **Test Steps**:
+  1. Teacher 2 submits a QR scan request for Teacher 1's Group A lesson session.
+  2. System evaluates `ResourceOwnershipGuard` on target session.
+- **Expected Result**: System rejects the request with HTTP 403 Forbidden, preventing unauthorized teachers from modifying attendance for other teachers' cohorts.
+- **Status**: Ready
+
+---
+
+#### Test Case ID: TC-ATT-009
+- **Test Case Title**: Verify Invalid or Tampered QR Token Rejection
+- **Requirement ID**: `FR-ATT-004`
+- **Backlog Item**: `تسجيل الحضور عبر مسح QR Code`
+- **User Story**: `US-ATT-003`
+- **User Scenario**: `SC-ATT-003`
+- **Test Type**: Security / Negative Testing
+- **Priority**: P0
+- **Preconditions**:
+  - Valid lesson session exists.
+  - Teacher is authenticated and authorized.
+- **Test Data**: Forged, malformed, or non-existent QR token string.
+- **Test Steps**:
+  1. Submit forged QR token to `POST /api/v1/attendance/sessions/:sessionId/scan-qr`.
+  2. Evaluate API response and audit logs.
+- **Expected Result**: System rejects the request with HTTP 404 Not Found / 400 Bad Request, logs a security warning event, and leaves session attendance unmodified.
+- **Status**: Ready
+
+---
+
+#### Test Case ID: TC-ATT-010
+- **Test Case Title**: Verify Student QR Token Regeneration & Old Token Invalidation
+- **Requirement ID**: `FR-ATT-004`
+- **Backlog Item**: `تسجيل الحضور عبر مسح QR Code`
+- **User Story**: `US-ATT-003`
+- **User Scenario**: `SC-ATT-003`
+- **Test Type**: Functional / Security / Lifecycle
+- **Priority**: P1
+- **Preconditions**:
+  - Student exists with original `qr_code_token_v1`.
+  - Authorized teacher/staff executes token regeneration.
+- **Test Data**: `POST /api/v1/students/:studentId/regenerate-qr-token`.
+- **Test Steps**:
+  1. Request QR token regeneration for student.
+  2. Verify new `qr_code_token_v2` is generated and saved.
+  3. Attempt scanning original `qr_code_token_v1` in active session.
+  4. Attempt scanning new `qr_code_token_v2` in active session.
+- **Expected Result**: `qr_code_token_v1` is rejected as invalid/revoked; `qr_code_token_v2` is accepted and successfully records attendance.
 - **Status**: Ready
 
 ---
@@ -811,6 +873,9 @@ This document defines the formal test cases for verifying the functional capabil
 | `TC-ATT-005` | `FR-ATT-004` | `تسجيل الحضور عبر مسح QR Code` | `US-ATT-003` | `SC-ATT-003` | Ready |
 | `TC-ATT-006` | `FR-ATT-004` | `تسجيل الحضور عبر مسح QR Code` | `US-ATT-003` | `SC-ATT-003` | Ready |
 | `TC-ATT-007` | `FR-ATT-004` | `تسجيل الحضور عبر مسح QR Code` | `US-ATT-003` | `SC-ATT-003` | Ready |
+| `TC-ATT-008` | `FR-ATT-004`, `FR-USR-004` | `تسجيل الحضور عبر مسح QR Code` | `US-ATT-003` | `SC-ATT-003` | Ready |
+| `TC-ATT-009` | `FR-ATT-004` | `تسجيل الحضور عبر مسح QR Code` | `US-ATT-003` | `SC-ATT-003` | Ready |
+| `TC-ATT-010` | `FR-ATT-004` | `تسجيل الحضور عبر مسح QR Code` | `US-ATT-003` | `SC-ATT-003` | Ready |
 | `TC-LES-001` | `FR-LES-002` | `رفع الملفات و المراجع و الملخصات` | `US-LES-001` | `SC-LES-001` | Ready |
 | `TC-LES-002` | `FR-LES-003` | `رفع تسجيلات المحاضرات` | `US-LES-001` | `SC-LES-001` | Ready |
 | `TC-LES-003` | `FR-LES-001` | `متابعة مشاهدة المحتوى` | `US-LES-002` | `SC-LES-002` | Blocked — Requires Product Clarification |

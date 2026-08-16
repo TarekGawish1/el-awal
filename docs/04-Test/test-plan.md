@@ -175,7 +175,7 @@ The primary objectives of the testing process are:
 | Module | Functional Testing | Integration Testing | System/E2E Testing | Other Testing |
 | :--- | :--- | :--- | :--- | :--- |
 | **Student Management** | Verify student data, parent data, student status, and group/class association handling. | Verify student data flow across presentation, business, and data layers. | Verify student record handling from user interface to data layer. | Usability & Security testing. |
-| **Attendance & Absence** | Verify recording attendance, recording absence, student unique QR code scanning, and attendance and absence reporting. | Verify QR scan token verification, attendance recording interaction with student data and reports. | Verify QR scanning check-in, manual roll-call entry, and report viewing flows. | Usability & Performance testing (<500ms scan). |
+| **Attendance & Absence** | Verify recording attendance, recording absence, student unique QR code scanning, and attendance and absence reporting. | Verify QR scan token verification, teacher session authorization guard, attendance recording interaction with student data and reports. | Verify QR scanning check-in, manual roll-call entry, and report viewing flows. | Usability, Performance (<500ms scan), and Security testing (token anti-tampering, rate limiting, teacher session ownership). |
 | **Lectures & Lessons** | Verify uploading files, references, summaries, lecture recordings, and content viewing tracking. | Verify content availability and viewing tracking integration with user records. | Verify upload and viewing tracking flows. | Performance & Compatibility testing. |
 | **Exams & Assignments** | Verify assignment/exam creation, upload, submission, automatic exam grading, and parent result display. | Verify the confirmed flow between student submission and automatic exam grading. | Verify complete exam creation, student submission, automatic grading, and result display workflow. | Usability & Performance testing. |
 | **Parent Student Status** | Verify displaying evaluations, notes, exam grades, student level, assignment status, and attendance. | Verify compilation of student academic data for parent-facing display. | Verify parent access to consolidated student status information. | Usability & Security testing. |
@@ -406,3 +406,8 @@ The quality assurance lifecycle produces the following standard deliverables:
 | **Presentation Layer Architecture** | `docs/03-Architecture/presentation-layer.md` | Included |
 | **Business Logic Architecture** | `docs/03-Architecture/business-logic.md` | Included |
 | **Data Layer Architecture** | `docs/03-Architecture/data-layer.md` | Included |
+| **Database Design** | `docs/03-Architecture/database-design.md` | Included |
+| **Backend Architecture** | `docs/03-Architecture/backend-architecture.md` | Included |
+| **Backend Implementation Architecture** | `docs/03-Architecture/backend-implementation-architecture.md` | Included |
+| **API Design Specification** | `docs/03-Architecture/api-design.md` | Included |
+| **Frontend Architecture Specification** | `docs/03-Architecture/frontend-architecture.md` | Included |

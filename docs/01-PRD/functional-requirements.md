@@ -99,19 +99,24 @@ This document covers only the functional scope represented by the provided Backl
 #### Requirement ID: FR-ATT-004
 - **Backlog Reference**: تسجيل الحضور عبر مسح QR Code
 - **Requirement Name**: Student QR Code Attendance Scanning & Provisioning
-- **Description**: Every student must have a unique QR code that can be scanned by the teacher to record the student's attendance for a specific lesson/session.
+- **Description**: Every student must have a unique, opaque QR code attendance credential that can be scanned by an authorized teacher to record the student's attendance for a specific lesson/session.
 - **Actor**: Teacher (`المدرس`) / Student (`الطالب`)
-- **Functional Behavior**: The system generates and assigns a unique QR code to each student. During an active or scheduled lesson session, the teacher accesses the scanner interface and scans the student's unique QR code to verify identity, validate group enrollment, and instantly record attendance for that specific session.
+- **Functional Behavior**: The system automatically provisions a unique, cryptographically random, non-sequential QR token for each student upon enrollment. During an active or scheduled lesson session, an authenticated teacher launches the camera scanner interface and scans the student's QR credential. The system executes a multi-tier verification pipeline (teacher session authorization -> session state validity -> token resolution -> student active status check -> group enrollment verification) and idempotently records attendance as `PRESENT` with recording method `QR_SCAN`.
 - **Acceptance Criteria**:
-  1. The system must automatically generate a unique, non-duplicable QR code for every enrolled student.
-  2. The system must allow students to view/present their unique QR code from their student profile or card.
-  3. The system must allow the teacher to scan the student's QR code using the application camera/scanner interface.
-  4. Upon successful scan, the system must immediately log the student as present (`PRESENT`) for the selected lesson session and confirm the recording.
+  1. The system must automatically generate a unique, non-guessable QR credential token for every student upon profile creation.
+  2. The system must allow students to view and present their unique QR code from their digital student card or student portal.
+  3. The system must allow authorized teachers to scan student QR codes via the application camera/scanner interface.
+  4. The system must verify that the scanning teacher is authorized to manage the specified lesson session.
+  5. The system must resolve the QR token to the student, verify active student status, and confirm active group enrollment in the session's group.
+  6. Upon successful verification of an unrecorded student, the system must atomically create the attendance record as `PRESENT` with recording method `QR_SCAN`, recording teacher ID, and timestamp in <500ms.
+  7. If an already-marked student is scanned in the same session, the system must neither create another record nor modify the existing record, returning a deterministic idempotent confirmation.
+  8. If a student from a different group is scanned, the system must display an informative enrollment mismatch warning with the student's name and actual group without logging attendance in the session.
+  9. The system must support QR token regeneration by authorized staff if a student's card is compromised or reissued.
 - **Business Rules**:
-  1. Each QR code is uniquely bound to one student record.
-  2. QR scanning records attendance for the currently selected `lesson_session`.
-  3. Scanning an already-recorded student in the same session is processed idempotently without error.
-- **Dependencies**: `FR-STU-004`, `FR-GRP-001`, `FR-GRP-002`, `FR-ATT-003`
+  1. The QR code functions strictly as an **Attendance Identification Credential**; it is neither an authorization token nor a direct data access key.
+  2. Attendance records are uniquely bound to `(session_id, student_id)` and strictly require valid teacher session context.
+  3. Scans must be protected against brute-force token guessing via endpoint rate limiting.
+- **Dependencies**: `FR-STU-004`, `FR-GRP-001`, `FR-GRP-002`, `FR-ATT-003`, `FR-USR-004`
 
 ### 3. Lectures & Lessons System
 

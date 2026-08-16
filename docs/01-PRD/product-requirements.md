@@ -410,7 +410,7 @@ High-level business rules derived from the approved product documentation (detai
 | **AC-022** | `PRD-008` | Given a recorded student absence, when logged, then the student absence notification is dispatched. | Verify dispatch of absence alert notification. |
 | **AC-023** | `PRD-009` | Given the system in operation, when users interact, then the four confirmed roles (Teacher, Student, Parent, Secretariat) are represented. | Verify system entities exist for each of the four roles. |
 | **AC-024** | `PRD-010` | Given student payment records, when accessed by authorized users, then the payment status for each student is displayed. | View student payment status field in administrative management view. |
-| **AC-025** | `PRD-003` | Given a student's unique QR code and an active lesson session, when scanned by the teacher, then the student's identity and group enrollment are validated and attendance is recorded as `PRESENT` for that session. | Scan student QR code during session and verify instant attendance recording. |
+| **AC-025** | `PRD-003` | Given an authenticated teacher managing an active lesson session and a student's unique QR credential, when scanned, then the system validates teacher session authorization, resolves student identity, verifies active group enrollment, and atomically creates attendance as `PRESENT` with recording method `QR_SCAN` in <500ms if not already logged; if already logged, the existing record remains unmodified and is acknowledged idempotently. | Scan student QR code during session, verify multi-tier validation, and check idempotent attendance recording without modifying existing records. |
 
 ---
 
@@ -469,7 +469,7 @@ Test Case (TC-STU-001..SUB-001)
 |---|---|---|---|---|---|---|
 | **BR-001** | `PRD-001` | `FR-STU-001..004` | `US-STU-001..003` | `UC-STU-001..003` | `AC-001..003` | `TC-STU-001..003` |
 | **BR-002** | `PRD-002` | `FR-GRP-001..003` | `US-GRP-001..002` | `UC-GRP-001..002` | `AC-004..005` | `TC-GRP-001..003` |
-| **BR-003** | `PRD-003` | `FR-ATT-001..004` | `US-ATT-001..003` | `UC-ATT-001..003` | `AC-006..007, AC-025` | `TC-ATT-001..007` |
+| **BR-003** | `PRD-003` | `FR-ATT-001..004` | `US-ATT-001..003` | `UC-ATT-001..003` | `AC-006..007, AC-025` | `TC-ATT-001..010` |
 | **BR-004** | `PRD-004` | `FR-LES-001..003` | `US-LES-001..002` | `UC-LES-001..002` | `AC-008..010` | `TC-LES-001..003` |
 | **BR-005** | `PRD-005` | `FR-EXM-003..007` | `US-EXM-001..002` | `UC-EXM-001..002` | `AC-011..013` | `TC-EXM-001..003` |
 | **BR-006** | `PRD-006` | `FR-EXM-002` | `US-EXM-003` | `UC-EXM-003` | `AC-014` | `TC-EXM-004` |

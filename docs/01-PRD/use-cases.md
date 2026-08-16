@@ -160,27 +160,32 @@ Use Cases are identified using the prefix `UC-<DOM>-<NNN>` where `<DOM>` represe
 ---
 
 #### UC-ATT-003 — Record Student Attendance via QR Code Scanning
-- **Goal**: Rapidly record student session attendance by scanning the student's unique QR code.
+- **Goal**: Rapidly and securely record student session attendance by scanning the student's unique QR identification credential.
 - **Primary Actor**: `Teacher / المدرس`
 - **Supporting Actors**: `Student / الطالب`
-- **Trigger**: Teacher opens the QR scanner during or for a scheduled lesson session and scans the student's presented QR code.
+- **Trigger**: Teacher initiates the QR scanner during or for a scheduled lesson session and points the viewfinder at the student's presented QR code.
 - **Preconditions**:
-  1. Student exists in the system with an assigned unique QR code.
-  2. Teacher has selected an active or scheduled lesson session.
-  3. Camera/scanner access is granted on the teacher's device.
+  1. Teacher is authenticated with a valid session and authorized to manage the target `AcademicGroup`.
+  2. Lesson session exists and is in an active attendance-taking window.
+  3. Student exists with an assigned unique, high-entropy `qr_code_token`.
+  4. Device camera access is granted to the application.
 - **Main Flow**:
-  1. Teacher initiates the QR attendance scanning interface for the selected lesson session.
-  2. Student presents their unique QR code (via student dashboard or physical student card).
-  3. Teacher scans the QR code using the camera viewfinder.
-  4. System decodes the QR token, validates student identity, and verifies group enrollment.
-  5. System records the student's attendance as `PRESENT` for the specified session with recording method `QR_SCAN`.
-  6. System provides immediate confirmation and updates the session attendance roster in real time.
+  1. Teacher selects the active lesson session and launches the QR camera scanner interface.
+  2. Student presents their unique QR code (via mobile digital student card or printed card).
+  3. Teacher aligns the QR code within the scanner viewfinder.
+  4. Client captures and submits the opaque QR token payload to the backend attendance scanning endpoint.
+  5. System validates teacher authorization and session state.
+  6. System resolves the QR token to the student, verifies active account status, and confirms active group enrollment in the session's group.
+  7. If no attendance record exists, system atomically creates the student's attendance record as `PRESENT` with recording method `QR_SCAN`, recording teacher ID, and server timestamp.
+  8. System returns instantaneous positive visual and audio confirmation to the teacher and increments the session attendance count in real time.
 - **Alternative Flows**:
-  - *Duplicate Scan*: If the student's attendance is already recorded for this session, the system provides confirmation that attendance is already logged and maintains state without duplication.
+  - *Duplicate / Repeated Scan*: If attendance is already logged for this student in this session, the system does not create another record, does not modify the existing record, and returns affirmative duplicate confirmation preserving existing attendance data.
 - **Exception Flows**:
-  - *Invalid/Unrecognized QR Code*: System notifies teacher that the QR token is invalid or unassigned.
-  - *Student Not Enrolled in Group*: System displays a warning indicating that the scanned student is not enrolled in the selected group session.
-- **Postconditions**: The student's attendance is persisted as `PRESENT` for the lesson session with audit timestamp and recorder ID.
+  - *Unauthorized Teacher*: If the scanning educator does not own the group session, the system rejects the request with HTTP 403 Forbidden.
+  - *Invalid / Unrecognized QR Token*: If the QR token does not resolve to an active student record, the system displays an error banner and logs a security event.
+  - *Student Not Enrolled in Group*: If the student is enrolled in a different group, the system presents an informative alert displaying the student's name and actual group without logging attendance in this session.
+  - *Inactive / Suspended Student*: If the student's account is deactivated or suspended, the system displays an account status alert.
+- **Postconditions**: The student's attendance is persisted as `PRESENT` for the lesson session with audit metadata (`recorded_by_id`, `recorded_at`, `recording_method = 'QR_SCAN'`).
 - **Related Requirements**:
   - **Business Requirement**: `BR-003`
   - **Functional Requirement**: `FR-ATT-004`

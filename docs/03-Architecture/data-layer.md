@@ -101,9 +101,9 @@ The conceptual data requirements are organized across the nine product modules:
 - **Entity Name**: Student QR Code Attendance Data
 - **Related Backlog Item(s)**: `تسجيل الحضور عبر مسح QR Code`
 - **Related Business Logic Concept**: `BLR-ATT-003`
-- **Description**: Represents the unique student QR code token, scan verification payload, and session attendance check-in record.
-- **Known Data**: Unique student QR token (`qr_code_token`), lesson session ID, scan timestamp, recording method (`QR_SCAN`), recorder ID.
-- **Relationships**: Linked 1:1 with `DATA-STU-001` (Student Data) and recorded in `DATA-ATT-001` (Attendance and Absence Records).
+- **Description**: Represents the opaque student QR identification credential (`qr_code_token`), scan verification payload, and session attendance check-in record.
+- **Known Data**: Unique student QR credential token (`qr_code_token`), lesson session ID (`session_id`), recording method (`QR_SCAN`), recording educator ID (`recorded_by_id`), server timestamp (`recorded_at`).
+- **Relationships**: `qr_code_token` is bound 1:1 to `StudentProfile` (`DATA-STU-001`), and session check-ins persist in `attendance_records` (`DATA-ATT-001`) governed by composite unique constraint `(session_id, student_id)`.
 - **Data Status**: Defined
 
 ---

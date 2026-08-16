@@ -119,13 +119,19 @@ Each user story is structured with the following fields:
 - **Related Scenario**: `SC-ATT-003`
 - **Actor**: Teacher (`المدرس`) / Student (`الطالب`)
 - **User Story**:
-  > As a Teacher (`المدرس`), I want to scan a student's unique QR code during a lesson session, so that the student's attendance is rapidly and reliably recorded for that specific session.
+  > As an authorized Teacher (`المدرس`), I want to scan a student's unique QR attendance credential during an active lesson session, so that the student's attendance is verified against group enrollment and recorded immediately without manual roster searching.
   >
-  > As a Student (`الطالب`), I want to view and present my unique QR code from my student profile, so that my teacher can scan it to verify and record my attendance.
+  > As a Student (`الطالب`), I want to view and present my unique QR attendance credential from my digital student card or portal, so that my teacher can scan it to record my attendance.
 - **Acceptance Criteria**:
-  - **Given**: A student is enrolled in the system with an assigned unique QR code and the teacher has opened an active lesson session.
-  - **When**: The teacher scans the student's unique QR code via the camera scanner interface.
-  - **Then**: The system validates the student, marks their attendance status as `PRESENT` for that session, and provides instantaneous visual confirmation.
+  - **Given**: An authenticated teacher managing an active lesson session and a student presenting their unique QR credential.
+  - **When**: The teacher scans the student's QR code via the camera scanner interface.
+  - **Then**: The system validates teacher session authorization, resolves the student's active profile, verifies active group enrollment in the session's group, records attendance as `PRESENT` with recording method `QR_SCAN`, and provides instantaneous visual/audio feedback.
+  - **Given**: A student whose attendance has already been recorded for the session.
+  - **When**: The student's QR code is scanned again in the same session.
+  - **Then**: The system confirms the existing attendance status idempotently without duplicating entries.
+  - **Given**: A student enrolled in a different group.
+  - **When**: The student's QR code is scanned.
+  - **Then**: The system displays an informative enrollment mismatch warning with the student's name and actual group, and does not record attendance in this session.
 - **Clarifications**: Defined.
 
 ---

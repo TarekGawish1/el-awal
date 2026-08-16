@@ -85,11 +85,18 @@ The Business Logic Layer represents domain concepts and product capabilities acr
 - **Rule Name**: Student QR Code Attendance Validation & Processing
 - **Related Backlog Item**: `تسجيل الحضور عبر مسح QR Code`
 - **Related User Story**: `US-ATT-003`
-- **Confirmed Business Rules**:
-  1. Every registered student receives a globally unique, persistent QR token upon profile creation.
-  2. Scanning a student's QR code in the context of an active/scheduled lesson session verifies group enrollment and marks the student's attendance record as `PRESENT` with recording method `QR_SCAN`.
-  3. QR scanning operations are idempotent: subsequent scans of an already-recorded student in the same session return success confirmation without creating duplicate entries.
-  4. Cross-group scan detection: Scanning a student not enrolled in the session's group issues an explicit warning with the student's identity and actual enrolled group.
+- **Confirmed Business Invariants**:
+  1. **Credential Classification**: The QR code represents an opaque **Attendance Identification Credential**; it does not authorize user access, does not act as a bearer token, and does not expose personal identifiable data in its raw format.
+  2. **Unique Provisioning**: Every student is provisioned with a persistent, non-guessable cryptographic token (`qr_code_token`) upon enrollment.
+  3. **Multi-Tier Processing Pipeline**:
+     - *Teacher & Session Ownership*: Scan must originate from an authenticated educator authorized for the target academic group.
+     - *Session Status*: Session must be in an active/valid attendance recording window.
+     - *Identity & Status*: Token must resolve to an active student account (`is_active = true`, `academic_status = 'ACTIVE'`).
+     - *Cohort Enrollment*: Student must have an active `GroupEnrollment` in the session's group.
+     - *Atomic Persistence*: If no attendance record exists, attendance is created with `status = 'PRESENT'`, `recording_method = 'QR_SCAN'`, recording teacher ID, and server timestamp.
+  4. **Strict Idempotency**: If attendance already exists for the student in the session, repeated scans do not create another record and do not modify the existing record, returning deterministic idempotent confirmation.
+  5. **Cross-Cohort Exception Handling**: Scanning a student enrolled in a different group triggers an informative enrollment mismatch warning with the student's name and assigned group, without altering attendance for the active session.
+  6. **Token Lifecycle & Revocation**: Tokens can be regenerated/rotated by authorized staff upon report of a lost badge or compromised token.
 - **Business Logic Status**: Defined
 
 ---

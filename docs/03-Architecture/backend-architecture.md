@@ -374,50 +374,120 @@ Student Submits Exam -> AssessmentsController.submitExam()
        └── Persists Notification entity for designated recipients (PRD-008, FR-NOT-004)
 ```
 
-### 7.3 Student QR Code Attendance Execution Flow
-The student QR code attendance workflow is encapsulated within `AttendanceModule` and coordinated with `StudentsModule`:
+### 7.3 Student QR Code Attendance Execution Flow & Verification Pipeline
+
+#### 7.3.1 Core Architectural Principles
+- **Credential Semantics**: The QR code is an **Attendance Identification Credential**. It represents the student's unique physical/digital identity pass for classroom roll-call.
+- **Non-Authority**: The QR token confers **zero** authorization privileges, grants no access to personal student records, and is never used as an API bearer token.
+- **Teacher & Session Scoping**: QR attendance processing strictly requires an authenticated Teacher/Secretariat session (`JwtAuthGuard`) and verifies that the scanning educator has operational ownership of the academic group.
+- **Anti-Pattern Prevention**: The system strictly avoids naive `QR -> studentId -> mark present` flows by enforcing a 7-tier verification and integrity pipeline.
+
+#### 7.3.2 Multi-Tier Verification & Execution Flow
 
 ```text
-Teacher Scans Student QR Code -> AttendanceController.scanQrCode(sessionId, { qrCodeToken })
+Teacher Scans Student QR Code -> POST /api/v1/attendance/sessions/:sessionId/scan-qr { qrCodeToken }
+       │
+       ▼
+ [Tier 1: Teacher Authentication & Authorization Guard]
+       ├── JwtAuthGuard: Verifies teacher Bearer JWT is valid and unexpired
+       ├── RolesGuard: Verifies user role is TEACHER or SECRETARIAT
+       └── ResourceOwnershipGuard: Verifies teacher owns the AcademicGroup of :sessionId
        │
        ▼
  AttendanceService.recordAttendanceByQrToken(sessionId, qrCodeToken, teacherId)
        │
-       ├── 1. Validate LessonSession exists and belongs to Teacher's AcademicGroup
-       ├── 2. Resolve StudentProfile via qr_code_token (indexed lookup, O(1))
-       │      └── If not found: throw StudentNotFoundException (404)
-       ├── 3. Verify Student has active GroupEnrollment in Session's AcademicGroup
-       │      └── If not enrolled: return WarningResponse (422 / domain alert with student name & actual group)
+       ▼
+ [Tier 2: Session Validity & State Check]
+       ├── 1. Query LessonSession where id = sessionId
+       │      └── If not found: throw SessionNotFoundException (404)
+       │      └── If session is archived/locked: throw SessionClosedException (400)
        │
        ▼
- Execute Upsert / Idempotent Record Operation via Prisma:
+ [Tier 3: Opaque Token Decoding & Identity Resolution]
+       ├── 2. Query StudentProfile by qr_code_token (Indexed O(1) Lookup)
+       │      └── If not found: throw InvalidQrTokenException (404)
+       │          (Logs failed scan event for security anomaly detection)
        │
-       ├── 4. prisma.attendanceRecord.upsert({
-       │        where: { sessionId_studentId: { sessionId, studentId } },
-       │        create: {
-       │          sessionId,
-       │          studentId,
-       │          status: 'PRESENT',
-       │          recordingMethod: 'QR_SCAN',
-       │          recordedById: teacherId,
-       │          recordedAt: new Date()
-       │        },
-       │        update: {
-       │          status: 'PRESENT',
-       │          recordingMethod: 'QR_SCAN',
-       │          recordedById: teacherId,
-       │          recordedAt: new Date()
-       │        }
-       │      })
+       ▼
+ [Tier 4: Student Account Integrity & Status Check]
+       ├── 3. Verify student User.is_active === true
+       │      └── If false: throw InactiveStudentAccountException (403)
+       ├── 4. Verify student StudentProfile.academic_status === 'ACTIVE'
+       │      └── If suspended/withdrawn: throw StudentStatusInvalidException (422)
        │
-       └── 5. Return Success Response in < 500ms:
-              {
-                success: true,
-                student: { id, fullName, studentCode },
-                attendance: { status: 'PRESENT', recordingMethod: 'QR_SCAN', recordedAt },
-                sessionStats: { totalPresent, totalEnrolled }
-              }
+       ▼
+ [Tier 5: Cohort Enrollment Verification]
+       ├── 5. Query GroupEnrollment where group_id = session.group_id AND student_id = student.id AND status = 'ACTIVE'
+       │      └── If not enrolled: return EnrollmentMismatchResponse (422 / Domain Warning)
+       │          {
+       │            success: false,
+       │            code: "GROUP_ENROLLMENT_MISMATCH",
+       │            message: "Student is not enrolled in this group",
+       │            student: { id, fullName, actualGroup: studentEnrolledGroup.name }
+       │          }
+       │
+       ▼
+ [Tier 6: Idempotent Concurrency-Safe Persistence & Audit Attribution]
+       ├── Layer A (Business Invariant):
+       │   - If attendance does not exist: create record.
+       │   - If attendance already exists: do not modify it; return idempotent confirmation.
+       │
+       ├── Layer B (Application Concurrency Handling):
+       │   try {
+       │     // 1. Check existing record (Optimistic Path)
+       │     const existing = await prisma.attendanceRecord.findUnique({
+       │       where: { sessionId_studentId: { sessionId, studentId: student.id } }
+       │     });
+       │
+       │     if (existing) {
+       │       // Repeated Scan: Do NOT create another record; do NOT modify existing record
+       │       return {
+       │         success: true,
+       │         isDuplicate: true,
+       │         student: { id: student.id, fullName: student.user.fullName, studentCode: student.studentCode },
+       │         attendance: existing,
+       │         sessionStats: await this.getSessionStats(sessionId)
+       │       };
+       │     }
+       │
+       │     // 2. First Scan: Create new attendance record
+       │     const record = await prisma.attendanceRecord.create({
+       │       data: {
+       │         sessionId,
+       │         studentId: student.id,
+       │         status: 'PRESENT',
+       │         recordingMethod: 'QR_SCAN',
+       │         recordedById: teacherId,
+       │         recordedAt: new Date()
+       │       }
+       │     });
+       │     return { success: true, isDuplicate: false, student: { id: student.id, ... }, attendance: record, sessionStats };
+       │   } catch (error) {
+       │     // 3. Concurrency Race Handling: Handle Prisma unique constraint violation (P2002)
+       │     if (error.code === 'P2002') {
+       │       const winnerRecord = await prisma.attendanceRecord.findUnique({
+       │         where: { sessionId_studentId: { sessionId, studentId: student.id } }
+       │       });
+       │       return {
+       │         success: true,
+       │         isDuplicate: true,
+       │         student: { id: student.id, fullName: student.user.fullName, studentCode: student.studentCode },
+       │         attendance: winnerRecord,
+       │         sessionStats: await this.getSessionStats(sessionId)
+       │       };
+       │     }
+       │     throw error;
+       │   }
+       │
+       └── Layer C (Database Invariant):
+           - Composite unique constraint `uq_session_student` on `(session_id, student_id)` guarantees physical deduplication at the storage engine level.
 ```
+
+#### 7.3.3 Token Lifecycle, Revocation & Rotation
+- **Initial Provisioning**: High-entropy cryptographic token generated via `crypto.randomUUID()` upon `StudentProfile` creation.
+- **Revocation / Regeneration Endpoint**: `POST /api/v1/students/:studentId/regenerate-qr-token`
+  - Restricted to `TEACHER` (group owner) or `SECRETARIAT`.
+  - Atomically generates a new `qr_code_token`, updates `student_profiles`, and immediately invalidates the previous physical/digital QR pass.
 
 ---
 
@@ -953,10 +1023,16 @@ Environment variables are managed via `@nestjs/config` and validated at startup 
 - **Decision**: Use UUIDv4 across all database entities.
 - **Rationale**: Eliminates sequential ID enumeration attacks, protects student academic records, and allows client-side ID pre-generation where needed.
 
-#### ADR-005: Unique Student QR Code Attendance Token Strategy
+#### ADR-005: Unique Student QR Code Attendance Credential & Verification Strategy
 - **Status**: Accepted
-- **Decision**: Provision a persistent, unique cryptographic UUID token (`qr_code_token`) per student record, indexed with `uq_student_qr_code`.
-- **Rationale**: Provides O(1) indexed lookup upon scanner submission (<500ms response), prevents guessing or tampering with student IDs, and supports offline or printed student badge usage.
+- **Context**: Rapid, high-frequency attendance check-in during physical or virtual classroom sessions requires a frictionless scanning flow without compromising authorization boundaries or student data privacy.
+- **Decision**: 
+  1. Treat the student QR code strictly as an **Attendance Identification Credential** rather than an authorization token or student data export.
+  2. Provision a persistent, high-entropy cryptographic opaque token (`qr_code_token`) per `StudentProfile`, indexed uniquely via `uq_student_qr_code`.
+  3. Require scanning requests to be authenticated via Teacher/Secretariat JWT with session ownership validation (`ResourceOwnershipGuard`).
+  4. Enforce a 7-tier verification pipeline (Teacher Auth -> Session Validity -> Opaque Token Resolution -> Student Active Status -> Cohort Enrollment -> Atomic Idempotent Persistence with `(session_id, student_id)` composite unique key -> Domain Event dispatch).
+  5. Provide a secure token regeneration endpoint (`POST /api/v1/students/:id/regenerate-qr-token`) for revoked or reissued badges.
+- **Rationale**: Prevents student impersonation, token enumeration, and unauthorized cross-group roll-call manipulation while achieving deterministic <500ms O(1) scan response times and absolute idempotency.
 
 ---
 
