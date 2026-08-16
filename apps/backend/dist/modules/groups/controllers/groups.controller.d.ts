@@ -9,11 +9,11 @@ export declare class GroupsController {
         id: string;
         teacherId: string;
         description: string | null;
-        gradeLevel: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
         isActive: boolean;
+        gradeLevel: string;
         maxCapacity: number;
         monthlyFee: import("@prisma/client/runtime/library").Decimal;
     }>;
@@ -34,11 +34,11 @@ export declare class GroupsController {
         id: string;
         teacherId: string;
         description: string | null;
-        gradeLevel: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
         isActive: boolean;
+        gradeLevel: string;
         maxCapacity: number;
         monthlyFee: import("@prisma/client/runtime/library").Decimal;
     })[]>;
@@ -59,27 +59,27 @@ export declare class GroupsController {
         id: string;
         teacherId: string;
         description: string | null;
-        gradeLevel: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
         isActive: boolean;
+        gradeLevel: string;
         maxCapacity: number;
         monthlyFee: import("@prisma/client/runtime/library").Decimal;
     }>;
     enrollStudent(groupId: string, dto: EnrollStudentDto): Promise<{
         id: string;
+        groupId: string;
         status: import(".prisma/client").$Enums.GroupEnrollmentStatus;
         studentId: string;
         enrolledAt: Date;
-        groupId: string;
     }>;
     dropStudent(groupId: string, studentId: string): Promise<{
         id: string;
+        groupId: string;
         status: import(".prisma/client").$Enums.GroupEnrollmentStatus;
         studentId: string;
         enrolledAt: Date;
-        groupId: string;
     }>;
     getGroupRoster(groupId: string): Promise<{
         groupId: string;

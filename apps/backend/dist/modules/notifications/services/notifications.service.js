@@ -14,6 +14,8 @@ exports.NotificationsService = void 0;
 const common_1 = require("@nestjs/common");
 const event_emitter_1 = require("@nestjs/event-emitter");
 const prisma_service_1 = require("../../../core/database/prisma.service");
+const cursor_pagination_helper_1 = require("../../../common/pagination/cursor-pagination.helper");
+const client_1 = require("@prisma/client");
 let NotificationsService = NotificationsService_1 = class NotificationsService {
     constructor(prisma) {
         this.prisma = prisma;
@@ -30,12 +32,27 @@ let NotificationsService = NotificationsService_1 = class NotificationsService {
             },
         });
     }
-    async getUnreadNotifications(recipientId) {
-        return this.prisma.notification.findMany({
-            where: { recipientId, isRead: false },
-            orderBy: { createdAt: 'desc' },
-            take: 50,
+    async getNotifications(recipientId, query) {
+        const limit = cursor_pagination_helper_1.CursorPaginationHelper.sanitizeLimit(query.limit);
+        const decodedCursor = query.cursor
+            ? cursor_pagination_helper_1.CursorPaginationHelper.decodeCursor(query.cursor)
+            : null;
+        const cursorFilter = cursor_pagination_helper_1.CursorPaginationHelper.buildPrismaWhereClause(decodedCursor, 'DESC');
+        const notifications = await this.prisma.notification.findMany({
+            where: {
+                recipientId,
+                ...(cursorFilter || {}),
+            },
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            take: limit + 1,
         });
+        return cursor_pagination_helper_1.CursorPaginationHelper.formatResponse(notifications, limit);
+    }
+    async getUnreadCount(recipientId) {
+        const count = await this.prisma.notification.count({
+            where: { recipientId, isRead: false },
+        });
+        return { unreadCount: count };
     }
     async markAsRead(notificationId, recipientId) {
         return this.prisma.notification.updateMany({
@@ -43,18 +60,91 @@ let NotificationsService = NotificationsService_1 = class NotificationsService {
             data: { isRead: true, readAt: new Date() },
         });
     }
-    async handleStudentAbsenceEvent(payload) {
-        this.logger.log(`Handling asynchronous absence event for student [${payload.studentId}]`);
-        const links = await this.prisma.parentStudentLink.findMany({
-            where: { studentId: payload.studentId },
-            include: { parent: true },
+    async markAllAsRead(recipientId) {
+        const result = await this.prisma.notification.updateMany({
+            where: { recipientId, isRead: false },
+            data: { isRead: true, readAt: new Date() },
         });
-        for (const link of links) {
+        return { markedCount: result.count };
+    }
+    async handleAbsenceEvent(payload) {
+        if (payload.status && payload.status !== client_1.AttendanceStatus.ABSENT) {
+            return;
+        }
+        this.logger.log(`Processing absence notification event for student [${payload.studentId}]`);
+        const student = await this.prisma.studentProfile.findUnique({
+            where: { id: payload.studentId },
+            include: {
+                user: { select: { fullName: true } },
+                parentLinks: { select: { parentId: true } },
+            },
+        });
+        if (!student || student.parentLinks.length === 0)
+            return;
+        const studentName = student.user.fullName;
+        const dateStr = (payload.date || new Date()).toISOString().split('T')[0];
+        const groupText = payload.groupName ? `في ${payload.groupName}` : '';
+        for (const link of student.parentLinks) {
             await this.createNotification({
-                recipientId: link.parent.id,
+                recipientId: link.parentId,
                 type: 'STUDENT_ABSENCE',
                 title: 'تنبيه غياب الطالب',
-                message: `تم تسجيل غياب الطالب في حصة ${payload.groupName} بتاريخ ${payload.date.toISOString().split('T')[0]}`,
+                message: `نود إحاطتكم بغياب الطالب (${studentName}) ${groupText} بتاريخ ${dateStr}. يرجى المتابعة مع الإدارة.`,
+                referenceEntityId: payload.studentId,
+            });
+        }
+    }
+    async handleAssessmentGradedEvent(payload) {
+        this.logger.log(`Processing assessment graded notification event for submission [${payload.submissionId}]`);
+        const [assessment, student] = await Promise.all([
+            this.prisma.assessment.findUnique({
+                where: { id: payload.assessmentId },
+                select: { title: true, totalScore: true },
+            }),
+            this.prisma.studentProfile.findUnique({
+                where: { id: payload.studentId },
+                include: {
+                    user: { select: { fullName: true } },
+                    parentLinks: { select: { parentId: true } },
+                },
+            }),
+        ]);
+        if (!assessment || !student)
+            return;
+        const scoreDisplay = payload.scoreObtained !== null
+            ? `${payload.scoreObtained}/${Number(assessment.totalScore)}`
+            : 'تم التصحيح';
+        const message = `تم رصد درجات (${assessment.title}) للطالب ${student.user.fullName}. النتيجة: ${scoreDisplay}`;
+        await this.createNotification({
+            recipientId: student.id,
+            type: 'ASSESSMENT_GRADED',
+            title: 'تم رصد درجات الاختبار',
+            message,
+            referenceEntityId: payload.assessmentId,
+        });
+        for (const link of student.parentLinks) {
+            await this.createNotification({
+                recipientId: link.parentId,
+                type: 'ASSESSMENT_GRADED',
+                title: 'تم رصد درجات الاختبار للطالب',
+                message,
+                referenceEntityId: payload.assessmentId,
+            });
+        }
+    }
+    async handlePaymentRecordedEvent(payload) {
+        this.logger.log(`Processing payment recorded notification event for student [${payload.studentId}]`);
+        const links = await this.prisma.parentStudentLink.findMany({
+            where: { studentId: payload.studentId },
+            select: { parentId: true },
+        });
+        const message = `تم تأكيد استلام مصروفات شهر (${payload.periodMonth}/${payload.periodYear}) للطالب ${payload.studentName} بمبلغ ${payload.amountPaid} ج.م.`;
+        for (const link of links) {
+            await this.createNotification({
+                recipientId: link.parentId,
+                type: 'PAYMENT_RECEIVED',
+                title: 'إشعار سداد المصروفات الدراسية',
+                message,
                 referenceEntityId: payload.studentId,
             });
         }
@@ -63,10 +153,23 @@ let NotificationsService = NotificationsService_1 = class NotificationsService {
 exports.NotificationsService = NotificationsService;
 __decorate([
     (0, event_emitter_1.OnEvent)('student.absence.recorded', { async: true }),
+    (0, event_emitter_1.OnEvent)('attendance.recorded', { async: true }),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
-], NotificationsService.prototype, "handleStudentAbsenceEvent", null);
+], NotificationsService.prototype, "handleAbsenceEvent", null);
+__decorate([
+    (0, event_emitter_1.OnEvent)('assessment.graded', { async: true }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], NotificationsService.prototype, "handleAssessmentGradedEvent", null);
+__decorate([
+    (0, event_emitter_1.OnEvent)('payment.recorded', { async: true }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], NotificationsService.prototype, "handlePaymentRecordedEvent", null);
 exports.NotificationsService = NotificationsService = NotificationsService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService])

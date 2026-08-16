@@ -12,10 +12,10 @@ export declare class UsersService {
         };
         studentProfile: {
             id: string;
-            gradeLevel: string;
-            academicStage: string | null;
             createdAt: Date;
             updatedAt: Date;
+            gradeLevel: string;
+            academicStage: string | null;
             studentCode: string | null;
             qrCodeToken: string;
             academicStatus: import(".prisma/client").$Enums.StudentAcademicStatus;

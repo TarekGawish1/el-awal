@@ -1,77 +1,104 @@
 import { ParentPortalService } from '../services/parent-portal.service';
+import { CursorPaginationDto } from '../../../common/dto/cursor-pagination.dto';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 export declare class ParentPortalController {
     private readonly parentPortalService;
     constructor(parentPortalService: ParentPortalService);
-    getLinkedStudents(user: AuthenticatedUser): Promise<({
+    getLinkedStudents(user: AuthenticatedUser): Promise<{
+        linkId: string;
+        relationshipType: string;
         student: {
-            user: {
-                fullName: string;
-                phone: string;
-            };
-            groupEnrollments: ({
-                group: {
-                    gradeLevel: string;
-                    name: string;
-                };
-            } & {
-                id: string;
-                status: import(".prisma/client").$Enums.GroupEnrollmentStatus;
-                studentId: string;
-                enrolledAt: Date;
-                groupId: string;
-            })[];
-        } & {
             id: string;
+            studentCode: string;
+            fullName: string;
+            phone: string;
+            email: string;
             gradeLevel: string;
-            academicStage: string | null;
-            createdAt: Date;
-            updatedAt: Date;
-            studentCode: string | null;
-            qrCodeToken: string;
-            academicStatus: import(".prisma/client").$Enums.StudentAcademicStatus;
-            dateOfBirth: Date | null;
-            emergencyPhone: string | null;
+            academicStage: string;
+            activeGroups: {
+                id: string;
+                name: string;
+                gradeLevel: string;
+            }[];
         };
-    } & {
-        id: string;
-        createdAt: Date;
-        studentId: string;
-        parentId: string;
-    })[]>;
-    getStudentSummary(studentId: string, user: AuthenticatedUser): Promise<{
-        attendanceSummary: (import(".prisma/client").Prisma.PickEnumerable<import(".prisma/client").Prisma.AttendanceRecordGroupByOutputType, "status"[]> & {
-            _count: {
-                id: number;
-            };
-        })[];
-        recentEvaluations: {
+    }[]>;
+    getStudentOverview(studentId: string, user: AuthenticatedUser): Promise<{
+        student: {
             id: string;
-            teacherId: string;
-            createdAt: Date;
-            studentId: string;
-            groupId: string | null;
-            evaluationDate: Date;
-            studentLevel: string | null;
-            teacherNotes: string;
+            studentCode: string;
+            fullName: string;
+            gradeLevel: string;
+        };
+        kpis: {
+            attendanceRatePercentage: number;
+            totalSessionsAttended: number;
+            totalSessionsMissed: number;
+            academicAveragePercentage: number;
+            totalGradedAssessments: number;
+            enrolledPhysicalGroups: number;
+            enrolledOnlineCourses: number;
+            currentMonthBilling: {
+                periodYear: number;
+                periodMonth: number;
+                isPaid: boolean;
+                amountPaid: number;
+                status: import(".prisma/client").$Enums.PaymentStatus;
+            };
+        };
+        recentAttendance: {
+            sessionId: string;
+            groupName: string;
+            sessionDate: Date;
+            status: import(".prisma/client").$Enums.AttendanceStatus;
+            recordedAt: Date;
         }[];
-        recentSubmissions: ({
-            assessment: {
-                title: string;
-                type: import(".prisma/client").$Enums.AssessmentType;
-                totalScore: import("@prisma/client/runtime/library").Decimal;
-            };
-        } & {
-            id: string;
+        recentAssessments: {
+            submissionId: string;
+            assessmentTitle: string;
+            type: import(".prisma/client").$Enums.AssessmentType;
             status: import(".prisma/client").$Enums.SubmissionStatus;
-            studentId: string;
-            isAutoGraded: boolean;
-            assessmentId: string;
+            scoreObtained: number;
+            totalScore: number;
             submittedAt: Date;
-            attachmentUrl: string | null;
-            scoreObtained: import("@prisma/client/runtime/library").Decimal | null;
-            gradedAt: Date | null;
-            teacherFeedback: string | null;
-        })[];
+        }[];
     }>;
+    getStudentAttendance(studentId: string, query: CursorPaginationDto, user: AuthenticatedUser): Promise<import("../../../common/pagination/cursor-pagination.helper").PaginatedResult<{
+        id: string;
+        sessionId: string;
+        sessionDate: Date;
+        topic: string;
+        groupName: string;
+        status: import(".prisma/client").$Enums.AttendanceStatus;
+        recordingMethod: import(".prisma/client").$Enums.RecordingMethod;
+        recordedAt: Date;
+        createdAt: Date;
+        notes: string;
+    }>>;
+    getStudentAssessments(studentId: string, user: AuthenticatedUser): Promise<{
+        submissionId: string;
+        assessmentId: string;
+        title: string;
+        type: import(".prisma/client").$Enums.AssessmentType;
+        teacherName: string;
+        status: import(".prisma/client").$Enums.SubmissionStatus;
+        scoreObtained: number;
+        totalScore: number;
+        passingScore: number;
+        isPassed: boolean;
+        submittedAt: Date;
+        gradedAt: Date;
+        teacherFeedback: string;
+    }[]>;
+    getStudentCourses(studentId: string, user: AuthenticatedUser): Promise<{
+        courseId: string;
+        title: string;
+        subject: string;
+        gradeLevel: string;
+        teacherName: string;
+        enrolledAt: Date;
+        totalModules: number;
+        totalLessons: number;
+        completedLessons: number;
+        progressPercentage: number;
+    }[]>;
 }

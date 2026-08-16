@@ -22,38 +22,38 @@ export declare class CoursesController {
             bio: string | null;
         };
         _count: {
-            modules: number;
             enrollments: number;
+            modules: number;
         };
     } & {
         id: string;
         teacherId: string;
         title: string;
         description: string | null;
-        subject: string;
+        createdAt: Date;
+        updatedAt: Date;
         gradeLevel: string;
+        subject: string;
         academicStage: string | null;
         price: import("@prisma/client/runtime/library").Decimal;
         coverImageUrl: string | null;
         status: import(".prisma/client").$Enums.CourseStatus;
         orderIndex: number;
-        createdAt: Date;
-        updatedAt: Date;
     }>>;
     createCourse(dto: CreateCourseDto, user: AuthenticatedUser): Promise<{
         id: string;
         teacherId: string;
         title: string;
         description: string | null;
-        subject: string;
+        createdAt: Date;
+        updatedAt: Date;
         gradeLevel: string;
+        subject: string;
         academicStage: string | null;
         price: import("@prisma/client/runtime/library").Decimal;
         coverImageUrl: string | null;
         status: import(".prisma/client").$Enums.CourseStatus;
         orderIndex: number;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     getMyCourses(user: AuthenticatedUser): Promise<{
         courseId: string;
@@ -82,75 +82,75 @@ export declare class CoursesController {
             specialty: string | null;
             bio: string | null;
         };
+        _count: {
+            enrollments: number;
+        };
         modules: ({
             lessons: {
                 id: string;
                 title: string;
                 description: string;
-                orderIndex: number;
                 createdAt: Date;
+                orderIndex: number;
                 lessonType: string;
                 videoDurationSeconds: number;
                 isPreview: boolean;
             }[];
         } & {
             id: string;
+            courseId: string;
             title: string;
             description: string | null;
-            orderIndex: number;
             createdAt: Date;
             updatedAt: Date;
-            courseId: string;
+            orderIndex: number;
         })[];
-        _count: {
-            enrollments: number;
-        };
     } & {
         id: string;
         teacherId: string;
         title: string;
         description: string | null;
-        subject: string;
+        createdAt: Date;
+        updatedAt: Date;
         gradeLevel: string;
+        subject: string;
         academicStage: string | null;
         price: import("@prisma/client/runtime/library").Decimal;
         coverImageUrl: string | null;
         status: import(".prisma/client").$Enums.CourseStatus;
         orderIndex: number;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     updateCourse(id: string, dto: UpdateCourseDto, user: AuthenticatedUser): Promise<{
         id: string;
         teacherId: string;
         title: string;
         description: string | null;
-        subject: string;
+        createdAt: Date;
+        updatedAt: Date;
         gradeLevel: string;
+        subject: string;
         academicStage: string | null;
         price: import("@prisma/client/runtime/library").Decimal;
         coverImageUrl: string | null;
         status: import(".prisma/client").$Enums.CourseStatus;
         orderIndex: number;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     createModule(courseId: string, dto: CreateModuleDto, user: AuthenticatedUser): Promise<{
         id: string;
+        courseId: string;
         title: string;
         description: string | null;
-        orderIndex: number;
         createdAt: Date;
         updatedAt: Date;
-        courseId: string;
+        orderIndex: number;
     }>;
     createLesson(moduleId: string, dto: CreateLessonDto, user: AuthenticatedUser): Promise<{
         id: string;
         title: string;
         description: string | null;
-        orderIndex: number;
         createdAt: Date;
         updatedAt: Date;
+        orderIndex: number;
         moduleId: string;
         lessonType: string;
         videoAssetId: string | null;

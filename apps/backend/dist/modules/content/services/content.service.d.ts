@@ -17,12 +17,12 @@ export declare class ContentService {
     createContent(teacherId: string, dto: CreateContentDto): Promise<{
         id: string;
         teacherId: string;
+        groupId: string | null;
+        lessonId: string | null;
         title: string;
         description: string | null;
         createdAt: Date;
         updatedAt: Date;
-        lessonId: string | null;
-        groupId: string | null;
         contentType: import(".prisma/client").$Enums.ContentType;
         fileKey: string;
         fileUrl: string;
@@ -31,25 +31,25 @@ export declare class ContentService {
     }>;
     listTeacherContent(teacherId: string, groupId?: string, lessonId?: string, contentType?: ContentType): Promise<{
         fileSize: number;
-        _count: {
-            progresses: number;
+        group: {
+            id: string;
+            name: string;
         };
         lesson: {
             id: string;
             title: string;
         };
-        group: {
-            id: string;
-            name: string;
+        _count: {
+            progresses: number;
         };
         id: string;
         teacherId: string;
+        groupId: string | null;
+        lessonId: string | null;
         title: string;
         description: string | null;
         createdAt: Date;
         updatedAt: Date;
-        lessonId: string | null;
-        groupId: string | null;
         contentType: import(".prisma/client").$Enums.ContentType;
         fileKey: string;
         fileUrl: string;
