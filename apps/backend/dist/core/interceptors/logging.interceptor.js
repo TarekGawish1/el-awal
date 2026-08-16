@@ -11,25 +11,89 @@ const common_1 = require("@nestjs/common");
 const operators_1 = require("rxjs/operators");
 let LoggingInterceptor = class LoggingInterceptor {
     constructor() {
-        this.logger = new common_1.Logger('HTTP');
+        this.logger = new common_1.Logger('HTTP_TRAFFIC');
+        this.SENSITIVE_KEYS = new Set([
+            'password',
+            'confirmpassword',
+            'token',
+            'refreshtoken',
+            'accesstoken',
+            'secret',
+            'secretkey',
+            'apikey',
+            'authorization',
+            'cookie',
+        ]);
+    }
+    sanitizeData(data) {
+        if (!data || typeof data !== 'object') {
+            return data;
+        }
+        if (Array.isArray(data)) {
+            return data.map((item) => this.sanitizeData(item));
+        }
+        const sanitized = {};
+        for (const [key, value] of Object.entries(data)) {
+            if (this.SENSITIVE_KEYS.has(key.toLowerCase())) {
+                sanitized[key] = '******** [REDACTED]';
+            }
+            else if (typeof value === 'object' && value !== null) {
+                sanitized[key] = this.sanitizeData(value);
+            }
+            else {
+                sanitized[key] = value;
+            }
+        }
+        return sanitized;
     }
     intercept(context, next) {
         const ctx = context.switchToHttp();
         const req = ctx.getRequest();
         const res = ctx.getResponse();
-        const { method, originalUrl } = req;
+        const { method, originalUrl, query, body } = req;
         const correlationId = req.headers['x-correlation-id'] || 'N/A';
-        const now = Date.now();
+        const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+            req.socket.remoteAddress ||
+            'unknown';
+        const userAgent = req.headers['user-agent'] || 'unknown';
+        const user = req.user;
+        const userContext = user
+            ? `[User: ${user.fullName || user.id} (${user.role})]`
+            : '[Public / Anonymous]';
+        const startTime = Date.now();
+        const sanitizedBody = body && Object.keys(body).length > 0
+            ? JSON.stringify(this.sanitizeData(body))
+            : null;
+        const queryStr = query && Object.keys(query).length > 0
+            ? ` | Query: ${JSON.stringify(query)}`
+            : '';
+        const bodyStr = sanitizedBody ? ` | Body: ${sanitizedBody}` : '';
+        this.logger.log(`--> [REQ] [${correlationId}] ${method} ${originalUrl}${queryStr}${bodyStr} | IP: ${clientIp} | ${userContext} | UA: ${userAgent}`);
         return next.handle().pipe((0, operators_1.tap)({
-            next: () => {
-                const duration = Date.now() - now;
+            next: (responseBody) => {
+                const duration = Date.now() - startTime;
                 const statusCode = res.statusCode;
-                this.logger.log(`${method} ${originalUrl} ${statusCode} +${duration}ms [CID: ${correlationId}]`);
+                let payloadSummary = '';
+                if (responseBody) {
+                    if (responseBody.data && Array.isArray(responseBody.data)) {
+                        payloadSummary = ` | Items: ${responseBody.data.length}`;
+                    }
+                    else if (typeof responseBody === 'object') {
+                        payloadSummary = ` | Response: OK`;
+                    }
+                }
+                this.logger.log(`<-- [RES] [${correlationId}] ${method} ${originalUrl} ${statusCode} +${duration}ms${payloadSummary} | ${userContext}`);
             },
             error: (err) => {
-                const duration = Date.now() - now;
+                const duration = Date.now() - startTime;
                 const status = err?.status || err?.statusCode || 500;
-                this.logger.warn(`${method} ${originalUrl} ${status} +${duration}ms [CID: ${correlationId}] - ${err.message}`);
+                const errMessage = err?.message || 'Internal server error';
+                if (status >= 500) {
+                    this.logger.error(`<-- [ERR] [${correlationId}] ${method} ${originalUrl} ${status} +${duration}ms | ${userContext} | Error: ${errMessage}`, err?.stack);
+                }
+                else {
+                    this.logger.warn(`<-- [WARN] [${correlationId}] ${method} ${originalUrl} ${status} +${duration}ms | ${userContext} | Reason: ${errMessage}`);
+                }
             },
         }));
     }
