@@ -1,6 +1,17 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { SchedulesService, CreateScheduleDto } from '../services/schedules.service';
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Body,
+  Param,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { SchedulesService } from '../services/schedules.service';
+import { CreateScheduleDto } from '../dto/create-schedule.dto';
+import { GenerateSessionsDto } from '../dto/generate-sessions.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
 
@@ -13,6 +24,7 @@ export class SchedulesController {
   @Post()
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Create a recurring weekly lesson schedule for a group' })
+  @ApiResponse({ status: 201, description: 'Schedule rule created' })
   async createSchedule(@Body() dto: CreateScheduleDto) {
     return this.schedulesService.createSchedule(dto);
   }
@@ -22,5 +34,24 @@ export class SchedulesController {
   @ApiOperation({ summary: 'Get all recurring lesson schedules for an academic group' })
   async getGroupSchedules(@Param('groupId') groupId: string) {
     return this.schedulesService.getGroupSchedules(groupId);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Delete a recurring lesson schedule rule' })
+  async deleteSchedule(@Param('id') id: string) {
+    return this.schedulesService.deleteSchedule(id);
+  }
+
+  @Post('group/:groupId/generate-sessions')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Generate physical LessonSession records from recurring schedule over a date window' })
+  @ApiResponse({ status: 201, description: 'Sessions generated successfully' })
+  async generateSessions(
+    @Param('groupId') groupId: string,
+    @Body() dto: GenerateSessionsDto,
+  ) {
+    return this.schedulesService.generateSessionsFromSchedule(groupId, dto);
   }
 }

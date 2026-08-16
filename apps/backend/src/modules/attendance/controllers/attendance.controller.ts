@@ -1,6 +1,17 @@
-import { Controller, Post, Get, Body, Param, Query, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { AttendanceService, QrScanInputDto } from '../services/attendance.service';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Param,
+  Query,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { AttendanceService } from '../services/attendance.service';
+import { ScanQrDto } from '../dto/scan-qr.dto';
+import { BatchAttendanceDto } from '../dto/batch-attendance.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { CursorPaginationDto } from '../../../common/dto/cursor-pagination.dto';
@@ -12,15 +23,38 @@ import { UserRole, AttendanceStatus } from '@prisma/client';
 export class AttendanceController {
   constructor(private readonly attendanceService: AttendanceService) {}
 
-  @Post('qr-scan')
+  @Post('sessions/:sessionId/scan-qr')
   @HttpCode(HttpStatus.OK)
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
-  @ApiOperation({ summary: 'Atomically record student attendance via scanned QR code token' })
+  @ApiOperation({ summary: 'Atomically record student attendance for a session via scanned QR code' })
+  @ApiResponse({ status: 200, description: 'Attendance successfully recorded or confirmed duplicate' })
+  @ApiResponse({ status: 400, description: 'Invalid QR token or student not enrolled in group' })
   async scanQrCode(
-    @Body() dto: QrScanInputDto,
+    @Param('sessionId') sessionId: string,
+    @Body() dto: ScanQrDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.attendanceService.processQrScan(dto, user.id);
+    return this.attendanceService.processQrScan(sessionId, dto.qrCodeToken, user.id);
+  }
+
+  @Post('sessions/:sessionId/manual')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Batch update manual roll-call attendance for a lesson session' })
+  @ApiResponse({ status: 200, description: 'Manual roll-call recorded' })
+  async recordManualBatch(
+    @Param('sessionId') sessionId: string,
+    @Body() dto: BatchAttendanceDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.attendanceService.recordManualBatch(sessionId, dto, user.id);
+  }
+
+  @Get('sessions/:sessionId/report')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Get consolidated attendance rate metrics and roster log for a session' })
+  async getSessionReport(@Param('sessionId') sessionId: string) {
+    return this.attendanceService.getSessionReport(sessionId);
   }
 
   @Get('student/:studentId')
