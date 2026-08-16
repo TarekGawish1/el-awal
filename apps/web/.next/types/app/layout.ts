@@ -1,4 +1,4 @@
-// File: D:\el_awal\apps\web\src\app\layout.tsx
+// File: D:\development\nexly\el-awal\apps\web\src\app\layout.tsx
 import * as entry from '../../../src/app/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

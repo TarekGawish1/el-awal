@@ -10,6 +10,10 @@ export declare class CoursesController {
     private readonly coursesService;
     constructor(coursesService: CoursesService);
     getCatalog(query: CourseQueryDto): Promise<import("../../../common/pagination/cursor-pagination.helper").PaginatedResult<{
+        _count: {
+            enrollments: number;
+            modules: number;
+        };
         teacher: {
             user: {
                 fullName: string;
@@ -21,38 +25,34 @@ export declare class CoursesController {
             specialty: string | null;
             bio: string | null;
         };
-        _count: {
-            enrollments: number;
-            modules: number;
-        };
     } & {
         id: string;
-        teacherId: string;
-        title: string;
-        description: string | null;
         createdAt: Date;
         updatedAt: Date;
         gradeLevel: string;
-        subject: string;
+        description: string | null;
+        teacherId: string;
         academicStage: string | null;
+        status: import(".prisma/client").$Enums.CourseStatus;
+        title: string;
+        subject: string;
         price: import("@prisma/client/runtime/library").Decimal;
         coverImageUrl: string | null;
-        status: import(".prisma/client").$Enums.CourseStatus;
         orderIndex: number;
     }>>;
     createCourse(dto: CreateCourseDto, user: AuthenticatedUser): Promise<{
         id: string;
-        teacherId: string;
-        title: string;
-        description: string | null;
         createdAt: Date;
         updatedAt: Date;
         gradeLevel: string;
-        subject: string;
+        description: string | null;
+        teacherId: string;
         academicStage: string | null;
+        status: import(".prisma/client").$Enums.CourseStatus;
+        title: string;
+        subject: string;
         price: import("@prisma/client/runtime/library").Decimal;
         coverImageUrl: string | null;
-        status: import(".prisma/client").$Enums.CourseStatus;
         orderIndex: number;
     }>;
     getMyCourses(user: AuthenticatedUser): Promise<{
@@ -70,6 +70,9 @@ export declare class CoursesController {
         progressPercentage: number;
     }[]>;
     getCourseDetails(id: string): Promise<{
+        _count: {
+            enrollments: number;
+        };
         teacher: {
             user: {
                 fullName: string;
@@ -82,15 +85,12 @@ export declare class CoursesController {
             specialty: string | null;
             bio: string | null;
         };
-        _count: {
-            enrollments: number;
-        };
         modules: ({
             lessons: {
                 id: string;
-                title: string;
-                description: string;
                 createdAt: Date;
+                description: string;
+                title: string;
                 orderIndex: number;
                 lessonType: string;
                 videoDurationSeconds: number;
@@ -98,58 +98,58 @@ export declare class CoursesController {
             }[];
         } & {
             id: string;
-            courseId: string;
-            title: string;
-            description: string | null;
             createdAt: Date;
             updatedAt: Date;
+            description: string | null;
+            title: string;
+            courseId: string;
             orderIndex: number;
         })[];
     } & {
         id: string;
-        teacherId: string;
-        title: string;
-        description: string | null;
         createdAt: Date;
         updatedAt: Date;
         gradeLevel: string;
-        subject: string;
+        description: string | null;
+        teacherId: string;
         academicStage: string | null;
+        status: import(".prisma/client").$Enums.CourseStatus;
+        title: string;
+        subject: string;
         price: import("@prisma/client/runtime/library").Decimal;
         coverImageUrl: string | null;
-        status: import(".prisma/client").$Enums.CourseStatus;
         orderIndex: number;
     }>;
     updateCourse(id: string, dto: UpdateCourseDto, user: AuthenticatedUser): Promise<{
         id: string;
-        teacherId: string;
-        title: string;
-        description: string | null;
         createdAt: Date;
         updatedAt: Date;
         gradeLevel: string;
-        subject: string;
+        description: string | null;
+        teacherId: string;
         academicStage: string | null;
+        status: import(".prisma/client").$Enums.CourseStatus;
+        title: string;
+        subject: string;
         price: import("@prisma/client/runtime/library").Decimal;
         coverImageUrl: string | null;
-        status: import(".prisma/client").$Enums.CourseStatus;
         orderIndex: number;
     }>;
     createModule(courseId: string, dto: CreateModuleDto, user: AuthenticatedUser): Promise<{
         id: string;
-        courseId: string;
-        title: string;
-        description: string | null;
         createdAt: Date;
         updatedAt: Date;
+        description: string | null;
+        title: string;
+        courseId: string;
         orderIndex: number;
     }>;
     createLesson(moduleId: string, dto: CreateLessonDto, user: AuthenticatedUser): Promise<{
         id: string;
-        title: string;
-        description: string | null;
         createdAt: Date;
         updatedAt: Date;
+        description: string | null;
+        title: string;
         orderIndex: number;
         moduleId: string;
         lessonType: string;

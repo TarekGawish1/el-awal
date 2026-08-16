@@ -14,13 +14,13 @@ export declare class ContentController {
     }>;
     createContent(dto: CreateContentDto, user: AuthenticatedUser): Promise<{
         id: string;
-        teacherId: string;
         groupId: string | null;
-        lessonId: string | null;
-        title: string;
-        description: string | null;
         createdAt: Date;
         updatedAt: Date;
+        description: string | null;
+        teacherId: string;
+        title: string;
+        lessonId: string | null;
         contentType: import(".prisma/client").$Enums.ContentType;
         fileKey: string;
         fileUrl: string;
@@ -33,21 +33,21 @@ export declare class ContentController {
             id: string;
             name: string;
         };
+        _count: {
+            progresses: number;
+        };
         lesson: {
             id: string;
             title: string;
         };
-        _count: {
-            progresses: number;
-        };
         id: string;
-        teacherId: string;
         groupId: string | null;
-        lessonId: string | null;
-        title: string;
-        description: string | null;
         createdAt: Date;
         updatedAt: Date;
+        description: string | null;
+        teacherId: string;
+        title: string;
+        lessonId: string | null;
         contentType: import(".prisma/client").$Enums.ContentType;
         fileKey: string;
         fileUrl: string;

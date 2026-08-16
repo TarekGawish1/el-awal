@@ -15,9 +15,9 @@ export declare class UsersService {
             createdAt: Date;
             updatedAt: Date;
             gradeLevel: string;
-            academicStage: string | null;
             studentCode: string | null;
             qrCodeToken: string;
+            academicStage: string | null;
             academicStatus: import(".prisma/client").$Enums.StudentAcademicStatus;
             dateOfBirth: Date | null;
             emergencyPhone: string | null;

@@ -8,24 +8,24 @@ export declare class SchedulesService {
     createSchedule(dto: CreateScheduleDto): Promise<{
         id: string;
         groupId: string;
-        dayOfWeek: number;
         startTime: string;
+        dayOfWeek: number;
         endTime: string;
         location: string | null;
     }>;
     getGroupSchedules(groupId: string): Promise<{
         id: string;
         groupId: string;
-        dayOfWeek: number;
         startTime: string;
+        dayOfWeek: number;
         endTime: string;
         location: string | null;
     }[]>;
     deleteSchedule(scheduleId: string): Promise<{
         id: string;
         groupId: string;
-        dayOfWeek: number;
         startTime: string;
+        dayOfWeek: number;
         endTime: string;
         location: string | null;
     }>;

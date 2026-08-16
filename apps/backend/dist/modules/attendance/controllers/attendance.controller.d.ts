@@ -15,14 +15,14 @@ export declare class AttendanceController {
             studentCode: string;
         };
         attendance: {
-            status: import(".prisma/client").$Enums.AttendanceStatus;
             id: string;
             studentId: string;
+            recordedById: string;
+            notes: string | null;
+            status: import(".prisma/client").$Enums.AttendanceStatus;
             sessionId: string;
             recordingMethod: import(".prisma/client").$Enums.RecordingMethod;
-            recordedById: string;
             recordedAt: Date;
-            notes: string | null;
         };
         sessionStats: {
             totalPresent: number;
@@ -66,13 +66,13 @@ export declare class AttendanceController {
         }[];
     }>;
     getStudentHistory(studentId: string, pagination: CursorPaginationDto, user: AuthenticatedUser, status?: AttendanceStatus): Promise<import("../../../common/pagination/cursor-pagination.helper").PaginatedResult<{
-        status: import(".prisma/client").$Enums.AttendanceStatus;
         id: string;
         studentId: string;
+        recordedById: string;
+        notes: string | null;
+        status: import(".prisma/client").$Enums.AttendanceStatus;
         sessionId: string;
         recordingMethod: import(".prisma/client").$Enums.RecordingMethod;
-        recordedById: string;
         recordedAt: Date;
-        notes: string | null;
     }>>;
 }

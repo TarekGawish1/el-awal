@@ -16,19 +16,28 @@ const client_1 = require("@prisma/client");
 let PrismaService = PrismaService_1 = class PrismaService extends client_1.PrismaClient {
     constructor() {
         super({
-            log: process.env.NODE_ENV === 'development'
-                ? [
-                    { emit: 'event', level: 'query' },
-                    { emit: 'stdout', level: 'info' },
-                    { emit: 'stdout', level: 'warn' },
-                    { emit: 'stdout', level: 'error' },
-                ]
-                : [
-                    { emit: 'stdout', level: 'warn' },
-                    { emit: 'stdout', level: 'error' },
-                ],
+            log: [
+                { emit: 'event', level: 'info' },
+                { emit: 'event', level: 'warn' },
+                { emit: 'event', level: 'error' },
+            ],
         });
         this.logger = new common_1.Logger(PrismaService_1.name);
+        this.$on('info', (e) => {
+            this.logger.debug(e.message);
+        });
+        this.$on('warn', (e) => {
+            this.logger.warn(e.message);
+        });
+        this.$on('error', (e) => {
+            if (e.message?.includes('kind: Closed') ||
+                e.message?.includes('Connection closed') ||
+                e.message?.includes('Server closed the connection')) {
+                this.logger.debug(`[Neon Serverless] Inactive idle connection closed by pooler. Prisma will auto-reconnect on demand.`);
+                return;
+            }
+            this.logger.error(`Database error: ${e.message}`);
+        });
     }
     async onModuleInit() {
         this.logger.log('Connecting to Neon PostgreSQL Database Pool...');
