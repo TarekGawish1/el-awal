@@ -1,0 +1,686 @@
+// Prisma Schema for El Awal Educational Management System
+// Target Database: PostgreSQL 16+ (Neon Cloud)
+// Architecture: Modular Monolith with Offline-First Sync Support
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// 1. ENUMS (Static Domain States)
+// ==========================================
+
+enum UserRole {
+  TEACHER
+  STUDENT
+  PARENT
+  SECRETARIAT
+
+  @@map("user_role")
+}
+
+enum StudentAcademicStatus {
+  ACTIVE
+  SUSPENDED
+  GRADUATED
+  ARCHIVED
+
+  @@map("student_academic_status")
+}
+
+enum GroupEnrollmentStatus {
+  ACTIVE
+  TRANSFERRED
+  DROPPED
+
+  @@map("group_enrollment_status")
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  EXCUSED
+
+  @@map("attendance_status")
+}
+
+enum RecordingMethod {
+  QR_SCAN
+  MANUAL
+
+  @@map("recording_method")
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+
+  @@map("course_status")
+}
+
+enum CourseEnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  DROPPED
+
+  @@map("course_enrollment_status")
+}
+
+enum CourseAccessStatus {
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+
+  @@map("course_access_status")
+}
+
+enum ContentType {
+  FILE
+  SUMMARY
+  REFERENCE
+  LECTURE_RECORDING
+
+  @@map("content_type")
+}
+
+enum AssessmentType {
+  ASSIGNMENT
+  EXAM
+
+  @@map("assessment_type")
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  ESSAY
+
+  @@map("question_type")
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  GRADED
+  UNSOLVED
+
+  @@map("submission_status")
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  OVERDUE
+  EXEMPT
+  REFUNDED
+
+  @@map("payment_status")
+}
+
+// ==========================================
+// 2. USERS & IDENTITY DOMAIN
+// ==========================================
+
+model User {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  fullName     String    @map("full_name") @db.VarChar(200)
+  phone        String?   @unique(map: "uq_users_phone") @map("phone") @db.VarChar(30)
+  email        String?   @unique(map: "uq_users_email") @map("email") @db.VarChar(255)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  role         UserRole  @map("role")
+  isActive     Boolean   @default(true) @map("is_active")
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // 1:1 Profile Extensions
+  teacherProfile     TeacherProfile?
+  studentProfile     StudentProfile?
+  parentProfile      ParentProfile?
+  secretariatProfile SecretariatProfile?
+
+  // Recorded Operations & Audits
+  recordedAttendances   AttendanceRecord[]     @relation("RecordedAttendances")
+  grantedCourseAccesses CourseAccess[]         @relation("GrantedCourseAccesses")
+  recordedPayments      StudentPaymentRecord[] @relation("RecordedPayments")
+  notifications         Notification[]         @relation("UserNotifications")
+
+  @@index([role], map: "idx_users_role")
+  @@index([phone], map: "idx_users_phone")
+  @@map("users")
+}
+
+model TeacherProfile {
+  id        String   @id @map("id") @db.Uuid
+  specialty String?  @map("specialty") @db.VarChar(100)
+  bio       String?  @map("bio") @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  // Authored Domain Entities
+  academicGroups      AcademicGroup[]
+  courses             Course[]
+  educationalContents EducationalContent[]
+  assessments         Assessment[]
+  studentEvaluations  StudentEvaluation[]
+
+  @@map("teacher_profiles")
+}
+
+model StudentProfile {
+  id             String                @id @map("id") @db.Uuid
+  studentCode    String?               @unique(map: "uq_students_code") @map("student_code") @db.VarChar(50)
+  qrCodeToken    String                @unique(map: "uq_student_qr_code") @map("qr_code_token") @db.VarChar(255)
+  gradeLevel     String                @map("grade_level") @db.VarChar(50)
+  academicStage  String?               @map("academic_stage") @db.VarChar(50)
+  academicStatus StudentAcademicStatus @default(ACTIVE) @map("academic_status")
+  dateOfBirth    DateTime?             @map("date_of_birth") @db.Date
+  emergencyPhone String?               @map("emergency_phone") @db.VarChar(30)
+  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  // Student Linkages & Academic History
+  parentLinks           ParentStudentLink[]
+  groupEnrollments      GroupEnrollment[]
+  attendanceRecords     AttendanceRecord[]
+  courseEnrollments     CourseEnrollment[]
+  courseProgresses      CourseProgress[]
+  contentProgresses     ContentProgress[]
+  assessmentSubmissions AssessmentSubmission[]
+  studentEvaluations    StudentEvaluation[]
+  paymentRecords        StudentPaymentRecord[]
+
+  @@index([qrCodeToken], map: "idx_students_qr_code")
+  @@index([gradeLevel], map: "idx_students_grade_level")
+  @@map("student_profiles")
+}
+
+model ParentProfile {
+  id               String   @id @map("id") @db.Uuid
+  relationshipType String?  @map("relationship_type") @db.VarChar(50)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  studentLinks ParentStudentLink[]
+
+  @@map("parent_profiles")
+}
+
+model SecretariatProfile {
+  id         String   @id @map("id") @db.Uuid
+  staffTitle String?  @map("staff_title") @db.VarChar(100)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  @@map("secretariat_profiles")
+}
+
+model ParentStudentLink {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  parentId  String   @map("parent_id") @db.Uuid
+  studentId String   @map("student_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  parent  ParentProfile  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, studentId], map: "uq_parent_student")
+  @@index([studentId], map: "idx_parent_student_student")
+  @@index([parentId], map: "idx_parent_student_parent")
+  @@map("parent_student_links")
+}
+
+// ==========================================
+// 3. PHYSICAL LEARNING DOMAIN
+// ==========================================
+
+model AcademicGroup {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  name        String   @map("name") @db.VarChar(150)
+  gradeLevel  String   @map("grade_level") @db.VarChar(50)
+  description String?  @map("description") @db.Text
+  maxCapacity Int      @default(50) @map("max_capacity")
+  monthlyFee  Decimal  @default(0.00) @map("monthly_fee") @db.Decimal(10, 2)
+  teacherId   String   @map("teacher_id") @db.Uuid
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  teacher TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+
+  enrollments         GroupEnrollment[]
+  schedules           LessonSchedule[]
+  sessions            LessonSession[]
+  educationalContents EducationalContent[]
+  assessments         Assessment[]
+  studentEvaluations  StudentEvaluation[]
+  paymentRecords      StudentPaymentRecord[]
+
+  @@index([teacherId], map: "idx_groups_teacher")
+  @@index([gradeLevel, isActive], map: "idx_groups_grade_active")
+  @@map("academic_groups")
+}
+
+model GroupEnrollment {
+  id         String                @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  groupId    String                @map("group_id") @db.Uuid
+  studentId  String                @map("student_id") @db.Uuid
+  enrolledAt DateTime              @default(now()) @map("enrolled_at") @db.Timestamptz(6)
+  status     GroupEnrollmentStatus @default(ACTIVE) @map("status")
+
+  group   AcademicGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  @@unique([groupId, studentId], map: "uq_group_student")
+  @@index([studentId, status], map: "idx_enrollments_student")
+  @@index([groupId, status], map: "idx_group_enrollments_group_status")
+  @@map("group_enrollments")
+}
+
+model LessonSchedule {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  groupId   String  @map("group_id") @db.Uuid
+  dayOfWeek Int     @map("day_of_week") @db.SmallInt
+  startTime String  @map("start_time") @db.VarChar(10)
+  endTime   String  @map("end_time") @db.VarChar(10)
+  location  String? @map("location") @db.VarChar(150)
+
+  group    AcademicGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sessions LessonSession[]
+
+  @@index([groupId], map: "idx_schedules_group")
+  @@map("lesson_schedules")
+}
+
+model LessonSession {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  groupId     String   @map("group_id") @db.Uuid
+  scheduleId  String?  @map("schedule_id") @db.Uuid
+  sessionDate DateTime @map("session_date") @db.Date
+  startTime   String?  @map("start_time") @db.VarChar(10)
+  topic       String?  @map("topic") @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  group    AcademicGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  schedule LessonSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+
+  attendanceRecords AttendanceRecord[]
+
+  @@unique([groupId, sessionDate, startTime], map: "uq_group_session_datetime")
+  @@index([groupId, sessionDate], map: "idx_sessions_group_date")
+  @@index([scheduleId], map: "idx_sessions_schedule")
+  @@map("lesson_sessions")
+}
+
+model AttendanceRecord {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  sessionId       String           @map("session_id") @db.Uuid
+  studentId       String           @map("student_id") @db.Uuid
+  status          AttendanceStatus @map("status")
+  recordingMethod RecordingMethod  @default(MANUAL) @map("recording_method")
+  recordedById    String           @map("recorded_by_id") @db.Uuid
+  recordedAt      DateTime         @default(now()) @map("recorded_at") @db.Timestamptz(6)
+  notes           String?          @map("notes") @db.Text
+
+  session    LessonSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  recordedBy User           @relation("RecordedAttendances", fields: [recordedById], references: [id], onDelete: Restrict)
+
+  @@unique([sessionId, studentId], map: "uq_session_student")
+  @@index([studentId, status], map: "idx_attendance_student_status")
+  @@index([sessionId], map: "idx_attendance_session")
+  @@index([recordedById], map: "idx_attendance_recorder")
+  @@map("attendance_records")
+}
+
+// ==========================================
+// 4. ONLINE LEARNING DOMAIN
+// ==========================================
+
+model Course {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  teacherId     String       @map("teacher_id") @db.Uuid
+  title         String       @map("title") @db.VarChar(255)
+  description   String?      @map("description") @db.Text
+  subject       String       @map("subject") @db.VarChar(100)
+  gradeLevel    String       @map("grade_level") @db.VarChar(50)
+  coverImageUrl String?      @map("cover_image_url") @db.Text
+  status        CourseStatus @default(DRAFT) @map("status")
+  orderIndex    Int          @default(0) @map("order_index")
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  teacher TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+
+  modules     CourseModule[]
+  enrollments CourseEnrollment[]
+  assessments Assessment[]
+
+  @@index([teacherId], map: "idx_courses_teacher")
+  @@index([status, gradeLevel], map: "idx_courses_status_grade")
+  @@map("courses")
+}
+
+model CourseModule {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  courseId    String   @map("course_id") @db.Uuid
+  title       String   @map("title") @db.VarChar(255)
+  description String?  @map("description") @db.Text
+  orderIndex  Int      @map("order_index")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  lessons CourseLesson[]
+
+  @@unique([courseId, orderIndex], map: "uq_course_module_order")
+  @@index([courseId, orderIndex], map: "idx_modules_course_order")
+  @@map("course_modules")
+}
+
+model CourseLesson {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  moduleId             String   @map("module_id") @db.Uuid
+  title                String   @map("title") @db.VarChar(255)
+  description          String?  @map("description") @db.Text
+  orderIndex           Int      @map("order_index")
+  videoAssetId         String?  @map("video_asset_id") @db.VarChar(255)
+  videoDurationSeconds Int?     @map("video_duration_seconds")
+  isPreview            Boolean  @default(false) @map("is_preview")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  module CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  progresses          CourseProgress[]
+  educationalContents EducationalContent[]
+  assessments         Assessment[]
+
+  @@unique([moduleId, orderIndex], map: "uq_module_lesson_order")
+  @@index([moduleId, orderIndex], map: "idx_lessons_module_order")
+  @@map("course_lessons")
+}
+
+model CourseEnrollment {
+  id         String                 @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  courseId   String                 @map("course_id") @db.Uuid
+  studentId  String                 @map("student_id") @db.Uuid
+  enrolledAt DateTime               @default(now()) @map("enrolled_at") @db.Timestamptz(6)
+  status     CourseEnrollmentStatus @default(ACTIVE) @map("status")
+
+  course  Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  access CourseAccess?
+
+  @@unique([courseId, studentId], map: "uq_course_student")
+  @@index([studentId, status], map: "idx_course_enrollments_student")
+  @@index([courseId, status], map: "idx_course_enrollments_course")
+  @@map("course_enrollments")
+}
+
+model CourseAccess {
+  id           String             @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  enrollmentId String             @unique(map: "uq_access_enrollment") @map("enrollment_id") @db.Uuid
+  studentId    String             @map("student_id") @db.Uuid
+  courseId     String             @map("course_id") @db.Uuid
+  accessStatus CourseAccessStatus @default(ACTIVE) @map("access_status")
+  validFrom    DateTime           @default(now()) @map("valid_from") @db.Timestamptz(6)
+  validUntil   DateTime?          @map("valid_until") @db.Timestamptz(6)
+  grantedById  String?            @map("granted_by_id") @db.Uuid
+  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  enrollment CourseEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  grantedBy  User?            @relation("GrantedCourseAccesses", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@index([studentId, accessStatus], map: "idx_course_access_student")
+  @@index([courseId, accessStatus], map: "idx_course_access_course")
+  @@index([grantedById], map: "idx_course_access_grantor")
+  @@map("course_access")
+}
+
+model CourseProgress {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  lessonId            String    @map("lesson_id") @db.Uuid
+  studentId           String    @map("student_id") @db.Uuid
+  courseId            String    @map("course_id") @db.Uuid
+  lastPositionSeconds Int       @default(0) @map("last_position_seconds")
+  isCompleted         Boolean   @default(false) @map("is_completed")
+  firstAccessedAt     DateTime  @default(now()) @map("first_accessed_at") @db.Timestamptz(6)
+  completedAt         DateTime? @map("completed_at") @db.Timestamptz(6)
+  lastSyncedAt        DateTime  @default(now()) @map("last_synced_at") @db.Timestamptz(6)
+  clientOperationId   String?   @map("client_operation_id") @db.Uuid
+
+  lesson  CourseLesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  @@unique([lessonId, studentId], map: "uq_lesson_student_progress")
+  @@index([studentId, courseId], map: "idx_course_progress_student")
+  @@index([lessonId], map: "idx_course_progress_lesson")
+  @@map("course_progress")
+}
+
+// ==========================================
+// 5. SHARED EDUCATIONAL ASSETS & PROGRESS
+// ==========================================
+
+model EducationalContent {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  teacherId   String      @map("teacher_id") @db.Uuid
+  groupId     String?     @map("group_id") @db.Uuid
+  lessonId    String?     @map("lesson_id") @db.Uuid
+  title       String      @map("title") @db.VarChar(255)
+  description String?     @map("description") @db.Text
+  contentType ContentType @map("content_type")
+  fileKey     String      @map("file_key") @db.VarChar(500)
+  fileUrl     String      @map("file_url") @db.Text
+  fileSize    BigInt?     @map("file_size")
+  mimeType    String?     @map("mime_type") @db.VarChar(100)
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  teacher TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  group   AcademicGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  lesson  CourseLesson?  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  progresses ContentProgress[]
+
+  @@index([groupId, contentType], map: "idx_content_group_type")
+  @@index([lessonId, contentType], map: "idx_content_lesson_type")
+  @@index([teacherId], map: "idx_content_teacher")
+  @@map("educational_content")
+}
+
+model ContentProgress {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  contentId     String   @map("content_id") @db.Uuid
+  studentId     String   @map("student_id") @db.Uuid
+  firstViewedAt DateTime @default(now()) @map("first_viewed_at") @db.Timestamptz(6)
+  lastViewedAt  DateTime @default(now()) @map("last_viewed_at") @db.Timestamptz(6)
+  viewCount     Int      @default(1) @map("view_count")
+  isCompleted   Boolean  @default(false) @map("is_completed")
+
+  content EducationalContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  student StudentProfile     @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  @@unique([contentId, studentId], map: "uq_content_student")
+  @@index([studentId], map: "idx_progress_student")
+  @@index([contentId], map: "idx_progress_content")
+  @@map("content_progress")
+}
+
+// ==========================================
+// 6. ASSESSMENTS, EXAMS & SUBMISSIONS
+// ==========================================
+
+model Assessment {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  teacherId    String         @map("teacher_id") @db.Uuid
+  groupId      String?        @map("group_id") @db.Uuid
+  courseId     String?        @map("course_id") @db.Uuid
+  lessonId     String?        @map("lesson_id") @db.Uuid
+  title        String         @map("title") @db.VarChar(255)
+  description  String?        @map("description") @db.Text
+  type         AssessmentType @map("type")
+  totalScore   Decimal        @default(100.00) @map("total_score") @db.Decimal(6, 2)
+  passingScore Decimal?       @map("passing_score") @db.Decimal(6, 2)
+  isAutoGraded Boolean        @default(false) @map("is_auto_graded")
+  dueDate      DateTime?      @map("due_date") @db.Timestamptz(6)
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  teacher TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  group   AcademicGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  course  Course?        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lesson  CourseLesson?  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  questions   AssessmentQuestion[]
+  submissions AssessmentSubmission[]
+
+  @@index([groupId, type], map: "idx_assessments_group_type")
+  @@index([courseId, type], map: "idx_assessments_course_type")
+  @@index([lessonId, type], map: "idx_assessments_lesson_type")
+  @@index([teacherId], map: "idx_assessments_teacher")
+  @@map("assessments")
+}
+
+model AssessmentQuestion {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  assessmentId   String       @map("assessment_id") @db.Uuid
+  questionNumber Int          @map("question_number")
+  questionText   String       @map("question_text") @db.Text
+  questionType   QuestionType @map("question_type")
+  optionsData    Json?        @map("options_data")
+  correctAnswer  String       @map("correct_answer") @db.Text
+  points         Decimal      @default(1.00) @map("points") @db.Decimal(5, 2)
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  studentAnswers StudentAnswer[]
+
+  @@unique([assessmentId, questionNumber], map: "uq_assessment_question")
+  @@index([assessmentId], map: "idx_questions_assessment")
+  @@map("assessment_questions")
+}
+
+model AssessmentSubmission {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  assessmentId    String           @map("assessment_id") @db.Uuid
+  studentId       String           @map("student_id") @db.Uuid
+  status          SubmissionStatus @default(SUBMITTED) @map("status")
+  submittedAt     DateTime         @default(now()) @map("submitted_at") @db.Timestamptz(6)
+  attachmentUrl   String?          @map("attachment_url") @db.Text
+  scoreObtained   Decimal?         @map("score_obtained") @db.Decimal(6, 2)
+  isAutoGraded    Boolean          @default(false) @map("is_auto_graded")
+  gradedAt        DateTime?        @map("graded_at") @db.Timestamptz(6)
+  teacherFeedback String?          @map("teacher_feedback") @db.Text
+
+  assessment Assessment     @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  answers StudentAnswer[]
+
+  @@unique([assessmentId, studentId], map: "uq_assessment_student")
+  @@index([assessmentId, status], map: "idx_submissions_assessment_status")
+  @@index([studentId], map: "idx_submissions_student")
+  @@map("assessment_submissions")
+}
+
+model StudentAnswer {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  submissionId   String   @map("submission_id") @db.Uuid
+  questionId     String   @map("question_id") @db.Uuid
+  selectedAnswer String?  @map("selected_answer") @db.Text
+  isCorrect      Boolean? @map("is_correct")
+  pointsEarned   Decimal? @map("points_earned") @db.Decimal(5, 2)
+
+  submission AssessmentSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  question   AssessmentQuestion   @relation(fields: [questionId], references: [id], onDelete: Restrict)
+
+  @@unique([submissionId, questionId], map: "uq_submission_question")
+  @@index([questionId], map: "idx_answers_question")
+  @@index([submissionId], map: "idx_answers_submission")
+  @@map("student_answers")
+}
+
+// ==========================================
+// 7. EVALUATIONS, NOTIFICATIONS & PAYMENTS
+// ==========================================
+
+model StudentEvaluation {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  studentId      String   @map("student_id") @db.Uuid
+  teacherId      String   @map("teacher_id") @db.Uuid
+  groupId        String?  @map("group_id") @db.Uuid
+  evaluationDate DateTime @default(now()) @map("evaluation_date") @db.Date
+  studentLevel   String?  @map("student_level") @db.VarChar(50)
+  teacherNotes   String   @map("teacher_notes") @db.Text
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  teacher TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  group   AcademicGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  @@index([studentId, evaluationDate], map: "idx_evaluations_student_date")
+  @@index([teacherId, groupId], map: "idx_evaluations_teacher_group")
+  @@map("student_evaluations")
+}
+
+model Notification {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  recipientId       String    @map("recipient_id") @db.Uuid
+  type              String    @map("type") @db.VarChar(50)
+  title             String    @map("title") @db.VarChar(255)
+  message           String    @map("message") @db.Text
+  referenceEntityId String?   @map("reference_entity_id") @db.Uuid
+  isRead            Boolean   @default(false) @map("is_read")
+  readAt            DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  recipient User @relation("UserNotifications", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId, isRead, createdAt], map: "idx_notifications_recipient_read")
+  @@map("notifications")
+}
+
+model StudentPaymentRecord {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  studentId      String        @map("student_id") @db.Uuid
+  groupId        String?       @map("group_id") @db.Uuid
+  periodYear     Int           @map("period_year") @db.SmallInt
+  periodMonth    Int           @map("period_month") @db.SmallInt
+  amountExpected Decimal       @default(0.00) @map("amount_expected") @db.Decimal(10, 2)
+  amountPaid     Decimal       @default(0.00) @map("amount_paid") @db.Decimal(10, 2)
+  currency       String        @default("EGP") @map("currency") @db.VarChar(10)
+  paymentStatus  PaymentStatus @default(PENDING) @map("payment_status")
+  paymentMethod  String        @default("CASH") @map("payment_method") @db.VarChar(50)
+  receiptNumber  String?       @map("receipt_number") @db.VarChar(100)
+  recordedById   String        @map("recorded_by_id") @db.Uuid
+  notes          String?       @map("notes") @db.Text
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  group      AcademicGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  recordedBy User           @relation("RecordedPayments", fields: [recordedById], references: [id], onDelete: Restrict)
+
+  @@unique([studentId, groupId, periodYear, periodMonth], map: "uq_student_group_billing_period")
+  @@index([studentId], map: "idx_payments_student")
+  @@index([recordedById, groupId], map: "idx_payments_recorder_group")
+  @@map("student_payment_records")
+}
