@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { DashboardFilterState, DateRangePreset } from '@/types/dashboard.types';
+import { DashboardFilterState, DateRangePreset } from '../types/dashboard.types';
 import { useTeacherDashboard, useTeacherGroups, DEFAULT_DASHBOARD_FILTERS } from '../hooks/useTeacherDashboard';
 import { DashboardHeader } from './DashboardHeader';
 import { DashboardFilters } from './DashboardFilters';

@@ -1,9 +1,10 @@
+'use client';
+
 import React from 'react';
 import { Filter, Calendar, Users, RotateCcw } from 'lucide-react';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
-import { DashboardFilterState, DateRangePreset } from '@/types/dashboard.types';
-import { GroupOption } from '../hooks/useTeacherDashboard';
+import { DashboardFilterState, DateRangePreset, GroupOption } from '../types/dashboard.types';
 
 export interface DashboardFiltersProps {
   filters: DashboardFilterState;

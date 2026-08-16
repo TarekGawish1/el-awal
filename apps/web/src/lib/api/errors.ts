@@ -1,4 +1,4 @@
-import { ProblemDetailsError } from '@/types/api.types';
+import { ProblemDetailsError } from '@/types/api/api.types';
 
 export class ApiError extends Error {
   public statusCode: number;

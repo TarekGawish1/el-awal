@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import { Suspense } from 'react';
-import { TeacherDashboardContainer } from '@/features/dashboard/components/TeacherDashboardContainer';
+import { TeacherDashboardContainer } from '@/features/dashboard';
 
 export const metadata: Metadata = {
   title: 'لوحة التحكم | بوابة المدرس - منصة الأول',

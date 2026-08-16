@@ -1,4 +1,4 @@
-import { ApiResponse, ProblemDetailsError } from '@/types/api.types';
+import { ApiResponse, ProblemDetailsError } from '@/types/api/api.types';
 import { API_BASE_URL } from './endpoints';
 import { ApiError } from './errors';
 

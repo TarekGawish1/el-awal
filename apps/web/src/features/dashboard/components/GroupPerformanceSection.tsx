@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { formatPercentage, formatNumber } from '@/lib/utils/formatters';
-import { GroupPerformanceItem } from '@/types/dashboard.types';
+import { GroupPerformanceItem } from '../types/dashboard.types';
 
 export interface GroupPerformanceSectionProps {
   groups?: GroupPerformanceItem[];

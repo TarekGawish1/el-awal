@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { formatArabicTime } from '@/lib/utils/formatters';
-import { TodaySessionItem } from '@/types/dashboard.types';
+import { TodaySessionItem } from '../types/dashboard.types';
 
 export interface TodaySessionsSectionProps {
   sessions?: TodaySessionItem[];

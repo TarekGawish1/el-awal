@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { DashboardKpiGrid } from '../components/DashboardKpiGrid';
-import { DashboardKpiData } from '@/types/dashboard.types';
+import { DashboardKpiData } from '../types/dashboard.types';
 
 const mockKpis: DashboardKpiData = {
   todaySessionsCount: 3,

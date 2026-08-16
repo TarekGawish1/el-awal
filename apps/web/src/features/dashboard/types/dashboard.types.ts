@@ -1,6 +1,6 @@
 /**
  * Teacher Dashboard Domain Types & Filter State
- * Aligned with docs/03-Architecture/frontend-architecture.md and Dashboard Specification
+ * Aligned with Feature-Oriented Architecture
  */
 
 export type DateRangePreset = 'today' | 'week' | 'month' | 'custom';
@@ -85,4 +85,10 @@ export interface TeacherDashboardData {
   pendingGradingList: PendingGradingAlert[];
   groupPerformance: GroupPerformanceItem[];
   lastUpdatedTimestamp: string;
+}
+
+export interface GroupOption {
+  id: string;
+  name: string;
+  gradeLevel: string;
 }

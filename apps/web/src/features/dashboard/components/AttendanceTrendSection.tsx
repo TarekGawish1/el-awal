@@ -1,10 +1,12 @@
+'use client';
+
 import React, { useState } from 'react';
 import { TrendingUp, Info } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { formatPercentage } from '@/lib/utils/formatters';
-import { AttendanceTrendPoint } from '@/types/dashboard.types';
+import { AttendanceTrendPoint } from '../types/dashboard.types';
 
 export interface AttendanceTrendSectionProps {
   trends?: AttendanceTrendPoint[];

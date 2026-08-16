@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { formatNumber, formatPercentage } from '@/lib/utils/formatters';
-import { DashboardKpiData } from '@/types/dashboard.types';
+import { DashboardKpiData } from '../types/dashboard.types';
 
 export interface DashboardKpiGridProps {
   kpis?: DashboardKpiData;
