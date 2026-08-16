@@ -1284,4 +1284,11 @@ This document defines the formal test cases for verifying the functional capabil
 | `TC-OL-016` | `FR-OL-008` | `مزامنة حزمة التقدم عند عودة الاتصال` | `US-OL-005` | `SC-OL-004` | Ready |
 | `TC-OL-017` | `FR-OL-008` | `حل تعارض التقدم بالدمج الأحادي` | `US-OL-005` | `SC-OL-004` | Ready |
 | `TC-OL-018` | `FR-OL-008` | `أمان تكرار إرسال حزمة المزامنة` | `US-OL-005` | `SC-OL-004` | Ready |
+| `TC-DSH-001` | `FR-DSH-001` | `عرض المؤشرات الرئيسية للوحة المدرس` | `US-DSH-001` | `SC-DSH-001` | Ready |
+| `TC-DSH-002` | `FR-DSH-002` | `تصفية بيانات لوحة التحكم حسب المجموعة والفترة` | `US-DSH-001` | `SC-DSH-001` | Ready |
+| `TC-DSH-003` | `FR-DSH-003` | `الانتقال السريع لرصد الحضور الذكي للحصة الجارية` | `US-DSH-001` | `SC-DSH-001` | Ready |
+| `TC-DSH-004` | `FR-DSH-004` | `تنبيهات الغياب المتكرر والواجبات المعلقة` | `US-DSH-001` | `SC-DSH-001` | Ready |
+| `TC-DSH-005` | `FR-DSH-005` | `عرض لوحة التحكم في وضع عدم الاتصال (Offline)` | `US-DSH-001` | `SC-DSH-001` | Ready |
+| `TC-DSH-006` | `FR-DSH-006` | `إمكانية الوصول وتوافق قارئ الشاشة للرسوم البيانية` | `US-DSH-001` | `SC-DSH-001` | Ready |
+
 
