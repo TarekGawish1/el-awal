@@ -1,8 +1,7 @@
-import React from 'react';
-import { RefreshCw, Clock, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { RefreshCw, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
-import { formatArabicDate } from '@/lib/utils/formatters';
+import { formatArabicDate, formatArabicTime } from '@/lib/utils/formatters';
 
 export interface DashboardHeaderProps {
   teacherName?: string;
@@ -19,7 +18,11 @@ export function DashboardHeader({
   isOffline,
   onRefresh,
 }: DashboardHeaderProps) {
-  const currentDate = new Date();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   return (
     <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-neutral-200/80">
@@ -29,8 +32,8 @@ export function DashboardHeader({
             بوابة المدرس
           </span>
           <span className="text-xs text-neutral-400">•</span>
-          <span className="text-xs text-neutral-500 font-medium">
-            {formatArabicDate(currentDate)}
+          <span className="text-xs text-neutral-500 font-medium min-h-[1rem] inline-block">
+            {isMounted ? formatArabicDate(new Date()) : ''}
           </span>
         </div>
         <h1 className="text-2xl md:text-3xl font-bold text-neutral-900 tracking-tight">
@@ -45,7 +48,7 @@ export function DashboardHeader({
         {lastUpdatedTimestamp && !isOffline && (
           <div className="hidden sm:flex items-center gap-1.5 text-xs text-neutral-500 bg-white border border-neutral-200 px-3 py-1.5 rounded-md shadow-xs">
             <Clock className="w-3.5 h-3.5 text-neutral-400" />
-            <span>آخر تحديث: {new Date(lastUpdatedTimestamp).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>
+            <span>آخر تحديث: {isMounted ? formatArabicTime(lastUpdatedTimestamp) : ''}</span>
           </div>
         )}
 
@@ -64,3 +67,4 @@ export function DashboardHeader({
     </header>
   );
 }
+

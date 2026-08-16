@@ -40,9 +40,11 @@ export function useTeacherGroups() {
  * Connects to server-side overview contract and manages caching, filters, and offline status
  */
 export function useTeacherDashboard(filters: DashboardFilterState = DEFAULT_DASHBOARD_FILTERS) {
-  const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [isOnline, setIsOnline] = useState<boolean>(true);
 
   useEffect(() => {
+    setIsOnline(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
 
