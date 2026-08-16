@@ -12,11 +12,21 @@ var CourseProgressRepository_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CourseProgressRepository = void 0;
 const common_1 = require("@nestjs/common");
+const crypto_1 = require("crypto");
 const prisma_service_1 = require("../../../core/database/prisma.service");
 let CourseProgressRepository = CourseProgressRepository_1 = class CourseProgressRepository {
     constructor(prisma) {
         this.prisma = prisma;
         this.logger = new common_1.Logger(CourseProgressRepository_1.name);
+    }
+    async upsertRealtimeProgress(studentId, lessonId, courseId, positionSeconds, isCompleted = false) {
+        return this.syncProgressItem(studentId, {
+            clientOperationId: (0, crypto_1.randomUUID)(),
+            lessonId,
+            courseId,
+            positionSeconds,
+            isCompleted,
+        });
     }
     async syncProgressItem(studentId, item) {
         const rows = await this.prisma.$queryRaw `

@@ -18,15 +18,15 @@ export declare class AssessmentsService {
     constructor(prisma: PrismaService);
     createAssessment(dto: CreateAssessmentDto): Promise<{
         id: string;
+        teacherId: string;
+        title: string;
+        description: string | null;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
-        type: import(".prisma/client").$Enums.AssessmentType;
-        teacherId: string;
-        groupId: string | null;
-        title: string;
-        lessonId: string | null;
         courseId: string | null;
+        lessonId: string | null;
+        type: import(".prisma/client").$Enums.AssessmentType;
+        groupId: string | null;
         totalScore: import("@prisma/client/runtime/library").Decimal;
         passingScore: import("@prisma/client/runtime/library").Decimal | null;
         isAutoGraded: boolean;
@@ -45,15 +45,15 @@ export declare class AssessmentsService {
         }[];
     } & {
         id: string;
+        teacherId: string;
+        title: string;
+        description: string | null;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
-        type: import(".prisma/client").$Enums.AssessmentType;
-        teacherId: string;
-        groupId: string | null;
-        title: string;
-        lessonId: string | null;
         courseId: string | null;
+        lessonId: string | null;
+        type: import(".prisma/client").$Enums.AssessmentType;
+        groupId: string | null;
         totalScore: import("@prisma/client/runtime/library").Decimal;
         passingScore: import("@prisma/client/runtime/library").Decimal | null;
         isAutoGraded: boolean;

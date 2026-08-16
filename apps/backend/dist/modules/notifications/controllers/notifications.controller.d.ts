@@ -5,10 +5,10 @@ export declare class NotificationsController {
     constructor(notificationsService: NotificationsService);
     getUnreadNotifications(user: AuthenticatedUser): Promise<{
         id: string;
+        title: string;
         createdAt: Date;
         type: string;
         message: string;
-        title: string;
         recipientId: string;
         referenceEntityId: string | null;
         isRead: boolean;

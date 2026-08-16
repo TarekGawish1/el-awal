@@ -7,15 +7,15 @@ export declare class GroupsController {
     constructor(groupsService: GroupsService);
     createGroup(dto: CreateGroupDto, user: AuthenticatedUser): Promise<{
         id: string;
-        isActive: boolean;
+        teacherId: string;
+        description: string | null;
+        gradeLevel: string;
         createdAt: Date;
         updatedAt: Date;
-        gradeLevel: string;
         name: string;
-        description: string | null;
+        isActive: boolean;
         maxCapacity: number;
         monthlyFee: import("@prisma/client/runtime/library").Decimal;
-        teacherId: string;
     }>;
     getMyGroups(user: AuthenticatedUser): Promise<({
         _count: {
@@ -32,15 +32,15 @@ export declare class GroupsController {
         }[];
     } & {
         id: string;
-        isActive: boolean;
+        teacherId: string;
+        description: string | null;
+        gradeLevel: string;
         createdAt: Date;
         updatedAt: Date;
-        gradeLevel: string;
         name: string;
-        description: string | null;
+        isActive: boolean;
         maxCapacity: number;
         monthlyFee: import("@prisma/client/runtime/library").Decimal;
-        teacherId: string;
     })[]>;
     getGroupById(id: string): Promise<{
         _count: {
@@ -57,29 +57,29 @@ export declare class GroupsController {
         }[];
     } & {
         id: string;
-        isActive: boolean;
+        teacherId: string;
+        description: string | null;
+        gradeLevel: string;
         createdAt: Date;
         updatedAt: Date;
-        gradeLevel: string;
         name: string;
-        description: string | null;
+        isActive: boolean;
         maxCapacity: number;
         monthlyFee: import("@prisma/client/runtime/library").Decimal;
-        teacherId: string;
     }>;
     enrollStudent(groupId: string, dto: EnrollStudentDto): Promise<{
         id: string;
-        studentId: string;
-        groupId: string;
-        enrolledAt: Date;
         status: import(".prisma/client").$Enums.GroupEnrollmentStatus;
+        studentId: string;
+        enrolledAt: Date;
+        groupId: string;
     }>;
     dropStudent(groupId: string, studentId: string): Promise<{
         id: string;
-        studentId: string;
-        groupId: string;
-        enrolledAt: Date;
         status: import(".prisma/client").$Enums.GroupEnrollmentStatus;
+        studentId: string;
+        enrolledAt: Date;
+        groupId: string;
     }>;
     getGroupRoster(groupId: string): Promise<{
         groupId: string;

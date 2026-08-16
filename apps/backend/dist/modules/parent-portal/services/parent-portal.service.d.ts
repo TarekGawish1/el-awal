@@ -15,19 +15,19 @@ export declare class ParentPortalService {
                 };
             } & {
                 id: string;
-                studentId: string;
-                groupId: string;
-                enrolledAt: Date;
                 status: import(".prisma/client").$Enums.GroupEnrollmentStatus;
+                studentId: string;
+                enrolledAt: Date;
+                groupId: string;
             })[];
         } & {
             id: string;
+            gradeLevel: string;
+            academicStage: string | null;
             createdAt: Date;
             updatedAt: Date;
             studentCode: string | null;
             qrCodeToken: string;
-            gradeLevel: string;
-            academicStage: string | null;
             academicStatus: import(".prisma/client").$Enums.StudentAcademicStatus;
             dateOfBirth: Date | null;
             emergencyPhone: string | null;
@@ -35,8 +35,8 @@ export declare class ParentPortalService {
     } & {
         id: string;
         createdAt: Date;
-        parentId: string;
         studentId: string;
+        parentId: string;
     })[]>;
     getStudentAcademicSummary(parentId: string, studentId: string): Promise<{
         attendanceSummary: (import(".prisma/client").Prisma.PickEnumerable<import(".prisma/client").Prisma.AttendanceRecordGroupByOutputType, "status"[]> & {
@@ -46,8 +46,8 @@ export declare class ParentPortalService {
         })[];
         recentEvaluations: {
             id: string;
-            createdAt: Date;
             teacherId: string;
+            createdAt: Date;
             studentId: string;
             groupId: string | null;
             evaluationDate: Date;
@@ -56,14 +56,14 @@ export declare class ParentPortalService {
         }[];
         recentSubmissions: ({
             assessment: {
-                type: import(".prisma/client").$Enums.AssessmentType;
                 title: string;
+                type: import(".prisma/client").$Enums.AssessmentType;
                 totalScore: import("@prisma/client/runtime/library").Decimal;
             };
         } & {
             id: string;
-            studentId: string;
             status: import(".prisma/client").$Enums.SubmissionStatus;
+            studentId: string;
             isAutoGraded: boolean;
             assessmentId: string;
             submittedAt: Date;

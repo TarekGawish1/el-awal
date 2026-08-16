@@ -357,6 +357,8 @@ model Course {
   description   String?      @map("description") @db.Text
   subject       String       @map("subject") @db.VarChar(100)
   gradeLevel    String       @map("grade_level") @db.VarChar(50)
+  academicStage String?      @map("academic_stage") @db.VarChar(50)
+  price         Decimal      @default(0.00) @map("price") @db.Decimal(10, 2)
   coverImageUrl String?      @map("cover_image_url") @db.Text
   status        CourseStatus @default(DRAFT) @map("status")
   orderIndex    Int          @default(0) @map("order_index")
@@ -398,7 +400,10 @@ model CourseLesson {
   title                String   @map("title") @db.VarChar(255)
   description          String?  @map("description") @db.Text
   orderIndex           Int      @map("order_index")
+  lessonType           String   @default("VIDEO") @map("lesson_type") @db.VarChar(50)
   videoAssetId         String?  @map("video_asset_id") @db.VarChar(255)
+  bunnyVideoId         String?  @map("bunny_video_id") @db.VarChar(255)
+  contentUrl           String?  @map("content_url") @db.Text
   videoDurationSeconds Int?     @map("video_duration_seconds")
   isPreview            Boolean  @default(false) @map("is_preview")
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)

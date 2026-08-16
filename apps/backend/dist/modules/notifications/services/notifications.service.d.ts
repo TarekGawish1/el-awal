@@ -12,10 +12,10 @@ export declare class NotificationsService {
     constructor(prisma: PrismaService);
     createNotification(dto: CreateNotificationDto): Promise<{
         id: string;
+        title: string;
         createdAt: Date;
         type: string;
         message: string;
-        title: string;
         recipientId: string;
         referenceEntityId: string | null;
         isRead: boolean;
@@ -23,10 +23,10 @@ export declare class NotificationsService {
     }>;
     getUnreadNotifications(recipientId: string): Promise<{
         id: string;
+        title: string;
         createdAt: Date;
         type: string;
         message: string;
-        title: string;
         recipientId: string;
         referenceEntityId: string | null;
         isRead: boolean;
