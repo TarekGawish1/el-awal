@@ -357,6 +357,8 @@ model Course {
   description   String?      @map("description") @db.Text
   subject       String       @map("subject") @db.VarChar(100)
   gradeLevel    String       @map("grade_level") @db.VarChar(50)
+  academicStage String?      @map("academic_stage") @db.VarChar(50)
+  price         Decimal      @default(0.00) @map("price") @db.Decimal(10, 2)
   coverImageUrl String?      @map("cover_image_url") @db.Text
   status        CourseStatus @default(DRAFT) @map("status")
   orderIndex    Int          @default(0) @map("order_index")
@@ -398,7 +400,10 @@ model CourseLesson {
   title                String   @map("title") @db.VarChar(255)
   description          String?  @map("description") @db.Text
   orderIndex           Int      @map("order_index")
+  lessonType           String   @default("VIDEO") @map("lesson_type") @db.VarChar(50)
   videoAssetId         String?  @map("video_asset_id") @db.VarChar(255)
+  bunnyVideoId         String?  @map("bunny_video_id") @db.VarChar(255)
+  contentUrl           String?  @map("content_url") @db.Text
   videoDurationSeconds Int?     @map("video_duration_seconds")
   isPreview            Boolean  @default(false) @map("is_preview")
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -529,20 +534,22 @@ model ContentProgress {
 // ==========================================
 
 model Assessment {
-  id           String         @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
-  teacherId    String         @map("teacher_id") @db.Uuid
-  groupId      String?        @map("group_id") @db.Uuid
-  courseId     String?        @map("course_id") @db.Uuid
-  lessonId     String?        @map("lesson_id") @db.Uuid
-  title        String         @map("title") @db.VarChar(255)
-  description  String?        @map("description") @db.Text
-  type         AssessmentType @map("type")
-  totalScore   Decimal        @default(100.00) @map("total_score") @db.Decimal(6, 2)
-  passingScore Decimal?       @map("passing_score") @db.Decimal(6, 2)
-  isAutoGraded Boolean        @default(false) @map("is_auto_graded")
-  dueDate      DateTime?      @map("due_date") @db.Timestamptz(6)
-  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  teacherId       String         @map("teacher_id") @db.Uuid
+  groupId         String?        @map("group_id") @db.Uuid
+  courseId        String?        @map("course_id") @db.Uuid
+  lessonId        String?        @map("lesson_id") @db.Uuid
+  title           String         @map("title") @db.VarChar(255)
+  description     String?        @map("description") @db.Text
+  type            AssessmentType @map("type")
+  totalScore      Decimal        @default(100.00) @map("total_score") @db.Decimal(6, 2)
+  passingScore    Decimal?       @map("passing_score") @db.Decimal(6, 2)
+  durationMinutes Int?           @map("duration_minutes")
+  isAutoGraded    Boolean        @default(false) @map("is_auto_graded")
+  isPublished     Boolean        @default(true) @map("is_published")
+  dueDate         DateTime?      @map("due_date") @db.Timestamptz(6)
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   teacher TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Restrict)
   group   AcademicGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -567,6 +574,7 @@ model AssessmentQuestion {
   questionType   QuestionType @map("question_type")
   optionsData    Json?        @map("options_data")
   correctAnswer  String       @map("correct_answer") @db.Text
+  explanation    String?      @map("explanation") @db.Text
   points         Decimal      @default(1.00) @map("points") @db.Decimal(5, 2)
 
   assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
@@ -602,12 +610,14 @@ model AssessmentSubmission {
 }
 
 model StudentAnswer {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
-  submissionId   String   @map("submission_id") @db.Uuid
-  questionId     String   @map("question_id") @db.Uuid
-  selectedAnswer String?  @map("selected_answer") @db.Text
-  isCorrect      Boolean? @map("is_correct")
-  pointsEarned   Decimal? @map("points_earned") @db.Decimal(5, 2)
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  submissionId      String   @map("submission_id") @db.Uuid
+  questionId        String   @map("question_id") @db.Uuid
+  selectedAnswer    String?  @map("selected_answer") @db.Text
+  isCorrect         Boolean? @map("is_correct")
+  pointsEarned      Decimal? @map("points_earned") @db.Decimal(5, 2)
+  maxPointsSnapshot Decimal? @default(1.00) @map("max_points_snapshot") @db.Decimal(5, 2)
+  teacherFeedback   String?  @map("teacher_feedback") @db.Text
 
   submission AssessmentSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   question   AssessmentQuestion   @relation(fields: [questionId], references: [id], onDelete: Restrict)

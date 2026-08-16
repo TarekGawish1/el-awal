@@ -16,6 +16,7 @@ exports.ParentPortalController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const parent_portal_service_1 = require("../services/parent-portal.service");
+const cursor_pagination_dto_1 = require("../../../common/dto/cursor-pagination.dto");
 const roles_decorator_1 = require("../../../core/security/decorators/roles.decorator");
 const current_user_decorator_1 = require("../../../core/security/decorators/current-user.decorator");
 const client_1 = require("@prisma/client");
@@ -26,32 +27,74 @@ let ParentPortalController = class ParentPortalController {
     async getLinkedStudents(user) {
         return this.parentPortalService.getLinkedStudents(user.parentProfileId || user.id);
     }
-    async getStudentSummary(studentId, user) {
-        return this.parentPortalService.getStudentAcademicSummary(user.parentProfileId || user.id, studentId);
+    async getStudentOverview(studentId, user) {
+        return this.parentPortalService.getStudentOverview(user.parentProfileId || user.id, studentId);
+    }
+    async getStudentAttendance(studentId, query, user) {
+        return this.parentPortalService.getStudentAttendance(user.parentProfileId || user.id, studentId, query);
+    }
+    async getStudentAssessments(studentId, user) {
+        return this.parentPortalService.getStudentAssessments(user.parentProfileId || user.id, studentId);
+    }
+    async getStudentCourses(studentId, user) {
+        return this.parentPortalService.getStudentCourses(user.parentProfileId || user.id, studentId);
     }
 };
 exports.ParentPortalController = ParentPortalController;
 __decorate([
     (0, common_1.Get)('students'),
     (0, roles_decorator_1.Roles)(client_1.UserRole.PARENT),
-    (0, swagger_1.ApiOperation)({ summary: 'Get all children/students linked to authenticated parent' }),
+    (0, swagger_1.ApiOperation)({ summary: 'List all children/students linked to the authenticated parent' }),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], ParentPortalController.prototype, "getLinkedStudents", null);
 __decorate([
-    (0, common_1.Get)('students/:studentId/summary'),
+    (0, common_1.Get)('students/:studentId/overview'),
     (0, roles_decorator_1.Roles)(client_1.UserRole.PARENT),
-    (0, swagger_1.ApiOperation)({ summary: 'Get consolidated academic summary, attendance and grades for linked child' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Consolidated real-time KPI card overview (Attendance %, Exam averages, Billing alerts)' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Child KPI metrics summary' }),
+    (0, swagger_1.ApiResponse)({ status: 403, description: 'Guardianship link verification failed' }),
     __param(0, (0, common_1.Param)('studentId')),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
-], ParentPortalController.prototype, "getStudentSummary", null);
+], ParentPortalController.prototype, "getStudentOverview", null);
+__decorate([
+    (0, common_1.Get)('students/:studentId/attendance'),
+    (0, roles_decorator_1.Roles)(client_1.UserRole.PARENT),
+    (0, swagger_1.ApiOperation)({ summary: 'Keyset cursor-paginated physical classroom attendance history for child' }),
+    __param(0, (0, common_1.Param)('studentId')),
+    __param(1, (0, common_1.Query)()),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, cursor_pagination_dto_1.CursorPaginationDto, Object]),
+    __metadata("design:returntype", Promise)
+], ParentPortalController.prototype, "getStudentAttendance", null);
+__decorate([
+    (0, common_1.Get)('students/:studentId/assessments'),
+    (0, roles_decorator_1.Roles)(client_1.UserRole.PARENT),
+    (0, swagger_1.ApiOperation)({ summary: 'List graded exam/assignment submissions and instructor feedback for child' }),
+    __param(0, (0, common_1.Param)('studentId')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], ParentPortalController.prototype, "getStudentAssessments", null);
+__decorate([
+    (0, common_1.Get)('students/:studentId/courses'),
+    (0, roles_decorator_1.Roles)(client_1.UserRole.PARENT),
+    (0, swagger_1.ApiOperation)({ summary: 'Online course enrollment and lesson completion progress for child' }),
+    __param(0, (0, common_1.Param)('studentId')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], ParentPortalController.prototype, "getStudentCourses", null);
 exports.ParentPortalController = ParentPortalController = __decorate([
-    (0, swagger_1.ApiTags)('Parent Portal'),
+    (0, swagger_1.ApiTags)('Parent Guardian Portal'),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.Controller)('parent-portal'),
     __metadata("design:paramtypes", [parent_portal_service_1.ParentPortalService])

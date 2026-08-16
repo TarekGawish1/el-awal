@@ -16,8 +16,8 @@ export declare class AttendanceController {
         };
         attendance: {
             id: string;
-            studentId: string;
             status: import(".prisma/client").$Enums.AttendanceStatus;
+            studentId: string;
             sessionId: string;
             recordingMethod: import(".prisma/client").$Enums.RecordingMethod;
             recordedById: string;
@@ -67,8 +67,8 @@ export declare class AttendanceController {
     }>;
     getStudentHistory(studentId: string, pagination: CursorPaginationDto, status?: AttendanceStatus): Promise<import("../../../common/pagination/cursor-pagination.helper").PaginatedResult<{
         id: string;
-        studentId: string;
         status: import(".prisma/client").$Enums.AttendanceStatus;
+        studentId: string;
         sessionId: string;
         recordingMethod: import(".prisma/client").$Enums.RecordingMethod;
         recordedById: string;

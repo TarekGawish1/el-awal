@@ -34,19 +34,19 @@ export declare class StudentsController {
             };
         } & {
             id: string;
-            studentId: string;
             groupId: string;
-            enrolledAt: Date;
             status: import(".prisma/client").$Enums.GroupEnrollmentStatus;
+            studentId: string;
+            enrolledAt: Date;
         })[];
     } & {
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        studentCode: string | null;
-        qrCodeToken: string;
         gradeLevel: string;
         academicStage: string | null;
+        studentCode: string | null;
+        qrCodeToken: string;
         academicStatus: import(".prisma/client").$Enums.StudentAcademicStatus;
         dateOfBirth: Date | null;
         emergencyPhone: string | null;
@@ -75,30 +75,30 @@ export declare class StudentsController {
         } & {
             id: string;
             createdAt: Date;
-            parentId: string;
             studentId: string;
+            parentId: string;
         })[];
         groupEnrollments: ({
             group: {
                 id: string;
-                gradeLevel: string;
                 name: string;
+                gradeLevel: string;
             };
         } & {
             id: string;
-            studentId: string;
             groupId: string;
-            enrolledAt: Date;
             status: import(".prisma/client").$Enums.GroupEnrollmentStatus;
+            studentId: string;
+            enrolledAt: Date;
         })[];
     } & {
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        studentCode: string | null;
-        qrCodeToken: string;
         gradeLevel: string;
         academicStage: string | null;
+        studentCode: string | null;
+        qrCodeToken: string;
         academicStatus: import(".prisma/client").$Enums.StudentAcademicStatus;
         dateOfBirth: Date | null;
         emergencyPhone: string | null;

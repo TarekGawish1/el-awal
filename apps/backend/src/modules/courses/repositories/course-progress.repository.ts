@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { CourseProgress } from '@prisma/client';
 
@@ -22,6 +23,25 @@ export class CourseProgressRepository {
   private readonly logger = new Logger(CourseProgressRepository.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Real-time monotonic progress update for video heartbeat streaming.
+   */
+  async upsertRealtimeProgress(
+    studentId: string,
+    lessonId: string,
+    courseId: string,
+    positionSeconds: number,
+    isCompleted: boolean = false,
+  ): Promise<CourseProgress> {
+    return this.syncProgressItem(studentId, {
+      clientOperationId: randomUUID(),
+      lessonId,
+      courseId,
+      positionSeconds,
+      isCompleted,
+    });
+  }
 
   /**
    * Monotonically merges a single lesson progress record from an offline outbox queue.

@@ -1,0 +1,85 @@
+import {
+  IsNotEmpty,
+  IsString,
+  MinLength,
+  IsOptional,
+  IsInt,
+  Min,
+  IsBoolean,
+  IsIn,
+} from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export class CreateLessonDto {
+  @ApiProperty({
+    description: 'Lesson title',
+    example: 'الدرس الأول: همزة القطع وألف الوصل',
+    minLength: 3,
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'Lesson title is required' })
+  @MinLength(3, { message: 'Lesson title must be at least 3 characters' })
+  title: string;
+
+  @ApiPropertyOptional({
+    description: 'Lesson description or learning objectives',
+    example: 'التعرف على مواضع همزة القطع وألف الوصل في الأسماء والأفعال والحروف.',
+  })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({
+    description: 'Lesson sequence index within the module',
+    example: 1,
+    minimum: 1,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  orderIndex?: number;
+
+  @ApiPropertyOptional({
+    description: 'Type of curriculum item',
+    enum: ['VIDEO', 'DOCUMENT', 'QUIZ'],
+    example: 'VIDEO',
+    default: 'VIDEO',
+  })
+  @IsOptional()
+  @IsIn(['VIDEO', 'DOCUMENT', 'QUIZ'])
+  lessonType?: string;
+
+  @ApiPropertyOptional({
+    description: 'Bunny Stream Video GUID for video streaming',
+    example: '9f8a7b6c-5d4e-3f2a-1b0c-9e8d7c6b5a4f',
+  })
+  @IsOptional()
+  @IsString()
+  bunnyVideoId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Cloudflare R2 storage key or download link for PDF/documents',
+    example: 'courses/arabic/summaries/lesson-01.pdf',
+  })
+  @IsOptional()
+  @IsString()
+  contentUrl?: string;
+
+  @ApiPropertyOptional({
+    description: 'Estimated video duration in seconds',
+    example: 1800,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  videoDurationSeconds?: number;
+
+  @ApiPropertyOptional({
+    description: 'Whether non-enrolled students can access this lesson as a free preview sample',
+    example: false,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isFreePreview?: boolean;
+}

@@ -17,6 +17,7 @@ export declare class CourseProgressRepository {
     private readonly prisma;
     private readonly logger;
     constructor(prisma: PrismaService);
+    upsertRealtimeProgress(studentId: string, lessonId: string, courseId: string, positionSeconds: number, isCompleted?: boolean): Promise<CourseProgress>;
     syncProgressItem(studentId: string, item: SyncProgressItemDto): Promise<CourseProgress>;
     syncBatch(studentId: string, items: SyncProgressItemDto[]): Promise<SyncBatchResult>;
     calculateCourseProgressPercentage(studentId: string, courseId: string): Promise<number>;

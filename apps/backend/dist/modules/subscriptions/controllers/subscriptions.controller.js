@@ -16,6 +16,8 @@ exports.SubscriptionsController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const subscriptions_service_1 = require("../services/subscriptions.service");
+const record_payment_dto_1 = require("../dto/record-payment.dto");
+const payment_query_dto_1 = require("../dto/payment-query.dto");
 const roles_decorator_1 = require("../../../core/security/decorators/roles.decorator");
 const current_user_decorator_1 = require("../../../core/security/decorators/current-user.decorator");
 const client_1 = require("@prisma/client");
@@ -24,26 +26,39 @@ let SubscriptionsController = class SubscriptionsController {
         this.subscriptionsService = subscriptionsService;
     }
     async recordPayment(dto, user) {
-        return this.subscriptionsService.recordStudentPayment({
-            ...dto,
-            recordedById: user.id,
-        });
+        return this.subscriptionsService.recordStudentPayment(user.id, dto);
+    }
+    async getPaymentLog(query) {
+        return this.subscriptionsService.getPaymentLog(query);
     }
     async getStudentPaymentHistory(studentId) {
         return this.subscriptionsService.getStudentPaymentHistory(studentId);
+    }
+    async getGroupDefaulters(groupId, periodYear, periodMonth) {
+        return this.subscriptionsService.getGroupDefaulters(groupId, periodYear, periodMonth);
     }
 };
 exports.SubscriptionsController = SubscriptionsController;
 __decorate([
     (0, common_1.Post)('record'),
     (0, roles_decorator_1.Roles)(client_1.UserRole.SECRETARIAT, client_1.UserRole.TEACHER),
-    (0, swagger_1.ApiOperation)({ summary: 'Record or update physical student fee payment' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Record or update physical student tuition payment' }),
+    (0, swagger_1.ApiResponse)({ status: 201, description: 'Payment recorded and notification event emitted' }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:paramtypes", [record_payment_dto_1.RecordPaymentDto, Object]),
     __metadata("design:returntype", Promise)
 ], SubscriptionsController.prototype, "recordPayment", null);
+__decorate([
+    (0, common_1.Get)('payments'),
+    (0, roles_decorator_1.Roles)(client_1.UserRole.SECRETARIAT, client_1.UserRole.TEACHER),
+    (0, swagger_1.ApiOperation)({ summary: 'List payment audit log with Keyset cursor pagination and period filters' }),
+    __param(0, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [payment_query_dto_1.PaymentQueryDto]),
+    __metadata("design:returntype", Promise)
+], SubscriptionsController.prototype, "getPaymentLog", null);
 __decorate([
     (0, common_1.Get)('student/:studentId'),
     (0, roles_decorator_1.Roles)(client_1.UserRole.SECRETARIAT, client_1.UserRole.TEACHER, client_1.UserRole.PARENT, client_1.UserRole.STUDENT),
@@ -53,8 +68,19 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], SubscriptionsController.prototype, "getStudentPaymentHistory", null);
+__decorate([
+    (0, common_1.Get)('group/:groupId/defaulters'),
+    (0, roles_decorator_1.Roles)(client_1.UserRole.SECRETARIAT, client_1.UserRole.TEACHER),
+    (0, swagger_1.ApiOperation)({ summary: 'List enrolled students with unpaid tuition fees for a specific billing month' }),
+    __param(0, (0, common_1.Param)('groupId')),
+    __param(1, (0, common_1.Query)('periodYear', common_1.ParseIntPipe)),
+    __param(2, (0, common_1.Query)('periodMonth', common_1.ParseIntPipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Number, Number]),
+    __metadata("design:returntype", Promise)
+], SubscriptionsController.prototype, "getGroupDefaulters", null);
 exports.SubscriptionsController = SubscriptionsController = __decorate([
-    (0, swagger_1.ApiTags)('Subscriptions & Payments'),
+    (0, swagger_1.ApiTags)('Subscriptions & Tuition Payments'),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.Controller)('subscriptions'),
     __metadata("design:paramtypes", [subscriptions_service_1.SubscriptionsService])
