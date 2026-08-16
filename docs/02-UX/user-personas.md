@@ -43,6 +43,7 @@ The Teacher represents the educator role within the system. Based on the product
 - Creating exams (`انشاء الامتحانات`) and uploading exams (`رفع الامتحانات`)
 - Providing evaluations and notes regarding students (`تقييمات + ملاحظات المدرس`)
 - Recording student attendance (`تسجيل حضور الطلاب`) and recording absence (`تسجيل الغياب`)
+- Scanning student unique QR codes for attendance (`تسجيل الحضور عبر مسح QR Code`)
 - Attendance and absence reports (`تقارير الحضور و الغياب`)
 - Monitoring content viewing (`متابعة مشاهدة المحتوى`)
 
@@ -52,7 +53,7 @@ The Teacher represents the educator role within the system. Based on the product
 - Manage groups and schedule lesson times.
 - Upload educational materials, lecture recordings, files, references, and summaries.
 - Create and upload assignments and examinations.
-- Record attendance and absence, and access attendance and absence reports.
+- Scan student QR codes to record attendance rapidly during lesson sessions, record absence, and access attendance and absence reports.
 - Provide student evaluations and notes.
 - Monitor content viewing.
 
@@ -60,7 +61,7 @@ The Teacher represents the educator role within the system. Based on the product
 - System capabilities to create groups, add students, and schedule lesson times.
 - Capabilities to upload files, lecture recordings, summaries, and references.
 - Capabilities to create and upload exams and assignments.
-- Capabilities to record attendance and absence and view attendance reports.
+- Capabilities to scan student QR codes via camera/scanner interface, record attendance/absence manually, and view attendance reports.
 - Capabilities to add evaluations and notes for students.
 
 ### Pain Points
@@ -88,6 +89,7 @@ The Student represents the learner role in the system. The product backlog assoc
 - Student status (`حالة الطلاب`)
 - Group and grade/class (`المجموعة و الصف`)
 - Viewing content (`مشاهدة المحتوى`)
+- Presenting unique QR code for session attendance (`عرض رمز QR الخاص بالطالب لتسجيل الحضور`)
 - Submitting assignments and exams (`تسليم الواجبات و الامتحانات`)
 - Attendance and absence records (`تسجيل حضور الطلاب`, `تسجيل الغياب`)
 - Exam grades and student level (`درجات الامتحانات`, `مستوى الطالب`)
@@ -96,12 +98,14 @@ The Student represents the learner role in the system. The product backlog assoc
 *Note*: The exact recipient for each notification type and specific submission workflows are not fully defined in the backlog and remain `TBD — Requires Product Clarification`.
 
 ### Goals
+- Present unique student QR code for classroom session attendance check-in.
 - Access learning materials, lecture recordings, files, references, and summaries.
 - Submit assignments and exams (`تسليم الواجبات و الامتحانات`).
 - View exam grades and student level.
 - Receive applicable notifications.
 
 ### Needs
+- Access to unique student QR code via student profile / digital student card for scanning.
 - Access to uploaded lecture recordings, files, references, and summaries.
 - Functionality to submit assignments and exams.
 - Access to student-related information (group and grade/class, exam grades, student level).
@@ -195,8 +199,8 @@ The backlog explicitly identifies the Secretariat (`السكرتارية`) as a 
 
 | Persona ID | Role | Defined Product Responsibilities | Undefined Information |
 | :--- | :--- | :--- | :--- |
-| **UX-PER-001** | Teacher / المدرس | Creating groups; adding students; scheduling lesson times; uploading files, references, summaries, and lecture recordings; creating and uploading assignments and exams; recording attendance and absence; attendance reports; providing evaluations and notes; monitoring content viewing. | Exact division of administrative responsibilities with Secretariat; responsibility for student payment status; demographics; behaviors; pain points; technical characteristics. |
-| **UX-PER-002** | Student / الطالب | Associated with student data, group and class, content viewing, submitting assignments and exams, exam grades, student level, attendance records, and student-related notifications. | Exact notification recipient assignment; submission workflow details; demographics; behaviors; pain points; technical characteristics. |
+| **UX-PER-001** | Teacher / المدرس | Creating groups; adding students; scheduling lesson times; uploading files, references, summaries, and lecture recordings; creating and uploading assignments and exams; scanning student unique QR codes for attendance; recording attendance and absence; attendance reports; providing evaluations and notes; monitoring content viewing. | Exact division of administrative responsibilities with Secretariat; responsibility for student payment status; demographics; behaviors; pain points; technical characteristics. |
+| **UX-PER-002** | Student / الطالب | Associated with student data, group and class, content viewing, presenting unique QR code for session attendance check-in, submitting assignments and exams, exam grades, student level, attendance records, and student-related notifications. | Exact notification recipient assignment; submission workflow details; demographics; behaviors; pain points; technical characteristics. |
 | **UX-PER-003** | Parent / ولي الأمر | Associated with parent data, viewing student results, exam grades, teacher evaluations and notes, assignment status, attendance and absence, student level, and student-related notifications. | Intended access method; exact notification recipient assignment; demographics; behaviors; pain points; technical characteristics. |
 | **UX-PER-004** | Secretariat / السكرتارية | Role explicitly listed in Backlog (`FR-USR-001`). | Specific operational and administrative responsibilities; goals; needs; pain points; behaviors; demographics; technical characteristics. |
 

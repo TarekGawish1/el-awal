@@ -113,6 +113,23 @@ Each user story is structured with the following fields:
 
 ---
 
+#### Story ID: US-ATT-003
+- **Story Name**: Student QR Code Attendance Scanning
+- **Related Backlog Item(s)**: `تسجيل الحضور عبر مسح QR Code`
+- **Related Scenario**: `SC-ATT-003`
+- **Actor**: Teacher (`المدرس`) / Student (`الطالب`)
+- **User Story**:
+  > As a Teacher (`المدرس`), I want to scan a student's unique QR code during a lesson session, so that the student's attendance is rapidly and reliably recorded for that specific session.
+  >
+  > As a Student (`الطالب`), I want to view and present my unique QR code from my student profile, so that my teacher can scan it to verify and record my attendance.
+- **Acceptance Criteria**:
+  - **Given**: A student is enrolled in the system with an assigned unique QR code and the teacher has opened an active lesson session.
+  - **When**: The teacher scans the student's unique QR code via the camera scanner interface.
+  - **Then**: The system validates the student, marks their attendance status as `PRESENT` for that session, and provides instantaneous visual confirmation.
+- **Clarifications**: Defined.
+
+---
+
 ### 4.3 Lectures & Lessons
 
 #### Story ID: US-LES-001
@@ -378,6 +395,7 @@ Each user story is structured with the following fields:
 | تقارير الحضور و الغياب | SC-ATT-002 | US-ATT-002 | Covered with TBD Actor |
 | تسجيل الغياب | SC-ATT-001 | US-ATT-001 | Covered with TBD Actor |
 | تسجيل حضور الطلاب | SC-ATT-001 | US-ATT-001 | Covered with TBD Actor |
+| تسجيل الحضور عبر مسح QR Code | SC-ATT-003 | US-ATT-003 | Covered |
 | متابعة مشاهدة المحتوى | SC-LES-002 | US-LES-002 | Covered with TBD Actor |
 | رفع الملفات و المراجع و الملخصات | SC-LES-001 | US-LES-001 | Covered with TBD Actor |
 | رفع تسجيلات المحاضرات | SC-LES-001 | US-LES-001 | Covered with TBD Actor |

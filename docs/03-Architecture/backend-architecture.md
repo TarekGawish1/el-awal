@@ -240,9 +240,9 @@ src/
 |---|---|---|---|
 | **`AuthModule`** | `auth/` | `User`, Session Tokens | Password hashing (argon2/bcrypt), JWT token issuance and verification, login, logout, identity validation. |
 | **`UsersModule`** | `users/` | `User`, `TeacherProfile`, `ParentProfile`, `SecretariatProfile` | User provisioning, profile management, role verification, account active/inactive status toggles. |
-| **`StudentsModule`** | `students/` | `StudentProfile`, `ParentStudentLink` | Student enrollment, student code generation, academic status management, parent-student linkage resolution. |
+| **`StudentsModule`** | `students/` | `StudentProfile`, `ParentStudentLink` | Student enrollment, student code generation, unique QR token provisioning (`qr_code_token`), academic status management, parent-student linkage resolution. |
 | **`GroupsModule`** | `groups/` | `AcademicGroup`, `GroupEnrollment`, `LessonSchedule` | Group cohort creation, student enrollment/transfer/drop, recurring weekly lesson timetable configuration. |
-| **`AttendanceModule`** | `attendance/` | `LessonSession`, `AttendanceRecord` | Class session scheduling/instantiation, session roll-call recording (`PRESENT`, `ABSENT`, `EXCUSED`), attendance summary report generation. |
+| **`AttendanceModule`** | `attendance/` | `LessonSession`, `AttendanceRecord` | Class session scheduling/instantiation, session roll-call recording (`PRESENT`, `ABSENT`, `EXCUSED`), **Student QR Code Attendance Scanning Engine** (`POST /sessions/:sessionId/scan-qr`), attendance summary report generation. |
 | **`LessonsModule`** | `lessons/` | `EducationalContent`, `ContentProgress` | File metadata management, R2 presigned upload URL issuance, Bunny Stream video registration, student viewing progress and completion tracking. |
 | **`AssessmentsModule`**| `assessments/`| `Assessment`, `AssessmentQuestion`, `AssessmentSubmission`, `StudentAnswer` | Homework/exam authoring, question options management, submission handling, **Automatic Exam Grading Engine**, score calculations. |
 | **`ParentStatusModule`**| `parent-status/`| `StudentEvaluation` | Teacher evaluations, qualitative notes, student level rating records, consolidated student progress summary for guardians. |
@@ -372,6 +372,51 @@ Student Submits Exam -> AssessmentsController.submitExam()
        ▼
  NotificationsEventListener catches 'assessment.exam_graded'
        └── Persists Notification entity for designated recipients (PRD-008, FR-NOT-004)
+```
+
+### 7.3 Student QR Code Attendance Execution Flow
+The student QR code attendance workflow is encapsulated within `AttendanceModule` and coordinated with `StudentsModule`:
+
+```text
+Teacher Scans Student QR Code -> AttendanceController.scanQrCode(sessionId, { qrCodeToken })
+       │
+       ▼
+ AttendanceService.recordAttendanceByQrToken(sessionId, qrCodeToken, teacherId)
+       │
+       ├── 1. Validate LessonSession exists and belongs to Teacher's AcademicGroup
+       ├── 2. Resolve StudentProfile via qr_code_token (indexed lookup, O(1))
+       │      └── If not found: throw StudentNotFoundException (404)
+       ├── 3. Verify Student has active GroupEnrollment in Session's AcademicGroup
+       │      └── If not enrolled: return WarningResponse (422 / domain alert with student name & actual group)
+       │
+       ▼
+ Execute Upsert / Idempotent Record Operation via Prisma:
+       │
+       ├── 4. prisma.attendanceRecord.upsert({
+       │        where: { sessionId_studentId: { sessionId, studentId } },
+       │        create: {
+       │          sessionId,
+       │          studentId,
+       │          status: 'PRESENT',
+       │          recordingMethod: 'QR_SCAN',
+       │          recordedById: teacherId,
+       │          recordedAt: new Date()
+       │        },
+       │        update: {
+       │          status: 'PRESENT',
+       │          recordingMethod: 'QR_SCAN',
+       │          recordedById: teacherId,
+       │          recordedAt: new Date()
+       │        }
+       │      })
+       │
+       └── 5. Return Success Response in < 500ms:
+              {
+                success: true,
+                student: { id, fullName, studentCode },
+                attendance: { status: 'PRESENT', recordingMethod: 'QR_SCAN', recordedAt },
+                sessionStats: { totalPresent, totalEnrolled }
+              }
 ```
 
 ---
@@ -722,7 +767,8 @@ export class TasksSchedulerService {
 | **SQL Injection** | **Prisma Parameterized Queries**: All database queries are compiled to parameterized SQL. Raw unescaped SQL strings are forbidden. |
 | **Cross-Site Scripting (XSS)** | **Helmet Security Headers** + Content-Security-Policy (CSP) + input sanitization pipes stripping raw HTML tags from user-entered notes. |
 | **Broken Object Level Auth (BOLA / IDOR)**| **ResourceOwnershipGuard**: System verifies that parents can only query linked students, teachers only manage their assigned groups, and students only submit their own assessments. |
-| **Brute Force & DoS Attacks** | **@nestjs/throttler Rate Limiting**: Global rate limit (e.g., 100 req/min per IP); strict rate limit on auth endpoints (e.g., 5 login attempts per 15 min). |
+| **QR Code Tampering & Replay** | **Cryptographic QR Tokens**: High-entropy, non-sequential QR tokens generated server-side. Scanner endpoint validates session context, group enrollment, and teacher session ownership with rate limiting. |
+| **Brute Force & DoS Attacks** | **@nestjs/throttler Rate Limiting**: Global rate limit (e.g., 100 req/min per IP); strict rate limit on auth endpoints (e.g., 5 login attempts per 15 min); scanner throttling (max 60 scans/min per teacher session). |
 | **Mass Assignment Vulnerabilities** | **DTO Whitelisting**: `ValidationPipe({ whitelist: true, forbidNonWhitelisted: true })` rejects any payload containing unapproved database columns. |
 | **Credential & Secret Exposure** | Secrets injected via environment variables; `.env` excluded from version control; zero hardcoded tokens. |
 
@@ -872,7 +918,7 @@ Environment variables are managed via `@nestjs/config` and validated at startup 
 |---|---|---|
 | **`PRD-001`** | Student Profiles & Parent Links | `StudentsModule`, `UsersModule`, `StudentProfile`, `ParentStudentLink` |
 | **`PRD-002`** | Group Formation & Lesson Schedules | `GroupsModule`, `AcademicGroup`, `LessonSchedule`, `GroupEnrollment` |
-| **`PRD-003`** | Attendance & Absence Recording & Reports | `AttendanceModule`, `LessonSession`, `AttendanceRecord` aggregation queries |
+| **`PRD-003`** | Attendance & Absence Recording & Reports | `AttendanceModule`, `LessonSession`, `AttendanceRecord` (Manual & QR Scanning engine) |
 | **`PRD-004`** | Educational Content & Video Tracking | `LessonsModule`, `EducationalContent`, `ContentProgress`, Cloudflare R2, Bunny Stream |
 | **`PRD-005`** | Assessment Lifecycle (Assignments & Exams) | `AssessmentsModule`, `Assessment`, `AssessmentSubmission` |
 | **`PRD-006`** | Automatic Examination Grading Engine | `AssessmentsService.processExamSubmission()`, `StudentAnswer`, auto-score calculation |
@@ -906,6 +952,11 @@ Environment variables are managed via `@nestjs/config` and validated at startup 
 - **Status**: Accepted
 - **Decision**: Use UUIDv4 across all database entities.
 - **Rationale**: Eliminates sequential ID enumeration attacks, protects student academic records, and allows client-side ID pre-generation where needed.
+
+#### ADR-005: Unique Student QR Code Attendance Token Strategy
+- **Status**: Accepted
+- **Decision**: Provision a persistent, unique cryptographic UUID token (`qr_code_token`) per student record, indexed with `uq_student_qr_code`.
+- **Rationale**: Provides O(1) indexed lookup upon scanner submission (<500ms response), prevents guessing or tampering with student IDs, and supports offline or printed student badge usage.
 
 ---
 

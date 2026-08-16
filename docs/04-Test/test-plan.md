@@ -37,6 +37,7 @@ The test scope is derived directly from the approved Product Backlog and include
 2. **Attendance & Absence**:
    - Verification of recording student attendance (`تسجيل حضور الطلاب`).
    - Verification of recording student absence (`تسجيل الغياب`).
+   - Verification of student QR code attendance scanning (`تسجيل الحضور عبر مسح QR Code`).
    - Verification of attendance and absence reporting (`تقارير الحضور و الغياب`).
 
 3. **Lectures & Lessons**:
@@ -174,7 +175,7 @@ The primary objectives of the testing process are:
 | Module | Functional Testing | Integration Testing | System/E2E Testing | Other Testing |
 | :--- | :--- | :--- | :--- | :--- |
 | **Student Management** | Verify student data, parent data, student status, and group/class association handling. | Verify student data flow across presentation, business, and data layers. | Verify student record handling from user interface to data layer. | Usability & Security testing. |
-| **Attendance & Absence** | Verify recording attendance, recording absence, and attendance and absence reporting. | Verify attendance recording interaction with student data and reports. | Verify attendance entry and report viewing flows. | Usability testing. |
+| **Attendance & Absence** | Verify recording attendance, recording absence, student unique QR code scanning, and attendance and absence reporting. | Verify QR scan token verification, attendance recording interaction with student data and reports. | Verify QR scanning check-in, manual roll-call entry, and report viewing flows. | Usability & Performance testing (<500ms scan). |
 | **Lectures & Lessons** | Verify uploading files, references, summaries, lecture recordings, and content viewing tracking. | Verify content availability and viewing tracking integration with user records. | Verify upload and viewing tracking flows. | Performance & Compatibility testing. |
 | **Exams & Assignments** | Verify assignment/exam creation, upload, submission, automatic exam grading, and parent result display. | Verify the confirmed flow between student submission and automatic exam grading. | Verify complete exam creation, student submission, automatic grading, and result display workflow. | Usability & Performance testing. |
 | **Parent Student Status** | Verify displaying evaluations, notes, exam grades, student level, assignment status, and attendance. | Verify compilation of student academic data for parent-facing display. | Verify parent access to consolidated student status information. | Usability & Security testing. |

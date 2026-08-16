@@ -81,6 +81,17 @@ The Business Logic Layer represents domain concepts and product capabilities acr
 - **Business Logic Status**: Partially Defined
 - **Undefined Business Rules**: `TBD — Requires Product Clarification` (Report contents, aggregation logic, and access rules are undefined).
 
+#### Rule ID: BLR-ATT-003
+- **Rule Name**: Student QR Code Attendance Validation & Processing
+- **Related Backlog Item**: `تسجيل الحضور عبر مسح QR Code`
+- **Related User Story**: `US-ATT-003`
+- **Confirmed Business Rules**:
+  1. Every registered student receives a globally unique, persistent QR token upon profile creation.
+  2. Scanning a student's QR code in the context of an active/scheduled lesson session verifies group enrollment and marks the student's attendance record as `PRESENT` with recording method `QR_SCAN`.
+  3. QR scanning operations are idempotent: subsequent scans of an already-recorded student in the same session return success confirmation without creating duplicate entries.
+  4. Cross-group scan detection: Scanning a student not enrolled in the session's group issues an explicit warning with the student's identity and actual enrolled group.
+- **Business Logic Status**: Defined
+
 ---
 
 ### 4.3 Lectures & Lessons
@@ -425,6 +436,7 @@ The following missing product rules must be clarified by product stakeholders:
 | تقارير الحضور و الغياب | `US-ATT-002` | `BLR-ATT-002` | N/A — No Explicit Workflow Defined | Partially Defined |
 | تسجيل الغياب | `US-ATT-001` | `BLR-ATT-001` | N/A — No Explicit Workflow Defined | Partially Defined |
 | تسجيل حضور الطلاب | `US-ATT-001` | `BLR-ATT-001` | N/A — No Explicit Workflow Defined | Partially Defined |
+| تسجيل الحضور عبر مسح QR Code | `US-ATT-003` | `BLR-ATT-003` | N/A — No Explicit Workflow Defined | Defined |
 | متابعة مشاهدة المحتوى | `US-LES-002` | `BLR-LES-002` | N/A — No Explicit Workflow Defined | Partially Defined |
 | رفع الملفات و المراجع و الملخصات | `US-LES-001` | `BLR-LES-001` | N/A — No Explicit Workflow Defined | Partially Defined |
 | رفع تسجيلات المحاضرات | `US-LES-001` | `BLR-LES-001` | N/A — No Explicit Workflow Defined | Partially Defined |

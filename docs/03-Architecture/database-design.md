@@ -71,7 +71,7 @@ The logical schema uses standard relational concepts that map cleanly to modern 
 | Product Module | Required Logical Entities | Primary Purpose | Related Functional Requirements |
 |---|---|---|---|
 | **1. Student Management** | `StudentProfile`, `ParentStudentLink` | Stores student demographic profiles, academic status, and parent linkages. | `FR-STU-001..004` |
-| **2. Attendance & Absence** | `LessonSession`, `AttendanceRecord` | Captures scheduled class instances and student-level presence/absence records. | `FR-ATT-001..003` |
+| **2. Attendance & Absence** | `LessonSession`, `AttendanceRecord` | Captures scheduled class instances, student unique QR codes, and student-level presence/absence records. | `FR-ATT-001..004` |
 | **3. Lectures & Lessons** | `EducationalContent`, `ContentProgress` | Manages file/video metadata and tracks individual student viewing activity. | `FR-LES-001..003` |
 | **4. Exams & Assignments** | `Assessment`, `AssessmentQuestion`, `AssessmentSubmission`, `StudentAnswer` | Manages assignment and exam lifecycles, student submissions, and auto-grading data. | `FR-EXM-001..007` |
 | **5. Parent Student Status** | `StudentEvaluation` | Stores teacher notes, qualitative feedback, and student academic evaluations for parents. | `FR-PAR-001..005` |
@@ -95,9 +95,9 @@ The logical schema uses standard relational concepts that map cleanly to modern 
 - **Lifecycle**: Created synchronously with `User` having role `TEACHER`; modified when specialty/bio updates; deletion cascades only if no active academic groups exist.
 
 ### 5.3 `StudentProfile`
-- **Purpose**: Domain profile extension for learners tracking grade level and academic status.
-- **Related Requirements**: `FR-STU-001`, `FR-STU-004`, `FR-USR-003`, `PRD-001`, `PRD-009`.
-- **Lifecycle**: Created upon student enrollment; modified when grade level or status changes; soft-deactivated upon graduation or withdrawal; hard deletion restricted if attendance or grading records exist.
+- **Purpose**: Domain profile extension for learners tracking grade level, academic status, and unique QR attendance token.
+- **Related Requirements**: `FR-STU-001`, `FR-STU-004`, `FR-ATT-004`, `FR-USR-003`, `PRD-001`, `PRD-003`, `PRD-009`.
+- **Lifecycle**: Created upon student enrollment with a unique, non-duplicable `qr_code_token`; modified when grade level or status changes; soft-deactivated upon graduation or withdrawal; hard deletion restricted if attendance or grading records exist.
 
 ### 5.4 `ParentProfile`
 - **Purpose**: Domain profile extension for guardians monitoring student academic standing.
@@ -131,13 +131,13 @@ The logical schema uses standard relational concepts that map cleanly to modern 
 
 ### 5.10 `LessonSession`
 - **Purpose**: Concrete calendar occurrence of a class session for attendance tracking.
-- **Related Requirements**: `FR-ATT-001..003`, `PRD-003`.
+- **Related Requirements**: `FR-ATT-001..004`, `PRD-003`.
 - **Lifecycle**: Created automatically or manually prior to class; updated with topic notes; retained indefinitely for attendance history.
 
 ### 5.11 `AttendanceRecord`
-- **Purpose**: Explicit presence, absence, or excused state for a student in a session.
-- **Related Requirements**: `FR-ATT-002`, `FR-ATT-003`, `PRD-003`.
-- **Lifecycle**: Created during session roll-call; updated by authorized staff if attendance correction is required; retained permanently.
+- **Purpose**: Explicit presence, absence, or excused state for a student in a session, capturing recording method (QR scan vs. manual).
+- **Related Requirements**: `FR-ATT-002`, `FR-ATT-003`, `FR-ATT-004`, `PRD-003`.
+- **Lifecycle**: Created during session roll-call via teacher QR scanning or manual roster entry; updated by authorized staff if attendance correction is required; retained permanently.
 
 ### 5.12 `EducationalContent`
 - **Purpose**: Metadata and storage references for instructional files and lecture recordings.
@@ -214,6 +214,7 @@ The logical schema uses standard relational concepts that map cleanly to modern 
 |---|---|---|---|---|---|
 | `id` | UUID | Yes | Yes | 1:1 foreign key referencing `users.id` | `FR-STU-004` |
 | `student_code` | VARCHAR(50) | No | Yes | School/center student identification number | `FR-STU-004` |
+| `qr_code_token` | VARCHAR(255) | Yes | Yes | Unique token embedded in student QR code for attendance scanning | `FR-ATT-004`, `PRD-003` |
 | `grade_level` | VARCHAR(50) | Yes | No | Academic stage / grade (الصف الدراسي) | `FR-STU-002` |
 | `academic_status` | VARCHAR(50) | Yes | No | Status indicator (حالة الطلاب, Default: "ACTIVE") | `FR-STU-001` |
 | `date_of_birth` | DATE | No | No | Student date of birth | `FR-STU-004` |
@@ -293,6 +294,7 @@ The logical schema uses standard relational concepts that map cleanly to modern 
 | `session_id` | UUID | Yes | No | Foreign key referencing `lesson_sessions.id` | `FR-ATT-002` |
 | `student_id` | UUID | Yes | No | Foreign key referencing `student_profiles.id` | `FR-ATT-002` |
 | `status` | VARCHAR(30) (ENUM) | Yes | No | Status: `PRESENT`, `ABSENT`, `EXCUSED` | `FR-ATT-002`, `FR-ATT-003` |
+| `recording_method` | VARCHAR(30) (ENUM) | Yes | No | Method: `QR_SCAN`, `MANUAL` (Default: `"MANUAL"`) | `FR-ATT-004`, `PRD-003` |
 | `recorded_by_id` | UUID | Yes | No | Foreign key referencing `users.id` (staff recorder) | Audit / `PRD-003` |
 | `recorded_at` | TIMESTAMPTZ | Yes | No | Timestamp when attendance was logged | `FR-ATT-002` |
 | `notes` | TEXT | No | No | Attendance / absence justification note | `FR-ATT-001` |
@@ -524,9 +526,11 @@ The database maintains a strict architectural distinction between **Recurring Sc
 
 ## 12. Attendance & Absence Design
 
-The attendance data model satisfies all reporting and logging requirements (`FR-ATT-001..003`):
-- **Granular Session Logging**: Each row in `attendance_records` represents the verified state (`PRESENT`, `ABSENT`, `EXCUSED`) of a single student for a specific lesson session.
-- **Exclusivity Constraint**: Composite unique index on `(session_id, student_id)` strictly prevents conflicting duplicate entries for the same student in a session.
+The attendance data model satisfies all reporting, manual logging, and rapid QR code scanning requirements (`FR-ATT-001..004`):
+- **Unique QR Code Provisioning**: Each student record in `student_profiles` is provisioned with a persistent, unique, high-entropy `qr_code_token` upon enrollment (`uq_student_qr_code`), encoded as a QR code in the presentation layer.
+- **Rapid QR Check-in & Method Tracking**: When a teacher scans a student's QR code during a lesson session, the backend resolves the token to the student, verifies group membership, and writes/updates an `attendance_records` row with `status = 'PRESENT'` and `recording_method = 'QR_SCAN'`.
+- **Granular Session Logging**: Each row in `attendance_records` represents the verified state (`PRESENT`, `ABSENT`, `EXCUSED`) of a single student for a specific lesson session, preserving whether it was recorded via QR scan or manual roll-call.
+- **Exclusivity Constraint & Idempotency**: Composite unique index on `(session_id, student_id)` strictly prevents conflicting duplicate entries for the same student in a session, ensuring idempotent scan behavior.
 - **Dynamic Aggregation**: Attendance percentages, total attendances, and absence counts are computed dynamically using standard aggregation queries (`COUNT(*) WHERE status = 'PRESENT'`), eliminating cache invalidation and data desynchronization bugs.
 - **Auditability**: The `recorded_by_id` foreign key records the identity of the teacher or administrative staff member who recorded attendance.
 
@@ -666,6 +670,7 @@ The database enforces role separation through polymorphic 1:1 table extension:
 |---|---|---|---|
 | `users` | `[role]` | Filtering users by role type in administrative rosters | High-selectivity role queries |
 | `users` | `[phone]`, `[email]` | User authentication and lookup by contact identifier | Sub-millisecond identity lookup |
+| `student_profiles` | `[qr_code_token]` | Resolving student identity from scanned QR code during session check-in | Sub-millisecond QR scan attendance lookup |
 | `academic_groups` | `[teacher_id]` | Fetching all groups managed by a specific teacher | High-frequency instructor dashboard load |
 | `academic_groups` | `[grade_level]` | Roster filtering by academic stage | Administrative cohort lookups |
 | `group_enrollments` | `[student_id]` | Listing all active groups a student belongs to | Student portal home view |
@@ -760,10 +765,11 @@ erDiagram
 | `users` | `uq_users_phone` | Unique | `phone` | Prevent duplicate phone registration | `FR-USR-001..004` |
 | `users` | `uq_users_email` | Unique | `email` | Prevent duplicate email registration | `FR-USR-001..004` |
 | `student_profiles` | `uq_students_code` | Unique | `student_code` | Prevent duplicate student ID numbers | `FR-STU-004` |
+| `student_profiles` | `uq_student_qr_code` | Unique | `qr_code_token` | Guarantee global uniqueness of student QR codes | `FR-ATT-004`, `PRD-003` |
 | `parent_student_links`| `uq_parent_student` | Composite Unique | `[parent_id, student_id]` | Prevent duplicate guardian linkages | `FR-STU-003` |
 | `group_enrollments` | `uq_group_student` | Composite Unique | `[group_id, student_id]` | Prevent duplicate group enrollment | `FR-GRP-002` |
 | `lesson_sessions` | `uq_group_session_date` | Composite Unique | `[group_id, session_date]` | Prevent duplicate session logs on same day | `FR-ATT-001` |
-| `attendance_records` | `uq_session_student` | Composite Unique | `[session_id, student_id]` | Prevent duplicate roll-call entry | `FR-ATT-002` |
+| `attendance_records` | `uq_session_student` | Composite Unique | `[session_id, student_id]` | Prevent duplicate roll-call entry (enables idempotent QR scans) | `FR-ATT-002`, `FR-ATT-004` |
 | `content_progress` | `uq_content_student` | Composite Unique | `[content_id, student_id]` | Single tracking record per content asset | `FR-LES-001` |
 | `assessment_questions`| `uq_assessment_question`| Composite Unique | `[assessment_id, question_number]`| Unique ordering of exam questions | `FR-EXM-007` |
 | `assessment_submissions`| `uq_assessment_student`| Composite Unique | `[assessment_id, student_id]` | One submission attempt per assessment | `FR-EXM-003` |
@@ -777,6 +783,7 @@ erDiagram
 | Entity | Index Name | Indexed Columns | Target Query / Access Pattern |
 |---|---|---|---|
 | `users` | `idx_users_role` | `[role]` | Filtering user directories by role type |
+| `student_profiles` | `idx_students_qr_code` | `[qr_code_token]` | Resolving student identity from scanned QR token (<500ms) |
 | `academic_groups` | `idx_groups_teacher` | `[teacher_id]` | Loading instructor's active groups |
 | `academic_groups` | `idx_groups_grade` | `[grade_level]` | Filtering groups by academic stage |
 | `group_enrollments` | `idx_enrollments_student` | `[student_id]` | Retrieving student's enrolled groups |
@@ -801,15 +808,15 @@ erDiagram
 |---|---|---|---|---|
 | `users` | `FR-USR-001..004` | `PRD-009` | `المدرس`, `الطالب`, `ولي الامر`, `السكرتارية` | All Roles |
 | `teacher_profiles` | `FR-USR-004` | `PRD-009` | `المدرس` | Teacher |
-| `student_profiles` | `FR-STU-001`, `FR-STU-004` | `PRD-001`, `PRD-009` | `بيانات الطالب`, `حالة الطلاب` | Student, Admin |
+| `student_profiles` | `FR-STU-001`, `FR-STU-004`, `FR-ATT-004` | `PRD-001`, `PRD-003`, `PRD-009` | `بيانات الطالب`, `حالة الطلاب`, `تسجيل الحضور عبر مسح QR Code` | Student, Admin |
 | `parent_profiles` | `FR-STU-003`, `FR-USR-002` | `PRD-001`, `PRD-009` | `بيانات ولي الامر`, `ولي الامر` | Parent |
 | `secretariat_profiles`| `FR-USR-001` | `PRD-009` | `السكرتارية` | Secretariat |
 | `parent_student_links`| `FR-STU-003`, `FR-PAR-001..005`| `PRD-001`, `PRD-007` | `بيانات ولي الامر`, `عرض النتائج لي ولي الامر` | Parent, Student |
 | `academic_groups` | `FR-GRP-003`, `FR-STU-002` | `PRD-002`, `PRD-001` | `انشاء مجموعة`, `المجموعة و الصف` | Teacher, Secretariat |
 | `group_enrollments` | `FR-GRP-002` | `PRD-002` | `اضافة طلاب` | Teacher, Student |
 | `lesson_schedules` | `FR-GRP-001` | `PRD-002` | `تحديد مواعيد الدروس` | Teacher |
-| `lesson_sessions` | `FR-ATT-001..003` | `PRD-003` | `تقارير الحضور و الغياب`, `تسجيل حضور الطلاب` | Teacher |
-| `attendance_records`| `FR-ATT-002`, `FR-ATT-003` | `PRD-003` | `تسجيل حضور الطلاب`, `تسجيل الغياب` | Teacher |
+| `lesson_sessions` | `FR-ATT-001..004` | `PRD-003` | `تقارير الحضور و الغياب`, `تسجيل حضور الطلاب`, `تسجيل الحضور عبر مسح QR Code` | Teacher |
+| `attendance_records`| `FR-ATT-002`, `FR-ATT-003`, `FR-ATT-004` | `PRD-003` | `تسجيل حضور الطلاب`, `تسجيل الغياب`, `تسجيل الحضور عبر مسح QR Code` | Teacher |
 | `educational_content`| `FR-LES-002`, `FR-LES-003` | `PRD-004` | `رفع الملفات و المراجع و الملخصات`, `رفع تسجيلات المحاضرات` | Teacher, Student |
 | `content_progress` | `FR-LES-001` | `PRD-004` | `متابعة مشاهدة المحتوى` | Student, Teacher |
 | `assessments` | `FR-EXM-004..007` | `PRD-005` | `انشاء الواجبات`, `انشاء الامتحانات`, `رفع الواجبات`, `رفع الامتحانات` | Teacher, Student |

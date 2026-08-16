@@ -98,6 +98,16 @@ The system accommodates four confirmed user roles explicitly identified in the p
 - **Inputs**: `TBD — Requires Architecture Decision`
 - **Outputs**: `TBD — Requires Architecture Decision`
 
+#### Capability ID: PL-ATT-003
+- **Capability Name**: Student QR Code Attendance Scanning & Display Interface
+- **Related User Story**: `US-ATT-003`
+- **Presentation Responsibility**:
+  1. Provide camera-based QR scanning viewfinder with optical decode for teachers during lesson sessions.
+  2. Display unique QR code pass and digital student card within the student portal.
+  3. Render immediate visual and audio confirmation upon successful attendance verification.
+- **Inputs**: Device camera feed, student QR token payload.
+- **Outputs**: Verified attendance status badge, real-time session roster increment, scan error/mismatch banners.
+
 ---
 
 ### 5.3 Lectures & Lessons
@@ -322,6 +332,7 @@ Specific communication protocols, data interchange formats, API architectures (R
 | `US-STU-003` | `PL-STU-003` — Student Status Presentation | Partially Defined |
 | `US-ATT-001` | `PL-ATT-001` — Student Attendance and Absence Recording Interface | Partially Defined |
 | `US-ATT-002` | `PL-ATT-002` — Attendance and Absence Reports Presentation | Partially Defined |
+| `US-ATT-003` | `PL-ATT-003` — Student QR Code Attendance Scanning & Display Interface | Defined |
 | `US-LES-001` | `PL-LES-001` — Educational Content and Lecture Recordings Upload Interface | Partially Defined |
 | `US-LES-002` | `PL-LES-002` — Content Viewing Information Presentation | Partially Defined |
 | `US-EXM-001` | `PL-EXM-001` — Exam and Assignment Creation and Upload Interface | Partially Defined |

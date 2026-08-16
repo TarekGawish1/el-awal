@@ -494,6 +494,8 @@ Recommended 24×24px semantic icon mappings for educational management modules:
 | `icon-parent` | Parent / Guardian representation | Student Management (`بيانات ولي الامر`) | `Recommended` |
 | `icon-attendance-check` | Attendance presence confirmation | Attendance (`تسجيل حضور الطلاب`) | `Recommended` |
 | `icon-attendance-absent`| Absence indicator | Attendance (`تسجيل الغياب`) | `Recommended` |
+| `icon-qr-code` | Student unique QR code badge | Attendance (`رمز QR للطالب`) | `Recommended` |
+| `icon-qr-scanner` | Teacher QR scanner camera action | Attendance (`مسح QR كود للحضور`) | `Recommended` |
 | `icon-upload` | File / Lecture upload action | Lectures & Lessons (`رفع الملفات`) | `Recommended` |
 | `icon-video` | Lecture recording item | Lectures & Lessons (`تسجيلات المحاضرات`) | `Recommended` |
 | `icon-assignment` | Homework / Assignment task | Exams & Assignments (`انشاء الواجبات`) | `Recommended` |
@@ -519,7 +521,9 @@ The following component specifications represent a **Recommended** UI inventory 
 | **File Uploader** | Inputs | `Recommended` | Dropzone, Button Upload | Default, Uploading, Complete, Error | `FR-LES-002`, `FR-EXM-004` |
 | **Data Table** | Data Display | `Recommended` | Compact Table, Expandable Row | Default, Loading, Empty, Selected Row | `FR-STU-001`, `FR-ATT-001` |
 | **Student Card** | Data Display | `Recommended` | Summary Card, Grid Card | Default, Hover, Selected, Status-Tagged | `FR-STU-001..004` |
+| **Student QR Card** | Data Display | `Recommended` | Digital ID Card, Modal Badge, Printable Pass | Default, Enlarged, Loading, Error | `FR-ATT-004`, `FR-STU-004` |
 | **Attendance Control** | Education | `Recommended` | Presence/Absence Toggle | Active Present, Active Absent, Unrecorded | `FR-ATT-002`, `FR-ATT-003` |
+| **QR Attendance Scanner** | Education | `Recommended` | Viewfinder Modal, In-Page Camera Frame | Camera Active, Target Locked, Success, Error | `FR-ATT-004` |
 | **Assignment Item** | Education | `Recommended` | Student View, Review View | Pending, Submitted, Graded | `FR-EXM-003..005` |
 | **Exam Card** | Education | `Recommended` | Available, Completed | Available, Submitted, Graded | `FR-EXM-006..007` |
 | **Status Badge** | Status | `Recommended` | Solid, Subtle Tint with Text Label | Default Status | `FR-PAR-002`, `FR-SUB-001` |
@@ -559,8 +563,10 @@ Recommended component state framework for interactive controls:
 High-level interaction patterns derived from the approved product backlog:
 
 ### 23.1 Attendance Recording Pattern
-- **Scope**: Derived from `FR-ATT-002`, `FR-ATT-003` (`تسجيل حضور الطلاب`, `تسجيل الغياب`).
-- **Core Requirement Flow**: Group/student context selection ──► Attendance recording control ──► Confirmation of recorded attendance/absence.
+- **Scope**: Derived from `FR-ATT-002`, `FR-ATT-003`, `FR-ATT-004` (`تسجيل حضور الطلاب`, `تسجيل الغياب`, `تسجيل الحضور عبر مسح QR Code`).
+- **Core Requirement Flows**:
+  1. **QR Code Scanning Flow**: Teacher selects active lesson session ──► Opens QR Scanner viewfinder ──► Scans student's unique QR code ──► Immediate visual/audio recognition feedback ──► Student attendance instantly logged as `PRESENT` ──► Session attendance counter increments in real time.
+  2. **Manual Roster Flow**: Group/session context selection ──► Manual roll-call toggle (Present / Absent / Excused) ──► Confirmation of recorded attendance/absence.
 - **Detailed UI Mechanisms**: `Recommended / TBD`
 - **Status**: `Defined (Functional Goal)` / `Recommended (UI Pattern)`
 

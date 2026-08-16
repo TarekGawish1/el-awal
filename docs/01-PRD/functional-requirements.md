@@ -91,10 +91,27 @@ This document covers only the functional scope represented by the provided Backl
 - **Requirement Name**: Record Student Attendance
 - **Description**: The system must allow recording of student attendance.
 - **Actor**: TBD — Requires Product Clarification
-- **Functional Behavior**: The system supports recording student attendance.
+- **Functional Behavior**: The system supports recording student attendance via direct roster entry and QR code scanning.
 - **Acceptance Criteria**: The system must allow the recording of student attendance.
 - **Business Rules**: TBD — Requires Product Clarification
 - **Dependencies**: TBD — Requires Product Clarification
+
+#### Requirement ID: FR-ATT-004
+- **Backlog Reference**: تسجيل الحضور عبر مسح QR Code
+- **Requirement Name**: Student QR Code Attendance Scanning & Provisioning
+- **Description**: Every student must have a unique QR code that can be scanned by the teacher to record the student's attendance for a specific lesson/session.
+- **Actor**: Teacher (`المدرس`) / Student (`الطالب`)
+- **Functional Behavior**: The system generates and assigns a unique QR code to each student. During an active or scheduled lesson session, the teacher accesses the scanner interface and scans the student's unique QR code to verify identity, validate group enrollment, and instantly record attendance for that specific session.
+- **Acceptance Criteria**:
+  1. The system must automatically generate a unique, non-duplicable QR code for every enrolled student.
+  2. The system must allow students to view/present their unique QR code from their student profile or card.
+  3. The system must allow the teacher to scan the student's QR code using the application camera/scanner interface.
+  4. Upon successful scan, the system must immediately log the student as present (`PRESENT`) for the selected lesson session and confirm the recording.
+- **Business Rules**:
+  1. Each QR code is uniquely bound to one student record.
+  2. QR scanning records attendance for the currently selected `lesson_session`.
+  3. Scanning an already-recorded student in the same session is processed idempotently without error.
+- **Dependencies**: `FR-STU-004`, `FR-GRP-001`, `FR-GRP-002`, `FR-ATT-003`
 
 ### 3. Lectures & Lessons System
 

@@ -97,6 +97,15 @@ The conceptual data requirements are organized across the nine product modules:
 - **Relationships**: `TBD — Requires Product Clarification`
 - **Data Status**: Partially Defined
 
+#### Entity ID: DATA-ATT-003
+- **Entity Name**: Student QR Code Attendance Data
+- **Related Backlog Item(s)**: `تسجيل الحضور عبر مسح QR Code`
+- **Related Business Logic Concept**: `BLR-ATT-003`
+- **Description**: Represents the unique student QR code token, scan verification payload, and session attendance check-in record.
+- **Known Data**: Unique student QR token (`qr_code_token`), lesson session ID, scan timestamp, recording method (`QR_SCAN`), recorder ID.
+- **Relationships**: Linked 1:1 with `DATA-STU-001` (Student Data) and recorded in `DATA-ATT-001` (Attendance and Absence Records).
+- **Data Status**: Defined
+
 ---
 
 ### 5.3 Lectures & Lessons
@@ -464,6 +473,7 @@ The following technical data architecture decisions must be resolved:
 | تقارير الحضور و الغياب | `BLR-ATT-002` | `DATA-ATT-002` — Attendance and Absence Reports Data | Partially Defined |
 | تسجيل الغياب | `BLR-ATT-001` | `DATA-ATT-001` — Attendance and Absence Records | Partially Defined |
 | تسجيل حضور الطلاب | `BLR-ATT-001` | `DATA-ATT-001` — Attendance and Absence Records | Partially Defined |
+| تسجيل الحضور عبر مسح QR Code | `BLR-ATT-003` | `DATA-ATT-003` — Student QR Code Attendance Data | Defined |
 | متابعة مشاهدة المحتوى | `BLR-LES-002` | `DATA-LES-002` — Content Viewing Tracking Data | Partially Defined |
 | رفع الملفات و المراجع و الملخصات | `BLR-LES-001` | `DATA-LES-001` — Educational Content and Lecture Recordings | Partially Defined |
 | رفع تسجيلات المحاضرات | `BLR-LES-001` | `DATA-LES-001` — Educational Content and Lecture Recordings | Partially Defined |

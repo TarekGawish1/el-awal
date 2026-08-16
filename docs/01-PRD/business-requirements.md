@@ -35,7 +35,7 @@ The system is an educational management platform designed to support educational
 
 The product encompasses educational and operational capabilities across nine confirmed product modules:
 1. **Student Management**: Handling student data, parent data, student status, and group/grade associations.
-2. **Attendance & Absence**: Recording student attendance, recording absences, and providing attendance/absence reports.
+2. **Attendance & Absence**: Recording student attendance (including unique student QR code provisioning and teacher QR code scanning), recording absences, and providing attendance/absence reports.
 3. **Lectures & Lessons**: Uploading educational files, references, summaries, lecture recordings, and tracking content viewing.
 4. **Exams & Assignments**: Creating and uploading assignments and exams, student submissions, automatic exam grading, and displaying results to parents.
 5. **Parent Student Status**: Providing parents with access to evaluations, teacher notes, exam grades, student level, assignment status, and attendance/absence records.
@@ -51,7 +51,7 @@ The product encompasses educational and operational capabilities across nine con
 The product addresses core operational and educational capability needs identified across the approved backlog modules:
 - Managing student information, parent information, student status, and academic group/class associations.
 - Managing group formation and scheduling lesson times.
-- Recording and reporting student attendance and absence records.
+- Recording and reporting student attendance and absence records rapidly and reliably, including via student unique QR code scanning by the teacher.
 - Managing and providing access to educational files, summaries, references, and lecture recordings, along with tracking content engagement.
 - Managing the creation, upload, submission, and grading of assignments and examinations.
 - Providing parents with visibility into student academic standing, evaluations, assignment statuses, exam grades, and attendance records.
@@ -69,7 +69,7 @@ The business objectives directly supported by the approved product scope are:
 
 1. **Enable Student Information Management**: Provide capabilities to maintain and view student profiles, parent contact data, student status, and class/group assignments.
 2. **Enable Group & Schedule Management**: Provide capabilities to create student groups, assign students to groups, and define lesson schedules.
-3. **Enable Attendance & Absence Tracking**: Provide capabilities to record student attendance and absences and generate attendance/absence reports.
+3. **Enable Attendance & Absence Tracking**: Provide capabilities to record student attendance and absences (via manual entry and teacher scanning of unique student QR codes) and generate attendance/absence reports.
 4. **Enable Educational Content Delivery**: Provide capabilities to upload and distribute educational materials, summaries, references, and lecture recordings, and track content viewing.
 5. **Enable Assignment & Exam Management**: Provide capabilities to create and upload assignments and exams for students.
 6. **Enable Student Assessment Submissions**: Enable students to submit their completed assignments and exams through the system.
@@ -89,8 +89,8 @@ The system serves four confirmed user roles derived from the product backlog:
 
 | Role | Business Relationship to Product |
 |---|---|
-| **Teacher / المدرس** | Educational and instructional user responsible for managing groups, schedules, educational content, assessments, attendance, evaluations, and viewing student progress. |
-| **Student / الطالب** | Learner user who accesses educational materials, receives notifications, and submits assignments and exams. |
+| **Teacher / المدرس** | Educational and instructional user responsible for managing groups, schedules, educational content, assessments, attendance (including scanning student QR codes), evaluations, and viewing student progress. |
+| **Student / الطالب** | Learner user who accesses educational materials, receives notifications, presents unique QR code for session attendance, and submits assignments and exams. |
 | **Parent / ولي الأمر** | Guardian user who accesses student academic standing, evaluations, notes, grades, assignment status, attendance records, and notifications. |
 | **Secretariat / السكرتارية** | Administrative role explicitly identified in the product scope. *(Responsibilities: `TBD — Requires Product Clarification`)* |
 
@@ -120,12 +120,13 @@ The system serves four confirmed user roles derived from the product backlog:
 ---
 
 ### BR-003 — Attendance & Absence Management
-- **Description**: The system shall support recording and reporting student attendance and absence records within the defined product scope.
+- **Description**: The system shall support recording and reporting student attendance and absence records within the defined product scope, including unique student QR code generation and teacher QR code scanning for session attendance check-in.
 - **Supported Backlog Capabilities**:
   - `تسجيل حضور الطلاب` (Record Student Attendance)
   - `تسجيل الغياب` (Record Absence)
   - `تقارير الحضور و الغياب` (Attendance and Absence Reports)
-- **Business Scope**: Logging attendance status per student/session and providing summarized reports.
+  - `تسجيل الحضور عبر رمز الاستجابة السريعة (QR Code)` (Student QR Code Attendance Scanning)
+- **Business Scope**: Generating a unique QR code for every enrolled student, enabling teachers to scan student QR codes to log session-level attendance, logging manual attendance/absence statuses per student/session, and providing summarized reports.
 
 ---
 
@@ -258,8 +259,8 @@ This Business Requirements Document defines high-level product capabilities and 
 
 ### Currently Defined Success Criteria
 The product is successful at the business requirement level when all approved backlog capabilities across the nine modules are available and operational as specified:
-- Instructors and administrators can manage students, groups, schedules, attendance, content, and assessments.
-- Students can access educational assets and submit assignments and exams.
+- Instructors and administrators can manage students, groups, schedules, attendance (including unique student QR code generation and rapid teacher QR code scanning), content, and assessments.
+- Students can access educational assets, present their unique QR code for attendance verification, and submit assignments and exams.
 - Automated grading executes for submitted examinations.
 - Parents have access to student academic records, notes, grades, assignment status, and attendance.
 - Defined schedule reminders and academic alert notifications are provided.
@@ -273,7 +274,7 @@ The product is successful at the business requirement level when all approved ba
 
 The following assumptions apply strictly to the documentation baseline:
 1. **Confirmed Roles**: The four roles listed in the backlog (`المدرس`, `الطالب`, `ولي الامر`, `السكرتارية`) represent all primary human actors interacting with the product scope.
-2. **Approved Scope**: The nine modules and 35 distinct backlog items represent the complete and authorized baseline product scope.
+2. **Approved Scope**: The nine modules and confirmed backlog items (including student QR code attendance) represent the complete and authorized baseline product scope.
 3. **Traceability**: All functional specifications, user stories, and architecture designs derive directly from this product scope without introducing external assumptions.
 
 ---
@@ -306,6 +307,7 @@ The following business-level decisions require formal product clarification:
 | **BR-002** | Group & Lesson Management | `تحديد مواعيد الدروس` | `FR-GRP-001` | `US-GRP-001` | Partially Defined |
 | **BR-002** | Group & Lesson Management | `اضافة طلاب` | `FR-GRP-002` | `US-GRP-002` | Partially Defined |
 | **BR-003** | Attendance & Absence Management | `تسجيل حضور الطلاب` | `FR-ATT-003` | `US-ATT-001` | Partially Defined |
+| **BR-003** | Attendance & Absence Management | `تسجيل الحضور عبر مسح QR Code` | `FR-ATT-004` | `US-ATT-003` | Defined |
 | **BR-003** | Attendance & Absence Management | `تسجيل الغياب` | `FR-ATT-002` | `US-ATT-001` | Partially Defined |
 | **BR-003** | Attendance & Absence Management | `تقارير الحضور و الغياب` | `FR-ATT-001` | `US-ATT-002` | Partially Defined |
 | **BR-004** | Educational Content Management | `رفع الملفات و المراجع و الملخصات` | `FR-LES-002` | `US-LES-001` | Partially Defined |

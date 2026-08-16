@@ -163,6 +163,87 @@ This document defines the formal test cases for verifying the functional capabil
 
 ---
 
+#### Test Case ID: TC-ATT-004
+- **Test Case Title**: Verify Unique Student QR Code Provisioning on Enrollment
+- **Requirement ID**: `FR-ATT-004`
+- **Backlog Item**: `تسجيل الحضور عبر مسح QR Code`
+- **User Story**: `US-ATT-003`
+- **User Scenario**: `SC-ATT-003`
+- **Test Type**: Functional / Integration
+- **Priority**: P0
+- **Preconditions**:
+  - System is operational.
+- **Test Data**: Valid student enrollment payload.
+- **Test Steps**:
+  1. Enroll a new student into the system.
+  2. Query the created student profile record and digital student card.
+  3. Verify the presence and uniqueness of `qr_code_token`.
+- **Expected Result**: A unique, non-null QR code token is generated and rendered as a scannable QR code in the student dashboard.
+- **Status**: Ready
+
+---
+
+#### Test Case ID: TC-ATT-005
+- **Test Case Title**: Verify Recording Session Attendance via Teacher QR Code Scanning
+- **Requirement ID**: `FR-ATT-004`
+- **Backlog Item**: `تسجيل الحضور عبر مسح QR Code`
+- **User Story**: `US-ATT-003`
+- **User Scenario**: `SC-ATT-003`
+- **Test Type**: Functional / End-to-End / Performance
+- **Priority**: P0
+- **Preconditions**:
+  - Student is actively enrolled in Group A.
+  - Active/scheduled lesson session exists for Group A.
+  - Teacher is authenticated and has opened the session QR scanner viewfinder.
+- **Test Data**: Enrolled student's unique QR code.
+- **Test Steps**:
+  1. Student presents QR code on mobile screen or printed student card.
+  2. Teacher scans the QR code using the device camera.
+  3. System resolves QR token, verifies enrollment in Group A, and records attendance.
+- **Expected Result**: Student attendance is persisted as `PRESENT` with recording method `QR_SCAN` in <500ms; teacher UI displays instantaneous positive confirmation and updates the session attendance roster.
+- **Status**: Ready
+
+---
+
+#### Test Case ID: TC-ATT-006
+- **Test Case Title**: Verify Duplicate QR Code Scan Idempotency
+- **Requirement ID**: `FR-ATT-004`
+- **Backlog Item**: `تسجيل الحضور عبر مسح QR Code`
+- **User Story**: `US-ATT-003`
+- **User Scenario**: `SC-ATT-003`
+- **Test Type**: Functional / Integration
+- **Priority**: P1
+- **Preconditions**:
+  - Student attendance is already recorded as `PRESENT` for the active lesson session.
+- **Test Data**: Previously scanned student QR code.
+- **Test Steps**:
+  1. Teacher scans the same student's QR code a second time within the same lesson session.
+  2. System evaluates the scan request against existing attendance records.
+- **Expected Result**: System returns a confirmation indicating attendance is already recorded; no duplicate database record is inserted, and no application error occurs.
+- **Status**: Ready
+
+---
+
+#### Test Case ID: TC-ATT-007
+- **Test Case Title**: Verify Scanning QR Code of Student Not Enrolled in Group Session
+- **Requirement ID**: `FR-ATT-004`
+- **Backlog Item**: `تسجيل الحضور عبر مسح QR Code`
+- **User Story**: `US-ATT-003`
+- **User Scenario**: `SC-ATT-003`
+- **Test Type**: Functional / Exception Flow
+- **Priority**: P1
+- **Preconditions**:
+  - Student is enrolled in Group B (not Group A).
+  - Teacher has opened the QR scanner for a Group A lesson session.
+- **Test Data**: Group B student QR code.
+- **Test Steps**:
+  1. Teacher scans the Group B student's QR code during the Group A session.
+  2. System resolves student identity and checks group enrollment for Group A.
+- **Expected Result**: System displays an informative warning alert stating the student is not enrolled in Group A (displaying student name and actual group), and does not record attendance for Group A.
+- **Status**: Ready
+
+---
+
 ### 4.3 Lectures & Lessons
 
 #### Test Case ID: TC-LES-001
@@ -726,6 +807,10 @@ This document defines the formal test cases for verifying the functional capabil
 | `TC-ATT-001` | `FR-ATT-003` | `تسجيل حضور الطلاب` | `US-ATT-001` | `SC-ATT-001` | Ready |
 | `TC-ATT-002` | `FR-ATT-002` | `تسجيل الغياب` | `US-ATT-001` | `SC-ATT-001` | Ready |
 | `TC-ATT-003` | `FR-ATT-001` | `تقارير الحضور و الغياب` | `US-ATT-002` | `SC-ATT-002` | Ready |
+| `TC-ATT-004` | `FR-ATT-004` | `تسجيل الحضور عبر مسح QR Code` | `US-ATT-003` | `SC-ATT-003` | Ready |
+| `TC-ATT-005` | `FR-ATT-004` | `تسجيل الحضور عبر مسح QR Code` | `US-ATT-003` | `SC-ATT-003` | Ready |
+| `TC-ATT-006` | `FR-ATT-004` | `تسجيل الحضور عبر مسح QR Code` | `US-ATT-003` | `SC-ATT-003` | Ready |
+| `TC-ATT-007` | `FR-ATT-004` | `تسجيل الحضور عبر مسح QR Code` | `US-ATT-003` | `SC-ATT-003` | Ready |
 | `TC-LES-001` | `FR-LES-002` | `رفع الملفات و المراجع و الملخصات` | `US-LES-001` | `SC-LES-001` | Ready |
 | `TC-LES-002` | `FR-LES-003` | `رفع تسجيلات المحاضرات` | `US-LES-001` | `SC-LES-001` | Ready |
 | `TC-LES-003` | `FR-LES-001` | `متابعة مشاهدة المحتوى` | `US-LES-002` | `SC-LES-002` | Blocked — Requires Product Clarification |

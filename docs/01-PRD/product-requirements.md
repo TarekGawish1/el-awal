@@ -16,7 +16,7 @@ The platform is an educational management and learning support system designed t
 
 ### 1.4 Product Goals
 1. Centralize student profiles, contact details, status, and group allocations in a unified system.
-2. Provide simple, low-friction attendance and absence recording and reporting.
+2. Provide simple, low-friction attendance and absence recording and reporting, including unique student QR code provisioning and fast teacher QR code scanning.
 3. Facilitate seamless digital delivery of educational files, summaries, references, and lecture recordings.
 4. Support the full lifecycle of assignments and examinations, including automated exam grading.
 5. Provide parents with direct visibility into student academic progress and attendance standing.
@@ -62,7 +62,7 @@ Educational practitioners (teachers and administrative staff) require a centrali
 - **Administrative Beneficiaries**: Secretariat staff managing student records, group assignments, and payment statuses.
 
 ### 2.3 Expected Value
-- **Operational Efficiency**: Streamlined group scheduling, rapid attendance logging, and digital assignment/exam management.
+- **Operational Efficiency**: Streamlined group scheduling, rapid QR-based and manual attendance logging, and digital assignment/exam management.
 - **Academic Transparency**: Immediate access for parents to exam grades, evaluations, notes, and attendance records.
 - **Learning Continuity**: Centralized access for students to lecture recordings, files, summaries, and references.
 
@@ -77,7 +77,7 @@ A dependable, role-aware educational management platform where administrative, e
 |---|---|---|---|
 | **GOAL-001** | Student Profile Centralization | Enable structured capture and viewing of student data, parent data, student status, and group/class assignments. | All 4 student data entities represented and retrievable in the system. |
 | **GOAL-002** | Group & Schedule Organization | Enable creation of educational groups, student roster assignment, and lesson time scheduling. | Groups created with assigned students and scheduled lesson times. |
-| **GOAL-003** | Attendance & Absence Tracking | Enable logging of attendance and absence per student/session and generation of attendance reports. | Attendance records and absence reports generated accurately. |
+| **GOAL-003** | Attendance & Absence Tracking | Enable logging of attendance and absence per student/session (via direct roster entry and teacher scanning of unique student QR codes) and generation of attendance reports. | Attendance records logged accurately via manual entry and QR scans; absence reports generated. |
 | **GOAL-004** | Educational Asset Distribution | Provide capabilities to upload and access files, summaries, references, and lecture recordings with content viewing tracking. | Educational assets successfully uploaded and accessible to enrolled students. |
 | **GOAL-005** | Assessment Lifecycle Delivery | Support creation, upload, distribution, and student submission of assignments and exams. | Students able to deliver submissions for active assignments and exams. |
 | **GOAL-006** | Automated Exam Grading | Provide automated evaluation and grade assignment for submitted student examinations. | Submitted exams evaluated and graded automatically. |
@@ -92,8 +92,8 @@ A dependable, role-aware educational management platform where administrative, e
 
 | User Persona | Role | Main Responsibilities | Main Goals | Key Needs | Persona Ref |
 |---|---|---|---|---|---|
-| **Teacher (`المدرس`)** | Primary Educator | Creates groups, sets schedules, uploads educational files and lecture recordings, authors assignments/exams, logs attendance, and writes evaluations. | Maximize instructional time; maintain accurate records; track student progress. | Fast attendance entry, easy material uploads, organized grading. | [UX-PER-001](file:///d:/el_awal/docs/02-UX/user-personas.md#L27-L68) |
-| **Student (`الطالب`)** | Primary Learner | Reviews lesson materials, watches lecture recordings, submits assignments and exams, checks grades. | Complete academic tasks on time; access learning resources easily. | Clear deadlines, easy submission interface, immediate grade access. | [UX-PER-002](file:///d:/el_awal/docs/02-UX/user-personas.md#L69-L108) |
+| **Teacher (`المدرس`)** | Primary Educator | Creates groups, sets schedules, uploads educational files and lecture recordings, authors assignments/exams, logs attendance (including scanning student QR codes), and writes evaluations. | Maximize instructional time; maintain accurate records; track student progress. | Fast attendance entry & QR scanning, easy material uploads, organized grading. | [UX-PER-001](file:///d:/el_awal/docs/02-UX/user-personas.md#L27-L68) |
+| **Student (`الطالب`)** | Primary Learner | Reviews lesson materials, watches lecture recordings, presents unique QR code for session attendance, submits assignments and exams, checks grades. | Complete academic tasks on time; access learning resources easily. | Unique QR attendance code, clear deadlines, easy submission interface, immediate grade access. | [UX-PER-002](file:///d:/el_awal/docs/02-UX/user-personas.md#L69-L108) |
 | **Parent (`ولي الأمر`)** | Guardian / Monitor | Reviews student grades, evaluations, teacher notes, assignment completion status, and attendance. | Stay informed about child's academic standing and attendance. | Transparent, clear summary of student results and attendance. | [UX-PER-003](file:///d:/el_awal/docs/02-UX/user-personas.md#L109-L151) |
 | **Secretariat (`السكرتارية`)** | Operational Admin | Administrative support role identified in product scope. *(Detailed duties: `TBD`)* | Support administrative workflows; manage student data and payment status. | Roster management, payment status visibility, group enrollment. | [UX-PER-004](file:///d:/el_awal/docs/02-UX/user-personas.md#L152-L190) |
 
@@ -104,7 +104,7 @@ A dependable, role-aware educational management platform where administrative, e
 ### 5.1 In Scope
 The product scope encompasses exclusively the nine confirmed product modules:
 1. **Student Management**: Student profiles, parent contact data, student status, and group/grade associations.
-2. **Attendance & Absence**: Recording student attendance, recording absences, and attendance/absence reporting.
+2. **Attendance & Absence**: Recording student attendance (including unique student QR code provisioning and teacher QR code scanning), recording absences, and attendance/absence reporting.
 3. **Lectures & Lessons**: Uploading files, references, summaries, lecture recordings, and tracking content viewing.
 4. **Exams & Assignments**: Creating/uploading assignments and exams, student submissions, automatic exam grading, and displaying results to parents.
 5. **Parent Student Status**: Parent access to evaluations, teacher notes, exam grades, student level, assignment status, and attendance records.
@@ -128,7 +128,7 @@ The following capabilities are explicitly outside the current approved product s
 | Module Name | Purpose | Primary Users | Main Capabilities | Related BR | Related FR | Related UC |
 |---|---|---|---|---|---|---|
 | **1. Student Management** | Centralize student and parent profiles and academic groupings. | Teacher, Secretariat | Student data, parent data, student status, group and grade/class. | `BR-001` | `FR-STU-001..004` | `UC-STU-001..003` |
-| **2. Attendance & Absence** | Capture and report session-level student presence and absence. | Teacher, Secretariat | Log attendance, log absence, generate attendance/absence reports. | `BR-003` | `FR-ATT-001..003` | `UC-ATT-001..002` |
+| **2. Attendance & Absence** | Capture and report session-level student presence and absence. | Teacher, Secretariat | Generate unique student QR codes, scan QR codes to log attendance, log attendance, log absence, generate attendance/absence reports. | `BR-003` | `FR-ATT-001..004` | `UC-ATT-001..003` |
 | **3. Lectures & Lessons** | Distribute instructional materials and lecture recordings. | Teacher, Student | Upload files, references, summaries, recordings; track content viewing. | `BR-004` | `FR-LES-001..003` | `UC-LES-001..002` |
 | **4. Exams & Assignments** | Author, distribute, receive, and automatically grade assessments. | Teacher, Student | Create/upload homework and exams, student submission, auto-grading exams. | `BR-005`, `BR-006`, `BR-007` | `FR-EXM-001..007` | `UC-EXM-001..004` |
 | **5. Parent Student Status** | Provide parent visibility into student performance and attendance. | Parent | View evaluations, notes, exam grades, student level, assignment status, attendance. | `BR-007` | `FR-PAR-001..005` | `UC-PAR-001..002` |
@@ -166,14 +166,14 @@ The following capabilities are explicitly outside the current approved product s
 ---
 
 ### PRD-003: Attendance & Absence Management
-- **Requirement**: The system shall allow recording of student attendance, recording of student absences, and generation of attendance and absence reports.
-- **Description**: Captures student presence and absence records per educational session and provides summarized reporting for review.
+- **Requirement**: The system shall allow recording of student attendance (including unique student QR code generation and teacher QR code scanning), recording of student absences, and generation of attendance and absence reports.
+- **Description**: Provisions a unique QR code for each student, enables teachers to scan student QR codes to instantly verify and record attendance for a specific session, captures manual presence and absence records, and provides summarized reporting for review.
 - **Priority**: Must Have
-- **User/Actor**: Teacher / Secretariat (`TBD — Requires Product Clarification`)
+- **User/Actor**: Teacher / Secretariat (`TBD — Requires Product Clarification`), Student (QR presentation)
 - **Related Business Requirement**: `BR-003`
-- **Related Functional Requirements**: `FR-ATT-001`, `FR-ATT-002`, `FR-ATT-003`
-- **Related Use Cases**: `UC-ATT-001`, `UC-ATT-002`
-- **Acceptance Criteria**: `AC-006`, `AC-007`
+- **Related Functional Requirements**: `FR-ATT-001`, `FR-ATT-002`, `FR-ATT-003`, `FR-ATT-004`
+- **Related Use Cases**: `UC-ATT-001`, `UC-ATT-002`, `UC-ATT-003`
+- **Acceptance Criteria**: `AC-006`, `AC-007`, `AC-025`
 
 ---
 
@@ -269,7 +269,7 @@ Teacher Access [Auth TBD]
   │
   ├──► Groups & Scheduling: Create Group ──► Add Students ──► Schedule Lesson Times
   │
-  ├──► Attendance: Select Group/Session ──► Log Attendance / Absence ──► View Reports
+  ├──► Attendance: Select Group/Session ──► Scan Student QR Code / Log Attendance & Absence ──► View Reports
   │
   ├──► Content: Upload Files, Summaries, References, Lecture Recordings ──► Monitor Viewing
   │
@@ -279,6 +279,8 @@ Teacher Access [Auth TBD]
 ### 8.2 Student Core Journey
 ```text
 Student Access [Auth TBD]
+  │
+  ├──► Attendance Check-in: Open Student Profile / Digital Card ──► Present Unique QR Code to Teacher
   │
   ├──► Learning: Access Files, Summaries, References ──► Watch Lecture Recordings
   │
@@ -335,6 +337,7 @@ High-level business rules derived from the approved product documentation (detai
 | **PRD-002** | `FR-GRP-001` | `تحديد مواعيد الدروس` | `UC-GRP-001` | `US-GRP-001` |
 | **PRD-002** | `FR-GRP-002` | `اضافة طلاب` | `UC-GRP-002` | `US-GRP-002` |
 | **PRD-003** | `FR-ATT-003` | `تسجيل حضور الطلاب` | `UC-ATT-001` | `US-ATT-001` |
+| **PRD-003** | `FR-ATT-004` | `تسجيل الحضور عبر مسح QR Code` | `UC-ATT-003` | `US-ATT-003` |
 | **PRD-003** | `FR-ATT-002` | `تسجيل الغياب` | `UC-ATT-001` | `US-ATT-001` |
 | **PRD-003** | `FR-ATT-001` | `تقارير الحضور و الغياب` | `UC-ATT-002` | `US-ATT-002` |
 | **PRD-004** | `FR-LES-002` | `رفع الملفات و المراجع و الملخصات` | `UC-LES-001` | `US-LES-001` |
@@ -407,6 +410,7 @@ High-level business rules derived from the approved product documentation (detai
 | **AC-022** | `PRD-008` | Given a recorded student absence, when logged, then the student absence notification is dispatched. | Verify dispatch of absence alert notification. |
 | **AC-023** | `PRD-009` | Given the system in operation, when users interact, then the four confirmed roles (Teacher, Student, Parent, Secretariat) are represented. | Verify system entities exist for each of the four roles. |
 | **AC-024** | `PRD-010` | Given student payment records, when accessed by authorized users, then the payment status for each student is displayed. | View student payment status field in administrative management view. |
+| **AC-025** | `PRD-003` | Given a student's unique QR code and an active lesson session, when scanned by the teacher, then the student's identity and group enrollment are validated and attendance is recorded as `PRESENT` for that session. | Scan student QR code during session and verify instant attendance recording. |
 
 ---
 
@@ -430,7 +434,7 @@ High-level business rules derived from the approved product documentation (detai
 
 ### 14.1 Confirmed Assumptions
 1. **Four Confirmed Roles**: Teacher, Student, Parent, and Secretariat represent the authorized human roles for the product.
-2. **Nine Confirmed Modules**: The nine modules and 35 distinct backlog items represent the authorized functional baseline.
+2. **Nine Confirmed Modules**: The nine modules and confirmed backlog items (including student QR code attendance) represent the authorized functional baseline.
 3. **Bilingual Requirement**: The product scope requires consistent representation in Arabic and English.
 
 ### 14.2 Items Requiring Product Clarification (TBD)
@@ -456,7 +460,7 @@ User Story (US-STU-001..SUB-001)
         ↓
 Use Case (UC-STU-001..SUB-001)
         ↓
-Acceptance Criteria (AC-001..024)
+Acceptance Criteria (AC-001..025)
         ↓
 Test Case (TC-STU-001..SUB-001)
 ```
@@ -465,7 +469,7 @@ Test Case (TC-STU-001..SUB-001)
 |---|---|---|---|---|---|---|
 | **BR-001** | `PRD-001` | `FR-STU-001..004` | `US-STU-001..003` | `UC-STU-001..003` | `AC-001..003` | `TC-STU-001..003` |
 | **BR-002** | `PRD-002` | `FR-GRP-001..003` | `US-GRP-001..002` | `UC-GRP-001..002` | `AC-004..005` | `TC-GRP-001..003` |
-| **BR-003** | `PRD-003` | `FR-ATT-001..003` | `US-ATT-001..002` | `UC-ATT-001..002` | `AC-006..007` | `TC-ATT-001..003` |
+| **BR-003** | `PRD-003` | `FR-ATT-001..004` | `US-ATT-001..003` | `UC-ATT-001..003` | `AC-006..007, AC-025` | `TC-ATT-001..007` |
 | **BR-004** | `PRD-004` | `FR-LES-001..003` | `US-LES-001..002` | `UC-LES-001..002` | `AC-008..010` | `TC-LES-001..003` |
 | **BR-005** | `PRD-005` | `FR-EXM-003..007` | `US-EXM-001..002` | `UC-EXM-001..002` | `AC-011..013` | `TC-EXM-001..003` |
 | **BR-006** | `PRD-006` | `FR-EXM-002` | `US-EXM-003` | `UC-EXM-003` | `AC-014` | `TC-EXM-004` |

@@ -159,6 +159,37 @@ Use Cases are identified using the prefix `UC-<DOM>-<NNN>` where `<DOM>` represe
 
 ---
 
+#### UC-ATT-003 — Record Student Attendance via QR Code Scanning
+- **Goal**: Rapidly record student session attendance by scanning the student's unique QR code.
+- **Primary Actor**: `Teacher / المدرس`
+- **Supporting Actors**: `Student / الطالب`
+- **Trigger**: Teacher opens the QR scanner during or for a scheduled lesson session and scans the student's presented QR code.
+- **Preconditions**:
+  1. Student exists in the system with an assigned unique QR code.
+  2. Teacher has selected an active or scheduled lesson session.
+  3. Camera/scanner access is granted on the teacher's device.
+- **Main Flow**:
+  1. Teacher initiates the QR attendance scanning interface for the selected lesson session.
+  2. Student presents their unique QR code (via student dashboard or physical student card).
+  3. Teacher scans the QR code using the camera viewfinder.
+  4. System decodes the QR token, validates student identity, and verifies group enrollment.
+  5. System records the student's attendance as `PRESENT` for the specified session with recording method `QR_SCAN`.
+  6. System provides immediate confirmation and updates the session attendance roster in real time.
+- **Alternative Flows**:
+  - *Duplicate Scan*: If the student's attendance is already recorded for this session, the system provides confirmation that attendance is already logged and maintains state without duplication.
+- **Exception Flows**:
+  - *Invalid/Unrecognized QR Code*: System notifies teacher that the QR token is invalid or unassigned.
+  - *Student Not Enrolled in Group*: System displays a warning indicating that the scanned student is not enrolled in the selected group session.
+- **Postconditions**: The student's attendance is persisted as `PRESENT` for the lesson session with audit timestamp and recorder ID.
+- **Related Requirements**:
+  - **Business Requirement**: `BR-003`
+  - **Functional Requirement**: `FR-ATT-004`
+  - **User Story**: `US-ATT-003`
+  - **User Scenario**: `SC-ATT-003`
+- **Status**: Defined
+
+---
+
 ### 5.3 Lectures & Lessons
 
 #### UC-LES-001 — Upload Educational Materials and Lecture Recordings
@@ -519,6 +550,7 @@ Use Cases are identified using the prefix `UC-<DOM>-<NNN>` where `<DOM>` represe
 | **UC-STU-003** | Student Status Representation | `TBD — Clarification` | `BR-001` | `FR-STU-001` | `US-STU-003` | `SC-STU-003` | Partially Defined |
 | **UC-ATT-001** | Record Student Attendance and Absence | `TBD — Clarification` | `BR-003` | `FR-ATT-002`, `FR-ATT-003` | `US-ATT-001` | `SC-ATT-001` | Partially Defined |
 | **UC-ATT-002** | View Attendance and Absence Reports | `TBD — Clarification` | `BR-003` | `FR-ATT-001` | `US-ATT-002` | `SC-ATT-002` | Partially Defined |
+| **UC-ATT-003** | Record Student Attendance via QR Code Scanning | `Teacher / المدرس` | `BR-003` | `FR-ATT-004` | `US-ATT-003` | `SC-ATT-003` | Defined |
 | **UC-LES-001** | Upload Educational Materials and Lecture Recordings | `TBD — Clarification` | `BR-004` | `FR-LES-002`, `FR-LES-003` | `US-LES-001` | `SC-LES-001` | Partially Defined |
 | **UC-LES-002** | Monitor Content Viewing | `TBD — Clarification` | `BR-004` | `FR-LES-001` | `US-LES-002` | `SC-LES-002` | Partially Defined |
 | **UC-EXM-001** | Create and Upload Assignments and Exams | `TBD — Clarification` | `BR-005` | `FR-EXM-004`, `FR-EXM-005`, `FR-EXM-006`, `FR-EXM-007` | `US-EXM-001` | `SC-EXM-001` | Partially Defined |
