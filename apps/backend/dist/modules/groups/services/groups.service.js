@@ -19,6 +19,16 @@ let GroupsService = GroupsService_1 = class GroupsService {
         this.prisma = prisma;
         this.logger = new common_1.Logger(GroupsService_1.name);
     }
+    checkTeacherOwnership(group, user) {
+        if (!user)
+            return;
+        if (user.role === client_1.UserRole.TEACHER) {
+            const teacherId = user.teacherProfileId || user.id;
+            if (group.teacherId !== teacherId) {
+                throw new common_1.ForbiddenException('You do not have permission to view or manage this academic group');
+            }
+        }
+    }
     async createGroup(teacherId, dto) {
         return this.prisma.academicGroup.create({
             data: {
@@ -46,7 +56,7 @@ let GroupsService = GroupsService_1 = class GroupsService {
             },
         });
     }
-    async getGroupById(groupId) {
+    async getGroupById(groupId, user) {
         const group = await this.prisma.academicGroup.findUnique({
             where: { id: groupId },
             include: {
@@ -62,9 +72,10 @@ let GroupsService = GroupsService_1 = class GroupsService {
         if (!group) {
             throw new common_1.NotFoundException(`Academic group [${groupId}] not found`);
         }
+        this.checkTeacherOwnership(group, user);
         return group;
     }
-    async enrollStudent(groupId, studentId) {
+    async enrollStudent(groupId, studentId, user) {
         return this.prisma.$transaction(async (tx) => {
             const group = await tx.academicGroup.findUnique({
                 where: { id: groupId },
@@ -77,6 +88,7 @@ let GroupsService = GroupsService_1 = class GroupsService {
             if (!group || !group.isActive) {
                 throw new common_1.NotFoundException(`Academic group [${groupId}] not found or inactive`);
             }
+            this.checkTeacherOwnership(group, user);
             if (group._count.enrollments >= group.maxCapacity) {
                 throw new common_1.ConflictException(`Group [${group.name}] capacity has been reached (${group.maxCapacity} students)`);
             }
@@ -109,7 +121,14 @@ let GroupsService = GroupsService_1 = class GroupsService {
             return enrollment;
         });
     }
-    async dropStudent(groupId, studentId) {
+    async dropStudent(groupId, studentId, user) {
+        const group = await this.prisma.academicGroup.findUnique({
+            where: { id: groupId },
+        });
+        if (!group) {
+            throw new common_1.NotFoundException(`Academic group [${groupId}] not found`);
+        }
+        this.checkTeacherOwnership(group, user);
         const enrollment = await this.prisma.groupEnrollment.findUnique({
             where: {
                 groupId_studentId: {
@@ -133,7 +152,7 @@ let GroupsService = GroupsService_1 = class GroupsService {
             },
         });
     }
-    async getGroupRoster(groupId) {
+    async getGroupRoster(groupId, user) {
         const group = await this.prisma.academicGroup.findUnique({
             where: { id: groupId },
             include: {
@@ -160,6 +179,7 @@ let GroupsService = GroupsService_1 = class GroupsService {
         if (!group) {
             throw new common_1.NotFoundException(`Academic group [${groupId}] not found`);
         }
+        this.checkTeacherOwnership(group, user);
         const totalSessions = await this.prisma.lessonSession.count({
             where: { groupId },
         });
@@ -174,7 +194,7 @@ let GroupsService = GroupsService_1 = class GroupsService {
             const attendanceRate = totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : 100;
             return {
                 enrollmentId: e.id,
-                studentId: e.student.id,
+                studentId: e.studentId,
                 studentCode: e.student.studentCode,
                 fullName: e.student.user.fullName,
                 phone: e.student.user.phone,

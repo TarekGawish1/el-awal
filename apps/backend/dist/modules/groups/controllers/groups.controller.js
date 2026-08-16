@@ -31,17 +31,17 @@ let GroupsController = class GroupsController {
     async getMyGroups(user) {
         return this.groupsService.getTeacherGroups(user.teacherProfileId || user.id);
     }
-    async getGroupById(id) {
-        return this.groupsService.getGroupById(id);
+    async getGroupById(id, user) {
+        return this.groupsService.getGroupById(id, user);
     }
-    async enrollStudent(groupId, dto) {
-        return this.groupsService.enrollStudent(groupId, dto.studentId);
+    async enrollStudent(groupId, dto, user) {
+        return this.groupsService.enrollStudent(groupId, dto.studentId, user);
     }
-    async dropStudent(groupId, studentId) {
-        return this.groupsService.dropStudent(groupId, studentId);
+    async dropStudent(groupId, studentId, user) {
+        return this.groupsService.dropStudent(groupId, studentId, user);
     }
-    async getGroupRoster(groupId) {
-        return this.groupsService.getGroupRoster(groupId);
+    async getGroupRoster(groupId, user) {
+        return this.groupsService.getGroupRoster(groupId, user);
     }
 };
 exports.GroupsController = GroupsController;
@@ -70,8 +70,9 @@ __decorate([
     (0, roles_decorator_1.Roles)(client_1.UserRole.TEACHER, client_1.UserRole.SECRETARIAT),
     (0, swagger_1.ApiOperation)({ summary: 'Get details, active count, and schedules of an academic group' }),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], GroupsController.prototype, "getGroupById", null);
 __decorate([
@@ -82,8 +83,9 @@ __decorate([
     (0, swagger_1.ApiResponse)({ status: 409, description: 'Group max capacity exceeded' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, enroll_student_dto_1.EnrollStudentDto]),
+    __metadata("design:paramtypes", [String, enroll_student_dto_1.EnrollStudentDto, Object]),
     __metadata("design:returntype", Promise)
 ], GroupsController.prototype, "enrollStudent", null);
 __decorate([
@@ -93,8 +95,9 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Drop or remove student from active academic group roster' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('studentId')),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:paramtypes", [String, String, Object]),
     __metadata("design:returntype", Promise)
 ], GroupsController.prototype, "dropStudent", null);
 __decorate([
@@ -102,8 +105,9 @@ __decorate([
     (0, roles_decorator_1.Roles)(client_1.UserRole.TEACHER, client_1.UserRole.SECRETARIAT),
     (0, swagger_1.ApiOperation)({ summary: 'Get complete active student roster with attendance rates' }),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], GroupsController.prototype, "getGroupRoster", null);
 exports.GroupsController = GroupsController = __decorate([

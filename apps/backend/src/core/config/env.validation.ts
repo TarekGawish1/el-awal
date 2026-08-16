@@ -6,7 +6,7 @@ export const envSchema = z.object({
   CORS_ORIGINS: z.string().default('*'),
 
   // Database (PostgreSQL / Neon)
-  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+  DATABASE_URL: z.string().default('postgresql://postgres:postgres@localhost:5432/el_awal_db?schema=public'),
 
   // Authentication & Security
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters').default('super-secret-default-jwt-key-change-in-prod'),

@@ -4,6 +4,7 @@ import { AttendanceRepository } from '../repositories/attendance.repository';
 import { BatchAttendanceDto } from '../dto/batch-attendance.dto';
 import { CursorPaginationDto } from '../../../common/dto/cursor-pagination.dto';
 import { AttendanceStatus } from '@prisma/client';
+import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 export declare class AttendanceService {
     private readonly prisma;
     private readonly attendanceRepository;
@@ -18,8 +19,8 @@ export declare class AttendanceService {
             studentCode: string;
         };
         attendance: {
-            id: string;
             status: import(".prisma/client").$Enums.AttendanceStatus;
+            id: string;
             studentId: string;
             sessionId: string;
             recordingMethod: import(".prisma/client").$Enums.RecordingMethod;
@@ -68,9 +69,9 @@ export declare class AttendanceService {
             notes: string;
         }[];
     }>;
-    getStudentHistory(studentId: string, pagination: CursorPaginationDto, status?: AttendanceStatus): Promise<import("../../../common/pagination/cursor-pagination.helper").PaginatedResult<{
-        id: string;
+    getStudentHistory(studentId: string, pagination: CursorPaginationDto, status?: AttendanceStatus, user?: AuthenticatedUser): Promise<import("../../../common/pagination/cursor-pagination.helper").PaginatedResult<{
         status: import(".prisma/client").$Enums.AttendanceStatus;
+        id: string;
         studentId: string;
         sessionId: string;
         recordingMethod: import(".prisma/client").$Enums.RecordingMethod;

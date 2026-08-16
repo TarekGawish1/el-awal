@@ -35,8 +35,8 @@ let AttendanceController = class AttendanceController {
     async getSessionReport(sessionId) {
         return this.attendanceService.getSessionReport(sessionId);
     }
-    async getStudentHistory(studentId, pagination, status) {
-        return this.attendanceService.getStudentHistory(studentId, pagination, status);
+    async getStudentHistory(studentId, pagination, user, status) {
+        return this.attendanceService.getStudentHistory(studentId, pagination, status, user);
     }
 };
 exports.AttendanceController = AttendanceController;
@@ -82,9 +82,10 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Get paginated attendance history for a student' }),
     __param(0, (0, common_1.Param)('studentId')),
     __param(1, (0, common_1.Query)()),
-    __param(2, (0, common_1.Query)('status')),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
+    __param(3, (0, common_1.Query)('status')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, cursor_pagination_dto_1.CursorPaginationDto, String]),
+    __metadata("design:paramtypes", [String, cursor_pagination_dto_1.CursorPaginationDto, Object, String]),
     __metadata("design:returntype", Promise)
 ], AttendanceController.prototype, "getStudentHistory", null);
 exports.AttendanceController = AttendanceController = __decorate([

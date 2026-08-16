@@ -138,4 +138,36 @@ describe('AttendanceService', () => {
       ).rejects.toThrow(BadRequestException);
     });
   });
+
+  describe('getStudentHistory (Security Authorization)', () => {
+    it('should throw ForbiddenException if student attempts to view another student history', async () => {
+      const studentUser: any = {
+        id: 'user-stu-1',
+        studentProfileId: 'stu-profile-1',
+        role: 'STUDENT',
+      };
+
+      await expect(
+        service.getStudentHistory('stu-profile-2', { limit: 20 }, undefined, studentUser),
+      ).rejects.toThrow();
+    });
+
+    it('should allow student to view their own attendance history', async () => {
+      const studentUser: any = {
+        id: 'user-stu-1',
+        studentProfileId: 'stu-profile-1',
+        role: 'STUDENT',
+      };
+
+      mockRepository.getStudentAttendanceHistory.mockResolvedValue({ data: [], meta: {} });
+
+      const result = await service.getStudentHistory(
+        'stu-profile-1',
+        { limit: 20 },
+        undefined,
+        studentUser,
+      );
+      expect(result).toBeDefined();
+    });
+  });
 });

@@ -53,7 +53,7 @@ export class SubscriptionsService {
       where: {
         studentId_groupId_periodYear_periodMonth: {
           studentId: dto.studentId,
-          groupId: dto.groupId || '',
+          groupId: dto.groupId ?? null,
           periodYear: dto.periodYear,
           periodMonth: dto.periodMonth,
         },

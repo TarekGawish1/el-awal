@@ -43,8 +43,11 @@ export class GroupsController {
   @Get(':id')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Get details, active count, and schedules of an academic group' })
-  async getGroupById(@Param('id') id: string) {
-    return this.groupsService.getGroupById(id);
+  async getGroupById(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.groupsService.getGroupById(id, user);
   }
 
   @Post(':id/students')
@@ -55,8 +58,9 @@ export class GroupsController {
   async enrollStudent(
     @Param('id') groupId: string,
     @Body() dto: EnrollStudentDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.groupsService.enrollStudent(groupId, dto.studentId);
+    return this.groupsService.enrollStudent(groupId, dto.studentId, user);
   }
 
   @Delete(':id/students/:studentId')
@@ -66,14 +70,18 @@ export class GroupsController {
   async dropStudent(
     @Param('id') groupId: string,
     @Param('studentId') studentId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.groupsService.dropStudent(groupId, studentId);
+    return this.groupsService.dropStudent(groupId, studentId, user);
   }
 
   @Get(':id/students')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Get complete active student roster with attendance rates' })
-  async getGroupRoster(@Param('id') groupId: string) {
-    return this.groupsService.getGroupRoster(groupId);
+  async getGroupRoster(
+    @Param('id') groupId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.groupsService.getGroupRoster(groupId, user);
   }
 }

@@ -210,7 +210,29 @@ let AttendanceService = AttendanceService_1 = class AttendanceService {
             })),
         };
     }
-    async getStudentHistory(studentId, pagination, status) {
+    async getStudentHistory(studentId, pagination, status, user) {
+        if (user) {
+            if (user.role === client_1.UserRole.STUDENT) {
+                const myStudentId = user.studentProfileId || user.id;
+                if (myStudentId !== studentId) {
+                    throw new common_1.ForbiddenException('Students can only access their own attendance history');
+                }
+            }
+            else if (user.role === client_1.UserRole.PARENT) {
+                const parentId = user.parentProfileId || user.id;
+                const link = await this.prisma.parentStudentLink.findUnique({
+                    where: {
+                        parentId_studentId: {
+                            parentId,
+                            studentId,
+                        },
+                    },
+                });
+                if (!link) {
+                    throw new common_1.ForbiddenException('Guardians can only view linked children attendance history');
+                }
+            }
+        }
         return this.attendanceRepository.getStudentAttendanceHistory(studentId, {
             cursor: pagination.cursor,
             limit: pagination.limit,

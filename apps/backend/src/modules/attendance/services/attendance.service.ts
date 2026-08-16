@@ -10,7 +10,8 @@ import { PrismaService } from '../../../core/database/prisma.service';
 import { AttendanceRepository } from '../repositories/attendance.repository';
 import { BatchAttendanceDto } from '../dto/batch-attendance.dto';
 import { CursorPaginationDto } from '../../../common/dto/cursor-pagination.dto';
-import { AttendanceStatus, RecordingMethod, GroupEnrollmentStatus } from '@prisma/client';
+import { AttendanceStatus, RecordingMethod, GroupEnrollmentStatus, UserRole } from '@prisma/client';
+import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 
 @Injectable()
 export class AttendanceService {
@@ -254,9 +255,40 @@ export class AttendanceService {
   }
 
   /**
-   * Keyset paginated history for a single student.
+   * Keyset paginated history for a single student with ownership and guardianship enforcement.
    */
-  async getStudentHistory(studentId: string, pagination: CursorPaginationDto, status?: AttendanceStatus) {
+  async getStudentHistory(
+    studentId: string,
+    pagination: CursorPaginationDto,
+    status?: AttendanceStatus,
+    user?: AuthenticatedUser,
+  ) {
+    if (user) {
+      if (user.role === UserRole.STUDENT) {
+        const myStudentId = user.studentProfileId || user.id;
+        if (myStudentId !== studentId) {
+          throw new ForbiddenException(
+            'Students can only access their own attendance history',
+          );
+        }
+      } else if (user.role === UserRole.PARENT) {
+        const parentId = user.parentProfileId || user.id;
+        const link = await this.prisma.parentStudentLink.findUnique({
+          where: {
+            parentId_studentId: {
+              parentId,
+              studentId,
+            },
+          },
+        });
+        if (!link) {
+          throw new ForbiddenException(
+            'Guardians can only view linked children attendance history',
+          );
+        }
+      }
+    }
+
     return this.attendanceRepository.getStudentAttendanceHistory(
       studentId,
       {

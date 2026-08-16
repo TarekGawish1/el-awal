@@ -63,8 +63,9 @@ export class AttendanceController {
   async getStudentHistory(
     @Param('studentId') studentId: string,
     @Query() pagination: CursorPaginationDto,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('status') status?: AttendanceStatus,
   ) {
-    return this.attendanceService.getStudentHistory(studentId, pagination, status);
+    return this.attendanceService.getStudentHistory(studentId, pagination, status, user);
   }
 }
