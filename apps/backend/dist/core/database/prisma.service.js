@@ -40,7 +40,7 @@ let PrismaService = PrismaService_1 = class PrismaService extends client_1.Prism
         });
     }
     async onModuleInit() {
-        this.logger.log('Connecting to Neon PostgreSQL Database Pool...');
+        this.logger.log('Connecting to PostgreSQL Database...');
         try {
             await this.$connect();
             this.logger.log('✅ PostgreSQL connection successfully established.');
