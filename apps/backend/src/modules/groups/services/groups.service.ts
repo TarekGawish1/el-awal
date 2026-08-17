@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { CreateGroupDto } from '../dto/create-group.dto';
+import { UpdateGroupDto } from '../dto/update-group.dto';
 import { GroupEnrollmentStatus, AttendanceStatus, UserRole } from '@prisma/client';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 
@@ -44,7 +45,15 @@ export class GroupsService {
         maxCapacity: dto.maxCapacity || 50,
         monthlyFee: dto.monthlyFee || 0.0,
         teacherId,
+        schedules: dto.schedules?.length ? {
+          create: dto.schedules.map(s => ({
+            dayOfWeek: s.dayOfWeek,
+            startTime: s.startTime,
+            endTime: s.endTime,
+          })),
+        } : undefined,
       },
+      include: { schedules: true },
     });
   }
 
@@ -91,6 +100,70 @@ export class GroupsService {
     this.checkTeacherOwnership(group, user);
 
     return group;
+  }
+
+  /**
+   * Updates an academic group and its schedules
+   */
+  async updateGroup(groupId: string, dto: UpdateGroupDto, user?: AuthenticatedUser) {
+    const group = await this.prisma.academicGroup.findUnique({
+      where: { id: groupId },
+    });
+
+    if (!group) {
+      throw new NotFoundException(`Academic group [${groupId}] not found`);
+    }
+
+    this.checkTeacherOwnership(group, user);
+
+    const { schedules, ...updateData } = dto;
+
+    return this.prisma.$transaction(async (tx) => {
+      // update main group
+      const updatedGroup = await tx.academicGroup.update({
+        where: { id: groupId },
+        data: updateData,
+      });
+
+      // if schedules are provided, replace them
+      if (schedules !== undefined) {
+        await tx.lessonSchedule.deleteMany({ where: { groupId } });
+        if (schedules.length > 0) {
+          await tx.lessonSchedule.createMany({
+            data: schedules.map((s) => ({
+              groupId,
+              dayOfWeek: s.dayOfWeek,
+              startTime: s.startTime,
+              endTime: s.endTime,
+              location: '',
+            })),
+          });
+        }
+      }
+
+      return updatedGroup;
+    });
+  }
+
+  /**
+   * Deletes a group permanently (cascading schedules and enrollments).
+   */
+  async deleteGroup(groupId: string, user?: AuthenticatedUser) {
+    const group = await this.prisma.academicGroup.findUnique({
+      where: { id: groupId },
+    });
+
+    if (!group) {
+      throw new NotFoundException(`Academic group [${groupId}] not found`);
+    }
+
+    this.checkTeacherOwnership(group, user);
+
+    await this.prisma.academicGroup.delete({
+      where: { id: groupId },
+    });
+
+    return { success: true, message: 'Group successfully deleted' };
   }
 
   /**

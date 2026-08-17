@@ -6,8 +6,28 @@ import {
   IsInt,
   Min,
   IsNumber,
+  IsArray,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export class GroupScheduleDto {
+  @ApiProperty({ example: 0, description: '0 for Sunday, 1 for Monday, etc.' })
+  @IsInt()
+  @Min(0)
+  dayOfWeek: number;
+
+  @ApiProperty({ example: '14:00' })
+  @IsString()
+  @IsNotEmpty()
+  startTime: string;
+
+  @ApiProperty({ example: '16:00' })
+  @IsString()
+  @IsNotEmpty()
+  endTime: string;
+}
 
 export class CreateGroupDto {
   @ApiProperty({ example: 'مجموعة الأحد والأربعاء - الصف الثالث الثانوي', minLength: 3 })
@@ -36,4 +56,11 @@ export class CreateGroupDto {
   @IsOptional()
   @IsNumber()
   monthlyFee?: number;
+
+  @ApiPropertyOptional({ type: [GroupScheduleDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => GroupScheduleDto)
+  schedules?: GroupScheduleDto[];
 }

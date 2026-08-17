@@ -6,12 +6,13 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Alert } from '@/components/ui/Alert';
 import { Select } from '@/components/ui/Select';
-import { useCreateGroup } from '../hooks/useGroups';
-import { CreateGroupPayload } from '../types/groups.types';
+import { useUpdateGroup } from '../hooks/useGroups';
+import { CreateGroupPayload, GroupWithDetails } from '../types/groups.types';
 
-interface CreateGroupModalProps {
+interface EditGroupModalProps {
   isOpen: boolean;
   onClose: () => void;
+  group: GroupWithDetails | null | undefined;
 }
 
 const generateTimeOptions = () => {
@@ -95,18 +96,40 @@ function TimeSelect({ value, onChange, label, disabled }: { value: string, onCha
   );
 }
 
-export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
+export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) {
   const [formData, setFormData] = useState<CreateGroupPayload>({
-    name: '',
-    gradeLevel: '',
-    maxCapacity: 50,
-    monthlyFee: 100,
-    schedules: [
-      { dayOfWeek: 0, startTime: '14:00', endTime: '15:00' },
-      { dayOfWeek: 3, startTime: '14:00', endTime: '15:00' }
-    ],
+    name: group?.name || '',
+    gradeLevel: group?.gradeLevel || '',
+    maxCapacity: group?.maxCapacity || 50,
+    monthlyFee: group?.monthlyFee || 100,
+    schedules: group?.schedules?.map(s => ({
+      dayOfWeek: s.dayOfWeek,
+      startTime: s.startTime,
+      endTime: s.endTime,
+    })) || [],
   });
   const [educationalStage, setEducationalStage] = useState('');
+
+  // Re-initialize when group changes
+  useEffect(() => {
+    if (group) {
+      setFormData({
+        name: group.name,
+        gradeLevel: group.gradeLevel,
+        maxCapacity: group.maxCapacity || 50,
+        monthlyFee: group.monthlyFee || 100,
+        schedules: group.schedules?.map(s => ({
+          dayOfWeek: s.dayOfWeek,
+          startTime: s.startTime,
+          endTime: s.endTime,
+        })) || [],
+      });
+      // Try to determine stage from gradeLevel
+      if (group.gradeLevel.includes('الابتدائي')) setEducationalStage('PRIMARY');
+      else if (group.gradeLevel.includes('الإعدادي')) setEducationalStage('MIDDLE');
+      else if (group.gradeLevel.includes('الثانوي')) setEducationalStage('SECONDARY');
+    }
+  }, [group]);
   
   const gradeOptions: Record<string, { label: string; value: string }[]> = {
     PRIMARY: [
@@ -161,31 +184,20 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
     }
   }, [formData.schedules, formData.gradeLevel]);
 
-  const createGroup = useCreateGroup();
+  const updateGroup = useUpdateGroup();
 
-  if (!isOpen) return null;
+  if (!isOpen || !group) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    createGroup.mutate(
-      {
-        ...formData,
-        maxCapacity: formData.maxCapacity ? Number(formData.maxCapacity) : undefined,
-        monthlyFee: formData.monthlyFee ? Number(formData.monthlyFee) : undefined,
-      },
+    if (formData.schedules && formData.schedules.length === 0) {
+      alert('يجب إضافة موعد واحد على الأقل للمجموعة');
+      return;
+    }
+    updateGroup.mutate(
+      { id: group.id, payload: formData },
       {
         onSuccess: () => {
-          setFormData({ 
-            name: '', 
-            gradeLevel: '', 
-            maxCapacity: 50, 
-            monthlyFee: 100,
-            schedules: [
-              { dayOfWeek: 0, startTime: '14:00', endTime: '15:00' },
-              { dayOfWeek: 3, startTime: '14:00', endTime: '15:00' }
-            ] 
-          });
-          setEducationalStage('');
           onClose();
         },
       }
@@ -202,9 +214,10 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={handleBackdropClick}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h2 className="text-xl font-bold text-slate-800">إنشاء مجموعة جديدة</h2>
+          <h2 className="text-xl font-bold text-slate-800">تعديل المجموعة</h2>
           <button 
             onClick={onClose}
+            disabled={updateGroup.isPending}
             className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-200"
           >
             <X className="w-5 h-5" />
@@ -212,9 +225,9 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
         </div>
         
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto">
-          {createGroup.isError && (
+          {updateGroup.isError && (
             <Alert variant="error" className="mb-6">
-              {(createGroup.error as any)?.message || 'حدث خطأ أثناء إنشاء المجموعة'}
+              {(updateGroup.error as any)?.message || 'حدث خطأ أثناء تعديل المجموعة'}
             </Alert>
           )}
 
@@ -252,7 +265,7 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
                 label="الصف الدراسي *"
                 name="gradeLevel"
                 required
-                disabled={!educationalStage || createGroup.isPending}
+                disabled={!educationalStage || updateGroup.isPending}
                 value={formData.gradeLevel}
                 onChange={e => setFormData({ ...formData, gradeLevel: e.target.value })}
                 options={[
@@ -276,15 +289,6 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
                   onClick={() => {
                     setFormData(prev => {
                       const current = prev.schedules || [];
-                      if (current.length === 0) {
-                        return {
-                          ...prev,
-                          schedules: [
-                            { dayOfWeek: 0, startTime: '14:00', endTime: '15:00' }, // الأحد
-                            { dayOfWeek: 3, startTime: '14:00', endTime: '15:00' }  // الأربعاء
-                          ]
-                        };
-                      }
                       return {
                         ...prev,
                         schedules: [...current, { dayOfWeek: 0, startTime: '14:00', endTime: '15:00' }]
@@ -292,7 +296,7 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
                     });
                   }}
                   className="h-8 text-xs gap-1 rounded-lg"
-                  disabled={createGroup.isPending}
+                  disabled={updateGroup.isPending}
                 >
                   <Plus className="w-3 h-3" />
                   إضافة موعد
@@ -322,7 +326,7 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
                             { label: 'الجمعة', value: '5' },
                             { label: 'السبت', value: '6' },
                           ]}
-                          disabled={createGroup.isPending}
+                          disabled={updateGroup.isPending}
                         />
                       </div>
                       <TimeSelect
@@ -334,7 +338,7 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
                           newSchedules[index].endTime = addOneHour(val); // تحديث تلقائي لوقت الانتهاء
                           setFormData({ ...formData, schedules: newSchedules });
                         }}
-                        disabled={createGroup.isPending}
+                        disabled={updateGroup.isPending}
                       />
                       <TimeSelect
                         label="إلى"
@@ -344,7 +348,7 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
                           newSchedules[index].endTime = val;
                           setFormData({ ...formData, schedules: newSchedules });
                         }}
-                        disabled={createGroup.isPending}
+                        disabled={updateGroup.isPending}
                       />
                       <button
                         type="button"
@@ -354,7 +358,7 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
                           setFormData({ ...formData, schedules: newSchedules });
                         }}
                         className="h-10 px-3 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100 flex items-center justify-center mb-[2px]"
-                        disabled={createGroup.isPending}
+                        disabled={updateGroup.isPending}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -376,7 +380,7 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
                 placeholder="يتم التوليد تلقائياً بناءً على المواعيد والصف..."
                 value={formData.name}
                 onChange={e => setFormData({ ...formData, name: e.target.value })}
-                disabled={createGroup.isPending}
+                disabled={updateGroup.isPending}
               />
             </div>
 
@@ -389,34 +393,22 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
                 placeholder="0"
                 value={formData.monthlyFee === undefined ? '' : formData.monthlyFee}
                 onChange={e => setFormData({ ...formData, monthlyFee: e.target.value ? parseFloat(e.target.value) : undefined })}
-                disabled={createGroup.isPending}
+                disabled={updateGroup.isPending}
               />
             </div>
           </div>
 
-          <div className="mt-8 flex gap-3 justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              disabled={createGroup.isPending}
-            >
-              إلغاء
-            </Button>
-            <Button
-              type="submit"
-              disabled={createGroup.isPending || !formData.name || !formData.gradeLevel}
-            >
-              {createGroup.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  جاري الإنشاء...
-                </>
-              ) : (
-                'إنشاء المجموعة'
-              )}
-            </Button>
-          </div>
+          <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2 shrink-0">
+          <Button type="button" variant="outline" onClick={onClose} disabled={updateGroup.isPending}>
+            إلغاء
+          </Button>
+          <Button type="submit" disabled={updateGroup.isPending || !formData.gradeLevel || !formData.name}>
+            {updateGroup.isPending ? (
+              <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+            ) : null}
+            حفظ التعديلات
+          </Button>
+        </div>
         </form>
       </div>
     </div>

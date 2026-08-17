@@ -3,10 +3,12 @@ import {
   fetchGroups,
   createGroup,
   fetchGroup,
+  updateGroup,
   fetchGroupStudents,
   addStudentToGroup,
   removeStudentFromGroup,
-  searchStudents
+  searchStudents,
+  deleteGroup
 } from '../api/groups.api';
 import { CreateGroupPayload, EnrollStudentPayload } from '../types/groups.types';
 
@@ -38,6 +40,29 @@ export function useCreateGroup() {
   
   return useMutation({
     mutationFn: (payload: CreateGroupPayload) => createGroup(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['groups'] });
+    },
+  });
+}
+
+export function useUpdateGroup() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Partial<CreateGroupPayload> }) => updateGroup(id, payload),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['groups'] });
+      queryClient.invalidateQueries({ queryKey: ['groups', variables.id] });
+    },
+  });
+}
+
+export function useDeleteGroup() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (id: string) => deleteGroup(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['groups'] });
     },
