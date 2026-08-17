@@ -29,4 +29,17 @@ export class HealthController {
       () => this.memory.checkHeap('memory_heap', 300 * 1024 * 1024), // 300MB heap limit
     ]);
   }
+
+  @Public()
+  @Get('ping')
+  @ApiOperation({ summary: 'Deployment pipeline test ping' })
+  ping() {
+    return {
+      status: 'ok',
+      message: '🚀 CI/CD deployment pipeline is working perfectly!',
+      timestamp: new Date().toISOString(),
+      server: 'DigitalOcean VPS',
+      environment: process.env.NODE_ENV || 'production',
+    };
+  }
 }
