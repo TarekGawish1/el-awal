@@ -40,7 +40,7 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
     }
     
     const prefix = `${stageCode}${gradeNum}`;
-    const phonePart = phone ? phone.replace(/\D/g, '').slice(-4) : '1234'; // Default to 1234 if no phone
+    const phonePart = phone ? phone.replace(/\D/g, '').slice(-6) : '123456';
     
     if (!prefix) return phonePart;
     return `${prefix}${phonePart}`;
@@ -132,7 +132,7 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
           onSuccess();
         },
         onError: (err: any) => {
-          const msg = err.response?.data?.message || 'Failed to create student.';
+          const msg = err.message || err.response?.data?.message || 'Failed to create student.';
           setErrorMsg(Array.isArray(msg) ? msg[0] : msg);
         },
       }
