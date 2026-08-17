@@ -15,12 +15,19 @@ export interface Group {
   };
 }
 
+export interface GroupSchedule {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+}
+
 export interface CreateGroupPayload {
   name: string;
   gradeLevel: string;
   description?: string;
   maxCapacity?: number;
   monthlyFee?: number;
+  schedules?: GroupSchedule[];
 }
 
 export interface EnrollStudentPayload {

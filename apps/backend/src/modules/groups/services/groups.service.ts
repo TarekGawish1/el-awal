@@ -44,7 +44,15 @@ export class GroupsService {
         maxCapacity: dto.maxCapacity || 50,
         monthlyFee: dto.monthlyFee || 0.0,
         teacherId,
+        schedules: dto.schedules?.length ? {
+          create: dto.schedules.map(s => ({
+            dayOfWeek: s.dayOfWeek,
+            startTime: s.startTime,
+            endTime: s.endTime,
+          })),
+        } : undefined,
       },
+      include: { schedules: true },
     });
   }
 

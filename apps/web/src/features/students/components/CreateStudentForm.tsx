@@ -17,7 +17,9 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
   const [formData, setFormData] = useState({
     fullName: '',
     phone: '',
+    parentName: '',
     parentPhone: '',
+    parentRelationship: 'الأب',
     password: '',
     educationalStage: '',
     gradeLevel: '',
@@ -92,6 +94,16 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
         updated.password = generatePassword(updated.phone, updated.educationalStage, updated.gradeLevel);
       }
 
+      if (name === 'fullName' && updated.parentRelationship === 'الأب') {
+        const parts = value.trim().split(' ');
+        updated.parentName = parts.length > 1 ? parts.slice(1).join(' ') : '';
+      }
+
+      if (name === 'parentRelationship' && value === 'الأب') {
+        const parts = updated.fullName.trim().split(' ');
+        updated.parentName = parts.length > 1 ? parts.slice(1).join(' ') : '';
+      }
+
       return updated;
     });
   };
@@ -110,7 +122,9 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
         password: formData.password,
         gradeLevel: formData.gradeLevel,
         phone: formData.phone || undefined,
+        parentName: formData.parentName || undefined,
         parentPhone: formData.parentPhone || undefined,
+        parentRelationship: formData.parentRelationship || undefined,
         initialGroupId: formData.initialGroupId || undefined,
       },
       {
@@ -129,108 +143,138 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
     <form onSubmit={handleSubmit} className="space-y-6">
       {errorMsg && <Alert variant="error">{errorMsg}</Alert>}
 
-      <Input
-        label="الاسم الرباعي"
-        name="fullName"
-        required
-        value={formData.fullName}
-        onChange={handleChange}
-        placeholder="مثال: محمود أحمد"
-        minLength={3}
-      />
+      {/* Student Info */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-2">بيانات الطالب</h3>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
+          <Input
+            label="الاسم الرباعي"
+            name="fullName"
+            required
+            value={formData.fullName}
+            onChange={handleChange}
+            placeholder="مثال: محمود أحمد"
+            minLength={3}
+          />
+          <Input
+            label="رقم هاتف الطالب (اختياري)"
+            name="phone"
+            value={formData.phone}
+            onChange={handleChange}
+            placeholder="+201012345678"
+            className="text-left"
+          />
+        </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        <Input
-          label="رقم هاتف الطالب (اختياري)"
-          name="phone"
-          value={formData.phone}
-          onChange={handleChange}
-          placeholder="+201012345678"
-          className="text-left"
-        />
-        <Input
-          label="رقم هاتف ولي الأمر *"
-          name="parentPhone"
-          value={formData.parentPhone}
-          onChange={handleChange}
-          placeholder="+201012345678"
-          className="text-left"
-          required
-        />
-      </div>
+        <div className="space-y-2 pt-2">
+          <label className="text-sm font-bold text-slate-700">المرحلة الدراسية <span className="text-red-500 ms-1">*</span></label>
+          <div className="grid grid-cols-3 gap-3 sm:gap-4">
+            {[
+              { id: 'PRIMARY', label: 'الابتدائية', icon: '✏️' },
+              { id: 'MIDDLE', label: 'الإعدادية', icon: '🏫' },
+              { id: 'SECONDARY', label: 'الثانوية', icon: '🎓' },
+            ].map((stage) => (
+              <button
+                key={stage.id}
+                type="button"
+                onClick={() => {
+                  setFormData((prev) => ({
+                    ...prev,
+                    educationalStage: stage.id,
+                    gradeLevel: '', // Reset grade when stage changes
+                  }));
+                }}
+                className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-2xl border-2 transition-all duration-200 ${
+                  formData.educationalStage === stage.id
+                    ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-sm ring-4 ring-primary-50'
+                    : 'border-slate-100 bg-slate-50/50 hover:border-slate-200 hover:bg-slate-100 text-slate-500'
+                }`}
+              >
+                <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">{stage.icon}</span>
+                <span className="font-bold text-xs sm:text-sm">{stage.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
 
-      <div className="grid grid-cols-1 gap-6">
-        <Input
-          label="كلمة المرور"
-          name="password"
-          type="text"
-          required
-          readOnly
-          value={formData.password}
-          onChange={handleChange}
-          minLength={6}
-          className="text-left font-mono tracking-wider font-bold text-primary-700 bg-slate-50 cursor-not-allowed"
-        />
-      </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
+          <Select
+            label="الصف الدراسي"
+            name="gradeLevel"
+            required
+            disabled={!formData.educationalStage}
+            value={formData.gradeLevel}
+            onChange={handleChange}
+            options={[
+              { label: '-- اختر الصف الدراسي --', value: '' },
+              ...(formData.educationalStage ? gradeOptions[formData.educationalStage] : []),
+            ]}
+          />
+          <Select
+            label="المجموعة الحالية (اختياري)"
+            name="initialGroupId"
+            value={formData.initialGroupId}
+            onChange={handleChange}
+            disabled={!formData.gradeLevel}
+            options={[
+              { label: '-- اختر المجموعة --', value: '' },
+              ...(filteredGroups.map((g) => ({
+                label: g.name, // Only show name since grade is already selected
+                value: g.id,
+              }))),
+            ]}
+          />
+        </div>
 
-      <div className="space-y-2">
-        <label className="text-sm font-bold text-slate-700">المرحلة الدراسية <span className="text-red-500 ms-1">*</span></label>
-        <div className="grid grid-cols-3 gap-3 sm:gap-4">
-          {[
-            { id: 'PRIMARY', label: 'الابتدائية', icon: '✏️' },
-            { id: 'MIDDLE', label: 'الإعدادية', icon: '🏫' },
-            { id: 'SECONDARY', label: 'الثانوية', icon: '🎓' },
-          ].map((stage) => (
-            <button
-              key={stage.id}
-              type="button"
-              onClick={() => {
-                setFormData((prev) => ({
-                  ...prev,
-                  educationalStage: stage.id,
-                  gradeLevel: '', // Reset grade when stage changes
-                }));
-              }}
-              className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-2xl border-2 transition-all duration-200 ${
-                formData.educationalStage === stage.id
-                  ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-sm ring-4 ring-primary-50'
-                  : 'border-slate-100 bg-slate-50/50 hover:border-slate-200 hover:bg-slate-100 text-slate-500'
-              }`}
-            >
-              <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">{stage.icon}</span>
-              <span className="font-bold text-xs sm:text-sm">{stage.label}</span>
-            </button>
-          ))}
+        <div className="grid grid-cols-1 gap-6 pt-2">
+          <Input
+            label="كلمة المرور"
+            name="password"
+            type="text"
+            required
+            readOnly
+            value={formData.password}
+            onChange={handleChange}
+            minLength={6}
+            className="text-left font-mono tracking-wider font-bold text-primary-700 bg-slate-50 cursor-not-allowed"
+          />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        <Select
-          label="الصف الدراسي"
-          name="gradeLevel"
-          required
-          disabled={!formData.educationalStage}
-          value={formData.gradeLevel}
-          onChange={handleChange}
-          options={[
-            { label: '-- اختر الصف الدراسي --', value: '' },
-            ...(formData.educationalStage ? gradeOptions[formData.educationalStage] : []),
-          ]}
-        />
-        <Select
-          label="المجموعة الحالية (اختياري)"
-          name="initialGroupId"
-          value={formData.initialGroupId}
-          onChange={handleChange}
-          disabled={!formData.gradeLevel}
-          options={[
-            { label: '-- اختر المجموعة --', value: '' },
-            ...(filteredGroups.map((g) => ({
-              label: g.name, // Only show name since grade is already selected
-              value: g.id,
-            }))),
-          ]}
-        />
+      {/* Parent Info */}
+      <div className="space-y-4 pt-4">
+        <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-2">بيانات ولي الأمر</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-2">
+          <Select
+            label="صلة القرابة"
+            name="parentRelationship"
+            value={formData.parentRelationship}
+            onChange={handleChange}
+            options={[
+              { label: 'الأب', value: 'الأب' },
+              { label: 'الأم', value: 'الأم' },
+              { label: 'أخ / أخت', value: 'أخ / أخت' },
+              { label: 'أخرى', value: 'أخرى' },
+            ]}
+          />
+          <Input
+            label="اسم ولي الأمر (اختياري)"
+            name="parentName"
+            value={formData.parentName}
+            onChange={handleChange}
+            placeholder="مثال: أحمد علي"
+          />
+          <Input
+            label="رقم هاتف ولي الأمر *"
+            name="parentPhone"
+            value={formData.parentPhone}
+            onChange={handleChange}
+            placeholder="+201012345678"
+            className="text-left"
+            required
+          />
+        </div>
       </div>
 
       <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
