@@ -29,4 +29,30 @@ export class HealthController {
       () => this.memory.checkHeap('memory_heap', 300 * 1024 * 1024), // 300MB heap limit
     ]);
   }
+
+  @Public()
+  @Get('ping')
+  @ApiOperation({ summary: 'Deployment pipeline test ping' })
+  ping() {
+    return {
+      status: 'ok',
+      message: '🚀 CI/CD deployment pipeline is working perfectly!',
+      timestamp: new Date().toISOString(),
+      server: 'DigitalOcean VPS',
+      environment: process.env.NODE_ENV || 'production',
+    };
+  }
+
+  @Public()
+  @Get('version')
+  @ApiOperation({ summary: 'API Version & Live Pipeline Verification' })
+  getVersion() {
+    return {
+      appName: 'El-Awal Educational Backend',
+      version: '1.0.1',
+      deployedAt: new Date().toISOString(),
+      status: 'Automated CI/CD is working seamlessly! 🎉',
+      server: 'DigitalOcean Ubuntu VPS',
+    };
+  }
 }
