@@ -32,12 +32,11 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            # 2. Build backend
-            cd apps/backend
-            npm install --production=false
-            npx prisma generate
-            npm run build
+            # 2. Install dependencies & build backend (Monorepo root)
+            npm ci --workspaces --include-workspace-root || npm install
+            npm run prisma:generate
+            npm run build:backend
 
             # 3. Reload PM2 process
-            pm2 reload el-awal-backend --update-env || pm2 start dist/main.js --name "el-awal-backend" --cwd /var/www/el-awal/apps/backend
+            pm2 startOrReload ecosystem.config.js || (cd apps/backend && pm2 start dist/main.js --name "el-awal-backend")
             pm2 save
