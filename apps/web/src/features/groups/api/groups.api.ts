@@ -24,6 +24,12 @@ export async function fetchGroup(id: string): Promise<GroupWithDetails> {
   return await apiClient<GroupWithDetails>(API_ENDPOINTS.GROUPS.DETAIL(id));
 }
 
+export async function deleteGroup(id: string): Promise<void> {
+  return await apiClient<void>(API_ENDPOINTS.GROUPS.DETAIL(id), {
+    method: 'DELETE',
+  });
+}
+
 export async function fetchGroupStudents(id: string): Promise<GroupEnrollment[]> {
   const response = await apiClient<any>(API_ENDPOINTS.GROUPS.STUDENTS(id));
   const roster = response?.roster || [];

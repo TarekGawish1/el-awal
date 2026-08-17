@@ -57,6 +57,16 @@ export class GroupsController {
     return this.groupsService.getGroupById(id, user);
   }
 
+  @Delete(':id')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Delete an academic group' })
+  async deleteGroup(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.groupsService.deleteGroup(id, user);
+  }
+
   @Post(':id/students')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Enroll student into academic group roster (Capacity checked)' })

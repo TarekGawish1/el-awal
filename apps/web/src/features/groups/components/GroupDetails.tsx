@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Users, UserPlus, FileText, AlertCircle, CalendarDays, Settings, Trash2 } from 'lucide-react';
-import { useGroup } from '../hooks/useGroups';
+import { useRouter } from 'next/navigation';
+import { ArrowRight, Users, UserPlus, FileText, AlertCircle, CalendarDays, Settings, Trash2, Loader2 } from 'lucide-react';
+import { useGroup, useDeleteGroup } from '../hooks/useGroups';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -16,8 +17,21 @@ interface GroupDetailsProps {
 }
 
 export function GroupDetails({ id }: GroupDetailsProps) {
+  const router = useRouter();
   const { data: group, isLoading, isError, error, refetch } = useGroup(id);
+  const deleteGroup = useDeleteGroup();
   const [isAddStudentModalOpen, setIsAddStudentModalOpen] = useState(false);
+
+  const handleDelete = async () => {
+    if (window.confirm('هل أنت متأكد من حذف هذه المجموعة بشكل نهائي؟\n\nتنبيه: لن تتمكن من التراجع عن هذا الإجراءوسيتم إزالة جميع الطلاب المرتبطين بها.')) {
+      try {
+        await deleteGroup.mutateAsync(id);
+        router.push('/teacher/groups');
+      } catch (err) {
+        alert('حدث خطأ أثناء الحذف، يرجى المحاولة مرة أخرى.');
+      }
+    }
+  };
 
   if (isError) {
     return (
@@ -73,8 +87,18 @@ export function GroupDetails({ id }: GroupDetailsProps) {
             <Settings className="w-4 h-4 ml-2" />
             تعديل المجموعة
           </Button>
-          <Button variant="outline" size="sm" className="text-error-600 hover:text-error-700 hover:bg-error-50 border-error-200 bg-white shadow-sm">
-            <Trash2 className="w-4 h-4 ml-2" />
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="text-error-600 hover:text-error-700 hover:bg-error-50 border-error-200 bg-white shadow-sm"
+            onClick={handleDelete}
+            disabled={deleteGroup.isPending}
+          >
+            {deleteGroup.isPending ? (
+              <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+            ) : (
+              <Trash2 className="w-4 h-4 ml-2" />
+            )}
             حذف المجموعة
           </Button>
         </div>

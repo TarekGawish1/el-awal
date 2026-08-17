@@ -102,6 +102,27 @@ export class GroupsService {
   }
 
   /**
+   * Deletes a group permanently (cascading schedules and enrollments).
+   */
+  async deleteGroup(groupId: string, user?: AuthenticatedUser) {
+    const group = await this.prisma.academicGroup.findUnique({
+      where: { id: groupId },
+    });
+
+    if (!group) {
+      throw new NotFoundException(`Academic group [${groupId}] not found`);
+    }
+
+    this.checkTeacherOwnership(group, user);
+
+    await this.prisma.academicGroup.delete({
+      where: { id: groupId },
+    });
+
+    return { success: true, message: 'Group successfully deleted' };
+  }
+
+  /**
    * Enrolls a student into a physical group, enforcing max capacity limits.
    */
   async enrollStudent(groupId: string, studentId: string, user?: AuthenticatedUser) {
