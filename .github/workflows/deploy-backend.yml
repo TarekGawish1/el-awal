@@ -46,6 +46,9 @@ jobs:
             npm run build:backend
 
             echo "==> 5. Reloading PM2 Service"
-            pm2 startOrReload ecosystem.config.js || (cd apps/backend && pm2 start dist/main.js --name "el-awal-backend")
+            mkdir -p /var/www/el-awal/apps/backend/logs
+            pm2 delete el-awal-backend || true
+            pm2 start /var/www/el-awal/ecosystem.config.js --env production
             pm2 save
+            pm2 status
             echo "==> Backend Deployment Finished Successfully!"
