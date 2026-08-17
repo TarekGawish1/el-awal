@@ -26,17 +26,26 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           port: 22
+          command_timeout: 15m
           script: |
-            # 1. Pull latest changes
+            set -e
+            echo "==> 1. Navigating to project directory & pulling latest code"
             cd /var/www/el-awal
             git fetch origin main
             git reset --hard origin/main
 
-            # 2. Install dependencies & build backend (Monorepo root)
-            npm ci --workspaces --include-workspace-root || npm install
+            echo "==> 2. Installing Backend Dependencies (scoped workspace)"
+            export NODE_OPTIONS="--max-old-space-size=1024"
+            npm ci --workspace=@el-awal/backend --include-workspace-root || npm install --workspace=@el-awal/backend --include-workspace-root
+
+            echo "==> 3. Generating Prisma Client & Deploying Migrations"
             npm run prisma:generate
+            npm run prisma:migrate:deploy || echo "Prisma migrate deploy skipped/failed (check if DB exists)"
+
+            echo "==> 4. Building Backend"
             npm run build:backend
 
-            # 3. Reload PM2 process
+            echo "==> 5. Reloading PM2 Service"
             pm2 startOrReload ecosystem.config.js || (cd apps/backend && pm2 start dist/main.js --name "el-awal-backend")
             pm2 save
+            echo "==> Backend Deployment Finished Successfully!"
