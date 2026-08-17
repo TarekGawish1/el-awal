@@ -18,8 +18,8 @@ export declare class ParentPortalService {
             academicStage: string;
             activeGroups: {
                 id: string;
-                name: string;
                 gradeLevel: string;
+                name: string;
             }[];
         };
     }[]>;

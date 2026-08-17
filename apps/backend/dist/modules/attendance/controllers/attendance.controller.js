@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AttendanceController = void 0;
 const common_1 = require("@nestjs/common");
@@ -84,7 +85,7 @@ __decorate([
     __param(1, (0, common_1.Query)()),
     __param(2, (0, common_1.Query)('status')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, cursor_pagination_dto_1.CursorPaginationDto, String]),
+    __metadata("design:paramtypes", [String, cursor_pagination_dto_1.CursorPaginationDto, typeof (_a = typeof client_1.AttendanceStatus !== "undefined" && client_1.AttendanceStatus) === "function" ? _a : Object]),
     __metadata("design:returntype", Promise)
 ], AttendanceController.prototype, "getStudentHistory", null);
 exports.AttendanceController = AttendanceController = __decorate([

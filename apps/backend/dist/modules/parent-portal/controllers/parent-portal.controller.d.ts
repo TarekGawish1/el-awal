@@ -17,8 +17,8 @@ export declare class ParentPortalController {
             academicStage: string;
             activeGroups: {
                 id: string;
-                name: string;
                 gradeLevel: string;
+                name: string;
             }[];
         };
     }[]>;

@@ -14,13 +14,13 @@ export declare class ContentController {
     }>;
     createContent(dto: CreateContentDto, user: AuthenticatedUser): Promise<{
         id: string;
-        teacherId: string;
-        groupId: string | null;
-        lessonId: string | null;
-        title: string;
-        description: string | null;
         createdAt: Date;
         updatedAt: Date;
+        description: string | null;
+        title: string;
+        groupId: string | null;
+        teacherId: string;
+        lessonId: string | null;
         contentType: import(".prisma/client").$Enums.ContentType;
         fileKey: string;
         fileUrl: string;
@@ -29,6 +29,9 @@ export declare class ContentController {
     }>;
     listContent(user: AuthenticatedUser, groupId?: string, lessonId?: string, contentType?: ContentType): Promise<{
         fileSize: number;
+        _count: {
+            progresses: number;
+        };
         group: {
             id: string;
             name: string;
@@ -37,17 +40,14 @@ export declare class ContentController {
             id: string;
             title: string;
         };
-        _count: {
-            progresses: number;
-        };
         id: string;
-        teacherId: string;
-        groupId: string | null;
-        lessonId: string | null;
-        title: string;
-        description: string | null;
         createdAt: Date;
         updatedAt: Date;
+        description: string | null;
+        title: string;
+        groupId: string | null;
+        teacherId: string;
+        lessonId: string | null;
         contentType: import(".prisma/client").$Enums.ContentType;
         fileKey: string;
         fileUrl: string;

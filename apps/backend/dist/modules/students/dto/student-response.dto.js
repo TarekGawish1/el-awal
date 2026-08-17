@@ -8,6 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.StudentProfileResponseDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
@@ -49,7 +50,7 @@ __decorate([
 ], StudentProfileResponseDto.prototype, "academicStage", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ enum: client_1.StudentAcademicStatus, example: client_1.StudentAcademicStatus.ACTIVE }),
-    __metadata("design:type", String)
+    __metadata("design:type", typeof (_a = typeof client_1.StudentAcademicStatus !== "undefined" && client_1.StudentAcademicStatus) === "function" ? _a : Object)
 ], StudentProfileResponseDto.prototype, "academicStatus", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)({ example: '2008-05-15' }),

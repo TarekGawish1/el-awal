@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { DashboardFilterState, DateRangePreset } from '../types/dashboard.types';
 import { useTeacherDashboard, useTeacherGroups, DEFAULT_DASHBOARD_FILTERS } from '../hooks/useTeacherDashboard';
 import { DashboardHeader } from './DashboardHeader';
@@ -17,9 +17,9 @@ import { DashboardEmptyState } from './DashboardEmptyState';
 
 export function TeacherDashboardContainer() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   // Read initial filter values from URL params or defaults
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const initialFilters: DashboardFilterState = {
     academicYear: searchParams?.get('academicYear') || DEFAULT_DASHBOARD_FILTERS.academicYear,
     groupId: searchParams?.get('groupId') || DEFAULT_DASHBOARD_FILTERS.groupId,

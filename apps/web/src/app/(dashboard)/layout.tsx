@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   Users,
@@ -17,6 +17,7 @@ import {
   Bell,
   GraduationCap,
 } from 'lucide-react';
+import { useAuth } from '@/features/auth';
 
 export default function DashboardLayout({
   children,
@@ -25,6 +26,31 @@ export default function DashboardLayout({
 }) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, isAuthenticated, isInitialized, logout } = useAuth();
+
+  // Authentication Route Protection
+  useEffect(() => {
+    if (isInitialized && !isAuthenticated) {
+      const redirectParam = pathname ? `?redirect=${encodeURIComponent(pathname)}` : '';
+      router.replace(`/login${redirectParam}`);
+    }
+  }, [isInitialized, isAuthenticated, pathname, router]);
+
+  const getRoleLabel = (role?: string) => {
+    switch (role) {
+      case 'TEACHER':
+        return 'مدرس معتمد';
+      case 'SECRETARIAT':
+        return 'سكرتارية وإدارة';
+      case 'STUDENT':
+        return 'طالب';
+      case 'PARENT':
+        return 'ولي أمر';
+      default:
+        return 'مستخدم مسجل';
+    }
+  };
 
   const navigationItems = [
     { label: 'لوحة التحكم', href: '/teacher/dashboard', icon: LayoutDashboard },
@@ -34,6 +60,24 @@ export default function DashboardLayout({
     { label: 'الواجبات والاختبارات', href: '/teacher/assessments', icon: FileText },
     { label: 'المحتوى والدروس', href: '/teacher/content', icon: BookOpen },
   ];
+
+  // Hydration-safe initial loading screen before auth initialization
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen bg-neutral-50 flex items-center justify-center text-sm text-neutral-500">
+        جاري التحقق من بيانات الدخول...
+      </div>
+    );
+  }
+
+  // If not authenticated, keep showing redirecting state while router pushes to /login
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-neutral-50 flex items-center justify-center text-sm text-neutral-500">
+        جاري التوجيه إلى تسجيل الدخول...
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col lg:flex-row">
@@ -123,21 +167,20 @@ export default function DashboardLayout({
         <div className="p-3 border-t border-neutral-100 space-y-1">
           <div className="p-3 rounded-lg bg-neutral-50 flex items-center gap-3 mb-2">
             <div className="w-9 h-9 rounded-full bg-primary-600 text-white font-bold flex items-center justify-center text-sm shadow-xs">
-              أ
+              {user?.fullName ? user.fullName.charAt(0) : 'م'}
             </div>
             <div className="overflow-hidden">
-              <h4 className="text-xs font-bold text-neutral-900 truncate">أ. طارق عبد الله</h4>
-              <span className="text-[11px] text-neutral-500 block truncate">مدرس لغة عربية</span>
+              <h4 className="text-xs font-bold text-neutral-900 truncate">
+                {user?.fullName || 'المستخدم'}
+              </h4>
+              <span className="text-[11px] text-neutral-500 block truncate">
+                {user?.email || user?.phone || getRoleLabel(user?.role)}
+              </span>
             </div>
           </div>
 
           <button
-            onClick={() => {
-              if (typeof window !== 'undefined') {
-                localStorage.removeItem('el_awal_token');
-                window.location.href = '/login';
-              }
-            }}
+            onClick={() => logout()}
             className="flex items-center gap-3 w-full px-3.5 py-2 text-xs font-medium text-error-600 hover:bg-error-50 rounded-md transition-colors"
           >
             <LogOut className="w-4 h-4" />

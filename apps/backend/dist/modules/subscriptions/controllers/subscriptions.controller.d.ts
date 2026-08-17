@@ -8,16 +8,16 @@ export declare class SubscriptionsController {
     recordPayment(dto: RecordPaymentDto, user: AuthenticatedUser): Promise<{
         student: {
             user: {
-                fullName: string;
                 phone: string;
+                fullName: string;
             };
         } & {
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            gradeLevel: string;
             studentCode: string | null;
             qrCodeToken: string;
+            gradeLevel: string;
             academicStage: string | null;
             academicStatus: import(".prisma/client").$Enums.StudentAcademicStatus;
             dateOfBirth: Date | null;
@@ -29,10 +29,12 @@ export declare class SubscriptionsController {
         };
     } & {
         id: string;
-        studentId: string;
         createdAt: Date;
         updatedAt: Date;
         groupId: string | null;
+        studentId: string;
+        recordedById: string;
+        notes: string | null;
         periodYear: number;
         periodMonth: number;
         amountExpected: import("@prisma/client/runtime/library").Decimal;
@@ -41,23 +43,21 @@ export declare class SubscriptionsController {
         paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
         paymentMethod: string;
         receiptNumber: string | null;
-        recordedById: string;
-        notes: string | null;
     }>;
     getPaymentLog(query: PaymentQueryDto): Promise<import("../../../common/pagination/cursor-pagination.helper").PaginatedResult<{
         student: {
             user: {
                 id: string;
-                fullName: string;
                 phone: string;
+                fullName: string;
             };
         } & {
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            gradeLevel: string;
             studentCode: string | null;
             qrCodeToken: string;
+            gradeLevel: string;
             academicStage: string | null;
             academicStatus: import(".prisma/client").$Enums.StudentAcademicStatus;
             dateOfBirth: Date | null;
@@ -73,10 +73,12 @@ export declare class SubscriptionsController {
         };
     } & {
         id: string;
-        studentId: string;
         createdAt: Date;
         updatedAt: Date;
         groupId: string | null;
+        studentId: string;
+        recordedById: string;
+        notes: string | null;
         periodYear: number;
         periodMonth: number;
         amountExpected: import("@prisma/client/runtime/library").Decimal;
@@ -85,8 +87,6 @@ export declare class SubscriptionsController {
         paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
         paymentMethod: string;
         receiptNumber: string | null;
-        recordedById: string;
-        notes: string | null;
     }>>;
     getStudentPaymentHistory(studentId: string): Promise<{
         amountExpected: number;
@@ -99,18 +99,18 @@ export declare class SubscriptionsController {
             fullName: string;
         };
         id: string;
-        studentId: string;
         createdAt: Date;
         updatedAt: Date;
         groupId: string | null;
+        studentId: string;
+        recordedById: string;
+        notes: string | null;
         periodYear: number;
         periodMonth: number;
         currency: string;
         paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
         paymentMethod: string;
         receiptNumber: string | null;
-        recordedById: string;
-        notes: string | null;
     }[]>;
     getGroupDefaulters(groupId: string, periodYear: number, periodMonth: number): Promise<{
         groupId: string;

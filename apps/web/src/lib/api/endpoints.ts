@@ -3,13 +3,17 @@
  * Aligned with docs/03-Architecture/api-design.md
  */
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
 export const API_ENDPOINTS = {
   AUTH: {
     LOGIN: '/auth/login',
     LOGOUT: '/auth/logout',
-    ME: '/auth/me',
+    REFRESH: '/auth/refresh',
+    ME: '/users/me',
+  },
+  USERS: {
+    ME: '/users/me',
   },
   TEACHER: {
     DASHBOARD_OVERVIEW: '/teachers/dashboard/overview', // Recommended server aggregation contract

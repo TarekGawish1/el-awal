@@ -16,13 +16,13 @@ export declare class ContentService {
     }>;
     createContent(teacherId: string, dto: CreateContentDto): Promise<{
         id: string;
-        teacherId: string;
-        groupId: string | null;
-        lessonId: string | null;
-        title: string;
-        description: string | null;
         createdAt: Date;
         updatedAt: Date;
+        description: string | null;
+        title: string;
+        groupId: string | null;
+        teacherId: string;
+        lessonId: string | null;
         contentType: import(".prisma/client").$Enums.ContentType;
         fileKey: string;
         fileUrl: string;
@@ -31,6 +31,9 @@ export declare class ContentService {
     }>;
     listTeacherContent(teacherId: string, groupId?: string, lessonId?: string, contentType?: ContentType): Promise<{
         fileSize: number;
+        _count: {
+            progresses: number;
+        };
         group: {
             id: string;
             name: string;
@@ -39,17 +42,14 @@ export declare class ContentService {
             id: string;
             title: string;
         };
-        _count: {
-            progresses: number;
-        };
         id: string;
-        teacherId: string;
-        groupId: string | null;
-        lessonId: string | null;
-        title: string;
-        description: string | null;
         createdAt: Date;
         updatedAt: Date;
+        description: string | null;
+        title: string;
+        groupId: string | null;
+        teacherId: string;
+        lessonId: string | null;
         contentType: import(".prisma/client").$Enums.ContentType;
         fileKey: string;
         fileUrl: string;

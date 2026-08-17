@@ -23,17 +23,17 @@ export declare class StudentsService {
     getStudentById(studentId: string): Promise<{
         user: {
             id: string;
-            fullName: string;
-            phone: string;
             email: string;
+            phone: string;
+            fullName: string;
             isActive: boolean;
         };
         parentLinks: ({
             parent: {
                 user: {
                     id: string;
-                    fullName: string;
                     phone: string;
+                    fullName: string;
                 };
             } & {
                 id: string;
@@ -50,13 +50,13 @@ export declare class StudentsService {
         groupEnrollments: ({
             group: {
                 id: string;
-                name: string;
                 gradeLevel: string;
+                name: string;
             };
         } & {
             id: string;
-            groupId: string;
             status: import(".prisma/client").$Enums.GroupEnrollmentStatus;
+            groupId: string;
             studentId: string;
             enrolledAt: Date;
         })[];
@@ -64,10 +64,10 @@ export declare class StudentsService {
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        gradeLevel: string;
-        academicStage: string | null;
         studentCode: string | null;
         qrCodeToken: string;
+        gradeLevel: string;
+        academicStage: string | null;
         academicStatus: import(".prisma/client").$Enums.StudentAcademicStatus;
         dateOfBirth: Date | null;
         emergencyPhone: string | null;
@@ -77,9 +77,9 @@ export declare class StudentsService {
     getStudents(query: StudentQueryDto): Promise<import("../../../common/pagination/cursor-pagination.helper").PaginatedResult<{
         user: {
             id: string;
-            fullName: string;
-            phone: string;
             email: string;
+            phone: string;
+            fullName: string;
             isActive: boolean;
         };
         groupEnrollments: ({
@@ -89,8 +89,8 @@ export declare class StudentsService {
             };
         } & {
             id: string;
-            groupId: string;
             status: import(".prisma/client").$Enums.GroupEnrollmentStatus;
+            groupId: string;
             studentId: string;
             enrolledAt: Date;
         })[];
@@ -98,10 +98,10 @@ export declare class StudentsService {
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        gradeLevel: string;
-        academicStage: string | null;
         studentCode: string | null;
         qrCodeToken: string;
+        gradeLevel: string;
+        academicStage: string | null;
         academicStatus: import(".prisma/client").$Enums.StudentAcademicStatus;
         dateOfBirth: Date | null;
         emergencyPhone: string | null;

@@ -16,12 +16,12 @@ export declare const envSchema: z.ZodObject<{
     BUNNY_CDN_HOSTNAME: z.ZodDefault<z.ZodOptional<z.ZodString>>;
     BUNNY_TOKEN_SECURITY_KEY: z.ZodDefault<z.ZodOptional<z.ZodString>>;
 }, "strip", z.ZodTypeAny, {
+    NODE_ENV?: "development" | "production" | "test";
+    PORT?: number;
+    CORS_ORIGINS?: string;
+    DATABASE_URL?: string;
     JWT_SECRET?: string;
     JWT_EXPIRES_IN?: string;
-    CORS_ORIGINS?: string;
-    PORT?: number;
-    NODE_ENV?: "development" | "production" | "test";
-    DATABASE_URL?: string;
     R2_ACCOUNT_ID?: string;
     R2_ACCESS_KEY_ID?: string;
     R2_SECRET_ACCESS_KEY?: string;
@@ -32,12 +32,12 @@ export declare const envSchema: z.ZodObject<{
     BUNNY_CDN_HOSTNAME?: string;
     BUNNY_TOKEN_SECURITY_KEY?: string;
 }, {
+    NODE_ENV?: "development" | "production" | "test";
+    PORT?: number;
+    CORS_ORIGINS?: string;
+    DATABASE_URL?: string;
     JWT_SECRET?: string;
     JWT_EXPIRES_IN?: string;
-    CORS_ORIGINS?: string;
-    PORT?: number;
-    NODE_ENV?: "development" | "production" | "test";
-    DATABASE_URL?: string;
     R2_ACCOUNT_ID?: string;
     R2_ACCESS_KEY_ID?: string;
     R2_SECRET_ACCESS_KEY?: string;

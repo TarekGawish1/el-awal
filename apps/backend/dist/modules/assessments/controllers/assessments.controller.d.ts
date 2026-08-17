@@ -10,26 +10,30 @@ export declare class AssessmentsController {
     createAssessment(dto: CreateAssessmentDto, user: AuthenticatedUser): Promise<{
         totalQuestions: number;
         id: string;
-        teacherId: string;
-        groupId: string | null;
-        courseId: string | null;
-        lessonId: string | null;
-        title: string;
-        description: string | null;
+        createdAt: Date;
+        updatedAt: Date;
         type: import(".prisma/client").$Enums.AssessmentType;
+        description: string | null;
+        title: string;
+        groupId: string | null;
+        teacherId: string;
+        lessonId: string | null;
+        courseId: string | null;
         totalScore: import("@prisma/client/runtime/library").Decimal;
         passingScore: import("@prisma/client/runtime/library").Decimal | null;
         durationMinutes: number | null;
-        isAutoGraded: boolean;
-        isPublished: boolean;
         dueDate: Date | null;
-        createdAt: Date;
-        updatedAt: Date;
+        isPublished: boolean;
+        isAutoGraded: boolean;
     }>;
     getAssessments(query: AssessmentQueryDto): Promise<import("../../../common/pagination/cursor-pagination.helper").PaginatedResult<{
         course: {
             id: string;
             title: string;
+        };
+        _count: {
+            questions: number;
+            submissions: number;
         };
         teacher: {
             user: {
@@ -46,27 +50,23 @@ export declare class AssessmentsController {
             id: string;
             name: string;
         };
-        _count: {
-            questions: number;
-            submissions: number;
-        };
     } & {
         id: string;
-        teacherId: string;
-        groupId: string | null;
-        courseId: string | null;
-        lessonId: string | null;
-        title: string;
-        description: string | null;
+        createdAt: Date;
+        updatedAt: Date;
         type: import(".prisma/client").$Enums.AssessmentType;
+        description: string | null;
+        title: string;
+        groupId: string | null;
+        teacherId: string;
+        lessonId: string | null;
+        courseId: string | null;
         totalScore: import("@prisma/client/runtime/library").Decimal;
         passingScore: import("@prisma/client/runtime/library").Decimal | null;
         durationMinutes: number | null;
-        isAutoGraded: boolean;
-        isPublished: boolean;
         dueDate: Date | null;
-        createdAt: Date;
-        updatedAt: Date;
+        isPublished: boolean;
+        isAutoGraded: boolean;
     }>>;
     getAssessmentById(id: string, user: AuthenticatedUser): Promise<{
         id: string;
@@ -100,11 +100,11 @@ export declare class AssessmentsController {
         questions: {
             id: string;
             questionNumber: number;
-            assessmentId: string;
             questionText: string;
             questionType: import(".prisma/client").$Enums.QuestionType;
             optionsData: import("@prisma/client/runtime/library").JsonValue | null;
             points: import("@prisma/client/runtime/library").Decimal;
+            assessmentId: string;
         }[];
         mySubmission: {
             id: string;
@@ -140,17 +140,17 @@ export declare class AssessmentsController {
         assessmentId: string;
         student: {
             user: {
-                fullName: string;
                 phone: string;
+                fullName: string;
             };
         } & {
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            gradeLevel: string;
-            academicStage: string | null;
             studentCode: string | null;
             qrCodeToken: string;
+            gradeLevel: string;
+            academicStage: string | null;
             academicStatus: import(".prisma/client").$Enums.StudentAcademicStatus;
             dateOfBirth: Date | null;
             emergencyPhone: string | null;
@@ -164,13 +164,13 @@ export declare class AssessmentsController {
             question: {
                 id: string;
                 questionNumber: number;
-                assessmentId: string;
                 questionText: string;
                 questionType: import(".prisma/client").$Enums.QuestionType;
                 optionsData: import("@prisma/client/runtime/library").JsonValue | null;
                 correctAnswer: string;
                 explanation: string | null;
                 points: import("@prisma/client/runtime/library").Decimal;
+                assessmentId: string;
             };
         } & {
             id: string;
