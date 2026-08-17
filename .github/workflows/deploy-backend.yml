@@ -1,0 +1,42 @@
+name: Deploy Backend to VPS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/backend/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-backend.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          script: |
+            # 1. Pull latest changes
+            cd /var/www/el-awal
+            git fetch origin main
+            git reset --hard origin/main
+
+            # 2. Build backend
+            cd apps/backend
+            npm install --production=false
+            npx prisma generate
+            npm run build
+
+            # 3. Reload PM2 process
+            pm2 reload el-awal-backend --update-env || pm2 start dist/main.js --name "el-awal-backend" --cwd /var/www/el-awal/apps/backend
+            pm2 save
