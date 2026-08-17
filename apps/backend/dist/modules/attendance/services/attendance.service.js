@@ -23,7 +23,7 @@ let AttendanceService = AttendanceService_1 = class AttendanceService {
         this.eventEmitter = eventEmitter;
         this.logger = new common_1.Logger(AttendanceService_1.name);
     }
-    async processQrScan(sessionId, qrCodeToken, recordedById) {
+    async processQrScan(sessionId, qrCodeToken, user) {
         const session = await this.prisma.lessonSession.findUnique({
             where: { id: sessionId },
             include: {
@@ -38,6 +38,12 @@ let AttendanceService = AttendanceService_1 = class AttendanceService {
         });
         if (!session) {
             throw new common_1.NotFoundException(`Lesson session [${sessionId}] not found`);
+        }
+        if (user.role === client_1.UserRole.TEACHER) {
+            const teacherId = user.teacherProfileId || user.id;
+            if (session.group.teacherId !== teacherId && session.group.teacherId !== user.id) {
+                throw new common_1.ForbiddenException('You do not own the academic group for this session');
+            }
         }
         const student = await this.prisma.studentProfile.findUnique({
             where: { qrCodeToken },
@@ -57,7 +63,7 @@ let AttendanceService = AttendanceService_1 = class AttendanceService {
         if (!enrollment || enrollment.status !== client_1.GroupEnrollmentStatus.ACTIVE) {
             throw new common_1.BadRequestException(`Student [${student.user.fullName}] is not actively enrolled in group [${session.group.name}]`);
         }
-        const result = await this.attendanceRepository.recordQrScan(session.id, student.id, recordedById);
+        const result = await this.attendanceRepository.recordQrScan(session.id, student.id, user.id);
         if (!result.isDuplicate) {
             this.eventEmitter.emit('attendance.recorded', {
                 sessionId: session.id,
@@ -82,13 +88,33 @@ let AttendanceService = AttendanceService_1 = class AttendanceService {
             },
         };
     }
-    async recordManualBatch(sessionId, dto, recordedById) {
+    async recordManualBatch(sessionId, dto, user) {
         const session = await this.prisma.lessonSession.findUnique({
             where: { id: sessionId },
             include: { group: true },
         });
         if (!session) {
             throw new common_1.NotFoundException(`Lesson session [${sessionId}] not found`);
+        }
+        if (user.role === client_1.UserRole.TEACHER) {
+            const teacherId = user.teacherProfileId || user.id;
+            if (session.group.teacherId !== teacherId && session.group.teacherId !== user.id) {
+                throw new common_1.ForbiddenException('You do not own the academic group for this session');
+            }
+        }
+        const studentIds = dto.records.map((r) => r.studentId);
+        const activeEnrollments = await this.prisma.groupEnrollment.findMany({
+            where: {
+                groupId: session.groupId,
+                studentId: { in: studentIds },
+                status: client_1.GroupEnrollmentStatus.ACTIVE,
+            },
+            select: { studentId: true },
+        });
+        const enrolledSet = new Set(activeEnrollments.map((e) => e.studentId));
+        const nonEnrolled = studentIds.filter((id) => !enrolledSet.has(id));
+        if (nonEnrolled.length > 0) {
+            throw new common_1.BadRequestException(`Cannot record attendance for non-enrolled students: ${nonEnrolled.join(', ')}`);
         }
         const updatedRecords = [];
         await this.prisma.$transaction(async (tx) => {
@@ -105,14 +131,14 @@ let AttendanceService = AttendanceService_1 = class AttendanceService {
                         studentId: item.studentId,
                         status: item.status,
                         recordingMethod: client_1.RecordingMethod.MANUAL,
-                        recordedById,
+                        recordedById: user.id,
                         notes: item.notes,
                         recordedAt: new Date(),
                     },
                     update: {
                         status: item.status,
                         recordingMethod: client_1.RecordingMethod.MANUAL,
-                        recordedById,
+                        recordedById: user.id,
                         notes: item.notes,
                     },
                 });
@@ -145,7 +171,7 @@ let AttendanceService = AttendanceService_1 = class AttendanceService {
             },
         };
     }
-    async getSessionReport(sessionId) {
+    async getSessionReport(sessionId, user) {
         const session = await this.prisma.lessonSession.findUnique({
             where: { id: sessionId },
             include: {
@@ -177,6 +203,12 @@ let AttendanceService = AttendanceService_1 = class AttendanceService {
         });
         if (!session) {
             throw new common_1.NotFoundException(`Lesson session [${sessionId}] not found`);
+        }
+        if (user.role === client_1.UserRole.TEACHER) {
+            const teacherId = user.teacherProfileId || user.id;
+            if (session.group.teacherId !== teacherId && session.group.teacherId !== user.id) {
+                throw new common_1.ForbiddenException('You do not own the academic group for this session');
+            }
         }
         const totalEnrolled = session.group.enrollments.length;
         const presentCount = session.attendanceRecords.filter((r) => r.status === client_1.AttendanceStatus.PRESENT).length;

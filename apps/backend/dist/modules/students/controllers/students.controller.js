@@ -20,6 +20,7 @@ const create_student_dto_1 = require("../dto/create-student.dto");
 const student_query_dto_1 = require("../dto/student-query.dto");
 const qr_code_response_dto_1 = require("../dto/qr-code-response.dto");
 const roles_decorator_1 = require("../../../core/security/decorators/roles.decorator");
+const current_user_decorator_1 = require("../../../core/security/decorators/current-user.decorator");
 const client_1 = require("@prisma/client");
 let StudentsController = class StudentsController {
     constructor(studentsService) {
@@ -31,14 +32,14 @@ let StudentsController = class StudentsController {
     async getStudents(query) {
         return this.studentsService.getStudents(query);
     }
-    async getStudentById(id) {
-        return this.studentsService.getStudentById(id);
+    async getStudentById(id, user) {
+        return this.studentsService.getStudentById(id, user);
     }
-    async getStudentQrCode(id) {
-        return this.studentsService.getStudentQrCode(id);
+    async getStudentQrCode(id, user) {
+        return this.studentsService.getStudentQrCode(id, user);
     }
-    async regenerateQrToken(id) {
-        return this.studentsService.regenerateQrToken(id);
+    async regenerateQrToken(id, user) {
+        return this.studentsService.regenerateQrToken(id, user);
     }
 };
 exports.StudentsController = StudentsController;
@@ -66,8 +67,9 @@ __decorate([
     (0, roles_decorator_1.Roles)(client_1.UserRole.TEACHER, client_1.UserRole.SECRETARIAT, client_1.UserRole.PARENT, client_1.UserRole.STUDENT),
     (0, swagger_1.ApiOperation)({ summary: 'Get student demographic and academic profile by ID' }),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], StudentsController.prototype, "getStudentById", null);
 __decorate([
@@ -76,8 +78,9 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Retrieve QR credential badge payload for digital display' }),
     (0, swagger_1.ApiResponse)({ status: 200, type: qr_code_response_dto_1.StudentQrCodeResponseDto }),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], StudentsController.prototype, "getStudentQrCode", null);
 __decorate([
@@ -87,8 +90,9 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Revoke old QR token and issue a fresh cryptographic roll-call token' }),
     (0, swagger_1.ApiResponse)({ status: 200, type: qr_code_response_dto_1.StudentQrCodeResponseDto }),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], StudentsController.prototype, "regenerateQrToken", null);
 exports.StudentsController = StudentsController = __decorate([

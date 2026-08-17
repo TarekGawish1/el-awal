@@ -7,10 +7,10 @@ export declare class NotificationsController {
     getNotifications(user: AuthenticatedUser, query: CursorPaginationDto): Promise<import("../../../common/pagination/cursor-pagination.helper").PaginatedResult<{
         id: string;
         createdAt: Date;
-        recipientId: string;
+        message: string;
         type: string;
         title: string;
-        message: string;
+        recipientId: string;
         referenceEntityId: string | null;
         isRead: boolean;
         readAt: Date | null;

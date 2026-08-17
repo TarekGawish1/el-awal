@@ -31,8 +31,8 @@ let AssessmentsController = class AssessmentsController {
         const isSecretariat = user.role === client_1.UserRole.SECRETARIAT;
         return this.assessmentsService.createAssessment(user.teacherProfileId || user.id, isSecretariat, dto);
     }
-    async getAssessments(query) {
-        return this.assessmentsService.getAssessments(query);
+    async getAssessments(query, user) {
+        return this.assessmentsService.getAssessments(query, user);
     }
     async getAssessmentById(id, user) {
         return this.assessmentsService.getAssessmentById(id, user);
@@ -67,8 +67,9 @@ __decorate([
     (0, roles_decorator_1.Roles)(client_1.UserRole.TEACHER, client_1.UserRole.SECRETARIAT, client_1.UserRole.STUDENT, client_1.UserRole.PARENT),
     (0, swagger_1.ApiOperation)({ summary: 'List assessments with Keyset pagination and course/group filters' }),
     __param(0, (0, common_1.Query)()),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [assessment_query_dto_1.AssessmentQueryDto]),
+    __metadata("design:paramtypes", [assessment_query_dto_1.AssessmentQueryDto, Object]),
     __metadata("design:returntype", Promise)
 ], AssessmentsController.prototype, "getAssessments", null);
 __decorate([

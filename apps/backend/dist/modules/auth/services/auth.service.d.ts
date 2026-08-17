@@ -10,6 +10,8 @@ export interface JwtTokenPayload {
     email?: string;
     phone?: string;
     role: UserRole;
+    typ: 'access' | 'refresh';
+    jti?: string;
 }
 export declare class AuthService {
     private readonly prisma;
@@ -17,10 +19,16 @@ export declare class AuthService {
     private readonly configService;
     private readonly logger;
     constructor(prisma: PrismaService, jwtService: JwtService, configService: ConfigService);
+    private hashToken;
     login(dto: LoginDto): Promise<AuthTokensResponseDto>;
     refreshToken(dto: RefreshTokenDto): Promise<{
         accessToken: string;
         refreshToken: string;
     }>;
+    logout(dto: RefreshTokenDto): Promise<{
+        success: boolean;
+        message: string;
+    }>;
+    revokeAllUserSessions(userId: string): Promise<void>;
     hashPassword(password: string): Promise<string>;
 }

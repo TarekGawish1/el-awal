@@ -26,16 +26,16 @@ let SubscriptionsController = class SubscriptionsController {
         this.subscriptionsService = subscriptionsService;
     }
     async recordPayment(dto, user) {
-        return this.subscriptionsService.recordStudentPayment(user.id, dto);
+        return this.subscriptionsService.recordStudentPayment(user, dto);
     }
-    async getPaymentLog(query) {
-        return this.subscriptionsService.getPaymentLog(query);
+    async getPaymentLog(query, user) {
+        return this.subscriptionsService.getPaymentLog(query, user);
     }
-    async getStudentPaymentHistory(studentId) {
-        return this.subscriptionsService.getStudentPaymentHistory(studentId);
+    async getStudentPaymentHistory(studentId, user) {
+        return this.subscriptionsService.getStudentPaymentHistory(studentId, user);
     }
-    async getGroupDefaulters(groupId, periodYear, periodMonth) {
-        return this.subscriptionsService.getGroupDefaulters(groupId, periodYear, periodMonth);
+    async getGroupDefaulters(groupId, periodYear, periodMonth, user) {
+        return this.subscriptionsService.getGroupDefaulters(groupId, periodYear, periodMonth, user);
     }
 };
 exports.SubscriptionsController = SubscriptionsController;
@@ -55,8 +55,9 @@ __decorate([
     (0, roles_decorator_1.Roles)(client_1.UserRole.SECRETARIAT, client_1.UserRole.TEACHER),
     (0, swagger_1.ApiOperation)({ summary: 'List payment audit log with Keyset cursor pagination and period filters' }),
     __param(0, (0, common_1.Query)()),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [payment_query_dto_1.PaymentQueryDto]),
+    __metadata("design:paramtypes", [payment_query_dto_1.PaymentQueryDto, Object]),
     __metadata("design:returntype", Promise)
 ], SubscriptionsController.prototype, "getPaymentLog", null);
 __decorate([
@@ -64,8 +65,9 @@ __decorate([
     (0, roles_decorator_1.Roles)(client_1.UserRole.SECRETARIAT, client_1.UserRole.TEACHER, client_1.UserRole.PARENT, client_1.UserRole.STUDENT),
     (0, swagger_1.ApiOperation)({ summary: 'Get billing and payment history for a student' }),
     __param(0, (0, common_1.Param)('studentId')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], SubscriptionsController.prototype, "getStudentPaymentHistory", null);
 __decorate([
@@ -75,8 +77,9 @@ __decorate([
     __param(0, (0, common_1.Param)('groupId')),
     __param(1, (0, common_1.Query)('periodYear', common_1.ParseIntPipe)),
     __param(2, (0, common_1.Query)('periodMonth', common_1.ParseIntPipe)),
+    __param(3, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Number, Number]),
+    __metadata("design:paramtypes", [String, Number, Number, Object]),
     __metadata("design:returntype", Promise)
 ], SubscriptionsController.prototype, "getGroupDefaulters", null);
 exports.SubscriptionsController = SubscriptionsController = __decorate([

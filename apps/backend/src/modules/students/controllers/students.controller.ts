@@ -14,6 +14,7 @@ import { CreateStudentDto } from '../dto/create-student.dto';
 import { StudentQueryDto } from '../dto/student-query.dto';
 import { StudentQrCodeResponseDto } from '../dto/qr-code-response.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
+import { CurrentUser, AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { UserRole } from '@prisma/client';
 
 @ApiTags('Students')
@@ -40,16 +41,22 @@ export class StudentsController {
   @Get(':id')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.PARENT, UserRole.STUDENT)
   @ApiOperation({ summary: 'Get student demographic and academic profile by ID' })
-  async getStudentById(@Param('id') id: string) {
-    return this.studentsService.getStudentById(id);
+  async getStudentById(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.studentsService.getStudentById(id, user);
   }
 
   @Get(':id/qr-code')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.PARENT, UserRole.STUDENT)
   @ApiOperation({ summary: 'Retrieve QR credential badge payload for digital display' })
   @ApiResponse({ status: 200, type: StudentQrCodeResponseDto })
-  async getStudentQrCode(@Param('id') id: string): Promise<StudentQrCodeResponseDto> {
-    return this.studentsService.getStudentQrCode(id);
+  async getStudentQrCode(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<StudentQrCodeResponseDto> {
+    return this.studentsService.getStudentQrCode(id, user);
   }
 
   @Post(':id/regenerate-qr-token')
@@ -57,7 +64,10 @@ export class StudentsController {
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Revoke old QR token and issue a fresh cryptographic roll-call token' })
   @ApiResponse({ status: 200, type: StudentQrCodeResponseDto })
-  async regenerateQrToken(@Param('id') id: string): Promise<StudentQrCodeResponseDto> {
-    return this.studentsService.regenerateQrToken(id);
+  async regenerateQrToken(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<StudentQrCodeResponseDto> {
+    return this.studentsService.regenerateQrToken(id, user);
   }
 }

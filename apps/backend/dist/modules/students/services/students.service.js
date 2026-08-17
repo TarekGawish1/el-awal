@@ -139,10 +139,73 @@ let StudentsService = StudentsService_1 = class StudentsService {
             };
         });
     }
-    async getStudentById(studentId) {
+    async assertStudentAccess(studentId, user, allowStudent = true, allowParent = true) {
+        if (user.role === client_1.UserRole.SECRETARIAT) {
+            return;
+        }
+        if (user.role === client_1.UserRole.STUDENT) {
+            if (!allowStudent) {
+                throw new common_1.ForbiddenException('Operation not permitted for student role');
+            }
+            const myStudentId = user.studentProfileId || user.id;
+            if (myStudentId !== studentId) {
+                throw new common_1.ForbiddenException('Students can only access their own student profile');
+            }
+            return;
+        }
+        if (user.role === client_1.UserRole.PARENT) {
+            if (!allowParent) {
+                throw new common_1.ForbiddenException('Operation not permitted for parent role');
+            }
+            const parentId = user.parentProfileId || user.id;
+            const link = await this.prisma.parentStudentLink.findUnique({
+                where: {
+                    parentId_studentId: {
+                        parentId,
+                        studentId,
+                    },
+                },
+            });
+            if (!link) {
+                throw new common_1.ForbiddenException('Guardians can only access linked children records');
+            }
+            return;
+        }
+        if (user.role === client_1.UserRole.TEACHER) {
+            const teacherId = user.teacherProfileId || user.id;
+            const enrolledInTeacherGroup = await this.prisma.groupEnrollment.findFirst({
+                where: {
+                    studentId,
+                    status: client_1.GroupEnrollmentStatus.ACTIVE,
+                    group: {
+                        OR: [
+                            { teacherId },
+                            { teacher: { id: teacherId } },
+                        ],
+                    },
+                },
+            });
+            if (!enrolledInTeacherGroup) {
+                throw new common_1.ForbiddenException('Student is not enrolled in any of your academic groups');
+            }
+            return;
+        }
+        throw new common_1.ForbiddenException('Unauthorized access');
+    }
+    async getStudentById(studentId, user) {
+        await this.assertStudentAccess(studentId, user, true, true);
         const student = await this.prisma.studentProfile.findUnique({
             where: { id: studentId },
-            include: {
+            select: {
+                id: true,
+                studentCode: true,
+                gradeLevel: true,
+                academicStage: true,
+                academicStatus: true,
+                dateOfBirth: true,
+                emergencyPhone: true,
+                createdAt: true,
+                updatedAt: true,
                 user: { select: { id: true, fullName: true, phone: true, email: true, isActive: true } },
                 parentLinks: {
                     include: {
@@ -164,7 +227,8 @@ let StudentsService = StudentsService_1 = class StudentsService {
         }
         return student;
     }
-    async getStudentQrCode(studentId) {
+    async getStudentQrCode(studentId, user) {
+        await this.assertStudentAccess(studentId, user, true, true);
         const student = await this.prisma.studentProfile.findUnique({
             where: { id: studentId },
             include: { user: { select: { fullName: true } } },
@@ -180,7 +244,8 @@ let StudentsService = StudentsService_1 = class StudentsService {
             qrCodeToken: student.qrCodeToken,
         };
     }
-    async regenerateQrToken(studentId) {
+    async regenerateQrToken(studentId, user) {
+        await this.assertStudentAccess(studentId, user, false, false);
         const newQrToken = `qr_tok_${(0, crypto_1.randomUUID)().replace(/-/g, '')}`;
         const updatedStudent = await this.prisma.studentProfile.update({
             where: { id: studentId },

@@ -48,8 +48,11 @@ export class AssessmentsController {
   @Get()
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT, UserRole.PARENT)
   @ApiOperation({ summary: 'List assessments with Keyset pagination and course/group filters' })
-  async getAssessments(@Query() query: AssessmentQueryDto) {
-    return this.assessmentsService.getAssessments(query);
+  async getAssessments(
+    @Query() query: AssessmentQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.assessmentsService.getAssessments(query, user);
   }
 
   @Get(':id')

@@ -7,6 +7,7 @@ export interface JwtPayload {
     role: string;
     email?: string;
     phone?: string;
+    typ?: string;
 }
 declare const JwtStrategy_base: new (...args: any[]) => Strategy;
 export declare class JwtStrategy extends JwtStrategy_base {

@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
@@ -13,6 +14,7 @@ import { StudentQueryDto } from '../dto/student-query.dto';
 import { StudentQrCodeResponseDto } from '../dto/qr-code-response.dto';
 import { UserRole, GroupEnrollmentStatus } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
+import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 
 @Injectable()
 export class StudentsService {
@@ -162,13 +164,89 @@ export class StudentsService {
     });
   }
 
+  private async assertStudentAccess(
+    studentId: string,
+    user: AuthenticatedUser,
+    allowStudent = true,
+    allowParent = true,
+  ) {
+    if (user.role === UserRole.SECRETARIAT) {
+      return;
+    }
+
+    if (user.role === UserRole.STUDENT) {
+      if (!allowStudent) {
+        throw new ForbiddenException('Operation not permitted for student role');
+      }
+      const myStudentId = user.studentProfileId || user.id;
+      if (myStudentId !== studentId) {
+        throw new ForbiddenException('Students can only access their own student profile');
+      }
+      return;
+    }
+
+    if (user.role === UserRole.PARENT) {
+      if (!allowParent) {
+        throw new ForbiddenException('Operation not permitted for parent role');
+      }
+      const parentId = user.parentProfileId || user.id;
+      const link = await this.prisma.parentStudentLink.findUnique({
+        where: {
+          parentId_studentId: {
+            parentId,
+            studentId,
+          },
+        },
+      });
+      if (!link) {
+        throw new ForbiddenException('Guardians can only access linked children records');
+      }
+      return;
+    }
+
+    if (user.role === UserRole.TEACHER) {
+      const teacherId = user.teacherProfileId || user.id;
+      const enrolledInTeacherGroup = await this.prisma.groupEnrollment.findFirst({
+        where: {
+          studentId,
+          status: GroupEnrollmentStatus.ACTIVE,
+          group: {
+            OR: [
+              { teacherId },
+              { teacher: { id: teacherId } },
+            ],
+          },
+        },
+      });
+
+      if (!enrolledInTeacherGroup) {
+        throw new ForbiddenException('Student is not enrolled in any of your academic groups');
+      }
+      return;
+    }
+
+    throw new ForbiddenException('Unauthorized access');
+  }
+
   /**
    * Retrieves single student by ID with user, parent links, and group enrollments.
+   * Omit raw qrCodeToken from general profile responses to prevent credential exposure.
    */
-  async getStudentById(studentId: string) {
+  async getStudentById(studentId: string, user: AuthenticatedUser) {
+    await this.assertStudentAccess(studentId, user, true, true);
+
     const student = await this.prisma.studentProfile.findUnique({
       where: { id: studentId },
-      include: {
+      select: {
+        id: true,
+        studentCode: true,
+        gradeLevel: true,
+        academicStage: true,
+        academicStatus: true,
+        dateOfBirth: true,
+        emergencyPhone: true,
+        createdAt: true,
+        updatedAt: true,
         user: { select: { id: true, fullName: true, phone: true, email: true, isActive: true } },
         parentLinks: {
           include: {
@@ -196,7 +274,9 @@ export class StudentsService {
   /**
    * Generates QR display payload for digital badge rendering.
    */
-  async getStudentQrCode(studentId: string): Promise<StudentQrCodeResponseDto> {
+  async getStudentQrCode(studentId: string, user: AuthenticatedUser): Promise<StudentQrCodeResponseDto> {
+    await this.assertStudentAccess(studentId, user, true, true);
+
     const student = await this.prisma.studentProfile.findUnique({
       where: { id: studentId },
       include: { user: { select: { fullName: true } } },
@@ -218,7 +298,9 @@ export class StudentsService {
   /**
    * Cryptographically revokes old QR token and issues a new opaque random token.
    */
-  async regenerateQrToken(studentId: string): Promise<StudentQrCodeResponseDto> {
+  async regenerateQrToken(studentId: string, user: AuthenticatedUser): Promise<StudentQrCodeResponseDto> {
+    await this.assertStudentAccess(studentId, user, false, false);
+
     const newQrToken = `qr_tok_${randomUUID().replace(/-/g, '')}`;
 
     const updatedStudent = await this.prisma.studentProfile.update({

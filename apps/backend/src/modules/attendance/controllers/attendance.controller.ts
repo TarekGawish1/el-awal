@@ -34,7 +34,7 @@ export class AttendanceController {
     @Body() dto: ScanQrDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.attendanceService.processQrScan(sessionId, dto.qrCodeToken, user.id);
+    return this.attendanceService.processQrScan(sessionId, dto.qrCodeToken, user);
   }
 
   @Post('sessions/:sessionId/manual')
@@ -47,14 +47,17 @@ export class AttendanceController {
     @Body() dto: BatchAttendanceDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.attendanceService.recordManualBatch(sessionId, dto, user.id);
+    return this.attendanceService.recordManualBatch(sessionId, dto, user);
   }
 
   @Get('sessions/:sessionId/report')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Get consolidated attendance rate metrics and roster log for a session' })
-  async getSessionReport(@Param('sessionId') sessionId: string) {
-    return this.attendanceService.getSessionReport(sessionId);
+  async getSessionReport(
+    @Param('sessionId') sessionId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.attendanceService.getSessionReport(sessionId, user);
   }
 
   @Get('student/:studentId')

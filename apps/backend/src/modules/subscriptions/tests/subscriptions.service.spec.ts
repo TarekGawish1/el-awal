@@ -2,12 +2,18 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SubscriptionsService } from '../services/subscriptions.service';
 import { PrismaService } from '../../../core/database/prisma.service';
-import { PaymentStatus, GroupEnrollmentStatus } from '@prisma/client';
+import { PaymentStatus, GroupEnrollmentStatus, UserRole } from '@prisma/client';
+import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 
 describe('SubscriptionsService', () => {
   let service: SubscriptionsService;
   let prisma: PrismaService;
   let eventEmitter: EventEmitter2;
+
+  const mockUser: AuthenticatedUser = {
+    id: 'staff-1',
+    role: UserRole.SECRETARIAT,
+  };
 
   const mockPrismaService = {
     studentProfile: {
@@ -21,6 +27,7 @@ describe('SubscriptionsService', () => {
       findMany: jest.fn(),
     },
     groupEnrollment: {
+      findUnique: jest.fn(),
       findMany: jest.fn(),
     },
   };
@@ -48,7 +55,6 @@ describe('SubscriptionsService', () => {
     it('should record payment and emit payment.recorded domain event', async () => {
       const studentId = 'stu-1';
       const groupId = 'group-1';
-      const recordedById = 'staff-1';
 
       mockPrismaService.studentProfile.findUnique.mockResolvedValue({
         id: studentId,
@@ -59,6 +65,12 @@ describe('SubscriptionsService', () => {
         id: groupId,
         name: 'مجموعة أ',
         monthlyFee: 400.0,
+      });
+
+      mockPrismaService.groupEnrollment.findUnique.mockResolvedValue({
+        groupId,
+        studentId,
+        status: GroupEnrollmentStatus.ACTIVE,
       });
 
       const mockPayment = {
@@ -74,7 +86,7 @@ describe('SubscriptionsService', () => {
 
       mockPrismaService.studentPaymentRecord.upsert.mockResolvedValue(mockPayment);
 
-      const result = await service.recordStudentPayment(recordedById, {
+      const result = await service.recordStudentPayment(mockUser, {
         studentId,
         groupId,
         periodYear: 2026,
@@ -135,7 +147,7 @@ describe('SubscriptionsService', () => {
         { studentId: 'stu-1' }, // stu-1 paid
       ]);
 
-      const result = await service.getGroupDefaulters(groupId, 2026, 9);
+      const result = await service.getGroupDefaulters(groupId, 2026, 9, mockUser);
 
       expect(result.totalEnrolled).toBe(2);
       expect(result.totalDefaulters).toBe(1);

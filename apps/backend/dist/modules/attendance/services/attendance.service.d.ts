@@ -11,7 +11,7 @@ export declare class AttendanceService {
     private readonly eventEmitter;
     private readonly logger;
     constructor(prisma: PrismaService, attendanceRepository: AttendanceRepository, eventEmitter: EventEmitter2);
-    processQrScan(sessionId: string, qrCodeToken: string, recordedById: string): Promise<{
+    processQrScan(sessionId: string, qrCodeToken: string, user: AuthenticatedUser): Promise<{
         isDuplicate: boolean;
         student: {
             id: string;
@@ -20,20 +20,20 @@ export declare class AttendanceService {
         };
         attendance: {
             id: string;
-            studentId: string;
-            recordedById: string;
-            notes: string | null;
             status: import(".prisma/client").$Enums.AttendanceStatus;
+            studentId: string;
             sessionId: string;
             recordingMethod: import(".prisma/client").$Enums.RecordingMethod;
+            recordedById: string;
             recordedAt: Date;
+            notes: string | null;
         };
         sessionStats: {
             totalPresent: number;
             totalEnrolled: number;
         };
     }>;
-    recordManualBatch(sessionId: string, dto: BatchAttendanceDto, recordedById: string): Promise<{
+    recordManualBatch(sessionId: string, dto: BatchAttendanceDto, user: AuthenticatedUser): Promise<{
         sessionId: string;
         updatedCount: number;
         sessionStats: {
@@ -43,7 +43,7 @@ export declare class AttendanceService {
             totalEnrolled: number;
         };
     }>;
-    getSessionReport(sessionId: string): Promise<{
+    getSessionReport(sessionId: string, user: AuthenticatedUser): Promise<{
         sessionId: string;
         sessionDate: Date;
         topic: string;
@@ -71,12 +71,12 @@ export declare class AttendanceService {
     }>;
     getStudentHistory(studentId: string, pagination: CursorPaginationDto, status?: AttendanceStatus, user?: AuthenticatedUser): Promise<import("../../../common/pagination/cursor-pagination.helper").PaginatedResult<{
         id: string;
-        studentId: string;
-        recordedById: string;
-        notes: string | null;
         status: import(".prisma/client").$Enums.AttendanceStatus;
+        studentId: string;
         sessionId: string;
         recordingMethod: import(".prisma/client").$Enums.RecordingMethod;
+        recordedById: string;
         recordedAt: Date;
+        notes: string | null;
     }>>;
 }

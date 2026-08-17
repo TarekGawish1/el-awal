@@ -13,9 +13,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PrismaService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
+const config_1 = require("@nestjs/config");
 let PrismaService = PrismaService_1 = class PrismaService extends client_1.PrismaClient {
-    constructor() {
+    constructor(configService) {
+        const databaseUrl = configService.get('DATABASE_URL');
         super({
+            datasources: {
+                db: {
+                    url: databaseUrl,
+                },
+            },
             log: [
                 { emit: 'event', level: 'info' },
                 { emit: 'event', level: 'warn' },
@@ -58,6 +65,6 @@ let PrismaService = PrismaService_1 = class PrismaService extends client_1.Prism
 exports.PrismaService = PrismaService;
 exports.PrismaService = PrismaService = PrismaService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [])
+    __metadata("design:paramtypes", [config_1.ConfigService])
 ], PrismaService);
 //# sourceMappingURL=prisma.service.js.map

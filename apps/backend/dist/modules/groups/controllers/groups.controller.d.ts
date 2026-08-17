@@ -7,11 +7,11 @@ export declare class GroupsController {
     constructor(groupsService: GroupsService);
     createGroup(dto: CreateGroupDto, user: AuthenticatedUser): Promise<{
         id: string;
+        isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
-        isActive: boolean;
-        name: string;
         gradeLevel: string;
+        name: string;
         description: string | null;
         maxCapacity: number;
         monthlyFee: import("@prisma/client/runtime/library").Decimal;
@@ -25,18 +25,18 @@ export declare class GroupsController {
         schedules: {
             id: string;
             groupId: string;
-            startTime: string;
             dayOfWeek: number;
+            startTime: string;
             endTime: string;
             location: string | null;
         }[];
     } & {
         id: string;
+        isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
-        isActive: boolean;
-        name: string;
         gradeLevel: string;
+        name: string;
         description: string | null;
         maxCapacity: number;
         monthlyFee: import("@prisma/client/runtime/library").Decimal;
@@ -50,18 +50,18 @@ export declare class GroupsController {
         schedules: {
             id: string;
             groupId: string;
-            startTime: string;
             dayOfWeek: number;
+            startTime: string;
             endTime: string;
             location: string | null;
         }[];
     } & {
         id: string;
+        isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
-        isActive: boolean;
-        name: string;
         gradeLevel: string;
+        name: string;
         description: string | null;
         maxCapacity: number;
         monthlyFee: import("@prisma/client/runtime/library").Decimal;
@@ -69,17 +69,17 @@ export declare class GroupsController {
     }>;
     enrollStudent(groupId: string, dto: EnrollStudentDto, user: AuthenticatedUser): Promise<{
         id: string;
-        studentId: string;
-        groupId: string;
-        enrolledAt: Date;
         status: import(".prisma/client").$Enums.GroupEnrollmentStatus;
+        groupId: string;
+        studentId: string;
+        enrolledAt: Date;
     }>;
     dropStudent(groupId: string, studentId: string, user: AuthenticatedUser): Promise<{
         id: string;
-        studentId: string;
-        groupId: string;
-        enrolledAt: Date;
         status: import(".prisma/client").$Enums.GroupEnrollmentStatus;
+        groupId: string;
+        studentId: string;
+        enrolledAt: Date;
     }>;
     getGroupRoster(groupId: string, user: AuthenticatedUser): Promise<{
         groupId: string;
@@ -95,8 +95,8 @@ export declare class GroupsController {
             gradeLevel: string;
             enrolledAt: Date;
             parent: {
-                fullName: string;
                 phone: string;
+                fullName: string;
             };
             attendanceRate: number;
             totalPresent: number;

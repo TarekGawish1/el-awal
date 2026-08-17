@@ -39,8 +39,8 @@ let CoursesController = class CoursesController {
     async getMyCourses(user) {
         return this.coursesService.getMyCourses(user.studentProfileId || user.id);
     }
-    async getCourseDetails(id) {
-        return this.coursesService.getCourseDetails(id);
+    async getCourseDetails(id, user) {
+        return this.coursesService.getCourseDetails(id, user);
     }
     async updateCourse(id, dto, user) {
         const isSecretariat = user.role === client_1.UserRole.SECRETARIAT;
@@ -99,8 +99,9 @@ __decorate([
     (0, roles_decorator_1.Roles)(client_1.UserRole.TEACHER, client_1.UserRole.SECRETARIAT, client_1.UserRole.STUDENT, client_1.UserRole.PARENT),
     (0, swagger_1.ApiOperation)({ summary: 'Get course outline, modules, and ordered lesson list' }),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], CoursesController.prototype, "getCourseDetails", null);
 __decorate([

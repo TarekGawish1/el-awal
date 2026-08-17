@@ -20,12 +20,15 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
         super({
             jwtFromRequest: passport_jwt_1.ExtractJwt.fromAuthHeaderAsBearerToken(),
             ignoreExpiration: false,
-            secretOrKey: configService.get('JWT_SECRET', 'super-secret-default-jwt-key-change-in-prod'),
+            secretOrKey: configService.getOrThrow('JWT_ACCESS_SECRET'),
         });
         this.configService = configService;
         this.prisma = prisma;
     }
     async validate(payload) {
+        if (payload.typ && payload.typ !== 'access') {
+            throw new common_1.UnauthorizedException('Invalid token type');
+        }
         const user = await this.prisma.user.findUnique({
             where: { id: payload.sub },
             include: {

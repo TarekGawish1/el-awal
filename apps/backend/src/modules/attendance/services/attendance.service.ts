@@ -26,7 +26,7 @@ export class AttendanceService {
   /**
    * 7-Tier Verification Pipeline for QR Code Roll-call Check-in.
    */
-  async processQrScan(sessionId: string, qrCodeToken: string, recordedById: string) {
+  async processQrScan(sessionId: string, qrCodeToken: string, user: AuthenticatedUser) {
     // 1. Session Verification
     const session = await this.prisma.lessonSession.findUnique({
       where: { id: sessionId },
@@ -43,6 +43,14 @@ export class AttendanceService {
 
     if (!session) {
       throw new NotFoundException(`Lesson session [${sessionId}] not found`);
+    }
+
+    // Authorization: If user is teacher, ensure teacher owns the group
+    if (user.role === UserRole.TEACHER) {
+      const teacherId = user.teacherProfileId || user.id;
+      if (session.group.teacherId !== teacherId && session.group.teacherId !== user.id) {
+        throw new ForbiddenException('You do not own the academic group for this session');
+      }
     }
 
     // 2. Token Resolution
@@ -75,7 +83,7 @@ export class AttendanceService {
     const result = await this.attendanceRepository.recordQrScan(
       session.id,
       student.id,
-      recordedById,
+      user.id,
     );
 
     // 5. Emit domain event if this was the first successful scan
@@ -110,7 +118,7 @@ export class AttendanceService {
   /**
    * Manual Roll-Call batch update within an atomic Prisma transaction.
    */
-  async recordManualBatch(sessionId: string, dto: BatchAttendanceDto, recordedById: string) {
+  async recordManualBatch(sessionId: string, dto: BatchAttendanceDto, user: AuthenticatedUser) {
     const session = await this.prisma.lessonSession.findUnique({
       where: { id: sessionId },
       include: { group: true },
@@ -118,6 +126,33 @@ export class AttendanceService {
 
     if (!session) {
       throw new NotFoundException(`Lesson session [${sessionId}] not found`);
+    }
+
+    // Authorization: Verify group ownership for teacher
+    if (user.role === UserRole.TEACHER) {
+      const teacherId = user.teacherProfileId || user.id;
+      if (session.group.teacherId !== teacherId && session.group.teacherId !== user.id) {
+        throw new ForbiddenException('You do not own the academic group for this session');
+      }
+    }
+
+    // Verify all students are actively enrolled in the session group before upserting
+    const studentIds = dto.records.map((r) => r.studentId);
+    const activeEnrollments = await this.prisma.groupEnrollment.findMany({
+      where: {
+        groupId: session.groupId,
+        studentId: { in: studentIds },
+        status: GroupEnrollmentStatus.ACTIVE,
+      },
+      select: { studentId: true },
+    });
+
+    const enrolledSet = new Set(activeEnrollments.map((e) => e.studentId));
+    const nonEnrolled = studentIds.filter((id) => !enrolledSet.has(id));
+    if (nonEnrolled.length > 0) {
+      throw new BadRequestException(
+        `Cannot record attendance for non-enrolled students: ${nonEnrolled.join(', ')}`,
+      );
     }
 
     const updatedRecords = [];
@@ -136,14 +171,14 @@ export class AttendanceService {
             studentId: item.studentId,
             status: item.status,
             recordingMethod: RecordingMethod.MANUAL,
-            recordedById,
+            recordedById: user.id,
             notes: item.notes,
             recordedAt: new Date(),
           },
           update: {
             status: item.status,
             recordingMethod: RecordingMethod.MANUAL,
-            recordedById,
+            recordedById: user.id,
             notes: item.notes,
           },
         });
@@ -185,7 +220,7 @@ export class AttendanceService {
   /**
    * Comprehensive session attendance KPI report.
    */
-  async getSessionReport(sessionId: string) {
+  async getSessionReport(sessionId: string, user: AuthenticatedUser) {
     const session = await this.prisma.lessonSession.findUnique({
       where: { id: sessionId },
       include: {
@@ -218,6 +253,14 @@ export class AttendanceService {
 
     if (!session) {
       throw new NotFoundException(`Lesson session [${sessionId}] not found`);
+    }
+
+    // Authorization: Verify group ownership for teacher
+    if (user.role === UserRole.TEACHER) {
+      const teacherId = user.teacherProfileId || user.id;
+      if (session.group.teacherId !== teacherId && session.group.teacherId !== user.id) {
+        throw new ForbiddenException('You do not own the academic group for this session');
+      }
     }
 
     const totalEnrolled = session.group.enrollments.length;

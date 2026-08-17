@@ -13,7 +13,13 @@ import { SubmitAssessmentDto } from '../dto/submit-assessment.dto';
 import { GradeSubmissionDto } from '../dto/grade-submission.dto';
 import { AssessmentQueryDto } from '../dto/assessment-query.dto';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
-import { QuestionType, SubmissionStatus, UserRole } from '@prisma/client';
+import {
+  QuestionType,
+  SubmissionStatus,
+  UserRole,
+  GroupEnrollmentStatus,
+  CourseEnrollmentStatus,
+} from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
 
 @Injectable()
@@ -26,14 +32,47 @@ export class AssessmentsService {
   ) {}
 
   /**
-   * Creates an assessment along with its ordered question bank in an atomic transaction.
+   * Authoring Pipeline for Exam / Homework creation with embedded questions.
    */
   async createAssessment(
     teacherId: string,
     isSecretariat: boolean,
     dto: CreateAssessmentDto,
   ) {
-    // 1. Verify sum of question points matches total assessment score
+    // 1. Validate resource ownership and consistency
+    if (!isSecretariat) {
+      if (dto.groupId) {
+        const group = await this.prisma.academicGroup.findUnique({
+          where: { id: dto.groupId },
+        });
+        if (!group) throw new NotFoundException(`Group [${dto.groupId}] not found`);
+        if (group.teacherId !== teacherId) {
+          throw new ForbiddenException('You do not own this academic group');
+        }
+      }
+
+      if (dto.courseId) {
+        const course = await this.prisma.course.findUnique({
+          where: { id: dto.courseId },
+        });
+        if (!course) throw new NotFoundException(`Course [${dto.courseId}] not found`);
+        if (course.teacherId !== teacherId) {
+          throw new ForbiddenException('You do not own this course');
+        }
+      }
+    }
+
+    if (dto.lessonId && dto.courseId) {
+      const lesson = await this.prisma.courseLesson.findUnique({
+        where: { id: dto.lessonId },
+        include: { module: true },
+      });
+      if (!lesson || lesson.module.courseId !== dto.courseId) {
+        throw new BadRequestException('Lesson does not belong to the specified course');
+      }
+    }
+
+    // 2. Verify sum of question points matches total assessment score
     const totalCalculated = dto.questions.reduce(
       (sum, q) => sum + Number(q.points),
       0,
@@ -45,7 +84,7 @@ export class AssessmentsService {
       );
     }
 
-    // 2. Determine if assessment is 100% auto-gradable (no subjective essays)
+    // 3. Determine if assessment is 100% auto-gradable (no subjective essays)
     const isAutoGraded = dto.questions.every(
       (q) =>
         q.questionType === QuestionType.MULTIPLE_CHOICE ||
@@ -100,7 +139,7 @@ export class AssessmentsService {
   /**
    * Keyset cursor-paginated list of assessments with course, group, and publication status filters.
    */
-  async getAssessments(query: AssessmentQueryDto) {
+  async getAssessments(query: AssessmentQueryDto, user: AuthenticatedUser) {
     const limit = CursorPaginationHelper.sanitizeLimit(query.limit);
     const decodedCursor = query.cursor
       ? CursorPaginationHelper.decodeCursor(query.cursor)
@@ -119,6 +158,25 @@ export class AssessmentsService {
         : {}),
       ...(cursorFilter || {}),
     };
+
+    if (user.role === UserRole.STUDENT) {
+      where.isPublished = true;
+      const studentId = user.studentProfileId || user.id;
+      where.OR = [
+        { group: { enrollments: { some: { studentId, status: GroupEnrollmentStatus.ACTIVE } } } },
+        { course: { enrollments: { some: { studentId, status: CourseEnrollmentStatus.ACTIVE } } } },
+      ];
+    } else if (user.role === UserRole.PARENT) {
+      where.isPublished = true;
+      const parentId = user.parentProfileId || user.id;
+      where.OR = [
+        { group: { enrollments: { some: { status: GroupEnrollmentStatus.ACTIVE, student: { parentLinks: { some: { parentId } } } } } } },
+        { course: { enrollments: { some: { status: CourseEnrollmentStatus.ACTIVE, student: { parentLinks: { some: { parentId } } } } } } },
+      ];
+    } else if (user.role === UserRole.TEACHER) {
+      const teacherId = user.teacherProfileId || user.id;
+      where.teacherId = teacherId;
+    }
 
     const assessments = await this.prisma.assessment.findMany({
       where,
@@ -150,8 +208,16 @@ export class AssessmentsService {
         teacher: {
           include: { user: { select: { fullName: true } } },
         },
-        group: { select: { id: true, name: true } },
-        course: { select: { id: true, title: true } },
+        group: {
+          include: {
+            enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
+          },
+        },
+        course: {
+          include: {
+            enrollments: { where: { status: CourseEnrollmentStatus.ACTIVE } },
+          },
+        },
         questions: {
           orderBy: { questionNumber: 'asc' },
         },
@@ -166,6 +232,22 @@ export class AssessmentsService {
 
     if (!assessment) {
       throw new NotFoundException(`Assessment [${assessmentId}] not found`);
+    }
+
+    if (user.role === UserRole.STUDENT) {
+      if (!assessment.isPublished) {
+        throw new NotFoundException(`Assessment [${assessmentId}] not found`);
+      }
+      const isEnrolledInGroup = assessment.groupId
+        ? assessment.group?.enrollments.some((e) => e.studentId === studentId)
+        : false;
+      const isEnrolledInCourse = assessment.courseId
+        ? assessment.course?.enrollments.some((e) => e.studentId === studentId)
+        : false;
+
+      if (assessment.groupId && !isEnrolledInGroup && assessment.courseId && !isEnrolledInCourse) {
+        throw new ForbiddenException('You are not enrolled in the group or course for this assessment');
+      }
     }
 
     const mySubmission = assessment.submissions[0] || null;
@@ -225,7 +307,19 @@ export class AssessmentsService {
   ) {
     const assessment = await this.prisma.assessment.findUnique({
       where: { id: assessmentId },
-      include: { questions: true },
+      include: {
+        questions: true,
+        group: {
+          include: {
+            enrollments: { where: { studentId, status: GroupEnrollmentStatus.ACTIVE } },
+          },
+        },
+        course: {
+          include: {
+            enrollments: { where: { studentId, status: CourseEnrollmentStatus.ACTIVE } },
+          },
+        },
+      },
     });
 
     if (!assessment) {
@@ -234,6 +328,14 @@ export class AssessmentsService {
 
     if (!assessment.isPublished) {
       throw new BadRequestException('Cannot submit to an unpublished assessment');
+    }
+
+    // Verify enrollment entitlement
+    if (assessment.groupId && assessment.group && assessment.group.enrollments.length === 0) {
+      throw new ForbiddenException('You are not enrolled in the academic group for this assessment');
+    }
+    if (assessment.courseId && assessment.course && assessment.course.enrollments.length === 0) {
+      throw new ForbiddenException('You are not enrolled in the course for this assessment');
     }
 
     // 1. Check for single attempt duplicate submission

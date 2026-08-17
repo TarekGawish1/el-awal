@@ -73,7 +73,7 @@ let CoursesService = CoursesService_1 = class CoursesService {
         });
         return cursor_pagination_helper_1.CursorPaginationHelper.formatResponse(courses, limit);
     }
-    async getCourseDetails(courseId) {
+    async getCourseDetails(courseId, user) {
         const course = await this.prisma.course.findUnique({
             where: { id: courseId },
             include: {
@@ -103,6 +103,14 @@ let CoursesService = CoursesService_1 = class CoursesService {
         });
         if (!course) {
             throw new common_1.NotFoundException(`Course [${courseId}] not found`);
+        }
+        if (user && course.status !== client_1.CourseStatus.PUBLISHED) {
+            const isSecretariat = user.role === client_1.UserRole.SECRETARIAT;
+            const isOwnerTeacher = user.role === client_1.UserRole.TEACHER &&
+                (course.teacherId === user.teacherProfileId || course.teacherId === user.id);
+            if (!isSecretariat && !isOwnerTeacher) {
+                throw new common_1.NotFoundException(`Course [${courseId}] not found`);
+            }
         }
         return course;
     }
@@ -382,6 +390,50 @@ let CoursesService = CoursesService_1 = class CoursesService {
         };
     }
     async applyMonotonicProgressBatch(studentId, items) {
+        if (!items || items.length === 0) {
+            return {
+                syncedCount: 0,
+                processedOperationIds: [],
+                courseId: '',
+                overallCourseCompletionPercentage: 0,
+            };
+        }
+        const lessonIds = items.map((i) => i.lessonId);
+        const lessons = await this.prisma.courseLesson.findMany({
+            where: { id: { in: lessonIds } },
+            include: { module: true },
+        });
+        const lessonMap = new Map(lessons.map((l) => [l.id, l.module.courseId]));
+        for (const item of items) {
+            const actualCourseId = lessonMap.get(item.lessonId);
+            if (!actualCourseId) {
+                throw new common_1.NotFoundException(`Lesson [${item.lessonId}] not found`);
+            }
+            if (actualCourseId !== item.courseId) {
+                throw new common_1.BadRequestException(`Lesson [${item.lessonId}] belongs to course [${actualCourseId}], not [${item.courseId}]`);
+            }
+        }
+        const uniqueCourseIds = [...new Set(items.map((i) => i.courseId))];
+        for (const cId of uniqueCourseIds) {
+            const hasEnrollment = await this.prisma.courseEnrollment.findFirst({
+                where: {
+                    studentId,
+                    courseId: cId,
+                    status: client_1.CourseEnrollmentStatus.ACTIVE,
+                },
+            });
+            const hasAccess = await this.prisma.courseAccess.findFirst({
+                where: {
+                    studentId,
+                    courseId: cId,
+                    accessStatus: 'ACTIVE',
+                    OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+                },
+            });
+            if (!hasEnrollment && !hasAccess) {
+                throw new common_1.ForbiddenException(`Student is not enrolled or entitled to course [${cId}]`);
+            }
+        }
         return this.progressRepository.syncBatch(studentId, items);
     }
 };

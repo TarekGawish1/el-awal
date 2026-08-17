@@ -29,15 +29,19 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
     }
   }
 
+  const isInternalApi = !endpoint.startsWith('http') || endpoint.startsWith(API_BASE_URL);
+
   const defaultHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
   };
 
-  // Attach Bearer Token if provided or from storage in browser
-  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('el_awal_token') : null);
-  if (authToken) {
-    defaultHeaders['Authorization'] = `Bearer ${authToken}`;
+  // Attach Bearer Token ONLY if request is destined for internal API base
+  if (isInternalApi) {
+    const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('el_awal_token') : null);
+    if (authToken) {
+      defaultHeaders['Authorization'] = `Bearer ${authToken}`;
+    }
   }
 
   const config: RequestInit = {
@@ -54,6 +58,10 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
 
     if (response.status === 204) {
       return {} as T;
+    }
+
+    if (response.status === 401 && typeof window !== 'undefined') {
+      localStorage.removeItem('el_awal_token');
     }
 
     const json = await response.json();

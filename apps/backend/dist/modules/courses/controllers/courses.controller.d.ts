@@ -30,11 +30,11 @@ export declare class CoursesController {
         createdAt: Date;
         updatedAt: Date;
         gradeLevel: string;
-        description: string | null;
-        teacherId: string;
         academicStage: string | null;
         status: import(".prisma/client").$Enums.CourseStatus;
+        description: string | null;
         title: string;
+        teacherId: string;
         subject: string;
         price: import("@prisma/client/runtime/library").Decimal;
         coverImageUrl: string | null;
@@ -45,11 +45,11 @@ export declare class CoursesController {
         createdAt: Date;
         updatedAt: Date;
         gradeLevel: string;
-        description: string | null;
-        teacherId: string;
         academicStage: string | null;
         status: import(".prisma/client").$Enums.CourseStatus;
+        description: string | null;
         title: string;
+        teacherId: string;
         subject: string;
         price: import("@prisma/client/runtime/library").Decimal;
         coverImageUrl: string | null;
@@ -69,14 +69,14 @@ export declare class CoursesController {
         totalLessons: number;
         progressPercentage: number;
     }[]>;
-    getCourseDetails(id: string): Promise<{
+    getCourseDetails(id: string, user: AuthenticatedUser): Promise<{
         _count: {
             enrollments: number;
         };
         teacher: {
             user: {
-                fullName: string;
                 email: string;
+                fullName: string;
             };
         } & {
             id: string;
@@ -110,11 +110,11 @@ export declare class CoursesController {
         createdAt: Date;
         updatedAt: Date;
         gradeLevel: string;
-        description: string | null;
-        teacherId: string;
         academicStage: string | null;
         status: import(".prisma/client").$Enums.CourseStatus;
+        description: string | null;
         title: string;
+        teacherId: string;
         subject: string;
         price: import("@prisma/client/runtime/library").Decimal;
         coverImageUrl: string | null;
@@ -125,11 +125,11 @@ export declare class CoursesController {
         createdAt: Date;
         updatedAt: Date;
         gradeLevel: string;
-        description: string | null;
-        teacherId: string;
         academicStage: string | null;
         status: import(".prisma/client").$Enums.CourseStatus;
+        description: string | null;
         title: string;
+        teacherId: string;
         subject: string;
         price: import("@prisma/client/runtime/library").Decimal;
         coverImageUrl: string | null;

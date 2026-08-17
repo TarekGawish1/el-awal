@@ -22,7 +22,7 @@ let SubscriptionsService = SubscriptionsService_1 = class SubscriptionsService {
         this.eventEmitter = eventEmitter;
         this.logger = new common_1.Logger(SubscriptionsService_1.name);
     }
-    async recordStudentPayment(recordedById, dto) {
+    async recordStudentPayment(user, dto) {
         const student = await this.prisma.studentProfile.findUnique({
             where: { id: dto.studentId },
             include: { user: { select: { fullName: true } } },
@@ -38,6 +38,23 @@ let SubscriptionsService = SubscriptionsService_1 = class SubscriptionsService {
             });
             if (!group) {
                 throw new common_1.NotFoundException(`Academic group [${dto.groupId}] not found`);
+            }
+            if (user.role === client_1.UserRole.TEACHER) {
+                const teacherId = user.teacherProfileId || user.id;
+                if (group.teacherId !== teacherId && group.teacherId !== user.id) {
+                    throw new common_1.ForbiddenException('You do not own the academic group for this payment');
+                }
+            }
+            const enrollment = await this.prisma.groupEnrollment.findUnique({
+                where: {
+                    groupId_studentId: {
+                        groupId: dto.groupId,
+                        studentId: dto.studentId,
+                    },
+                },
+            });
+            if (!enrollment || enrollment.status !== client_1.GroupEnrollmentStatus.ACTIVE) {
+                throw new common_1.BadRequestException('Student is not actively enrolled in this academic group');
             }
             groupName = group.name;
             if (amountExpected === undefined) {
@@ -65,7 +82,7 @@ let SubscriptionsService = SubscriptionsService_1 = class SubscriptionsService {
                 paymentMethod: dto.paymentMethod || 'CASH',
                 receiptNumber: dto.receiptNumber,
                 notes: dto.notes,
-                recordedById,
+                recordedById: user.id,
             },
             update: {
                 amountPaid: dto.amountPaid,
@@ -74,11 +91,11 @@ let SubscriptionsService = SubscriptionsService_1 = class SubscriptionsService {
                 paymentMethod: dto.paymentMethod || 'CASH',
                 receiptNumber: dto.receiptNumber,
                 notes: dto.notes,
-                recordedById,
+                recordedById: user.id,
             },
             include: {
                 student: {
-                    include: { user: { select: { fullName: true, phone: true } } },
+                    include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
                 },
                 group: { select: { id: true, name: true } },
             },
@@ -97,7 +114,7 @@ let SubscriptionsService = SubscriptionsService_1 = class SubscriptionsService {
         this.logger.log(`Payment recorded: Student [${dto.studentId}], Period ${dto.periodMonth}/${dto.periodYear}, Paid: ${dto.amountPaid} EGP`);
         return payment;
     }
-    async getPaymentLog(query) {
+    async getPaymentLog(query, user) {
         const limit = cursor_pagination_helper_1.CursorPaginationHelper.sanitizeLimit(query.limit);
         const decodedCursor = query.cursor
             ? cursor_pagination_helper_1.CursorPaginationHelper.decodeCursor(query.cursor)
@@ -111,6 +128,15 @@ let SubscriptionsService = SubscriptionsService_1 = class SubscriptionsService {
             ...(query.paymentStatus ? { paymentStatus: query.paymentStatus } : {}),
             ...(cursorFilter || {}),
         };
+        if (user.role === client_1.UserRole.TEACHER) {
+            const teacherId = user.teacherProfileId || user.id;
+            where.group = {
+                OR: [
+                    { teacherId },
+                    { teacher: { id: teacherId } },
+                ],
+            };
+        }
         const payments = await this.prisma.studentPaymentRecord.findMany({
             where,
             orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -125,7 +151,45 @@ let SubscriptionsService = SubscriptionsService_1 = class SubscriptionsService {
         });
         return cursor_pagination_helper_1.CursorPaginationHelper.formatResponse(payments, limit);
     }
-    async getStudentPaymentHistory(studentId) {
+    async getStudentPaymentHistory(studentId, user) {
+        if (user.role === client_1.UserRole.STUDENT) {
+            const myStudentId = user.studentProfileId || user.id;
+            if (myStudentId !== studentId) {
+                throw new common_1.ForbiddenException('Students can only access their own payment history');
+            }
+        }
+        else if (user.role === client_1.UserRole.PARENT) {
+            const parentId = user.parentProfileId || user.id;
+            const link = await this.prisma.parentStudentLink.findUnique({
+                where: {
+                    parentId_studentId: {
+                        parentId,
+                        studentId,
+                    },
+                },
+            });
+            if (!link) {
+                throw new common_1.ForbiddenException('Guardians can only view linked children payment history');
+            }
+        }
+        else if (user.role === client_1.UserRole.TEACHER) {
+            const teacherId = user.teacherProfileId || user.id;
+            const enrolledInTeacherGroup = await this.prisma.groupEnrollment.findFirst({
+                where: {
+                    studentId,
+                    status: client_1.GroupEnrollmentStatus.ACTIVE,
+                    group: {
+                        OR: [
+                            { teacherId },
+                            { teacher: { id: teacherId } },
+                        ],
+                    },
+                },
+            });
+            if (!enrolledInTeacherGroup) {
+                throw new common_1.ForbiddenException('Student is not enrolled in your academic groups');
+            }
+        }
         const records = await this.prisma.studentPaymentRecord.findMany({
             where: { studentId },
             orderBy: [{ periodYear: 'desc' }, { periodMonth: 'desc' }],
@@ -140,12 +204,18 @@ let SubscriptionsService = SubscriptionsService_1 = class SubscriptionsService {
             amountPaid: Number(r.amountPaid),
         }));
     }
-    async getGroupDefaulters(groupId, periodYear, periodMonth) {
+    async getGroupDefaulters(groupId, periodYear, periodMonth, user) {
         const group = await this.prisma.academicGroup.findUnique({
             where: { id: groupId },
         });
         if (!group) {
             throw new common_1.NotFoundException(`Academic group [${groupId}] not found`);
+        }
+        if (user.role === client_1.UserRole.TEACHER) {
+            const teacherId = user.teacherProfileId || user.id;
+            if (group.teacherId !== teacherId && group.teacherId !== user.id) {
+                throw new common_1.ForbiddenException('You do not own this academic group');
+            }
         }
         const enrollments = await this.prisma.groupEnrollment.findMany({
             where: { groupId, status: client_1.GroupEnrollmentStatus.ACTIVE },

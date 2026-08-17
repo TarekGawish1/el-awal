@@ -21,11 +21,11 @@ export declare class CoursesService {
         createdAt: Date;
         updatedAt: Date;
         gradeLevel: string;
-        description: string | null;
-        teacherId: string;
         academicStage: string | null;
         status: import(".prisma/client").$Enums.CourseStatus;
+        description: string | null;
         title: string;
+        teacherId: string;
         subject: string;
         price: import("@prisma/client/runtime/library").Decimal;
         coverImageUrl: string | null;
@@ -52,24 +52,24 @@ export declare class CoursesService {
         createdAt: Date;
         updatedAt: Date;
         gradeLevel: string;
-        description: string | null;
-        teacherId: string;
         academicStage: string | null;
         status: import(".prisma/client").$Enums.CourseStatus;
+        description: string | null;
         title: string;
+        teacherId: string;
         subject: string;
         price: import("@prisma/client/runtime/library").Decimal;
         coverImageUrl: string | null;
         orderIndex: number;
     }>>;
-    getCourseDetails(courseId: string): Promise<{
+    getCourseDetails(courseId: string, user?: AuthenticatedUser): Promise<{
         _count: {
             enrollments: number;
         };
         teacher: {
             user: {
-                fullName: string;
                 email: string;
+                fullName: string;
             };
         } & {
             id: string;
@@ -103,11 +103,11 @@ export declare class CoursesService {
         createdAt: Date;
         updatedAt: Date;
         gradeLevel: string;
-        description: string | null;
-        teacherId: string;
         academicStage: string | null;
         status: import(".prisma/client").$Enums.CourseStatus;
+        description: string | null;
         title: string;
+        teacherId: string;
         subject: string;
         price: import("@prisma/client/runtime/library").Decimal;
         coverImageUrl: string | null;
@@ -118,11 +118,11 @@ export declare class CoursesService {
         createdAt: Date;
         updatedAt: Date;
         gradeLevel: string;
-        description: string | null;
-        teacherId: string;
         academicStage: string | null;
         status: import(".prisma/client").$Enums.CourseStatus;
+        description: string | null;
         title: string;
+        teacherId: string;
         subject: string;
         price: import("@prisma/client/runtime/library").Decimal;
         coverImageUrl: string | null;

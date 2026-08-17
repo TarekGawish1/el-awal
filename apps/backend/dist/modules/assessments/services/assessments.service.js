@@ -23,6 +23,37 @@ let AssessmentsService = AssessmentsService_1 = class AssessmentsService {
         this.logger = new common_1.Logger(AssessmentsService_1.name);
     }
     async createAssessment(teacherId, isSecretariat, dto) {
+        if (!isSecretariat) {
+            if (dto.groupId) {
+                const group = await this.prisma.academicGroup.findUnique({
+                    where: { id: dto.groupId },
+                });
+                if (!group)
+                    throw new common_1.NotFoundException(`Group [${dto.groupId}] not found`);
+                if (group.teacherId !== teacherId) {
+                    throw new common_1.ForbiddenException('You do not own this academic group');
+                }
+            }
+            if (dto.courseId) {
+                const course = await this.prisma.course.findUnique({
+                    where: { id: dto.courseId },
+                });
+                if (!course)
+                    throw new common_1.NotFoundException(`Course [${dto.courseId}] not found`);
+                if (course.teacherId !== teacherId) {
+                    throw new common_1.ForbiddenException('You do not own this course');
+                }
+            }
+        }
+        if (dto.lessonId && dto.courseId) {
+            const lesson = await this.prisma.courseLesson.findUnique({
+                where: { id: dto.lessonId },
+                include: { module: true },
+            });
+            if (!lesson || lesson.module.courseId !== dto.courseId) {
+                throw new common_1.BadRequestException('Lesson does not belong to the specified course');
+            }
+        }
         const totalCalculated = dto.questions.reduce((sum, q) => sum + Number(q.points), 0);
         if (Math.abs(totalCalculated - Number(dto.totalScore)) > 0.01) {
             throw new common_1.BadRequestException(`Sum of question points (${totalCalculated}) does not match declared totalScore (${dto.totalScore})`);
@@ -67,7 +98,7 @@ let AssessmentsService = AssessmentsService_1 = class AssessmentsService {
             };
         });
     }
-    async getAssessments(query) {
+    async getAssessments(query, user) {
         const limit = cursor_pagination_helper_1.CursorPaginationHelper.sanitizeLimit(query.limit);
         const decodedCursor = query.cursor
             ? cursor_pagination_helper_1.CursorPaginationHelper.decodeCursor(query.cursor)
@@ -82,6 +113,26 @@ let AssessmentsService = AssessmentsService_1 = class AssessmentsService {
                 : {}),
             ...(cursorFilter || {}),
         };
+        if (user.role === client_1.UserRole.STUDENT) {
+            where.isPublished = true;
+            const studentId = user.studentProfileId || user.id;
+            where.OR = [
+                { group: { enrollments: { some: { studentId, status: client_1.GroupEnrollmentStatus.ACTIVE } } } },
+                { course: { enrollments: { some: { studentId, status: client_1.CourseEnrollmentStatus.ACTIVE } } } },
+            ];
+        }
+        else if (user.role === client_1.UserRole.PARENT) {
+            where.isPublished = true;
+            const parentId = user.parentProfileId || user.id;
+            where.OR = [
+                { group: { enrollments: { some: { status: client_1.GroupEnrollmentStatus.ACTIVE, student: { parentLinks: { some: { parentId } } } } } } },
+                { course: { enrollments: { some: { status: client_1.CourseEnrollmentStatus.ACTIVE, student: { parentLinks: { some: { parentId } } } } } } },
+            ];
+        }
+        else if (user.role === client_1.UserRole.TEACHER) {
+            const teacherId = user.teacherProfileId || user.id;
+            where.teacherId = teacherId;
+        }
         const assessments = await this.prisma.assessment.findMany({
             where,
             orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -105,8 +156,16 @@ let AssessmentsService = AssessmentsService_1 = class AssessmentsService {
                 teacher: {
                     include: { user: { select: { fullName: true } } },
                 },
-                group: { select: { id: true, name: true } },
-                course: { select: { id: true, title: true } },
+                group: {
+                    include: {
+                        enrollments: { where: { status: client_1.GroupEnrollmentStatus.ACTIVE } },
+                    },
+                },
+                course: {
+                    include: {
+                        enrollments: { where: { status: client_1.CourseEnrollmentStatus.ACTIVE } },
+                    },
+                },
                 questions: {
                     orderBy: { questionNumber: 'asc' },
                 },
@@ -120,6 +179,20 @@ let AssessmentsService = AssessmentsService_1 = class AssessmentsService {
         });
         if (!assessment) {
             throw new common_1.NotFoundException(`Assessment [${assessmentId}] not found`);
+        }
+        if (user.role === client_1.UserRole.STUDENT) {
+            if (!assessment.isPublished) {
+                throw new common_1.NotFoundException(`Assessment [${assessmentId}] not found`);
+            }
+            const isEnrolledInGroup = assessment.groupId
+                ? assessment.group?.enrollments.some((e) => e.studentId === studentId)
+                : false;
+            const isEnrolledInCourse = assessment.courseId
+                ? assessment.course?.enrollments.some((e) => e.studentId === studentId)
+                : false;
+            if (assessment.groupId && !isEnrolledInGroup && assessment.courseId && !isEnrolledInCourse) {
+                throw new common_1.ForbiddenException('You are not enrolled in the group or course for this assessment');
+            }
         }
         const mySubmission = assessment.submissions[0] || null;
         const isGraded = mySubmission?.status === client_1.SubmissionStatus.GRADED;
@@ -165,13 +238,31 @@ let AssessmentsService = AssessmentsService_1 = class AssessmentsService {
     async submitAssessment(assessmentId, studentId, dto) {
         const assessment = await this.prisma.assessment.findUnique({
             where: { id: assessmentId },
-            include: { questions: true },
+            include: {
+                questions: true,
+                group: {
+                    include: {
+                        enrollments: { where: { studentId, status: client_1.GroupEnrollmentStatus.ACTIVE } },
+                    },
+                },
+                course: {
+                    include: {
+                        enrollments: { where: { studentId, status: client_1.CourseEnrollmentStatus.ACTIVE } },
+                    },
+                },
+            },
         });
         if (!assessment) {
             throw new common_1.NotFoundException(`Assessment [${assessmentId}] not found`);
         }
         if (!assessment.isPublished) {
             throw new common_1.BadRequestException('Cannot submit to an unpublished assessment');
+        }
+        if (assessment.groupId && assessment.group && assessment.group.enrollments.length === 0) {
+            throw new common_1.ForbiddenException('You are not enrolled in the academic group for this assessment');
+        }
+        if (assessment.courseId && assessment.course && assessment.course.enrollments.length === 0) {
+            throw new common_1.ForbiddenException('You are not enrolled in the course for this assessment');
         }
         const existingSubmission = await this.prisma.assessmentSubmission.findUnique({
             where: {

@@ -8,16 +8,22 @@ export declare class SubscriptionsController {
     recordPayment(dto: RecordPaymentDto, user: AuthenticatedUser): Promise<{
         student: {
             user: {
-                fullName: string;
                 phone: string;
+                fullName: string;
             };
+            parentLinks: {
+                id: string;
+                createdAt: Date;
+                parentId: string;
+                studentId: string;
+            }[];
         } & {
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            gradeLevel: string;
             studentCode: string | null;
             qrCodeToken: string;
+            gradeLevel: string;
             academicStage: string | null;
             academicStatus: import(".prisma/client").$Enums.StudentAcademicStatus;
             dateOfBirth: Date | null;
@@ -29,8 +35,12 @@ export declare class SubscriptionsController {
         };
     } & {
         id: string;
-        studentId: string;
+        createdAt: Date;
+        updatedAt: Date;
         groupId: string | null;
+        studentId: string;
+        recordedById: string;
+        notes: string | null;
         periodYear: number;
         periodMonth: number;
         amountExpected: import("@prisma/client/runtime/library").Decimal;
@@ -39,25 +49,21 @@ export declare class SubscriptionsController {
         paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
         paymentMethod: string;
         receiptNumber: string | null;
-        recordedById: string;
-        notes: string | null;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
-    getPaymentLog(query: PaymentQueryDto): Promise<import("../../../common/pagination/cursor-pagination.helper").PaginatedResult<{
+    getPaymentLog(query: PaymentQueryDto, user: AuthenticatedUser): Promise<import("../../../common/pagination/cursor-pagination.helper").PaginatedResult<{
         student: {
             user: {
                 id: string;
-                fullName: string;
                 phone: string;
+                fullName: string;
             };
         } & {
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            gradeLevel: string;
             studentCode: string | null;
             qrCodeToken: string;
+            gradeLevel: string;
             academicStage: string | null;
             academicStatus: import(".prisma/client").$Enums.StudentAcademicStatus;
             dateOfBirth: Date | null;
@@ -73,8 +79,12 @@ export declare class SubscriptionsController {
         };
     } & {
         id: string;
-        studentId: string;
+        createdAt: Date;
+        updatedAt: Date;
         groupId: string | null;
+        studentId: string;
+        recordedById: string;
+        notes: string | null;
         periodYear: number;
         periodMonth: number;
         amountExpected: import("@prisma/client/runtime/library").Decimal;
@@ -83,12 +93,8 @@ export declare class SubscriptionsController {
         paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
         paymentMethod: string;
         receiptNumber: string | null;
-        recordedById: string;
-        notes: string | null;
-        createdAt: Date;
-        updatedAt: Date;
     }>>;
-    getStudentPaymentHistory(studentId: string): Promise<{
+    getStudentPaymentHistory(studentId: string, user: AuthenticatedUser): Promise<{
         amountExpected: number;
         amountPaid: number;
         group: {
@@ -99,20 +105,20 @@ export declare class SubscriptionsController {
             fullName: string;
         };
         id: string;
-        studentId: string;
+        createdAt: Date;
+        updatedAt: Date;
         groupId: string | null;
+        studentId: string;
+        recordedById: string;
+        notes: string | null;
         periodYear: number;
         periodMonth: number;
         currency: string;
         paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
         paymentMethod: string;
         receiptNumber: string | null;
-        recordedById: string;
-        notes: string | null;
-        createdAt: Date;
-        updatedAt: Date;
     }[]>;
-    getGroupDefaulters(groupId: string, periodYear: number, periodMonth: number): Promise<{
+    getGroupDefaulters(groupId: string, periodYear: number, periodMonth: number, user: AuthenticatedUser): Promise<{
         groupId: string;
         groupName: string;
         periodYear: number;

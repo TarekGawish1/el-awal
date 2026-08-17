@@ -14,9 +14,9 @@ export declare class UsersService {
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            gradeLevel: string;
             studentCode: string | null;
             qrCodeToken: string;
+            gradeLevel: string;
             academicStage: string | null;
             academicStatus: import(".prisma/client").$Enums.StudentAcademicStatus;
             dateOfBirth: Date | null;
@@ -34,16 +34,13 @@ export declare class UsersService {
             updatedAt: Date;
             staffTitle: string | null;
         };
-    } & {
         id: string;
+        email: string;
+        phone: string;
+        role: import(".prisma/client").$Enums.UserRole;
+        fullName: string;
+        isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
-        fullName: string;
-        phone: string | null;
-        email: string | null;
-        passwordHash: string;
-        role: import(".prisma/client").$Enums.UserRole;
-        isActive: boolean;
-        deletedAt: Date | null;
     }>;
 }

@@ -10,6 +10,7 @@ exports.CoreModule = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const core_1 = require("@nestjs/core");
+const throttler_1 = require("@nestjs/throttler");
 const env_validation_1 = require("./config/env.validation");
 const database_module_1 = require("./database/database.module");
 const security_module_1 = require("./security/security.module");
@@ -35,10 +36,21 @@ exports.CoreModule = CoreModule = __decorate([
                 validate: env_validation_1.validateEnv,
                 envFilePath: ['.env', '.env.local'],
             }),
+            throttler_1.ThrottlerModule.forRoot([
+                {
+                    name: 'default',
+                    ttl: 60000,
+                    limit: 120,
+                },
+            ]),
             database_module_1.DatabaseModule,
             security_module_1.SecurityModule,
         ],
         providers: [
+            {
+                provide: core_1.APP_GUARD,
+                useClass: throttler_1.ThrottlerGuard,
+            },
             {
                 provide: core_1.APP_FILTER,
                 useClass: global_exception_filter_1.GlobalExceptionFilter,
@@ -68,7 +80,7 @@ exports.CoreModule = CoreModule = __decorate([
                 useClass: resource_ownership_guard_1.ResourceOwnershipGuard,
             },
         ],
-        exports: [database_module_1.DatabaseModule, security_module_1.SecurityModule],
+        exports: [database_module_1.DatabaseModule, security_module_1.SecurityModule, throttler_1.ThrottlerModule],
     })
 ], CoreModule);
 //# sourceMappingURL=core.module.js.map

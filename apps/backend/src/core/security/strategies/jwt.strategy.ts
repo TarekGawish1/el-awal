@@ -10,6 +10,7 @@ export interface JwtPayload {
   role: string;
   email?: string;
   phone?: string;
+  typ?: string;
 }
 
 @Injectable()
@@ -21,11 +22,14 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET', 'super-secret-default-jwt-key-change-in-prod'),
+      secretOrKey: configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
     });
   }
 
   async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
+    if (payload.typ && payload.typ !== 'access') {
+      throw new UnauthorizedException('Invalid token type');
+    }
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       include: {

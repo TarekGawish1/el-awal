@@ -1,5 +1,26 @@
-import { IsNotEmpty, IsString, IsOptional, IsInt, Min, IsIn } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsOptional,
+  IsInt,
+  Min,
+  Max,
+  IsIn,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export const ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'audio/mpeg',
+  'audio/mp3',
+  'audio/wav',
+  'video/mp4',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/msword',
+] as const;
 
 export class PresignedUploadDto {
   @ApiProperty({
@@ -11,11 +32,15 @@ export class PresignedUploadDto {
   fileName: string;
 
   @ApiProperty({
-    description: 'MIME type of the upload file',
+    description: 'MIME type of the upload file (Strict allowlist enforced)',
     example: 'application/pdf',
+    enum: ALLOWED_MIME_TYPES,
   })
   @IsString()
   @IsNotEmpty({ message: 'Content type is required' })
+  @IsIn(ALLOWED_MIME_TYPES as unknown as string[], {
+    message: 'Unsupported MIME type. Allowed types: PDF, JPG, PNG, WEBP, MP3, MP4, DOC, DOCX',
+  })
   contentType: string;
 
   @ApiPropertyOptional({
@@ -25,6 +50,7 @@ export class PresignedUploadDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(104857600, { message: 'File size exceeds maximum limit of 100MB' })
   fileSizeBytes?: number;
 
   @ApiPropertyOptional({

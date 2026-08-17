@@ -39,11 +39,20 @@ let ContentService = ContentService_1 = class ContentService {
             if (!group) {
                 throw new common_1.NotFoundException(`Academic group [${dto.groupId}] not found`);
             }
+            if (group.teacherId !== teacherId) {
+                throw new common_1.ForbiddenException('You do not own this academic group');
+            }
         }
         if (dto.lessonId) {
-            const lesson = await this.prisma.courseLesson.findUnique({ where: { id: dto.lessonId } });
+            const lesson = await this.prisma.courseLesson.findUnique({
+                where: { id: dto.lessonId },
+                include: { module: { include: { course: true } } },
+            });
             if (!lesson) {
                 throw new common_1.NotFoundException(`Course lesson [${dto.lessonId}] not found`);
+            }
+            if (lesson.module.course.teacherId !== teacherId) {
+                throw new common_1.ForbiddenException('You do not own the course containing this lesson');
             }
         }
         return this.prisma.educationalContent.create({

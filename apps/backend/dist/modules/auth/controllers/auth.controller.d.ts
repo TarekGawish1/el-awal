@@ -10,4 +10,8 @@ export declare class AuthController {
         accessToken: string;
         refreshToken: string;
     }>;
+    logout(dto: RefreshTokenDto): Promise<{
+        success: boolean;
+        message: string;
+    }>;
 }

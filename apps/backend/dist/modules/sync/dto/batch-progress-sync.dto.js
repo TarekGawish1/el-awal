@@ -35,9 +35,10 @@ __decorate([
     __metadata("design:type", String)
 ], SyncOperationItemDto.prototype, "lessonId", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Last playback position in seconds', minimum: 0 }),
+    (0, swagger_1.ApiProperty)({ description: 'Last playback position in seconds', minimum: 0, maximum: 86400 }),
     (0, class_validator_1.IsInt)(),
     (0, class_validator_1.Min)(0),
+    (0, class_validator_1.Max)(86400),
     __metadata("design:type", Number)
 ], SyncOperationItemDto.prototype, "positionSeconds", void 0);
 __decorate([
@@ -49,8 +50,10 @@ class BatchProgressSyncDto {
 }
 exports.BatchProgressSyncDto = BatchProgressSyncDto;
 __decorate([
-    (0, swagger_1.ApiProperty)({ type: [SyncOperationItemDto], description: 'Array of staged offline progress operations' }),
+    (0, swagger_1.ApiProperty)({ type: [SyncOperationItemDto], description: 'Array of staged offline progress operations (Max 50)' }),
     (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ArrayMinSize)(1),
+    (0, class_validator_1.ArrayMaxSize)(50),
     (0, class_validator_1.ValidateNested)({ each: true }),
     (0, class_transformer_1.Type)(() => SyncOperationItemDto),
     __metadata("design:type", Array)

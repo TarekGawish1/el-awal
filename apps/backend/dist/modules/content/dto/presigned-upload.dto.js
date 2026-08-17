@@ -9,9 +9,21 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PresignedUploadDto = void 0;
+exports.PresignedUploadDto = exports.ALLOWED_MIME_TYPES = void 0;
 const class_validator_1 = require("class-validator");
 const swagger_1 = require("@nestjs/swagger");
+exports.ALLOWED_MIME_TYPES = [
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'audio/mpeg',
+    'audio/mp3',
+    'audio/wav',
+    'video/mp4',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/msword',
+];
 class PresignedUploadDto {
 }
 exports.PresignedUploadDto = PresignedUploadDto;
@@ -26,11 +38,15 @@ __decorate([
 ], PresignedUploadDto.prototype, "fileName", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({
-        description: 'MIME type of the upload file',
+        description: 'MIME type of the upload file (Strict allowlist enforced)',
         example: 'application/pdf',
+        enum: exports.ALLOWED_MIME_TYPES,
     }),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsNotEmpty)({ message: 'Content type is required' }),
+    (0, class_validator_1.IsIn)(exports.ALLOWED_MIME_TYPES, {
+        message: 'Unsupported MIME type. Allowed types: PDF, JPG, PNG, WEBP, MP3, MP4, DOC, DOCX',
+    }),
     __metadata("design:type", String)
 ], PresignedUploadDto.prototype, "contentType", void 0);
 __decorate([
@@ -41,6 +57,7 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsInt)(),
     (0, class_validator_1.Min)(1),
+    (0, class_validator_1.Max)(104857600, { message: 'File size exceeds maximum limit of 100MB' }),
     __metadata("design:type", Number)
 ], PresignedUploadDto.prototype, "fileSizeBytes", void 0);
 __decorate([

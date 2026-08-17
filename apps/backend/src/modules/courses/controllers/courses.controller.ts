@@ -59,8 +59,11 @@ export class CoursesController {
   @Get(':id')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT, UserRole.PARENT)
   @ApiOperation({ summary: 'Get course outline, modules, and ordered lesson list' })
-  async getCourseDetails(@Param('id') id: string) {
-    return this.coursesService.getCourseDetails(id);
+  async getCourseDetails(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.coursesService.getCourseDetails(id, user);
   }
 
   @Patch(':id')

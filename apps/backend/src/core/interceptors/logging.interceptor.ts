@@ -16,14 +16,19 @@ export class LoggingInterceptor implements NestInterceptor {
   private readonly SENSITIVE_KEYS = new Set([
     'password',
     'confirmpassword',
+    'passwordhash',
     'token',
     'refreshtoken',
     'accesstoken',
+    'qrcodetoken',
+    'tokenhash',
     'secret',
     'secretkey',
     'apikey',
     'authorization',
     'cookie',
+    'creditcard',
+    'cvv',
   ]);
 
   /**
@@ -75,10 +80,11 @@ export class LoggingInterceptor implements NestInterceptor {
       body && Object.keys(body).length > 0
         ? JSON.stringify(this.sanitizeData(body))
         : null;
-    const queryStr =
+    const sanitizedQuery =
       query && Object.keys(query).length > 0
-        ? ` | Query: ${JSON.stringify(query)}`
-        : '';
+        ? JSON.stringify(this.sanitizeData(query))
+        : null;
+    const queryStr = sanitizedQuery ? ` | Query: ${sanitizedQuery}` : '';
     const bodyStr = sanitizedBody ? ` | Body: ${sanitizedBody}` : '';
 
     this.logger.log(

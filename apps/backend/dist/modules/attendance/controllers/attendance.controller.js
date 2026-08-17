@@ -27,13 +27,13 @@ let AttendanceController = class AttendanceController {
         this.attendanceService = attendanceService;
     }
     async scanQrCode(sessionId, dto, user) {
-        return this.attendanceService.processQrScan(sessionId, dto.qrCodeToken, user.id);
+        return this.attendanceService.processQrScan(sessionId, dto.qrCodeToken, user);
     }
     async recordManualBatch(sessionId, dto, user) {
-        return this.attendanceService.recordManualBatch(sessionId, dto, user.id);
+        return this.attendanceService.recordManualBatch(sessionId, dto, user);
     }
-    async getSessionReport(sessionId) {
-        return this.attendanceService.getSessionReport(sessionId);
+    async getSessionReport(sessionId, user) {
+        return this.attendanceService.getSessionReport(sessionId, user);
     }
     async getStudentHistory(studentId, pagination, user, status) {
         return this.attendanceService.getStudentHistory(studentId, pagination, status, user);
@@ -72,8 +72,9 @@ __decorate([
     (0, roles_decorator_1.Roles)(client_1.UserRole.TEACHER, client_1.UserRole.SECRETARIAT),
     (0, swagger_1.ApiOperation)({ summary: 'Get consolidated attendance rate metrics and roster log for a session' }),
     __param(0, (0, common_1.Param)('sessionId')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], AttendanceController.prototype, "getSessionReport", null);
 __decorate([

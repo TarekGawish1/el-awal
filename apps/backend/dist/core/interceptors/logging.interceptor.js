@@ -15,14 +15,19 @@ let LoggingInterceptor = class LoggingInterceptor {
         this.SENSITIVE_KEYS = new Set([
             'password',
             'confirmpassword',
+            'passwordhash',
             'token',
             'refreshtoken',
             'accesstoken',
+            'qrcodetoken',
+            'tokenhash',
             'secret',
             'secretkey',
             'apikey',
             'authorization',
             'cookie',
+            'creditcard',
+            'cvv',
         ]);
     }
     sanitizeData(data) {
@@ -64,9 +69,10 @@ let LoggingInterceptor = class LoggingInterceptor {
         const sanitizedBody = body && Object.keys(body).length > 0
             ? JSON.stringify(this.sanitizeData(body))
             : null;
-        const queryStr = query && Object.keys(query).length > 0
-            ? ` | Query: ${JSON.stringify(query)}`
-            : '';
+        const sanitizedQuery = query && Object.keys(query).length > 0
+            ? JSON.stringify(this.sanitizeData(query))
+            : null;
+        const queryStr = sanitizedQuery ? ` | Query: ${sanitizedQuery}` : '';
         const bodyStr = sanitizedBody ? ` | Body: ${sanitizedBody}` : '';
         this.logger.log(`--> [REQ] [${correlationId}] ${method} ${originalUrl}${queryStr}${bodyStr} | IP: ${clientIp} | ${userContext} | UA: ${userAgent}`);
         return next.handle().pipe((0, operators_1.tap)({
