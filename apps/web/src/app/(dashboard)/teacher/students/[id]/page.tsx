@@ -249,7 +249,7 @@ export default function StudentDetailPage() {
         </div>
 
         <div className="lg:col-span-1">
-          <StudentQrBadge studentId={studentId} />
+          <StudentQrBadge studentId={studentId} studentPhone={student.user.phone} />
         </div>
       </div>
     </div>
