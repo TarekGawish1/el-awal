@@ -8,12 +8,16 @@
 /coverage
 
 # Next.js build output
-/.next/
-/out/
+.next/
+**/.next/
+out/
+**/out/
 
 # Production build
-/build
-/dist
+build/
+**/build/
+dist/
+**/dist/
 
 # Debug / Logs
 npm-debug.log*
