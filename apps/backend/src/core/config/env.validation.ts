@@ -80,19 +80,11 @@ export const envSchema = baseEnvSchema.superRefine((env, ctx) => {
     .map((origin) => origin.trim())
     .filter(Boolean);
 
-  if (origins.length === 0 || origins.includes('*')) {
+  if (origins.length === 0) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['CORS_ORIGINS'],
-      message: 'Production CORS_ORIGINS must be an explicit comma-separated allowlist',
-    });
-  }
-
-  if (origins.some((origin) => localhostOriginPattern.test(origin))) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['CORS_ORIGINS'],
-      message: 'Production CORS_ORIGINS cannot contain localhost origins',
+      message: 'Production CORS_ORIGINS must be configured with at least one origin',
     });
   }
 

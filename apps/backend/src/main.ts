@@ -36,18 +36,51 @@ async function bootstrap() {
   );
 
   // CORS Policy Configuration
-  const corsOrigins = configService.get<string>('CORS_ORIGINS', '*');
-  const originList =
-    corsOrigins === '*'
-      ? true
-      : corsOrigins
+  const rawCors = configService.get<string>('CORS_ORIGINS', '*');
+  const allowedList =
+    rawCors === '*'
+      ? ['*']
+      : rawCors
           .split(',')
           .map((origin) => origin.trim())
           .filter(Boolean);
 
   app.enableCors({
-    origin: originList,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like curl, mobile apps, or server-to-server)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      // If wildcard is configured
+      if (allowedList.includes('*')) {
+        return callback(null, true);
+      }
+
+      // Check explicit allowlist
+      if (allowedList.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // Automatically allow local development origins (localhost & 127.0.0.1 on any port)
+      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
+        return callback(null, true);
+      }
+
+      logger.warn(`⚠️ CORS blocked request from unauthorized origin: ${origin}`);
+      callback(new Error(`Origin ${origin} not allowed by CORS`));
+    },
     credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'x-correlation-id',
+      'X-Requested-With',
+      'Accept',
+      'Origin',
+    ],
+    exposedHeaders: ['x-correlation-id'],
   });
 
   // OpenAPI / Swagger Documentation Setup (gated in production unless ENABLE_SWAGGER=true)
