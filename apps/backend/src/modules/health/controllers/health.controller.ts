@@ -42,4 +42,17 @@ export class HealthController {
       environment: process.env.NODE_ENV || 'production',
     };
   }
+
+  @Public()
+  @Get('version')
+  @ApiOperation({ summary: 'API Version & Live Pipeline Verification' })
+  getVersion() {
+    return {
+      appName: 'El-Awal Educational Backend',
+      version: '1.0.1',
+      deployedAt: new Date().toISOString(),
+      status: 'Automated CI/CD is working seamlessly! 🎉',
+      server: 'DigitalOcean Ubuntu VPS',
+    };
+  }
 }

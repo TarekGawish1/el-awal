@@ -67,7 +67,7 @@ jobs:
               openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
                 -keyout /etc/ssl/private/nginx-selfsigned.key \
                 -out /etc/ssl/certs/nginx-selfsigned.crt \
-                -subj "/C=EG/ST=Cairo/L=Cairo/O=ElAwal/CN=157.230.20.219" || true
+                -subj "/C=EG/ST=Cairo/L=Cairo/O=ElAwal/CN=157.230.20.22" || true
             fi
 
             cat << 'EOF' > /etc/nginx/sites-available/el-awal-backend
