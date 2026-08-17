@@ -100,7 +100,7 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
     name: '',
     gradeLevel: '',
     maxCapacity: 50,
-    monthlyFee: 0,
+    monthlyFee: 100,
     schedules: [
       { dayOfWeek: 0, startTime: '14:00', endTime: '15:00' },
       { dayOfWeek: 3, startTime: '14:00', endTime: '15:00' }
@@ -129,6 +129,38 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
     ],
   };
 
+  useEffect(() => {
+    const daysMap = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+    const schedules = formData.schedules || [];
+    const days = schedules.map(s => daysMap[s.dayOfWeek]);
+    const uniqueDays = Array.from(new Set(days));
+    let expectedName = '';
+    
+    // Format the first schedule time to 12h Arabic
+    let timeString = '';
+    if (schedules.length > 0 && schedules[0].startTime) {
+      const [h, m] = schedules[0].startTime.split(':').map(Number);
+      if (!isNaN(h) && !isNaN(m)) {
+        const hour12 = h % 12 || 12;
+        const ampm = h < 12 ? 'ص' : 'م';
+        timeString = `(الساعة ${hour12}:${m.toString().padStart(2, '0')} ${ampm})`;
+      }
+    }
+    
+    if (uniqueDays.length > 0) {
+      expectedName = `مجموعة ${uniqueDays.join(' و ')} ${timeString}`.trim();
+      if (formData.gradeLevel) {
+        expectedName += ` - ${formData.gradeLevel}`;
+      }
+    } else if (formData.gradeLevel) {
+      expectedName = `مجموعة ${formData.gradeLevel}`;
+    }
+    
+    if (expectedName && formData.name !== expectedName) {
+      setFormData(prev => ({ ...prev, name: expectedName }));
+    }
+  }, [formData.schedules, formData.gradeLevel]);
+
   const createGroup = useCreateGroup();
 
   if (!isOpen) return null;
@@ -147,7 +179,7 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
             name: '', 
             gradeLevel: '', 
             maxCapacity: 50, 
-            monthlyFee: 0, 
+            monthlyFee: 100,
             schedules: [
               { dayOfWeek: 0, startTime: '14:00', endTime: '15:00' },
               { dayOfWeek: 3, startTime: '14:00', endTime: '15:00' }
@@ -187,18 +219,6 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
           )}
 
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">اسم المجموعة *</label>
-              <Input
-                required
-                minLength={3}
-                placeholder="مثال: مجموعة الأحد والأربعاء - الصف الثالث الثانوي"
-                value={formData.name}
-                onChange={e => setFormData({ ...formData, name: e.target.value })}
-                disabled={createGroup.isPending}
-              />
-            </div>
-
             <div className="space-y-2">
               <label className="block text-sm font-medium text-slate-700 mb-1">المرحلة الدراسية *</label>
               <div className="grid grid-cols-3 gap-2">
@@ -349,11 +369,23 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
             </div>
 
             <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">اسم المجموعة *</label>
+              <Input
+                required
+                minLength={3}
+                placeholder="يتم التوليد تلقائياً بناءً على المواعيد والصف..."
+                value={formData.name}
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                disabled={createGroup.isPending}
+              />
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">المصروفات الشهرية</label>
               <Input
                 type="number"
                 min={0}
-                step={0.5}
+                step={5}
                 placeholder="0"
                 value={formData.monthlyFee === undefined ? '' : formData.monthlyFee}
                 onChange={e => setFormData({ ...formData, monthlyFee: e.target.value ? parseFloat(e.target.value) : undefined })}

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Users, UserPlus, FileText, AlertCircle, CalendarDays } from 'lucide-react';
+import { ArrowRight, Users, UserPlus, FileText, AlertCircle, CalendarDays, Settings, Trash2 } from 'lucide-react';
 import { useGroup } from '../hooks/useGroups';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -63,10 +63,22 @@ export function GroupDetails({ id }: GroupDetailsProps) {
 
   return (
     <div className="space-y-6">
-      <Link href="/teacher/groups" className="inline-flex items-center text-slate-500 hover:text-slate-800 transition-colors">
-        <ArrowRight className="w-4 h-4 ml-2" />
-        العودة للمجموعات
-      </Link>
+      <div className="flex justify-between items-center">
+        <Link href="/teacher/groups" className="inline-flex items-center text-slate-500 hover:text-slate-800 transition-colors">
+          <ArrowRight className="w-4 h-4 ml-2" />
+          العودة للمجموعات
+        </Link>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="text-slate-600 bg-white shadow-sm">
+            <Settings className="w-4 h-4 ml-2" />
+            تعديل المجموعة
+          </Button>
+          <Button variant="outline" size="sm" className="text-error-600 hover:text-error-700 hover:bg-error-50 border-error-200 bg-white shadow-sm">
+            <Trash2 className="w-4 h-4 ml-2" />
+            حذف المجموعة
+          </Button>
+        </div>
+      </div>
 
       <div className="bg-white rounded-xl border border-slate-100 p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
