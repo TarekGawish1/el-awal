@@ -25,7 +25,23 @@ export async function fetchGroup(id: string): Promise<GroupWithDetails> {
 }
 
 export async function fetchGroupStudents(id: string): Promise<GroupEnrollment[]> {
-  return await apiClient<GroupEnrollment[]>(API_ENDPOINTS.GROUPS.STUDENTS(id));
+  const response = await apiClient<any>(API_ENDPOINTS.GROUPS.STUDENTS(id));
+  const roster = response?.roster || [];
+  return roster.map((r: any) => ({
+    id: r.enrollmentId,
+    enrolledAt: r.enrolledAt,
+    status: 'ACTIVE',
+    attendanceRate: r.attendanceRate,
+    student: {
+      id: r.studentId,
+      code: r.studentCode,
+      gradeLevel: r.gradeLevel,
+      user: {
+        name: r.fullName,
+        phone: r.phone,
+      }
+    }
+  }));
 }
 
 export async function addStudentToGroup(id: string, payload: EnrollStudentPayload): Promise<any> {

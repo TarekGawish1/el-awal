@@ -38,66 +38,106 @@ export default function StudentDetailPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-      <div className="mb-6 flex items-center gap-4">
-        <Button variant="outline" onClick={() => router.back()}>
-          &larr; Back
-        </Button>
-        <h1 className="text-2xl font-bold">{student.user.fullName}</h1>
-        <Badge variant={student.academicStatus === 'ACTIVE' ? 'success' : 'default'}>
-          {student.academicStatus}
-        </Badge>
+    <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
+      {/* Header section with nice background pattern or gradient */}
+      <div className="relative overflow-hidden bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary-50/80 via-transparent to-transparent"></div>
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-start justify-between gap-6">
+          <div className="space-y-4">
+            <Button variant="ghost" onClick={() => router.back()} className="mb-2 -ml-2 rtl:-mr-2 rtl:ml-0 text-slate-500 hover:text-slate-900">
+              <svg className="w-5 h-5 mr-2 rtl:rotate-180 rtl:ml-2 rtl:mr-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              العودة لسجل الطلاب
+            </Button>
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-2xl shadow-sm">
+                {student.user.fullName.charAt(0)}
+              </div>
+              <div>
+                <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">{student.user.fullName}</h1>
+                <div className="flex items-center gap-3 mt-2">
+                  <span className="text-slate-500 font-mono bg-slate-100 px-2 py-0.5 rounded text-sm">{student.studentCode}</span>
+                  <Badge variant={student.academicStatus === 'ACTIVE' ? 'success' : 'default'} className="px-3 py-1 text-xs">
+                    {student.academicStatus === 'ACTIVE' ? 'نشط' : 
+                     student.academicStatus === 'GRADUATED' ? 'خريج' :
+                     student.academicStatus === 'DROPPED_OUT' ? 'منسحب' :
+                     student.academicStatus === 'SUSPENDED' ? 'موقوف' : student.academicStatus}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Identity Information</CardTitle>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-8">
+          <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
+            <CardHeader className="border-b border-slate-100 bg-slate-50/50 px-6 py-5">
+              <CardTitle className="text-lg font-bold flex items-center gap-2">
+                <svg className="w-5 h-5 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                معلومات الهوية
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-6">
-                <div>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Student Code</dt>
-                  <dd className="mt-1 text-sm font-mono">{student.studentCode}</dd>
+            <CardContent className="p-6">
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
+                <div className="space-y-1">
+                  <dt className="text-sm font-medium text-slate-500">الصف الدراسي</dt>
+                  <dd className="text-base font-semibold text-slate-900">{student.gradeLevel}</dd>
                 </div>
-                <div>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Grade Level</dt>
-                  <dd className="mt-1 text-sm">{student.gradeLevel}</dd>
+                <div className="space-y-1">
+                  <dt className="text-sm font-medium text-slate-500">تاريخ التسجيل</dt>
+                  <dd className="text-base font-semibold text-slate-900">{new Date(student.createdAt).toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })}</dd>
                 </div>
-                <div>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Phone</dt>
-                  <dd className="mt-1 text-sm" dir="ltr">{student.user.phone || 'N/A'}</dd>
+                <div className="space-y-1">
+                  <dt className="text-sm font-medium text-slate-500">رقم الهاتف</dt>
+                  <dd className="text-base font-semibold text-slate-900" dir="ltr">{student.user.phone || 'غير متوفر'}</dd>
                 </div>
-                <div>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Emergency Phone</dt>
-                  <dd className="mt-1 text-sm" dir="ltr">{student.emergencyPhone || 'N/A'}</dd>
+                <div className="space-y-1">
+                  <dt className="text-sm font-medium text-slate-500">هاتف الطوارئ</dt>
+                  <dd className="text-base font-semibold text-slate-900" dir="ltr">{student.emergencyPhone || 'غير متوفر'}</dd>
                 </div>
-                <div>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Email</dt>
-                  <dd className="mt-1 text-sm">{student.user.email || 'N/A'}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Registration Date</dt>
-                  <dd className="mt-1 text-sm">{new Date(student.createdAt).toLocaleDateString('ar-EG')}</dd>
+                <div className="space-y-1 sm:col-span-2">
+                  <dt className="text-sm font-medium text-slate-500">البريد الإلكتروني</dt>
+                  <dd className="text-base font-semibold text-slate-900">{student.user.email || 'غير متوفر'}</dd>
                 </div>
               </dl>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Group Enrollments</CardTitle>
+          <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
+            <CardHeader className="border-b border-slate-100 bg-slate-50/50 px-6 py-5">
+              <CardTitle className="text-lg font-bold flex items-center gap-2">
+                <svg className="w-5 h-5 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                المجموعات المسجلة
+              </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               {student.groupEnrollments.length === 0 ? (
-                <p className="text-sm text-gray-500">Not enrolled in any active groups.</p>
+                <div className="p-8 text-center text-slate-500">
+                  <p>غير مسجل في أي مجموعات نشطة.</p>
+                </div>
               ) : (
-                <ul className="divide-y dark:divide-gray-700">
+                <ul className="divide-y divide-slate-100">
                   {student.groupEnrollments.map((enrollment) => (
-                    <li key={enrollment.group.id} className="py-3 flex justify-between items-center">
-                      <span className="font-medium">{enrollment.group.name}</span>
-                      <span className="text-sm text-gray-500">{enrollment.group.gradeLevel}</span>
+                    <li key={enrollment.group.id} className="p-6 flex justify-between items-center hover:bg-slate-50/50 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-slate-900">{enrollment.group.name}</p>
+                          <p className="text-sm text-slate-500">{enrollment.group.gradeLevel}</p>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="text-xs">نشط</Badge>
                     </li>
                   ))}
                 </ul>
@@ -105,19 +145,33 @@ export default function StudentDetailPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Parent / Guardian Links</CardTitle>
+          <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
+            <CardHeader className="border-b border-slate-100 bg-slate-50/50 px-6 py-5">
+              <CardTitle className="text-lg font-bold flex items-center gap-2">
+                <svg className="w-5 h-5 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+                حسابات أولياء الأمور
+              </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               {student.parentLinks.length === 0 ? (
-                <p className="text-sm text-gray-500">No parent accounts linked.</p>
+                <div className="p-8 text-center text-slate-500">
+                  <p>لا توجد حسابات مرتبطة بأولياء الأمور.</p>
+                </div>
               ) : (
-                <ul className="divide-y dark:divide-gray-700">
+                <ul className="divide-y divide-slate-100">
                   {student.parentLinks.map((link) => (
-                    <li key={link.parent.user.id} className="py-3">
-                      <p className="font-medium">{link.parent.user.fullName}</p>
-                      <p className="text-sm text-gray-500" dir="ltr">{link.parent.user.phone}</p>
+                    <li key={link.parent.user.id} className="p-6 flex items-center gap-4 hover:bg-slate-50/50 transition-colors">
+                      <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-900">{link.parent.user.fullName}</p>
+                        <p className="text-sm text-slate-500 font-mono" dir="ltr">{link.parent.user.phone}</p>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -126,7 +180,7 @@ export default function StudentDetailPage() {
           </Card>
         </div>
 
-        <div className="md:col-span-1">
+        <div className="lg:col-span-1">
           <StudentQrBadge studentId={studentId} />
         </div>
       </div>

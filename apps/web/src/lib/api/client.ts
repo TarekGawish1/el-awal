@@ -78,6 +78,11 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
     }
 
     // Unwrap standard API response envelope ({ success: true, data: ... })
+    // If the response contains pagination meta, do not unwrap
+    if (json && typeof json === 'object' && 'meta' in json) {
+      return json as T;
+    }
+
     const apiResponse = json as ApiResponse<T>;
     return (apiResponse.data !== undefined ? apiResponse.data : json) as T;
   } catch (error) {
