@@ -11,6 +11,8 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
 import { StudentList } from './StudentList';
 import { AddStudentModal } from './AddStudentModal';
+import { DeleteGroupModal } from './DeleteGroupModal';
+import { EditGroupModal } from './EditGroupModal';
 
 interface GroupDetailsProps {
   id: string;
@@ -21,15 +23,15 @@ export function GroupDetails({ id }: GroupDetailsProps) {
   const { data: group, isLoading, isError, error, refetch } = useGroup(id);
   const deleteGroup = useDeleteGroup();
   const [isAddStudentModalOpen, setIsAddStudentModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-  const handleDelete = async () => {
-    if (window.confirm('هل أنت متأكد من حذف هذه المجموعة بشكل نهائي؟\n\nتنبيه: لن تتمكن من التراجع عن هذا الإجراءوسيتم إزالة جميع الطلاب المرتبطين بها.')) {
-      try {
-        await deleteGroup.mutateAsync(id);
-        router.push('/teacher/groups');
-      } catch (err) {
-        alert('حدث خطأ أثناء الحذف، يرجى المحاولة مرة أخرى.');
-      }
+  const handleConfirmDelete = async () => {
+    try {
+      await deleteGroup.mutateAsync(id);
+      router.push('/teacher/groups');
+    } catch (err) {
+      alert('حدث خطأ أثناء الحذف، يرجى المحاولة مرة أخرى.');
     }
   };
 
@@ -83,7 +85,12 @@ export function GroupDetails({ id }: GroupDetailsProps) {
           العودة للمجموعات
         </Link>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="text-slate-600 bg-white shadow-sm">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="text-slate-600 bg-white shadow-sm"
+            onClick={() => setIsEditModalOpen(true)}
+          >
             <Settings className="w-4 h-4 ml-2" />
             تعديل المجموعة
           </Button>
@@ -91,14 +98,9 @@ export function GroupDetails({ id }: GroupDetailsProps) {
             variant="outline" 
             size="sm" 
             className="text-error-600 hover:text-error-700 hover:bg-error-50 border-error-200 bg-white shadow-sm"
-            onClick={handleDelete}
-            disabled={deleteGroup.isPending}
+            onClick={() => setIsDeleteModalOpen(true)}
           >
-            {deleteGroup.isPending ? (
-              <Loader2 className="w-4 h-4 ml-2 animate-spin" />
-            ) : (
-              <Trash2 className="w-4 h-4 ml-2" />
-            )}
+            <Trash2 className="w-4 h-4 ml-2" />
             حذف المجموعة
           </Button>
         </div>
@@ -165,6 +167,20 @@ export function GroupDetails({ id }: GroupDetailsProps) {
         isOpen={isAddStudentModalOpen}
         onClose={() => setIsAddStudentModalOpen(false)}
         groupId={id}
+      />
+
+      <DeleteGroupModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleConfirmDelete}
+        isDeleting={deleteGroup.isPending}
+        groupName={group.name}
+      />
+
+      <EditGroupModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        group={group}
       />
     </div>
   );

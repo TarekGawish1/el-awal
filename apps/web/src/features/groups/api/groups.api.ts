@@ -24,6 +24,13 @@ export async function fetchGroup(id: string): Promise<GroupWithDetails> {
   return await apiClient<GroupWithDetails>(API_ENDPOINTS.GROUPS.DETAIL(id));
 }
 
+export async function updateGroup(id: string, payload: Partial<CreateGroupPayload>): Promise<Group> {
+  return await apiClient<Group>(API_ENDPOINTS.GROUPS.DETAIL(id), {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function deleteGroup(id: string): Promise<void> {
   return await apiClient<void>(API_ENDPOINTS.GROUPS.DETAIL(id), {
     method: 'DELETE',

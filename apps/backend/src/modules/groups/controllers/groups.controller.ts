@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Delete,
   Body,
   Param,
@@ -11,6 +12,7 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { GroupsService } from '../services/groups.service';
 import { CreateGroupDto } from '../dto/create-group.dto';
+import { UpdateGroupDto } from '../dto/update-group.dto';
 import { EnrollStudentDto } from '../dto/enroll-student.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
@@ -55,6 +57,17 @@ export class GroupsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.groupsService.getGroupById(id, user);
+  }
+
+  @Patch(':id')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Update an academic group' })
+  async updateGroup(
+    @Param('id') id: string,
+    @Body() dto: UpdateGroupDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.groupsService.updateGroup(id, dto, user);
   }
 
   @Delete(':id')
