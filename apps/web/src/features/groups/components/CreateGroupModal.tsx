@@ -211,7 +211,8 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
           </button>
         </div>
         
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+          <div className="p-6 overflow-y-auto flex-1">
           {createGroup.isError && (
             <Alert variant="error" className="mb-6">
               {(createGroup.error as any)?.message || 'حدث خطأ أثناء إنشاء المجموعة'}
@@ -393,8 +394,9 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
               />
             </div>
           </div>
+          </div>
 
-          <div className="mt-8 flex gap-3 justify-end">
+          <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2 shrink-0">
             <Button
               type="button"
               variant="outline"

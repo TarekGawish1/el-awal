@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { X, Loader2, Search, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -153,31 +154,42 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
             )}
           </div>
 
-          <div className="mt-6 flex gap-3 justify-end shrink-0 pt-4 border-t border-slate-100">
-            <Button
-              type="button"
-              variant="outline"
+          <div className="mt-6 flex justify-between items-center shrink-0 pt-4 border-t border-slate-100">
+            <Link 
+              href="/teacher/students" 
               onClick={onClose}
-              disabled={addStudent.isPending}
+              className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center transition-colors hover:bg-primary-50 px-3 py-2 rounded-lg"
             >
-              إلغاء
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={addStudent.isPending || !selectedStudent}
-            >
-              {addStudent.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  جاري الإضافة...
-                </>
-              ) : (
-                <>
-                  <UserPlus className="w-4 h-4 ml-2" />
-                  إضافة الطالب
-                </>
-              )}
-            </Button>
+              <UserPlus className="w-4 h-4 ml-2" />
+              تسجيل طالب جديد
+            </Link>
+            
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                disabled={addStudent.isPending}
+              >
+                إلغاء
+              </Button>
+              <Button
+                onClick={handleSubmit}
+                disabled={addStudent.isPending || !selectedStudent}
+              >
+                {addStudent.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+                    جاري الإضافة...
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="w-4 h-4 ml-2" />
+                    إضافة الطالب
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
