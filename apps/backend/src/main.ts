@@ -126,8 +126,8 @@ async function bootstrap() {
     logger.log(`📚 Swagger API Docs available on /api/docs`);
   }
 
-  const port = configService.get<number>('PORT', 3000);
-  await app.listen(port);
+  const port = process.env.PORT || 3000;
+  await app.listen(port, '0.0.0.0');
 
   logger.log(`🚀 NestJS Backend Server running on port ${port} (Environment: ${configService.get<string>('NODE_ENV', 'development')})`);
 }
