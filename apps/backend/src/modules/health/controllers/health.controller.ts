@@ -52,7 +52,19 @@ export class HealthController {
       version: '1.0.1',
       deployedAt: new Date().toISOString(),
       status: 'Automated CI/CD is working seamlessly! 🎉',
-      server: 'DigitalOcean Ubuntu VPS',
+      server: 'Heroku Dyno (al-awal)',
+    };
+  }
+
+  @Public()
+  @Get('ci-test')
+  @ApiOperation({ summary: 'CI/CD pipeline automated test verification' })
+  ciTest() {
+    return {
+      status: 'success',
+      pipeline: 'GitHub Actions -> Heroku Git Subtree',
+      deployedAt: new Date().toISOString(),
+      message: '🎉 GitHub Actions CI/CD deployment pipeline pushed and updated the server automatically!',
     };
   }
 }
