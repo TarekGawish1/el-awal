@@ -101,7 +101,10 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
     gradeLevel: '',
     maxCapacity: 50,
     monthlyFee: 0,
-    schedules: [],
+    schedules: [
+      { dayOfWeek: 0, startTime: '14:00', endTime: '15:00' },
+      { dayOfWeek: 3, startTime: '14:00', endTime: '15:00' }
+    ],
   });
   const [educationalStage, setEducationalStage] = useState('');
   
@@ -140,7 +143,16 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
       },
       {
         onSuccess: () => {
-          setFormData({ name: '', gradeLevel: '', maxCapacity: 50, monthlyFee: 0, schedules: [] });
+          setFormData({ 
+            name: '', 
+            gradeLevel: '', 
+            maxCapacity: 50, 
+            monthlyFee: 0, 
+            schedules: [
+              { dayOfWeek: 0, startTime: '14:00', endTime: '15:00' },
+              { dayOfWeek: 3, startTime: '14:00', endTime: '15:00' }
+            ] 
+          });
           setEducationalStage('');
           onClose();
         },
