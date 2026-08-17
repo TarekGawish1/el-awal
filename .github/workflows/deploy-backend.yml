@@ -62,6 +62,45 @@ jobs:
             echo "==> 7. Testing Local Endpoint"
             curl -i http://127.0.0.1:3000/api/v1/health/ping || true
 
-            echo "==> 8. Inspecting Nginx Configuration"
-            cat /etc/nginx/sites-enabled/* || true
+            echo "==> 8. Configuring Nginx Reverse Proxy (HTTP + HTTPS)"
+            # Ensure self-signed SSL cert exists for HTTPS requests
+            if [ ! -f /etc/ssl/certs/nginx-selfsigned.crt ]; then
+              openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+                -keyout /etc/ssl/private/nginx-selfsigned.key \
+                -out /etc/ssl/certs/nginx-selfsigned.crt \
+                -subj "/C=EG/ST=Cairo/L=Cairo/O=ElAwal/CN=157.230.20.219" || true
+            fi
+
+            cat << 'EOF' > /etc/nginx/sites-available/el-awal-backend
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    server_name _;
+
+    ssl_certificate /etc/ssl/certs/nginx-selfsigned.crt;
+    ssl_certificate_key /etc/ssl/private/nginx-selfsigned.key;
+
+    client_max_body_size 50M;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+EOF
+            rm -f /etc/nginx/sites-enabled/default
+            ln -sf /etc/nginx/sites-available/el-awal-backend /etc/nginx/sites-enabled/
+            nginx -t && (systemctl reload nginx || nginx -s reload)
+
+            echo "==> 9. Probing Nginx Public Endpoint Locally"
+            curl -k -i https://127.0.0.1/api/v1/health/ping || true
             echo "==> Backend Deployment Finished Successfully!"
