@@ -44,79 +44,87 @@ export function ManualAttendanceRoster({ sessionId, records }: ManualAttendanceR
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold">Class Roster</h3>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="text-xl font-bold text-slate-800">سجل حضور المجموعة</h3>
         <Button 
           onClick={handleSave} 
           disabled={!hasChanges || isPending}
+          className="rounded-xl px-6"
         >
-          {isPending ? 'Saving...' : 'Save Attendance'}
+          {isPending ? 'جاري الحفظ...' : 'حفظ الحضور'}
         </Button>
       </div>
 
       {isSuccess && !hasChanges && (
-        <Alert variant="success">Attendance records updated successfully.</Alert>
+        <Alert variant="success">تم تحديث سجلات الحضور بنجاح.</Alert>
       )}
 
       {error && (
-        <Alert variant="error">Failed to save attendance. Please try again.</Alert>
+        <Alert variant="error">فشل حفظ الحضور. يرجى المحاولة مرة أخرى.</Alert>
       )}
 
-      <div className="overflow-x-auto border rounded-lg">
-        <table className="w-full text-sm text-left rtl:text-right">
-          <thead className="bg-gray-50 dark:bg-gray-800">
+      <div className="overflow-x-auto border border-slate-100 rounded-2xl shadow-sm">
+        <table className="w-full text-sm text-start">
+          <thead className="bg-slate-50/80 backdrop-blur-sm border-b border-slate-100">
             <tr>
-              <th className="px-6 py-3">Student Name</th>
-              <th className="px-6 py-3">Code</th>
-              <th className="px-6 py-3 text-center">Status</th>
+              <th className="px-6 py-4 font-semibold text-slate-600 text-start">اسم الطالب</th>
+              <th className="px-6 py-4 font-semibold text-slate-600 text-start">كود الطالب</th>
+              <th className="px-6 py-4 font-semibold text-slate-600 text-center">الحالة</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-slate-100 bg-white">
             {records.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-6 py-8 text-center text-gray-500">
-                  No students found in this roster.
+                <td colSpan={3} className="px-6 py-12 text-center text-slate-500">
+                  <div className="flex flex-col items-center justify-center space-y-2">
+                    <svg className="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <p>لا يوجد طلاب مسجلين في هذه المجموعة.</p>
+                  </div>
                 </td>
               </tr>
             ) : (
               records.map((record) => {
                 const currentStatus = localRecords[record.studentId] || record.status;
                 return (
-                  <tr key={record.id} className="border-b last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                    <td className="px-6 py-4 font-medium">{record.fullName}</td>
-                    <td className="px-6 py-4 font-mono text-xs">{record.studentCode}</td>
+                  <tr key={record.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="px-6 py-4 font-medium text-slate-900">{record.fullName}</td>
+                    <td className="px-6 py-4 font-mono text-xs text-slate-500">
+                      <span className="bg-slate-100 px-2.5 py-1 rounded-md">{record.studentCode}</span>
+                    </td>
                     <td className="px-6 py-4">
-                      <div className="flex justify-center space-x-2 rtl:space-x-reverse">
+                      <div className="flex justify-center space-x-3 rtl:space-x-reverse">
                         <button
                           onClick={() => handleStatusChange(record.studentId, 'PRESENT')}
-                          className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+                          className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
                             currentStatus === 'PRESENT'
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300'
-                              : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 hover:bg-gray-200'
+                              ? 'bg-emerald-100 text-emerald-800 ring-2 ring-emerald-500/20 shadow-sm'
+                              : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700'
                           }`}
                         >
-                          Present
+                          حاضر
                         </button>
                         <button
                           onClick={() => handleStatusChange(record.studentId, 'ABSENT')}
-                          className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+                          className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
                             currentStatus === 'ABSENT'
-                              ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'
-                              : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 hover:bg-gray-200'
+                              ? 'bg-rose-100 text-rose-800 ring-2 ring-rose-500/20 shadow-sm'
+                              : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700'
                           }`}
                         >
-                          Absent
+                          غائب
                         </button>
                         <button
                           onClick={() => handleStatusChange(record.studentId, 'EXCUSED')}
-                          className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+                          className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
                             currentStatus === 'EXCUSED'
-                              ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300'
-                              : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 hover:bg-gray-200'
+                              ? 'bg-amber-100 text-amber-800 ring-2 ring-amber-500/20 shadow-sm'
+                              : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700'
                           }`}
                         >
-                          Excused
+                          بعذر
                         </button>
                       </div>
                     </td>

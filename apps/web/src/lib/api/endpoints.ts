@@ -43,6 +43,28 @@ export const API_ENDPOINTS = {
     UPDATE: (id: string) => `/assessments/${id}`,
     SUBMISSIONS: (id: string) => `/assessments/${id}/submissions`,
     SUBMISSION_DETAIL: (submissionId: string) => `/assessments/submissions/${submissionId}`,
+    SUBMIT: (id: string) => `/assessments/${id}/submit`,
+  },
+  COURSES: {
+    CATALOG: '/courses/catalog',
+    MY_COURSES: '/courses/my-courses',
+    CREATE: '/courses',
+    DETAIL: (id: string) => `/courses/${id}`,
+    ENROLL: (id: string) => `/courses/${id}/enroll`,
+    LESSON_VIEWER: (lessonId: string) => `/courses/lessons/${lessonId}`,
+    LESSON_PROGRESS: (lessonId: string) => `/courses/lessons/${lessonId}/progress`,
+  },
+  SUBSCRIPTIONS: {
+    STUDENT_HISTORY: (studentId: string) => `/subscriptions/student/${studentId}`,
+  },
+  NOTIFICATIONS: {
+    LIST: '/notifications',
+    UNREAD_COUNT: '/notifications/unread-count',
+    MARK_READ: (id: string) => `/notifications/${id}/read`,
+    MARK_ALL_READ: '/notifications/read-all',
+  },
+  SYNC: {
+    PROGRESS: '/sync/progress',
   },
   PARENT_PORTAL: {
     CHILD_OVERVIEW: (id: string) => `/parent-portal/students/${id}/overview`,

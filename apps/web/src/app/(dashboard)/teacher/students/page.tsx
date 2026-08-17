@@ -10,23 +10,29 @@ export default function TeacherStudentsPage() {
 
   return (
     <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Students</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
-            Manage your students and their records
-          </p>
+      <div className="mb-8 bg-white p-8 rounded-3xl shadow-sm border border-slate-100 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-full h-2 bg-gradient-to-r from-primary-400 to-primary-600"></div>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center relative z-10">
+          <div>
+            <h1 className="text-3xl font-extrabold text-slate-900">سجل الطلاب</h1>
+            <p className="mt-3 text-slate-500 text-lg">
+              إدارة بيانات وسجلات جميع الطلاب.
+            </p>
+          </div>
+          {!isCreating && (
+            <Button className="mt-6 sm:mt-0 rounded-xl px-6" onClick={() => setIsCreating(true)}>
+              <svg className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              إضافة طالب
+            </Button>
+          )}
         </div>
-        {!isCreating && (
-          <Button className="mt-4 sm:mt-0" onClick={() => setIsCreating(true)}>
-            Add Student
-          </Button>
-        )}
       </div>
 
       {isCreating ? (
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border dark:border-gray-700">
-          <h2 className="text-xl font-semibold mb-4">Register New Student</h2>
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 mb-8">
+          <h2 className="text-xl font-bold text-slate-800 mb-6">تسجيل طالب جديد</h2>
           <CreateStudentForm
             onSuccess={() => setIsCreating(false)}
             onCancel={() => setIsCreating(false)}

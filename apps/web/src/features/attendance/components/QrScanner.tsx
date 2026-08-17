@@ -35,13 +35,13 @@ export function QrScanner({ sessionId }: QrScannerProps) {
             setLastScanResult({
               success: false,
               duplicate: true,
-              message: 'This student is already marked for this session.',
+              message: 'تم تسجيل حضور هذا الطالب لهذه الحصة مسبقاً.',
               studentName: data.student.fullName,
             });
           } else {
             setLastScanResult({
               success: true,
-              message: 'Attendance recorded successfully.',
+              message: 'تم تسجيل الحضور بنجاح.',
               studentName: data.student.fullName,
             });
           }
@@ -49,7 +49,7 @@ export function QrScanner({ sessionId }: QrScannerProps) {
           setTimeout(() => setLocked(false), 2000);
         },
         onError: (error: any) => {
-          const message = error.response?.data?.message || 'Invalid QR code or scanner error.';
+          const message = error.response?.data?.message || 'رمز QR غير صالح أو خطأ في الماسح الضوئي.';
           setLastScanResult({
             success: false,
             message: Array.isArray(message) ? message[0] : message,
@@ -66,16 +66,16 @@ export function QrScanner({ sessionId }: QrScannerProps) {
   };
 
   return (
-    <div className="flex flex-col items-center">
-      <div className="w-full max-w-sm rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 relative">
+    <div className="flex flex-col items-center py-4">
+      <div className="w-full max-w-sm rounded-3xl overflow-hidden border border-slate-100 shadow-sm relative ring-4 ring-primary-50">
         <Scanner 
           onScan={handleScan}
           onError={handleError}
           formats={['qr_code']}
         />
         {(locked || isPending) && (
-          <div className="absolute inset-0 bg-white/50 dark:bg-black/50 flex items-center justify-center z-10 backdrop-blur-sm">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
+          <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10 backdrop-blur-sm">
+            <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary-600 border-t-transparent"></div>
           </div>
         )}
       </div>
