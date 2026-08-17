@@ -242,10 +242,22 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    setFormData(prev => ({
-                      ...prev,
-                      schedules: [...(prev.schedules || []), { dayOfWeek: 0, startTime: '14:00', endTime: '15:00' }]
-                    }));
+                    setFormData(prev => {
+                      const current = prev.schedules || [];
+                      if (current.length === 0) {
+                        return {
+                          ...prev,
+                          schedules: [
+                            { dayOfWeek: 0, startTime: '14:00', endTime: '15:00' }, // الأحد
+                            { dayOfWeek: 3, startTime: '14:00', endTime: '15:00' }  // الأربعاء
+                          ]
+                        };
+                      }
+                      return {
+                        ...prev,
+                        schedules: [...current, { dayOfWeek: 0, startTime: '14:00', endTime: '15:00' }]
+                      };
+                    });
                   }}
                   className="h-8 text-xs gap-1 rounded-lg"
                   disabled={createGroup.isPending}
