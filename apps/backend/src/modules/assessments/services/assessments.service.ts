@@ -12,6 +12,7 @@ import { CreateAssessmentDto } from '../dto/create-assessment.dto';
 import { SubmitAssessmentDto } from '../dto/submit-assessment.dto';
 import { GradeSubmissionDto } from '../dto/grade-submission.dto';
 import { AssessmentQueryDto } from '../dto/assessment-query.dto';
+import { UpdateAssessmentDto } from '../dto/update-assessment.dto';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import {
   QuestionType,
@@ -601,5 +602,125 @@ export class AssessmentsService {
         isAutoGraded: s.isAutoGraded,
       })),
     };
+  }
+
+  /**
+   * Retrieves full details of a specific submission including answers for grading.
+   */
+  async getSubmissionById(
+    submissionId: string,
+    teacherId: string,
+    isSecretariat: boolean,
+  ) {
+    const submission = await this.prisma.assessmentSubmission.findUnique({
+      where: { id: submissionId },
+      include: {
+        assessment: {
+          include: {
+            questions: true,
+          }
+        },
+        student: {
+          include: {
+            user: { select: { fullName: true, phone: true, email: true } },
+          },
+        },
+        answers: {
+          include: {
+            question: true,
+          }
+        },
+      },
+    });
+
+    if (!submission) {
+      throw new NotFoundException(`Submission [${submissionId}] not found`);
+    }
+
+    if (!isSecretariat && submission.assessment.teacherId !== teacherId) {
+      throw new ForbiddenException('You do not have permission to view this submission');
+    }
+
+    return {
+      id: submission.id,
+      status: submission.status,
+      scoreObtained: submission.scoreObtained ? Number(submission.scoreObtained) : null,
+      isAutoGraded: submission.isAutoGraded,
+      submittedAt: submission.submittedAt,
+      gradedAt: submission.gradedAt,
+      attachmentUrl: submission.attachmentUrl,
+      teacherFeedback: submission.teacherFeedback,
+      student: {
+        id: submission.studentId,
+        fullName: submission.student.user.fullName,
+        phone: submission.student.user.phone,
+        email: submission.student.user.email,
+        studentCode: submission.student.studentCode,
+      },
+      assessment: {
+        id: submission.assessment.id,
+        title: submission.assessment.title,
+        totalScore: Number(submission.assessment.totalScore),
+      },
+      answers: submission.answers.map(ans => ({
+        id: ans.id,
+        questionId: ans.questionId,
+        questionText: ans.question.questionText,
+        questionType: ans.question.questionType,
+        correctAnswer: ans.question.correctAnswer,
+        selectedAnswer: ans.selectedAnswer,
+        isCorrect: ans.isCorrect,
+        pointsEarned: ans.pointsEarned ? Number(ans.pointsEarned) : null,
+        maxPointsSnapshot: Number(ans.maxPointsSnapshot),
+        teacherFeedback: ans.teacherFeedback,
+      }))
+    };
+  }
+
+  /**
+   * Updates an assessment. Only specific fields are allowed.
+   */
+  async updateAssessment(
+    assessmentId: string,
+    teacherId: string,
+    isSecretariat: boolean,
+    dto: UpdateAssessmentDto,
+  ) {
+    const assessment = await this.prisma.assessment.findUnique({
+      where: { id: assessmentId },
+      include: { _count: { select: { submissions: true } } }
+    });
+
+    if (!assessment) {
+      throw new NotFoundException(`Assessment [${assessmentId}] not found`);
+    }
+
+    if (!isSecretariat && assessment.teacherId !== teacherId) {
+      throw new ForbiddenException('You do not have permission to update this assessment');
+    }
+
+    // Lifecycle rule: Do not allow unpublishing if there are submissions
+    if (
+      assessment._count.submissions > 0 &&
+      dto.isPublished === false &&
+      assessment.isPublished === true
+    ) {
+      throw new ConflictException('Cannot unpublish an assessment that already has student submissions.');
+    }
+
+    const updated = await this.prisma.assessment.update({
+      where: { id: assessmentId },
+      data: {
+        ...(dto.title !== undefined && { title: dto.title }),
+        ...(dto.description !== undefined && { description: dto.description }),
+        ...(dto.durationMinutes !== undefined && { durationMinutes: dto.durationMinutes }),
+        ...(dto.dueDate !== undefined && { dueDate: dto.dueDate ? new Date(dto.dueDate) : null }),
+        ...(dto.isPublished !== undefined && { isPublished: dto.isPublished }),
+      },
+    });
+
+    this.logger.log(`Assessment [${assessmentId}] updated`);
+
+    return updated;
   }
 }

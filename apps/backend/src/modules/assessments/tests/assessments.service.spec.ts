@@ -20,6 +20,7 @@ describe('AssessmentsService', () => {
       create: jest.fn(),
       findUnique: jest.fn(),
       findMany: jest.fn(),
+      update: jest.fn(),
     },
     assessmentQuestion: {
       createMany: jest.fn(),
@@ -247,6 +248,89 @@ describe('AssessmentsService', () => {
           answers: [{ questionId: 'q-1', answerGiven: 'خبر كان منصوب' }],
         }),
       ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('getSubmissionById', () => {
+    const submissionId = 'sub-1';
+    const teacherId = 'teacher-1';
+    const mockSubmission = {
+      id: submissionId,
+      status: SubmissionStatus.SUBMITTED,
+      scoreObtained: null,
+      isAutoGraded: false,
+      submittedAt: new Date(),
+      gradedAt: null,
+      attachmentUrl: null,
+      teacherFeedback: null,
+      assessment: {
+        id: 'ass-1',
+        title: 'Title',
+        totalScore: 10,
+        teacherId: teacherId,
+        questions: [],
+      },
+      student: {
+        id: 'stu-1',
+        studentCode: 'CODE',
+        user: { fullName: 'Student', phone: '123', email: 'stu@example.com' },
+      },
+      answers: [],
+    };
+
+    it('should return submission details for the owning teacher', async () => {
+      mockPrismaService.assessmentSubmission.findUnique.mockResolvedValue(mockSubmission);
+      
+      const result = await service.getSubmissionById(submissionId, teacherId, false);
+      expect(result.id).toBe(submissionId);
+      expect(result.assessment.title).toBe('Title');
+      expect(result.student.fullName).toBe('Student');
+    });
+
+    it('should throw ForbiddenException for non-owning teacher', async () => {
+      mockPrismaService.assessmentSubmission.findUnique.mockResolvedValue(mockSubmission);
+      
+      await expect(
+        service.getSubmissionById(submissionId, 'other-teacher', false)
+      ).rejects.toThrow('You do not have permission to view this submission');
+    });
+  });
+
+  describe('updateAssessment', () => {
+    const assessmentId = 'ass-1';
+    const teacherId = 'teacher-1';
+    const mockAssessment = {
+      id: assessmentId,
+      teacherId,
+      isPublished: true,
+      _count: { submissions: 1 },
+    };
+
+    it('should update allowed fields for the owner', async () => {
+      mockPrismaService.assessment.findUnique.mockResolvedValue(mockAssessment);
+      mockPrismaService.assessment.update.mockResolvedValue({ ...mockAssessment, title: 'New Title' });
+
+      const result = await service.updateAssessment(assessmentId, teacherId, false, {
+        title: 'New Title',
+      });
+
+      expect(result.title).toBe('New Title');
+      expect(mockPrismaService.assessment.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: assessmentId },
+          data: { title: 'New Title' },
+        })
+      );
+    });
+
+    it('should prevent unpublishing if submissions exist', async () => {
+      mockPrismaService.assessment.findUnique.mockResolvedValue(mockAssessment);
+
+      await expect(
+        service.updateAssessment(assessmentId, teacherId, false, {
+          isPublished: false,
+        })
+      ).rejects.toThrow('Cannot unpublish an assessment that already has student submissions.');
     });
   });
 });

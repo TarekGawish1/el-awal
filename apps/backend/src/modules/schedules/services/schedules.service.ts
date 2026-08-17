@@ -210,4 +210,21 @@ export class SchedulesService {
       sessions: createdSessions,
     };
   }
+
+  /**
+   * Retrieves all physical LessonSession records for an academic group.
+   */
+  async getGroupSessions(groupId: string, user: AuthenticatedUser) {
+    await this.assertGroupAccess(groupId, user, false);
+
+    return this.prisma.lessonSession.findMany({
+      where: { groupId },
+      orderBy: [{ sessionDate: 'desc' }, { startTime: 'desc' }],
+      include: {
+        _count: {
+          select: { attendanceRecords: true },
+        },
+      },
+    });
+  }
 }

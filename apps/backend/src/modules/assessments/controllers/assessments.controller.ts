@@ -15,6 +15,7 @@ import { CreateAssessmentDto } from '../dto/create-assessment.dto';
 import { SubmitAssessmentDto } from '../dto/submit-assessment.dto';
 import { GradeSubmissionDto } from '../dto/grade-submission.dto';
 import { AssessmentQueryDto } from '../dto/assessment-query.dto';
+import { UpdateAssessmentDto } from '../dto/update-assessment.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
 import {
   CurrentUser,
@@ -113,6 +114,38 @@ export class AssessmentsController {
       id,
       user.teacherProfileId || user.id,
       isSecretariat,
+    );
+  }
+
+  @Get('submissions/:submissionId')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Get submission details including answers for manual grading' })
+  async getSubmissionById(
+    @Param('submissionId') submissionId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const isSecretariat = user.role === UserRole.SECRETARIAT;
+    return this.assessmentsService.getSubmissionById(
+      submissionId,
+      user.teacherProfileId || user.id,
+      isSecretariat,
+    );
+  }
+
+  @Patch(':id')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Update assessment metadata and publishing status' })
+  async updateAssessment(
+    @Param('id') id: string,
+    @Body() dto: UpdateAssessmentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const isSecretariat = user.role === UserRole.SECRETARIAT;
+    return this.assessmentsService.updateAssessment(
+      id,
+      user.teacherProfileId || user.id,
+      isSecretariat,
+      dto,
     );
   }
 }

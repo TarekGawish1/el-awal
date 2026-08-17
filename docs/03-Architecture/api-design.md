@@ -702,6 +702,21 @@ When a student queries `GET /api/v1/assessments/:id`:
 - The response projection **strictly strips** `correctAnswer` and grading keys from the returned question list.
 - Only teachers querying their own assessments receive `correctAnswer`.
 
+### 26.3 `PATCH /api/v1/assessments/:id`
+- **Purpose**: Update assessment metadata and publishing status.
+- **Authorization**: `TEACHER` (Owner only) or `SECRETARIAT`
+- **Request Body DTO**:
+  ```json
+  {
+    "title": "امتحان نصوص وبلاغة - معدل",
+    "description": "الوصف الجديد",
+    "dueDate": "2026-08-30T23:59:59.000Z",
+    "durationMinutes": 45,
+    "isPublished": true
+  }
+  ```
+- **Lifecycle Rules**: Cannot unpublish (`isPublished: false`) an assessment that already has student submissions. Returns `409 Conflict` if attempted.
+
 ---
 
 ## 27. Assignment & Submissions API (`/api/v1/assessments/:id/submit`)
@@ -737,6 +752,10 @@ When a student queries `GET /api/v1/assessments/:id`:
   }
   ```
 
+### 27.2 `GET /api/v1/assessments/submissions/:submissionId`
+- **Purpose**: Get detailed submission record including all questions and the student's actual answers, allowing the teacher to manually grade subjective questions.
+- **Authorization**: `TEACHER` (Assessment Owner only) or `SECRETARIAT`.
+- **Response**: Returns the submission details, linked assessment details (including questions and `correctAnswer`), and the student profile data. Students and unauthorized teachers receive `403 Forbidden`.
 ---
 
 ## 28. Parent Portal API (`/api/v1/parent-portal`)

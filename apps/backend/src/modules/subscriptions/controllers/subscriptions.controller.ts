@@ -6,6 +6,7 @@ import {
   Param,
   Query,
   ParseIntPipe,
+  Delete,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { SubscriptionsService } from '../services/subscriptions.service';
@@ -70,5 +71,15 @@ export class SubscriptionsController {
       periodMonth,
       user,
     );
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.SECRETARIAT, UserRole.TEACHER)
+  @ApiOperation({ summary: 'Delete or reverse a recorded payment' })
+  async deleteStudentPayment(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.subscriptionsService.deleteStudentPayment(id, user);
   }
 }

@@ -65,4 +65,14 @@ export class SchedulesController {
   ) {
     return this.schedulesService.generateSessionsFromSchedule(groupId, dto, user);
   }
+
+  @Get('group/:groupId/sessions')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT, UserRole.PARENT)
+  @ApiOperation({ summary: 'Get all physical LessonSession records for an academic group' })
+  async getGroupSessions(
+    @Param('groupId') groupId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.schedulesService.getGroupSessions(groupId, user);
+  }
 }

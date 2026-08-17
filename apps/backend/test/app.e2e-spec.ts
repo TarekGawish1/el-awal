@@ -116,6 +116,10 @@ describe('El Awal Backend E2E Integration Suite (e2e)', () => {
       }),
       create: jest.fn().mockResolvedValue(mockStudentProfile.user),
     },
+    refreshTokenSession: {
+      create: jest.fn().mockResolvedValue({ id: 'sess-1' }),
+      findUnique: jest.fn().mockResolvedValue(null),
+    },
     teacherProfile: {
       findUnique: jest.fn().mockResolvedValue({ id: 'teacher-profile-1' }),
     },
@@ -184,6 +188,7 @@ describe('El Awal Backend E2E Integration Suite (e2e)', () => {
     },
     lessonSession: {
       findUnique: jest.fn().mockResolvedValue(mockSession),
+      findMany: jest.fn().mockResolvedValue([mockSession]),
       count: jest.fn().mockResolvedValue(2),
     },
     attendanceRecord: {
@@ -206,6 +211,7 @@ describe('El Awal Backend E2E Integration Suite (e2e)', () => {
         isPublished: true,
         dueDate: null,
         teacherId: 'teacher-profile-1',
+        _count: { submissions: 0 },
         questions: [
           {
             id: 'd1e2f3a4-b5c6-7d8e-9f0a-1b2c3d4e5f6a',
@@ -218,9 +224,21 @@ describe('El Awal Backend E2E Integration Suite (e2e)', () => {
         submissions: [],
       }),
       findMany: jest.fn().mockResolvedValue([]),
+      update: jest.fn().mockImplementation(({ where, data }) => {
+        return Promise.resolve({
+          id: where.id,
+          title: data.title || 'Updated Title',
+          totalScore: 10.0,
+          passingScore: 5.0,
+          isPublished: data.isPublished !== undefined ? data.isPublished : true,
+          dueDate: null,
+          teacherId: 'teacher-profile-1',
+          questions: [],
+          submissions: [],
+        });
+      }),
     },
     assessmentSubmission: {
-      findUnique: jest.fn().mockResolvedValue(null),
       findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn().mockResolvedValue({
         id: 'sub-1',
@@ -231,6 +249,25 @@ describe('El Awal Backend E2E Integration Suite (e2e)', () => {
         isAutoGraded: true,
         submittedAt: new Date(),
         gradedAt: new Date(),
+      }),
+      findUnique: jest.fn().mockImplementation(({ where }) => {
+        console.log('assessmentSubmission.findUnique called with where:', where);
+        if (where.id === 'sub-1') {
+          return Promise.resolve({
+            id: 'sub-1',
+            assessmentId: 'c1d2e3f4-a5b6-7c8d-9e0f-1a2b3c4d5e6f',
+            studentId: 'student-profile-1',
+            status: SubmissionStatus.GRADED,
+            scoreObtained: 10.0,
+            isAutoGraded: true,
+            submittedAt: new Date(),
+            gradedAt: new Date(),
+            assessment: { id: 'c1d2e3f4-a5b6-7c8d-9e0f-1a2b3c4d5e6f', title: 'Title', teacherId: 'teacher-profile-1' },
+            student: { user: { fullName: 'Student' } },
+            answers: [],
+          });
+        }
+        return Promise.resolve(null);
       }),
     },
     studentPaymentRecord: {
@@ -372,6 +409,15 @@ describe('El Awal Backend E2E Integration Suite (e2e)', () => {
   });
 
   describe('4. QR Attendance Roll-Call & Idempotency', () => {
+    it('GET /api/v1/schedules/group/:groupId/sessions — should return group sessions', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/schedules/group/a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d/sessions')
+        .set('Authorization', `Bearer ${teacherJwtToken}`)
+        .expect(200);
+
+      expect(Array.isArray(response.body.data)).toBe(true);
+    });
+
     it('POST /api/v1/attendance/sessions/:sessionId/scan-qr — should record attendance on first scan', async () => {
       const response = await request(app.getHttpServer())
         .post('/api/v1/attendance/sessions/b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e/scan-qr')
@@ -404,6 +450,29 @@ describe('El Awal Backend E2E Integration Suite (e2e)', () => {
       expect(response.body.data.status).toBe(SubmissionStatus.GRADED);
       expect(response.body.data.scoreObtained).toBe(10.0);
       expect(response.body.data.isAutoGraded).toBe(true);
+    });
+
+    it('GET /api/v1/assessments/submissions/:submissionId — should return submission details for teacher', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/assessments/submissions/sub-1')
+        .set('Authorization', `Bearer ${teacherJwtToken}`)
+        .expect(200);
+
+      expect(response.body.data).toHaveProperty('id', 'sub-1');
+      expect(response.body.data).toHaveProperty('answers');
+      expect(response.body.data).toHaveProperty('student');
+    });
+
+    it('PATCH /api/v1/assessments/:id — should update assessment metadata', async () => {
+      const response = await request(app.getHttpServer())
+        .patch('/api/v1/assessments/c1d2e3f4-a5b6-7c8d-9e0f-1a2b3c4d5e6f')
+        .set('Authorization', `Bearer ${teacherJwtToken}`)
+        .send({
+          title: 'اختبار النحو المحدث',
+        })
+        .expect(200);
+
+      expect(response.body.data.title).toBe('اختبار النحو المحدث');
     });
   });
 

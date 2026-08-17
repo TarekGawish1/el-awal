@@ -4,6 +4,8 @@ import {
   Get,
   Body,
   Query,
+  Param,
+  Delete,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -62,5 +64,16 @@ export class ContentController {
       lessonId,
       contentType,
     );
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Delete educational content and its associated storage object' })
+  @ApiResponse({ status: 200, description: 'Content successfully deleted' })
+  async deleteContent(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.contentService.deleteContent(id, user.teacherProfileId || user.id);
   }
 }

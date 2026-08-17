@@ -16,6 +16,7 @@ import {
   X,
   Bell,
   GraduationCap,
+  DollarSign,
 } from 'lucide-react';
 import { useAuth } from '@/features/auth';
 
@@ -52,14 +53,25 @@ export default function DashboardLayout({
     }
   };
 
-  const navigationItems = [
+  const teacherNavigationItems = [
     { label: 'لوحة التحكم', href: '/teacher/dashboard', icon: LayoutDashboard },
     { label: 'المجموعات الدراسية', href: '/teacher/groups', icon: Calendar },
     { label: 'رصد الحضور والـ QR', href: '/teacher/attendance', icon: QrCode },
     { label: 'سجل الطلاب', href: '/teacher/students', icon: Users },
     { label: 'الواجبات والاختبارات', href: '/teacher/assessments', icon: FileText },
     { label: 'المحتوى والدروس', href: '/teacher/content', icon: BookOpen },
+    { label: 'الماليات والمصروفات', href: '/teacher/finance', icon: DollarSign },
   ];
+
+  const studentNavigationItems = [
+    { label: 'الرئيسية', href: '/student/dashboard', icon: LayoutDashboard },
+    { label: 'الدورات', href: '/student/courses', icon: BookOpen },
+    { label: 'الاختبارات', href: '/student/assessments', icon: FileText },
+    { label: 'الحضور', href: '/student/attendance', icon: QrCode },
+    { label: 'المدفوعات', href: '/student/payments', icon: DollarSign },
+  ];
+
+  const navigationItems = user?.role === 'STUDENT' ? studentNavigationItems : teacherNavigationItems;
 
   // Hydration-safe initial loading screen before auth initialization
   if (!isInitialized) {

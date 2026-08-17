@@ -109,4 +109,35 @@ export class ContentService {
       fileSize: c.fileSize ? Number(c.fileSize) : null,
     }));
   }
+
+  /**
+   * Deletes a content record and its associated file from storage.
+   */
+  async deleteContent(id: string, teacherId: string) {
+    const content = await this.prisma.educationalContent.findUnique({
+      where: { id },
+    });
+
+    if (!content) {
+      throw new NotFoundException(`Content [${id}] not found`);
+    }
+
+    if (content.teacherId !== teacherId) {
+      throw new ForbiddenException('You do not own this content');
+    }
+
+    // Delete from R2 storage
+    if (content.fileKey) {
+      await this.storageService.deleteObject(content.fileKey).catch((err) => {
+        this.logger.warn(`Failed to delete object [${content.fileKey}] from R2 during content deletion`, err);
+      });
+    }
+
+    // Delete from DB
+    await this.prisma.educationalContent.delete({
+      where: { id },
+    });
+
+    return { success: true };
+  }
 }

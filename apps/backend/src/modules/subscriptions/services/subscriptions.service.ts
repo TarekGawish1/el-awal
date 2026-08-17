@@ -318,4 +318,32 @@ export class SubscriptionsService {
       defaulters,
     };
   }
+
+  /**
+   * Deletes a payment record.
+   */
+  async deleteStudentPayment(id: string, user: AuthenticatedUser) {
+    const payment = await this.prisma.studentPaymentRecord.findUnique({
+      where: { id },
+      include: { group: true },
+    });
+
+    if (!payment) {
+      throw new NotFoundException(`Payment record [${id}] not found`);
+    }
+
+    if (user.role === UserRole.TEACHER) {
+      const teacherId = user.teacherProfileId || user.id;
+      if (payment.group && payment.group.teacherId !== teacherId && payment.group.teacherId !== user.id) {
+        throw new ForbiddenException('You do not own the academic group for this payment');
+      }
+    }
+
+    await this.prisma.studentPaymentRecord.delete({
+      where: { id },
+    });
+
+    this.logger.log(`Payment [${id}] deleted by User [${user.id}]`);
+    return { success: true };
+  }
 }
