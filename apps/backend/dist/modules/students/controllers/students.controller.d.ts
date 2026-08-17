@@ -33,8 +33,8 @@ export declare class StudentsController {
                 name: string;
             };
         } & {
-            id: string;
             status: import(".prisma/client").$Enums.GroupEnrollmentStatus;
+            id: string;
             groupId: string;
             studentId: string;
             enrolledAt: Date;
@@ -85,8 +85,8 @@ export declare class StudentsController {
                 name: string;
             };
         } & {
-            id: string;
             status: import(".prisma/client").$Enums.GroupEnrollmentStatus;
+            id: string;
             groupId: string;
             studentId: string;
             enrolledAt: Date;

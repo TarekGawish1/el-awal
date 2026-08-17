@@ -33,6 +33,13 @@ export class GroupsController {
     return this.groupsService.createGroup(user.teacherProfileId || user.id, dto);
   }
 
+  @Get()
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Get all physical academic groups' })
+  async getGroups(@CurrentUser() user: AuthenticatedUser) {
+    return this.groupsService.getTeacherGroups(user.teacherProfileId || user.id);
+  }
+
   @Get('my-groups')
   @Roles(UserRole.TEACHER)
   @ApiOperation({ summary: 'Get all physical academic groups managed by the authenticated teacher' })

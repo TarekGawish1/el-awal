@@ -8,7 +8,6 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthTokensResponseDto = exports.AuthUserDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
@@ -34,7 +33,7 @@ __decorate([
 ], AuthUserDto.prototype, "phone", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ enum: client_1.UserRole, example: client_1.UserRole.TEACHER }),
-    __metadata("design:type", typeof (_a = typeof client_1.UserRole !== "undefined" && client_1.UserRole) === "function" ? _a : Object)
+    __metadata("design:type", String)
 ], AuthUserDto.prototype, "role", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)({ example: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' }),

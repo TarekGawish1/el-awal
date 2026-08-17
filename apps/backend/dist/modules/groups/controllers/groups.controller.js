@@ -28,6 +28,9 @@ let GroupsController = class GroupsController {
     async createGroup(dto, user) {
         return this.groupsService.createGroup(user.teacherProfileId || user.id, dto);
     }
+    async getGroups(user) {
+        return this.groupsService.getTeacherGroups(user.teacherProfileId || user.id);
+    }
     async getMyGroups(user) {
         return this.groupsService.getTeacherGroups(user.teacherProfileId || user.id);
     }
@@ -56,6 +59,15 @@ __decorate([
     __metadata("design:paramtypes", [create_group_dto_1.CreateGroupDto, Object]),
     __metadata("design:returntype", Promise)
 ], GroupsController.prototype, "createGroup", null);
+__decorate([
+    (0, common_1.Get)(),
+    (0, roles_decorator_1.Roles)(client_1.UserRole.TEACHER, client_1.UserRole.SECRETARIAT),
+    (0, swagger_1.ApiOperation)({ summary: 'Get all physical academic groups' }),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], GroupsController.prototype, "getGroups", null);
 __decorate([
     (0, common_1.Get)('my-groups'),
     (0, roles_decorator_1.Roles)(client_1.UserRole.TEACHER),

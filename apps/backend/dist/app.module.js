@@ -25,6 +25,7 @@ const notifications_module_1 = require("./modules/notifications/notifications.mo
 const subscriptions_module_1 = require("./modules/subscriptions/subscriptions.module");
 const sync_module_1 = require("./modules/sync/sync.module");
 const health_module_1 = require("./modules/health/health.module");
+const teachers_module_1 = require("./modules/teachers/teachers.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -38,6 +39,7 @@ exports.AppModule = AppModule = __decorate([
             users_module_1.UsersModule,
             students_module_1.StudentsModule,
             groups_module_1.GroupsModule,
+            teachers_module_1.TeachersModule,
             schedules_module_1.SchedulesModule,
             attendance_module_1.AttendanceModule,
             courses_module_1.CoursesModule,

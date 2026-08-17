@@ -5,10 +5,10 @@ export declare class NotificationsController {
     private readonly notificationsService;
     constructor(notificationsService: NotificationsService);
     getNotifications(user: AuthenticatedUser, query: CursorPaginationDto): Promise<import("../../../common/pagination/cursor-pagination.helper").PaginatedResult<{
-        id: string;
-        createdAt: Date;
         message: string;
         type: string;
+        id: string;
+        createdAt: Date;
         title: string;
         recipientId: string;
         referenceEntityId: string | null;

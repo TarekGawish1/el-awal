@@ -26,14 +26,14 @@ export declare class CoursesController {
             bio: string | null;
         };
     } & {
+        status: import(".prisma/client").$Enums.CourseStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         gradeLevel: string;
         academicStage: string | null;
-        status: import(".prisma/client").$Enums.CourseStatus;
-        description: string | null;
         title: string;
+        description: string | null;
         teacherId: string;
         subject: string;
         price: import("@prisma/client/runtime/library").Decimal;
@@ -41,14 +41,14 @@ export declare class CoursesController {
         orderIndex: number;
     }>>;
     createCourse(dto: CreateCourseDto, user: AuthenticatedUser): Promise<{
+        status: import(".prisma/client").$Enums.CourseStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         gradeLevel: string;
         academicStage: string | null;
-        status: import(".prisma/client").$Enums.CourseStatus;
-        description: string | null;
         title: string;
+        description: string | null;
         teacherId: string;
         subject: string;
         price: import("@prisma/client/runtime/library").Decimal;
@@ -89,8 +89,8 @@ export declare class CoursesController {
             lessons: {
                 id: string;
                 createdAt: Date;
-                description: string;
                 title: string;
+                description: string;
                 orderIndex: number;
                 lessonType: string;
                 videoDurationSeconds: number;
@@ -100,20 +100,20 @@ export declare class CoursesController {
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            description: string | null;
             title: string;
+            description: string | null;
             courseId: string;
             orderIndex: number;
         })[];
     } & {
+        status: import(".prisma/client").$Enums.CourseStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         gradeLevel: string;
         academicStage: string | null;
-        status: import(".prisma/client").$Enums.CourseStatus;
-        description: string | null;
         title: string;
+        description: string | null;
         teacherId: string;
         subject: string;
         price: import("@prisma/client/runtime/library").Decimal;
@@ -121,14 +121,14 @@ export declare class CoursesController {
         orderIndex: number;
     }>;
     updateCourse(id: string, dto: UpdateCourseDto, user: AuthenticatedUser): Promise<{
+        status: import(".prisma/client").$Enums.CourseStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         gradeLevel: string;
         academicStage: string | null;
-        status: import(".prisma/client").$Enums.CourseStatus;
-        description: string | null;
         title: string;
+        description: string | null;
         teacherId: string;
         subject: string;
         price: import("@prisma/client/runtime/library").Decimal;
@@ -139,8 +139,8 @@ export declare class CoursesController {
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
         title: string;
+        description: string | null;
         courseId: string;
         orderIndex: number;
     }>;
@@ -148,15 +148,15 @@ export declare class CoursesController {
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        description: string | null;
         title: string;
+        description: string | null;
         orderIndex: number;
-        moduleId: string;
         lessonType: string;
-        videoAssetId: string | null;
         bunnyVideoId: string | null;
         contentUrl: string | null;
         videoDurationSeconds: number | null;
+        moduleId: string;
+        videoAssetId: string | null;
         isPreview: boolean;
     }>;
     enrollCourse(courseId: string, user: AuthenticatedUser): Promise<{

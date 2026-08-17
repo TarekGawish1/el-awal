@@ -18,6 +18,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { SyncModule } from './modules/sync/sync.module';
 import { HealthModule } from './modules/health/health.module';
+import { TeachersModule } from './modules/teachers/teachers.module';
 
 @Module({
   imports: [
@@ -30,11 +31,12 @@ import { HealthModule } from './modules/health/health.module';
     // External Cloud Integrations (Cloudflare R2, Bunny Stream)
     IntegrationsModule,
 
-    // 13 Domain Feature Modules + Health
+    // 14 Domain Feature Modules + Health
     AuthModule,
     UsersModule,
     StudentsModule,
     GroupsModule,
+    TeachersModule,
     SchedulesModule,
     AttendanceModule,
     CoursesModule,

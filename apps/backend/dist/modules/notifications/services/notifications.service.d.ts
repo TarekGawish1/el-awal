@@ -13,10 +13,10 @@ export declare class NotificationsService {
     private readonly logger;
     constructor(prisma: PrismaService);
     createNotification(dto: CreateNotificationDto): Promise<{
-        id: string;
-        createdAt: Date;
         message: string;
         type: string;
+        id: string;
+        createdAt: Date;
         title: string;
         recipientId: string;
         referenceEntityId: string | null;
@@ -24,10 +24,10 @@ export declare class NotificationsService {
         readAt: Date | null;
     }>;
     getNotifications(recipientId: string, query: CursorPaginationDto): Promise<import("../../../common/pagination/cursor-pagination.helper").PaginatedResult<{
-        id: string;
-        createdAt: Date;
         message: string;
         type: string;
+        id: string;
+        createdAt: Date;
         title: string;
         recipientId: string;
         referenceEntityId: string | null;

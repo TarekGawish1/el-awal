@@ -9,12 +9,12 @@ export declare class AssessmentsController {
     constructor(assessmentsService: AssessmentsService);
     createAssessment(dto: CreateAssessmentDto, user: AuthenticatedUser): Promise<{
         totalQuestions: number;
+        type: import(".prisma/client").$Enums.AssessmentType;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        type: import(".prisma/client").$Enums.AssessmentType;
-        description: string | null;
         title: string;
+        description: string | null;
         groupId: string | null;
         teacherId: string;
         lessonId: string | null;
@@ -51,12 +51,12 @@ export declare class AssessmentsController {
             name: string;
         };
     } & {
+        type: import(".prisma/client").$Enums.AssessmentType;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        type: import(".prisma/client").$Enums.AssessmentType;
-        description: string | null;
         title: string;
+        description: string | null;
         groupId: string | null;
         teacherId: string;
         lessonId: string | null;
@@ -115,12 +115,12 @@ export declare class AssessmentsController {
             teacherFeedback: string;
             answers: {
                 id: string;
+                questionId: string;
+                pointsEarned: import("@prisma/client/runtime/library").Decimal | null;
                 teacherFeedback: string | null;
                 submissionId: string;
-                questionId: string;
                 selectedAnswer: string | null;
                 isCorrect: boolean | null;
-                pointsEarned: import("@prisma/client/runtime/library").Decimal | null;
                 maxPointsSnapshot: import("@prisma/client/runtime/library").Decimal | null;
             }[];
         };
@@ -174,12 +174,12 @@ export declare class AssessmentsController {
             };
         } & {
             id: string;
+            questionId: string;
+            pointsEarned: import("@prisma/client/runtime/library").Decimal | null;
             teacherFeedback: string | null;
             submissionId: string;
-            questionId: string;
             selectedAnswer: string | null;
             isCorrect: boolean | null;
-            pointsEarned: import("@prisma/client/runtime/library").Decimal | null;
             maxPointsSnapshot: import("@prisma/client/runtime/library").Decimal | null;
         })[];
     }>;

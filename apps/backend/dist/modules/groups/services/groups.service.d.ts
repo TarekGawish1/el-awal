@@ -67,15 +67,15 @@ export declare class GroupsService {
         teacherId: string;
     }>;
     enrollStudent(groupId: string, studentId: string): Promise<{
-        id: string;
         status: import(".prisma/client").$Enums.GroupEnrollmentStatus;
+        id: string;
         groupId: string;
         studentId: string;
         enrolledAt: Date;
     }>;
     dropStudent(groupId: string, studentId: string): Promise<{
-        id: string;
         status: import(".prisma/client").$Enums.GroupEnrollmentStatus;
+        id: string;
         groupId: string;
         studentId: string;
         enrolledAt: Date;

@@ -54,8 +54,8 @@ export declare class StudentsService {
                 name: string;
             };
         } & {
-            id: string;
             status: import(".prisma/client").$Enums.GroupEnrollmentStatus;
+            id: string;
             groupId: string;
             studentId: string;
             enrolledAt: Date;
@@ -88,8 +88,8 @@ export declare class StudentsService {
                 name: string;
             };
         } & {
-            id: string;
             status: import(".prisma/client").$Enums.GroupEnrollmentStatus;
+            id: string;
             groupId: string;
             studentId: string;
             enrolledAt: Date;
