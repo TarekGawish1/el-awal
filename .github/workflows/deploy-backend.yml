@@ -61,4 +61,7 @@ jobs:
 
             echo "==> 7. Testing Local Endpoint"
             curl -i http://127.0.0.1:3000/api/v1/health/ping || true
+
+            echo "==> 8. Inspecting Nginx Configuration"
+            cat /etc/nginx/sites-enabled/* || true
             echo "==> Backend Deployment Finished Successfully!"
