@@ -3,17 +3,34 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { CreateGroupDto } from '../dto/create-group.dto';
-import { GroupEnrollmentStatus, AttendanceStatus } from '@prisma/client';
+import { GroupEnrollmentStatus, AttendanceStatus, UserRole } from '@prisma/client';
+import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 
 @Injectable()
 export class GroupsService {
   private readonly logger = new Logger(GroupsService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Helper: Validates that a teacher owns the target group (Secretariat/Admin bypasses).
+   */
+  private checkTeacherOwnership(group: { teacherId: string }, user?: AuthenticatedUser) {
+    if (!user) return;
+    if (user.role === UserRole.TEACHER) {
+      const teacherId = user.teacherProfileId || user.id;
+      if (group.teacherId !== teacherId) {
+        throw new ForbiddenException(
+          'You do not have permission to view or manage this academic group',
+        );
+      }
+    }
+  }
 
   /**
    * Creates a new physical academic group assigned to the authenticated teacher.
@@ -53,7 +70,7 @@ export class GroupsService {
   /**
    * Retrieves single group metadata, schedules, and active student count.
    */
-  async getGroupById(groupId: string) {
+  async getGroupById(groupId: string, user?: AuthenticatedUser) {
     const group = await this.prisma.academicGroup.findUnique({
       where: { id: groupId },
       include: {
@@ -71,13 +88,15 @@ export class GroupsService {
       throw new NotFoundException(`Academic group [${groupId}] not found`);
     }
 
+    this.checkTeacherOwnership(group, user);
+
     return group;
   }
 
   /**
    * Enrolls a student into a physical group, enforcing max capacity limits.
    */
-  async enrollStudent(groupId: string, studentId: string) {
+  async enrollStudent(groupId: string, studentId: string, user?: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
       const group = await tx.academicGroup.findUnique({
         where: { id: groupId },
@@ -91,6 +110,8 @@ export class GroupsService {
       if (!group || !group.isActive) {
         throw new NotFoundException(`Academic group [${groupId}] not found or inactive`);
       }
+
+      this.checkTeacherOwnership(group, user);
 
       if (group._count.enrollments >= group.maxCapacity) {
         throw new ConflictException(
@@ -134,7 +155,17 @@ export class GroupsService {
   /**
    * Drops a student from the active group roster.
    */
-  async dropStudent(groupId: string, studentId: string) {
+  async dropStudent(groupId: string, studentId: string, user?: AuthenticatedUser) {
+    const group = await this.prisma.academicGroup.findUnique({
+      where: { id: groupId },
+    });
+
+    if (!group) {
+      throw new NotFoundException(`Academic group [${groupId}] not found`);
+    }
+
+    this.checkTeacherOwnership(group, user);
+
     const enrollment = await this.prisma.groupEnrollment.findUnique({
       where: {
         groupId_studentId: {
@@ -164,7 +195,7 @@ export class GroupsService {
   /**
    * Retrieves full roster of actively enrolled students in a group with attendance rate summary.
    */
-  async getGroupRoster(groupId: string) {
+  async getGroupRoster(groupId: string, user?: AuthenticatedUser) {
     const group = await this.prisma.academicGroup.findUnique({
       where: { id: groupId },
       include: {
@@ -193,6 +224,8 @@ export class GroupsService {
       throw new NotFoundException(`Academic group [${groupId}] not found`);
     }
 
+    this.checkTeacherOwnership(group, user);
+
     // Compute total sessions for this group
     const totalSessions = await this.prisma.lessonSession.count({
       where: { groupId },
@@ -212,7 +245,7 @@ export class GroupsService {
 
         return {
           enrollmentId: e.id,
-          studentId: e.student.id,
+          studentId: e.studentId,
           studentCode: e.student.studentCode,
           fullName: e.student.user.fullName,
           phone: e.student.user.phone,

@@ -1,6 +1,7 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { validateEnv } from './config/env.validation';
 import { DatabaseModule } from './database/database.module';
 import { SecurityModule } from './security/security.module';
@@ -20,10 +21,23 @@ import { CorrelationIdMiddleware } from './middleware/correlation-id.middleware'
       validate: validateEnv,
       envFilePath: ['.env', '.env.local'],
     }),
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60000,
+        limit: 120,
+      },
+    ]),
     DatabaseModule,
     SecurityModule,
   ],
   providers: [
+    // Rate Limiting Guard
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+
     // Global Exception Filters
     {
       provide: APP_FILTER,
@@ -58,7 +72,7 @@ import { CorrelationIdMiddleware } from './middleware/correlation-id.middleware'
       useClass: ResourceOwnershipGuard,
     },
   ],
-  exports: [DatabaseModule, SecurityModule],
+  exports: [DatabaseModule, SecurityModule, ThrottlerModule],
 })
 export class CoreModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

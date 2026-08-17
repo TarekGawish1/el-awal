@@ -4,7 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AttendanceService } from '../services/attendance.service';
 import { AttendanceRepository } from '../repositories/attendance.repository';
 import { PrismaService } from '../../../core/database/prisma.service';
-import { AttendanceStatus, RecordingMethod, GroupEnrollmentStatus } from '@prisma/client';
+import { AttendanceStatus, RecordingMethod, GroupEnrollmentStatus, UserRole } from '@prisma/client';
 
 describe('AttendanceService', () => {
   let service: AttendanceService;
@@ -58,7 +58,11 @@ describe('AttendanceService', () => {
   describe('processQrScan', () => {
     const sessionId = 'session-1';
     const qrCodeToken = 'qr_tok_valid_123';
-    const recordedById = 'teacher-user-1';
+    const mockTeacherUser = {
+      id: 'teacher-user-1',
+      teacherProfileId: 'teacher-user-1',
+      role: UserRole.TEACHER,
+    };
 
     it('should successfully record attendance for actively enrolled student', async () => {
       mockPrismaService.lessonSession.findUnique.mockResolvedValue({
@@ -66,6 +70,7 @@ describe('AttendanceService', () => {
         groupId: 'group-1',
         group: {
           id: 'group-1',
+          teacherId: 'teacher-user-1',
           name: 'مجموعة أ',
           _count: { enrollments: 30 },
         },
@@ -91,7 +96,7 @@ describe('AttendanceService', () => {
           studentId: 'student-1',
           status: AttendanceStatus.PRESENT,
           recordingMethod: RecordingMethod.QR_SCAN,
-          recordedById,
+          recordedById: 'teacher-user-1',
           recordedAt: new Date(),
         },
         isDuplicate: false,
@@ -99,7 +104,7 @@ describe('AttendanceService', () => {
 
       mockPrismaService.attendanceRecord.count.mockResolvedValue(15);
 
-      const result = await service.processQrScan(sessionId, qrCodeToken, recordedById);
+      const result = await service.processQrScan(sessionId, qrCodeToken, mockTeacherUser as any);
 
       expect(result.isDuplicate).toBe(false);
       expect(result.student.fullName).toBe('محمود أحمد');
@@ -114,7 +119,7 @@ describe('AttendanceService', () => {
       mockPrismaService.lessonSession.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.processQrScan('invalid-session', qrCodeToken, recordedById),
+        service.processQrScan('invalid-session', qrCodeToken, mockTeacherUser as any),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -122,7 +127,7 @@ describe('AttendanceService', () => {
       mockPrismaService.lessonSession.findUnique.mockResolvedValue({
         id: sessionId,
         groupId: 'group-1',
-        group: { name: 'مجموعة أ', _count: { enrollments: 30 } },
+        group: { id: 'group-1', teacherId: 'teacher-user-1', name: 'مجموعة أ', _count: { enrollments: 30 } },
       });
 
       mockPrismaService.studentProfile.findUnique.mockResolvedValue({
@@ -134,8 +139,40 @@ describe('AttendanceService', () => {
       mockPrismaService.groupEnrollment.findUnique.mockResolvedValue(null); // Not enrolled
 
       await expect(
-        service.processQrScan(sessionId, qrCodeToken, recordedById),
+        service.processQrScan(sessionId, qrCodeToken, mockTeacherUser as any),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('getStudentHistory (Security Authorization)', () => {
+    it('should throw ForbiddenException if student attempts to view another student history', async () => {
+      const studentUser: any = {
+        id: 'user-stu-1',
+        studentProfileId: 'stu-profile-1',
+        role: 'STUDENT',
+      };
+
+      await expect(
+        service.getStudentHistory('stu-profile-2', { limit: 20 }, undefined, studentUser),
+      ).rejects.toThrow();
+    });
+
+    it('should allow student to view their own attendance history', async () => {
+      const studentUser: any = {
+        id: 'user-stu-1',
+        studentProfileId: 'stu-profile-1',
+        role: 'STUDENT',
+      };
+
+      mockRepository.getStudentAttendanceHistory.mockResolvedValue({ data: [], meta: {} });
+
+      const result = await service.getStudentHistory(
+        'stu-profile-1',
+        { limit: 20 },
+        undefined,
+        studentUser,
+      );
+      expect(result).toBeDefined();
     });
   });
 });

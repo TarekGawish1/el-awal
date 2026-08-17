@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { StorageService } from '../../../integrations/storage/storage.service';
@@ -46,12 +46,21 @@ export class ContentService {
       if (!group) {
         throw new NotFoundException(`Academic group [${dto.groupId}] not found`);
       }
+      if (group.teacherId !== teacherId) {
+        throw new ForbiddenException('You do not own this academic group');
+      }
     }
 
     if (dto.lessonId) {
-      const lesson = await this.prisma.courseLesson.findUnique({ where: { id: dto.lessonId } });
+      const lesson = await this.prisma.courseLesson.findUnique({
+        where: { id: dto.lessonId },
+        include: { module: { include: { course: true } } },
+      });
       if (!lesson) {
         throw new NotFoundException(`Course lesson [${dto.lessonId}] not found`);
+      }
+      if (lesson.module.course.teacherId !== teacherId) {
+        throw new ForbiddenException('You do not own the course containing this lesson');
       }
     }
 

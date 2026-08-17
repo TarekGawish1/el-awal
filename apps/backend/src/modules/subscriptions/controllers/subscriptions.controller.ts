@@ -32,21 +32,27 @@ export class SubscriptionsController {
     @Body() dto: RecordPaymentDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.subscriptionsService.recordStudentPayment(user.id, dto);
+    return this.subscriptionsService.recordStudentPayment(user, dto);
   }
 
   @Get('payments')
   @Roles(UserRole.SECRETARIAT, UserRole.TEACHER)
   @ApiOperation({ summary: 'List payment audit log with Keyset cursor pagination and period filters' })
-  async getPaymentLog(@Query() query: PaymentQueryDto) {
-    return this.subscriptionsService.getPaymentLog(query);
+  async getPaymentLog(
+    @Query() query: PaymentQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.subscriptionsService.getPaymentLog(query, user);
   }
 
   @Get('student/:studentId')
   @Roles(UserRole.SECRETARIAT, UserRole.TEACHER, UserRole.PARENT, UserRole.STUDENT)
   @ApiOperation({ summary: 'Get billing and payment history for a student' })
-  async getStudentPaymentHistory(@Param('studentId') studentId: string) {
-    return this.subscriptionsService.getStudentPaymentHistory(studentId);
+  async getStudentPaymentHistory(
+    @Param('studentId') studentId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.subscriptionsService.getStudentPaymentHistory(studentId, user);
   }
 
   @Get('group/:groupId/defaulters')
@@ -56,11 +62,13 @@ export class SubscriptionsController {
     @Param('groupId') groupId: string,
     @Query('periodYear', ParseIntPipe) periodYear: number,
     @Query('periodMonth', ParseIntPipe) periodMonth: number,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.subscriptionsService.getGroupDefaulters(
       groupId,
       periodYear,
       periodMonth,
+      user,
     );
   }
 }

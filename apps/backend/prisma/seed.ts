@@ -1,3 +1,6 @@
+import * as dotenv from 'dotenv';
+dotenv.config();
+
 import { PrismaClient, UserRole, StudentAcademicStatus, GroupEnrollmentStatus, AttendanceStatus, RecordingMethod } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 

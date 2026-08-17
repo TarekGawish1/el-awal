@@ -2,14 +2,16 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { RecordPaymentDto } from '../dto/record-payment.dto';
 import { PaymentQueryDto } from '../dto/payment-query.dto';
-import { PaymentStatus, GroupEnrollmentStatus } from '@prisma/client';
+import { PaymentStatus, GroupEnrollmentStatus, UserRole } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
+import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 
 @Injectable()
 export class SubscriptionsService {
@@ -23,7 +25,7 @@ export class SubscriptionsService {
   /**
    * Records or updates a tuition payment record and dispatches payment event upon success.
    */
-  async recordStudentPayment(recordedById: string, dto: RecordPaymentDto) {
+  async recordStudentPayment(user: AuthenticatedUser, dto: RecordPaymentDto) {
     const student = await this.prisma.studentProfile.findUnique({
       where: { id: dto.studentId },
       include: { user: { select: { fullName: true } } },
@@ -43,6 +45,28 @@ export class SubscriptionsService {
       if (!group) {
         throw new NotFoundException(`Academic group [${dto.groupId}] not found`);
       }
+
+      if (user.role === UserRole.TEACHER) {
+        const teacherId = user.teacherProfileId || user.id;
+        if (group.teacherId !== teacherId && group.teacherId !== user.id) {
+          throw new ForbiddenException('You do not own the academic group for this payment');
+        }
+      }
+
+      // Check active enrollment in group
+      const enrollment = await this.prisma.groupEnrollment.findUnique({
+        where: {
+          groupId_studentId: {
+            groupId: dto.groupId,
+            studentId: dto.studentId,
+          },
+        },
+      });
+
+      if (!enrollment || enrollment.status !== GroupEnrollmentStatus.ACTIVE) {
+        throw new BadRequestException('Student is not actively enrolled in this academic group');
+      }
+
       groupName = group.name;
       if (amountExpected === undefined) {
         amountExpected = Number(group.monthlyFee);
@@ -53,7 +77,7 @@ export class SubscriptionsService {
       where: {
         studentId_groupId_periodYear_periodMonth: {
           studentId: dto.studentId,
-          groupId: dto.groupId || '',
+          groupId: dto.groupId ?? null,
           periodYear: dto.periodYear,
           periodMonth: dto.periodMonth,
         },
@@ -70,7 +94,7 @@ export class SubscriptionsService {
         paymentMethod: dto.paymentMethod || 'CASH',
         receiptNumber: dto.receiptNumber,
         notes: dto.notes,
-        recordedById,
+        recordedById: user.id,
       },
       update: {
         amountPaid: dto.amountPaid,
@@ -79,11 +103,11 @@ export class SubscriptionsService {
         paymentMethod: dto.paymentMethod || 'CASH',
         receiptNumber: dto.receiptNumber,
         notes: dto.notes,
-        recordedById,
+        recordedById: user.id,
       },
       include: {
         student: {
-          include: { user: { select: { fullName: true, phone: true } } },
+          include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
         },
         group: { select: { id: true, name: true } },
       },
@@ -112,7 +136,7 @@ export class SubscriptionsService {
   /**
    * Keyset cursor-paginated tuition payment audit log with multi-criteria filters.
    */
-  async getPaymentLog(query: PaymentQueryDto) {
+  async getPaymentLog(query: PaymentQueryDto, user: AuthenticatedUser) {
     const limit = CursorPaginationHelper.sanitizeLimit(query.limit);
     const decodedCursor = query.cursor
       ? CursorPaginationHelper.decodeCursor(query.cursor)
@@ -131,6 +155,16 @@ export class SubscriptionsService {
       ...(cursorFilter || {}),
     };
 
+    if (user.role === UserRole.TEACHER) {
+      const teacherId = user.teacherProfileId || user.id;
+      where.group = {
+        OR: [
+          { teacherId },
+          { teacher: { id: teacherId } },
+        ],
+      };
+    }
+
     const payments = await this.prisma.studentPaymentRecord.findMany({
       where,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -148,9 +182,46 @@ export class SubscriptionsService {
   }
 
   /**
-   * Complete payment and billing history for a student across all groups.
+   * Complete payment and billing history for a student across all groups with IDOR check.
    */
-  async getStudentPaymentHistory(studentId: string) {
+  async getStudentPaymentHistory(studentId: string, user: AuthenticatedUser) {
+    if (user.role === UserRole.STUDENT) {
+      const myStudentId = user.studentProfileId || user.id;
+      if (myStudentId !== studentId) {
+        throw new ForbiddenException('Students can only access their own payment history');
+      }
+    } else if (user.role === UserRole.PARENT) {
+      const parentId = user.parentProfileId || user.id;
+      const link = await this.prisma.parentStudentLink.findUnique({
+        where: {
+          parentId_studentId: {
+            parentId,
+            studentId,
+          },
+        },
+      });
+      if (!link) {
+        throw new ForbiddenException('Guardians can only view linked children payment history');
+      }
+    } else if (user.role === UserRole.TEACHER) {
+      const teacherId = user.teacherProfileId || user.id;
+      const enrolledInTeacherGroup = await this.prisma.groupEnrollment.findFirst({
+        where: {
+          studentId,
+          status: GroupEnrollmentStatus.ACTIVE,
+          group: {
+            OR: [
+              { teacherId },
+              { teacher: { id: teacherId } },
+            ],
+          },
+        },
+      });
+      if (!enrolledInTeacherGroup) {
+        throw new ForbiddenException('Student is not enrolled in your academic groups');
+      }
+    }
+
     const records = await this.prisma.studentPaymentRecord.findMany({
       where: { studentId },
       orderBy: [{ periodYear: 'desc' }, { periodMonth: 'desc' }],
@@ -174,6 +245,7 @@ export class SubscriptionsService {
     groupId: string,
     periodYear: number,
     periodMonth: number,
+    user: AuthenticatedUser,
   ) {
     const group = await this.prisma.academicGroup.findUnique({
       where: { id: groupId },
@@ -181,6 +253,13 @@ export class SubscriptionsService {
 
     if (!group) {
       throw new NotFoundException(`Academic group [${groupId}] not found`);
+    }
+
+    if (user.role === UserRole.TEACHER) {
+      const teacherId = user.teacherProfileId || user.id;
+      if (group.teacherId !== teacherId && group.teacherId !== user.id) {
+        throw new ForbiddenException('You do not own this academic group');
+      }
     }
 
     // 1. Get all active enrollments in this group

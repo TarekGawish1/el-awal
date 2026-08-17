@@ -99,8 +99,9 @@ export class CoursesService {
 
   /**
    * Retrieves full course outline including ordered modules and lessons.
+   * Scopes unpublished courses to the course creator teacher or secretariat.
    */
-  async getCourseDetails(courseId: string) {
+  async getCourseDetails(courseId: string, user?: AuthenticatedUser) {
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
       include: {
@@ -131,6 +132,17 @@ export class CoursesService {
 
     if (!course) {
       throw new NotFoundException(`Course [${courseId}] not found`);
+    }
+
+    if (user && course.status !== CourseStatus.PUBLISHED) {
+      const isSecretariat = user.role === UserRole.SECRETARIAT;
+      const isOwnerTeacher =
+        user.role === UserRole.TEACHER &&
+        (course.teacherId === user.teacherProfileId || course.teacherId === user.id);
+
+      if (!isSecretariat && !isOwnerTeacher) {
+        throw new NotFoundException(`Course [${courseId}] not found`);
+      }
     }
 
     return course;
@@ -527,12 +539,68 @@ export class CoursesService {
   }
 
   /**
-   * Delegates offline batch intake to CourseProgressRepository.
+   * Delegates offline batch intake to CourseProgressRepository after validating lesson-course integrity and student entitlements.
    */
   async applyMonotonicProgressBatch(
     studentId: string,
     items: SyncProgressItemDto[],
   ): Promise<SyncBatchResult> {
+    if (!items || items.length === 0) {
+      return {
+        syncedCount: 0,
+        processedOperationIds: [],
+        courseId: '',
+        overallCourseCompletionPercentage: 0,
+      };
+    }
+
+    const lessonIds = items.map((i) => i.lessonId);
+    const lessons = await this.prisma.courseLesson.findMany({
+      where: { id: { in: lessonIds } },
+      include: { module: true },
+    });
+
+    const lessonMap = new Map(lessons.map((l) => [l.id, l.module.courseId]));
+
+    for (const item of items) {
+      const actualCourseId = lessonMap.get(item.lessonId);
+      if (!actualCourseId) {
+        throw new NotFoundException(`Lesson [${item.lessonId}] not found`);
+      }
+      if (actualCourseId !== item.courseId) {
+        throw new BadRequestException(
+          `Lesson [${item.lessonId}] belongs to course [${actualCourseId}], not [${item.courseId}]`,
+        );
+      }
+    }
+
+    // Verify student course entitlement for courses in batch
+    const uniqueCourseIds = [...new Set(items.map((i) => i.courseId))];
+    for (const cId of uniqueCourseIds) {
+      const hasEnrollment = await this.prisma.courseEnrollment.findFirst({
+        where: {
+          studentId,
+          courseId: cId,
+          status: CourseEnrollmentStatus.ACTIVE,
+        },
+      });
+
+      const hasAccess = await this.prisma.courseAccess.findFirst({
+        where: {
+          studentId,
+          courseId: cId,
+          accessStatus: 'ACTIVE',
+          OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+        },
+      });
+
+      if (!hasEnrollment && !hasAccess) {
+        throw new ForbiddenException(
+          `Student is not enrolled or entitled to course [${cId}]`,
+        );
+      }
+    }
+
     return this.progressRepository.syncBatch(studentId, items);
   }
 }

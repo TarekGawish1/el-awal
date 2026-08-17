@@ -17,6 +17,12 @@ describe('AuthService', () => {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
     },
+    refreshTokenSession: {
+      create: jest.fn().mockResolvedValue({ id: 'session-1' }),
+      findUnique: jest.fn(),
+      update: jest.fn().mockResolvedValue({ id: 'session-1' }),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
   };
 
   const mockJwtService = {
@@ -26,6 +32,7 @@ describe('AuthService', () => {
 
   const mockConfigService = {
     get: jest.fn((key: string, defaultVal: string) => defaultVal),
+    getOrThrow: jest.fn((key: string) => 'test-secret-32-chars-long-for-jwt-signing'),
   };
 
   beforeEach(async () => {
@@ -109,6 +116,15 @@ describe('AuthService', () => {
         sub: 'user-uuid-1',
         email: 'teacher@elawal.com',
         role: UserRole.TEACHER,
+        typ: 'refresh',
+      });
+
+      mockPrismaService.refreshTokenSession.findUnique.mockResolvedValue({
+        id: 'session-1',
+        userId: 'user-uuid-1',
+        tokenHash: 'somehash',
+        expiresAt: new Date(Date.now() + 100000),
+        revokedAt: null,
       });
 
       mockPrismaService.user.findUnique.mockResolvedValue({

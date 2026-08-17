@@ -1,4 +1,15 @@
-import { IsArray, ValidateNested, IsUUID, IsInt, Min, IsBoolean, IsNotEmpty } from 'class-validator';
+import {
+  IsArray,
+  ValidateNested,
+  IsUUID,
+  IsInt,
+  Min,
+  Max,
+  IsBoolean,
+  IsNotEmpty,
+  ArrayMinSize,
+  ArrayMaxSize,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -18,9 +29,10 @@ export class SyncOperationItemDto {
   @IsNotEmpty()
   lessonId: string;
 
-  @ApiProperty({ description: 'Last playback position in seconds', minimum: 0 })
+  @ApiProperty({ description: 'Last playback position in seconds', minimum: 0, maximum: 86400 })
   @IsInt()
   @Min(0)
+  @Max(86400)
   positionSeconds: number;
 
   @ApiProperty({ description: 'Whether lesson has reached completed milestone' })
@@ -29,8 +41,10 @@ export class SyncOperationItemDto {
 }
 
 export class BatchProgressSyncDto {
-  @ApiProperty({ type: [SyncOperationItemDto], description: 'Array of staged offline progress operations' })
+  @ApiProperty({ type: [SyncOperationItemDto], description: 'Array of staged offline progress operations (Max 50)' })
   @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(50)
   @ValidateNested({ each: true })
   @Type(() => SyncOperationItemDto)
   operations: SyncOperationItemDto[];

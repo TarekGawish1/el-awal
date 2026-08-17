@@ -15,6 +15,7 @@
     "test:backend": "npm run test --workspace=@el-awal/backend",
     "prisma:generate": "npm run prisma:generate --workspace=@el-awal/backend",
     "prisma:migrate": "npm run prisma:migrate --workspace=@el-awal/backend",
+    "prisma:migrate:deploy": "npm run prisma:migrate:deploy --workspace=@el-awal/backend",
     "prisma:studio": "npm run prisma:studio --workspace=@el-awal/backend"
   }
 }
