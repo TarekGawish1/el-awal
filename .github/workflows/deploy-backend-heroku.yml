@@ -1,0 +1,35 @@
+name: Deploy Backend to Heroku
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      # Only trigger when changes are made to the backend or root dependencies
+      - 'apps/backend/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-backend-heroku.yml'
+
+jobs:
+  deploy:
+    name: Deploy Backend Subtree to Heroku
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history needed for git subtree
+
+      - name: Deploy Backend to Heroku via Git Subtree
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
+          HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
+        run: |
+          # 1. Configure Heroku Git Remote
+          git remote add heroku https://heroku:${HEROKU_API_KEY}@git.heroku.com/${HEROKU_APP_NAME}.git
+
+          # 2. Extract and push only the backend folder (apps/backend) to Heroku main branch
+          git subtree push --prefix apps/backend heroku main
