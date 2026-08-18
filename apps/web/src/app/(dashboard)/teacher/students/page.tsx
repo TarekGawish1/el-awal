@@ -3,10 +3,12 @@
 import React, { useState } from 'react';
 import { StudentList } from '@/features/students/components/StudentList';
 import { CreateStudentForm } from '@/features/students/components/CreateStudentForm';
+import { StudentQrBadge } from '@/features/students/components/StudentQrBadge';
 import { Button } from '@/components/ui/Button';
 
 export default function TeacherStudentsPage() {
   const [isCreating, setIsCreating] = useState(false);
+  const [createdStudent, setCreatedStudent] = useState<{ id: string; password?: string; email?: string; phone?: string } | null>(null);
 
   return (
     <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -19,7 +21,7 @@ export default function TeacherStudentsPage() {
               إدارة بيانات وسجلات جميع الطلاب.
             </p>
           </div>
-          {!isCreating && (
+          {!isCreating && !createdStudent && (
             <Button className="mt-6 sm:mt-0 rounded-xl px-6" onClick={() => setIsCreating(true)}>
               <svg className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -34,9 +36,37 @@ export default function TeacherStudentsPage() {
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 mb-8">
           <h2 className="text-xl font-bold text-slate-800 mb-6">تسجيل طالب جديد</h2>
           <CreateStudentForm
-            onSuccess={() => setIsCreating(false)}
+            onSuccess={(data, password) => {
+              if (data?.id) {
+                setCreatedStudent({
+                  id: data.id,
+                  password: password,
+                  email: data.email,
+                  phone: data.phone
+                });
+              }
+              setIsCreating(false);
+            }}
             onCancel={() => setIsCreating(false)}
           />
+        </div>
+      ) : createdStudent ? (
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 mb-8 flex flex-col items-center">
+          <div className="w-full max-w-sm mb-6">
+            <StudentQrBadge
+              studentId={createdStudent.id}
+              studentPhone={createdStudent.phone}
+              loginPassword={createdStudent.password}
+              loginEmail={createdStudent.email}
+              loginPhone={createdStudent.phone}
+            />
+          </div>
+          <Button 
+            className="px-8 rounded-xl"
+            onClick={() => setCreatedStudent(null)}
+          >
+            العودة لسجل الطلاب
+          </Button>
         </div>
       ) : (
         <StudentList />

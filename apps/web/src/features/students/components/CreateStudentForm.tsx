@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Alert';
 
 interface CreateStudentFormProps {
-  onSuccess: () => void;
+  onSuccess: (data?: any, password?: string) => void;
   onCancel: () => void;
 }
 
@@ -129,8 +129,8 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
         initialGroupId: formData.initialGroupId || undefined,
       },
       {
-        onSuccess: () => {
-          onSuccess();
+        onSuccess: (data) => {
+          onSuccess(data, formData.password);
         },
         onError: (err: any) => {
           let msg = err.message || err.response?.data?.message || 'حدث خطأ أثناء التسجيل';
