@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { StudentQrBadge } from '@/features/students/components/StudentQrBadge';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Phone } from 'lucide-react';
+import { formatWhatsAppNumber } from '@/lib/utils/formatters';
 
 export default function StudentDetailPage() {
   const params = useParams();
@@ -101,7 +102,7 @@ export default function StudentDetailPage() {
             </a>
             <div className="w-[1px] h-6 bg-slate-200"></div>
             <a 
-              href={`https://wa.me/${student.user.phone?.replace(/[^0-9]/g, '')}`} 
+              href={`https://wa.me/${formatWhatsAppNumber(student.user.phone)}`} 
               target="_blank" 
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center p-3 rounded-xl hover:bg-green-100 transition-colors text-green-600 focus:outline-none focus:ring-2 focus:ring-green-500/20"
@@ -227,7 +228,7 @@ export default function StudentDetailPage() {
                               <Phone className="w-5 h-5" />
                             </a>
                             <a 
-                              href={`https://wa.me/${link.parent.user.phone.replace(/[^0-9]/g, '')}`} 
+                              href={`https://wa.me/${formatWhatsAppNumber(link.parent.user.phone)}`} 
                               target="_blank" 
                               rel="noopener noreferrer"
                               className="inline-flex items-center justify-center p-2 rounded-full hover:bg-green-50 transition-colors text-green-500 hover:text-green-600 focus:outline-none focus:ring-2 focus:ring-green-500/20"

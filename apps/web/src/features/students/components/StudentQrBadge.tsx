@@ -4,6 +4,7 @@ import React, { useState, useRef } from 'react';
 import QRCode from 'react-qr-code';
 import { useStudentQrCode, useRegenerateStudentQr } from '../hooks/use-students';
 import { Button } from '@/components/ui/Button';
+import { formatWhatsAppNumber } from '@/lib/utils/formatters';
 
 interface StudentQrBadgeProps {
   studentId: string;
@@ -60,7 +61,7 @@ export function StudentQrBadge({
         URL.revokeObjectURL(downloadUrl);
 
         const noteText = `${shareText}\\n\\n(تم تحميل صورة بطاقة الـ QR على جهازك، يمكنك إرفاقها هنا)`;
-        const waUrl = `https://wa.me/${studentPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(noteText)}`;
+        const waUrl = `https://wa.me/${formatWhatsAppNumber(studentPhone)}?text=${encodeURIComponent(noteText)}`;
         window.open(waUrl, '_blank');
       } else if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
@@ -123,11 +124,6 @@ export function StudentQrBadge({
         
         <div className="flex flex-col items-center justify-center w-full gap-3">
           <h3 className="text-xl font-bold text-slate-900 leading-tight text-center m-0">{data.fullName}</h3>
-          <div className="bg-primary-50 py-2 px-6 rounded-xl border border-primary-100 inline-block text-center mx-auto">
-            <span className="text-primary-700 font-mono text-base font-bold" dir="ltr">
-              {data.studentCode}
-            </span>
-          </div>
         </div>
       </div>
 

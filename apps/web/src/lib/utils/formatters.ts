@@ -59,3 +59,25 @@ export function formatArabicTime(timeInput: string | Date | undefined | null): s
     hour12: true,
   }).format(date);
 }
+
+/**
+ * Formats a phone number for WhatsApp (prepends country code +20 if it's an Egyptian number)
+ */
+export function formatWhatsAppNumber(phone: string | undefined | null, defaultCountryCode: string = '20'): string {
+  if (!phone) return '';
+  const digits = phone.replace(/[^0-9]/g, '');
+  if (!digits) return '';
+  
+  // If the number starts with 0 and is an Egyptian mobile (e.g., 01xxxxxxxxx), prepend country code (e.g., 20)
+  if (digits.startsWith('01') && digits.length === 11) {
+    return `2${digits}`;
+  }
+  
+  // If it's already an Egyptian number starting with 201
+  if (digits.startsWith('201') && digits.length === 12) {
+    return digits;
+  }
+  
+  // Fallback
+  return digits;
+}
