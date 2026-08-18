@@ -341,6 +341,7 @@ export class StudentsService {
               { user: { fullName: { contains: query.search, mode: 'insensitive' } } },
               { user: { phone: { contains: query.search } } },
               { studentCode: { contains: query.search, mode: 'insensitive' } },
+              { qrCodeToken: query.search },
             ],
           }
         : {}),
