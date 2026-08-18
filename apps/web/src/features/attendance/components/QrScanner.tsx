@@ -19,6 +19,7 @@ export function QrScanner({ sessionId }: QrScannerProps) {
 
   const { mutate, isPending } = useScanQrAttendance();
   const [locked, setLocked] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
   const handleScan = (detectedCodes: any[]) => {
     if (locked || isPending || !detectedCodes || detectedCodes.length === 0) return;
@@ -63,11 +64,18 @@ export function QrScanner({ sessionId }: QrScannerProps) {
 
   const handleError = (error: any) => {
     console.error('QR Scanner Error:', error);
+    if (error?.name === 'NotAllowedError' || error?.message?.includes('Permission')) {
+      setCameraError('تم رفض صلاحية استخدام الكاميرا. يرجى تفعيلها من إعدادات المتصفح.');
+    } else if (error?.name === 'NotSupportedError' || error?.message?.includes('secure context')) {
+      setCameraError('لا يمكن الوصول للكاميرا. تأكد من استخدام اتصال آمن (HTTPS) أو أنك تستخدم localhost.');
+    } else {
+      setCameraError(error?.message || 'حدث خطأ في تشغيل الكاميرا.');
+    }
   };
 
   return (
     <div className="flex flex-col items-center py-4">
-      <div className="w-full max-w-sm rounded-3xl overflow-hidden border border-slate-100 shadow-sm relative ring-4 ring-primary-50">
+      <div className="w-full max-w-sm aspect-square bg-slate-900 rounded-3xl overflow-hidden border border-slate-100 shadow-sm relative ring-4 ring-primary-50">
         <Scanner 
           onScan={handleScan}
           onError={handleError}
@@ -81,7 +89,14 @@ export function QrScanner({ sessionId }: QrScannerProps) {
       </div>
 
       <div className="mt-6 w-full max-w-sm min-h-[80px]">
-        {lastScanResult && (
+        {cameraError ? (
+          <Alert variant="error">
+            <div className="flex flex-col">
+              <span className="font-semibold">خطأ في الكاميرا</span>
+              <span className="text-sm mt-1">{cameraError}</span>
+            </div>
+          </Alert>
+        ) : lastScanResult ? (
           <Alert
             variant={lastScanResult.success ? 'success' : lastScanResult.duplicate ? 'warning' : 'error'}
           >
@@ -92,7 +107,7 @@ export function QrScanner({ sessionId }: QrScannerProps) {
               )}
             </div>
           </Alert>
-        )}
+        ) : null}
       </div>
     </div>
   );
