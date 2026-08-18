@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { Plus, Search, Layers, AlertCircle, BookOpen, MapPin, GraduationCap, Calendar, RotateCcw } from 'lucide-react';
 import { useGroups } from '../hooks/useGroups';
+import { useStoredAcademicPeriod } from '../hooks/useAcademicPeriod';
 import { GroupCard } from './GroupCard';
 import { CreateGroupModal } from './CreateGroupModal';
 import { Button } from '@/components/ui/Button';
@@ -45,6 +46,13 @@ const getStageName = (gradeLevel: string) => {
 
 export function GroupList() {
   const { data: groups, isLoading, isError, error, refetch } = useGroups();
+  const {
+    selectedYears,
+    setSelectedYears,
+    selectedTerms,
+    setSelectedTerms,
+  } = useStoredAcademicPeriod(groups);
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
@@ -107,6 +115,48 @@ export function GroupList() {
     setSelectedGrades(newGrades);
   }, []);
 
+  // Dynamic Academic Years from groups + standard defaults
+  const availableYears = useMemo(() => {
+    const yearsSet = new Set<string>();
+    yearsSet.add('2025-2026');
+    yearsSet.add('2026-2027');
+    yearsSet.add('2024-2025');
+
+    if (groups && Array.isArray(groups)) {
+      groups.forEach((g) => {
+        if (g.academicYear && g.academicYear.trim()) {
+          yearsSet.add(g.academicYear.trim());
+        }
+      });
+    }
+
+    return Array.from(yearsSet)
+      .sort()
+      .reverse()
+      .map((year) => ({
+        label: year,
+        value: year,
+        icon: <Calendar className="w-3.5 h-3.5 text-primary-600" />,
+      }));
+  }, [groups]);
+
+  // Academic Term options (الفصل الدراسي الأول و الثاني فقط)
+  const availableTerms = useMemo(
+    () => [
+      {
+        label: 'الفصل الدراسي الأول (ترم أول)',
+        value: 'FIRST_TERM',
+        icon: <BookOpen className="w-3.5 h-3.5 text-primary-600" />,
+      },
+      {
+        label: 'الفصل الدراسي الثاني (ترم ثانٍ)',
+        value: 'SECOND_TERM',
+        icon: <BookOpen className="w-3.5 h-3.5 text-primary-600" />,
+      },
+    ],
+    []
+  );
+
   // Extract all unique places / locations from groups
   const availableLocations = useMemo(() => {
     if (!groups || !Array.isArray(groups)) return [];
@@ -140,7 +190,7 @@ export function GroupList() {
     return Array.from(locSet);
   }, [groups, selectedStages, selectedGrades]);
 
-  // Filter groups by search query, stages, grades, and locations
+  // Filter groups by search query, stages, grades, locations, academic year, and academic term
   const filteredGroups = useMemo(() => {
     if (!groups) return [];
     return groups.filter((group) => {
@@ -150,6 +200,7 @@ export function GroupList() {
         !q ||
         group.name.toLowerCase().includes(q) ||
         (group.gradeLevel && group.gradeLevel.toLowerCase().includes(q)) ||
+        (group.academicYear && group.academicYear.toLowerCase().includes(q)) ||
         (group.schedules &&
           group.schedules.some((s) => s.location && s.location.toLowerCase().includes(q)));
 
@@ -166,9 +217,19 @@ export function GroupList() {
         (group.schedules &&
           group.schedules.some((s) => s.location && selectedLocations.includes(s.location)));
 
-      return matchesSearch && matchesStage && matchesGrade && matchesLocation;
+      // 5. Academic Year Filter (Multi-select)
+      const matchesYear =
+        selectedYears.length === 0 ||
+        (group.academicYear && selectedYears.includes(group.academicYear));
+
+      // 6. Academic Term Filter (Multi-select)
+      const matchesTerm =
+        selectedTerms.length === 0 ||
+        (group.academicTerm && selectedTerms.includes(group.academicTerm));
+
+      return matchesSearch && matchesStage && matchesGrade && matchesLocation && matchesYear && matchesTerm;
     });
-  }, [groups, searchQuery, selectedStages, selectedGrades, selectedLocations]);
+  }, [groups, searchQuery, selectedStages, selectedGrades, selectedLocations, selectedYears, selectedTerms]);
 
   // Group by stage and then by grade
   const groupedGroups = useMemo(() => {
@@ -192,13 +253,17 @@ export function GroupList() {
     searchQuery !== '' ||
     selectedStages.length > 0 ||
     selectedGrades.length > 0 ||
-    selectedLocations.length > 0;
+    selectedLocations.length > 0 ||
+    selectedYears.length > 0 ||
+    selectedTerms.length > 0;
 
   const resetFilters = () => {
     setSearchQuery('');
     setSelectedStages([]);
     setSelectedGrades([]);
     setSelectedLocations([]);
+    setSelectedYears([]);
+    setSelectedTerms([]);
   };
 
   return (
@@ -217,9 +282,9 @@ export function GroupList() {
 
       {/* Filters Toolbar */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-3 items-center">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 items-center">
           {/* Search Input */}
-          <div className="lg:col-span-3 md:col-span-2 relative">
+          <div className="relative">
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-slate-400" />
             </div>
@@ -232,7 +297,7 @@ export function GroupList() {
           </div>
 
           {/* Stage MultiSelect Checkboxes Dropdown */}
-          <div className="lg:col-span-3">
+          <div>
             <MultiSelectDropdown
               placeholder="المرحلة التعليمية"
               allSelectedLabel="جميع المراحل التعليمية"
@@ -247,9 +312,9 @@ export function GroupList() {
           </div>
 
           {/* Grade Level / السنة الدراسية MultiSelect Checkboxes Dropdown */}
-          <div className="lg:col-span-3">
+          <div>
             <MultiSelectDropdown
-              placeholder="السنة الدراسية"
+              placeholder="الصف الدراسي"
               allSelectedLabel="جميع الصفوف الدراسية"
               withSearch={availableGradeOptions.length > 5}
               options={availableGradeOptions}
@@ -258,8 +323,30 @@ export function GroupList() {
             />
           </div>
 
+          {/* Academic Year / العام الدراسي MultiSelect Checkboxes Dropdown */}
+          <div>
+            <MultiSelectDropdown
+              placeholder="العام الدراسي"
+              allSelectedLabel="جميع الأعوام الدراسية"
+              options={availableYears}
+              selectedValues={selectedYears}
+              onChange={setSelectedYears}
+            />
+          </div>
+
+          {/* Academic Term / الفصل الدراسي MultiSelect Checkboxes Dropdown */}
+          <div>
+            <MultiSelectDropdown
+              placeholder="الفصل الدراسي"
+              allSelectedLabel="جميع الفصول الدراسية"
+              options={availableTerms}
+              selectedValues={selectedTerms}
+              onChange={setSelectedTerms}
+            />
+          </div>
+
           {/* Place / Location MultiSelect Checkboxes Dropdown */}
-          <div className="lg:col-span-3">
+          <div>
             <MultiSelectDropdown
               placeholder="المكان / السنتر"
               allSelectedLabel="جميع الأماكن والسناتر"

@@ -29,14 +29,59 @@ export function StudentQrBadge({
   const badgeRef = useRef<HTMLDivElement>(null);
 
   const generateQrImageBlob = async (): Promise<Blob | null> => {
-    if (!badgeRef.current) return null;
+    if (!badgeRef.current || !data) return null;
     try {
-      const html2canvas = (await import('html2canvas')).default;
-      const canvas = await html2canvas(badgeRef.current, {
-        scale: 2,
-        backgroundColor: '#ffffff',
+      const svg = badgeRef.current.querySelector('svg');
+      if (!svg) return null;
+
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+
+      return new Promise<Blob | null>((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = 500;
+          canvas.height = 600;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            URL.revokeObjectURL(url);
+            resolve(null);
+            return;
+          }
+
+          // Background
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, 500, 600);
+
+          // Top Header Bar
+          ctx.fillStyle = '#2563eb';
+          ctx.fillRect(0, 0, 500, 16);
+
+          // Draw QR Image
+          ctx.drawImage(img, 75, 50, 350, 350);
+
+          // Student Full Name
+          ctx.fillStyle = '#0f172a';
+          ctx.font = 'bold 26px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(data.fullName, 250, 450);
+
+          // Student Code
+          ctx.fillStyle = '#2563eb';
+          ctx.font = 'bold 20px monospace';
+          ctx.fillText(data.studentCode || '', 250, 495);
+
+          URL.revokeObjectURL(url);
+          canvas.toBlob(resolve, 'image/png');
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          resolve(null);
+        };
+        img.src = url;
       });
-      return new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
     } catch (error) {
       console.error('Error generating image:', error);
       return null;

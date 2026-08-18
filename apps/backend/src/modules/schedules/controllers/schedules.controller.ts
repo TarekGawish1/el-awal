@@ -83,8 +83,17 @@ export class SchedulesController {
   async getTodaySessions(
     @Query('academicStage') academicStage: string,
     @Query('gradeLevel') gradeLevel: string,
+    @Query('academicYear') academicYear: string,
+    @Query('academicTerm') academicTerm: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.schedulesService.getTodaySessionsWithAutoGenerate(user, academicStage, gradeLevel);
+    return this.schedulesService.getTodaySessionsWithAutoGenerate(
+      user,
+      academicStage,
+      gradeLevel,
+      academicYear,
+      academicTerm,
+    );
   }
 }
+

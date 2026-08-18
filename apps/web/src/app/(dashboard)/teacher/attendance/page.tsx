@@ -7,10 +7,11 @@ import { Button } from '@/components/ui/Button';
 import { MultiSelectDropdown } from '@/features/groups/components/MultiSelectDropdown';
 import { useTodaySessions, useSessionReport } from '@/features/attendance/hooks/use-attendance';
 import { useGroups } from '@/features/groups/hooks/useGroups';
+import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
 import { AttendanceReportCard } from '@/features/attendance/components/AttendanceReportCard';
 import { QrScanner } from '@/features/attendance/components/QrScanner';
 import { ManualAttendanceRoster } from '@/features/attendance/components/ManualAttendanceRoster';
-import { RotateCcw, MapPin, Calendar, Users, QrCode, ClipboardList } from 'lucide-react';
+import { RotateCcw, MapPin, Calendar, Users, QrCode, ClipboardList, BookOpen, Sparkles } from 'lucide-react';
 
 const STAGE_GRADES_MAP: Record<string, string[]> = {
   'المرحلة الابتدائية': [
@@ -58,7 +59,17 @@ export default function TeacherAttendancePage() {
   const [activeTab, setActiveTab] = useState<'QR' | 'MANUAL'>('QR');
 
   const { data: groups } = useGroups();
-  const { data: sessions, isLoading: isLoadingSessions, isError: isErrorSessions } = useTodaySessions();
+  const { selectedYears, selectedTerms } = useStoredAcademicPeriod(groups);
+
+  const activeYear = selectedYears[0] || undefined;
+  const activeTerm = selectedTerms[0] || undefined;
+
+  const { data: sessions, isLoading: isLoadingSessions, isError: isErrorSessions } = useTodaySessions(
+    undefined,
+    undefined,
+    activeYear,
+    activeTerm,
+  );
 
   // Create a fast lookup map from groupId to group (with schedules and locations)
   const groupMap = useMemo(() => {
@@ -126,13 +137,21 @@ export default function TeacherAttendancePage() {
     }
   }, []);
 
-  // Filter today's sessions based on stages, grades, and locations
+  // Filter today's sessions strictly based on stages, grades, locations, and active academic period
   const filteredSessions = useMemo(() => {
     if (!sessions || !Array.isArray(sessions)) return [];
     return sessions.filter((s: any) => {
       const g = groupMap.get(s.groupId) || s.group;
       const gGrade = g?.gradeLevel || '';
       const stage = getStageName(gGrade);
+
+      // Academic Year & Semester strict check
+      if (activeYear && g?.academicYear && g.academicYear !== activeYear) {
+        return false;
+      }
+      if (activeTerm && g?.academicTerm && g.academicTerm !== activeTerm) {
+        return false;
+      }
 
       // Stage filter
       const matchesStage = selectedStages.length === 0 || selectedStages.includes(stage);
@@ -149,7 +168,7 @@ export default function TeacherAttendancePage() {
 
       return matchesStage && matchesGrade && matchesLocation;
     });
-  }, [sessions, groupMap, selectedStages, selectedGrades, selectedLocations]);
+  }, [sessions, groupMap, selectedStages, selectedGrades, selectedLocations, activeYear, activeTerm]);
 
   // Auto-select nearest session on mount
   useEffect(() => {
@@ -202,10 +221,26 @@ export default function TeacherAttendancePage() {
       {/* Header */}
       <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-full h-2 bg-gradient-to-r from-primary-400 to-primary-600"></div>
-        <h1 className="text-3xl font-extrabold text-slate-900">رصد الحضور والغياب</h1>
-        <p className="mt-3 text-slate-500 text-lg">
-          لوحة إدارة الحضور اليومية. اختر المرحلة والصف لعرض مجموعات اليوم، ثم ابدأ في مسح الـ QR.
-        </p>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-extrabold text-slate-900">رصد الحضور والغياب</h1>
+            <p className="mt-3 text-slate-500 text-lg">
+              لوحة إدارة الحضور اليومية. اختر المرحلة والصف لعرض مجموعات اليوم، ثم ابدأ في مسح الـ QR.
+            </p>
+          </div>
+          
+          {/* Active Academic Period Badge */}
+          <div className="flex flex-wrap items-center gap-2 bg-slate-50 border border-slate-100 p-2.5 rounded-2xl">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100">
+              <Calendar className="w-3.5 h-3.5" />
+              العام: {activeYear || '2025-2026'}
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
+              <BookOpen className="w-3.5 h-3.5" />
+              {activeTerm === 'SECOND_TERM' ? 'الفصل الدراسي الثاني' : 'الفصل الدراسي الأول'}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Interconnected Filters Toolbar */}
@@ -213,7 +248,7 @@ export default function TeacherAttendancePage() {
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
             <Calendar className="w-4 h-4 text-primary-600" />
-            تصفية واختيار حصص اليوم
+            تصفية واختيار حصص اليوم ({activeYear || '2025-2026'} - {activeTerm === 'SECOND_TERM' ? 'ترم ثانٍ' : 'ترم أول'})
           </h2>
           {hasActiveFilters && (
             <button

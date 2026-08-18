@@ -3,8 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { useManualAttendance } from '../hooks/use-attendance';
 import { AttendanceRecord, AttendanceStatus, BatchAttendanceDto } from '../types/attendance.types';
+import { ExcuseNoteModal } from './ExcuseNoteModal';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Alert';
+import { FileText, Edit2, CheckCircle2 } from 'lucide-react';
 
 interface ManualAttendanceRosterProps {
   sessionId: string;
@@ -13,23 +15,64 @@ interface ManualAttendanceRosterProps {
 
 export function ManualAttendanceRoster({ sessionId, records }: ManualAttendanceRosterProps) {
   const [localRecords, setLocalRecords] = useState<Record<string, AttendanceStatus>>({});
+  const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
   const [hasChanges, setHasChanges] = useState(false);
+  const [excuseModalStudent, setExcuseModalStudent] = useState<{
+    studentId: string;
+    fullName: string;
+    studentCode?: string;
+    currentNote?: string;
+  } | null>(null);
+
   const { mutate, isPending, error, isSuccess } = useManualAttendance();
 
   useEffect(() => {
-    const initialState: Record<string, AttendanceStatus> = {};
+    const initialStatusState: Record<string, AttendanceStatus> = {};
+    const initialNotesState: Record<string, string> = {};
+
     records.forEach((r) => {
       if (r.status) {
-        initialState[r.studentId] = r.status;
+        initialStatusState[r.studentId] = r.status;
+      }
+      if (r.notes) {
+        initialNotesState[r.studentId] = r.notes;
       }
     });
-    setLocalRecords(initialState);
+
+    setLocalRecords(initialStatusState);
+    setLocalNotes(initialNotesState);
     setHasChanges(false);
   }, [records]);
 
-  const handleStatusChange = (studentId: string, status: AttendanceStatus) => {
+  const handleStatusChange = (
+    studentId: string,
+    status: AttendanceStatus,
+    student?: { fullName: string; studentCode?: string }
+  ) => {
+    if (status === 'EXCUSED') {
+      // Open modal to prompt for excuse note
+      setExcuseModalStudent({
+        studentId,
+        fullName: student?.fullName || 'الطالب',
+        studentCode: student?.studentCode,
+        currentNote: localNotes[studentId] || '',
+      });
+      return;
+    }
+
+    // Direct status change for PRESENT and ABSENT
     setLocalRecords((prev) => ({ ...prev, [studentId]: status }));
     setHasChanges(true);
+  };
+
+  const handleSaveExcuseNote = (note: string) => {
+    if (!excuseModalStudent) return;
+    const { studentId } = excuseModalStudent;
+
+    setLocalRecords((prev) => ({ ...prev, [studentId]: 'EXCUSED' }));
+    setLocalNotes((prev) => ({ ...prev, [studentId]: note }));
+    setHasChanges(true);
+    setExcuseModalStudent(null);
   };
 
   const handleSave = () => {
@@ -39,6 +82,7 @@ export function ManualAttendanceRoster({ sessionId, records }: ManualAttendanceR
         .map(([studentId, status]) => ({
           studentId,
           status,
+          notes: localNotes[studentId] || undefined,
         })),
     };
 
@@ -92,15 +136,41 @@ export function ManualAttendanceRoster({ sessionId, records }: ManualAttendanceR
             ) : (
               records.map((record) => {
                 const currentStatus = localRecords[record.studentId] || record.status;
+                const currentNote = localNotes[record.studentId];
+
                 return (
                   <tr key={record.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-6 py-4 font-medium text-slate-900">{record.fullName}</td>
+                    <td className="px-6 py-4 font-medium text-slate-900">
+                      <div>
+                        <p className="font-bold text-slate-800">{record.fullName}</p>
+                        {currentStatus === 'EXCUSED' && currentNote && (
+                          <div className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+                            <FileText className="w-3 h-3 text-amber-600 shrink-0" />
+                            <span className="truncate max-w-[200px]">{currentNote}</span>
+                            <button
+                              type="button"
+                              onClick={() => setExcuseModalStudent({
+                                studentId: record.studentId,
+                                fullName: record.fullName,
+                                studentCode: record.studentCode,
+                                currentNote: currentNote,
+                              })}
+                              className="text-amber-700 hover:text-amber-900 mr-1 p-0.5 rounded"
+                              title="تعديل العذر"
+                            >
+                              <Edit2 className="w-2.5 h-2.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-6 py-4 font-mono text-xs text-slate-500">
                       <span className="bg-slate-100 px-2.5 py-1 rounded-md">{record.studentCode}</span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex justify-center space-x-3 rtl:space-x-reverse">
                         <button
+                          type="button"
                           onClick={() => handleStatusChange(record.studentId, 'PRESENT')}
                           className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
                             currentStatus === 'PRESENT'
@@ -111,6 +181,7 @@ export function ManualAttendanceRoster({ sessionId, records }: ManualAttendanceR
                           حاضر
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleStatusChange(record.studentId, 'ABSENT')}
                           className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
                             currentStatus === 'ABSENT'
@@ -121,7 +192,11 @@ export function ManualAttendanceRoster({ sessionId, records }: ManualAttendanceR
                           غائب
                         </button>
                         <button
-                          onClick={() => handleStatusChange(record.studentId, 'EXCUSED')}
+                          type="button"
+                          onClick={() => handleStatusChange(record.studentId, 'EXCUSED', {
+                            fullName: record.fullName,
+                            studentCode: record.studentCode,
+                          })}
                           className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
                             currentStatus === 'EXCUSED'
                               ? 'bg-amber-100 text-amber-800 ring-2 ring-amber-500/20 shadow-sm'
@@ -139,6 +214,18 @@ export function ManualAttendanceRoster({ sessionId, records }: ManualAttendanceR
           </tbody>
         </table>
       </div>
+
+      {/* Pop up to add and edit excuses */}
+      {excuseModalStudent && (
+        <ExcuseNoteModal
+          isOpen={!!excuseModalStudent}
+          onClose={() => setExcuseModalStudent(null)}
+          studentName={excuseModalStudent.fullName}
+          studentCode={excuseModalStudent.studentCode}
+          initialNote={excuseModalStudent.currentNote}
+          onSave={handleSaveExcuseNote}
+        />
+      )}
     </div>
   );
 }

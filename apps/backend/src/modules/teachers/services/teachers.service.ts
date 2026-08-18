@@ -314,4 +314,43 @@ export class TeachersService {
       lastUpdatedTimestamp: new Date().toISOString(),
     };
   }
+
+  async getAcademicPeriod(teacherId: string) {
+    const profile = await this.prisma.teacherProfile.findUnique({
+      where: { id: teacherId },
+      select: {
+        activeAcademicYear: true,
+        activeAcademicTerm: true,
+      },
+    });
+
+    return {
+      activeAcademicYear: profile?.activeAcademicYear || '2025-2026',
+      activeAcademicTerm: profile?.activeAcademicTerm || 'FIRST_TERM',
+    };
+  }
+
+  async updateAcademicPeriod(
+    teacherId: string,
+    dto: { activeAcademicYear: string; activeAcademicTerm: string },
+  ) {
+    const updated = await this.prisma.teacherProfile.upsert({
+      where: { id: teacherId },
+      create: {
+        id: teacherId,
+        activeAcademicYear: dto.activeAcademicYear,
+        activeAcademicTerm: dto.activeAcademicTerm,
+      },
+      update: {
+        activeAcademicYear: dto.activeAcademicYear,
+        activeAcademicTerm: dto.activeAcademicTerm,
+      },
+      select: {
+        activeAcademicYear: true,
+        activeAcademicTerm: true,
+      },
+    });
+
+    return updated;
+  }
 }

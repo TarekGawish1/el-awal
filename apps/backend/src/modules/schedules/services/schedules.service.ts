@@ -230,11 +230,14 @@ export class SchedulesService {
 
   /**
    * Retrieves all sessions for today for the user, auto-generating them if missing.
+   * Strictly filtered by active academicYear and academicTerm.
    */
   async getTodaySessionsWithAutoGenerate(
     user: AuthenticatedUser,
     academicStage?: string,
     gradeLevel?: string,
+    academicYear?: string,
+    academicTerm?: string,
   ) {
     const today = new Date();
     // Normalize to UTC midnight for consistent date matching
@@ -249,9 +252,25 @@ export class SchedulesService {
         { teacherId },
         { teacher: { id: teacherId } },
       ];
+
+      // Auto-resolve teacher's configured active academic period from database if not explicitly passed
+      if (!academicYear || !academicTerm) {
+        const profile = await this.prisma.teacherProfile.findUnique({
+          where: { id: teacherId },
+          select: { activeAcademicYear: true, activeAcademicTerm: true },
+        });
+        if (!academicYear && profile?.activeAcademicYear) {
+          academicYear = profile.activeAcademicYear;
+        }
+        if (!academicTerm && profile?.activeAcademicTerm) {
+          academicTerm = profile.activeAcademicTerm;
+        }
+      }
     }
 
     if (gradeLevel) whereGroup.gradeLevel = gradeLevel;
+    if (academicYear) whereGroup.academicYear = academicYear;
+    if (academicTerm) whereGroup.academicTerm = academicTerm;
 
     whereGroup.schedules = {
       some: { dayOfWeek }

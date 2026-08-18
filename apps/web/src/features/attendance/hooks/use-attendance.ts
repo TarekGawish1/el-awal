@@ -16,10 +16,15 @@ export function useGroupSessions(groupId: string | null) {
   });
 }
 
-export function useTodaySessions(academicStage?: string, gradeLevel?: string) {
+export function useTodaySessions(
+  academicStage?: string,
+  gradeLevel?: string,
+  academicYear?: string,
+  academicTerm?: string,
+) {
   return useQuery({
-    queryKey: ['sessions', 'today', academicStage, gradeLevel],
-    queryFn: () => fetchTodaySessions(academicStage, gradeLevel),
+    queryKey: ['sessions', 'today', academicStage, gradeLevel, academicYear, academicTerm],
+    queryFn: () => fetchTodaySessions(academicStage, gradeLevel, academicYear, academicTerm),
   });
 }
 
