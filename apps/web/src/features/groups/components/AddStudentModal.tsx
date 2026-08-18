@@ -52,15 +52,24 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
           setSearchQuery('');
           setDebouncedQuery('');
           setSelectedStudent(null);
+          setIsScannerOpen(false);
           onClose();
         },
       }
     );
   };
 
+  const handleClose = () => {
+    setSearchQuery('');
+    setDebouncedQuery('');
+    setSelectedStudent(null);
+    setIsScannerOpen(false);
+    onClose();
+  };
+
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
-      onClose();
+      handleClose();
     }
   };
 
@@ -70,7 +79,7 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <h2 className="text-xl font-bold text-slate-800">إضافة طالب للمجموعة</h2>
           <button 
-            onClick={onClose}
+            onClick={handleClose}
             className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-200"
           >
             <X className="w-5 h-5" />
@@ -119,35 +128,37 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
             <p className="text-xs text-slate-500 mt-2">اكتب حرفين على الأقل للبحث</p>
           </div>
 
-          <div className="flex-1 overflow-y-auto border border-slate-200 rounded-md bg-slate-50 relative">
-            {isScannerOpen ? (
-              <div className="p-4 flex flex-col items-center justify-center bg-black h-full absolute inset-0 z-10">
-                <div className="w-full max-w-[250px] aspect-square rounded-2xl overflow-hidden shadow-lg border-2 border-primary-500/50">
-                  <Scanner 
-                    onScan={(detectedCodes) => {
-                      if (detectedCodes && detectedCodes.length > 0 && detectedCodes[0]?.rawValue) {
-                        setSearchQuery(detectedCodes[0].rawValue);
-                        setIsScannerOpen(false);
-                      }
-                    }}
-                    formats={['qr_code']}
-                  />
+          {isScannerOpen ? (
+            <div className="flex-1 flex flex-col items-center justify-center bg-slate-900 rounded-xl overflow-hidden p-6 border-2 border-primary-500/30 shadow-inner">
+              <div className="w-full max-w-[280px] aspect-square rounded-2xl overflow-hidden shadow-2xl ring-4 ring-primary-500/50 bg-black">
+                <Scanner 
+                  onScan={(detectedCodes) => {
+                    if (detectedCodes && detectedCodes.length > 0 && detectedCodes[0]?.rawValue) {
+                      setSearchQuery(detectedCodes[0].rawValue);
+                      setIsScannerOpen(false);
+                    }
+                  }}
+                  formats={['qr_code']}
+                  components={{ audio: false }}
+                />
+              </div>
+              <p className="text-slate-300 mt-6 text-sm text-center font-medium">قم بتوجيه الكاميرا نحو رمز QR الخاص بالطالب</p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-4 bg-white/10 text-white border-white/20 hover:bg-white/20 hover:text-white transition-colors"
+                onClick={() => setIsScannerOpen(false)}
+              >
+                إلغاء المسح
+              </Button>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto border border-slate-200 rounded-md bg-slate-50">
+              {isSearching ? (
+                <div className="p-8 flex flex-col items-center justify-center text-slate-500">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
+                  <p>جاري البحث...</p>
                 </div>
-                <p className="text-white mt-4 text-sm">قم بتوجيه الكاميرا نحو رمز QR الخاص بالطالب</p>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="mt-4 bg-white/10 text-white border-white/20 hover:bg-white/20"
-                  onClick={() => setIsScannerOpen(false)}
-                >
-                  إلغاء المسح
-                </Button>
-              </div>
-            ) : isSearching ? (
-              <div className="p-8 flex flex-col items-center justify-center text-slate-500">
-                <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
-                <p>جاري البحث...</p>
-              </div>
             ) : searchQuery.length > 0 && searchQuery.length < 2 ? (
               <div className="p-8 text-center text-slate-500">
                 يرجى إدخال حرفين على الأقل للبحث
@@ -190,11 +201,12 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
               </div>
             )}
           </div>
+          )}
 
           <div className="mt-6 flex justify-between items-center shrink-0 pt-4 border-t border-slate-100">
             <Link 
               href="/teacher/students" 
-              onClick={onClose}
+              onClick={handleClose}
               className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center transition-colors hover:bg-primary-50 px-3 py-2 rounded-lg"
             >
               <UserPlus className="w-4 h-4 ml-2" />
@@ -205,7 +217,7 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
               <Button
                 type="button"
                 variant="outline"
-                onClick={onClose}
+                onClick={handleClose}
                 disabled={addStudent.isPending}
               >
                 إلغاء
