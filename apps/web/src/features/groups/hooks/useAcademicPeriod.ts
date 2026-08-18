@@ -35,7 +35,7 @@ export async function updateAcademicPeriodInDb(payload: {
 }
 
 /**
- * Calculates current default academic year based on calendar date (e.g. 2025-2026).
+ * Calculates current default academic year based on calendar date (e.g. 2026-2027).
  */
 export function getDefaultAcademicYear(): string {
   const now = new Date();
@@ -224,7 +224,7 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
 
     // Persist to database if single term selected
     if (terms.length === 1) {
-      const currentYear = selectedYears.length === 1 ? selectedYears[0] : (dbPeriod?.activeAcademicYear || '2025-2026');
+      const currentYear = selectedYears.length === 1 ? selectedYears[0] : (dbPeriod?.activeAcademicYear || '2026-2027');
       mutation.mutate({
         activeAcademicYear: currentYear,
         activeAcademicTerm: terms[0],
@@ -232,7 +232,7 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
     }
   };
 
-  const activeYear = selectedYears[0] || dbPeriod?.activeAcademicYear || '2025-2026';
+  const activeYear = selectedYears[0] || dbPeriod?.activeAcademicYear || '2026-2027';
   const activeTerm = selectedTerms[0] || dbPeriod?.activeAcademicTerm || 'FIRST_TERM';
 
   return {

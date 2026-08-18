@@ -13,7 +13,7 @@ const defaultFilters: DashboardFilterState = {
 
 const mockGroups = [
   { id: 'g1', name: 'مجموعة 1', gradeLevel: '3 ثانوي', academicYear: '2026-2027', academicTerm: 'FIRST_TERM' },
-  { id: 'g2', name: 'مجموعة 2', gradeLevel: '2 ثانوي', academicYear: '2025-2026', academicTerm: 'SECOND_TERM' },
+  { id: 'g2', name: 'مجموعة 2', gradeLevel: '2 ثانوي', academicYear: '2026-2027', academicTerm: 'SECOND_TERM' },
 ];
 
 describe('DashboardFilters Component', () => {

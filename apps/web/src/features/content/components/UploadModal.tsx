@@ -179,7 +179,7 @@ export function UploadModal({
           title: data.title,
           description: data.description,
           contentType: data.contentType,
-          academicYear: activeYear || '2025-2026',
+          academicYear: activeYear || '2026-2027',
           academicTerm: activeTerm || 'FIRST_TERM',
           gradeLevel: payloadGradeLevel || undefined,
           groupId: payloadGroupId || undefined,

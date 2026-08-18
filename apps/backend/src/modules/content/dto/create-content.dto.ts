@@ -58,7 +58,7 @@ export class CreateContentDto {
   @IsString()
   gradeLevel?: string;
 
-  @ApiPropertyOptional({ description: 'Academic year (e.g. 2025-2026)' })
+  @ApiPropertyOptional({ description: 'Academic year (e.g. 2026-2027)' })
   @IsOptional()
   @IsString()
   academicYear?: string;

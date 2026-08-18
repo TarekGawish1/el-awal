@@ -331,7 +331,7 @@ export class TeachersService {
     });
 
     return {
-      activeAcademicYear: profile?.activeAcademicYear || '2025-2026',
+      activeAcademicYear: profile?.activeAcademicYear || '2026-2027',
       activeAcademicTerm: profile?.activeAcademicTerm || 'FIRST_TERM',
     };
   }

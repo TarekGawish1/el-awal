@@ -5,7 +5,7 @@ import { Calendar, ChevronDown, Plus, Check, X, Trash2 } from 'lucide-react';
 import { useGroups } from '../hooks/useGroups';
 
 const STORAGE_KEY = 'el_awal_saved_academic_years';
-const DEFAULT_YEARS = ['2025-2026', '2026-2027', '2027-2028', '2024-2025'];
+const DEFAULT_YEARS = ['2026-2027', '2027-2028', '2028-2029', '2025-2026'];
 
 interface AcademicYearSelectProps {
   value?: string;
@@ -15,7 +15,7 @@ interface AcademicYearSelectProps {
 }
 
 export function AcademicYearSelect({
-  value = '2025-2026',
+  value = '2026-2027',
   onChange,
   disabled = false,
   label = 'العام الدراسي *',
@@ -120,7 +120,7 @@ export function AcademicYearSelect({
       console.error('Failed to remove custom academic year:', err);
     }
     if (value === yrToRemove) {
-      onChange('2025-2026');
+      onChange('2026-2027');
     }
   };
 

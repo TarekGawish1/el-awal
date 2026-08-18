@@ -18,8 +18,8 @@ vi.mock('../hooks/useGroups', () => ({
 
 vi.mock('@/lib/api/client', () => ({
   apiClient: {
-    get: vi.fn().mockResolvedValue({ activeAcademicYear: '2025-2026', activeAcademicTerm: 'FIRST_TERM' }),
-    put: vi.fn().mockResolvedValue({ activeAcademicYear: '2025-2026', activeAcademicTerm: 'FIRST_TERM' }),
+    get: vi.fn().mockResolvedValue({ activeAcademicYear: '2026-2027', activeAcademicTerm: 'FIRST_TERM' }),
+    put: vi.fn().mockResolvedValue({ activeAcademicYear: '2026-2027', activeAcademicTerm: 'FIRST_TERM' }),
   },
 }));
 

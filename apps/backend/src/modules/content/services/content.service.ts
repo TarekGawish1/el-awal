@@ -63,7 +63,7 @@ export class ContentService {
         where: { id: teacherId },
         select: { activeAcademicYear: true, activeAcademicTerm: true },
       });
-      if (!academicYear) academicYear = teacher?.activeAcademicYear || '2025-2026';
+      if (!academicYear) academicYear = teacher?.activeAcademicYear || '2026-2027';
       if (!academicTerm) academicTerm = teacher?.activeAcademicTerm || 'FIRST_TERM';
     }
 

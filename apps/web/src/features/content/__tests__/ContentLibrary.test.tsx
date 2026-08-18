@@ -13,12 +13,13 @@ vi.mock('../hooks/use-content', () => ({
 
 vi.mock('@/features/groups/hooks/useAcademicPeriod', () => ({
   useAcademicPeriod: () => ({
-    activeYear: '2025-2026',
+    activeYear: '2026-2027',
     activeTerm: 'FIRST_TERM',
-    selectedYears: ['2025-2026'],
+    selectedYears: ['2026-2027'],
+    setSelectedYears: vi.fn(),
     selectedTerms: ['FIRST_TERM'],
     isFilterActive: false,
-    academicYears: ['2025-2026'],
+    academicYears: ['2026-2027'],
     currentAcademicTerm: 'FIRST_TERM',
     setSingleAcademicYear: vi.fn(),
     setSingleAcademicTerm: vi.fn(),
@@ -27,10 +28,10 @@ vi.mock('@/features/groups/hooks/useAcademicPeriod', () => ({
     resetToActiveDefaults: vi.fn(),
   }),
   useStoredAcademicPeriod: () => ({
-    academicYear: '2025-2026',
+    academicYear: '2026-2027',
     academicTerm: 'FIRST_TERM',
   }),
-  getDefaultAcademicYear: () => '2025-2026',
+  getDefaultAcademicYear: () => '2026-2027',
   getDefaultAcademicTerm: () => 'FIRST_TERM',
 }));
 

@@ -233,7 +233,7 @@ export default function TeacherAttendancePage() {
           <div className="flex flex-wrap items-center gap-2 bg-slate-50 border border-slate-100 p-2.5 rounded-2xl">
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100">
               <Calendar className="w-3.5 h-3.5" />
-              العام: {activeYear || '2025-2026'}
+              العام: {activeYear || '2026-2027'}
             </div>
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
               <BookOpen className="w-3.5 h-3.5" />
@@ -248,7 +248,7 @@ export default function TeacherAttendancePage() {
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
             <Calendar className="w-4 h-4 text-primary-600" />
-            تصفية واختيار حصص اليوم ({activeYear || '2025-2026'} - {activeTerm === 'SECOND_TERM' ? 'ترم ثانٍ' : 'ترم أول'})
+            تصفية واختيار حصص اليوم ({activeYear || '2026-2027'} - {activeTerm === 'SECOND_TERM' ? 'ترم ثانٍ' : 'ترم أول'})
           </h2>
           {hasActiveFilters && (
             <button

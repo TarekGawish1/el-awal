@@ -22,8 +22,8 @@ vi.mock('@/features/attendance/components/AttendanceReportCard', () => ({
 
 vi.mock('@/lib/api/client', () => ({
   apiClient: {
-    get: vi.fn().mockResolvedValue({ activeAcademicYear: '2025-2026', activeAcademicTerm: 'FIRST_TERM' }),
-    put: vi.fn().mockResolvedValue({ activeAcademicYear: '2025-2026', activeAcademicTerm: 'FIRST_TERM' }),
+    get: vi.fn().mockResolvedValue({ activeAcademicYear: '2026-2027', activeAcademicTerm: 'FIRST_TERM' }),
+    put: vi.fn().mockResolvedValue({ activeAcademicYear: '2026-2027', activeAcademicTerm: 'FIRST_TERM' }),
   },
 }));
 
@@ -48,7 +48,7 @@ describe('TeacherAttendancePage', () => {
       id: 'group-1',
       name: 'مجموعة النجوم',
       gradeLevel: 'الصف الأول الثانوي',
-      academicYear: '2025-2026',
+      academicYear: '2026-2027',
       academicTerm: 'FIRST_TERM',
       schedules: [{ dayOfWeek: 0, startTime: '15:00', location: 'سنتر الأوائل' }],
     },
@@ -98,7 +98,7 @@ describe('TeacherAttendancePage', () => {
     renderWithQuery(<TeacherAttendancePage />);
 
     expect(screen.getByText('رصد الحضور والغياب')).toBeInTheDocument();
-    expect(screen.getAllByText(/2025-2026/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/2026-2027/).length).toBeGreaterThan(0);
     expect(screen.getByText(/الفصل الدراسي الأول/)).toBeInTheDocument();
   });
 

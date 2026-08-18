@@ -102,7 +102,7 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
   const [formData, setFormData] = useState<CreateGroupPayload>({
     name: group?.name || '',
     gradeLevel: group?.gradeLevel || '',
-    academicYear: group?.academicYear || '2025-2026',
+    academicYear: group?.academicYear || '2026-2027',
     academicTerm: group?.academicTerm || 'FIRST_TERM',
     maxCapacity: group?.maxCapacity || 50,
     monthlyFee: group?.monthlyFee || 100,
@@ -122,7 +122,7 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
       setFormData({
         name: group.name,
         gradeLevel: group.gradeLevel,
-        academicYear: group.academicYear || '2025-2026',
+        academicYear: group.academicYear || '2026-2027',
         academicTerm: group.academicTerm || 'FIRST_TERM',
         maxCapacity: group.maxCapacity || 50,
         monthlyFee: group.monthlyFee || 100,
@@ -167,10 +167,10 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
   };
 
   const academicYearOptions = [
-    { label: '2025-2026', value: '2025-2026' },
     { label: '2026-2027', value: '2026-2027' },
     { label: '2027-2028', value: '2027-2028' },
-    { label: '2024-2025', value: '2024-2025' },
+    { label: '2028-2029', value: '2028-2029' },
+    { label: '2025-2026', value: '2025-2026' },
   ];
 
   const academicTermOptions = [
@@ -273,7 +273,7 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
             <div className="grid grid-cols-2 gap-3 bg-slate-50/60 p-3 rounded-xl border border-slate-100">
               <div>
                 <AcademicYearSelect
-                  value={formData.academicYear || '2025-2026'}
+                  value={formData.academicYear || '2026-2027'}
                   onChange={val => setFormData({ ...formData, academicYear: val })}
                 />
               </div>

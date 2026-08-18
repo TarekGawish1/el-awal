@@ -178,7 +178,7 @@ model TeacherProfile {
   id                 String   @id @map("id") @db.Uuid
   specialty          String?  @map("specialty") @db.VarChar(100)
   bio                String?  @map("bio") @db.Text
-  activeAcademicYear String?  @default("2025-2026") @map("active_academic_year") @db.VarChar(30)
+  activeAcademicYear String?  @default("2026-2027") @map("active_academic_year") @db.VarChar(30)
   activeAcademicTerm String?  @default("FIRST_TERM") @map("active_academic_term") @db.VarChar(30)
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -271,7 +271,7 @@ model ParentStudentLink {
 model AcademicGroup {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
   name         String   @map("name") @db.VarChar(150)
-  academicYear String   @default("2025-2026") @map("academic_year") @db.VarChar(20)
+  academicYear String   @default("2026-2027") @map("academic_year") @db.VarChar(20)
   academicTerm String   @default("FIRST_TERM") @map("academic_term") @db.VarChar(30)
   gradeLevel   String   @map("grade_level") @db.VarChar(50)
   description  String?  @map("description") @db.Text
@@ -523,7 +523,7 @@ model EducationalContent {
   fileSize     BigInt?     @map("file_size")
   mimeType     String?     @map("mime_type") @db.VarChar(100)
   gradeLevel   String?     @map("grade_level") @db.VarChar(50)
-  academicYear String?     @default("2025-2026") @map("academic_year") @db.VarChar(30)
+  academicYear String?     @default("2026-2027") @map("academic_year") @db.VarChar(30)
   academicTerm String?     @default("FIRST_TERM") @map("academic_term") @db.VarChar(30)
   sessionTopic String?     @map("session_topic") @db.VarChar(255)
   sessionId    String?     @map("session_id") @db.Uuid
