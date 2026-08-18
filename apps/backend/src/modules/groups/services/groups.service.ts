@@ -50,6 +50,7 @@ export class GroupsService {
             dayOfWeek: s.dayOfWeek,
             startTime: s.startTime,
             endTime: s.endTime,
+            location: s.location || null,
           })),
         } : undefined,
       },
@@ -135,7 +136,7 @@ export class GroupsService {
               dayOfWeek: s.dayOfWeek,
               startTime: s.startTime,
               endTime: s.endTime,
-              location: '',
+              location: s.location || null,
             })),
           });
         }

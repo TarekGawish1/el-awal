@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { X, Loader2, Plus, Trash2, Clock, ChevronDown } from 'lucide-react';
+import { X, Loader2, Plus, Trash2, Clock, ChevronDown, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Alert } from '@/components/ui/Alert';
 import { Select } from '@/components/ui/Select';
 import { useUpdateGroup } from '../hooks/useGroups';
 import { CreateGroupPayload, GroupWithDetails } from '../types/groups.types';
+import { LocationSelect } from './LocationSelect';
 
 interface EditGroupModalProps {
   isOpen: boolean;
@@ -102,10 +103,11 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
     gradeLevel: group?.gradeLevel || '',
     maxCapacity: group?.maxCapacity || 50,
     monthlyFee: group?.monthlyFee || 100,
-    schedules: group?.schedules?.map(s => ({
+    schedules: group?.schedules?.map((s: any) => ({
       dayOfWeek: s.dayOfWeek,
       startTime: s.startTime,
       endTime: s.endTime,
+      location: s.location || '',
     })) || [],
   });
   const [educationalStage, setEducationalStage] = useState('');
@@ -118,10 +120,11 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
         gradeLevel: group.gradeLevel,
         maxCapacity: group.maxCapacity || 50,
         monthlyFee: group.monthlyFee || 100,
-        schedules: group.schedules?.map(s => ({
+        schedules: group.schedules?.map((s: any) => ({
           dayOfWeek: s.dayOfWeek,
           startTime: s.startTime,
           endTime: s.endTime,
+          location: s.location || '',
         })) || [],
       });
       // Try to determine stage from gradeLevel
@@ -179,7 +182,7 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
       expectedName = `مجموعة ${formData.gradeLevel}`;
     }
     
-    if (expectedName && formData.name !== expectedName) {
+    if (expectedName && !formData.name) {
       setFormData(prev => ({ ...prev, name: expectedName }));
     }
   }, [formData.schedules, formData.gradeLevel]);
@@ -190,12 +193,15 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.schedules && formData.schedules.length === 0) {
-      alert('يجب إضافة موعد واحد على الأقل للمجموعة');
-      return;
-    }
     updateGroup.mutate(
-      { id: group.id, payload: formData },
+      {
+        id: group.id,
+        payload: {
+          ...formData,
+          maxCapacity: formData.maxCapacity ? Number(formData.maxCapacity) : undefined,
+          monthlyFee: formData.monthlyFee ? Number(formData.monthlyFee) : undefined,
+        },
+      },
       {
         onSuccess: () => {
           onClose();
@@ -217,7 +223,6 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
           <h2 className="text-xl font-bold text-slate-800">تعديل المجموعة</h2>
           <button 
             onClick={onClose}
-            disabled={updateGroup.isPending}
             className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-200"
           >
             <X className="w-5 h-5" />
@@ -281,7 +286,7 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
               <div className="flex items-center justify-between">
                 <label className="block text-sm font-medium text-slate-700 flex items-center gap-2">
                   <Clock className="w-4 h-4 text-primary-500" />
-                  مواعيد المجموعة
+                  مواعيد ومكان المجموعة
                 </label>
                 <Button
                   type="button"
@@ -292,7 +297,7 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
                       const current = prev.schedules || [];
                       return {
                         ...prev,
-                        schedules: [...current, { dayOfWeek: 0, startTime: '14:00', endTime: '15:00' }]
+                        schedules: [...current, { dayOfWeek: 0, startTime: '14:00', endTime: '15:00', location: '' }]
                       };
                     });
                   }}
@@ -306,63 +311,84 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
 
               {formData.schedules && formData.schedules.length > 0 ? (
                 <div className="space-y-3">
-                  {formData.schedules.map((schedule, index) => (
-                    <div key={index} className="flex items-end gap-3 p-3 bg-slate-50 border border-slate-100 rounded-xl relative">
-                      <div className="flex-1">
-                        <Select
-                          label="اليوم"
-                          name={`schedule-day-${index}`}
-                          value={schedule.dayOfWeek.toString()}
-                          onChange={(e) => {
+                  {formData.schedules.map((schedule: any, index: number) => (
+                    <div key={index} className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2.5 relative">
+                      <div className="flex items-end gap-2.5">
+                        <div className="flex-1 min-w-[100px]">
+                          <Select
+                            label="اليوم"
+                            name={`schedule-day-${index}`}
+                            value={schedule.dayOfWeek.toString()}
+                            onChange={(e) => {
+                              const newSchedules = [...(formData.schedules || [])];
+                              newSchedules[index].dayOfWeek = parseInt(e.target.value);
+                              setFormData({ ...formData, schedules: newSchedules });
+                            }}
+                            options={[
+                              { label: 'الأحد', value: '0' },
+                              { label: 'الإثنين', value: '1' },
+                              { label: 'الثلاثاء', value: '2' },
+                              { label: 'الأربعاء', value: '3' },
+                              { label: 'الخميس', value: '4' },
+                              { label: 'الجمعة', value: '5' },
+                              { label: 'السبت', value: '6' },
+                            ]}
+                            disabled={updateGroup.isPending}
+                          />
+                        </div>
+                        <TimeSelect
+                          label="من"
+                          value={schedule.startTime}
+                          onChange={(val) => {
                             const newSchedules = [...(formData.schedules || [])];
-                            newSchedules[index].dayOfWeek = parseInt(e.target.value);
+                            newSchedules[index].startTime = val;
+                            newSchedules[index].endTime = addOneHour(val); // تحديث تلقائي لوقت الانتهاء
                             setFormData({ ...formData, schedules: newSchedules });
                           }}
-                          options={[
-                            { label: 'الأحد', value: '0' },
-                            { label: 'الإثنين', value: '1' },
-                            { label: 'الثلاثاء', value: '2' },
-                            { label: 'الأربعاء', value: '3' },
-                            { label: 'الخميس', value: '4' },
-                            { label: 'الجمعة', value: '5' },
-                            { label: 'السبت', value: '6' },
-                          ]}
                           disabled={updateGroup.isPending}
                         />
+                        <TimeSelect
+                          label="إلى"
+                          value={schedule.endTime}
+                          onChange={(val) => {
+                            const newSchedules = [...(formData.schedules || [])];
+                            newSchedules[index].endTime = val;
+                            setFormData({ ...formData, schedules: newSchedules });
+                          }}
+                          disabled={updateGroup.isPending}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newSchedules = [...(formData.schedules || [])];
+                            newSchedules.splice(index, 1);
+                            setFormData({ ...formData, schedules: newSchedules });
+                          }}
+                          className="h-10 px-3 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100 flex items-center justify-center mb-[2px]"
+                          disabled={updateGroup.isPending}
+                          title="حذف الموعد"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
-                      <TimeSelect
-                        label="من"
-                        value={schedule.startTime}
-                        onChange={(val) => {
-                          const newSchedules = [...(formData.schedules || [])];
-                          newSchedules[index].startTime = val;
-                          newSchedules[index].endTime = addOneHour(val); // تحديث تلقائي لوقت الانتهاء
-                          setFormData({ ...formData, schedules: newSchedules });
-                        }}
-                        disabled={updateGroup.isPending}
-                      />
-                      <TimeSelect
-                        label="إلى"
-                        value={schedule.endTime}
-                        onChange={(val) => {
-                          const newSchedules = [...(formData.schedules || [])];
-                          newSchedules[index].endTime = val;
-                          setFormData({ ...formData, schedules: newSchedules });
-                        }}
-                        disabled={updateGroup.isPending}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newSchedules = [...(formData.schedules || [])];
-                          newSchedules.splice(index, 1);
-                          setFormData({ ...formData, schedules: newSchedules });
-                        }}
-                        className="h-10 px-3 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100 flex items-center justify-center mb-[2px]"
-                        disabled={updateGroup.isPending}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+
+                      {/* المكان / القاعة */}
+                      <div className="pt-0.5">
+                        <label className="block text-xs font-semibold text-neutral-600 mb-1 flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-primary-600" />
+                          المكان / السنتر / القاعة
+                        </label>
+                        <LocationSelect
+                          value={schedule.location || ''}
+                          onChange={(val) => {
+                            const newSchedules = [...(formData.schedules || [])];
+                            newSchedules[index].location = val;
+                            setFormData({ ...formData, schedules: newSchedules });
+                          }}
+                          disabled={updateGroup.isPending}
+                          placeholder="اختر أو اكتب مكان الحصة (مثال: سنتر الأوائل - قاعة 1)..."
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>

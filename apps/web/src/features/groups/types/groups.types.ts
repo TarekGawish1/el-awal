@@ -9,6 +9,7 @@ export interface Group {
   status: string;
   createdAt: string;
   updatedAt: string;
+  schedules?: GroupSchedule[];
   _count?: {
     enrollments: number;
     schedules: number;
@@ -16,9 +17,11 @@ export interface Group {
 }
 
 export interface GroupSchedule {
+  id?: string;
   dayOfWeek: number;
   startTime: string;
   endTime: string;
+  location?: string;
 }
 
 export interface CreateGroupPayload {

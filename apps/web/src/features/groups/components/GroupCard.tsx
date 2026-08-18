@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Users, CalendarDays, ChevronLeft } from 'lucide-react';
+import { Users, CalendarDays, ChevronLeft, MapPin } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Group } from '../types/groups.types';
@@ -9,6 +9,8 @@ interface GroupCardProps {
 }
 
 export function GroupCard({ group }: GroupCardProps) {
+  const locations = Array.from(new Set(group.schedules?.map(s => s.location).filter(Boolean)));
+
   return (
     <Link href={`/teacher/groups/${group.id}`} className="block">
       <Card className="hover:border-primary/50 transition-colors h-full flex flex-col cursor-pointer">
@@ -22,6 +24,12 @@ export function GroupCard({ group }: GroupCardProps) {
           
           <div className="space-y-2 mb-4">
             <p className="text-sm text-slate-500 font-medium">{group.gradeLevel}</p>
+            {locations.length > 0 && (
+              <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100 w-fit">
+                <MapPin className="w-3.5 h-3.5 text-primary-600 shrink-0" />
+                <span className="truncate">{locations.join(' • ')}</span>
+              </div>
+            )}
             {group.description && (
               <p className="text-sm text-slate-600 line-clamp-2">{group.description}</p>
             )}

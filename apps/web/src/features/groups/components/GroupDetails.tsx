@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Users, UserPlus, FileText, AlertCircle, CalendarDays, Settings, Trash2, Loader2 } from 'lucide-react';
+import { ArrowRight, Users, UserPlus, FileText, AlertCircle, CalendarDays, Settings, Trash2, Loader2, MapPin } from 'lucide-react';
 import { useGroup, useDeleteGroup } from '../hooks/useGroups';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -128,7 +128,7 @@ export function GroupDetails({ id }: GroupDetailsProps) {
               </div>
               <div className="flex items-center bg-slate-50 px-3 py-2 rounded-lg text-sm text-slate-700 border border-slate-100">
                 <CalendarDays className="w-4 h-4 ml-2 text-slate-400" />
-                <span className="font-semibold ml-1">{group._count?.schedules || 0}</span> مواعيد
+                <span className="font-semibold ml-1">{group._count?.schedules || group.schedules?.length || 0}</span> مواعيد
               </div>
               {group.monthlyFee !== undefined && group.monthlyFee > 0 && (
                 <div className="flex items-center bg-slate-50 px-3 py-2 rounded-lg text-sm text-slate-700 border border-slate-100">
@@ -136,6 +136,35 @@ export function GroupDetails({ id }: GroupDetailsProps) {
                 </div>
               )}
             </div>
+
+            {/* Detailed Schedules & Locations */}
+            {group.schedules && group.schedules.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-slate-100">
+                <p className="text-xs font-bold text-slate-600 mb-2">مواعيد وأماكن الحصص:</p>
+                <div className="flex flex-wrap gap-2">
+                  {group.schedules.map((schedule: any, idx: number) => {
+                    const daysMap = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+                    const dayName = daysMap[schedule.dayOfWeek] || 'اليوم';
+                    return (
+                      <div key={idx} className="bg-slate-50 text-slate-700 text-xs px-3 py-1.5 rounded-lg border border-slate-200/80 flex items-center gap-2">
+                        <span className="font-bold text-primary-700">{dayName}</span>
+                        <span className="text-slate-400">|</span>
+                        <span>{schedule.startTime} - {schedule.endTime}</span>
+                        {schedule.location && (
+                          <>
+                            <span className="text-slate-400">|</span>
+                            <span className="inline-flex items-center gap-1 text-slate-600 font-medium">
+                              <MapPin className="w-3 h-3 text-primary-600" />
+                              {schedule.location}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col gap-2 w-full sm:w-auto">

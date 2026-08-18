@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { X, Loader2, Plus, Trash2, Clock, ChevronDown } from 'lucide-react';
+import { X, Loader2, Plus, Trash2, Clock, ChevronDown, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Alert } from '@/components/ui/Alert';
 import { Select } from '@/components/ui/Select';
 import { useCreateGroup } from '../hooks/useGroups';
 import { CreateGroupPayload } from '../types/groups.types';
+import { LocationSelect } from './LocationSelect';
 
 interface CreateGroupModalProps {
   isOpen: boolean;
@@ -102,8 +103,8 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
     maxCapacity: 50,
     monthlyFee: 100,
     schedules: [
-      { dayOfWeek: 0, startTime: '14:00', endTime: '15:00' },
-      { dayOfWeek: 3, startTime: '14:00', endTime: '15:00' }
+      { dayOfWeek: 0, startTime: '14:00', endTime: '15:00', location: '' },
+      { dayOfWeek: 3, startTime: '14:00', endTime: '15:00', location: '' }
     ],
   });
   const [educationalStage, setEducationalStage] = useState('');
@@ -181,8 +182,8 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
             maxCapacity: 50, 
             monthlyFee: 100,
             schedules: [
-              { dayOfWeek: 0, startTime: '14:00', endTime: '15:00' },
-              { dayOfWeek: 3, startTime: '14:00', endTime: '15:00' }
+              { dayOfWeek: 0, startTime: '14:00', endTime: '15:00', location: '' },
+              { dayOfWeek: 3, startTime: '14:00', endTime: '15:00', location: '' }
             ] 
           });
           setEducationalStage('');
@@ -268,7 +269,7 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
               <div className="flex items-center justify-between">
                 <label className="block text-sm font-medium text-slate-700 flex items-center gap-2">
                   <Clock className="w-4 h-4 text-primary-500" />
-                  مواعيد المجموعة
+                  مواعيد ومكان المجموعة
                 </label>
                 <Button
                   type="button"
@@ -281,14 +282,14 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
                         return {
                           ...prev,
                           schedules: [
-                            { dayOfWeek: 0, startTime: '14:00', endTime: '15:00' }, // الأحد
-                            { dayOfWeek: 3, startTime: '14:00', endTime: '15:00' }  // الأربعاء
+                            { dayOfWeek: 0, startTime: '14:00', endTime: '15:00', location: '' }, // الأحد
+                            { dayOfWeek: 3, startTime: '14:00', endTime: '15:00', location: '' }  // الأربعاء
                           ]
                         };
                       }
                       return {
                         ...prev,
-                        schedules: [...current, { dayOfWeek: 0, startTime: '14:00', endTime: '15:00' }]
+                        schedules: [...current, { dayOfWeek: 0, startTime: '14:00', endTime: '15:00', location: '' }]
                       };
                     });
                   }}
@@ -303,62 +304,83 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
               {formData.schedules && formData.schedules.length > 0 ? (
                 <div className="space-y-3">
                   {formData.schedules.map((schedule, index) => (
-                    <div key={index} className="flex items-end gap-3 p-3 bg-slate-50 border border-slate-100 rounded-xl relative">
-                      <div className="flex-1">
-                        <Select
-                          label="اليوم"
-                          name={`schedule-day-${index}`}
-                          value={schedule.dayOfWeek.toString()}
-                          onChange={(e) => {
+                    <div key={index} className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2.5 relative">
+                      <div className="flex items-end gap-2.5">
+                        <div className="flex-1 min-w-[100px]">
+                          <Select
+                            label="اليوم"
+                            name={`schedule-day-${index}`}
+                            value={schedule.dayOfWeek.toString()}
+                            onChange={(e) => {
+                              const newSchedules = [...(formData.schedules || [])];
+                              newSchedules[index].dayOfWeek = parseInt(e.target.value);
+                              setFormData({ ...formData, schedules: newSchedules });
+                            }}
+                            options={[
+                              { label: 'الأحد', value: '0' },
+                              { label: 'الإثنين', value: '1' },
+                              { label: 'الثلاثاء', value: '2' },
+                              { label: 'الأربعاء', value: '3' },
+                              { label: 'الخميس', value: '4' },
+                              { label: 'الجمعة', value: '5' },
+                              { label: 'السبت', value: '6' },
+                            ]}
+                            disabled={createGroup.isPending}
+                          />
+                        </div>
+                        <TimeSelect
+                          label="من"
+                          value={schedule.startTime}
+                          onChange={(val) => {
                             const newSchedules = [...(formData.schedules || [])];
-                            newSchedules[index].dayOfWeek = parseInt(e.target.value);
+                            newSchedules[index].startTime = val;
+                            newSchedules[index].endTime = addOneHour(val); // تحديث تلقائي لوقت الانتهاء
                             setFormData({ ...formData, schedules: newSchedules });
                           }}
-                          options={[
-                            { label: 'الأحد', value: '0' },
-                            { label: 'الإثنين', value: '1' },
-                            { label: 'الثلاثاء', value: '2' },
-                            { label: 'الأربعاء', value: '3' },
-                            { label: 'الخميس', value: '4' },
-                            { label: 'الجمعة', value: '5' },
-                            { label: 'السبت', value: '6' },
-                          ]}
                           disabled={createGroup.isPending}
                         />
+                        <TimeSelect
+                          label="إلى"
+                          value={schedule.endTime}
+                          onChange={(val) => {
+                            const newSchedules = [...(formData.schedules || [])];
+                            newSchedules[index].endTime = val;
+                            setFormData({ ...formData, schedules: newSchedules });
+                          }}
+                          disabled={createGroup.isPending}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newSchedules = [...(formData.schedules || [])];
+                            newSchedules.splice(index, 1);
+                            setFormData({ ...formData, schedules: newSchedules });
+                          }}
+                          className="h-10 px-3 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100 flex items-center justify-center mb-[2px]"
+                          disabled={createGroup.isPending}
+                          title="حذف الموعد"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
-                      <TimeSelect
-                        label="من"
-                        value={schedule.startTime}
-                        onChange={(val) => {
-                          const newSchedules = [...(formData.schedules || [])];
-                          newSchedules[index].startTime = val;
-                          newSchedules[index].endTime = addOneHour(val); // تحديث تلقائي لوقت الانتهاء
-                          setFormData({ ...formData, schedules: newSchedules });
-                        }}
-                        disabled={createGroup.isPending}
-                      />
-                      <TimeSelect
-                        label="إلى"
-                        value={schedule.endTime}
-                        onChange={(val) => {
-                          const newSchedules = [...(formData.schedules || [])];
-                          newSchedules[index].endTime = val;
-                          setFormData({ ...formData, schedules: newSchedules });
-                        }}
-                        disabled={createGroup.isPending}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newSchedules = [...(formData.schedules || [])];
-                          newSchedules.splice(index, 1);
-                          setFormData({ ...formData, schedules: newSchedules });
-                        }}
-                        className="h-10 px-3 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100 flex items-center justify-center mb-[2px]"
-                        disabled={createGroup.isPending}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+
+                      {/* المكان / القاعة */}
+                      <div className="pt-0.5">
+                        <label className="block text-xs font-semibold text-neutral-600 mb-1 flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-primary-600" />
+                          المكان / السنتر / القاعة
+                        </label>
+                        <LocationSelect
+                          value={schedule.location || ''}
+                          onChange={(val) => {
+                            const newSchedules = [...(formData.schedules || [])];
+                            newSchedules[index].location = val;
+                            setFormData({ ...formData, schedules: newSchedules });
+                          }}
+                          disabled={createGroup.isPending}
+                          placeholder="اختر أو اكتب مكان الحصة (مثال: سنتر الأوائل - قاعة 1)..."
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>

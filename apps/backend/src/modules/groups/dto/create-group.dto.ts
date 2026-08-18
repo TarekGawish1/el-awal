@@ -27,6 +27,11 @@ export class GroupScheduleDto {
   @IsString()
   @IsNotEmpty()
   endTime: string;
+
+  @ApiPropertyOptional({ example: 'سنتر الأوائل - قاعة 1' })
+  @IsOptional()
+  @IsString()
+  location?: string;
 }
 
 export class CreateGroupDto {
