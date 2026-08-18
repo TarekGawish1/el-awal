@@ -36,13 +36,13 @@ export default function TeacherStudentsPage() {
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 mb-8">
           <h2 className="text-xl font-bold text-slate-800 mb-6">تسجيل طالب جديد</h2>
           <CreateStudentForm
-            onSuccess={(data, password) => {
+            onSuccess={(data, password, parentPhone) => {
               if (data?.id) {
                 setCreatedStudent({
                   id: data.id,
                   password: password,
                   email: data.email,
-                  phone: data.phone
+                  phone: data.phone || parentPhone
                 });
               }
               setIsCreating(false);
