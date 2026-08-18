@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/features/auth';
 import { DashboardBreadcrumbs } from '@/features/dashboard/components/DashboardBreadcrumbs';
+import { AcademicPeriodSwitcher } from '@/features/groups/components/AcademicPeriodSwitcher';
 
 export default function DashboardLayout({
   children,
@@ -189,7 +190,9 @@ export default function DashboardLayout({
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
-
+            {user?.role !== 'STUDENT' && (
+              <AcademicPeriodSwitcher />
+            )}
 
             <div className="h-8 w-px bg-neutral-200 mx-1 hidden sm:block"></div>
 

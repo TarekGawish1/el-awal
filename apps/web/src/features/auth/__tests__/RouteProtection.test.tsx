@@ -1,11 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import DashboardLayout from '@/app/(dashboard)/layout';
 import * as useAuthModule from '../hooks/useAuth';
 
 const mockReplace = vi.fn();
 const mockPush = vi.fn();
+
+function renderWithProviders(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -36,7 +44,7 @@ describe('Dashboard Route Protection & Authentication Guard', () => {
       logout: vi.fn(),
     });
 
-    render(
+    renderWithProviders(
       <DashboardLayout>
         <div>Protected Dashboard Content</div>
       </DashboardLayout>
@@ -62,7 +70,7 @@ describe('Dashboard Route Protection & Authentication Guard', () => {
       logout: vi.fn(),
     });
 
-    render(
+    renderWithProviders(
       <DashboardLayout>
         <div>Protected Dashboard Content</div>
       </DashboardLayout>
@@ -94,7 +102,7 @@ describe('Dashboard Route Protection & Authentication Guard', () => {
       logout: vi.fn(),
     });
 
-    render(
+    renderWithProviders(
       <DashboardLayout>
         <div>Protected Dashboard Content</div>
       </DashboardLayout>

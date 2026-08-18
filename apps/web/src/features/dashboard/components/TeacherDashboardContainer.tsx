@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DashboardFilterState, DateRangePreset } from '../types/dashboard.types';
 import { useTeacherDashboard, useTeacherGroups, DEFAULT_DASHBOARD_FILTERS } from '../hooks/useTeacherDashboard';
+import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
 import { DashboardHeader } from './DashboardHeader';
 import { DashboardFilters } from './DashboardFilters';
 import { DashboardKpiGrid } from './DashboardKpiGrid';
@@ -34,6 +35,26 @@ export function TeacherDashboardContainer() {
   // Fetch groups for filter dropdown
   const { data: groups = [], isLoading: isGroupsLoading } = useTeacherGroups();
 
+  // Active synchronized academic period
+  const {
+    selectedYears,
+    setSelectedYears,
+    selectedTerms,
+    setSelectedTerms,
+    activeYear,
+    activeTerm,
+  } = useStoredAcademicPeriod(groups as any);
+
+  // Sync initial / current filters with active academic period if not explicitly set in URL
+  React.useEffect(() => {
+    if (!searchParams?.get('academicYear') && activeYear) {
+      setFilters((prev) => (prev.academicYear !== activeYear ? { ...prev, academicYear: activeYear } : prev));
+    }
+    if (!searchParams?.get('academicTerm') && activeTerm) {
+      setFilters((prev) => (prev.academicTerm !== activeTerm ? { ...prev, academicTerm: activeTerm } : prev));
+    }
+  }, [activeYear, activeTerm, searchParams]);
+
   // Fetch primary dashboard overview
   const {
     data: dashboardData,
@@ -45,7 +66,7 @@ export function TeacherDashboardContainer() {
     isOffline,
   } = useTeacherDashboard(filters);
 
-  // Handle filter changes and sync to URL params
+  // Handle filter changes and sync to URL params (local filter view only, does not mutate global system active period)
   const handleFilterChange = (updated: Partial<DashboardFilterState>) => {
     const newFilters = { ...filters, ...updated };
     setFilters(newFilters);

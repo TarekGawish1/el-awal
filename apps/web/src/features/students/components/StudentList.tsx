@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -51,13 +51,28 @@ export function StudentList() {
   // Fetch groups to populate group filter options
   const { data: groups } = useGroups();
 
-  // Synchronized Academic Period (Academic Year & Semester)
+  // Synchronized System Academic Period (Read-only from global system switcher)
   const {
-    selectedYears,
-    setSelectedYears,
-    selectedTerms,
-    setSelectedTerms,
+    activeYear,
+    activeTerm,
   } = useStoredAcademicPeriod(groups);
+
+  // Local filter toolbar states initialized with system active period
+  const [selectedYears, setSelectedYears] = useState<string[]>([]);
+  const [selectedTerms, setSelectedTerms] = useState<string[]>([]);
+
+  // Automatically synchronize local filters when global system academic period changes from top navbar
+  useEffect(() => {
+    if (activeYear) {
+      setSelectedYears([activeYear]);
+    }
+  }, [activeYear]);
+
+  useEffect(() => {
+    if (activeTerm) {
+      setSelectedTerms([activeTerm]);
+    }
+  }, [activeTerm]);
 
   const availableYears = useMemo(() => {
     const yearsSet = new Set<string>();
@@ -188,6 +203,12 @@ export function StudentList() {
       }));
   }, [groups, selectedStages, selectedGrades, selectedYears, selectedTerms]);
 
+  // Fast group lookup map
+  const groupMap = useMemo(() => {
+    if (!groups || !Array.isArray(groups)) return new Map<string, any>();
+    return new Map(groups.map((g) => [g.id, g]));
+  }, [groups]);
+
   // Prune any selected groups that are no longer available in the filtered options
   React.useEffect(() => {
     if (selectedGroups.length > 0) {
@@ -229,21 +250,43 @@ export function StudentList() {
         (student.groupEnrollments &&
           student.groupEnrollments.some((e) => selectedGroups.includes(e.group.id)));
 
-      return matchesSearch && matchesStage && matchesGrade && matchesGroup;
+      // 5. Academic Year filter
+      const matchesYear =
+        selectedYears.length === 0 ||
+        (student.groupEnrollments &&
+          student.groupEnrollments.some((e) => {
+            const groupInfo = groupMap.get(e.group.id);
+            return groupInfo?.academicYear && selectedYears.includes(groupInfo.academicYear);
+          }));
+
+      // 6. Academic Term filter
+      const matchesTerm =
+        selectedTerms.length === 0 ||
+        (student.groupEnrollments &&
+          student.groupEnrollments.some((e) => {
+            const groupInfo = groupMap.get(e.group.id);
+            return groupInfo?.academicTerm && selectedTerms.includes(groupInfo.academicTerm);
+          }));
+
+      return matchesSearch && matchesStage && matchesGrade && matchesGroup && matchesYear && matchesTerm;
     });
-  }, [data, searchTerm, selectedStages, selectedGrades, selectedGroups]);
+  }, [data, searchTerm, selectedStages, selectedGrades, selectedGroups, selectedYears, selectedTerms, groupMap]);
 
   const hasActiveFilters =
     searchTerm !== '' ||
     selectedStages.length > 0 ||
     selectedGrades.length > 0 ||
-    selectedGroups.length > 0;
+    selectedGroups.length > 0 ||
+    selectedYears.length > 0 ||
+    selectedTerms.length > 0;
 
   const resetFilters = () => {
     setSearchTerm('');
     setSelectedStages([]);
     setSelectedGrades([]);
     setSelectedGroups([]);
+    setSelectedYears([]);
+    setSelectedTerms([]);
   };
 
   const getStatusColor = (status: AcademicStatus) => {

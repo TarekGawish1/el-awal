@@ -152,7 +152,7 @@ describe('TeacherStudents', () => {
         data: { data: [], meta: { hasMore: false } },
       } as any);
       renderWithQueryClient(<TeacherStudentsPage />);
-      expect(screen.getByText('لم يتم العثور على طلاب.')).toBeInTheDocument();
+      expect(screen.getByText(/لا يوجد طلاب مطابقين لخيارات الفلترة المحددة|لم يتم العثور على طلاب/i)).toBeInTheDocument();
     });
 
     it('shows create student form when add button clicked', async () => {
