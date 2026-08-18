@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Alert } from '@/components/ui/Alert';
 import { Select } from '@/components/ui/Select';
-import { useCreateGroup } from '../hooks/useGroups';
+import { useCreateGroup, useGroups } from '../hooks/useGroups';
+import { useStoredAcademicPeriod } from '../hooks/useAcademicPeriod';
 import { CreateGroupPayload } from '../types/groups.types';
 import { LocationSelect } from './LocationSelect';
 import { AcademicYearSelect } from './AcademicYearSelect';
@@ -98,6 +99,9 @@ function TimeSelect({ value, onChange, label, disabled }: { value: string, onCha
 }
 
 export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
+  const { data: existingGroups } = useGroups();
+  const { activeYear, activeTerm } = useStoredAcademicPeriod(existingGroups);
+
   const [formData, setFormData] = useState<CreateGroupPayload>({
     name: '',
     gradeLevel: '',
@@ -110,6 +114,17 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
       { dayOfWeek: 3, startTime: '14:00', endTime: '15:00', location: '' }
     ],
   });
+
+  // Synchronize with active system academic period whenever modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setFormData((prev) => ({
+        ...prev,
+        academicYear: activeYear || prev.academicYear || '2025-2026',
+        academicTerm: (activeTerm as any) || prev.academicTerm || 'FIRST_TERM',
+      }));
+    }
+  }, [isOpen, activeYear, activeTerm]);
   const [educationalStage, setEducationalStage] = useState('');
   const [groupLocation, setGroupLocation] = useState('');
   
