@@ -38,9 +38,13 @@ export class ContentService {
   }
 
   /**
-   * Registers educational asset metadata in the library attached to a teacher, group, or lesson.
+   * Registers educational asset metadata in the library attached to a teacher, gradeLevel, group, session, or lesson.
    */
   async createContent(teacherId: string, dto: CreateContentDto) {
+    let academicYear = dto.academicYear;
+    let academicTerm = dto.academicTerm;
+    let gradeLevel = dto.gradeLevel;
+
     if (dto.groupId) {
       const group = await this.prisma.academicGroup.findUnique({ where: { id: dto.groupId } });
       if (!group) {
@@ -48,6 +52,34 @@ export class ContentService {
       }
       if (group.teacherId !== teacherId) {
         throw new ForbiddenException('You do not own this academic group');
+      }
+      if (!gradeLevel) gradeLevel = group.gradeLevel;
+      if (!academicYear) academicYear = group.academicYear;
+      if (!academicTerm) academicTerm = group.academicTerm;
+    }
+
+    if (!academicYear || !academicTerm) {
+      const teacher = await this.prisma.teacherProfile.findUnique({
+        where: { id: teacherId },
+        select: { activeAcademicYear: true, activeAcademicTerm: true },
+      });
+      if (!academicYear) academicYear = teacher?.activeAcademicYear || '2025-2026';
+      if (!academicTerm) academicTerm = teacher?.activeAcademicTerm || 'FIRST_TERM';
+    }
+
+    if (dto.sessionId) {
+      const session = await this.prisma.lessonSession.findUnique({
+        where: { id: dto.sessionId },
+        include: { group: true },
+      });
+      if (!session) {
+        throw new NotFoundException(`Lesson session [${dto.sessionId}] not found`);
+      }
+      if (session.group.teacherId !== teacherId) {
+        throw new ForbiddenException('You do not own this session');
+      }
+      if (!dto.sessionTopic && session.topic) {
+        dto.sessionTopic = session.topic;
       }
     }
 
@@ -73,32 +105,103 @@ export class ContentService {
         fileUrl: dto.fileUrl,
         fileSize: dto.fileSize ? BigInt(dto.fileSize) : null,
         mimeType: dto.mimeType,
+        gradeLevel: gradeLevel || null,
+        academicYear,
+        academicTerm,
+        sessionTopic: dto.sessionTopic || null,
+        sessionId: dto.sessionId || null,
         teacherId,
-        groupId: dto.groupId,
-        lessonId: dto.lessonId,
+        groupId: dto.groupId || null,
+        lessonId: dto.lessonId || null,
       },
     });
   }
 
   /**
-   * Lists instructor's uploaded materials with optional group or content type filtering.
+   * Lists instructor's uploaded materials with academic period, grade level, group, session, or content type filtering.
    */
   async listTeacherContent(
     teacherId: string,
-    groupId?: string,
-    lessonId?: string,
-    contentType?: ContentType,
+    params?: {
+      groupId?: string;
+      gradeLevel?: string;
+      academicYear?: string;
+      academicTerm?: string;
+      sessionId?: string;
+      sessionTopic?: string;
+      lessonId?: string;
+      contentType?: ContentType;
+      includeGradeScope?: boolean;
+    },
   ) {
+    const {
+      groupId,
+      gradeLevel,
+      academicYear,
+      academicTerm,
+      sessionId,
+      sessionTopic,
+      lessonId,
+      contentType,
+      includeGradeScope,
+    } = params || {};
+
+    const where: any = { teacherId };
+
+    if (contentType) {
+      where.contentType = contentType;
+    }
+    if (lessonId) {
+      where.lessonId = lessonId;
+    }
+    if (sessionId) {
+      where.sessionId = sessionId;
+    }
+    if (sessionTopic) {
+      where.sessionTopic = sessionTopic;
+    }
+
+    if (groupId) {
+      if (includeGradeScope) {
+        const group = await this.prisma.academicGroup.findUnique({
+          where: { id: groupId },
+          select: { id: true, gradeLevel: true, academicYear: true, academicTerm: true },
+        });
+
+        if (group) {
+          where.OR = [
+            { groupId: group.id },
+            {
+              groupId: null,
+              gradeLevel: group.gradeLevel,
+              academicYear: group.academicYear,
+              academicTerm: group.academicTerm,
+            },
+          ];
+        } else {
+          where.groupId = groupId;
+        }
+      } else {
+        where.groupId = groupId;
+      }
+    } else {
+      if (gradeLevel) {
+        where.gradeLevel = gradeLevel;
+      }
+      if (academicYear) {
+        where.academicYear = academicYear;
+      }
+      if (academicTerm) {
+        where.academicTerm = academicTerm;
+      }
+    }
+
     const contents = await this.prisma.educationalContent.findMany({
-      where: {
-        teacherId,
-        ...(groupId ? { groupId } : {}),
-        ...(lessonId ? { lessonId } : {}),
-        ...(contentType ? { contentType } : {}),
-      },
+      where,
       orderBy: { createdAt: 'desc' },
       include: {
-        group: { select: { id: true, name: true } },
+        group: { select: { id: true, name: true, gradeLevel: true, academicYear: true, academicTerm: true } },
+        session: { select: { id: true, topic: true, sessionDate: true, startTime: true } },
         lesson: { select: { id: true, title: true } },
         _count: { select: { progresses: true } },
       },

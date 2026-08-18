@@ -55,14 +55,28 @@ export class ContentController {
   async listContent(
     @CurrentUser() user: AuthenticatedUser,
     @Query('groupId') groupId?: string,
+    @Query('gradeLevel') gradeLevel?: string,
+    @Query('academicYear') academicYear?: string,
+    @Query('academicTerm') academicTerm?: string,
+    @Query('sessionId') sessionId?: string,
+    @Query('sessionTopic') sessionTopic?: string,
     @Query('lessonId') lessonId?: string,
     @Query('contentType') contentType?: ContentType,
+    @Query('includeGradeScope') includeGradeScope?: string,
   ) {
     return this.contentService.listTeacherContent(
       user.teacherProfileId || user.id,
-      groupId,
-      lessonId,
-      contentType,
+      {
+        groupId,
+        gradeLevel,
+        academicYear,
+        academicTerm,
+        sessionId,
+        sessionTopic,
+        lessonId,
+        contentType,
+        includeGradeScope: includeGradeScope === 'true' || includeGradeScope === '1',
+      },
     );
   }
 

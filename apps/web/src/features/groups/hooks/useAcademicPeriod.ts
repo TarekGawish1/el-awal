@@ -246,3 +246,9 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
     isSyncingWithDb: mutation.isPending,
   };
 }
+
+/**
+ * Alias for useStoredAcademicPeriod for backwards/clean imports
+ */
+export const useAcademicPeriod = useStoredAcademicPeriod;
+

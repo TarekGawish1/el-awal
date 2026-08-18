@@ -53,6 +53,31 @@ export class CreateContentDto {
   @IsUUID()
   groupId?: string;
 
+  @ApiPropertyOptional({ description: 'Grade level (e.g. الصف الثالث الإعدادي)' })
+  @IsOptional()
+  @IsString()
+  gradeLevel?: string;
+
+  @ApiPropertyOptional({ description: 'Academic year (e.g. 2025-2026)' })
+  @IsOptional()
+  @IsString()
+  academicYear?: string;
+
+  @ApiPropertyOptional({ description: 'Academic semester / term (FIRST_TERM / SECOND_TERM)' })
+  @IsOptional()
+  @IsString()
+  academicTerm?: string;
+
+  @ApiPropertyOptional({ description: 'Session topic or lesson title' })
+  @IsOptional()
+  @IsString()
+  sessionTopic?: string;
+
+  @ApiPropertyOptional({ description: 'Session ID' })
+  @IsOptional()
+  @IsUUID()
+  sessionId?: string;
+
   @ApiPropertyOptional({ description: 'Course lesson ID to attach asset to' })
   @IsOptional()
   @IsUUID()

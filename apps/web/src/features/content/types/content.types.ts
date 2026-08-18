@@ -10,6 +10,11 @@ export interface EducationalContent {
   teacherId: string;
   groupId?: string | null;
   lessonId?: string | null;
+  sessionId?: string | null;
+  gradeLevel?: string | null;
+  academicYear?: string | null;
+  academicTerm?: string | null;
+  sessionTopic?: string | null;
   title: string;
   description?: string | null;
   contentType: ContentType;
@@ -20,7 +25,8 @@ export interface EducationalContent {
   createdAt: string;
   updatedAt: string;
   
-  group?: { id: string; name: string } | null;
+  group?: { id: string; name: string; gradeLevel?: string; academicYear?: string; academicTerm?: string } | null;
+  session?: { id: string; topic?: string | null; sessionDate?: string; startTime?: string | null } | null;
   lesson?: { id: string; title: string } | null;
   _count?: { progresses: number };
 }
@@ -48,5 +54,10 @@ export interface CreateContentPayload {
   fileSize?: number;
   mimeType?: string;
   groupId?: string;
+  gradeLevel?: string;
+  academicYear?: string;
+  academicTerm?: string;
+  sessionTopic?: string;
+  sessionId?: string;
   lessonId?: string;
 }

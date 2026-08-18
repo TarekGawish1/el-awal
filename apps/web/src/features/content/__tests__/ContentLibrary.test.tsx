@@ -11,6 +11,33 @@ vi.mock('../hooks/use-content', () => ({
   useDeleteContent: vi.fn(),
 }));
 
+vi.mock('@/features/groups/hooks/useAcademicPeriod', () => ({
+  useAcademicPeriod: () => ({
+    activeYear: '2025-2026',
+    activeTerm: 'FIRST_TERM',
+    selectedYears: ['2025-2026'],
+    selectedTerms: ['FIRST_TERM'],
+    isFilterActive: false,
+    academicYears: ['2025-2026'],
+    currentAcademicTerm: 'FIRST_TERM',
+    setSingleAcademicYear: vi.fn(),
+    setSingleAcademicTerm: vi.fn(),
+    toggleAcademicYear: vi.fn(),
+    toggleAcademicTerm: vi.fn(),
+    resetToActiveDefaults: vi.fn(),
+  }),
+  useStoredAcademicPeriod: () => ({
+    academicYear: '2025-2026',
+    academicTerm: 'FIRST_TERM',
+  }),
+  getDefaultAcademicYear: () => '2025-2026',
+  getDefaultAcademicTerm: () => 'FIRST_TERM',
+}));
+
+vi.mock('@/features/groups/components/AcademicPeriodSwitcher', () => ({
+  AcademicPeriodSwitcher: () => <div data-testid="period-switcher">Academic Period Switcher</div>,
+}));
+
 const queryClient = new QueryClient();
 const renderWithProviders = (ui: React.ReactElement) => {
   return render(
@@ -47,7 +74,7 @@ describe('ContentLibrary', () => {
     } as any);
 
     renderWithProviders(<ContentLibrary onUploadClick={vi.fn()} />);
-    expect(screen.getByText('لا توجد ملفات بعد')).toBeInTheDocument();
+    expect(screen.getByText('لا توجد مرفقات بعد لهذه الفترة')).toBeInTheDocument();
   });
 
   it('renders populated content', () => {
@@ -60,6 +87,8 @@ describe('ContentLibrary', () => {
           fileKey: 'key',
           fileUrl: 'url',
           fileSize: 1024,
+          gradeLevel: 'الصف الثالث الإعدادي',
+          sessionTopic: 'الحصة 1: النحو',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           teacherId: 't1'
@@ -71,7 +100,8 @@ describe('ContentLibrary', () => {
 
     renderWithProviders(<ContentLibrary onUploadClick={vi.fn()} />);
     expect(screen.getByText('ملخص الدرس الأول')).toBeInTheDocument();
-    expect(screen.getByText('ملخص')).toBeInTheDocument();
+    expect(screen.getByText('الحصة 1: النحو')).toBeInTheDocument();
+    expect(screen.getByText('الصف الثالث الإعدادي')).toBeInTheDocument();
   });
 
   it('calls onUploadClick when upload button is clicked', () => {
@@ -84,8 +114,9 @@ describe('ContentLibrary', () => {
     const onUploadClick = vi.fn();
     renderWithProviders(<ContentLibrary onUploadClick={onUploadClick} />);
     
-    const uploadBtns = screen.getAllByRole('button', { name: /رفع ملف/ });
+    const uploadBtns = screen.getAllByRole('button', { name: /رفع/ });
     fireEvent.click(uploadBtns[0]);
     expect(onUploadClick).toHaveBeenCalledTimes(1);
   });
 });
+
