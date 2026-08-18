@@ -47,7 +47,8 @@ export async function updateAssessment(id: string, payload: UpdateAssessmentPayl
 }
 
 export async function fetchAssessmentSubmissions(id: string): Promise<AssessmentSubmissionListItem[]> {
-  return await apiClient<AssessmentSubmissionListItem[]>(API_ENDPOINTS.ASSESSMENTS.SUBMISSIONS(id));
+  const res = await apiClient<any>(API_ENDPOINTS.ASSESSMENTS.SUBMISSIONS(id));
+  return res.submissions || res;
 }
 
 export async function fetchSubmissionDetail(submissionId: string): Promise<AssessmentSubmissionDetail> {
