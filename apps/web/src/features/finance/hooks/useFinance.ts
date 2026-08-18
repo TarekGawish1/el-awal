@@ -4,9 +4,10 @@ import {
   fetchStudentPaymentHistory,
   fetchGroupDefaulters,
   recordPayment,
+  scanPaymentQr,
   deletePayment,
 } from '../api/finance.api';
-import { PaymentQuery, RecordPaymentPayload } from '../types/finance.types';
+import { PaymentQuery, RecordPaymentPayload, ScanPaymentQrPayload } from '../types/finance.types';
 
 export const financeKeys = {
   all: ['finance'] as const,
@@ -53,6 +54,28 @@ export function useRecordPayment() {
       if (variables.groupId) {
         queryClient.invalidateQueries({ 
           queryKey: financeKeys.defaulters(variables.groupId, variables.periodYear, variables.periodMonth) 
+        });
+      }
+    },
+  });
+}
+
+export function useScanPaymentQr() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: ScanPaymentQrPayload) => scanPaymentQr(payload),
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: financeKeys.payments() });
+      if (data?.student?.id) {
+        queryClient.invalidateQueries({ queryKey: financeKeys.studentHistory(data.student.id) });
+      }
+      const targetGroupId = variables.groupId || data?.group?.id;
+      if (targetGroupId) {
+        const year = variables.periodYear || new Date().getFullYear();
+        const month = variables.periodMonth || (new Date().getMonth() + 1);
+        queryClient.invalidateQueries({ 
+          queryKey: financeKeys.defaulters(targetGroupId, year, month) 
         });
       }
     },

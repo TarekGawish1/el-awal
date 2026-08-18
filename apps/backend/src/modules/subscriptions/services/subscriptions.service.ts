@@ -8,6 +8,7 @@ import {
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { RecordPaymentDto } from '../dto/record-payment.dto';
+import { ScanPaymentQrDto } from '../dto/scan-payment-qr.dto';
 import { PaymentQueryDto } from '../dto/payment-query.dto';
 import { PaymentStatus, GroupEnrollmentStatus, UserRole } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
@@ -131,6 +132,157 @@ export class SubscriptionsService {
     );
 
     return payment;
+  }
+
+  /**
+   * Scans student QR code and automatically records the student tuition payment.
+   */
+  async scanPaymentQr(user: AuthenticatedUser, dto: ScanPaymentQrDto) {
+    // 1. Resolve student by QR token
+    const student = await this.prisma.studentProfile.findUnique({
+      where: { qrCodeToken: dto.qrCodeToken },
+      include: {
+        user: { select: { fullName: true, phone: true, isActive: true } },
+        groupEnrollments: {
+          where: { status: GroupEnrollmentStatus.ACTIVE },
+          include: { group: true },
+        },
+      },
+    });
+
+    if (!student || !student.user.isActive) {
+      throw new BadRequestException('رمز QR غير صالح أو حساب الطالب غير نشط');
+    }
+
+    // 2. Resolve target group
+    let targetGroup: { id: string; name: string; monthlyFee: any; teacherId: string } | null = null;
+
+    if (dto.groupId) {
+      const group = await this.prisma.academicGroup.findUnique({
+        where: { id: dto.groupId },
+      });
+      if (!group) {
+        throw new NotFoundException(`Academic group [${dto.groupId}] not found`);
+      }
+
+      if (user.role === UserRole.TEACHER) {
+        const teacherId = user.teacherProfileId || user.id;
+        if (group.teacherId !== teacherId && group.teacherId !== user.id) {
+          throw new ForbiddenException('You do not own the academic group for this payment');
+        }
+      }
+
+      targetGroup = group;
+    } else {
+      // Auto-resolve group from student's active enrollments
+      let eligibleEnrollments = student.groupEnrollments;
+      if (user.role === UserRole.TEACHER) {
+        const teacherId = user.teacherProfileId || user.id;
+        eligibleEnrollments = student.groupEnrollments.filter(
+          (e) => e.group.teacherId === teacherId || e.group.teacherId === user.id,
+        );
+      }
+
+      if (eligibleEnrollments.length > 0) {
+        targetGroup = eligibleEnrollments[0].group;
+      }
+    }
+
+    const now = new Date();
+    const periodYear = dto.periodYear ?? now.getFullYear();
+    const periodMonth = dto.periodMonth ?? (now.getMonth() + 1);
+
+    const amountExpected = targetGroup ? Number(targetGroup.monthlyFee) : 0;
+    const amountPaid = dto.amountPaid !== undefined ? dto.amountPaid : amountExpected;
+
+    // 3. Check for previous payment in this period
+    const existingPayment = await this.prisma.studentPaymentRecord.findUnique({
+      where: {
+        studentId_groupId_periodYear_periodMonth: {
+          studentId: student.id,
+          groupId: targetGroup ? targetGroup.id : null,
+          periodYear,
+          periodMonth,
+        },
+      },
+    });
+
+    const isDuplicate = !!(
+      existingPayment &&
+      existingPayment.paymentStatus === PaymentStatus.PAID &&
+      Number(existingPayment.amountPaid) >= amountExpected
+    );
+
+    // 4. Upsert payment record
+    const payment = await this.prisma.studentPaymentRecord.upsert({
+      where: {
+        studentId_groupId_periodYear_periodMonth: {
+          studentId: student.id,
+          groupId: targetGroup ? targetGroup.id : null,
+          periodYear,
+          periodMonth,
+        },
+      },
+      create: {
+        studentId: student.id,
+        groupId: targetGroup ? targetGroup.id : null,
+        periodYear,
+        periodMonth,
+        amountExpected,
+        amountPaid,
+        currency: 'EGP',
+        paymentStatus: PaymentStatus.PAID,
+        paymentMethod: dto.paymentMethod || 'CASH',
+        receiptNumber: dto.receiptNumber,
+        notes: dto.notes || 'تم السداد عبر مسح رمز الـ QR',
+        recordedById: user.id,
+      },
+      update: {
+        amountPaid,
+        amountExpected,
+        paymentStatus: PaymentStatus.PAID,
+        paymentMethod: dto.paymentMethod || 'CASH',
+        receiptNumber: dto.receiptNumber,
+        notes: dto.notes || 'تم السداد عبر مسح رمز الـ QR',
+        recordedById: user.id,
+      },
+      include: {
+        student: {
+          include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+        },
+        group: { select: { id: true, name: true } },
+      },
+    });
+
+    // 5. Emit payment recorded event
+    this.eventEmitter.emit('payment.recorded', {
+      studentId: student.id,
+      studentName: student.user.fullName,
+      parentPhone: student.user.phone,
+      groupName: targetGroup ? targetGroup.name : 'عام',
+      amountPaid: Number(payment.amountPaid),
+      periodYear,
+      periodMonth,
+    });
+
+    this.logger.log(
+      `QR Payment processed: Student [${student.user.fullName}], Period ${periodMonth}/${periodYear}, Paid: ${amountPaid} EGP`,
+    );
+
+    return {
+      success: true,
+      isDuplicate,
+      message: isDuplicate
+        ? `تم تحديث سداد الطالب ${student.user.fullName} (مسجل مسبقاً)`
+        : `تم تسجيل سداد الطالب ${student.user.fullName} بنجاح`,
+      payment,
+      student: {
+        id: student.id,
+        fullName: student.user.fullName,
+        phone: student.user.phone,
+      },
+      group: targetGroup ? { id: targetGroup.id, name: targetGroup.name } : null,
+    };
   }
 
   /**

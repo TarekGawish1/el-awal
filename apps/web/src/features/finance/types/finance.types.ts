@@ -73,6 +73,33 @@ export interface RecordPaymentPayload {
   notes?: string;
 }
 
+export interface ScanPaymentQrPayload {
+  qrCodeToken: string;
+  groupId?: string;
+  periodYear?: number;
+  periodMonth?: number;
+  amountPaid?: number;
+  paymentMethod?: string;
+  receiptNumber?: string;
+  notes?: string;
+}
+
+export interface ScanPaymentQrResponse {
+  success: boolean;
+  isDuplicate: boolean;
+  message: string;
+  payment: StudentPaymentRecord;
+  student: {
+    id: string;
+    fullName: string;
+    phone?: string | null;
+  };
+  group: {
+    id: string;
+    name: string;
+  } | null;
+}
+
 export interface PaymentQuery {
   studentId?: string;
   groupId?: string;

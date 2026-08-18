@@ -11,6 +11,7 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { SubscriptionsService } from '../services/subscriptions.service';
 import { RecordPaymentDto } from '../dto/record-payment.dto';
+import { ScanPaymentQrDto } from '../dto/scan-payment-qr.dto';
 import { PaymentQueryDto } from '../dto/payment-query.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
 import {
@@ -34,6 +35,17 @@ export class SubscriptionsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.subscriptionsService.recordStudentPayment(user, dto);
+  }
+
+  @Post('scan-qr')
+  @Roles(UserRole.SECRETARIAT, UserRole.TEACHER)
+  @ApiOperation({ summary: 'Process QR Code scan for student tuition payment' })
+  @ApiResponse({ status: 201, description: 'Payment recorded via QR scan and notification dispatched' })
+  async scanPaymentQr(
+    @Body() dto: ScanPaymentQrDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.subscriptionsService.scanPaymentQr(user, dto);
   }
 
   @Get('payments')

@@ -3,6 +3,8 @@ import {
   StudentPaymentRecord,
   DefaultersResponse,
   RecordPaymentPayload,
+  ScanPaymentQrPayload,
+  ScanPaymentQrResponse,
   PaymentQuery,
   CursorPaginatedResponse,
 } from '../types/finance.types';
@@ -25,6 +27,13 @@ export async function fetchGroupDefaulters(groupId: string, periodYear: number, 
 
 export async function recordPayment(payload: RecordPaymentPayload): Promise<StudentPaymentRecord> {
   return apiClient<StudentPaymentRecord>('/subscriptions/record', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function scanPaymentQr(payload: ScanPaymentQrPayload): Promise<ScanPaymentQrResponse> {
+  return apiClient<ScanPaymentQrResponse>('/subscriptions/scan-qr', {
     method: 'POST',
     body: JSON.stringify(payload),
   });

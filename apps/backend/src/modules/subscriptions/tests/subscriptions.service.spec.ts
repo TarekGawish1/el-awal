@@ -25,6 +25,7 @@ describe('SubscriptionsService', () => {
     studentPaymentRecord: {
       upsert: jest.fn(),
       findMany: jest.fn(),
+      findUnique: jest.fn(),
     },
     groupEnrollment: {
       findUnique: jest.fn(),
@@ -154,4 +155,71 @@ describe('SubscriptionsService', () => {
       expect(result.defaulters[0].studentId).toBe('stu-2');
     });
   });
+
+  describe('scanPaymentQr', () => {
+    it('should resolve student from qrCodeToken and record payment', async () => {
+      const qrCodeToken = 'qr_tok_valid_student_123';
+      const studentId = 'stu-1';
+      const groupId = 'group-1';
+
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue({
+        id: studentId,
+        qrCodeToken,
+        user: { fullName: 'طالب ماسح', phone: '01012345678', isActive: true },
+        groupEnrollments: [
+          {
+            groupId,
+            status: GroupEnrollmentStatus.ACTIVE,
+            group: { id: groupId, name: 'مجموعة النجوم', monthlyFee: 350.0, teacherId: 'teacher-1' },
+          },
+        ],
+      });
+
+      mockPrismaService.studentPaymentRecord.findUnique.mockResolvedValue(null);
+
+      const mockPayment = {
+        id: 'payment-qr-1',
+        studentId,
+        groupId,
+        periodYear: 2026,
+        periodMonth: 8,
+        amountExpected: 350.0,
+        amountPaid: 350.0,
+        paymentStatus: PaymentStatus.PAID,
+        paymentMethod: 'CASH',
+        notes: 'تم السداد عبر مسح رمز الـ QR',
+      };
+
+      mockPrismaService.studentPaymentRecord.upsert.mockResolvedValue(mockPayment);
+
+      const result = await service.scanPaymentQr(mockUser, {
+        qrCodeToken,
+        periodYear: 2026,
+        periodMonth: 8,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.isDuplicate).toBe(false);
+      expect(result.student.fullName).toBe('طالب ماسح');
+      expect(result.group?.name).toBe('مجموعة النجوم');
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'payment.recorded',
+        expect.objectContaining({
+          studentId,
+          amountPaid: 350.0,
+          periodYear: 2026,
+          periodMonth: 8,
+        }),
+      );
+    });
+
+    it('should throw BadRequestException for invalid or inactive student QR code', async () => {
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.scanPaymentQr(mockUser, { qrCodeToken: 'invalid_token' }),
+      ).rejects.toThrow('رمز QR غير صالح أو حساب الطالب غير نشط');
+    });
+  });
 });
+
