@@ -19,6 +19,7 @@ import {
   DollarSign,
 } from 'lucide-react';
 import { useAuth } from '@/features/auth';
+import { DashboardBreadcrumbs } from '@/features/dashboard/components/DashboardBreadcrumbs';
 
 export default function DashboardLayout({
   children,
@@ -93,30 +94,6 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col lg:flex-row">
-      {/* Mobile Header Bar */}
-      <div className="lg:hidden bg-white border-b border-neutral-200 px-4 py-3 flex items-center justify-between sticky top-0 z-30 shadow-xs">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
-            className="p-1.5 rounded-md hover:bg-neutral-100 text-neutral-700"
-            aria-label="تبديل القائمة الجانبية"
-          >
-            {isMobileSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-primary-600 text-white rounded-lg">
-              <GraduationCap className="w-4 h-4" />
-            </div>
-            <span className="font-bold text-neutral-900 text-sm">منصة الأول التعليمية</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button className="p-1.5 text-neutral-600 hover:bg-neutral-100 rounded-md" aria-label="الإشعارات">
-            <Bell className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
 
       {/* Sidebar Navigation */}
       <aside
@@ -175,30 +152,7 @@ export default function DashboardLayout({
           </nav>
         </div>
 
-        {/* User Profile & Logout Footer */}
-        <div className="p-3 border-t border-neutral-100 space-y-1">
-          <div className="p-3 rounded-lg bg-neutral-50 flex items-center gap-3 mb-2">
-            <div className="w-9 h-9 rounded-full bg-primary-600 text-white font-bold flex items-center justify-center text-sm shadow-xs">
-              {user?.fullName ? user.fullName.charAt(0) : 'م'}
-            </div>
-            <div className="overflow-hidden">
-              <h4 className="text-xs font-bold text-neutral-900 truncate">
-                {user?.fullName || 'المستخدم'}
-              </h4>
-              <span className="text-[11px] text-neutral-500 block truncate">
-                {user?.email || user?.phone || getRoleLabel(user?.role)}
-              </span>
-            </div>
-          </div>
-
-          <button
-            onClick={() => logout()}
-            className="flex items-center gap-3 w-full px-3.5 py-2 text-xs font-medium text-error-600 hover:bg-error-50 rounded-md transition-colors"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>تسجيل الخروج</span>
-          </button>
-        </div>
+        {/* User Profile & Logout Footer is moved to Global Header */}
       </aside>
 
       {/* Backdrop for mobile drawer */}
@@ -210,10 +164,83 @@ export default function DashboardLayout({
         />
       )}
 
-      {/* Main Page Workspace */}
-      <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
-        {children}
-      </main>
+      {/* Main Page Workspace & Header Wrapper */}
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+        {/* Global Navigation Header */}
+        <header className="bg-white border-b border-neutral-200 h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 z-30 shadow-xs shrink-0">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+              className="lg:hidden p-2 rounded-md hover:bg-neutral-100 text-neutral-700"
+              aria-label="تبديل القائمة الجانبية"
+            >
+              {isMobileSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+            <div className="lg:hidden flex items-center gap-2">
+              <div className="p-1.5 bg-primary-600 text-white rounded-lg">
+                <GraduationCap className="w-4 h-4" />
+              </div>
+              <span className="font-bold text-neutral-900 text-sm hidden sm:block">منصة الأول التعليمية</span>
+            </div>
+            
+            <div className="hidden lg:block ms-2 border-s border-neutral-200 ps-4">
+              <DashboardBreadcrumbs />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-4">
+            <button className="p-2 text-neutral-600 hover:bg-neutral-100 rounded-full transition-colors relative" aria-label="الإشعارات">
+              <Bell className="w-5 h-5" />
+              <span className="absolute top-1.5 end-1.5 w-2 h-2 bg-error-500 rounded-full border border-white"></span>
+            </button>
+
+            <div className="h-8 w-px bg-neutral-200 mx-1 hidden sm:block"></div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex flex-col items-end hidden sm:flex text-start">
+                <span className="text-sm font-bold text-neutral-900 leading-none mb-1">
+                  {user?.fullName || 'المستخدم'}
+                </span>
+                <span className="text-[11px] font-medium text-neutral-500 leading-none">
+                  {getRoleLabel(user?.role)}
+                </span>
+              </div>
+              
+              <div className="relative cursor-pointer">
+                <div className="w-10 h-10 rounded-full bg-primary-50 border border-primary-100 text-primary-700 font-bold flex items-center justify-center text-sm shadow-sm transition-transform hover:scale-105">
+                  {user?.fullName ? user.fullName.charAt(0) : 'م'}
+                </div>
+              </div>
+
+              <button
+                onClick={() => logout()}
+                className="flex items-center gap-2 px-3 py-2 ms-1 text-sm font-medium text-neutral-500 hover:text-error-600 hover:bg-error-50 rounded-md transition-colors hidden sm:flex"
+                title="تسجيل الخروج"
+                aria-label="تسجيل الخروج"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>تسجيل الخروج</span>
+              </button>
+            </div>
+            
+            {/* Mobile logout button */}
+            <button
+                onClick={() => logout()}
+                className="p-2 text-neutral-500 hover:text-error-600 hover:bg-error-50 rounded-full transition-colors sm:hidden"
+                aria-label="تسجيل الخروج"
+              >
+                <LogOut className="w-5 h-5" />
+            </button>
+          </div>
+        </header>
+
+        {/* Main Content Area */}
+        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto w-full">
+          <div className="max-w-7xl mx-auto w-full h-full">
+            {children}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
