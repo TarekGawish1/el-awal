@@ -121,6 +121,9 @@ export function AssessmentWizard() {
     if (!payload.academicStage) delete payload.academicStage;
     if (!payload.gradeLevel) delete payload.gradeLevel;
     if (!payload.durationMinutes) delete payload.durationMinutes;
+    
+    // Remove extra properties that the backend ValidationPipe forbids
+    delete payload.isAutoGraded;
 
     createAssessment(
       payload,
