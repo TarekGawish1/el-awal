@@ -115,7 +115,19 @@ export function GroupDetails({ id }: GroupDetailsProps) {
                 {group.status === 'ACTIVE' ? 'نشط' : 'غير نشط'}
               </Badge>
             </div>
-            <p className="text-slate-500">{group.gradeLevel}</p>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <span className="text-slate-600 font-medium">{group.gradeLevel}</span>
+              {group.academicYear && (
+                <span className="text-xs font-semibold bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full border border-blue-200">
+                  العام الدراسي {group.academicYear}
+                </span>
+              )}
+              {group.academicTerm && (
+                <span className="text-xs font-semibold bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                  {group.academicTerm === 'FIRST_TERM' ? 'الفصل الدراسي الأول' : group.academicTerm === 'SECOND_TERM' ? 'الفصل الدراسي الثاني' : group.academicTerm === 'SUMMER_TERM' ? 'الفصل الصيفي' : 'العام بأكمله'}
+                </span>
+              )}
+            </div>
             
             {group.description && (
               <p className="text-slate-600 mt-4 max-w-3xl">{group.description}</p>

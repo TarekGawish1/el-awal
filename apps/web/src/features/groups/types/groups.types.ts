@@ -2,6 +2,8 @@ export interface Group {
   id: string;
   name: string;
   gradeLevel: string;
+  academicYear?: string;
+  academicTerm?: string;
   description?: string;
   maxCapacity?: number;
   monthlyFee?: number;
@@ -27,6 +29,8 @@ export interface GroupSchedule {
 export interface CreateGroupPayload {
   name: string;
   gradeLevel: string;
+  academicYear?: string;
+  academicTerm?: string;
   description?: string;
   maxCapacity?: number;
   monthlyFee?: number;

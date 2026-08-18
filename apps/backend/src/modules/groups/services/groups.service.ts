@@ -41,6 +41,8 @@ export class GroupsService {
       data: {
         name: dto.name,
         gradeLevel: dto.gradeLevel,
+        academicYear: dto.academicYear || '2025-2026',
+        academicTerm: dto.academicTerm || 'FIRST_TERM',
         description: dto.description,
         maxCapacity: dto.maxCapacity || 50,
         monthlyFee: dto.monthlyFee || 0.0,
@@ -61,9 +63,13 @@ export class GroupsService {
   /**
    * Lists all active groups managed by a specific teacher.
    */
-  async getTeacherGroups(teacherId: string) {
+  async getTeacherGroups(teacherId: string, academicYear?: string, academicTerm?: string) {
+    const where: any = { teacherId, isActive: true };
+    if (academicYear) where.academicYear = academicYear;
+    if (academicTerm) where.academicTerm = academicTerm;
+
     return this.prisma.academicGroup.findMany({
-      where: { teacherId, isActive: true },
+      where,
       orderBy: { createdAt: 'desc' },
       include: {
         schedules: { orderBy: { dayOfWeek: 'asc' } },
