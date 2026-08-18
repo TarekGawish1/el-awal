@@ -25,32 +25,22 @@ export function StudentQrBadge({
   const { mutate: regenerate, isPending: isRegenerating } = useRegenerateStudentQr();
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const badgeRef = useRef<HTMLDivElement>(null);
 
-  const handleShareWhatsApp = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (!badgeRef.current || !data) return;
-
-    try {
-      setIsSharing(true);
+  const generateQrImageBlob = (): Promise<Blob | null> => {
+    return new Promise((resolve) => {
+      if (!badgeRef.current) return resolve(null);
       const svg = badgeRef.current.querySelector('svg');
-      if (!svg) throw new Error('QR element not found');
+      if (!svg) return resolve(null);
 
       const svgData = new XMLSerializer().serializeToString(svg);
       const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
       const DOMURL = window.URL || window.webkitURL || window;
       const url = DOMURL.createObjectURL(svgBlob);
 
-      let shareText = `مرحباً ${data.fullName}، كود الطالب الخاص بك هو: ${data.studentCode}`;
-      if (loginEmail || loginPhone || loginPassword) {
-        shareText += `\n\nبيانات الدخول للمنصة:\n`;
-        if (loginEmail) shareText += `البريد الإلكتروني: ${loginEmail}\n`;
-        else if (loginPhone) shareText += `رقم الهاتف: ${loginPhone}\n`;
-        if (loginPassword) shareText += `كلمة المرور: ${loginPassword}`;
-      }
-
       const img = new Image();
-      img.onload = async () => {
+      img.onload = () => {
         const canvas = document.createElement('canvas');
         canvas.width = 400;
         canvas.height = 400;
@@ -60,37 +50,81 @@ export function StudentQrBadge({
           ctx.fillRect(0, 0, 400, 400);
           ctx.drawImage(img, 50, 50, 300, 300);
 
-          canvas.toBlob(async (blob) => {
-            if (!blob) return;
-            const file = new File([blob], `student-card-${data.studentCode}.png`, { type: 'image/png' });
-
-            if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-              await navigator.share({
-                files: [file],
-                title: 'بطاقة الطالب',
-                text: shareText,
-              });
-            } else {
-              const downloadUrl = DOMURL.createObjectURL(blob);
-              const link = document.createElement('a');
-              link.href = downloadUrl;
-              link.download = `student-card-${data.studentCode}.png`;
-              link.click();
-              DOMURL.revokeObjectURL(downloadUrl);
-
-              if (studentPhone) {
-                const noteText = `${shareText}\n\n(تم تحميل صورة بطاقة الـ QR على جهازك، يمكنك إرفاقها هنا)`;
-                const waUrl = `https://wa.me/${formatWhatsAppNumber(studentPhone)}?text=${encodeURIComponent(noteText)}`;
-                window.open(waUrl, '_blank');
-              } else {
-                alert('تم تحميل صورة البطاقة. يمكنك الآن مشاركتها.');
-              }
-            }
+          canvas.toBlob((blob) => {
+            resolve(blob);
           }, 'image/png');
+        } else {
+          resolve(null);
         }
         DOMURL.revokeObjectURL(url);
       };
+      img.onerror = () => {
+        resolve(null);
+        DOMURL.revokeObjectURL(url);
+      };
       img.src = url;
+    });
+  };
+
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!data) return;
+    setIsDownloading(true);
+    try {
+      const blob = await generateQrImageBlob();
+      if (blob) {
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = `student-card-${data.studentCode}.png`;
+        link.click();
+        window.URL.revokeObjectURL(downloadUrl);
+      } else {
+        alert('حدث خطأ أثناء إنشاء الصورة.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('حدث خطأ أثناء محاولة التنزيل.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handleShareWhatsApp = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!data) return;
+
+    try {
+      setIsSharing(true);
+      let shareText = `مرحباً ${data.fullName}، كود الطالب الخاص بك هو: ${data.studentCode}`;
+      if (loginEmail || loginPhone || loginPassword) {
+        shareText += `\n\nبيانات الدخول للمنصة:\n`;
+        if (loginEmail) shareText += `البريد الإلكتروني: ${loginEmail}\n`;
+        else if (loginPhone) shareText += `رقم الهاتف: ${loginPhone}\n`;
+        if (loginPassword) shareText += `كلمة المرور: ${loginPassword}`;
+      }
+
+      if (navigator.share && navigator.canShare) {
+        const blob = await generateQrImageBlob();
+        if (blob) {
+          const file = new File([blob], `student-card-${data.studentCode}.png`, { type: 'image/png' });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: 'بطاقة الطالب',
+              text: shareText,
+            });
+            return;
+          }
+        }
+      }
+
+      if (studentPhone) {
+        const waUrl = `https://wa.me/${formatWhatsAppNumber(studentPhone)}?text=${encodeURIComponent(shareText)}`;
+        window.open(waUrl, '_blank');
+      } else {
+        alert('رقم الطالب غير متوفر للمراسلة.');
+      }
     } catch (error) {
       console.error('Error sharing:', error);
       alert('حدث خطأ أثناء محاولة المشاركة.');
@@ -176,6 +210,21 @@ export function StudentQrBadge({
               </svg>
               إعادة توليد كود الـ QR
             </Button>
+
+            <button
+              onClick={handleDownload}
+              disabled={isDownloading}
+              className="flex items-center justify-center w-full rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-medium py-3 px-4 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {isDownloading ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2 rtl:ml-2 rtl:mr-0"></div>
+              ) : (
+                <svg className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              )}
+              {isDownloading ? 'جاري التنزيل...' : 'تنزيل صورة الكود'}
+            </button>
 
             {studentPhone && (
               <button
