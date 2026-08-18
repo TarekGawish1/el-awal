@@ -251,7 +251,6 @@ export class SchedulesService {
       ];
     }
 
-    if (academicStage) whereGroup.academicStage = academicStage;
     if (gradeLevel) whereGroup.gradeLevel = gradeLevel;
 
     whereGroup.schedules = {
@@ -279,7 +278,7 @@ export class SchedulesService {
               startTime: schedule.startTime,
             },
             include: {
-              group: { select: { id: true, name: true, gradeLevel: true, academicStage: true } },
+              group: { select: { id: true, name: true, gradeLevel: true } },
               _count: { select: { attendanceRecords: true } }
             }
           });
@@ -297,7 +296,7 @@ export class SchedulesService {
                 topic,
               },
               include: {
-                group: { select: { id: true, name: true, gradeLevel: true, academicStage: true } },
+                group: { select: { id: true, name: true, gradeLevel: true } },
                 _count: { select: { attendanceRecords: true } }
               }
             });
