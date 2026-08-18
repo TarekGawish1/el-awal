@@ -139,7 +139,7 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
                     }
                   }}
                   formats={['qr_code']}
-                  components={{ audio: false }}
+                  components={{}}
                   styles={{ container: { width: '100%', height: '100%' }, video: { objectFit: 'cover' } }}
                 />
               </div>

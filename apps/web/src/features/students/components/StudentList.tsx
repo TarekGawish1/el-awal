@@ -1,54 +1,197 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { MultiSelectDropdown } from '@/features/groups/components/MultiSelectDropdown';
 import { useStudents } from '../hooks/use-students';
+import { useGroups } from '@/features/groups/hooks/useGroups';
 import { AcademicStatus } from '../types/students.types';
-import { BookOpen } from 'lucide-react';
+import { Search, RotateCcw, Users, BookOpen, MapPin } from 'lucide-react';
+
+const STAGE_GRADES_MAP: Record<string, string[]> = {
+  'المرحلة الابتدائية': [
+    'الصف الأول الابتدائي',
+    'الصف الثاني الابتدائي',
+    'الصف الثالث الابتدائي',
+    'الصف الرابع الابتدائي',
+    'الصف الخامس الابتدائي',
+    'الصف السادس الابتدائي',
+  ],
+  'المرحلة الإعدادية': [
+    'الصف الأول الإعدادي',
+    'الصف الثاني الإعدادي',
+    'الصف الثالث الإعدادي',
+  ],
+  'المرحلة الثانوية': [
+    'الصف الأول الثانوي',
+    'الصف الثاني الثانوي',
+    'الصف الثالث الثانوي',
+  ],
+};
+
+const getStageName = (gradeLevel?: string, academicStage?: string) => {
+  if (academicStage === 'PRIMARY' || gradeLevel?.includes('الابتدائي')) return 'المرحلة الابتدائية';
+  if (academicStage === 'MIDDLE' || gradeLevel?.includes('الإعدادي')) return 'المرحلة الإعدادية';
+  if (academicStage === 'SECONDARY' || gradeLevel?.includes('الثانوي')) return 'المرحلة الثانوية';
+  return 'أخرى';
+};
 
 export function StudentList() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [cursor, setCursor] = useState<string | undefined>(undefined);
-  const [selectedStage, setSelectedStage] = useState<string>('');
+  const [selectedStages, setSelectedStages] = useState<string[]>([]);
+  const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
 
-  // Debounce search input
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearch(searchTerm);
-      setCursor(undefined); // Reset pagination on new search
-    }, 500);
-    return () => clearTimeout(handler);
-  }, [searchTerm]);
+  // Fetch groups to populate group/place filter options
+  const { data: groups } = useGroups();
 
+  // Fetch students (fetch larger page for seamless client-side multi-filtering)
   const { data, isLoading, isError } = useStudents({
-    search: debouncedSearch || undefined,
-    academicStage: selectedStage || undefined,
     cursor,
-    limit: 10,
+    limit: 50,
   });
+
+  // Calculate available grade options dynamically based on selected stages
+  const availableGradeOptions = useMemo(() => {
+    let gradesList: string[] = [];
+
+    if (selectedStages.length > 0) {
+      selectedStages.forEach((stage) => {
+        if (STAGE_GRADES_MAP[stage]) {
+          gradesList.push(...STAGE_GRADES_MAP[stage]);
+        }
+      });
+    } else {
+      Object.values(STAGE_GRADES_MAP).forEach((grades) => {
+        gradesList.push(...grades);
+      });
+    }
+
+    // Also include any custom grades present in the students data
+    if (data?.data && Array.isArray(data.data)) {
+      data.data.forEach((st) => {
+        if (st.gradeLevel && !gradesList.includes(st.gradeLevel)) {
+          const stStage = getStageName(st.gradeLevel, st.academicStage);
+          if (selectedStages.length === 0 || selectedStages.includes(stStage)) {
+            gradesList.push(st.gradeLevel);
+          }
+        }
+      });
+    }
+
+    return Array.from(new Set(gradesList)).map((grade) => ({
+      label: grade,
+      value: grade,
+    }));
+  }, [selectedStages, data]);
+
+  // Handle stage change & prune non-matching grades
+  const handleStagesChange = useCallback((newStages: string[]) => {
+    setSelectedStages(newStages);
+    if (newStages.length > 0) {
+      setSelectedGrades((prevGrades) =>
+        prevGrades.filter((grade) => {
+          const stage = getStageName(grade);
+          return newStages.includes(stage);
+        })
+      );
+    }
+  }, []);
+
+  // Handle grade change
+  const handleGradesChange = useCallback((newGrades: string[]) => {
+    setSelectedGrades(newGrades);
+  }, []);
+
+  // Available groups for filter dropdown
+  const availableGroupOptions = useMemo(() => {
+    if (!groups || !Array.isArray(groups)) return [];
+    return groups.map((g) => ({
+      label: g.name,
+      value: g.id,
+      icon: <Users className="w-3.5 h-3.5 text-primary-600" />,
+    }));
+  }, [groups]);
+
+  // Filter students
+  const filteredStudents = useMemo(() => {
+    if (!data?.data) return [];
+    return data.data.filter((student) => {
+      // 1. Search filter
+      const q = searchTerm.trim().toLowerCase();
+      const matchesSearch =
+        !q ||
+        student.user.fullName.toLowerCase().includes(q) ||
+        student.studentCode.toLowerCase().includes(q) ||
+        (student.user.phone && student.user.phone.includes(q)) ||
+        (student.gradeLevel && student.gradeLevel.toLowerCase().includes(q)) ||
+        (student.groupEnrollments &&
+          student.groupEnrollments.some((e) => e.group.name.toLowerCase().includes(q)));
+
+      // 2. Stage filter
+      const stage = getStageName(student.gradeLevel, student.academicStage);
+      const matchesStage = selectedStages.length === 0 || selectedStages.includes(stage);
+
+      // 3. Grade filter
+      const matchesGrade =
+        selectedGrades.length === 0 ||
+        (student.gradeLevel && selectedGrades.includes(student.gradeLevel));
+
+      // 4. Group filter
+      const matchesGroup =
+        selectedGroups.length === 0 ||
+        (student.groupEnrollments &&
+          student.groupEnrollments.some((e) => selectedGroups.includes(e.group.id)));
+
+      return matchesSearch && matchesStage && matchesGrade && matchesGroup;
+    });
+  }, [data, searchTerm, selectedStages, selectedGrades, selectedGroups]);
+
+  const hasActiveFilters =
+    searchTerm !== '' ||
+    selectedStages.length > 0 ||
+    selectedGrades.length > 0 ||
+    selectedGroups.length > 0;
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setSelectedStages([]);
+    setSelectedGrades([]);
+    setSelectedGroups([]);
+  };
 
   const getStatusColor = (status: AcademicStatus) => {
     switch (status) {
-      case 'ACTIVE': return 'success';
-      case 'GRADUATED': return 'info';
-      case 'DROPPED_OUT': return 'warning';
-      case 'SUSPENDED': return 'error';
-      default: return 'default';
+      case 'ACTIVE':
+        return 'success';
+      case 'GRADUATED':
+        return 'info';
+      case 'DROPPED_OUT':
+        return 'warning';
+      case 'SUSPENDED':
+        return 'error';
+      default:
+        return 'default';
     }
   };
 
   const getStatusText = (status: AcademicStatus) => {
     switch (status) {
-      case 'ACTIVE': return 'نشط';
-      case 'GRADUATED': return 'خريج';
-      case 'DROPPED_OUT': return 'منسحب';
-      case 'SUSPENDED': return 'موقوف';
-      default: return status;
+      case 'ACTIVE':
+        return 'نشط';
+      case 'GRADUATED':
+        return 'خريج';
+      case 'DROPPED_OUT':
+        return 'منسحب';
+      case 'SUSPENDED':
+        return 'موقوف';
+      default:
+        return status;
     }
   };
 
@@ -62,51 +205,87 @@ export function StudentList() {
     if (data?.meta.prevCursor) {
       setCursor(data.meta.prevCursor);
     } else {
-      setCursor(undefined); // Going back to first page
+      setCursor(undefined);
     }
   };
 
   return (
     <div className="space-y-6">
-      <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex flex-col xl:flex-row gap-4 items-center justify-between">
-        <div className="relative w-full xl:w-96">
-          <svg className="absolute w-5 h-5 text-slate-400 right-4 top-1/2 -translate-y-1/2 pointer-events-none" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <Input
-            type="search"
-            placeholder="ابحث بالاسم، رقم الهاتف أو الكود..."
-            className="w-full pl-4 pr-12 py-3 bg-slate-50/50 border border-slate-200 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 rounded-2xl transition-all text-slate-700"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+      {/* Filters Toolbar */}
+      <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-3 items-center">
+          {/* Search Input */}
+          <div className="lg:col-span-3 md:col-span-2 relative">
+            <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-slate-400" />
+            </div>
+            <Input
+              type="search"
+              placeholder="ابحث بالاسم، رقم الهاتف أو الكود..."
+              className="pr-10 h-10 text-xs sm:text-sm bg-slate-50/50 border border-slate-200 focus:border-primary-500 rounded-lg transition-all"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          {/* Stage MultiSelect Checkboxes Dropdown */}
+          <div className="lg:col-span-3">
+            <MultiSelectDropdown
+              placeholder="المرحلة التعليمية"
+              allSelectedLabel="جميع المراحل التعليمية"
+              options={[
+                { label: 'المرحلة الابتدائية', value: 'المرحلة الابتدائية' },
+                { label: 'المرحلة الإعدادية', value: 'المرحلة الإعدادية' },
+                { label: 'المرحلة الثانوية', value: 'المرحلة الثانوية' },
+              ]}
+              selectedValues={selectedStages}
+              onChange={handleStagesChange}
+            />
+          </div>
+
+          {/* Grade Level MultiSelect Checkboxes Dropdown */}
+          <div className="lg:col-span-3">
+            <MultiSelectDropdown
+              placeholder="السنة الدراسية"
+              allSelectedLabel="جميع الصفوف الدراسية"
+              withSearch={availableGradeOptions.length > 5}
+              options={availableGradeOptions}
+              selectedValues={selectedGrades}
+              onChange={handleGradesChange}
+            />
+          </div>
+
+          {/* Group MultiSelect Checkboxes Dropdown */}
+          <div className="lg:col-span-3">
+            <MultiSelectDropdown
+              placeholder="المجموعة الدراسية"
+              allSelectedLabel="جميع المجموعات"
+              withSearch={true}
+              options={availableGroupOptions}
+              selectedValues={selectedGroups}
+              onChange={setSelectedGroups}
+            />
+          </div>
         </div>
-        
-        <div className="flex items-center gap-2 overflow-x-auto w-full xl:w-auto pb-2 xl:pb-0 hide-scrollbar">
-          {[
-            { label: 'الكل', value: '' },
-            { label: 'المرحلة الابتدائية', value: 'PRIMARY' },
-            { label: 'المرحلة الإعدادية', value: 'MIDDLE' },
-            { label: 'المرحلة الثانوية', value: 'SECONDARY' },
-          ].map(stage => (
+
+        {/* Active Filters Summary & Reset */}
+        {hasActiveFilters && (
+          <div className="flex items-center justify-between pt-2 border-t border-slate-50 text-xs">
+            <div className="text-slate-500">
+              تم العثور على <span className="font-bold text-primary-600">{filteredStudents.length}</span> طالب
+            </div>
             <button
-              key={stage.value}
-              onClick={() => {
-                setSelectedStage(stage.value);
-                setCursor(undefined);
-              }}
-              className={`whitespace-nowrap px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                selectedStage === stage.value
-                  ? 'bg-primary-50 text-primary-700'
-                  : 'text-slate-600 hover:bg-slate-50'
-              }`}
+              onClick={resetFilters}
+              className="inline-flex items-center gap-1 text-slate-500 hover:text-primary-600 transition-colors font-medium cursor-pointer"
             >
-              {stage.label}
+              <RotateCcw className="w-3 h-3" />
+              إعادة تعيين الفلاتر
             </button>
-          ))}
-        </div>
+          </div>
+        )}
       </div>
 
+      {/* Table Section */}
       <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-start">
@@ -136,7 +315,7 @@ export function StudentList() {
                     فشل تحميل الطلاب. يرجى المحاولة مرة أخرى.
                   </td>
                 </tr>
-              ) : !data || data.data.length === 0 ? (
+              ) : filteredStudents.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-20 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center space-y-3">
@@ -145,12 +324,20 @@ export function StudentList() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                         </svg>
                       </div>
-                      <p className="text-lg font-medium text-slate-600">{debouncedSearch ? 'لا يوجد طلاب مطابقين لبحثك.' : 'لم يتم العثور على طلاب.'}</p>
+                      <p className="text-lg font-medium text-slate-600">
+                        {hasActiveFilters ? 'لا يوجد طلاب مطابقين لخيارات الفلترة المحددة.' : 'لم يتم العثور على طلاب.'}
+                      </p>
+                      {hasActiveFilters && (
+                        <Button variant="outline" size="sm" onClick={resetFilters} className="mt-2">
+                          <RotateCcw className="w-3.5 h-3.5 ml-1.5" />
+                          إعادة تعيين الفلاتر
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>
               ) : (
-                data.data.map((student) => (
+                filteredStudents.map((student) => (
                   <tr key={student.id} className="hover:bg-slate-50/80 transition-colors duration-200">
                     <td className="px-6 py-4">
                       <Link href={`/teacher/students/${student.id}`} className="flex items-center gap-3 w-fit">
@@ -191,26 +378,24 @@ export function StudentList() {
             </tbody>
           </table>
         </div>
-        
+
         {/* Pagination Controls */}
         {data && (
           <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/50">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handlePrevPage} 
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePrevPage}
               disabled={!cursor}
               className="rounded-xl"
             >
               السابق
             </Button>
-            <span className="text-sm text-slate-500">
-              نتائج الصفحة
-            </span>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleNextPage} 
+            <span className="text-sm text-slate-500">نتائج الصفحة</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNextPage}
               disabled={!data.meta.hasMore}
               className="rounded-xl"
             >
