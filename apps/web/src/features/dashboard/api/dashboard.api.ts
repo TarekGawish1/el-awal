@@ -21,9 +21,16 @@ export async function fetchTeacherDashboardOverview(
   filters: DashboardFilterState
 ): Promise<TeacherDashboardData> {
   const queryParams: Record<string, string> = {
-    academicYear: filters.academicYear,
     dateRange: filters.dateRange,
   };
+
+  if (filters.academicYear && filters.academicYear !== 'ALL') {
+    queryParams.academicYear = filters.academicYear;
+  }
+
+  if (filters.academicTerm && filters.academicTerm !== 'ALL') {
+    queryParams.academicTerm = filters.academicTerm;
+  }
 
   if (filters.groupId && filters.groupId !== 'ALL') {
     queryParams.groupId = filters.groupId;
