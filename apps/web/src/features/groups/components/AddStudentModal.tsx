@@ -140,6 +140,7 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
                   }}
                   formats={['qr_code']}
                   components={{ audio: false }}
+                  styles={{ container: { width: '100%', height: '100%' }, video: { objectFit: 'cover' } }}
                 />
               </div>
               <p className="text-slate-300 mt-6 text-sm text-center font-medium">قم بتوجيه الكاميرا نحو رمز QR الخاص بالطالب</p>
