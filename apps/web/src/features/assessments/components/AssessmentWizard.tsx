@@ -267,32 +267,39 @@ export function AssessmentWizard() {
                   </div>
                 </div>
 
-                {selectedGrade && availableGroups.length > 0 && (
+                {selectedGrade && (
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                     <Label className="mb-3 block font-bold text-slate-800">
                       المجموعات المستهدفة <span className="text-sm font-normal text-slate-500">(اختر المجموعات التي ستمتحن)</span>
                     </Label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                      {availableGroups.map(group => (
-                        <label key={group.id} className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-primary-300 transition-colors">
-                          <input
-                            type="checkbox"
-                            value={group.id}
-                            checked={formDataValues.targetGroupIds?.includes(group.id)}
-                            onChange={(e) => {
-                              const currentIds = formDataValues.targetGroupIds || [];
-                              if (e.target.checked) {
-                                methods.setValue('targetGroupIds', [...currentIds, group.id]);
-                              } else {
-                                methods.setValue('targetGroupIds', currentIds.filter(id => id !== group.id));
-                              }
-                            }}
-                            className="w-5 h-5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                          />
-                          <span className="text-sm font-medium text-slate-700">{group.name}</span>
-                        </label>
-                      ))}
-                    </div>
+                    
+                    {availableGroups.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        {availableGroups.map(group => (
+                          <label key={group.id} className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-primary-300 transition-colors">
+                            <input
+                              type="checkbox"
+                              value={group.id}
+                              checked={formDataValues.targetGroupIds?.includes(group.id)}
+                              onChange={(e) => {
+                                const currentIds = formDataValues.targetGroupIds || [];
+                                if (e.target.checked) {
+                                  methods.setValue('targetGroupIds', [...currentIds, group.id]);
+                                } else {
+                                  methods.setValue('targetGroupIds', currentIds.filter(id => id !== group.id));
+                                }
+                              }}
+                              className="w-5 h-5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                            />
+                            <span className="text-sm font-medium text-slate-700">{group.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-slate-500 bg-white p-4 rounded-lg border border-slate-200 text-center">
+                        لا توجد مجموعات مسجلة في هذا الصف الدراسي.
+                      </div>
+                    )}
                   </div>
                 )}
 
