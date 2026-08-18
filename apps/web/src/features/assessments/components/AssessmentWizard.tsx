@@ -103,7 +103,10 @@ export function AssessmentWizard() {
   };
 
   const onSubmit = (data: CreateAssessmentFormData, isPublished: boolean) => {
-    const payloadQuestions = data.questions.map((q, idx) => ({ ...q, questionNumber: idx + 1, displayOrder: idx }));
+    const payloadQuestions = data.questions.map((q, idx) => {
+      const { displayOrder, ...rest } = q;
+      return { ...rest, questionNumber: idx + 1 };
+    });
     
     // Scrub empty fields
     const payload: any = {
