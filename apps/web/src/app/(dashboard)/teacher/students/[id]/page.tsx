@@ -141,14 +141,7 @@ export default function StudentDetailPage() {
                   <dt className="text-sm font-medium text-slate-500">رقم الهاتف</dt>
                   <dd className="text-base font-semibold text-slate-900" dir="ltr">{student.user.phone || 'غير متوفر'}</dd>
                 </div>
-                <div className="space-y-1">
-                  <dt className="text-sm font-medium text-slate-500">هاتف الطوارئ</dt>
-                  <dd className="text-base font-semibold text-slate-900" dir="ltr">{student.emergencyPhone || 'غير متوفر'}</dd>
-                </div>
-                <div className="space-y-1 sm:col-span-2">
-                  <dt className="text-sm font-medium text-slate-500">البريد الإلكتروني</dt>
-                  <dd className="text-base font-semibold text-slate-900">{student.user.email || 'غير متوفر'}</dd>
-                </div>
+
               </dl>
             </CardContent>
           </Card>
