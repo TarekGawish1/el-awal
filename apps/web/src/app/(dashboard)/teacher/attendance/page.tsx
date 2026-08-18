@@ -1,33 +1,44 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
+import { MultiSelectDropdown } from '@/features/groups/components/MultiSelectDropdown';
 import { useTodaySessions, useSessionReport } from '@/features/attendance/hooks/use-attendance';
+import { useGroups } from '@/features/groups/hooks/useGroups';
 import { AttendanceReportCard } from '@/features/attendance/components/AttendanceReportCard';
 import { QrScanner } from '@/features/attendance/components/QrScanner';
 import { ManualAttendanceRoster } from '@/features/attendance/components/ManualAttendanceRoster';
+import { RotateCcw, MapPin, Calendar, Users, QrCode, ClipboardList } from 'lucide-react';
 
-const gradeOptions: Record<string, { label: string; value: string }[]> = {
-  PRIMARY: [
-    { label: 'الصف الأول الابتدائي', value: 'الصف الأول الابتدائي' },
-    { label: 'الصف الثاني الابتدائي', value: 'الصف الثاني الابتدائي' },
-    { label: 'الصف الثالث الابتدائي', value: 'الصف الثالث الابتدائي' },
-    { label: 'الصف الرابع الابتدائي', value: 'الصف الرابع الابتدائي' },
-    { label: 'الصف الخامس الابتدائي', value: 'الصف الخامس الابتدائي' },
-    { label: 'الصف السادس الابتدائي', value: 'الصف السادس الابتدائي' },
+const STAGE_GRADES_MAP: Record<string, string[]> = {
+  'المرحلة الابتدائية': [
+    'الصف الأول الابتدائي',
+    'الصف الثاني الابتدائي',
+    'الصف الثالث الابتدائي',
+    'الصف الرابع الابتدائي',
+    'الصف الخامس الابتدائي',
+    'الصف السادس الابتدائي',
   ],
-  MIDDLE: [
-    { label: 'الصف الأول الإعدادي', value: 'الصف الأول الإعدادي' },
-    { label: 'الصف الثاني الإعدادي', value: 'الصف الثاني الإعدادي' },
-    { label: 'الصف الثالث الإعدادي', value: 'الصف الثالث الإعدادي' },
+  'المرحلة الإعدادية': [
+    'الصف الأول الإعدادي',
+    'الصف الثاني الإعدادي',
+    'الصف الثالث الإعدادي',
   ],
-  SECONDARY: [
-    { label: 'الصف الأول الثانوي', value: 'الصف الأول الثانوي' },
-    { label: 'الصف الثاني الثانوي', value: 'الصف الثاني الثانوي' },
-    { label: 'الصف الثالث الثانوي', value: 'الصف الثالث الثانوي' },
+  'المرحلة الثانوية': [
+    'الصف الأول الثانوي',
+    'الصف الثاني الثانوي',
+    'الصف الثالث الثانوي',
   ],
+};
+
+const getStageName = (gradeLevel?: string) => {
+  if (!gradeLevel) return 'أخرى';
+  if (gradeLevel.includes('الابتدائي')) return 'المرحلة الابتدائية';
+  if (gradeLevel.includes('الإعدادي')) return 'المرحلة الإعدادية';
+  if (gradeLevel.includes('الثانوي')) return 'المرحلة الثانوية';
+  return 'أخرى';
 };
 
 function formatTime12h(time24?: string) {
@@ -40,81 +51,156 @@ function formatTime12h(time24?: string) {
 }
 
 export default function TeacherAttendancePage() {
-  const [academicStage, setAcademicStage] = useState<string>('');
-  const [gradeLevel, setGradeLevel] = useState<string>('');
+  const [selectedStages, setSelectedStages] = useState<string[]>([]);
+  const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'QR' | 'MANUAL'>('QR');
 
-  const { 
-    data: sessions, 
-    isLoading: isLoadingSessions,
-    isError: isErrorSessions
-  } = useTodaySessions(academicStage, gradeLevel);
+  const { data: groups } = useGroups();
+  const { data: sessions, isLoading: isLoadingSessions, isError: isErrorSessions } = useTodaySessions();
 
-  const {
-    data: report,
-    isLoading: isLoadingReport,
-    isError: isErrorReport
-  } = useSessionReport(selectedSessionId);
+  // Create a fast lookup map from groupId to group (with schedules and locations)
+  const groupMap = useMemo(() => {
+    if (!groups || !Array.isArray(groups)) return new Map();
+    return new Map(groups.map((g) => [g.id, g]));
+  }, [groups]);
 
+  // Extract all unique places / locations
+  const availableLocations = useMemo(() => {
+    const locSet = new Set<string>();
+    if (groups && Array.isArray(groups)) {
+      groups.forEach((g) => {
+        g.schedules?.forEach((s) => {
+          if (s.location && s.location.trim()) locSet.add(s.location.trim());
+        });
+      });
+    }
+    return Array.from(locSet);
+  }, [groups]);
+
+  // Calculate available grade options dynamically based on selected stages
+  const availableGradeOptions = useMemo(() => {
+    let gradesList: string[] = [];
+
+    if (selectedStages.length > 0) {
+      selectedStages.forEach((stage) => {
+        if (STAGE_GRADES_MAP[stage]) {
+          gradesList.push(...STAGE_GRADES_MAP[stage]);
+        }
+      });
+    } else {
+      Object.values(STAGE_GRADES_MAP).forEach((grades) => {
+        gradesList.push(...grades);
+      });
+    }
+
+    if (sessions && Array.isArray(sessions)) {
+      sessions.forEach((s: any) => {
+        const gGrade = s.group?.gradeLevel;
+        if (gGrade && !gradesList.includes(gGrade)) {
+          const sStage = getStageName(gGrade);
+          if (selectedStages.length === 0 || selectedStages.includes(sStage)) {
+            gradesList.push(gGrade);
+          }
+        }
+      });
+    }
+
+    return Array.from(new Set(gradesList)).map((grade) => ({
+      label: grade,
+      value: grade,
+    }));
+  }, [selectedStages, sessions]);
+
+  // Handle stage change & prune non-matching grades
+  const handleStagesChange = useCallback((newStages: string[]) => {
+    setSelectedStages(newStages);
+    if (newStages.length > 0) {
+      setSelectedGrades((prevGrades) =>
+        prevGrades.filter((grade) => {
+          const stage = getStageName(grade);
+          return newStages.includes(stage);
+        })
+      );
+    }
+  }, []);
+
+  // Filter today's sessions based on stages, grades, and locations
+  const filteredSessions = useMemo(() => {
+    if (!sessions || !Array.isArray(sessions)) return [];
+    return sessions.filter((s: any) => {
+      const g = groupMap.get(s.groupId) || s.group;
+      const gGrade = g?.gradeLevel || '';
+      const stage = getStageName(gGrade);
+
+      // Stage filter
+      const matchesStage = selectedStages.length === 0 || selectedStages.includes(stage);
+
+      // Grade filter
+      const matchesGrade = selectedGrades.length === 0 || selectedGrades.includes(gGrade);
+
+      // Location filter
+      const fullGroup = groupMap.get(s.groupId);
+      const groupLocations = fullGroup?.schedules?.map((sch: any) => sch.location).filter(Boolean) || [];
+      const matchesLocation =
+        selectedLocations.length === 0 ||
+        groupLocations.some((loc: string) => selectedLocations.includes(loc));
+
+      return matchesStage && matchesGrade && matchesLocation;
+    });
+  }, [sessions, groupMap, selectedStages, selectedGrades, selectedLocations]);
+
+  // Auto-select nearest session on mount
   useEffect(() => {
-    if (sessions && sessions.length > 0 && !selectedSessionId && !academicStage && !gradeLevel) {
+    if (filteredSessions.length > 0 && !selectedSessionId) {
       const now = new Date();
       const nowMins = now.getHours() * 60 + now.getMinutes();
 
       let activeSession: any = null;
       let minDiff = Infinity;
 
-      for (const s of sessions) {
+      for (const s of filteredSessions) {
         if (!s.startTime) continue;
         const [h, m] = s.startTime.split(':').map(Number);
         if (isNaN(h)) continue;
-        
+
         const sessionMins = h * 60 + m;
         const diff = Math.abs(sessionMins - nowMins);
-        
-        // Active window: within 90 minutes before or after
-        if (diff <= 90 && diff < minDiff) {
+
+        if (diff <= 120 && diff < minDiff) {
           minDiff = diff;
           activeSession = s;
         }
       }
 
       if (activeSession) {
-        const activeGrade = activeSession.group?.gradeLevel;
-        if (activeGrade) {
-          let stage = '';
-          if (activeGrade.includes('الابتدائي')) stage = 'PRIMARY';
-          else if (activeGrade.includes('الإعدادي')) stage = 'MIDDLE';
-          else if (activeGrade.includes('الثانوي')) stage = 'SECONDARY';
-
-          if (stage) setAcademicStage(stage);
-          setGradeLevel(activeGrade);
-        }
-        // Allow the filtered dropdowns to render first, then select the session
-        setTimeout(() => setSelectedSessionId(activeSession.id), 0);
+        setSelectedSessionId(activeSession.id);
+      }
+    } else if (filteredSessions.length > 0 && selectedSessionId) {
+      // If currently selected session is no longer in filtered list, reset selection
+      const exists = filteredSessions.some((s: any) => s.id === selectedSessionId);
+      if (!exists) {
+        setSelectedSessionId('');
       }
     }
-  }, [sessions, selectedSessionId, academicStage, gradeLevel]);
+  }, [filteredSessions, selectedSessionId]);
 
-  const handleStageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setAcademicStage(e.target.value);
-    setGradeLevel('');
-    setSelectedSessionId('');
-  };
+  const { data: report, isLoading: isLoadingReport, isError: isErrorReport } = useSessionReport(selectedSessionId);
 
-  const handleGradeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setGradeLevel(e.target.value);
-    setSelectedSessionId('');
-  };
+  const hasActiveFilters =
+    selectedStages.length > 0 || selectedGrades.length > 0 || selectedLocations.length > 0;
 
-  const handleSessionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedSessionId(e.target.value);
+  const resetFilters = () => {
+    setSelectedStages([]);
+    setSelectedGrades([]);
+    setSelectedLocations([]);
   };
 
   return (
-    <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-      <div className="mb-8 bg-white p-8 rounded-3xl shadow-sm border border-slate-100 relative overflow-hidden">
+    <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
+      {/* Header */}
+      <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-full h-2 bg-gradient-to-r from-primary-400 to-primary-600"></div>
         <h1 className="text-3xl font-extrabold text-slate-900">رصد الحضور والغياب</h1>
         <p className="mt-3 text-slate-500 text-lg">
@@ -122,95 +208,126 @@ export default function TeacherAttendancePage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        {/* Stage Selector */}
-        <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
-          <CardHeader className="border-b border-slate-100 bg-slate-50/50 px-6 py-4">
-            <CardTitle className="text-base font-bold flex items-center gap-2 text-slate-800">
-              المرحلة الدراسية
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-5">
-            <Select
-              value={academicStage}
-              onChange={handleStageChange}
-              className="w-full rounded-xl"
+      {/* Interconnected Filters Toolbar */}
+      <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-primary-600" />
+            تصفية واختيار حصص اليوم
+          </h2>
+          {hasActiveFilters && (
+            <button
+              onClick={resetFilters}
+              className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-primary-600 transition-colors font-medium cursor-pointer"
+            >
+              <RotateCcw className="w-3 h-3" />
+              إعادة تعيين الفلاتر
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
+          {/* Stage MultiSelect Checkboxes Dropdown */}
+          <div>
+            <label className="block text-xs font-semibold text-neutral-700 mb-1.5">المرحلة الدراسية</label>
+            <MultiSelectDropdown
+              placeholder="المرحلة الدراسية"
+              allSelectedLabel="جميع المراحل الدراسية"
               options={[
-                { label: '-- الكل --', value: '' },
-                { label: 'الابتدائية', value: 'PRIMARY' },
-                { label: 'الإعدادية', value: 'MIDDLE' },
-                { label: 'الثانوية', value: 'SECONDARY' },
+                { label: 'المرحلة الابتدائية', value: 'المرحلة الابتدائية' },
+                { label: 'المرحلة الإعدادية', value: 'المرحلة الإعدادية' },
+                { label: 'المرحلة الثانوية', value: 'المرحلة الثانوية' },
+              ]}
+              selectedValues={selectedStages}
+              onChange={handleStagesChange}
+            />
+          </div>
+
+          {/* Grade Level MultiSelect Checkboxes Dropdown */}
+          <div>
+            <label className="block text-xs font-semibold text-neutral-700 mb-1.5">الصف الدراسي</label>
+            <MultiSelectDropdown
+              placeholder="الصف الدراسي"
+              allSelectedLabel="جميع الصفوف الدراسية"
+              withSearch={availableGradeOptions.length > 5}
+              options={availableGradeOptions}
+              selectedValues={selectedGrades}
+              onChange={setSelectedGrades}
+            />
+          </div>
+
+          {/* Location / Place MultiSelect Checkboxes Dropdown */}
+          <div>
+            <label className="block text-xs font-semibold text-neutral-700 mb-1.5">المكان / السنتر</label>
+            <MultiSelectDropdown
+              placeholder="المكان / السنتر"
+              allSelectedLabel="جميع الأماكن والسناتر"
+              withSearch={true}
+              options={availableLocations.map((loc) => ({
+                label: loc,
+                value: loc,
+                icon: <MapPin className="w-3.5 h-3.5 text-primary-600" />,
+              }))}
+              selectedValues={selectedLocations}
+              onChange={setSelectedLocations}
+            />
+          </div>
+        </div>
+
+        {/* Session Picker Dropdown */}
+        <div className="pt-2 border-t border-slate-100">
+          <label className="block text-xs font-semibold text-neutral-700 mb-1.5 flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-primary-700">
+              <Users className="w-4 h-4 text-primary-600" />
+              الحصة / المجموعة المراد رصدها *
+            </span>
+            <span className="text-slate-400 font-normal">
+              {filteredSessions.length} حصص متاحة لليوم
+            </span>
+          </label>
+
+          {isLoadingSessions ? (
+            <div className="animate-pulse h-10 bg-slate-100 rounded-xl w-full"></div>
+          ) : isErrorSessions ? (
+            <p className="text-red-500 text-sm">فشل تحميل حصص اليوم.</p>
+          ) : filteredSessions.length === 0 ? (
+            <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-500 text-center">
+              لا توجد حصص مجدولة تطابق خيارات الفلترة المحددة لليوم.
+            </div>
+          ) : (
+            <Select
+              value={selectedSessionId}
+              onChange={(e) => setSelectedSessionId(e.target.value)}
+              className="w-full rounded-xl border-primary-200 focus:border-primary-500 font-semibold"
+              options={[
+                { label: '-- اختر الحصة لبدء الرصد --', value: '' },
+                ...filteredSessions.map((s: any) => {
+                  const g = groupMap.get(s.groupId) || s.group;
+                  const groupName = g?.name || 'مجموعة';
+                  const formattedTime = s.startTime ? formatTime12h(s.startTime) : '';
+                  let timeLabel = formattedTime ? ` (الساعة ${formattedTime})` : '';
+
+                  if (
+                    formattedTime &&
+                    (groupName.includes(`(الساعة ${formattedTime})`) || groupName.includes(formattedTime))
+                  ) {
+                    timeLabel = '';
+                  }
+
+                  const loc = g?.schedules?.[0]?.location ? ` - 📍 ${g.schedules[0].location}` : '';
+
+                  return {
+                    label: `${groupName}${timeLabel}${loc}`,
+                    value: s.id,
+                  };
+                }),
               ]}
             />
-          </CardContent>
-        </Card>
-
-        {/* Grade Selector */}
-        <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
-          <CardHeader className="border-b border-slate-100 bg-slate-50/50 px-6 py-4">
-            <CardTitle className="text-base font-bold flex items-center gap-2 text-slate-800">
-              الصف الدراسي
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-5">
-            <Select
-              value={gradeLevel}
-              onChange={handleGradeChange}
-              disabled={!academicStage}
-              className="w-full rounded-xl"
-              options={[
-                { label: '-- الكل --', value: '' },
-                ...(academicStage ? gradeOptions[academicStage] : []),
-              ]}
-            />
-          </CardContent>
-        </Card>
-
-        {/* Session Selector */}
-        <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
-          <CardHeader className="border-b border-slate-100 bg-slate-50/50 px-6 py-4">
-            <CardTitle className="text-base font-bold flex items-center gap-2 text-primary-700">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              مجموعات وحصص اليوم
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-5">
-            {isLoadingSessions ? (
-              <div className="animate-pulse h-10 bg-slate-100 rounded-xl w-full"></div>
-            ) : isErrorSessions ? (
-              <p className="text-red-500 text-sm">فشل تحميل حصص اليوم.</p>
-            ) : !sessions || sessions.length === 0 ? (
-              <p className="text-slate-500 text-sm">لا توجد حصص مجدولة لليوم.</p>
-            ) : (
-              <Select
-                value={selectedSessionId}
-                onChange={handleSessionChange}
-                className="w-full rounded-xl border-primary-200 focus:border-primary-500"
-                options={[
-                  { label: '-- اختر المجموعة لبدء الرصد --', value: '' },
-                  ...sessions.map((s: any) => {
-                    const groupName = s.group?.name || 'مجموعة';
-                    const formattedTime = s.startTime ? formatTime12h(s.startTime) : '';
-                    let timeLabel = formattedTime ? ` (الساعة ${formattedTime})` : '';
-                    
-                    if (formattedTime && (groupName.includes(`(الساعة ${formattedTime})`) || groupName.includes(formattedTime))) {
-                      timeLabel = '';
-                    }
-
-                    return {
-                      label: `${groupName}${timeLabel}`,
-                      value: s.id,
-                    };
-                  })
-                ]}
-              />
-            )}
-          </CardContent>
-        </Card>
+          )}
+        </div>
       </div>
 
+      {/* Attendance Workspace */}
       {selectedSessionId && (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
           {isLoadingReport ? (
@@ -229,9 +346,7 @@ export default function TeacherAttendancePage() {
                       onClick={() => setActiveTab('QR')}
                       className={`w-40 rounded-xl ${activeTab === 'QR' ? 'shadow-md shadow-primary-500/20' : ''}`}
                     >
-                      <svg className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                      </svg>
+                      <QrCode className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" />
                       مسح QR
                     </Button>
                     <Button
@@ -239,9 +354,7 @@ export default function TeacherAttendancePage() {
                       onClick={() => setActiveTab('MANUAL')}
                       className={`w-40 rounded-xl ${activeTab === 'MANUAL' ? 'shadow-md shadow-primary-500/20' : ''}`}
                     >
-                      <svg className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                      </svg>
+                      <ClipboardList className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" />
                       رصد يدوي
                     </Button>
                   </div>
