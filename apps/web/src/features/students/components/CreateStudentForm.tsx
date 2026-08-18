@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useCreateStudent } from '../hooks/use-students';
 import { useGroups } from '@/features/groups/hooks/useGroups';
+import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
@@ -77,6 +78,7 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
 
   const { mutate, isPending } = useCreateStudent();
   const { data: groups } = useGroups();
+  const { activeYear, activeTerm } = useStoredAcademicPeriod(groups);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -108,9 +110,15 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
     });
   };
 
-  const filteredGroups = formData.gradeLevel
-    ? groups?.filter((g) => g.gradeLevel === formData.gradeLevel) || []
-    : [];
+  const filteredGroups = useMemo(() => {
+    if (!formData.gradeLevel || !groups) return [];
+    return groups.filter((g) => {
+      const matchGrade = g.gradeLevel === formData.gradeLevel;
+      const matchYear = !activeYear || !g.academicYear || g.academicYear === activeYear;
+      const matchTerm = !activeTerm || !g.academicTerm || g.academicTerm === activeTerm;
+      return matchGrade && matchYear && matchTerm;
+    });
+  }, [formData.gradeLevel, groups, activeYear, activeTerm]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -231,17 +239,20 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
             ]}
           />
           <Select
-            label="المجموعة الحالية (اختياري)"
+            label={`المجموعة الدراسية (${activeYear} • ${activeTerm === 'SECOND_TERM' ? 'ترم ثانٍ' : 'ترم أول'})`}
             name="initialGroupId"
             value={formData.initialGroupId}
             onChange={handleChange}
             disabled={!formData.gradeLevel}
             options={[
-              { label: '-- اختر المجموعة --', value: '' },
-              ...(filteredGroups.map((g) => ({
-                label: g.name, // Only show name since grade is already selected
+              {
+                label: filteredGroups.length > 0 ? '-- اختر المجموعة (اختياري) --' : '-- لا توجد مجموعات مسجلة لهذا الترم --',
+                value: '',
+              },
+              ...filteredGroups.map((g) => ({
+                label: g.name,
                 value: g.id,
-              }))),
+              })),
             ]}
           />
         </div>
