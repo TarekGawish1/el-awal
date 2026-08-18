@@ -105,19 +105,23 @@ export default function DashboardLayout({
         <div>
           {/* Brand Logo Header */}
           <div className="p-5 border-b border-neutral-100 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-primary-600 text-white rounded-lg shadow-xs">
+            <Link
+              href={user?.role === 'STUDENT' ? '/student/dashboard' : '/teacher/dashboard'}
+              className="flex items-center gap-2.5 group cursor-pointer"
+              title="الذهاب للرئيسية"
+            >
+              <div className="p-2 bg-primary-600 group-hover:bg-primary-700 text-white rounded-lg shadow-xs transition-colors">
                 <GraduationCap className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="font-extrabold text-neutral-900 text-base leading-tight tracking-tight">
+                <h2 className="font-extrabold text-neutral-900 text-base leading-tight tracking-tight group-hover:text-primary-700 transition-colors">
                   منصة الأول
                 </h2>
                 <span className="text-[11px] font-semibold text-primary-600 uppercase">
                   نظام إدارة التعليم
                 </span>
               </div>
-            </div>
+            </Link>
 
             <button
               onClick={() => setIsMobileSidebarOpen(false)}
@@ -177,12 +181,18 @@ export default function DashboardLayout({
             >
               {isMobileSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
-            <div className="lg:hidden flex items-center gap-2">
-              <div className="p-1.5 bg-primary-600 text-white rounded-lg">
+            <Link
+              href={user?.role === 'STUDENT' ? '/student/dashboard' : '/teacher/dashboard'}
+              className="lg:hidden flex items-center gap-2 group cursor-pointer"
+              title="الذهاب للرئيسية"
+            >
+              <div className="p-1.5 bg-primary-600 text-white rounded-lg group-hover:bg-primary-700 transition-colors">
                 <GraduationCap className="w-4 h-4" />
               </div>
-              <span className="font-bold text-neutral-900 text-sm hidden sm:block">منصة الأول التعليمية</span>
-            </div>
+              <span className="font-bold text-neutral-900 text-sm hidden sm:block group-hover:text-primary-700 transition-colors">
+                منصة الأول التعليمية
+              </span>
+            </Link>
             
             <div className="hidden lg:block ms-2 border-s border-neutral-200 ps-4">
               <DashboardBreadcrumbs />
