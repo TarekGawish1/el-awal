@@ -18,7 +18,7 @@ export interface AcademicPeriodResponse {
  * Fetch academic period from database
  */
 export async function fetchAcademicPeriod(): Promise<AcademicPeriodResponse> {
-  return apiClient.get<AcademicPeriodResponse>(API_ENDPOINTS.TEACHER.ACADEMIC_PERIOD);
+  return apiClient<AcademicPeriodResponse>(API_ENDPOINTS.TEACHER.ACADEMIC_PERIOD);
 }
 
 /**
@@ -28,7 +28,10 @@ export async function updateAcademicPeriodInDb(payload: {
   activeAcademicYear: string;
   activeAcademicTerm: string;
 }): Promise<AcademicPeriodResponse> {
-  return apiClient.put<AcademicPeriodResponse>(API_ENDPOINTS.TEACHER.ACADEMIC_PERIOD, payload);
+  return apiClient<AcademicPeriodResponse>(API_ENDPOINTS.TEACHER.ACADEMIC_PERIOD, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
 }
 
 /**

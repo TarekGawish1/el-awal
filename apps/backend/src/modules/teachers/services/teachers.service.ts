@@ -17,6 +17,12 @@ export class TeachersService {
     if (isSpecificGroup) {
       groupWhere.id = query.groupId;
     }
+    if (query.academicYear && query.academicYear !== 'ALL') {
+      groupWhere.academicYear = query.academicYear;
+    }
+    if (query.academicTerm && query.academicTerm !== 'ALL') {
+      groupWhere.academicTerm = query.academicTerm;
+    }
 
     const teacherGroups = await this.prisma.academicGroup.findMany({
       where: groupWhere,
@@ -167,7 +173,7 @@ export class TeachersService {
       where: {
         assessment: {
           teacherId,
-          ...(isSpecificGroup ? { groupId: query.groupId } : {}),
+          ...(isSpecificGroup ? { groupId: query.groupId } : { groupId: { in: groupIds } }),
         },
         status: SubmissionStatus.SUBMITTED,
       },

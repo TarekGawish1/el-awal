@@ -22,6 +22,7 @@ export function TeacherDashboardContainer() {
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const initialFilters: DashboardFilterState = {
     academicYear: searchParams?.get('academicYear') || DEFAULT_DASHBOARD_FILTERS.academicYear,
+    academicTerm: searchParams?.get('academicTerm') || 'ALL',
     groupId: searchParams?.get('groupId') || DEFAULT_DASHBOARD_FILTERS.groupId,
     dateRange: (searchParams?.get('dateRange') as DateRangePreset) || DEFAULT_DASHBOARD_FILTERS.dateRange,
     startDate: searchParams?.get('startDate') || undefined,
@@ -51,6 +52,7 @@ export function TeacherDashboardContainer() {
 
     const params = new URLSearchParams();
     if (newFilters.academicYear) params.set('academicYear', newFilters.academicYear);
+    if (newFilters.academicTerm && newFilters.academicTerm !== 'ALL') params.set('academicTerm', newFilters.academicTerm);
     if (newFilters.groupId && newFilters.groupId !== 'ALL') params.set('groupId', newFilters.groupId);
     if (newFilters.dateRange) params.set('dateRange', newFilters.dateRange);
     if (newFilters.startDate) params.set('startDate', newFilters.startDate);
@@ -65,7 +67,12 @@ export function TeacherDashboardContainer() {
     router.replace('/teacher/dashboard');
   };
 
-  const isFiltered = filters.groupId !== 'ALL' || filters.dateRange !== 'week' || filters.academicYear !== '2026-2027';
+  const isFiltered = Boolean(
+    filters.groupId !== 'ALL' ||
+    filters.dateRange !== 'week' ||
+    filters.academicYear !== DEFAULT_DASHBOARD_FILTERS.academicYear ||
+    (filters.academicTerm && filters.academicTerm !== 'ALL')
+  );
 
   // Permission Denied Check (403)
   const isForbidden = isError && (error as { statusCode?: number })?.statusCode === 403;

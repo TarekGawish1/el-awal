@@ -23,8 +23,8 @@ interface MultiSelectDropdownProps {
 export function MultiSelectDropdown({
   placeholder,
   allSelectedLabel,
-  options,
-  selectedValues,
+  options = [],
+  selectedValues = [],
   onChange,
   withSearch = false,
   className = '',
@@ -44,19 +44,22 @@ export function MultiSelectDropdown({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredOptions = useMemo(() => {
-    if (!withSearch || !searchQuery.trim()) return options;
-    const q = searchQuery.toLowerCase().trim();
-    return options.filter((opt) => opt.label.toLowerCase().includes(q));
-  }, [options, withSearch, searchQuery]);
+  const safeOptions = options || [];
+  const safeSelectedValues = selectedValues || [];
 
-  const isAllSelected = selectedValues.length === 0 || selectedValues.length === options.length;
+  const filteredOptions = useMemo(() => {
+    if (!withSearch || !searchQuery.trim()) return safeOptions;
+    const q = searchQuery.toLowerCase().trim();
+    return safeOptions.filter((opt) => opt.label.toLowerCase().includes(q));
+  }, [safeOptions, withSearch, searchQuery]);
+
+  const isAllSelected = safeSelectedValues.length === 0 || safeSelectedValues.length === safeOptions.length;
 
   const handleToggleOption = (val: string) => {
-    if (selectedValues.includes(val)) {
-      onChange(selectedValues.filter((v) => v !== val));
+    if (safeSelectedValues.includes(val)) {
+      onChange(safeSelectedValues.filter((v) => v !== val));
     } else {
-      onChange([...selectedValues, val]);
+      onChange([...safeSelectedValues, val]);
     }
   };
 

@@ -7,6 +7,11 @@ export class DashboardOverviewQueryDto {
   @IsString()
   academicYear?: string;
 
+  @ApiPropertyOptional({ example: 'FIRST_TERM' })
+  @IsOptional()
+  @IsString()
+  academicTerm?: string;
+
   @ApiPropertyOptional({ example: 'ALL' })
   @IsOptional()
   @IsString()

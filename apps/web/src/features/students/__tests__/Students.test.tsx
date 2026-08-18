@@ -1,8 +1,10 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import TeacherStudentsPage from '@/app/(dashboard)/teacher/students/page';
 import StudentDetailPage from '@/app/(dashboard)/teacher/students/[id]/page';
 import * as useStudentsModule from '@/features/students/hooks/use-students';
+import * as useGroupsModule from '@/features/groups/hooks/useGroups';
 import * as nextNavigation from 'next/navigation';
 
 vi.mock('next/navigation', () => ({
@@ -10,8 +12,11 @@ vi.mock('next/navigation', () => ({
   useRouter: vi.fn(),
 }));
 
-vi.mock('@/features/groups/hooks/useGroups', () => ({
-  useGroups: () => ({ data: [] }),
+vi.mock('@/lib/api/client', () => ({
+  apiClient: {
+    get: vi.fn().mockResolvedValue({ activeAcademicYear: '2025-2026', activeAcademicTerm: 'FIRST_TERM' }),
+    put: vi.fn().mockResolvedValue({ activeAcademicYear: '2025-2026', activeAcademicTerm: 'FIRST_TERM' }),
+  },
 }));
 
 vi.mock('react-qr-code', () => ({
@@ -20,16 +25,46 @@ vi.mock('react-qr-code', () => ({
 }));
 
 describe('TeacherStudents', () => {
+  let queryClient: QueryClient;
+
+  const mockGroups = [
+    {
+      id: 'grp-1',
+      name: 'مجموعة الصف الخامس أ',
+      gradeLevel: 'الصف الخامس الابتدائي',
+      academicYear: '2025-2026',
+      academicTerm: 'FIRST_TERM',
+      status: 'ACTIVE',
+    },
+    {
+      id: 'grp-old',
+      name: 'مجموعة قديمة 2020',
+      gradeLevel: 'الصف الخامس الابتدائي',
+      academicYear: '2020-2021',
+      academicTerm: 'FIRST_TERM',
+      status: 'ACTIVE',
+    },
+    {
+      id: 'grp-sec',
+      name: 'مجموعة ثانوي',
+      gradeLevel: 'الصف الثالث الثانوي',
+      academicYear: '2025-2026',
+      academicTerm: 'FIRST_TERM',
+      status: 'ACTIVE',
+    },
+  ];
+
   const mockPaginatedStudents = {
     data: [
       {
         id: 'stu-1',
         studentCode: 'STU-2026-0001',
-        gradeLevel: 'Grade 10',
+        gradeLevel: 'الصف الخامس الابتدائي',
+        academicStage: 'PRIMARY',
         academicStatus: 'ACTIVE',
         createdAt: '2026-08-17',
         user: { id: 'usr-1', fullName: 'Ahmed Ali' },
-        groupEnrollments: [{ group: { id: 'grp-1', name: 'Group A' } }],
+        groupEnrollments: [{ group: { id: 'grp-1', name: 'مجموعة الصف الخامس أ' } }],
       },
     ],
     meta: {
@@ -49,12 +84,31 @@ describe('TeacherStudents', () => {
     studentId: 'stu-1',
     studentCode: 'STU-2026-0001',
     fullName: 'Ahmed Ali',
-    gradeLevel: 'Grade 10',
+    gradeLevel: 'الصف الخامس الابتدائي',
     qrCodeToken: 'qr_tok_123',
+  };
+
+  const renderWithQueryClient = (component: React.ReactElement) => {
+    return render(
+      <QueryClientProvider client={queryClient}>
+        {component}
+      </QueryClientProvider>
+    );
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+      },
+    });
+
+    vi.spyOn(useGroupsModule, 'useGroups').mockReturnValue({
+      data: mockGroups as any,
+      isLoading: false,
+      isError: false,
+    } as any);
 
     vi.spyOn(useStudentsModule, 'useStudents').mockReturnValue({
       data: mockPaginatedStudents,
@@ -87,50 +141,58 @@ describe('TeacherStudents', () => {
 
   describe('StudentList', () => {
     it('renders populated list', () => {
-      render(<TeacherStudentsPage />);
+      renderWithQueryClient(<TeacherStudentsPage />);
       expect(screen.getByText('Ahmed Ali')).toBeInTheDocument();
       expect(screen.getByText('STU-2026-0001')).toBeInTheDocument();
-      expect(screen.getByText('Group A')).toBeInTheDocument();
+      expect(screen.getByText('مجموعة الصف الخامس أ')).toBeInTheDocument();
     });
 
     it('renders empty list state', () => {
       vi.spyOn(useStudentsModule, 'useStudents').mockReturnValue({
         data: { data: [], meta: { hasMore: false } },
       } as any);
-      render(<TeacherStudentsPage />);
-      expect(screen.getByText('No students found.')).toBeInTheDocument();
+      renderWithQueryClient(<TeacherStudentsPage />);
+      expect(screen.getByText('لم يتم العثور على طلاب.')).toBeInTheDocument();
     });
 
     it('shows create student form when add button clicked', async () => {
-      render(<TeacherStudentsPage />);
-      const addBtn = screen.getByText('Add Student');
+      renderWithQueryClient(<TeacherStudentsPage />);
+      const addBtn = screen.getByText('إضافة طالب');
       fireEvent.click(addBtn);
 
       await waitFor(() => {
-        expect(screen.getByText('Register New Student')).toBeInTheDocument();
+        expect(screen.getByText('تسجيل طالب جديد')).toBeInTheDocument();
       });
+    });
+
+    it('renders filters for stage, grade, groups, and academic period', () => {
+      renderWithQueryClient(<TeacherStudentsPage />);
+      expect(screen.getByText('جميع المراحل التعليمية')).toBeInTheDocument();
+      expect(screen.getByText('جميع الصفوف الدراسية')).toBeInTheDocument();
+      expect(screen.getByText('جميع المجموعات')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('ابحث بالاسم، رقم الهاتف أو الكود...')).toBeInTheDocument();
     });
   });
 
   describe('StudentDetail', () => {
     it('renders student details', () => {
       (nextNavigation.useParams as any).mockReturnValue({ id: 'stu-1' });
-      render(<StudentDetailPage />);
+      renderWithQueryClient(<StudentDetailPage />);
       
       expect(screen.getAllByText('Ahmed Ali')[0]).toBeInTheDocument();
-      expect(screen.getByText('Identity Information')).toBeInTheDocument();
+      expect(screen.getByText('معلومات الهوية')).toBeInTheDocument();
       expect(screen.getByTestId('qr-code')).toBeInTheDocument();
     });
 
     it('shows confirmation dialog before regenerating QR', async () => {
       (nextNavigation.useParams as any).mockReturnValue({ id: 'stu-1' });
-      render(<StudentDetailPage />);
+      renderWithQueryClient(<StudentDetailPage />);
 
-      const regenBtn = screen.getByText('Regenerate QR Token');
+      const regenBtn = screen.getByText('إعادة توليد كود الـ QR');
       fireEvent.click(regenBtn);
 
       await waitFor(() => {
-        expect(screen.getByText(/invalidate the current QR badge/i)).toBeInTheDocument();
+        expect(screen.getByText(/سيؤدي هذا إلى إبطال رمز الاستجابة السريعة/i)).toBeInTheDocument();
       });
     });
   });

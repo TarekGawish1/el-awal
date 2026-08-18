@@ -11,6 +11,7 @@ export type AlertSeverity = 'CRITICAL' | 'WARNING' | 'INFO';
 
 export interface DashboardFilterState {
   academicYear: string;
+  academicTerm?: string;
   groupId: string; // 'ALL' or specific UUID
   dateRange: DateRangePreset;
   startDate?: string;
@@ -91,4 +92,6 @@ export interface GroupOption {
   id: string;
   name: string;
   gradeLevel: string;
+  academicYear?: string;
+  academicTerm?: string;
 }

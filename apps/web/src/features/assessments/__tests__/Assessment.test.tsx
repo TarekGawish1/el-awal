@@ -5,7 +5,7 @@ import { AssessmentList } from '../components/AssessmentList';
 import { SubmissionDetails } from '../components/SubmissionDetails';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as useAssessments from '../hooks/use-assessments';
-import { QuestionType, AssessmentType } from '../types/assessments.types';
+import { QuestionType } from '../types/assessments.types';
 
 // Mock routing
 vi.mock('next/navigation', () => ({
