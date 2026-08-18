@@ -32,69 +32,52 @@ export function StudentQrBadge({
 
     try {
       setIsSharing(true);
-      const svg = badgeRef.current.querySelector('svg');
-      if (!svg) throw new Error('QR element not found');
-
-      const svgData = new XMLSerializer().serializeToString(svg);
-      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-      const DOMURL = window.URL || window.webkitURL || window;
-      const url = DOMURL.createObjectURL(svgBlob);
+      const html2canvas = (await import('html2canvas')).default;
+      const canvas = await html2canvas(badgeRef.current, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+      });
+      
+      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+      if (!blob) throw new Error('Failed to generate image');
 
       let shareText = `مرحباً ${data.fullName}، كود الطالب الخاص بك هو: ${data.studentCode}`;
       if (loginEmail || loginPhone || loginPassword) {
-        shareText += `\n\nبيانات الدخول للمنصة:\n`;
-        if (loginEmail) shareText += `البريد الإلكتروني: ${loginEmail}\n`;
-        else if (loginPhone) shareText += `رقم الهاتف: ${loginPhone}\n`;
+        shareText += `\\n\\nبيانات الدخول للمنصة:\\n`;
+        if (loginEmail) shareText += `البريد الإلكتروني: ${loginEmail}\\n`;
+        else if (loginPhone) shareText += `رقم الهاتف: ${loginPhone}\\n`;
         if (loginPassword) shareText += `كلمة المرور: ${loginPassword}`;
       }
 
-      const img = new Image();
-      img.onload = async () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = 400;
-        canvas.height = 400;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, 400, 400);
-          ctx.drawImage(img, 50, 50, 300, 300);
+      const file = new File([blob], `student-card-${data.studentCode}.png`, { type: 'image/png' });
 
-          canvas.toBlob(async (blob) => {
-            if (!blob) return;
-            const file = new File([blob], `student-card-${data.studentCode}.png`, { type: 'image/png' });
+      if (studentPhone) {
+        const downloadUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = `student-card-${data.studentCode}.png`;
+        link.click();
+        URL.revokeObjectURL(downloadUrl);
 
-            if (studentPhone) {
-              const downloadUrl = DOMURL.createObjectURL(blob);
-              const link = document.createElement('a');
-              link.href = downloadUrl;
-              link.download = `student-card-${data.studentCode}.png`;
-              link.click();
-              DOMURL.revokeObjectURL(downloadUrl);
+        const noteText = `${shareText}\\n\\n(تم تحميل صورة بطاقة الـ QR على جهازك، يمكنك إرفاقها هنا)`;
+        const waUrl = `https://wa.me/${studentPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(noteText)}`;
+        window.open(waUrl, '_blank');
+      } else if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'بطاقة الطالب',
+          text: shareText,
+        });
+      } else {
+        const downloadUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = `student-card-${data.studentCode}.png`;
+        link.click();
+        URL.revokeObjectURL(downloadUrl);
 
-              const noteText = `${shareText}\n\n(تم تحميل صورة بطاقة الـ QR على جهازك، يمكنك إرفاقها هنا)`;
-              const waUrl = `https://wa.me/${studentPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(noteText)}`;
-              window.open(waUrl, '_blank');
-            } else if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-              await navigator.share({
-                files: [file],
-                title: 'بطاقة الطالب',
-                text: shareText,
-              });
-            } else {
-              const downloadUrl = DOMURL.createObjectURL(blob);
-              const link = document.createElement('a');
-              link.href = downloadUrl;
-              link.download = `student-card-${data.studentCode}.png`;
-              link.click();
-              DOMURL.revokeObjectURL(downloadUrl);
-
-              alert('تم تحميل صورة البطاقة. يمكنك الآن مشاركتها.');
-            }
-          }, 'image/png');
-        }
-        DOMURL.revokeObjectURL(url);
-      };
-      img.src = url;
+        alert('تم تحميل صورة البطاقة. يمكنك الآن مشاركتها.');
+      }
     } catch (error) {
       console.error('Error sharing:', error);
       alert('حدث خطأ أثناء محاولة المشاركة.');
@@ -127,24 +110,28 @@ export function StudentQrBadge({
   };
 
   return (
-    <div className="flex flex-col items-center border-none rounded-3xl shadow-sm ring-1 ring-slate-100 relative overflow-hidden bg-gradient-to-b from-white to-slate-50">
-      <div ref={badgeRef} className="flex flex-col items-center w-full p-8 pb-6 relative bg-white">
-        <div className="absolute top-0 w-full h-2 bg-gradient-to-r from-primary-400 to-primary-600"></div>
+    <div className="flex flex-col items-center w-full max-w-md mx-auto space-y-6">
+      <div 
+        ref={badgeRef} 
+        className="flex flex-col items-center w-full p-8 pb-10 relative bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden"
+      >
+        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-primary-400 to-primary-600"></div>
 
-        <div className="bg-white p-5 rounded-2xl shadow-sm ring-1 ring-slate-100 mb-6 group hover:shadow-md transition-shadow mt-2">
-          <QRCode value={data.qrCodeToken} size={220} className="group-hover:scale-105 transition-transform duration-300" />
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-6 mt-2">
+          <QRCode value={data.qrCodeToken} size={220} />
         </div>
-        <div className="text-center w-full mt-2">
-          <h3 className="text-xl font-bold text-slate-900 mb-2 leading-tight">{data.fullName}</h3>
-          <div className="inline-block bg-primary-50 py-1.5 px-4 rounded-md border border-primary-100">
-            <span className="text-primary-600 font-mono text-sm tracking-wider font-bold">
+        
+        <div className="flex flex-col items-center justify-center w-full gap-3">
+          <h3 className="text-xl font-bold text-slate-900 leading-tight text-center m-0">{data.fullName}</h3>
+          <div className="inline-flex items-center justify-center bg-primary-50 py-2 px-6 rounded-xl border border-primary-100 mx-auto" style={{ direction: 'ltr' }}>
+            <span className="text-primary-700 font-mono text-base font-bold m-0 text-center">
               {data.studentCode}
             </span>
           </div>
         </div>
       </div>
 
-      <div className="w-full p-8 pt-2">
+      <div className="w-full">
         {showConfirm ? (
           <div className="flex flex-col items-center space-y-4 p-5 bg-amber-50 border border-amber-200 rounded-2xl w-full">
             <p className="text-sm text-amber-800 text-center font-medium leading-relaxed">
