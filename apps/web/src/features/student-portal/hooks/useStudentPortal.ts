@@ -28,14 +28,14 @@ export function useStudentQrCode() {
 export function useStudentCourses() {
   return useQuery({
     queryKey: ['student-courses'],
-    queryFn: () => apiClient.get('/courses/my-courses'),
+    queryFn: () => apiClient<any>('/courses/my-courses'),
   });
 }
 
 export function useStudentAssessments() {
   return useQuery({
     queryKey: ['student-assessments'],
-    queryFn: () => apiClient.get('/assessments'),
+    queryFn: () => apiClient<any>('/assessments'),
   });
 }
 
@@ -45,7 +45,7 @@ export function useStudentPayments() {
 
   return useQuery({
     queryKey: ['student-payments', studentId],
-    queryFn: () => apiClient.get(`/subscriptions/student/${studentId}`),
+    queryFn: () => apiClient<any>(`/subscriptions/student/${studentId}`),
     enabled: !!studentId,
   });
 }
@@ -56,7 +56,7 @@ export function useStudentAttendance() {
 
   return useQuery({
     queryKey: ['student-attendance', studentId],
-    queryFn: () => apiClient.get(`/attendance/student/${studentId}`),
+    queryFn: () => apiClient<any>(`/attendance/student/${studentId}`),
     enabled: !!studentId,
   });
 }

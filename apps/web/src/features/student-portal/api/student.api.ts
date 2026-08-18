@@ -1,8 +1,8 @@
 import { apiClient } from '@/lib/api/client';
-import { User, StudentProfile } from '@/features/students/types/students.types';
+import { StudentDetail } from '@/features/students/types/students.types';
 
 export interface StudentDashboardStats {
-  profile: StudentProfile & { user: User };
+  profile: StudentDetail;
   attendanceRate: number;
   upcomingSessions: any[];
   upcomingAssessments: any[];
@@ -11,10 +11,10 @@ export interface StudentDashboardStats {
 
 export const studentApi = {
   getProfile: async (studentId: string) => {
-    return apiClient.get(`/students/${studentId}`);
+    return apiClient<StudentDetail>(`/students/${studentId}`);
   },
   
   getQrCode: async (studentId: string) => {
-    return apiClient.get(`/students/${studentId}/qr-code`);
+    return apiClient<any>(`/students/${studentId}/qr-code`);
   },
 };
