@@ -5,6 +5,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -74,5 +75,16 @@ export class SchedulesController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.schedulesService.getGroupSessions(groupId, user);
+  }
+
+  @Get('today-sessions')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Get all sessions for today across all groups, auto-generating if needed' })
+  async getTodaySessions(
+    @Query('academicStage') academicStage: string,
+    @Query('gradeLevel') gradeLevel: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.schedulesService.getTodaySessionsWithAutoGenerate(user, academicStage, gradeLevel);
   }
 }

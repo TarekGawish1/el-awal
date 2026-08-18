@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchGroupSessions,
+  fetchTodaySessions,
   fetchSessionReport,
   scanQrAttendance,
   recordManualBatch,
@@ -12,6 +13,13 @@ export function useGroupSessions(groupId: string | null) {
     queryKey: ['groups', groupId, 'sessions'],
     queryFn: () => fetchGroupSessions(groupId!),
     enabled: !!groupId,
+  });
+}
+
+export function useTodaySessions(academicStage?: string, gradeLevel?: string) {
+  return useQuery({
+    queryKey: ['sessions', 'today', academicStage, gradeLevel],
+    queryFn: () => fetchTodaySessions(academicStage, gradeLevel),
   });
 }
 
