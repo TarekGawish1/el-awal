@@ -30,6 +30,15 @@ const gradeOptions: Record<string, { label: string; value: string }[]> = {
   ],
 };
 
+function formatTime12h(time24?: string) {
+  if (!time24) return '';
+  const [h, m] = time24.split(':').map(Number);
+  if (isNaN(h)) return time24;
+  const ampm = h < 12 ? 'ص' : 'م';
+  const h12 = h % 12 || 12;
+  return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
+}
+
 export default function TeacherAttendancePage() {
   const [academicStage, setAcademicStage] = useState<string>('');
   const [gradeLevel, setGradeLevel] = useState<string>('');
@@ -143,8 +152,9 @@ export default function TeacherAttendancePage() {
                   { label: '-- اختر المجموعة لبدء الرصد --', value: '' },
                   ...sessions.map((s: any) => {
                     const groupName = s.group?.name || 'مجموعة';
+                    const timeLabel = s.startTime ? ` (الساعة ${formatTime12h(s.startTime)})` : '';
                     return {
-                      label: `${groupName} - ${s.startTime || ''}`,
+                      label: `${groupName}${timeLabel}`,
                       value: s.id,
                     };
                   })
