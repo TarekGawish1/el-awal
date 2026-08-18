@@ -282,18 +282,21 @@ export class AttendanceService {
         excusedCount,
         attendanceRatePercentage: attendanceRate,
       },
-      records: session.attendanceRecords.map((r) => ({
-        id: r.id,
-        studentId: r.studentId,
-        studentCode: r.student.studentCode,
-        fullName: r.student.user.fullName,
-        phone: r.student.user.phone,
-        status: r.status,
-        recordingMethod: r.recordingMethod,
-        recordedAt: r.recordedAt,
-        recordedBy: r.recordedBy.fullName,
-        notes: r.notes,
-      })),
+      records: session.group.enrollments.map((e) => {
+        const r = session.attendanceRecords.find((ar) => ar.studentId === e.studentId);
+        return {
+          id: r?.id || `unrecorded-${e.studentId}`,
+          studentId: e.studentId,
+          studentCode: e.student.studentCode,
+          fullName: e.student.user.fullName,
+          phone: e.student.user.phone,
+          status: r?.status || null,
+          recordingMethod: r?.recordingMethod || null,
+          recordedAt: r?.recordedAt || null,
+          recordedBy: r?.recordedBy?.fullName || null,
+          notes: r?.notes || null,
+        };
+      }),
     };
   }
 

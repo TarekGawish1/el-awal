@@ -19,7 +19,9 @@ export function ManualAttendanceRoster({ sessionId, records }: ManualAttendanceR
   useEffect(() => {
     const initialState: Record<string, AttendanceStatus> = {};
     records.forEach((r) => {
-      initialState[r.studentId] = r.status;
+      if (r.status) {
+        initialState[r.studentId] = r.status;
+      }
     });
     setLocalRecords(initialState);
     setHasChanges(false);
@@ -32,10 +34,12 @@ export function ManualAttendanceRoster({ sessionId, records }: ManualAttendanceR
 
   const handleSave = () => {
     const payload: BatchAttendanceDto = {
-      records: Object.entries(localRecords).map(([studentId, status]) => ({
-        studentId,
-        status,
-      })),
+      records: Object.entries(localRecords)
+        .filter(([_, status]) => status !== null)
+        .map(([studentId, status]) => ({
+          studentId,
+          status,
+        })),
     };
 
     mutate({ sessionId, payload }, {

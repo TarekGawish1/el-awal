@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
@@ -56,6 +56,46 @@ export default function TeacherAttendancePage() {
     isLoading: isLoadingReport,
     isError: isErrorReport
   } = useSessionReport(selectedSessionId);
+
+  useEffect(() => {
+    if (sessions && sessions.length > 0 && !selectedSessionId && !academicStage && !gradeLevel) {
+      const now = new Date();
+      const nowMins = now.getHours() * 60 + now.getMinutes();
+
+      let activeSession: any = null;
+      let minDiff = Infinity;
+
+      for (const s of sessions) {
+        if (!s.startTime) continue;
+        const [h, m] = s.startTime.split(':').map(Number);
+        if (isNaN(h)) continue;
+        
+        const sessionMins = h * 60 + m;
+        const diff = Math.abs(sessionMins - nowMins);
+        
+        // Active window: within 90 minutes before or after
+        if (diff <= 90 && diff < minDiff) {
+          minDiff = diff;
+          activeSession = s;
+        }
+      }
+
+      if (activeSession) {
+        const activeGrade = activeSession.group?.gradeLevel;
+        if (activeGrade) {
+          let stage = '';
+          if (activeGrade.includes('الابتدائي')) stage = 'PRIMARY';
+          else if (activeGrade.includes('الإعدادي')) stage = 'MIDDLE';
+          else if (activeGrade.includes('الثانوي')) stage = 'SECONDARY';
+
+          if (stage) setAcademicStage(stage);
+          setGradeLevel(activeGrade);
+        }
+        // Allow the filtered dropdowns to render first, then select the session
+        setTimeout(() => setSelectedSessionId(activeSession.id), 0);
+      }
+    }
+  }, [sessions, selectedSessionId, academicStage, gradeLevel]);
 
   const handleStageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setAcademicStage(e.target.value);
