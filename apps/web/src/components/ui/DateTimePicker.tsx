@@ -104,8 +104,8 @@ export function DateTimePicker({ value, onChange, placeholder = 'اختر الت
       }
     }
     
-    // Format to YYYY-MM-DDTHH:mm
-    const dateStr = `${newDate.getFullYear()}-${(newDate.getMonth() + 1).toString().padStart(2, '0')}-${newDate.getDate().toString().padStart(2, '0')}T${timeStr}`;
+    // Format to YYYY-MM-DDTHH:mm:00.000Z
+    const dateStr = `${newDate.getFullYear()}-${(newDate.getMonth() + 1).toString().padStart(2, '0')}-${newDate.getDate().toString().padStart(2, '0')}T${timeStr}:00.000Z`;
     onChange(dateStr);
   };
 
@@ -119,7 +119,7 @@ export function DateTimePicker({ value, onChange, placeholder = 'اختر الت
     dateToUse.setHours(parseInt(h, 10));
     dateToUse.setMinutes(parseInt(m, 10));
     
-    const outStr = `${dateToUse.getFullYear()}-${(dateToUse.getMonth() + 1).toString().padStart(2, '0')}-${dateToUse.getDate().toString().padStart(2, '0')}T${timeStr}`;
+    const outStr = `${dateToUse.getFullYear()}-${(dateToUse.getMonth() + 1).toString().padStart(2, '0')}-${dateToUse.getDate().toString().padStart(2, '0')}T${timeStr}:00.000Z`;
     onChange(outStr);
   };
 

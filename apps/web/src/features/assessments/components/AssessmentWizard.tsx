@@ -104,8 +104,23 @@ export function AssessmentWizard() {
 
   const onSubmit = (data: CreateAssessmentFormData, isPublished: boolean) => {
     const payloadQuestions = data.questions.map((q, idx) => ({ ...q, questionNumber: idx + 1, displayOrder: idx }));
+    
+    // Scrub empty fields
+    const payload: any = {
+      ...data,
+      type: 'EXAM',
+      isPublished,
+      questions: payloadQuestions,
+    };
+    
+    if (!payload.startDate) delete payload.startDate;
+    if (!payload.dueDate) delete payload.dueDate;
+    if (!payload.academicStage) delete payload.academicStage;
+    if (!payload.gradeLevel) delete payload.gradeLevel;
+    if (!payload.durationMinutes) delete payload.durationMinutes;
+
     createAssessment(
-      { ...data, type: 'EXAM', isPublished, questions: payloadQuestions } as any,
+      payload,
       {
         onSuccess: (res: any) => {
           toast.success(isPublished ? 'تم إنشاء ونشر الاختبار بنجاح' : 'تم حفظ الاختبار كمسودة');
@@ -128,7 +143,7 @@ export function AssessmentWizard() {
 
   return (
     <FormProvider {...methods}>
-      <div className="max-w-4xl mx-auto pb-20">
+      <div className="max-w-4xl mx-auto pb-64">
         
         {/* Progress Stepper */}
         <div className="mb-12 relative">
