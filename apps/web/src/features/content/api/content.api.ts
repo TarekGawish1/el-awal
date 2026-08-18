@@ -18,18 +18,28 @@ export async function generatePresignedUrl(payload: PresignedUploadPayload): Pro
   });
 }
 
-export async function uploadFileToR2(uploadUrl: string, file: File): Promise<void> {
+export async function uploadFileToR2(uploadUrl: string, file: File, contentType?: string): Promise<void> {
+  const mimeType = contentType || file.type || 'application/octet-stream';
   const response = await fetch(uploadUrl, {
     method: 'PUT',
     body: file,
     headers: {
-      'Content-Type': file.type,
+      'Content-Type': mimeType,
     },
   });
 
   if (!response.ok) {
-    throw new Error('فشل رفع الملف. يرجى المحاولة مرة أخرى.');
+    const errText = await response.text().catch(() => '');
+    console.error('R2 direct upload error:', response.status, errText);
+    throw new Error(`فشل رفع الملف (${response.status}). يرجى التحقق من اتصالك والمحاولة مرة أخرى.`);
   }
+}
+
+export async function uploadContentDirectly(formData: FormData): Promise<EducationalContent> {
+  return apiClient<EducationalContent>('/content/upload-direct', {
+    method: 'POST',
+    body: formData,
+  });
 }
 
 export async function createContent(payload: CreateContentPayload): Promise<EducationalContent> {

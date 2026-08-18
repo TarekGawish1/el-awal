@@ -8,8 +8,12 @@ import {
   Delete,
   HttpCode,
   HttpStatus,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { ContentService } from '../services/content.service';
 import { PresignedUploadDto } from '../dto/presigned-upload.dto';
 import { CreateContentDto } from '../dto/create-content.dto';
@@ -25,6 +29,38 @@ import { UserRole, ContentType } from '@prisma/client';
 @Controller('content')
 export class ContentController {
   constructor(private readonly contentService: ContentService) {}
+
+  @Post('upload-direct')
+  @UseInterceptors(FileInterceptor('file'))
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Direct multipart file upload with automatic R2 storage and database persistence' })
+  async uploadDirect(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: any,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (!file) {
+      throw new BadRequestException('الملف مطلوب للرفع');
+    }
+
+    return this.contentService.uploadAndCreateContent(
+      user.teacherProfileId || user.id,
+      file,
+      {
+        title: body.title,
+        description: body.description,
+        contentType: (body.contentType as ContentType) || ContentType.FILE,
+        gradeLevel: body.gradeLevel || undefined,
+        academicYear: body.academicYear || undefined,
+        academicTerm: body.academicTerm || undefined,
+        groupId: body.groupId || undefined,
+        sessionId: body.sessionId || undefined,
+        sessionTopic: body.sessionTopic || undefined,
+        lessonId: body.lessonId || undefined,
+      },
+    );
+  }
 
   @Post('presigned-upload-url')
   @HttpCode(HttpStatus.OK)

@@ -118,6 +118,49 @@ export class ContentService {
   }
 
   /**
+   * Directly uploads buffer to Cloudflare R2 and creates the EducationalContent record in one shot.
+   */
+  async uploadAndCreateContent(
+    teacherId: string,
+    file: Express.Multer.File,
+    meta: {
+      title: string;
+      description?: string;
+      contentType: ContentType;
+      gradeLevel?: string;
+      academicYear?: string;
+      academicTerm?: string;
+      groupId?: string;
+      sessionId?: string;
+      sessionTopic?: string;
+      lessonId?: string;
+    },
+  ) {
+    const fileExt = file.originalname.split('.').pop() || 'bin';
+    const uniqueKey = `courses/${teacherId}/${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+    const contentType = file.mimetype || 'application/octet-stream';
+
+    const uploadRes = await this.storageService.uploadBuffer(uniqueKey, file.buffer, contentType);
+
+    return this.createContent(teacherId, {
+      title: meta.title,
+      description: meta.description,
+      contentType: meta.contentType,
+      fileKey: uploadRes.fileKey,
+      fileUrl: uploadRes.publicUrl,
+      fileSize: file.size,
+      mimeType: contentType,
+      gradeLevel: meta.gradeLevel,
+      academicYear: meta.academicYear,
+      academicTerm: meta.academicTerm,
+      groupId: meta.groupId,
+      sessionId: meta.sessionId,
+      sessionTopic: meta.sessionTopic,
+      lessonId: meta.lessonId,
+    });
+  }
+
+  /**
    * Lists instructor's uploaded materials with academic period, grade level, group, session, or content type filtering.
    */
   async listTeacherContent(
