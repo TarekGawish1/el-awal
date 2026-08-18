@@ -1,6 +1,7 @@
 import { ApiResponse, ProblemDetailsError } from '@/types/api/api.types';
 import { API_BASE_URL } from './endpoints';
 import { ApiError } from './errors';
+import { getStoredAccessToken, clearStoredTokens } from '@/features/auth/utils/auth-tokens';
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
@@ -38,7 +39,7 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
 
   // Attach Bearer Token ONLY if request is destined for internal API base
   if (isInternalApi) {
-    const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('el_awal_token') : null);
+    const authToken = token || getStoredAccessToken();
     if (authToken) {
       defaultHeaders['Authorization'] = `Bearer ${authToken}`;
     }
@@ -61,7 +62,11 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
     }
 
     if (response.status === 401 && typeof window !== 'undefined') {
-      localStorage.removeItem('el_awal_token');
+      clearStoredTokens();
+      // Avoid infinite redirects if already on login page
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
     }
 
     const json = await response.json();

@@ -227,4 +227,86 @@ export class SchedulesService {
       },
     });
   }
+
+  /**
+   * Retrieves all sessions for today for the user, auto-generating them if missing.
+   */
+  async getTodaySessionsWithAutoGenerate(
+    user: AuthenticatedUser,
+    academicStage?: string,
+    gradeLevel?: string,
+  ) {
+    const today = new Date();
+    // Normalize to UTC midnight for consistent date matching
+    const sessionDateOnly = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+    const dayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
+
+    const whereGroup: any = { isActive: true };
+    
+    if (user.role === UserRole.TEACHER) {
+      const teacherId = user.teacherProfileId || user.id;
+      whereGroup.OR = [
+        { teacherId },
+        { teacher: { id: teacherId } },
+      ];
+    }
+
+    if (gradeLevel) whereGroup.gradeLevel = gradeLevel;
+
+    whereGroup.schedules = {
+      some: { dayOfWeek }
+    };
+
+    const groupsWithSchedules = await this.prisma.academicGroup.findMany({
+      where: whereGroup,
+      include: {
+        schedules: {
+          where: { dayOfWeek }
+        }
+      }
+    });
+
+    const generatedSessions: any[] = [];
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const group of groupsWithSchedules) {
+        for (const schedule of group.schedules) {
+          let session = await tx.lessonSession.findFirst({
+            where: {
+              groupId: group.id,
+              sessionDate: sessionDateOnly,
+              startTime: schedule.startTime,
+            },
+            include: {
+              group: { select: { id: true, name: true, gradeLevel: true } },
+              _count: { select: { attendanceRecords: true } }
+            }
+          });
+
+          if (!session) {
+            const dateStr = sessionDateOnly.toISOString().split('T')[0];
+            const topic = `حصة ${dateStr}`;
+
+            session = await tx.lessonSession.create({
+              data: {
+                groupId: group.id,
+                scheduleId: schedule.id,
+                sessionDate: sessionDateOnly,
+                startTime: schedule.startTime,
+                topic,
+              },
+              include: {
+                group: { select: { id: true, name: true, gradeLevel: true } },
+                _count: { select: { attendanceRecords: true } }
+              }
+            });
+          }
+          generatedSessions.push(session);
+        }
+      }
+    });
+
+    generatedSessions.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+    return generatedSessions;
+  }
 }

@@ -224,7 +224,8 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
           </button>
         </div>
         
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+          <div className="p-6 overflow-y-auto flex-1">
           {updateGroup.isError && (
             <Alert variant="error" className="mb-6">
               {(updateGroup.error as any)?.message || 'حدث خطأ أثناء تعديل المجموعة'}
@@ -397,18 +398,19 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
               />
             </div>
           </div>
+          </div>
 
           <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2 shrink-0">
-          <Button type="button" variant="outline" onClick={onClose} disabled={updateGroup.isPending}>
-            إلغاء
-          </Button>
-          <Button type="submit" disabled={updateGroup.isPending || !formData.gradeLevel || !formData.name}>
-            {updateGroup.isPending ? (
-              <Loader2 className="w-4 h-4 ml-2 animate-spin" />
-            ) : null}
-            حفظ التعديلات
-          </Button>
-        </div>
+            <Button type="button" variant="outline" onClick={onClose} disabled={updateGroup.isPending}>
+              إلغاء
+            </Button>
+            <Button type="submit" disabled={updateGroup.isPending || !formData.gradeLevel || !formData.name}>
+              {updateGroup.isPending ? (
+                <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+              ) : null}
+              حفظ التعديلات
+            </Button>
+          </div>
         </form>
       </div>
     </div>

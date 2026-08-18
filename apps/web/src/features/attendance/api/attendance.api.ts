@@ -11,6 +11,15 @@ export async function fetchGroupSessions(groupId: string): Promise<LessonSession
   return await apiClient<LessonSession[]>(API_ENDPOINTS.GROUPS.SESSIONS(groupId));
 }
 
+export async function fetchTodaySessions(academicStage?: string, gradeLevel?: string): Promise<LessonSession[]> {
+  const query = new URLSearchParams();
+  if (academicStage) query.append('academicStage', academicStage);
+  if (gradeLevel) query.append('gradeLevel', gradeLevel);
+  const qs = query.toString();
+  const url = `${API_ENDPOINTS.SCHEDULES.TODAY_SESSIONS}${qs ? `?${qs}` : ''}`;
+  return await apiClient<LessonSession[]>(url);
+}
+
 export async function fetchSessionReport(sessionId: string): Promise<SessionReport> {
   return await apiClient<SessionReport>(API_ENDPOINTS.ATTENDANCE.REPORTS(sessionId));
 }

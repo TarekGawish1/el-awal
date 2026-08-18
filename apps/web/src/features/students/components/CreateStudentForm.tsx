@@ -40,7 +40,7 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
     }
     
     const prefix = `${stageCode}${gradeNum}`;
-    const phonePart = phone ? phone.replace(/\D/g, '').slice(-4) : '1234'; // Default to 1234 if no phone
+    const phonePart = phone ? phone.replace(/\D/g, '').slice(-6) : '123456';
     
     if (!prefix) return phonePart;
     return `${prefix}${phonePart}`;
@@ -132,8 +132,24 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
           onSuccess();
         },
         onError: (err: any) => {
-          const msg = err.response?.data?.message || 'Failed to create student.';
-          setErrorMsg(Array.isArray(msg) ? msg[0] : msg);
+          let msg = err.message || err.response?.data?.message || 'حدث خطأ أثناء التسجيل';
+          msg = Array.isArray(msg) ? msg[0] : msg;
+          
+          if (typeof msg === 'string') {
+            if (msg.includes('is already registered')) {
+              msg = msg.replace('Phone number', 'رقم الهاتف').replace('is already registered', 'مسجل لدينا مسبقاً');
+            } else if (msg.includes('must be a valid Egyptian mobile phone number')) {
+              msg = 'يجب إدخال رقم هاتف مصري صحيح (مثال: 01012345678)';
+            } else if (msg.includes('Full name is required')) {
+              msg = 'الاسم الرباعي مطلوب';
+            } else if (msg.includes('must be at least 6 characters')) {
+              msg = 'كلمة المرور يجب أن تتكون من 6 أحرف على الأقل';
+            } else if (msg.includes('Failed to create student')) {
+              msg = 'حدث خطأ أثناء إضافة الطالب، يرجى المحاولة مرة أخرى.';
+            }
+          }
+          
+          setErrorMsg(msg);
         },
       }
     );

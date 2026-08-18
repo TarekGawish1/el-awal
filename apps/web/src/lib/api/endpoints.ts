@@ -25,6 +25,9 @@ export const API_ENDPOINTS = {
     SCHEDULES: (id: string) => `/schedules/group/${id}`,
     SESSIONS: (id: string) => `/schedules/group/${id}/sessions`,
   },
+  SCHEDULES: {
+    TODAY_SESSIONS: '/schedules/today-sessions',
+  },
   STUDENTS: {
     LIST: '/students',
     DETAIL: (id: string) => `/students/${id}`,
