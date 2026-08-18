@@ -17,6 +17,7 @@ import { QuestionType } from '../types/assessments.types';
 import { AssessmentQuestionEditor } from './AssessmentQuestionEditor';
 import { useCreateAssessment } from '../hooks/use-assessments';
 import { useGroups } from '../../groups/hooks/useGroups';
+import { useStoredAcademicPeriod } from '../../groups/hooks/useAcademicPeriod';
 import toast from 'react-hot-toast';
 
 type Step = 'metadata' | 'questions' | 'review';
@@ -65,7 +66,13 @@ export function AssessmentWizard() {
   const selectedGrade = formDataValues.gradeLevel;
   
   const { data: allGroups } = useGroups();
-  const availableGroups = allGroups?.filter(g => g.gradeLevel === selectedGrade) || [];
+  const { activeYear, activeTerm } = useStoredAcademicPeriod(allGroups);
+  
+  const availableGroups = allGroups?.filter(g => 
+    g.gradeLevel === selectedGrade && 
+    g.academicYear === activeYear && 
+    g.academicTerm === activeTerm
+  ) || [];
 
   const gradeOptions: Record<string, { label: string; value: string }[]> = {
     PRIMARY: [
@@ -256,8 +263,10 @@ export function AssessmentWizard() {
                       disabled={!selectedStage}
                       value={formDataValues.gradeLevel || ''}
                       onChange={e => {
-                        methods.setValue('gradeLevel', e.target.value);
-                        methods.setValue('targetGroupIds', []); // Reset groups when grade changes
+                        const newGrade = e.target.value;
+                        methods.setValue('gradeLevel', newGrade);
+                        const groupsForGrade = allGroups?.filter(g => g.gradeLevel === newGrade) || [];
+                        methods.setValue('targetGroupIds', groupsForGrade.map(g => g.id));
                       }}
                       options={[
                         { label: '-- اختر الصف الدراسي --', value: '' },
