@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Textarea } from '@/components/ui/Textarea';
 import { Alert } from '@/components/ui/Alert';
+import { Select } from '@/components/ui/Select';
+import { DateTimePicker } from '@/components/ui/DateTimePicker';
 import { createAssessmentSchema, CreateAssessmentFormData } from '../types/assessments.schema';
 import { QuestionType } from '../types/assessments.types';
 import { AssessmentQuestionEditor } from './AssessmentQuestionEditor';
@@ -29,6 +31,7 @@ export function AssessmentWizard() {
     defaultValues: {
       title: '',
       description: '',
+      totalScore: 100,
       passingScore: 50,
       durationMinutes: 60,
       isAutoGraded: true,
@@ -42,7 +45,9 @@ export function AssessmentWizard() {
           correctAnswer: '',
           displayOrder: 0,
         }
-      ]
+      ],
+      academicStage: '',
+      gradeLevel: '',
     },
     mode: 'onTouched'
   });
@@ -53,11 +58,35 @@ export function AssessmentWizard() {
     name: 'questions'
   });
 
+  const formDataValues = methods.watch();
+  const selectedStage = formDataValues.academicStage;
+
+  const gradeOptions: Record<string, { label: string; value: string }[]> = {
+    PRIMARY: [
+      { label: 'الصف الأول الابتدائي', value: 'الصف الأول الابتدائي' },
+      { label: 'الصف الثاني الابتدائي', value: 'الصف الثاني الابتدائي' },
+      { label: 'الصف الثالث الابتدائي', value: 'الصف الثالث الابتدائي' },
+      { label: 'الصف الرابع الابتدائي', value: 'الصف الرابع الابتدائي' },
+      { label: 'الصف الخامس الابتدائي', value: 'الصف الخامس الابتدائي' },
+      { label: 'الصف السادس الابتدائي', value: 'الصف السادس الابتدائي' },
+    ],
+    MIDDLE: [
+      { label: 'الصف الأول الإعدادي', value: 'الصف الأول الإعدادي' },
+      { label: 'الصف الثاني الإعدادي', value: 'الصف الثاني الإعدادي' },
+      { label: 'الصف الثالث الإعدادي', value: 'الصف الثالث الإعدادي' },
+    ],
+    SECONDARY: [
+      { label: 'الصف الأول الثانوي', value: 'الصف الأول الثانوي' },
+      { label: 'الصف الثاني الثانوي', value: 'الصف الثاني الثانوي' },
+      { label: 'الصف الثالث الثانوي', value: 'الصف الثالث الثانوي' },
+    ],
+  };
+
   const nextStep = async (step: Step) => {
     let isValid = false;
     
     if (currentStep === 'metadata') {
-      isValid = await trigger(['title', 'description', 'passingScore', 'durationMinutes', 'dueDate']);
+      isValid = await trigger(['title', 'description', 'totalScore', 'passingScore', 'startDate', 'durationMinutes']);
     } else if (currentStep === 'questions') {
       isValid = await trigger('questions');
       if (isValid && fields.length === 0) {
@@ -74,10 +103,9 @@ export function AssessmentWizard() {
   };
 
   const onSubmit = (data: CreateAssessmentFormData, isPublished: boolean) => {
-    const totalScore = data.questions.reduce((sum, q) => sum + (Number(q.points) || 0), 0);
     const payloadQuestions = data.questions.map((q, idx) => ({ ...q, questionNumber: idx + 1, displayOrder: idx }));
     createAssessment(
-      { ...data, type: 'EXAM', isPublished, totalScore, questions: payloadQuestions } as any,
+      { ...data, type: 'EXAM', isPublished, questions: payloadQuestions } as any,
       {
         onSuccess: (res) => {
           toast.success(isPublished ? 'تم إنشاء ونشر الاختبار بنجاح' : 'تم حفظ الاختبار كمسودة');
@@ -91,7 +119,7 @@ export function AssessmentWizard() {
   };
 
   const formData = getValues();
-  const totalScore = formData.questions?.reduce((sum, q) => sum + (Number(q.points) || 0), 0) || 0;
+  const questionsSum = formData.questions?.reduce((sum, q) => sum + (Number(q.points) || 0), 0) || 0;
 
   return (
     <FormProvider {...methods}>
@@ -160,16 +188,61 @@ export function AssessmentWizard() {
                   {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title.message}</p>}
                 </div>
 
-                <div>
-                  <Label className="mb-2 block">الوصف (اختياري)</Label>
-                  <Textarea 
-                    {...methods.register('description')} 
-                    placeholder="تعليمات أو وصف إضافي للاختبار"
-                    rows={3}
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="mb-2 block">المرحلة الدراسية (اختياري)</Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: 'PRIMARY', label: 'الابتدائية', icon: '✏️' },
+                        { id: 'MIDDLE', label: 'الإعدادية', icon: '🏫' },
+                        { id: 'SECONDARY', label: 'الثانوية', icon: '🎓' },
+                      ].map((stage) => (
+                        <button
+                          key={stage.id}
+                          type="button"
+                          onClick={() => {
+                            methods.setValue('academicStage', stage.id);
+                            methods.setValue('gradeLevel', '');
+                          }}
+                          className={`flex flex-col items-center justify-center p-2 rounded-xl border-2 transition-all duration-200 ${
+                            selectedStage === stage.id
+                              ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-sm ring-2 ring-primary-50'
+                              : 'border-slate-100 bg-slate-50/50 hover:border-slate-200 text-slate-500'
+                          }`}
+                        >
+                          <span className="text-xl mb-1">{stage.icon}</span>
+                          <span className="font-bold text-xs">{stage.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <Select
+                      label="الصف الدراسي (اختياري)"
+                      name="gradeLevel"
+                      disabled={!selectedStage}
+                      value={formDataValues.gradeLevel || ''}
+                      onChange={e => methods.setValue('gradeLevel', e.target.value)}
+                      options={[
+                        { label: '-- اختر الصف الدراسي --', value: '' },
+                        ...(selectedStage ? gradeOptions[selectedStage] : []),
+                      ]}
+                    />
+                  </div>
                 </div>
 
+
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <Label className="mb-2 block">الدرجة الكلية <span className="text-red-500">*</span></Label>
+                    <Input 
+                      type="number"
+                      {...methods.register('totalScore')} 
+                      className={errors.totalScore ? 'border-red-500' : ''}
+                    />
+                    {errors.totalScore && <p className="text-red-500 text-sm mt-1">{errors.totalScore.message}</p>}
+                  </div>
                   <div>
                     <Label className="mb-2 block">درجة النجاح <span className="text-red-500">*</span></Label>
                     <Input 
@@ -179,7 +252,19 @@ export function AssessmentWizard() {
                     />
                     {errors.passingScore && <p className="text-red-500 text-sm mt-1">{errors.passingScore.message}</p>}
                   </div>
-                  
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <Label className="mb-2 block">موعد بدء الاختبار (اختياري)</Label>
+                    <DateTimePicker
+                      value={formDataValues.startDate}
+                      onChange={(val) => {
+                        methods.setValue('startDate', val, { shouldValidate: true, shouldDirty: true });
+                      }}
+                      placeholder="اختر موعد البدء..."
+                    />
+                  </div>
                   <div>
                     <Label className="mb-2 block">مدة الاختبار (بالدقائق)</Label>
                     <Input 
@@ -190,13 +275,6 @@ export function AssessmentWizard() {
                   </div>
                 </div>
 
-                <div>
-                  <Label className="mb-2 block">تاريخ التسليم (اختياري)</Label>
-                  <Input 
-                    type="datetime-local"
-                    {...methods.register('dueDate')} 
-                  />
-                </div>
               </div>
 
               <div className="pt-6 mt-6 border-t border-slate-100 flex justify-end">
@@ -216,9 +294,9 @@ export function AssessmentWizard() {
                   <p className="text-slate-500 text-sm">أضف أسئلة الاختبار وحدد الإجابات الصحيحة والدرجات.</p>
                 </div>
                 <div className="bg-white border border-slate-200 px-4 py-2 rounded-lg flex items-center gap-3 shadow-sm">
-                  <div className="text-sm font-medium text-slate-500">إجمالي الدرجات:</div>
-                  <div className={`text-lg font-bold ${totalScore < (formData.passingScore || 0) ? 'text-red-500' : 'text-primary'}`}>
-                    {totalScore}
+                  <div className="text-sm font-medium text-slate-500">إجمالي درجات الأسئلة:</div>
+                  <div className={`text-lg font-bold ${questionsSum !== (formDataValues.totalScore || 0) ? 'text-amber-500' : 'text-primary'}`} title="الدرجة الكلية المحددة للاختبار">
+                    {questionsSum} / {formDataValues.totalScore}
                   </div>
                 </div>
               </div>
@@ -290,7 +368,7 @@ export function AssessmentWizard() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                   <div className="bg-white p-3 rounded-lg border border-slate-100">
                     <span className="text-slate-500 block mb-1">الدرجة الكلية</span>
-                    <span className="font-bold text-slate-800 text-lg">{totalScore}</span>
+                    <span className="font-bold text-slate-800 text-lg">{formData.totalScore}</span>
                   </div>
                   <div className="bg-white p-3 rounded-lg border border-slate-100">
                     <span className="text-slate-500 block mb-1">درجة النجاح</span>

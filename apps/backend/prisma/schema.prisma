@@ -561,6 +561,8 @@ model Assessment {
   groupId         String?        @map("group_id") @db.Uuid
   courseId        String?        @map("course_id") @db.Uuid
   lessonId        String?        @map("lesson_id") @db.Uuid
+  academicStage   String?        @map("academic_stage") @db.VarChar(50)
+  gradeLevel      String?        @map("grade_level") @db.VarChar(50)
   title           String         @map("title") @db.VarChar(255)
   description     String?        @map("description") @db.Text
   type            AssessmentType @map("type")
@@ -569,6 +571,7 @@ model Assessment {
   durationMinutes Int?           @map("duration_minutes")
   isAutoGraded    Boolean        @default(false) @map("is_auto_graded")
   isPublished     Boolean        @default(true) @map("is_published")
+  startDate       DateTime?      @map("start_date") @db.Timestamptz(6)
   dueDate         DateTime?      @map("due_date") @db.Timestamptz(6)
   createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)

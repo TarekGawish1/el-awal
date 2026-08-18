@@ -72,6 +72,14 @@ export class CreateAssessmentDto {
   durationMinutes?: number;
 
   @ApiPropertyOptional({
+    description: 'Start date and time (ISO format)',
+    example: '2026-09-30T22:00:00.000Z',
+  })
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @ApiPropertyOptional({
     description: 'Submission cut-off date and time (ISO format)',
     example: '2026-09-30T23:59:59.000Z',
   })
@@ -99,6 +107,22 @@ export class CreateAssessmentDto {
   @IsOptional()
   @IsUUID()
   lessonId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Educational Stage',
+    example: 'المرحلة الإعدادية',
+  })
+  @IsOptional()
+  @IsString()
+  academicStage?: string;
+
+  @ApiPropertyOptional({
+    description: 'Grade Level',
+    example: 'الصف الثالث الإعدادي',
+  })
+  @IsOptional()
+  @IsString()
+  gradeLevel?: string;
 
   @ApiPropertyOptional({
     description: 'Whether the assessment is active and visible to students',

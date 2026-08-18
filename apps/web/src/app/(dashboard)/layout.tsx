@@ -189,27 +189,24 @@ export default function DashboardLayout({
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
-            <button className="p-2 text-neutral-600 hover:bg-neutral-100 rounded-full transition-colors relative" aria-label="الإشعارات">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 end-1.5 w-2 h-2 bg-error-500 rounded-full border border-white"></span>
-            </button>
+
 
             <div className="h-8 w-px bg-neutral-200 mx-1 hidden sm:block"></div>
 
             <div className="flex items-center gap-3">
-              <div className="flex flex-col items-end hidden sm:flex text-start">
+              <div className="relative cursor-pointer">
+                <div className="w-10 h-10 rounded-full bg-primary-50 border border-primary-100 text-primary-700 font-bold flex items-center justify-center text-sm shadow-sm transition-transform hover:scale-105">
+                  {user?.fullName ? user.fullName.charAt(0) : 'م'}
+                </div>
+              </div>
+
+              <div className="flex flex-col items-start hidden sm:flex text-start">
                 <span className="text-sm font-bold text-neutral-900 leading-none mb-1">
                   {user?.fullName || 'المستخدم'}
                 </span>
                 <span className="text-[11px] font-medium text-neutral-500 leading-none">
                   {getRoleLabel(user?.role)}
                 </span>
-              </div>
-              
-              <div className="relative cursor-pointer">
-                <div className="w-10 h-10 rounded-full bg-primary-50 border border-primary-100 text-primary-700 font-bold flex items-center justify-center text-sm shadow-sm transition-transform hover:scale-105">
-                  {user?.fullName ? user.fullName.charAt(0) : 'م'}
-                </div>
               </div>
 
               <button

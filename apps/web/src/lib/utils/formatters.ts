@@ -40,7 +40,7 @@ export function formatArabicDate(dateInput: string | Date | undefined | null): s
  */
 export function formatArabicTime(timeInput: string | Date | undefined | null): string {
   if (!timeInput) return '—';
-  
+
   if (typeof timeInput === 'string' && timeInput.includes(':') && !timeInput.includes('T')) {
     // String like "17:00"
     const [hoursStr, minutesStr] = timeInput.split(':');
@@ -67,17 +67,17 @@ export function formatWhatsAppNumber(phone: string | undefined | null, defaultCo
   if (!phone) return '';
   const digits = phone.replace(/[^0-9]/g, '');
   if (!digits) return '';
-  
+
   // If the number starts with 0 and is an Egyptian mobile (e.g., 01xxxxxxxxx), prepend country code (e.g., 20)
   if (digits.startsWith('01') && digits.length === 11) {
     return `2${digits}`;
   }
-  
+
   // If it's already an Egyptian number starting with 201
   if (digits.startsWith('201') && digits.length === 12) {
     return digits;
   }
-  
+
   // Fallback
   return digits;
 }
