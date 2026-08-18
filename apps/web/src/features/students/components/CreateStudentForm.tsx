@@ -121,6 +121,7 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
         fullName: formData.fullName,
         password: formData.password,
         gradeLevel: formData.gradeLevel,
+        academicStage: formData.educationalStage || undefined,
         phone: formData.phone || undefined,
         parentName: formData.parentName || undefined,
         parentPhone: formData.parentPhone || undefined,
