@@ -66,18 +66,10 @@ export function TeacherDashboardContainer() {
     isOffline,
   } = useTeacherDashboard(filters);
 
-  // Handle filter changes and sync to URL params & persistent preferences
+  // Handle filter changes and sync to URL params (local filter view only, does not mutate global system active period)
   const handleFilterChange = (updated: Partial<DashboardFilterState>) => {
     const newFilters = { ...filters, ...updated };
     setFilters(newFilters);
-
-    // Save as persistent default across all platform filters if year or semester changed
-    if (updated.academicYear && updated.academicYear !== 'ALL') {
-      setSelectedYears([updated.academicYear]);
-    }
-    if (updated.academicTerm && updated.academicTerm !== 'ALL') {
-      setSelectedTerms([updated.academicTerm]);
-    }
 
     const params = new URLSearchParams();
     if (newFilters.academicYear) params.set('academicYear', newFilters.academicYear);

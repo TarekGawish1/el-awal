@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -51,13 +51,28 @@ export function StudentList() {
   // Fetch groups to populate group filter options
   const { data: groups } = useGroups();
 
-  // Synchronized Academic Period (Academic Year & Semester)
+  // Synchronized System Academic Period (Read-only from global system switcher)
   const {
-    selectedYears,
-    setSelectedYears,
-    selectedTerms,
-    setSelectedTerms,
+    activeYear,
+    activeTerm,
   } = useStoredAcademicPeriod(groups);
+
+  // Local filter toolbar states initialized with system active period
+  const [selectedYears, setSelectedYears] = useState<string[]>([]);
+  const [selectedTerms, setSelectedTerms] = useState<string[]>([]);
+
+  // Automatically synchronize local filters when global system academic period changes from top navbar
+  useEffect(() => {
+    if (activeYear) {
+      setSelectedYears([activeYear]);
+    }
+  }, [activeYear]);
+
+  useEffect(() => {
+    if (activeTerm) {
+      setSelectedTerms([activeTerm]);
+    }
+  }, [activeTerm]);
 
   const availableYears = useMemo(() => {
     const yearsSet = new Set<string>();
