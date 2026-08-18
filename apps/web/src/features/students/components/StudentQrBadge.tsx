@@ -117,11 +117,13 @@ export function StudentQrBadge({
           <QRCode value={data.qrCodeToken} size={220} className="group-hover:scale-105 transition-transform duration-300" />
         </div>
         
-        <div className="text-center w-full space-y-1">
-          <h3 className="text-xl font-bold text-slate-900">{data.fullName}</h3>
-          <p className="text-primary-600 font-mono text-sm tracking-wider font-medium bg-primary-50 py-1 px-3 rounded-md inline-block">
-            {data.studentCode}
-          </p>
+        <div className="text-center w-full mt-2">
+          <h3 className="text-xl font-bold text-slate-900 mb-2 leading-tight">{data.fullName}</h3>
+          <div className="inline-block bg-primary-50 py-1.5 px-4 rounded-md border border-primary-100">
+            <span className="text-primary-600 font-mono text-sm tracking-wider font-bold">
+              {data.studentCode}
+            </span>
+          </div>
         </div>
       </div>
       
