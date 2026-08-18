@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Search, Layers, AlertCircle } from 'lucide-react';
+import { Plus, Search, Layers, AlertCircle, BookOpen } from 'lucide-react';
 import { useGroups } from '../hooks/useGroups';
 import { GroupCard } from './GroupCard';
 import { CreateGroupModal } from './CreateGroupModal';
@@ -9,6 +9,17 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
+import { Group } from '../types/groups.types';
+
+const STAGE_ORDER = ['المرحلة الابتدائية', 'المرحلة الإعدادية', 'المرحلة الثانوية', 'أخرى'];
+
+const getStageName = (gradeLevel: string) => {
+  if (!gradeLevel) return 'أخرى';
+  if (gradeLevel.includes('الابتدائي')) return 'المرحلة الابتدائية';
+  if (gradeLevel.includes('الإعدادي')) return 'المرحلة الإعدادية';
+  if (gradeLevel.includes('الثانوي')) return 'المرحلة الثانوية';
+  return 'أخرى';
+};
 
 export function GroupList() {
   const { data: groups, isLoading, isError, error, refetch } = useGroups();
@@ -17,8 +28,22 @@ export function GroupList() {
 
   const filteredGroups = groups?.filter(group => 
     group.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    group.gradeLevel.toLowerCase().includes(searchQuery.toLowerCase())
+    (group.gradeLevel && group.gradeLevel.toLowerCase().includes(searchQuery.toLowerCase()))
   ) || [];
+
+  // Group by stage and then by grade
+  const groupedGroups = filteredGroups.reduce((acc, group) => {
+    const stage = getStageName(group.gradeLevel);
+    if (!acc[stage]) acc[stage] = {};
+    if (!acc[stage][group.gradeLevel]) acc[stage][group.gradeLevel] = [];
+    acc[stage][group.gradeLevel].push(group);
+    return acc;
+  }, {} as Record<string, Record<string, Group[]>>);
+
+  // Sort stages
+  const sortedStages = Object.keys(groupedGroups).sort(
+    (a, b) => STAGE_ORDER.indexOf(a) - STAGE_ORDER.indexOf(b)
+  );
 
   return (
     <div className="space-y-6">
@@ -93,9 +118,32 @@ export function GroupList() {
           <p className="text-slate-500">لم يتم العثور على مجموعات تطابق بحثك "{searchQuery}"</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredGroups.map(group => (
-            <GroupCard key={group.id} group={group} />
+        <div className="space-y-8">
+          {sortedStages.map(stage => (
+            <div key={stage} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+                <div className="bg-primary-50 p-2 rounded-lg text-primary-600">
+                  <BookOpen className="w-5 h-5" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-800">{stage}</h2>
+              </div>
+              
+              <div className="space-y-8">
+                {Object.keys(groupedGroups[stage]).sort().map(grade => (
+                  <div key={grade}>
+                    <h3 className="text-lg font-bold text-slate-700 mb-4 flex items-center">
+                      <div className="w-2 h-2 rounded-full bg-primary-500 ml-2"></div>
+                      {grade || 'بدون صف'}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {groupedGroups[stage][grade].map(group => (
+                        <GroupCard key={group.id} group={group} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}
