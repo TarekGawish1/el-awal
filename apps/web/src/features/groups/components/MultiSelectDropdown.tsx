@@ -155,18 +155,20 @@ export function MultiSelectDropdown({
 
           {/* Select All Option */}
           <div className="p-1 border-b border-neutral-100">
-            <label
+            <div
+              role="button"
+              tabIndex={0}
               onClick={handleSelectAll}
-              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 rounded-lg cursor-pointer transition-colors"
+              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 rounded-lg cursor-pointer transition-colors select-none"
             >
               <input
                 type="checkbox"
                 checked={selectedValues.length === 0 || selectedValues.length === options.length}
-                onChange={() => {}}
-                className="w-4 h-4 rounded text-primary-600 focus:ring-primary-500 border-neutral-300 cursor-pointer accent-primary-600"
+                readOnly
+                className="w-4 h-4 rounded text-primary-600 focus:ring-primary-500 border-neutral-300 pointer-events-none accent-primary-600"
               />
               <span>تحديد الكل</span>
-            </label>
+            </div>
           </div>
 
           {/* Options with Checkboxes */}
@@ -176,10 +178,12 @@ export function MultiSelectDropdown({
                 const isChecked = selectedValues.includes(option.value);
 
                 return (
-                  <label
+                  <div
                     key={option.value}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => handleToggleOption(option.value)}
-                    className={`flex items-center justify-between gap-2 px-3 py-2 text-xs rounded-lg cursor-pointer transition-colors ${
+                    className={`flex items-center justify-between gap-2 px-3 py-2 text-xs rounded-lg cursor-pointer transition-colors select-none ${
                       isChecked
                         ? 'bg-primary-50/80 text-primary-900 font-medium'
                         : 'text-neutral-700 hover:bg-neutral-50'
@@ -189,15 +193,15 @@ export function MultiSelectDropdown({
                       <input
                         type="checkbox"
                         checked={isChecked}
-                        onChange={() => {}}
-                        className="w-4 h-4 rounded text-primary-600 focus:ring-primary-500 border-neutral-300 cursor-pointer accent-primary-600"
+                        readOnly
+                        className="w-4 h-4 rounded text-primary-600 focus:ring-primary-500 border-neutral-300 pointer-events-none accent-primary-600"
                       />
                       {option.icon && <span className="shrink-0">{option.icon}</span>}
                       <span className="truncate">{option.label}</span>
                     </div>
 
                     {isChecked && <Check className="w-3.5 h-3.5 text-primary-600 shrink-0" />}
-                  </label>
+                  </div>
                 );
               })
             ) : (
