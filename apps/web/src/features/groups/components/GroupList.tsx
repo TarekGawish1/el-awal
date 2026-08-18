@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Plus, Search, Layers, AlertCircle, BookOpen, MapPin, GraduationCap, RotateCcw } from 'lucide-react';
+import { useState, useMemo, useCallback } from 'react';
+import { Plus, Search, Layers, AlertCircle, BookOpen, MapPin, GraduationCap, Calendar, RotateCcw } from 'lucide-react';
 import { useGroups } from '../hooks/useGroups';
 import { GroupCard } from './GroupCard';
 import { CreateGroupModal } from './CreateGroupModal';
@@ -13,6 +13,27 @@ import { Alert } from '@/components/ui/Alert';
 import { Group } from '../types/groups.types';
 
 const STAGE_ORDER = ['المرحلة الابتدائية', 'المرحلة الإعدادية', 'المرحلة الثانوية', 'أخرى'];
+
+const STAGE_GRADES_MAP: Record<string, string[]> = {
+  'المرحلة الابتدائية': [
+    'الصف الأول الابتدائي',
+    'الصف الثاني الابتدائي',
+    'الصف الثالث الابتدائي',
+    'الصف الرابع الابتدائي',
+    'الصف الخامس الابتدائي',
+    'الصف السادس الابتدائي',
+  ],
+  'المرحلة الإعدادية': [
+    'الصف الأول الإعدادي',
+    'الصف الثاني الإعدادي',
+    'الصف الثالث الإعدادي',
+  ],
+  'المرحلة الثانوية': [
+    'الصف الأول الثانوي',
+    'الصف الثاني الثانوي',
+    'الصف الثالث الثانوي',
+  ],
+};
 
 const getStageName = (gradeLevel: string) => {
   if (!gradeLevel) return 'أخرى';
@@ -27,23 +48,99 @@ export function GroupList() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
+  const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
 
-  // Extract all unique places / locations from all groups
+  // Calculate available grade options dynamically based on selected stages
+  const availableGradeOptions = useMemo(() => {
+    let gradesList: string[] = [];
+
+    if (selectedStages.length > 0) {
+      // If stages are selected, only show grades that belong to those stages
+      selectedStages.forEach((stage) => {
+        if (STAGE_GRADES_MAP[stage]) {
+          gradesList.push(...STAGE_GRADES_MAP[stage]);
+        }
+      });
+    } else {
+      // If no stage selected, show all grades
+      Object.values(STAGE_GRADES_MAP).forEach((grades) => {
+        gradesList.push(...grades);
+      });
+    }
+
+    // Also include any custom grades present in the teacher's groups
+    if (groups && Array.isArray(groups)) {
+      groups.forEach((g) => {
+        if (g.gradeLevel && !gradesList.includes(g.gradeLevel)) {
+          const groupStage = getStageName(g.gradeLevel);
+          if (selectedStages.length === 0 || selectedStages.includes(groupStage)) {
+            gradesList.push(g.gradeLevel);
+          }
+        }
+      });
+    }
+
+    return Array.from(new Set(gradesList)).map((grade) => ({
+      label: grade,
+      value: grade,
+    }));
+  }, [selectedStages, groups]);
+
+  // Handle stage change & automatically prune/keep valid grades
+  const handleStagesChange = useCallback((newStages: string[]) => {
+    setSelectedStages(newStages);
+
+    // If newStages is not empty, filter out any selected grades that don't belong to the new stages
+    if (newStages.length > 0) {
+      setSelectedGrades((prevGrades) =>
+        prevGrades.filter((grade) => {
+          const stage = getStageName(grade);
+          return newStages.includes(stage);
+        })
+      );
+    }
+  }, []);
+
+  // Handle grade change
+  const handleGradesChange = useCallback((newGrades: string[]) => {
+    setSelectedGrades(newGrades);
+  }, []);
+
+  // Extract all unique places / locations from groups
   const availableLocations = useMemo(() => {
     if (!groups || !Array.isArray(groups)) return [];
     const locSet = new Set<string>();
     groups.forEach((g) => {
-      g.schedules?.forEach((s) => {
-        if (s.location && s.location.trim()) {
-          locSet.add(s.location.trim());
-        }
-      });
-    });
-    return Array.from(locSet);
-  }, [groups]);
+      // Only consider locations from groups matching current stage/grade filters if any
+      const stage = getStageName(g.gradeLevel);
+      const stageMatch = selectedStages.length === 0 || selectedStages.includes(stage);
+      const gradeMatch = selectedGrades.length === 0 || selectedGrades.includes(g.gradeLevel);
 
-  // Filter groups by search query, stages, and locations
+      if (stageMatch && gradeMatch) {
+        g.schedules?.forEach((s) => {
+          if (s.location && s.location.trim()) {
+            locSet.add(s.location.trim());
+          }
+        });
+      }
+    });
+
+    // If no locations found with filters, fallback to all locations in all groups
+    if (locSet.size === 0) {
+      groups.forEach((g) => {
+        g.schedules?.forEach((s) => {
+          if (s.location && s.location.trim()) {
+            locSet.add(s.location.trim());
+          }
+        });
+      });
+    }
+
+    return Array.from(locSet);
+  }, [groups, selectedStages, selectedGrades]);
+
+  // Filter groups by search query, stages, grades, and locations
   const filteredGroups = useMemo(() => {
     if (!groups) return [];
     return groups.filter((group) => {
@@ -60,15 +157,18 @@ export function GroupList() {
       const stage = getStageName(group.gradeLevel);
       const matchesStage = selectedStages.length === 0 || selectedStages.includes(stage);
 
-      // 3. Location Filter (Multi-select)
+      // 3. Grade / السنة الدراسية Filter (Multi-select)
+      const matchesGrade = selectedGrades.length === 0 || selectedGrades.includes(group.gradeLevel);
+
+      // 4. Location Filter (Multi-select)
       const matchesLocation =
         selectedLocations.length === 0 ||
         (group.schedules &&
           group.schedules.some((s) => s.location && selectedLocations.includes(s.location)));
 
-      return matchesSearch && matchesStage && matchesLocation;
+      return matchesSearch && matchesStage && matchesGrade && matchesLocation;
     });
-  }, [groups, searchQuery, selectedStages, selectedLocations]);
+  }, [groups, searchQuery, selectedStages, selectedGrades, selectedLocations]);
 
   // Group by stage and then by grade
   const groupedGroups = useMemo(() => {
@@ -89,11 +189,15 @@ export function GroupList() {
   }, [groupedGroups]);
 
   const hasActiveFilters =
-    searchQuery !== '' || selectedStages.length > 0 || selectedLocations.length > 0;
+    searchQuery !== '' ||
+    selectedStages.length > 0 ||
+    selectedGrades.length > 0 ||
+    selectedLocations.length > 0;
 
   const resetFilters = () => {
     setSearchQuery('');
     setSelectedStages([]);
+    setSelectedGrades([]);
     setSelectedLocations([]);
   };
 
@@ -113,15 +217,15 @@ export function GroupList() {
 
       {/* Filters Toolbar */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-12 gap-3 items-center">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-3 items-center">
           {/* Search Input */}
-          <div className="lg:col-span-6 relative">
+          <div className="lg:col-span-3 md:col-span-2 relative">
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-slate-400" />
             </div>
             <Input
-              className="pr-10 h-10"
-              placeholder="ابحث عن مجموعة بالاسم أو الصف أو المكان..."
+              className="pr-10 h-10 text-xs sm:text-sm"
+              placeholder="بحث بالاسم أو الصف أو المكان..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -130,7 +234,7 @@ export function GroupList() {
           {/* Stage MultiSelect Checkboxes Dropdown */}
           <div className="lg:col-span-3">
             <MultiSelectDropdown
-              placeholder="اختر المراحل التعليمية"
+              placeholder="المرحلة التعليمية"
               allSelectedLabel="جميع المراحل التعليمية"
               options={[
                 { label: 'المرحلة الابتدائية', value: 'المرحلة الابتدائية' },
@@ -138,14 +242,26 @@ export function GroupList() {
                 { label: 'المرحلة الثانوية', value: 'المرحلة الثانوية' },
               ]}
               selectedValues={selectedStages}
-              onChange={setSelectedStages}
+              onChange={handleStagesChange}
+            />
+          </div>
+
+          {/* Grade Level / السنة الدراسية MultiSelect Checkboxes Dropdown */}
+          <div className="lg:col-span-3">
+            <MultiSelectDropdown
+              placeholder="السنة الدراسية"
+              allSelectedLabel="جميع الصفوف الدراسية"
+              withSearch={availableGradeOptions.length > 5}
+              options={availableGradeOptions}
+              selectedValues={selectedGrades}
+              onChange={handleGradesChange}
             />
           </div>
 
           {/* Place / Location MultiSelect Checkboxes Dropdown */}
           <div className="lg:col-span-3">
             <MultiSelectDropdown
-              placeholder="اختر الأماكن والسناتر"
+              placeholder="المكان / السنتر"
               allSelectedLabel="جميع الأماكن والسناتر"
               withSearch={true}
               options={availableLocations.map((loc) => ({
@@ -159,7 +275,7 @@ export function GroupList() {
           </div>
         </div>
 
-        {/* Active Filters Tag & Reset */}
+        {/* Active Filters Summary & Reset */}
         {hasActiveFilters && (
           <div className="flex items-center justify-between pt-2 border-t border-slate-50 text-xs">
             <div className="text-slate-500">
