@@ -51,7 +51,17 @@ export function StudentQrBadge({
         if (loginPassword) shareText += `كلمة المرور: ${loginPassword}`;
       }
 
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      if (studentPhone) {
+        const imageUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = imageUrl;
+        link.download = `student-card-${data.studentCode}.png`;
+        link.click();
+        URL.revokeObjectURL(imageUrl);
+        
+        const waUrl = `https://wa.me/${studentPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(shareText + "\\n\\n(تم تحميل صورة البطاقة على جهازك، يمكنك إرفاقها هنا)")}`;
+        window.open(waUrl, '_blank');
+      } else if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
           title: 'بطاقة الطالب',
@@ -65,12 +75,7 @@ export function StudentQrBadge({
         link.click();
         URL.revokeObjectURL(imageUrl);
         
-        if (studentPhone) {
-          const waUrl = `https://wa.me/${studentPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(shareText + "\\n\\n(تم تحميل صورة البطاقة على جهازك، يمكنك إرفاقها هنا)")}`;
-          window.open(waUrl, '_blank');
-        } else {
-          alert('تم تحميل صورة البطاقة. يمكنك الآن مشاركتها.');
-        }
+        alert('تم تحميل صورة البطاقة. يمكنك الآن مشاركتها.');
       }
     } catch (error) {
       console.error('Error sharing:', error);
