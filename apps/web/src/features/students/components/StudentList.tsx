@@ -188,6 +188,12 @@ export function StudentList() {
       }));
   }, [groups, selectedStages, selectedGrades, selectedYears, selectedTerms]);
 
+  // Fast group lookup map
+  const groupMap = useMemo(() => {
+    if (!groups || !Array.isArray(groups)) return new Map<string, any>();
+    return new Map(groups.map((g) => [g.id, g]));
+  }, [groups]);
+
   // Prune any selected groups that are no longer available in the filtered options
   React.useEffect(() => {
     if (selectedGroups.length > 0) {
@@ -229,21 +235,43 @@ export function StudentList() {
         (student.groupEnrollments &&
           student.groupEnrollments.some((e) => selectedGroups.includes(e.group.id)));
 
-      return matchesSearch && matchesStage && matchesGrade && matchesGroup;
+      // 5. Academic Year filter
+      const matchesYear =
+        selectedYears.length === 0 ||
+        (student.groupEnrollments &&
+          student.groupEnrollments.some((e) => {
+            const groupInfo = groupMap.get(e.group.id);
+            return groupInfo?.academicYear && selectedYears.includes(groupInfo.academicYear);
+          }));
+
+      // 6. Academic Term filter
+      const matchesTerm =
+        selectedTerms.length === 0 ||
+        (student.groupEnrollments &&
+          student.groupEnrollments.some((e) => {
+            const groupInfo = groupMap.get(e.group.id);
+            return groupInfo?.academicTerm && selectedTerms.includes(groupInfo.academicTerm);
+          }));
+
+      return matchesSearch && matchesStage && matchesGrade && matchesGroup && matchesYear && matchesTerm;
     });
-  }, [data, searchTerm, selectedStages, selectedGrades, selectedGroups]);
+  }, [data, searchTerm, selectedStages, selectedGrades, selectedGroups, selectedYears, selectedTerms, groupMap]);
 
   const hasActiveFilters =
     searchTerm !== '' ||
     selectedStages.length > 0 ||
     selectedGrades.length > 0 ||
-    selectedGroups.length > 0;
+    selectedGroups.length > 0 ||
+    selectedYears.length > 0 ||
+    selectedTerms.length > 0;
 
   const resetFilters = () => {
     setSearchTerm('');
     setSelectedStages([]);
     setSelectedGrades([]);
     setSelectedGroups([]);
+    setSelectedYears([]);
+    setSelectedTerms([]);
   };
 
   const getStatusColor = (status: AcademicStatus) => {
