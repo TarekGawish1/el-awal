@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Plus,
   Search,
@@ -16,56 +16,135 @@ import {
   Users,
   Clock,
   Sparkles,
+  RotateCcw,
+  Filter,
+  X,
 } from 'lucide-react';
 import { useContent, useDeleteContent } from '../hooks/use-content';
 import { ContentType, EducationalContent } from '../types/content.types';
+import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
-import { AcademicPeriodSwitcher } from '@/features/groups/components/AcademicPeriodSwitcher';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import toast from 'react-hot-toast';
 
-const GRADE_FILTER_OPTIONS = [
-  { value: 'ALL', label: 'جميع الصفوف' },
-  { value: 'الصف الأول الإعدادي', label: '1 إعدادي' },
-  { value: 'الصف الثاني الإعدادي', label: '2 إعدادي' },
-  { value: 'الصف الثالث الإعدادي', label: '3 إعدادي' },
-  { value: 'الصف الأول الثانوي', label: '1 ثانوي' },
-  { value: 'الصف الثاني الثانوي', label: '2 ثانوي' },
-  { value: 'الصف الثالث الثانوي', label: '3 ثانوي' },
+const BASE_YEARS = ['2026-2027', '2025-2026', '2024-2025', '2027-2028', '2028-2029', '2023-2024'];
+
+const GRADE_OPTIONS = [
+  { value: 'ALL', label: 'جميع الصفوف الدراسية' },
+  { value: 'الصف الأول الثانوي', label: 'الصف الأول الثانوي' },
+  { value: 'الصف الثاني الثانوي', label: 'الصف الثاني الثانوي' },
+  { value: 'الصف الثالث الثانوي', label: 'الصف الثالث الثانوي' },
+  { value: 'الصف الأول الإعدادي', label: 'الصف الأول الإعدادي' },
+  { value: 'الصف الثاني الإعدادي', label: 'الصف الثاني الإعدادي' },
+  { value: 'الصف الثالث الإعدادي', label: 'الصف الثالث الإعدادي' },
+  { value: 'الصف الأول الابتدائي', label: 'الصف الأول الابتدائي' },
+  { value: 'الصف الثاني الابتدائي', label: 'الصف الثاني الابتدائي' },
+  { value: 'الصف الثالث الابتدائي', label: 'الصف الثالث الابتدائي' },
+  { value: 'الصف الرابع الابتدائي', label: 'الصف الرابع الابتدائي' },
+  { value: 'الصف الخامس الابتدائي', label: 'الصف الخامس الابتدائي' },
+  { value: 'الصف السادس الابتدائي', label: 'الصف السادس الابتدائي' },
+];
+
+const TERM_OPTIONS = [
+  { value: 'ALL', label: 'جميع الفصول الدراسية' },
+  { value: 'FIRST_TERM', label: 'الفصل الدراسي الأول (ترم أول)' },
+  { value: 'SECOND_TERM', label: 'الفصل الدراسي الثاني (ترم ثانٍ)' },
+];
+
+const CONTENT_TYPE_OPTIONS = [
+  { value: 'ALL', label: 'جميع أنواع الملفات' },
+  { value: ContentType.FILE, label: 'ملفات عامة وملازم' },
+  { value: ContentType.SUMMARY, label: 'ملخصات دراسية' },
+  { value: ContentType.REFERENCE, label: 'مراجع وواجبات' },
+  { value: ContentType.LECTURE_RECORDING, label: 'تسجيلات الحصص (فيديو)' },
 ];
 
 export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void }) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState<ContentType | 'ALL'>('ALL');
-  const [selectedGradeFilter, setSelectedGradeFilter] = useState<string>('ALL');
+  const [selectedYear, setSelectedYear] = useState<string>('ALL');
+  const [selectedTerm, setSelectedTerm] = useState<string>('ALL');
+  const [selectedGrade, setSelectedGrade] = useState<string>('ALL');
+  const [selectedType, setSelectedType] = useState<string>('ALL');
 
-  const { activeYear, activeTerm } = useStoredAcademicPeriod();
+  const { data: groups = [] } = useGroups();
+  const { activeYear } = useStoredAcademicPeriod(groups as any);
 
-  // Query content matching the active academic period and filters
-  const queryParams: Record<string, string> = {};
-  if (filterType !== 'ALL') queryParams.contentType = filterType;
-  if (selectedGradeFilter !== 'ALL') queryParams.gradeLevel = selectedGradeFilter;
-  if (activeYear) queryParams.academicYear = activeYear;
-  if (activeTerm) queryParams.academicTerm = activeTerm;
+  // Build query parameters for server filtering
+  const queryParams = useMemo(() => {
+    const params: Record<string, string> = {};
+    if (selectedType !== 'ALL') params.contentType = selectedType;
+    if (selectedGrade !== 'ALL') params.gradeLevel = selectedGrade;
+    if (selectedYear !== 'ALL') params.academicYear = selectedYear;
+    if (selectedTerm !== 'ALL') params.academicTerm = selectedTerm;
+    return params;
+  }, [selectedType, selectedGrade, selectedYear, selectedTerm]);
 
   const { data: contents = [], isLoading, isError, error, refetch } = useContent(queryParams);
   const { mutate: deleteContent, isPending: isDeleting } = useDeleteContent();
 
-  const filteredContents = contents.filter((content) => {
+  // Dynamic Academic Years options including all preset years + actual content/group years
+  const academicYearOptions = useMemo(() => {
+    const yearsSet = new Set<string>(BASE_YEARS);
+    if (activeYear) yearsSet.add(activeYear);
+    if (Array.isArray(groups)) {
+      groups.forEach((g) => {
+        if (g.academicYear && g.academicYear.trim()) {
+          yearsSet.add(g.academicYear.trim());
+        }
+      });
+    }
+    if (Array.isArray(contents)) {
+      contents.forEach((c) => {
+        if (c.academicYear && c.academicYear.trim()) {
+          yearsSet.add(c.academicYear.trim());
+        }
+      });
+    }
+
+    const sortedYears = Array.from(yearsSet).sort().reverse();
+    return [
+      { value: 'ALL', label: 'جميع الأعوام الدراسية' },
+      ...sortedYears.map((yr) => ({
+        value: yr,
+        label: `العام الدراسي ${yr}`,
+      })),
+    ];
+  }, [groups, contents, activeYear]);
+
+  // Client-side search filtering by title, topic, lesson, or description
+  const filteredContents = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
-    if (!query) return true;
-    return (
-      content.title.toLowerCase().includes(query) ||
-      (content.description && content.description.toLowerCase().includes(query)) ||
-      (content.sessionTopic && content.sessionTopic.toLowerCase().includes(query)) ||
-      (content.gradeLevel && content.gradeLevel.toLowerCase().includes(query)) ||
-      (content.group?.name && content.group.name.toLowerCase().includes(query))
-    );
-  });
+    if (!query) return contents;
+    return contents.filter((content) => {
+      return (
+        content.title.toLowerCase().includes(query) ||
+        (content.description && content.description.toLowerCase().includes(query)) ||
+        (content.sessionTopic && content.sessionTopic.toLowerCase().includes(query)) ||
+        (content.gradeLevel && content.gradeLevel.toLowerCase().includes(query)) ||
+        (content.group?.name && content.group.name.toLowerCase().includes(query))
+      );
+    });
+  }, [contents, searchQuery]);
+
+  const isFiltered =
+    searchQuery !== '' ||
+    selectedYear !== 'ALL' ||
+    selectedTerm !== 'ALL' ||
+    selectedGrade !== 'ALL' ||
+    selectedType !== 'ALL';
+
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setSelectedYear('ALL');
+    setSelectedTerm('ALL');
+    setSelectedGrade('ALL');
+    setSelectedType('ALL');
+  };
 
   const handleDelete = (id: string, title: string) => {
     if (window.confirm(`هل أنت متأكد من حذف الملف "${title}"؟`)) {
@@ -137,56 +216,84 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
         </div>
       </div>
 
-      {/* Academic Period Switcher Bar */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-        <AcademicPeriodSwitcher />
-      </div>
+      {/* Unified Filter Toolbar with Dropdown Lists */}
+      <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 space-y-3">
+        <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+            <Filter className="w-4 h-4 text-primary-600" />
+            <span>تصفية المرفقات والملفات:</span>
+          </div>
 
-      {/* Grade Level Filter Tabs & Search Bar */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 space-y-4">
-        {/* Grade Filters */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 text-sm no-scrollbar">
-          <span className="text-xs font-bold text-slate-400 shrink-0 ml-1">الصف الدراسي:</span>
-          {GRADE_FILTER_OPTIONS.map((g) => (
+          {isFiltered && (
             <button
-              key={g.value}
-              onClick={() => setSelectedGradeFilter(g.value)}
-              className={`px-3 py-1.5 rounded-lg font-bold text-xs whitespace-nowrap transition-all ${
-                selectedGradeFilter === g.value
-                  ? 'bg-primary-600 text-white shadow-sm shadow-primary/20'
-                  : 'bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/60'
-              }`}
+              type="button"
+              onClick={handleResetFilters}
+              className="text-xs text-primary-600 hover:text-primary-800 font-semibold inline-flex items-center gap-1.5 hover:underline cursor-pointer"
             >
-              {g.label}
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>إعادة تعيين الفلاتر</span>
             </button>
-          ))}
+          )}
         </div>
 
-        {/* Search & Content Type dropdown */}
-        <div className="flex flex-col sm:flex-row gap-3 pt-2 border-t border-slate-100">
-          <div className="relative flex-1">
+        {/* Filters Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3 items-center">
+          {/* Search Input */}
+          <div className="sm:col-span-2 lg:col-span-4 xl:col-span-1 relative">
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-slate-400" />
             </div>
             <Input
-              className="pr-10 bg-slate-50/50 border-slate-200"
-              placeholder="ابحث باسم المرفق، الدرس، أو الحصة..."
+              type="search"
+              className="pr-9 h-10 bg-slate-50/70 border-slate-200 text-xs sm:text-sm rounded-xl focus:bg-white"
+              placeholder="ابحث باسم المرفق أو الدرس..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <div className="w-full sm:w-52 flex-shrink-0">
-            <select
-              className="w-full h-10 rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium"
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value as any)}
-            >
-              <option value="ALL">جميع أنواع الملفات</option>
-              <option value={ContentType.FILE}>ملفات عامة وملازم</option>
-              <option value={ContentType.SUMMARY}>ملخصات دراسية</option>
-              <option value={ContentType.REFERENCE}>مراجع وواجبات</option>
-              <option value={ContentType.LECTURE_RECORDING}>تسجيلات الحصص (فيديو)</option>
-            </select>
+
+          {/* Academic Year Dropdown */}
+          <div>
+            <Select
+              aria-label="اختيار العام الدراسي"
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              options={academicYearOptions}
+              className="h-10 text-xs sm:text-sm bg-slate-50/70 border-slate-200 rounded-xl focus:bg-white"
+            />
+          </div>
+
+          {/* Academic Term Dropdown */}
+          <div>
+            <Select
+              aria-label="اختيار الفصل الدراسي"
+              value={selectedTerm}
+              onChange={(e) => setSelectedTerm(e.target.value)}
+              options={TERM_OPTIONS}
+              className="h-10 text-xs sm:text-sm bg-slate-50/70 border-slate-200 rounded-xl focus:bg-white"
+            />
+          </div>
+
+          {/* Grade Level Dropdown */}
+          <div>
+            <Select
+              aria-label="اختيار الصف الدراسي"
+              value={selectedGrade}
+              onChange={(e) => setSelectedGrade(e.target.value)}
+              options={GRADE_OPTIONS}
+              className="h-10 text-xs sm:text-sm bg-slate-50/70 border-slate-200 rounded-xl focus:bg-white"
+            />
+          </div>
+
+          {/* Content Type Dropdown */}
+          <div>
+            <Select
+              aria-label="اختيار نوع الملف"
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value)}
+              options={CONTENT_TYPE_OPTIONS}
+              className="h-10 text-xs sm:text-sm bg-slate-50/70 border-slate-200 rounded-xl focus:bg-white"
+            />
           </div>
         </div>
       </div>
@@ -237,6 +344,12 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
           <Search className="w-12 h-12 text-slate-300 mx-auto mb-3" />
           <h3 className="text-lg font-bold text-slate-700 mb-1">لا توجد نتائج مطابقة</h3>
           <p className="text-slate-500 text-sm">لم يتم العثور على ملفات تطابق كلمات البحث أو الفلاتر المحددة</p>
+          {isFiltered && (
+            <Button variant="outline" size="sm" onClick={handleResetFilters} className="mt-3">
+              <RotateCcw className="w-3.5 h-3.5 ml-1.5" />
+              إعادة تعيين الفلاتر
+            </Button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -333,4 +446,3 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
     </div>
   );
 }
-

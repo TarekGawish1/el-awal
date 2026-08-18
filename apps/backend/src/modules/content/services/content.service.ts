@@ -191,7 +191,7 @@ export class ContentService {
 
     const where: any = { teacherId };
 
-    if (contentType) {
+    if (contentType && (contentType as string) !== 'ALL') {
       where.contentType = contentType;
     }
     if (lessonId) {
@@ -204,7 +204,7 @@ export class ContentService {
       where.sessionTopic = sessionTopic;
     }
 
-    if (groupId) {
+    if (groupId && groupId !== 'ALL') {
       if (includeGradeScope) {
         const group = await this.prisma.academicGroup.findUnique({
           where: { id: groupId },
@@ -228,13 +228,13 @@ export class ContentService {
         where.groupId = groupId;
       }
     } else {
-      if (gradeLevel) {
+      if (gradeLevel && gradeLevel !== 'ALL') {
         where.gradeLevel = gradeLevel;
       }
-      if (academicYear) {
+      if (academicYear && academicYear !== 'ALL') {
         where.academicYear = academicYear;
       }
-      if (academicTerm) {
+      if (academicTerm && academicTerm !== 'ALL') {
         where.academicTerm = academicTerm;
       }
     }
