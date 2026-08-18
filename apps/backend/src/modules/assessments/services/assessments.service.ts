@@ -111,6 +111,9 @@ export class AssessmentsService {
           isAutoGraded,
           isPublished: dto.isPublished ?? true,
           teacherId,
+          targetGroups: dto.targetGroupIds?.length ? {
+            connect: dto.targetGroupIds.map(id => ({ id }))
+          } : undefined,
         },
       });
 
@@ -168,6 +171,7 @@ export class AssessmentsService {
       const studentId = user.studentProfileId || user.id;
       where.OR = [
         { group: { enrollments: { some: { studentId, status: GroupEnrollmentStatus.ACTIVE } } } },
+        { targetGroups: { some: { enrollments: { some: { studentId, status: GroupEnrollmentStatus.ACTIVE } } } } },
         { course: { enrollments: { some: { studentId, status: CourseEnrollmentStatus.ACTIVE } } } },
       ];
     } else if (user.role === UserRole.PARENT) {
@@ -175,6 +179,7 @@ export class AssessmentsService {
       const parentId = user.parentProfileId || user.id;
       where.OR = [
         { group: { enrollments: { some: { status: GroupEnrollmentStatus.ACTIVE, student: { parentLinks: { some: { parentId } } } } } } },
+        { targetGroups: { some: { enrollments: { some: { status: GroupEnrollmentStatus.ACTIVE, student: { parentLinks: { some: { parentId } } } } } } } },
         { course: { enrollments: { some: { status: CourseEnrollmentStatus.ACTIVE, student: { parentLinks: { some: { parentId } } } } } } },
       ];
     } else if (user.role === UserRole.TEACHER) {
@@ -191,6 +196,7 @@ export class AssessmentsService {
           include: { user: { select: { fullName: true } } },
         },
         group: { select: { id: true, name: true } },
+        targetGroups: { select: { id: true, name: true } },
         course: { select: { id: true, title: true } },
         _count: { select: { questions: true, submissions: true } },
       },
@@ -213,6 +219,11 @@ export class AssessmentsService {
           include: { user: { select: { fullName: true } } },
         },
         group: {
+          include: {
+            enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
+          },
+        },
+        targetGroups: {
           include: {
             enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
           },
@@ -244,12 +255,12 @@ export class AssessmentsService {
       }
       const isEnrolledInGroup = assessment.groupId
         ? assessment.group?.enrollments.some((e) => e.studentId === studentId)
-        : false;
+        : assessment.targetGroups?.some(g => g.enrollments.some(e => e.studentId === studentId)) || false;
       const isEnrolledInCourse = assessment.courseId
         ? assessment.course?.enrollments.some((e) => e.studentId === studentId)
         : false;
 
-      if (assessment.groupId && !isEnrolledInGroup && assessment.courseId && !isEnrolledInCourse) {
+      if ((assessment.groupId || assessment.targetGroups?.length > 0) && !isEnrolledInGroup && assessment.courseId && !isEnrolledInCourse) {
         throw new ForbiddenException('You are not enrolled in the group or course for this assessment');
       }
     }
@@ -282,6 +293,7 @@ export class AssessmentsService {
       isPublished: assessment.isPublished,
       teacher: assessment.teacher,
       group: assessment.group,
+      targetGroups: assessment.targetGroups,
       course: assessment.course,
       questions: sanitizedQuestions,
       mySubmission: mySubmission
@@ -318,6 +330,11 @@ export class AssessmentsService {
             enrollments: { where: { studentId, status: GroupEnrollmentStatus.ACTIVE } },
           },
         },
+        targetGroups: {
+          include: {
+            enrollments: { where: { studentId, status: GroupEnrollmentStatus.ACTIVE } },
+          },
+        },
         course: {
           include: {
             enrollments: { where: { studentId, status: CourseEnrollmentStatus.ACTIVE } },
@@ -337,6 +354,9 @@ export class AssessmentsService {
     // Verify enrollment entitlement
     if (assessment.groupId && assessment.group && assessment.group.enrollments.length === 0) {
       throw new ForbiddenException('You are not enrolled in the academic group for this assessment');
+    }
+    if (assessment.targetGroups?.length > 0 && !assessment.targetGroups.some(g => g.enrollments.length > 0)) {
+      throw new ForbiddenException('You are not enrolled in any of the target groups for this assessment');
     }
     if (assessment.courseId && assessment.course && assessment.course.enrollments.length === 0) {
       throw new ForbiddenException('You are not enrolled in the course for this assessment');

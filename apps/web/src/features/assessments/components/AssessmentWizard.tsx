@@ -16,6 +16,7 @@ import { createAssessmentSchema, CreateAssessmentFormData } from '../types/asses
 import { QuestionType } from '../types/assessments.types';
 import { AssessmentQuestionEditor } from './AssessmentQuestionEditor';
 import { useCreateAssessment } from '../hooks/use-assessments';
+import { useGroups } from '../../groups/hooks/useGroups';
 import toast from 'react-hot-toast';
 
 type Step = 'metadata' | 'questions' | 'review';
@@ -48,6 +49,7 @@ export function AssessmentWizard() {
       ],
       academicStage: '',
       gradeLevel: '',
+      targetGroupIds: [],
     },
     mode: 'onTouched'
   });
@@ -60,6 +62,10 @@ export function AssessmentWizard() {
 
   const formDataValues = methods.watch();
   const selectedStage = formDataValues.academicStage;
+  const selectedGrade = formDataValues.gradeLevel;
+  
+  const { data: allGroups } = useGroups();
+  const availableGroups = allGroups?.filter(g => g.gradeLevel === selectedGrade) || [];
 
   const gradeOptions: Record<string, { label: string; value: string }[]> = {
     PRIMARY: [
@@ -121,6 +127,7 @@ export function AssessmentWizard() {
     if (!payload.academicStage) delete payload.academicStage;
     if (!payload.gradeLevel) delete payload.gradeLevel;
     if (!payload.durationMinutes) delete payload.durationMinutes;
+    if (!payload.targetGroupIds || payload.targetGroupIds.length === 0) delete payload.targetGroupIds;
     
     // Remove extra properties that the backend ValidationPipe forbids
     delete payload.isAutoGraded;
@@ -248,7 +255,10 @@ export function AssessmentWizard() {
                       name="gradeLevel"
                       disabled={!selectedStage}
                       value={formDataValues.gradeLevel || ''}
-                      onChange={e => methods.setValue('gradeLevel', e.target.value)}
+                      onChange={e => {
+                        methods.setValue('gradeLevel', e.target.value);
+                        methods.setValue('targetGroupIds', []); // Reset groups when grade changes
+                      }}
                       options={[
                         { label: '-- اختر الصف الدراسي --', value: '' },
                         ...(selectedStage ? gradeOptions[selectedStage] : []),
@@ -257,7 +267,34 @@ export function AssessmentWizard() {
                   </div>
                 </div>
 
-
+                {selectedGrade && availableGroups.length > 0 && (
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <Label className="mb-3 block font-bold text-slate-800">
+                      المجموعات المستهدفة <span className="text-sm font-normal text-slate-500">(اختر المجموعات التي ستمتحن)</span>
+                    </Label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                      {availableGroups.map(group => (
+                        <label key={group.id} className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-primary-300 transition-colors">
+                          <input
+                            type="checkbox"
+                            value={group.id}
+                            checked={formDataValues.targetGroupIds?.includes(group.id)}
+                            onChange={(e) => {
+                              const currentIds = formDataValues.targetGroupIds || [];
+                              if (e.target.checked) {
+                                methods.setValue('targetGroupIds', [...currentIds, group.id]);
+                              } else {
+                                methods.setValue('targetGroupIds', currentIds.filter(id => id !== group.id));
+                              }
+                            }}
+                            className="w-5 h-5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                          />
+                          <span className="text-sm font-medium text-slate-700">{group.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>

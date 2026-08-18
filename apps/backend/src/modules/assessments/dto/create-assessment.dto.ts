@@ -95,6 +95,14 @@ export class CreateAssessmentDto {
   groupId?: string;
 
   @ApiPropertyOptional({
+    description: 'Target physical classroom group IDs (for multi-group assessments)',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  targetGroupIds?: string[];
+
+  @ApiPropertyOptional({
     description: 'Target online course ID',
   })
   @IsOptional()

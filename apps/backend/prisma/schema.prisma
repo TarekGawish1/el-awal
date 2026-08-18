@@ -289,6 +289,7 @@ model AcademicGroup {
   sessions            LessonSession[]
   educationalContents EducationalContent[]
   assessments         Assessment[]
+  targetAssessments   Assessment[] @relation("AssessmentTargetGroups")
   studentEvaluations  StudentEvaluation[]
   paymentRecords      StudentPaymentRecord[]
 
@@ -580,6 +581,7 @@ model Assessment {
 
   teacher TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Restrict)
   group   AcademicGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  targetGroups AcademicGroup[] @relation("AssessmentTargetGroups")
   course  Course?        @relation(fields: [courseId], references: [id], onDelete: Cascade)
   lesson  CourseLesson?  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
