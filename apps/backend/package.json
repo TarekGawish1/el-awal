@@ -5,7 +5,7 @@
   "scripts": {
     "prebuild": "node -e \"try { require('fs').rmSync('dist', { recursive: true, force: true }); } catch (e) {}\"",
     "build": "nest build",
-    "heroku-postbuild": "npx prisma generate && npm run build",
+    "heroku-postbuild": "npx prisma generate && npx prisma migrate deploy && npm run build",
     "format": "prettier --write \"src/**/*.ts\"",
     "start": "nest start",
     "dev": "nest start --watch",
