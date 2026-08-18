@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
 import { StudentList } from './StudentList';
+import { GroupSessionAttachments } from './GroupSessionAttachments';
 import { AddStudentModal } from './AddStudentModal';
 import { DeleteGroupModal } from './DeleteGroupModal';
 import { EditGroupModal } from './EditGroupModal';
@@ -22,6 +23,7 @@ export function GroupDetails({ id }: GroupDetailsProps) {
   const router = useRouter();
   const { data: group, isLoading, isError, error, refetch } = useGroup(id);
   const deleteGroup = useDeleteGroup();
+  const [activeTab, setActiveTab] = useState<'students' | 'attachments'>('students');
   const [isAddStudentModalOpen, setIsAddStudentModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -184,7 +186,7 @@ export function GroupDetails({ id }: GroupDetailsProps) {
               <UserPlus className="w-4 h-4 ml-2" />
               إضافة طالب
             </Button>
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => router.push('/teacher/attendance')}>
               <FileText className="w-4 h-4 ml-2" />
               كشف الحضور
             </Button>
@@ -192,15 +194,44 @@ export function GroupDetails({ id }: GroupDetailsProps) {
         </div>
       </div>
 
+      {/* Tabs Switcher for Students vs Session Attachments */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="border-b border-slate-100 px-6 py-4 bg-slate-50">
-          <h2 className="text-lg font-bold text-slate-800 flex items-center">
-            <Users className="w-5 h-5 ml-2 text-slate-400" />
-            قائمة الطلاب
-          </h2>
+        <div className="border-b border-slate-100 px-6 bg-slate-50/70 flex gap-4">
+          <button
+            onClick={() => setActiveTab('students')}
+            className={`py-4 font-bold text-sm border-b-2 flex items-center gap-2 transition-colors ${
+              activeTab === 'students'
+                ? 'border-primary-600 text-primary-700'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            قائمة الطلاب ({group._count?.enrollments || 0})
+          </button>
+
+          <button
+            onClick={() => setActiveTab('attachments')}
+            className={`py-4 font-bold text-sm border-b-2 flex items-center gap-2 transition-colors ${
+              activeTab === 'attachments'
+                ? 'border-primary-600 text-primary-700'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            مرفقات وملازم الحصص
+          </button>
         </div>
+
         <div className="p-6">
-          <StudentList groupId={id} />
+          {activeTab === 'students' ? (
+            <StudentList groupId={id} />
+          ) : (
+            <GroupSessionAttachments
+              groupId={id}
+              gradeLevel={group.gradeLevel}
+              groupName={group.name}
+            />
+          )}
         </div>
       </div>
 

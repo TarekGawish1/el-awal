@@ -341,7 +341,8 @@ model LessonSession {
   group    AcademicGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
   schedule LessonSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
 
-  attendanceRecords AttendanceRecord[]
+  attendanceRecords   AttendanceRecord[]
+  educationalContents EducationalContent[]
 
   @@unique([groupId, sessionDate, startTime], map: "uq_group_session_datetime")
   @@index([groupId, sessionDate], map: "idx_sessions_group_date")
@@ -513,25 +514,33 @@ model EducationalContent {
   teacherId   String      @map("teacher_id") @db.Uuid
   groupId     String?     @map("group_id") @db.Uuid
   lessonId    String?     @map("lesson_id") @db.Uuid
-  title       String      @map("title") @db.VarChar(255)
-  description String?     @map("description") @db.Text
-  contentType ContentType @map("content_type")
-  fileKey     String      @map("file_key") @db.VarChar(500)
-  fileUrl     String      @map("file_url") @db.Text
-  fileSize    BigInt?     @map("file_size")
-  mimeType    String?     @map("mime_type") @db.VarChar(100)
-  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  title        String      @map("title") @db.VarChar(255)
+  description  String?     @map("description") @db.Text
+  contentType  ContentType @map("content_type")
+  fileKey      String      @map("file_key") @db.VarChar(500)
+  fileUrl      String      @map("file_url") @db.Text
+  fileSize     BigInt?     @map("file_size")
+  mimeType     String?     @map("mime_type") @db.VarChar(100)
+  gradeLevel   String?     @map("grade_level") @db.VarChar(50)
+  academicYear String?     @default("2025-2026") @map("academic_year") @db.VarChar(30)
+  academicTerm String?     @default("FIRST_TERM") @map("academic_term") @db.VarChar(30)
+  sessionTopic String?     @map("session_topic") @db.VarChar(255)
+  sessionId    String?     @map("session_id") @db.Uuid
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   teacher TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Restrict)
   group   AcademicGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
   lesson  CourseLesson?  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  session LessonSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
   progresses ContentProgress[]
 
   @@index([groupId, contentType], map: "idx_content_group_type")
   @@index([lessonId, contentType], map: "idx_content_lesson_type")
   @@index([teacherId], map: "idx_content_teacher")
+  @@index([gradeLevel, academicYear, academicTerm], map: "idx_content_grade_year_term")
+  @@index([sessionId], map: "idx_content_session")
   @@map("educational_content")
 }
 
