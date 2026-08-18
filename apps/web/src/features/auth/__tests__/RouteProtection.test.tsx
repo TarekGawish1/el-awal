@@ -103,6 +103,6 @@ describe('Dashboard Route Protection & Authentication Guard', () => {
     expect(mockReplace).not.toHaveBeenCalled();
     expect(screen.getByText('Protected Dashboard Content')).toBeInTheDocument();
     expect(screen.getByText('أ. طارق عبد الله')).toBeInTheDocument();
-    expect(screen.getByText('teacher@elawal.com')).toBeInTheDocument();
+    expect(screen.getByText('مدرس معتمد')).toBeInTheDocument();
   });
 });

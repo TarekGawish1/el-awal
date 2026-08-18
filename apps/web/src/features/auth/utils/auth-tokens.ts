@@ -26,6 +26,28 @@ export function setStoredTokens(session: AuthTokensResponse): void {
 }
 
 /**
+ * Updates only the access and refresh tokens without modifying the stored user profile
+ */
+export function updateStoredTokens(tokens: { accessToken: string; refreshToken: string }): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, tokens.accessToken);
+    localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, tokens.refreshToken);
+  } catch (error) {
+    console.error('Failed to update authentication tokens in storage:', error);
+  }
+}
+
+/**
+ * Checks if a session exists (either access token or refresh token is available)
+ */
+export function hasStoredSession(): boolean {
+  if (typeof window === 'undefined') return false;
+  return !!(localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN) || localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN));
+}
+
+/**
  * Retrieves the stored JWT access token
  */
 export function getStoredAccessToken(): string | null {

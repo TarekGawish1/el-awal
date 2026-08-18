@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { AuthState, AuthTokensResponse, AuthUser } from '../types/auth.types';
 import {
   setStoredTokens,
+  updateStoredTokens,
   getStoredAccessToken,
   getStoredRefreshToken,
   getStoredUser,
@@ -10,6 +11,7 @@ import {
 
 interface AuthActions {
   setSession: (session: AuthTokensResponse) => void;
+  updateTokens: (tokens: { accessToken: string; refreshToken: string }) => void;
   clearSession: () => void;
   initialize: () => void;
 }
@@ -34,6 +36,15 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     });
   },
 
+  updateTokens: (tokens: { accessToken: string; refreshToken: string }) => {
+    updateStoredTokens(tokens);
+    set({
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      isAuthenticated: true,
+    });
+  },
+
   clearSession: () => {
     clearStoredTokens();
     set({
@@ -52,7 +63,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     const user = getStoredUser();
     const refreshToken = getStoredRefreshToken();
 
-    if (token && user) {
+    // Authenticated if user profile and either access token or refresh token is available
+    if (user && (token || refreshToken)) {
       set({
         user,
         accessToken: token,

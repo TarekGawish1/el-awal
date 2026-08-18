@@ -25,6 +25,15 @@ export interface AuthTokensResponse {
   user: AuthUser;
 }
 
+export interface RefreshTokenPayload {
+  refreshToken: string;
+}
+
+export interface RefreshTokenResponse {
+  accessToken: string;
+  refreshToken: string;
+}
+
 export interface AuthState {
   user: AuthUser | null;
   accessToken: string | null;

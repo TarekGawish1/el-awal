@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   setStoredTokens,
+  updateStoredTokens,
+  hasStoredSession,
   getStoredAccessToken,
   getStoredRefreshToken,
   getStoredUser,
@@ -47,9 +49,26 @@ describe('Auth Tokens Storage Utilities', () => {
     expect(getStoredUser()).toBeNull();
   });
 
-  it('should return null when nothing is stored', () => {
-    expect(getStoredAccessToken()).toBeNull();
-    expect(getStoredRefreshToken()).toBeNull();
-    expect(getStoredUser()).toBeNull();
+  it('should update access and refresh tokens without altering stored user profile', () => {
+    setStoredTokens(mockSession);
+
+    updateStoredTokens({
+      accessToken: 'new-access-jwt-token',
+      refreshToken: 'new-refresh-jwt-token',
+    });
+
+    expect(getStoredAccessToken()).toBe('new-access-jwt-token');
+    expect(getStoredRefreshToken()).toBe('new-refresh-jwt-token');
+    expect(getStoredUser()).toEqual(mockSession.user);
+  });
+
+  it('should correctly detect if session exists in storage', () => {
+    expect(hasStoredSession()).toBe(false);
+
+    setStoredTokens(mockSession);
+    expect(hasStoredSession()).toBe(true);
+
+    clearStoredTokens();
+    expect(hasStoredSession()).toBe(false);
   });
 });

@@ -1,6 +1,7 @@
 import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
-import { AuthTokensResponse, AuthUser, LoginCredentials } from '../types/auth.types';
+import { AuthTokensResponse, AuthUser, LoginCredentials, RefreshTokenResponse } from '../types/auth.types';
+import { getStoredRefreshToken } from '../utils/auth-tokens';
 
 /**
  * Authenticates user credentials via POST /api/v1/auth/login
@@ -16,6 +17,16 @@ export async function loginUser(credentials: LoginCredentials): Promise<AuthToke
 }
 
 /**
+ * Requests fresh access & refresh tokens using an existing valid refresh token
+ */
+export async function refreshTokenRequest(refreshToken: string): Promise<RefreshTokenResponse> {
+  return apiClient<RefreshTokenResponse>(API_ENDPOINTS.AUTH.REFRESH, {
+    method: 'POST',
+    body: JSON.stringify({ refreshToken }),
+  });
+}
+
+/**
  * Fetches authenticated user profile via GET /api/v1/users/me
  */
 export async function fetchCurrentUser(): Promise<AuthUser> {
@@ -23,13 +34,17 @@ export async function fetchCurrentUser(): Promise<AuthUser> {
 }
 
 /**
- * Gracefully terminates the user session
+ * Gracefully terminates the user session and revokes server refresh session
  */
 export async function logoutUser(): Promise<void> {
+  const refreshToken = getStoredRefreshToken();
   try {
-    await apiClient(API_ENDPOINTS.AUTH.LOGOUT, {
-      method: 'POST',
-    });
+    if (refreshToken) {
+      await apiClient(API_ENDPOINTS.AUTH.LOGOUT, {
+        method: 'POST',
+        body: JSON.stringify({ refreshToken }),
+      });
+    }
   } catch {
     // Stateless token invalidation on client proceeds even if server endpoint is omitted
   }

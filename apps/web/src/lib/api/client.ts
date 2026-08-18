@@ -1,19 +1,95 @@
 import { ApiResponse, ProblemDetailsError } from '@/types/api/api.types';
-import { API_BASE_URL } from './endpoints';
+import { API_BASE_URL, API_ENDPOINTS } from './endpoints';
 import { ApiError } from './errors';
-import { getStoredAccessToken, clearStoredTokens } from '@/features/auth/utils/auth-tokens';
+import {
+  getStoredAccessToken,
+  getStoredRefreshToken,
+  updateStoredTokens,
+  clearStoredTokens,
+} from '@/features/auth/utils/auth-tokens';
+import { useAuthStore } from '@/features/auth/store/auth.store';
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
   token?: string;
+  _isRetry?: boolean;
+}
+
+// Concurrency mutex: In-flight refresh promise shared across all simultaneous 401 requests
+let refreshPromise: Promise<string | null> | null = null;
+
+async function executeRefreshToken(): Promise<string | null> {
+  const currentRefreshToken = getStoredRefreshToken();
+  if (!currentRefreshToken) {
+    return null;
+  }
+
+  try {
+    const refreshUrl = `${API_BASE_URL}${API_ENDPOINTS.AUTH.REFRESH}`;
+    const response = await fetch(refreshUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({ refreshToken: currentRefreshToken }),
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+    const tokens = (data && data.data ? data.data : data) as { accessToken: string; refreshToken: string };
+
+    if (tokens?.accessToken && tokens?.refreshToken) {
+      updateStoredTokens({
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      });
+
+      // Synchronize in-memory auth store
+      useAuthStore.getState().updateTokens({
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      });
+
+      return tokens.accessToken;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Silent token refresh failed:', error);
+    return null;
+  }
+}
+
+async function getRefreshedAccessToken(): Promise<string | null> {
+  if (!refreshPromise) {
+    refreshPromise = executeRefreshToken().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
+function handleAuthFailure(): void {
+  clearStoredTokens();
+  useAuthStore.getState().clearSession();
+
+  if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+    const currentPath = window.location.pathname + window.location.search;
+    const redirectParam = currentPath && currentPath !== '/' ? `?redirect=${encodeURIComponent(currentPath)}` : '';
+    window.location.href = `/login${redirectParam}`;
+  }
 }
 
 /**
  * Centralized API Client
- * Wraps native fetch with JWT authorization, response envelope unwrapping, and standardized error normalization
+ * Wraps native fetch with JWT authorization, silent token refresh on 401, response unwrapping, and error normalization
  */
 export async function apiClient<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-  const { params, token, headers, ...customConfig } = options;
+  const { params, token, headers, _isRetry = false, ...customConfig } = options;
 
   let url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
 
@@ -31,6 +107,10 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
   }
 
   const isInternalApi = !endpoint.startsWith('http') || endpoint.startsWith(API_BASE_URL);
+  const isAuthEndpoint =
+    endpoint.includes(API_ENDPOINTS.AUTH.LOGIN) ||
+    endpoint.includes(API_ENDPOINTS.AUTH.REFRESH) ||
+    endpoint.includes(API_ENDPOINTS.AUTH.LOGOUT);
 
   const defaultHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -61,11 +141,26 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
       return {} as T;
     }
 
-    if (response.status === 401 && typeof window !== 'undefined') {
-      clearStoredTokens();
-      // Avoid infinite redirects if already on login page
-      if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
+    // Intercept 401 Unauthorized for automatic token refresh & request retry
+    if (response.status === 401) {
+      // If it's a login/refresh/logout request or already retried once, do not refresh again
+      if (isAuthEndpoint || _isRetry) {
+        if (!isAuthEndpoint) {
+          handleAuthFailure();
+        }
+      } else if (isInternalApi) {
+        const newAccessToken = await getRefreshedAccessToken();
+
+        if (newAccessToken) {
+          // Retry the original request once with the new access token
+          return apiClient<T>(endpoint, {
+            ...options,
+            token: newAccessToken,
+            _isRetry: true,
+          });
+        } else {
+          handleAuthFailure();
+        }
       }
     }
 
@@ -98,9 +193,10 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
     // Network / Offline Error
     throw new ApiError({
       statusCode: 0,
-      message: typeof navigator !== 'undefined' && !navigator.onLine
-        ? 'تعذر الاتصال بالخادم (أنت غير متصل بالإنترنت)'
-        : 'تعذر الاتصال بالخادم، يرجى المحاولة مرة أخرى',
+      message:
+        typeof navigator !== 'undefined' && !navigator.onLine
+          ? 'تعذر الاتصال بالخادم (أنت غير متصل بالإنترنت)'
+          : 'تعذر الاتصال بالخادم، يرجى المحاولة مرة أخرى',
     });
   }
 }
