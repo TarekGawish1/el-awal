@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/Select';
 import { useUpdateGroup } from '../hooks/useGroups';
 import { CreateGroupPayload, GroupWithDetails } from '../types/groups.types';
 import { LocationSelect } from './LocationSelect';
+import { AcademicYearSelect } from './AcademicYearSelect';
 
 interface EditGroupModalProps {
   isOpen: boolean;
@@ -175,8 +176,6 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
   const academicTermOptions = [
     { label: 'الفصل الدراسي الأول', value: 'FIRST_TERM' },
     { label: 'الفصل الدراسي الثاني', value: 'SECOND_TERM' },
-    { label: 'الفصل الصيفي', value: 'SUMMER_TERM' },
-    { label: 'العام بالكامل', value: 'FULL_YEAR' },
   ];
 
   useEffect(() => {
@@ -273,13 +272,9 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
             {/* Academic Year and Term Selector */}
             <div className="grid grid-cols-2 gap-3 bg-slate-50/60 p-3 rounded-xl border border-slate-100">
               <div>
-                <Select
-                  label="العام الدراسي *"
-                  name="academicYear"
-                  required
+                <AcademicYearSelect
                   value={formData.academicYear || '2025-2026'}
-                  onChange={e => setFormData({ ...formData, academicYear: e.target.value })}
-                  options={academicYearOptions}
+                  onChange={val => setFormData({ ...formData, academicYear: val })}
                 />
               </div>
               <div>
