@@ -123,8 +123,8 @@ export function StudentQrBadge({
         
         <div className="flex flex-col items-center justify-center w-full gap-3">
           <h3 className="text-xl font-bold text-slate-900 leading-tight text-center m-0">{data.fullName}</h3>
-          <div className="inline-flex items-center justify-center bg-primary-50 py-2 px-6 rounded-xl border border-primary-100 mx-auto" style={{ direction: 'ltr' }}>
-            <span className="text-primary-700 font-mono text-base font-bold m-0 text-center">
+          <div className="bg-primary-50 py-2 px-6 rounded-xl border border-primary-100 inline-block text-center mx-auto">
+            <span className="text-primary-700 font-mono text-base font-bold" dir="ltr">
               {data.studentCode}
             </span>
           </div>
