@@ -9,12 +9,14 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
 import { useGroupStudents } from '../hooks/useGroups';
 import { RemoveStudentModal } from './RemoveStudentModal';
+import { useRouter } from 'next/navigation';
 
 interface StudentListProps {
   groupId: string;
 }
 
 export function StudentList({ groupId }: StudentListProps) {
+  const router = useRouter();
   const { data: enrollments, isLoading, isError, error, refetch } = useGroupStudents(groupId);
   const [searchQuery, setSearchQuery] = useState('');
   const [studentToRemove, setStudentToRemove] = useState<{ id: string, name: string } | null>(null);
@@ -103,7 +105,11 @@ export function StudentList({ groupId }: StudentListProps) {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredEnrollments.map((enrollment) => (
-                  <tr key={enrollment.id} className="hover:bg-slate-50/50 transition-colors">
+                  <tr 
+                    key={enrollment.id} 
+                    className="hover:bg-slate-50/50 transition-colors cursor-pointer"
+                    onClick={() => router.push(`/teacher/students/${enrollment.student.id}`)}
+                  >
                     <td className="py-3 px-4">
                       <div className="font-semibold text-slate-800">{enrollment.student.user.name}</div>
                       <div className="text-xs text-slate-500 md:hidden">{enrollment.student.user.phone}</div>
@@ -126,10 +132,13 @@ export function StudentList({ groupId }: StudentListProps) {
                         variant="outline" 
                         size="sm"
                         className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
-                        onClick={() => setStudentToRemove({ 
-                          id: enrollment.student.id, 
-                          name: enrollment.student.user.name 
-                        })}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setStudentToRemove({ 
+                            id: enrollment.student.id, 
+                            name: enrollment.student.user.name 
+                          });
+                        }}
                       >
                         <UserMinus className="w-4 h-4 ml-1 md:ml-0 md:mr-1" />
                         <span className="hidden md:inline">إزالة</span>
