@@ -111,6 +111,7 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
     })) || [],
   });
   const [educationalStage, setEducationalStage] = useState('');
+  const [groupLocation, setGroupLocation] = useState(group?.schedules?.[0]?.location || '');
 
   // Re-initialize when group changes
   useEffect(() => {
@@ -131,6 +132,11 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
       if (group.gradeLevel.includes('الابتدائي')) setEducationalStage('PRIMARY');
       else if (group.gradeLevel.includes('الإعدادي')) setEducationalStage('MIDDLE');
       else if (group.gradeLevel.includes('الثانوي')) setEducationalStage('SECONDARY');
+
+      // Initialize location if exists
+      if (group.schedules && group.schedules.length > 0 && group.schedules[0].location) {
+        setGroupLocation(group.schedules[0].location);
+      }
     }
   }, [group]);
   
@@ -193,11 +199,19 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Inject the shared location into all schedules
+    const schedulesWithLocation = formData.schedules?.map(s => ({
+      ...s,
+      location: groupLocation
+    })) || [];
+
     updateGroup.mutate(
       {
         id: group.id,
         payload: {
           ...formData,
+          schedules: schedulesWithLocation,
           maxCapacity: formData.maxCapacity ? Number(formData.maxCapacity) : undefined,
           monthlyFee: formData.monthlyFee ? Number(formData.monthlyFee) : undefined,
         },
@@ -286,7 +300,7 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
               <div className="flex items-center justify-between">
                 <label className="block text-sm font-medium text-slate-700 flex items-center gap-2">
                   <Clock className="w-4 h-4 text-primary-500" />
-                  مواعيد ومكان المجموعة
+                  مواعيد المجموعة
                 </label>
                 <Button
                   type="button"
@@ -371,24 +385,6 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-
-                      {/* المكان / القاعة */}
-                      <div className="pt-0.5">
-                        <label className="block text-xs font-semibold text-neutral-600 mb-1 flex items-center gap-1.5">
-                          <MapPin className="w-3.5 h-3.5 text-primary-600" />
-                          المكان / السنتر / القاعة
-                        </label>
-                        <LocationSelect
-                          value={schedule.location || ''}
-                          onChange={(val) => {
-                            const newSchedules = [...(formData.schedules || [])];
-                            newSchedules[index].location = val;
-                            setFormData({ ...formData, schedules: newSchedules });
-                          }}
-                          disabled={updateGroup.isPending}
-                          placeholder="اختر أو اكتب مكان الحصة (مثال: سنتر الأوائل - قاعة 1)..."
-                        />
-                      </div>
                     </div>
                   ))}
                 </div>
@@ -406,8 +402,22 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
                 minLength={3}
                 placeholder="يتم التوليد تلقائياً بناءً على المواعيد والصف..."
                 value={formData.name}
-                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                disabled
+                readOnly
+                className="bg-slate-50 cursor-not-allowed text-slate-500 font-medium"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1.5">
+                <MapPin className="w-4 h-4 text-primary-500" />
+                المكان / السنتر / القاعة
+              </label>
+              <LocationSelect
+                value={groupLocation}
+                onChange={setGroupLocation}
                 disabled={updateGroup.isPending}
+                placeholder="اختر أو اكتب مكان الحصة (مثال: سنتر الأوائل - قاعة 1)..."
               />
             </div>
 

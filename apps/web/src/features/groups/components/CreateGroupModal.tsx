@@ -108,6 +108,7 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
     ],
   });
   const [educationalStage, setEducationalStage] = useState('');
+  const [groupLocation, setGroupLocation] = useState('');
   
   const gradeOptions: Record<string, { label: string; value: string }[]> = {
     PRIMARY: [
@@ -168,9 +169,17 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Inject the shared location into all schedules
+    const schedulesWithLocation = formData.schedules?.map(s => ({
+      ...s,
+      location: groupLocation
+    })) || [];
+
     createGroup.mutate(
       {
         ...formData,
+        schedules: schedulesWithLocation,
         maxCapacity: formData.maxCapacity ? Number(formData.maxCapacity) : undefined,
         monthlyFee: formData.monthlyFee ? Number(formData.monthlyFee) : undefined,
       },
@@ -187,6 +196,7 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
             ] 
           });
           setEducationalStage('');
+          setGroupLocation('');
           onClose();
         },
       }
@@ -269,7 +279,7 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
               <div className="flex items-center justify-between">
                 <label className="block text-sm font-medium text-slate-700 flex items-center gap-2">
                   <Clock className="w-4 h-4 text-primary-500" />
-                  مواعيد ومكان المجموعة
+                  مواعيد المجموعة
                 </label>
                 <Button
                   type="button"
@@ -363,24 +373,6 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-
-                      {/* المكان / القاعة */}
-                      <div className="pt-0.5">
-                        <label className="block text-xs font-semibold text-neutral-600 mb-1 flex items-center gap-1.5">
-                          <MapPin className="w-3.5 h-3.5 text-primary-600" />
-                          المكان / السنتر / القاعة
-                        </label>
-                        <LocationSelect
-                          value={schedule.location || ''}
-                          onChange={(val) => {
-                            const newSchedules = [...(formData.schedules || [])];
-                            newSchedules[index].location = val;
-                            setFormData({ ...formData, schedules: newSchedules });
-                          }}
-                          disabled={createGroup.isPending}
-                          placeholder="اختر أو اكتب مكان الحصة (مثال: سنتر الأوائل - قاعة 1)..."
-                        />
-                      </div>
                     </div>
                   ))}
                 </div>
@@ -398,8 +390,22 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
                 minLength={3}
                 placeholder="يتم التوليد تلقائياً بناءً على المواعيد والصف..."
                 value={formData.name}
-                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                disabled
+                readOnly
+                className="bg-slate-50 cursor-not-allowed text-slate-500 font-medium"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1.5">
+                <MapPin className="w-4 h-4 text-primary-500" />
+                المكان / السنتر / القاعة
+              </label>
+              <LocationSelect
+                value={groupLocation}
+                onChange={setGroupLocation}
                 disabled={createGroup.isPending}
+                placeholder="اختر أو اكتب مكان الحصة (مثال: سنتر الأوائل - قاعة 1)..."
               />
             </div>
 
