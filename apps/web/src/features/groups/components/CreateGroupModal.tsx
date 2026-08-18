@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/Select';
 import { useCreateGroup } from '../hooks/useGroups';
 import { CreateGroupPayload } from '../types/groups.types';
 import { LocationSelect } from './LocationSelect';
+import { AcademicYearSelect } from './AcademicYearSelect';
 
 interface CreateGroupModalProps {
   isOpen: boolean;
@@ -252,13 +253,9 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
             {/* Academic Year and Term Selector */}
             <div className="grid grid-cols-2 gap-3 bg-slate-50/60 p-3 rounded-xl border border-slate-100">
               <div>
-                <Select
-                  label="العام الدراسي *"
-                  name="academicYear"
-                  required
+                <AcademicYearSelect
                   value={formData.academicYear || '2025-2026'}
-                  onChange={e => setFormData({ ...formData, academicYear: e.target.value })}
-                  options={academicYearOptions}
+                  onChange={val => setFormData({ ...formData, academicYear: val })}
                 />
               </div>
               <div>
