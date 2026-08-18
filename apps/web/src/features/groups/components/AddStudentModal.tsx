@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { X, Loader2, Search, UserPlus } from 'lucide-react';
+import { X, Loader2, Search, UserPlus, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Scanner } from '@yudiel/react-qr-scanner';
 import { Alert } from '@/components/ui/Alert';
 import { useAddStudent, useSearchStudents } from '../hooks/useGroups';
 import { Student } from '../types/groups.types';
@@ -19,6 +20,7 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   
   const { data: searchResults, isLoading: isSearching, isError: isSearchError } = useSearchStudents(debouncedQuery);
   const addStudent = useAddStudent();
@@ -95,18 +97,53 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
                 <Search className="h-4 w-4 text-slate-400" />
               </div>
               <Input
-                className="pr-10"
+                className="pr-10 pl-12"
                 placeholder="الاسم، رقم الهاتف، أو الكود..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                disabled={addStudent.isPending}
+                disabled={addStudent.isPending || isScannerOpen}
               />
+              <div className="absolute inset-y-0 left-0 pl-2 flex items-center">
+                <button
+                  type="button"
+                  onClick={() => setIsScannerOpen(!isScannerOpen)}
+                  className={`p-1.5 rounded-md transition-colors ${
+                    isScannerOpen ? 'bg-primary-100 text-primary-700' : 'text-slate-400 hover:text-primary-600 hover:bg-primary-50'
+                  }`}
+                  title="مسح QR Code"
+                >
+                  <QrCode className="h-5 w-5" />
+                </button>
+              </div>
             </div>
             <p className="text-xs text-slate-500 mt-2">اكتب حرفين على الأقل للبحث</p>
           </div>
 
-          <div className="flex-1 overflow-y-auto border border-slate-200 rounded-md bg-slate-50">
-            {isSearching ? (
+          <div className="flex-1 overflow-y-auto border border-slate-200 rounded-md bg-slate-50 relative">
+            {isScannerOpen ? (
+              <div className="p-4 flex flex-col items-center justify-center bg-black h-full absolute inset-0 z-10">
+                <div className="w-full max-w-[250px] aspect-square rounded-2xl overflow-hidden shadow-lg border-2 border-primary-500/50">
+                  <Scanner 
+                    onScan={(detectedCodes) => {
+                      if (detectedCodes && detectedCodes.length > 0 && detectedCodes[0]?.rawValue) {
+                        setSearchQuery(detectedCodes[0].rawValue);
+                        setIsScannerOpen(false);
+                      }
+                    }}
+                    formats={['qr_code']}
+                  />
+                </div>
+                <p className="text-white mt-4 text-sm">قم بتوجيه الكاميرا نحو رمز QR الخاص بالطالب</p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-4 bg-white/10 text-white border-white/20 hover:bg-white/20"
+                  onClick={() => setIsScannerOpen(false)}
+                >
+                  إلغاء المسح
+                </Button>
+              </div>
+            ) : isSearching ? (
               <div className="p-8 flex flex-col items-center justify-center text-slate-500">
                 <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
                 <p>جاري البحث...</p>
