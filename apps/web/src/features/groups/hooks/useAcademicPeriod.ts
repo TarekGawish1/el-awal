@@ -156,6 +156,36 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
     }
   }, [groups, dbPeriod, hasUserChanged, selectedYears.length, selectedTerms.length]);
 
+  // Cross-component and cross-tab synchronization
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleSync = () => {
+      try {
+        const storedY = localStorage.getItem(STORAGE_YEAR_KEY);
+        if (storedY) {
+          const parsed = JSON.parse(storedY);
+          if (Array.isArray(parsed)) setSelectedYearsState(parsed);
+        }
+        const storedT = localStorage.getItem(STORAGE_TERM_KEY);
+        if (storedT) {
+          const parsed = JSON.parse(storedT);
+          if (Array.isArray(parsed)) setSelectedTermsState(parsed);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('el_awal_academic_period_changed', handleSync);
+
+    return () => {
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('el_awal_academic_period_changed', handleSync);
+    };
+  }, []);
+
   const setSelectedYears = (years: string[]) => {
     setHasUserChanged(true);
     setSelectedYearsState(years);
@@ -163,6 +193,7 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(STORAGE_YEAR_KEY, JSON.stringify(years));
+        window.dispatchEvent(new Event('el_awal_academic_period_changed'));
       } catch (err) {
         console.error('Failed to save academic years locally:', err);
       }
@@ -185,6 +216,7 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(STORAGE_TERM_KEY, JSON.stringify(terms));
+        window.dispatchEvent(new Event('el_awal_academic_period_changed'));
       } catch (err) {
         console.error('Failed to save academic terms locally:', err);
       }
@@ -200,11 +232,17 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
     }
   };
 
+  const activeYear = selectedYears[0] || dbPeriod?.activeAcademicYear || '2025-2026';
+  const activeTerm = selectedTerms[0] || dbPeriod?.activeAcademicTerm || 'FIRST_TERM';
+
   return {
     selectedYears,
     setSelectedYears,
     selectedTerms,
     setSelectedTerms,
+    activeYear,
+    activeTerm,
+    dbPeriod,
     isSyncingWithDb: mutation.isPending,
   };
 }
