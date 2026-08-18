@@ -173,6 +173,8 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
             onChange={handleChange}
             placeholder="مثال: محمود أحمد"
             minLength={3}
+            dir="rtl"
+            className="text-right"
           />
           <Input
             label="رقم هاتف الطالب (اختياري)"
@@ -281,6 +283,8 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
             value={formData.parentName}
             onChange={handleChange}
             placeholder="مثال: أحمد علي"
+            dir="rtl"
+            className="text-right"
           />
           <Input
             label="رقم هاتف ولي الأمر *"

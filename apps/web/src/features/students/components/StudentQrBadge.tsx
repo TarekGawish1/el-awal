@@ -63,7 +63,18 @@ export function StudentQrBadge({
             if (!blob) return;
             const file = new File([blob], `student-card-${data.studentCode}.png`, { type: 'image/png' });
 
-            if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            if (studentPhone) {
+              const downloadUrl = DOMURL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = downloadUrl;
+              link.download = `student-card-${data.studentCode}.png`;
+              link.click();
+              DOMURL.revokeObjectURL(downloadUrl);
+
+              const noteText = `${shareText}\n\n(تم تحميل صورة بطاقة الـ QR على جهازك، يمكنك إرفاقها هنا)`;
+              const waUrl = `https://wa.me/${studentPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(noteText)}`;
+              window.open(waUrl, '_blank');
+            } else if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
               await navigator.share({
                 files: [file],
                 title: 'بطاقة الطالب',
@@ -77,13 +88,7 @@ export function StudentQrBadge({
               link.click();
               DOMURL.revokeObjectURL(downloadUrl);
 
-              if (studentPhone) {
-                const noteText = `${shareText}\n\n(تم تحميل صورة بطاقة الـ QR على جهازك، يمكنك إرفاقها هنا)`;
-                const waUrl = `https://wa.me/${studentPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(noteText)}`;
-                window.open(waUrl, '_blank');
-              } else {
-                alert('تم تحميل صورة البطاقة. يمكنك الآن مشاركتها.');
-              }
+              alert('تم تحميل صورة البطاقة. يمكنك الآن مشاركتها.');
             }
           }, 'image/png');
         }
