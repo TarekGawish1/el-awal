@@ -28,42 +28,19 @@ export function StudentQrBadge({
   const [isDownloading, setIsDownloading] = useState(false);
   const badgeRef = useRef<HTMLDivElement>(null);
 
-  const generateQrImageBlob = (): Promise<Blob | null> => {
-    return new Promise((resolve) => {
-      if (!badgeRef.current) return resolve(null);
-      const svg = badgeRef.current.querySelector('svg');
-      if (!svg) return resolve(null);
-
-      const svgData = new XMLSerializer().serializeToString(svg);
-      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-      const DOMURL = window.URL || window.webkitURL || window;
-      const url = DOMURL.createObjectURL(svgBlob);
-
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = 400;
-        canvas.height = 400;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, 400, 400);
-          ctx.drawImage(img, 50, 50, 300, 300);
-
-          canvas.toBlob((blob) => {
-            resolve(blob);
-          }, 'image/png');
-        } else {
-          resolve(null);
-        }
-        DOMURL.revokeObjectURL(url);
-      };
-      img.onerror = () => {
-        resolve(null);
-        DOMURL.revokeObjectURL(url);
-      };
-      img.src = url;
-    });
+  const generateQrImageBlob = async (): Promise<Blob | null> => {
+    if (!badgeRef.current) return null;
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const canvas = await html2canvas(badgeRef.current, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+      });
+      return new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+    } catch (error) {
+      console.error('Error generating image:', error);
+      return null;
+    }
   };
 
   const handleDownload = async (e: React.MouseEvent) => {
