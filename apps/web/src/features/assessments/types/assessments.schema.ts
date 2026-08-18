@@ -47,6 +47,7 @@ export const questionSchema = z.object({
 
 export const createAssessmentSchema = z.object({
   groupId: z.string().optional().nullable(),
+  targetGroupIds: z.array(z.string()).optional(),
   courseId: z.string().optional().nullable(),
   academicStage: z.string().optional().nullable(),
   gradeLevel: z.string().optional().nullable(),
