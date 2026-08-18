@@ -83,6 +83,7 @@ export function QrScanner({ sessionId }: QrScannerProps) {
           onError={handleError}
           formats={['qr_code']}
           constraints={{ facingMode }}
+          styles={{ video: { transform: facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)' } }}
         />
         
         <button

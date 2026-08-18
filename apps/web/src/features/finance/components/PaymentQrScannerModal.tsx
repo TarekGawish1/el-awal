@@ -290,6 +290,7 @@ export function PaymentQrScannerModal({
                 onError={handleCameraError}
                 formats={['qr_code']}
                 constraints={{ facingMode }}
+                styles={{ video: { transform: facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)' } }}
               />
               
               <button

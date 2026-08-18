@@ -142,7 +142,7 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
                   formats={['qr_code']}
                   components={{}}
                   constraints={{ facingMode }}
-                  styles={{ container: { width: '100%', height: '100%' }, video: { objectFit: 'cover' } }}
+                  styles={{ container: { width: '100%', height: '100%' }, video: { objectFit: 'cover', transform: facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)' } }}
                 />
                 
                 <button
