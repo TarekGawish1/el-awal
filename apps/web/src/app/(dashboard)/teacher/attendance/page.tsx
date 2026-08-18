@@ -152,7 +152,13 @@ export default function TeacherAttendancePage() {
                   { label: '-- اختر المجموعة لبدء الرصد --', value: '' },
                   ...sessions.map((s: any) => {
                     const groupName = s.group?.name || 'مجموعة';
-                    const timeLabel = s.startTime ? ` (الساعة ${formatTime12h(s.startTime)})` : '';
+                    const formattedTime = s.startTime ? formatTime12h(s.startTime) : '';
+                    let timeLabel = formattedTime ? ` (الساعة ${formattedTime})` : '';
+                    
+                    if (formattedTime && (groupName.includes(`(الساعة ${formattedTime})`) || groupName.includes(formattedTime))) {
+                      timeLabel = '';
+                    }
+
                     return {
                       label: `${groupName}${timeLabel}`,
                       value: s.id,
