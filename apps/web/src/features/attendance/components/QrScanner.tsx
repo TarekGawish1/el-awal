@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { useScanQrAttendance } from '../hooks/use-attendance';
 import { Alert } from '@/components/ui/Alert';
+import { RefreshCcw } from 'lucide-react';
 
 interface QrScannerProps {
   sessionId: string;
@@ -20,6 +21,7 @@ export function QrScanner({ sessionId }: QrScannerProps) {
   const { mutate, isPending } = useScanQrAttendance();
   const [locked, setLocked] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
 
   const handleScan = (detectedCodes: any[]) => {
     if (locked || isPending || !detectedCodes || detectedCodes.length === 0) return;
@@ -80,7 +82,16 @@ export function QrScanner({ sessionId }: QrScannerProps) {
           onScan={handleScan}
           onError={handleError}
           formats={['qr_code']}
+          constraints={{ facingMode }}
         />
+        
+        <button
+          onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
+          className="absolute top-4 right-4 z-20 bg-white/20 hover:bg-white/40 text-white backdrop-blur-md p-2.5 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 shadow-sm"
+          title="تبديل الكاميرا"
+        >
+          <RefreshCcw className="w-5 h-5" />
+        </button>
         {(locked || isPending) && (
           <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10 backdrop-blur-sm">
             <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary-600 border-t-transparent"></div>

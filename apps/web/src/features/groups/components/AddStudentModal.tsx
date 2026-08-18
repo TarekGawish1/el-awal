@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { X, Loader2, Search, UserPlus, QrCode } from 'lucide-react';
+import { X, Loader2, Search, UserPlus, QrCode, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Scanner } from '@yudiel/react-qr-scanner';
@@ -21,6 +21,7 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   
   const { data: searchResults, isLoading: isSearching, isError: isSearchError } = useSearchStudents(debouncedQuery);
   const addStudent = useAddStudent();
@@ -130,7 +131,7 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
 
           {isScannerOpen ? (
             <div className="flex-1 flex flex-col items-center justify-center bg-slate-900 rounded-xl overflow-hidden p-6 border-2 border-primary-500/30 shadow-inner">
-              <div className="w-full max-w-[280px] aspect-square rounded-2xl overflow-hidden shadow-2xl ring-4 ring-primary-500/50 bg-black">
+              <div className="w-full max-w-[280px] aspect-square rounded-2xl overflow-hidden shadow-2xl ring-4 ring-primary-500/50 bg-black relative">
                 <Scanner 
                   onScan={(detectedCodes) => {
                     if (detectedCodes && detectedCodes.length > 0 && detectedCodes[0]?.rawValue) {
@@ -140,8 +141,18 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
                   }}
                   formats={['qr_code']}
                   components={{}}
+                  constraints={{ facingMode }}
                   styles={{ container: { width: '100%', height: '100%' }, video: { objectFit: 'cover' } }}
                 />
+                
+                <button
+                  type="button"
+                  onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
+                  className="absolute top-3 right-3 z-20 bg-black/40 hover:bg-black/60 text-white backdrop-blur-md p-2 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 shadow-sm"
+                  title="تبديل الكاميرا"
+                >
+                  <RefreshCcw className="w-4 h-4" />
+                </button>
               </div>
               <p className="text-slate-300 mt-6 text-sm text-center font-medium">قم بتوجيه الكاميرا نحو رمز QR الخاص بالطالب</p>
               <Button 

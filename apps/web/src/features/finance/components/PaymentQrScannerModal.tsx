@@ -17,7 +17,8 @@ import {
   Volume2, 
   VolumeX,
   Sparkles,
-  X
+  X,
+  RefreshCcw
 } from 'lucide-react';
 
 interface PaymentQrScannerModalProps {
@@ -54,6 +55,7 @@ export function PaymentQrScannerModal({
 
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
 
   const { data: groups = [] } = useGroups();
   const { mutate: scanPayment, isPending } = useScanPaymentQr();
@@ -287,7 +289,16 @@ export function PaymentQrScannerModal({
                 onScan={handleScan}
                 onError={handleCameraError}
                 formats={['qr_code']}
+                constraints={{ facingMode }}
               />
+              
+              <button
+                onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
+                className="absolute top-3 right-3 z-20 bg-black/40 hover:bg-black/60 text-white backdrop-blur-md p-2 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 shadow-sm"
+                title="تبديل الكاميرا"
+              >
+                <RefreshCcw className="w-4 h-4" />
+              </button>
 
               {/* Scanning Overlay Grid & Reticle */}
               <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
