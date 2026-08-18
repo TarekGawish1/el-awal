@@ -25,6 +25,7 @@ export function GroupList() {
   const { data: groups, isLoading, isError, error, refetch } = useGroups();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedStage, setSelectedStage] = useState<string>('الكل');
 
   const filteredGroups = groups?.filter(group => 
     group.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -41,9 +42,13 @@ export function GroupList() {
   }, {} as Record<string, Record<string, Group[]>>);
 
   // Sort stages
-  const sortedStages = Object.keys(groupedGroups).sort(
+  const availableStages = Object.keys(groupedGroups).sort(
     (a, b) => STAGE_ORDER.indexOf(a) - STAGE_ORDER.indexOf(b)
   );
+  
+  const stagesToDisplay = selectedStage === 'الكل' 
+    ? availableStages 
+    : availableStages.filter(stage => stage === selectedStage);
 
   return (
     <div className="space-y-6">
@@ -58,7 +63,7 @@ export function GroupList() {
         </Button>
       </div>
 
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex items-center">
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="relative w-full md:w-96">
           <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
             <Search className="h-4 w-4 text-slate-400" />
@@ -70,6 +75,34 @@ export function GroupList() {
             onChange={e => setSearchQuery(e.target.value)}
           />
         </div>
+        
+        {availableStages.length > 0 && (
+          <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 hide-scrollbar">
+            <button
+              onClick={() => setSelectedStage('الكل')}
+              className={`whitespace-nowrap px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                selectedStage === 'الكل'
+                  ? 'bg-primary-50 text-primary-700'
+                  : 'text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              الكل
+            </button>
+            {STAGE_ORDER.filter(stage => availableStages.includes(stage)).map(stage => (
+              <button
+                key={stage}
+                onClick={() => setSelectedStage(stage)}
+                className={`whitespace-nowrap px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  selectedStage === stage
+                    ? 'bg-primary-50 text-primary-700'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {stage}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {isError ? (
@@ -117,9 +150,15 @@ export function GroupList() {
           <h3 className="text-lg font-medium text-slate-700">لا توجد نتائج مطابقة</h3>
           <p className="text-slate-500">لم يتم العثور على مجموعات تطابق بحثك "{searchQuery}"</p>
         </div>
+      ) : stagesToDisplay.length === 0 ? (
+        <div className="text-center py-12 bg-white rounded-xl border border-slate-100">
+          <Layers className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+          <h3 className="text-lg font-medium text-slate-700">لا توجد مجموعات</h3>
+          <p className="text-slate-500">لا توجد مجموعات في {selectedStage}</p>
+        </div>
       ) : (
         <div className="space-y-8">
-          {sortedStages.map(stage => (
+          {stagesToDisplay.map(stage => (
             <div key={stage} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
               <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
                 <div className="bg-primary-50 p-2 rounded-lg text-primary-600">
