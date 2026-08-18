@@ -55,11 +55,11 @@ export class PresignedUploadDto {
 
   @ApiPropertyOptional({
     description: 'Target storage directory partition',
-    enum: ['courses', 'assignments', 'summaries', 'avatars'],
+    enum: ['courses', 'assignments', 'summaries', 'avatars', 'assessments'],
     example: 'courses',
     default: 'courses',
   })
   @IsOptional()
-  @IsIn(['courses', 'assignments', 'summaries', 'avatars'])
+  @IsIn(['courses', 'assignments', 'summaries', 'avatars', 'assessments'])
   folder?: string;
 }

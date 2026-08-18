@@ -10,6 +10,7 @@ export const questionSchema = z.object({
   questionNumber: z.number().int(),
   optionsData: z.array(z.string().min(1, 'الخيار لا يمكن أن يكون فارغاً')).optional(),
   correctAnswer: z.string().optional(),
+  imageUrl: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (data.questionType === QuestionType.MULTIPLE_CHOICE) {
     if (!data.optionsData || data.optionsData.length < 2) {

@@ -146,6 +146,7 @@ export interface AssessmentQuestion {
   questionText: string;
   questionType: 'MULTIPLE_CHOICE' | 'TRUE_FALSE' | 'ESSAY';
   optionsData?: string; // JSON stringified options array
+  imageUrl?: string;
   points: number;
   // Redacted for students until graded:
   correctAnswer?: string;

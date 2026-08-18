@@ -186,9 +186,18 @@ export function AssessmentDetails({ assessmentId }: { assessmentId: string }) {
                     {question.questionNumber}
                   </div>
                   <div>
-                    <h3 className="text-lg font-medium text-slate-800 leading-relaxed whitespace-pre-wrap">
+                    <h3 className="text-lg font-medium text-slate-800 leading-relaxed whitespace-pre-wrap mb-3">
                       {question.questionText}
                     </h3>
+                    {question.imageUrl && (
+                      <div className="mb-4 rounded-lg overflow-hidden border border-slate-200 max-w-sm">
+                        <img 
+                          src={question.imageUrl} 
+                          alt="Question content" 
+                          className="w-full h-auto object-contain"
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-2 shrink-0 mr-4">

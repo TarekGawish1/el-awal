@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useFormContext, useFieldArray } from 'react-hook-form';
 import { Plus, Trash2, GripVertical, AlertCircle } from 'lucide-react';
 import { CreateAssessmentFormData } from '../types/assessments.schema';
@@ -9,6 +10,8 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Select } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
+import { generatePresignedUrl, uploadFileToR2 } from '@/features/content/api/content.api';
+import toast from 'react-hot-toast';
 
 interface AssessmentQuestionEditorProps {
   index: number;
@@ -21,6 +24,8 @@ export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestion
   const optionsData = watch(`questions.${index}.optionsData`) || [];
   
   const questionErrors = errors.questions?.[index];
+
+  const [isUploading, setIsUploading] = useState(false);
 
   const addOption = () => {
     setValue(`questions.${index}.optionsData`, [...optionsData, '']);
@@ -42,6 +47,40 @@ export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestion
     setValue(`questions.${index}.correctAnswer`, value, { shouldValidate: true });
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('يرجى اختيار ملف صورة صحيح');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('حجم الصورة يجب أن لا يتجاوز 5 ميجابايت');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const presigned = await generatePresignedUrl({
+        fileName: file.name,
+        contentType: file.type || 'image/jpeg',
+        fileSizeBytes: file.size,
+        folder: 'assessments',
+      });
+
+      await uploadFileToR2(presigned.uploadUrl, file);
+      
+      setValue(`questions.${index}.imageUrl`, presigned.publicUrl, { shouldValidate: true });
+      toast.success('تم رفع الصورة بنجاح');
+    } catch (error) {
+      toast.error('حدث خطأ أثناء رفع الصورة');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-5">
       <div className="flex justify-between items-start gap-4">
@@ -61,7 +100,25 @@ export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestion
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="md:col-span-3">
-          <Label className="mb-2 block">نص السؤال</Label>
+          <div className="flex justify-between items-center mb-2">
+            <Label>نص السؤال</Label>
+            <div className="flex items-center gap-2">
+              <input 
+                type="file" 
+                id={`image-upload-${index}`} 
+                className="hidden" 
+                accept="image/*"
+                onChange={handleImageUpload}
+                disabled={isUploading}
+              />
+              <Label 
+                htmlFor={`image-upload-${index}`}
+                className={`text-xs px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded cursor-pointer transition-colors ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {isUploading ? 'جاري الرفع...' : 'إضافة صورة للسؤال'}
+              </Label>
+            </div>
+          </div>
           <Textarea 
             {...register(`questions.${index}.questionText`)}
             placeholder="اكتب نص السؤال هنا..."
@@ -70,6 +127,23 @@ export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestion
           />
           {questionErrors?.questionText && (
             <p className="text-red-500 text-xs mt-1">{questionErrors.questionText.message}</p>
+          )}
+          
+          {watch(`questions.${index}.imageUrl`) && (
+            <div className="mt-3 relative w-32 h-32 rounded-lg border border-slate-200 overflow-hidden group">
+              <img 
+                src={watch(`questions.${index}.imageUrl`)} 
+                alt="Question image" 
+                className="w-full h-full object-cover"
+              />
+              <button 
+                type="button"
+                onClick={() => setValue(`questions.${index}.imageUrl`, '')}
+                className="absolute top-1 right-1 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            </div>
           )}
         </div>
         

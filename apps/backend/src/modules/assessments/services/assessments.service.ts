@@ -125,6 +125,7 @@ export class AssessmentsService {
         optionsData: q.optionsData ? q.optionsData : undefined,
         correctAnswer: q.correctAnswer,
         explanation: q.explanation,
+        imageUrl: q.imageUrl,
         points: q.points,
       }));
 

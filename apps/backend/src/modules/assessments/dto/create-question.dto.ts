@@ -60,6 +60,14 @@ export class CreateQuestionDto {
   @IsString()
   explanation?: string;
 
+  @ApiPropertyOptional({
+    description: 'Image URL for the question',
+    example: 'https://cdn.el-awal.com/assessments/image.jpg',
+  })
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
   @ApiProperty({
     description: 'Point value allocated to this question',
     example: 2.0,

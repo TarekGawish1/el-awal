@@ -19,6 +19,7 @@ export interface AssessmentQuestion {
   correctAnswer?: string;
   points: number;
   explanation?: string | null;
+  imageUrl?: string | null;
   displayOrder: number;
 }
 
