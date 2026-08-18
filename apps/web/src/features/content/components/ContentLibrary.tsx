@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { useContent, useDeleteContent } from '../hooks/use-content';
 import { ContentType, EducationalContent } from '../types/content.types';
-import { useAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
+import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
 import { AcademicPeriodSwitcher } from '@/features/groups/components/AcademicPeriodSwitcher';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -43,7 +43,7 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
   const [filterType, setFilterType] = useState<ContentType | 'ALL'>('ALL');
   const [selectedGradeFilter, setSelectedGradeFilter] = useState<string>('ALL');
 
-  const { activeYear, activeTerm, isFilterActive, currentAcademicTerm, academicYears } = useAcademicPeriod();
+  const { activeYear, activeTerm } = useStoredAcademicPeriod();
 
   // Query content matching the active academic period and filters
   const queryParams: Record<string, string> = {};

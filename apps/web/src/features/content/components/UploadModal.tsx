@@ -1,43 +1,39 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { X, UploadCloud, FileText, AlertCircle, Loader2, Calendar, Layers, Users, BookOpen } from 'lucide-react';
+import { X, UploadCloud, FileText, Loader2, Calendar, Layers, BookOpen } from 'lucide-react';
 import { ContentType } from '../types/content.types';
 import { useUploadContent } from '../hooks/use-content';
 import { useGroups } from '@/features/groups/hooks/useGroups';
-import { useAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
-import { AcademicYearSelect } from '@/features/groups/components/AcademicYearSelect';
+import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Textarea } from '@/components/ui/Textarea';
-import { Select } from '@/components/ui/Select';
 import toast from 'react-hot-toast';
 
 const ALL_GRADE_LEVELS = [
-  { value: 'الصف الأول الإعدادي', label: 'الصف الأول الإعدادي', stage: 'MIDDLE' },
-  { value: 'الصف الثاني الإعدادي', label: 'الصف الثاني الإعدادي', stage: 'MIDDLE' },
-  { value: 'الصف الثالث الإعدادي', label: 'الصف الثالث الإعدادي', stage: 'MIDDLE' },
-  { value: 'الصف الأول الثانوي', label: 'الصف الأول الثانوي', stage: 'SECONDARY' },
-  { value: 'الصف الثاني الثانوي', label: 'الصف الثاني الثانوي', stage: 'SECONDARY' },
-  { value: 'الصف الثالث الثانوي', label: 'الصف الثالث الثانوي', stage: 'SECONDARY' },
-  { value: 'الصف الأول الابتدائي', label: 'الصف الأول الابتدائي', stage: 'PRIMARY' },
-  { value: 'الصف الثاني الابتدائي', label: 'الصف الثاني الابتدائي', stage: 'PRIMARY' },
-  { value: 'الصف الثالث الابتدائي', label: 'الصف الثالث الابتدائي', stage: 'PRIMARY' },
-  { value: 'الصف الرابع الابتدائي', label: 'الصف الرابع الابتدائي', stage: 'PRIMARY' },
-  { value: 'الصف الخامس الابتدائي', label: 'الصف الخامس الابتدائي', stage: 'PRIMARY' },
-  { value: 'الصف السادس الابتدائي', label: 'الصف السادس الابتدائي', stage: 'PRIMARY' },
+  { value: 'الصف الأول الإعدادي', label: 'الصف الأول الإعدادي' },
+  { value: 'الصف الثاني الإعدادي', label: 'الصف الثاني الإعدادي' },
+  { value: 'الصف الثالث الإعدادي', label: 'الصف الثالث الإعدادي' },
+  { value: 'الصف الأول الثانوي', label: 'الصف الأول الثانوي' },
+  { value: 'الصف الثاني الثانوي', label: 'الصف الثاني الثانوي' },
+  { value: 'الصف الثالث الثانوي', label: 'الصف الثالث الثانوي' },
+  { value: 'الصف الأول الابتدائي', label: 'الصف الأول الابتدائي' },
+  { value: 'الصف الثاني الابتدائي', label: 'الصف الثاني الابتدائي' },
+  { value: 'الصف الثالث الابتدائي', label: 'الصف الثالث الابتدائي' },
+  { value: 'الصف الرابع الابتدائي', label: 'الصف الرابع الابتدائي' },
+  { value: 'الصف الخامس الابتدائي', label: 'الصف الخامس الابتدائي' },
+  { value: 'الصف السادس الابتدائي', label: 'الصف السادس الابتدائي' },
 ];
 
 const uploadSchema = z.object({
   title: z.string().min(3, 'عنوان الملف مطلوب (3 أحرف على الأقل)'),
   description: z.string().optional(),
   contentType: z.nativeEnum(ContentType),
-  academicYear: z.string().min(1, 'العام الدراسي مطلوب'),
-  academicTerm: z.string().min(1, 'الفصل الدراسي مطلوب'),
   gradeLevel: z.string().optional(),
   targetScope: z.enum(['ALL_GRADE_GROUPS', 'SPECIFIC_GROUP', 'GENERAL']),
   groupId: z.string().optional(),
@@ -82,16 +78,15 @@ export function UploadModal({
   const [fileError, setFileError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { activeYear, activeTerm } = useAcademicPeriod();
   const { data: groupsData } = useGroups();
   const groups = groupsData || [];
+  const { activeYear, activeTerm } = useStoredAcademicPeriod(groups);
 
   const { mutate: uploadContent, isPending } = useUploadContent();
 
   const {
     register,
     handleSubmit,
-    control,
     watch,
     setValue,
     reset,
@@ -100,8 +95,6 @@ export function UploadModal({
     resolver: zodResolver(uploadSchema),
     defaultValues: {
       contentType: ContentType.FILE,
-      academicYear: activeYear || '2025-2026',
-      academicTerm: activeTerm || 'FIRST_TERM',
       gradeLevel: initialGradeLevel || '',
       targetScope: initialGroupId ? 'SPECIFIC_GROUP' : initialGradeLevel ? 'ALL_GRADE_GROUPS' : 'ALL_GRADE_GROUPS',
       groupId: initialGroupId || '',
@@ -112,14 +105,10 @@ export function UploadModal({
 
   const selectedTargetScope = watch('targetScope');
   const selectedGradeLevel = watch('gradeLevel');
-  const selectedAcademicYear = watch('academicYear');
-  const selectedAcademicTerm = watch('academicTerm');
 
-  // Sync defaults when modal opens or activePeriod changes
+  // Sync defaults when modal opens
   useEffect(() => {
     if (isOpen) {
-      setValue('academicYear', activeYear || '2025-2026');
-      setValue('academicTerm', activeTerm || 'FIRST_TERM');
       if (initialGradeLevel) setValue('gradeLevel', initialGradeLevel);
       if (initialGroupId) {
         setValue('groupId', initialGroupId);
@@ -128,7 +117,7 @@ export function UploadModal({
       if (initialSessionTopic) setValue('sessionTopic', initialSessionTopic);
       if (initialSessionId) setValue('sessionId', initialSessionId);
     }
-  }, [isOpen, activeYear, activeTerm, initialGradeLevel, initialGroupId, initialSessionTopic, initialSessionId, setValue]);
+  }, [isOpen, initialGradeLevel, initialGroupId, initialSessionTopic, initialSessionId, setValue]);
 
   if (!isOpen) return null;
 
@@ -190,8 +179,8 @@ export function UploadModal({
           title: data.title,
           description: data.description,
           contentType: data.contentType,
-          academicYear: data.academicYear,
-          academicTerm: data.academicTerm,
+          academicYear: activeYear || '2025-2026',
+          academicTerm: activeTerm || 'FIRST_TERM',
           gradeLevel: payloadGradeLevel || undefined,
           groupId: payloadGroupId || undefined,
           sessionTopic: data.sessionTopic || undefined,
@@ -211,8 +200,10 @@ export function UploadModal({
     );
   };
 
-  // Filter groups according to selected grade level and year/term
+  // Filter groups ONLY to the current active academic year, semester, and selected grade level
   const filteredGroups = groups.filter((g) => {
+    if (activeYear && g.academicYear && g.academicYear !== activeYear) return false;
+    if (activeTerm && g.academicTerm && g.academicTerm !== activeTerm) return false;
     if (selectedGradeLevel && g.gradeLevel !== selectedGradeLevel) return false;
     return true;
   });
@@ -243,43 +234,22 @@ export function UploadModal({
         {/* Scrollable Form Content */}
         <div className="p-6 overflow-y-auto flex-1">
           <form id="upload-content-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            {/* Academic Period Selector Box */}
-            <div className="bg-gradient-to-r from-blue-50/50 to-indigo-50/50 p-4 rounded-xl border border-blue-100 space-y-3">
-              <div className="flex items-center gap-2 text-xs font-bold text-blue-900">
-                <Calendar className="w-4 h-4 text-blue-600" />
-                العام والفصل الدراسي المستهدف:
+            {/* Informative Current Academic Period Banner (Auto applied) */}
+            <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+              <div className="flex items-center gap-2 text-slate-700 font-bold">
+                <Calendar className="w-4 h-4 text-primary-600 shrink-0" />
+                <span>العام الدراسي الحالي:</span>
+                <span className="text-primary-700 font-extrabold">{activeYear}</span>
+                <span className="text-slate-300">|</span>
+                <span className="text-emerald-700 font-bold">
+                  {activeTerm === 'SECOND_TERM' ? 'الفصل الدراسي الثاني' : 'الفصل الدراسي الأول'}
+                </span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">العام الدراسي</label>
-                  <Controller
-                    control={control}
-                    name="academicYear"
-                    render={({ field }) => (
-                      <AcademicYearSelect
-                        value={field.value}
-                        onChange={(val) => field.onChange(val)}
-                        disabled={isPending}
-                      />
-                    )}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">الفصل الدراسي</label>
-                  <select
-                    {...register('academicTerm')}
-                    disabled={isPending}
-                    className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                  >
-                    <option value="FIRST_TERM">الفصل الدراسي الأول</option>
-                    <option value="SECOND_TERM">الفصل الدراسي الثاني</option>
-                  </select>
-                </div>
-              </div>
+              <span className="text-[11px] text-slate-500 font-medium">سيتم ربط الملف بهذه الفترة تلقائياً</span>
             </div>
 
             {/* Scope / Grade & Session Scoping */}
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-4">
+            <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-100 space-y-4">
               <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
                 <Layers className="w-4 h-4 text-primary-600" />
                 تحديد الصف الدراسي ونطاق الظهور:
@@ -326,7 +296,7 @@ export function UploadModal({
               {selectedTargetScope === 'SPECIFIC_GROUP' && (
                 <div className="pt-2">
                   <Label className="mb-1 block text-xs font-bold text-slate-700">
-                    اختر المجموعة <span className="text-red-500">*</span>
+                    اختر المجموعة (للعام الحالي {activeYear}) <span className="text-red-500">*</span>
                   </Label>
                   <select
                     {...register('groupId')}
@@ -340,6 +310,11 @@ export function UploadModal({
                       </option>
                     ))}
                   </select>
+                  {filteredGroups.length === 0 && (
+                    <p className="text-[11px] text-amber-600 mt-1 font-medium">
+                      لا توجد مجموعات مسجلة لهذا الصف في العام الدراسي الحالي ({activeYear}).
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -491,4 +466,5 @@ export function UploadModal({
     </div>
   );
 }
+
 
