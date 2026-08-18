@@ -23,7 +23,19 @@ export function GroupCard({ group }: GroupCardProps) {
           </div>
           
           <div className="space-y-2 mb-4">
-            <p className="text-sm text-slate-500 font-medium">{group.gradeLevel}</p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-sm text-slate-700 font-semibold">{group.gradeLevel}</span>
+              {group.academicYear && (
+                <span className="text-[11px] font-medium bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100">
+                  {group.academicYear}
+                </span>
+              )}
+              {group.academicTerm && (
+                <span className="text-[11px] font-medium bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-100">
+                  {group.academicTerm === 'FIRST_TERM' ? 'ترم أول' : group.academicTerm === 'SECOND_TERM' ? 'ترم ثانٍ' : group.academicTerm === 'SUMMER_TERM' ? 'صيفي' : 'عام كامل'}
+                </span>
+              )}
+            </div>
             {locations.length > 0 && (
               <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100 w-fit">
                 <MapPin className="w-3.5 h-3.5 text-primary-600 shrink-0" />

@@ -100,6 +100,8 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
   const [formData, setFormData] = useState<CreateGroupPayload>({
     name: '',
     gradeLevel: '',
+    academicYear: '2025-2026',
+    academicTerm: 'FIRST_TERM',
     maxCapacity: 50,
     monthlyFee: 100,
     schedules: [
@@ -130,6 +132,20 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
       { label: 'الصف الثالث الثانوي', value: 'الصف الثالث الثانوي' },
     ],
   };
+
+  const academicYearOptions = [
+    { label: '2025-2026', value: '2025-2026' },
+    { label: '2026-2027', value: '2026-2027' },
+    { label: '2027-2028', value: '2027-2028' },
+    { label: '2024-2025', value: '2024-2025' },
+  ];
+
+  const academicTermOptions = [
+    { label: 'الفصل الدراسي الأول', value: 'FIRST_TERM' },
+    { label: 'الفصل الدراسي الثاني', value: 'SECOND_TERM' },
+    { label: 'الفصل الصيفي', value: 'SUMMER_TERM' },
+    { label: 'العام بالكامل', value: 'FULL_YEAR' },
+  ];
 
   useEffect(() => {
     const daysMap = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
@@ -188,6 +204,8 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
           setFormData({ 
             name: '', 
             gradeLevel: '', 
+            academicYear: '2025-2026',
+            academicTerm: 'FIRST_TERM',
             maxCapacity: 50, 
             monthlyFee: 100,
             schedules: [
@@ -231,6 +249,30 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
           )}
 
           <div className="space-y-4">
+            {/* Academic Year and Term Selector */}
+            <div className="grid grid-cols-2 gap-3 bg-slate-50/60 p-3 rounded-xl border border-slate-100">
+              <div>
+                <Select
+                  label="العام الدراسي *"
+                  name="academicYear"
+                  required
+                  value={formData.academicYear || '2025-2026'}
+                  onChange={e => setFormData({ ...formData, academicYear: e.target.value })}
+                  options={academicYearOptions}
+                />
+              </div>
+              <div>
+                <Select
+                  label="الفصل الدراسي *"
+                  name="academicTerm"
+                  required
+                  value={formData.academicTerm || 'FIRST_TERM'}
+                  onChange={e => setFormData({ ...formData, academicTerm: e.target.value })}
+                  options={academicTermOptions}
+                />
+              </div>
+            </div>
+
             <div className="space-y-2">
               <label className="block text-sm font-medium text-slate-700 mb-1">المرحلة الدراسية *</label>
               <div className="grid grid-cols-3 gap-2">

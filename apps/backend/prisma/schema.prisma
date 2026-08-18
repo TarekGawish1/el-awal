@@ -267,16 +267,18 @@ model ParentStudentLink {
 // ==========================================
 
 model AcademicGroup {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
-  name        String   @map("name") @db.VarChar(150)
-  gradeLevel  String   @map("grade_level") @db.VarChar(50)
-  description String?  @map("description") @db.Text
-  maxCapacity Int      @default(50) @map("max_capacity")
-  monthlyFee  Decimal  @default(0.00) @map("monthly_fee") @db.Decimal(10, 2)
-  teacherId   String   @map("teacher_id") @db.Uuid
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  name         String   @map("name") @db.VarChar(150)
+  academicYear String   @default("2025-2026") @map("academic_year") @db.VarChar(20)
+  academicTerm String   @default("FIRST_TERM") @map("academic_term") @db.VarChar(30)
+  gradeLevel   String   @map("grade_level") @db.VarChar(50)
+  description  String?  @map("description") @db.Text
+  maxCapacity  Int      @default(50) @map("max_capacity")
+  monthlyFee   Decimal  @default(0.00) @map("monthly_fee") @db.Decimal(10, 2)
+  teacherId    String   @map("teacher_id") @db.Uuid
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   teacher TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Restrict)
 
@@ -290,6 +292,7 @@ model AcademicGroup {
 
   @@index([teacherId], map: "idx_groups_teacher")
   @@index([gradeLevel, isActive], map: "idx_groups_grade_active")
+  @@index([academicYear, academicTerm, teacherId], map: "idx_groups_year_term_teacher")
   @@map("academic_groups")
 }
 
