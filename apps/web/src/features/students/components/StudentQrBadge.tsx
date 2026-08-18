@@ -8,9 +8,18 @@ import { Button } from '@/components/ui/Button';
 interface StudentQrBadgeProps {
   studentId: string;
   studentPhone?: string | null;
+  loginEmail?: string | null;
+  loginPhone?: string | null;
+  loginPassword?: string | null;
 }
 
-export function StudentQrBadge({ studentId, studentPhone }: StudentQrBadgeProps) {
+export function StudentQrBadge({ 
+  studentId, 
+  studentPhone,
+  loginEmail,
+  loginPhone,
+  loginPassword
+}: StudentQrBadgeProps) {
   const { data, isLoading, isError } = useStudentQrCode(studentId);
   const { mutate: regenerate, isPending: isRegenerating } = useRegenerateStudentQr();
   const [showConfirm, setShowConfirm] = useState(false);
@@ -33,7 +42,14 @@ export function StudentQrBadge({ studentId, studentPhone }: StudentQrBadgeProps)
       if (!blob) throw new Error('Failed to generate image');
 
       const file = new File([blob], `student-card-${data.studentCode}.png`, { type: 'image/png' });
-      const shareText = `مرحباً ${data.fullName}، كود الطالب الخاص بك هو: ${data.studentCode}`;
+      let shareText = `مرحباً ${data.fullName}، كود الطالب الخاص بك هو: ${data.studentCode}`;
+      
+      if (loginEmail || loginPhone || loginPassword) {
+        shareText += `\\n\\nبيانات الدخول للمنصة:\\n`;
+        if (loginEmail) shareText += `البريد الإلكتروني: ${loginEmail}\\n`;
+        else if (loginPhone) shareText += `رقم الهاتف: ${loginPhone}\\n`;
+        if (loginPassword) shareText += `كلمة المرور: ${loginPassword}`;
+      }
 
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
@@ -162,6 +178,7 @@ export function StudentQrBadge({ studentId, studentPhone }: StudentQrBadgeProps)
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }
