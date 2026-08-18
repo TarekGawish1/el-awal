@@ -175,11 +175,13 @@ model RefreshTokenSession {
 }
 
 model TeacherProfile {
-  id        String   @id @map("id") @db.Uuid
-  specialty String?  @map("specialty") @db.VarChar(100)
-  bio       String?  @map("bio") @db.Text
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                 String   @id @map("id") @db.Uuid
+  specialty          String?  @map("specialty") @db.VarChar(100)
+  bio                String?  @map("bio") @db.Text
+  activeAcademicYear String?  @default("2025-2026") @map("active_academic_year") @db.VarChar(30)
+  activeAcademicTerm String?  @default("FIRST_TERM") @map("active_academic_term") @db.VarChar(30)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user User @relation(fields: [id], references: [id], onDelete: Cascade)
 

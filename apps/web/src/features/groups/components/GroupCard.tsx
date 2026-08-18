@@ -32,7 +32,7 @@ export function GroupCard({ group }: GroupCardProps) {
               )}
               {group.academicTerm && (
                 <span className="text-[11px] font-medium bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-100">
-                  {group.academicTerm === 'FIRST_TERM' ? 'ترم أول' : group.academicTerm === 'SECOND_TERM' ? 'ترم ثانٍ' : group.academicTerm === 'SUMMER_TERM' ? 'صيفي' : 'عام كامل'}
+                  {group.academicTerm === 'SECOND_TERM' ? 'ترم ثانٍ' : 'ترم أول'}
                 </span>
               )}
             </div>

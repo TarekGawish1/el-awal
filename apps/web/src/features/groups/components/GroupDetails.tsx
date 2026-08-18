@@ -124,7 +124,7 @@ export function GroupDetails({ id }: GroupDetailsProps) {
               )}
               {group.academicTerm && (
                 <span className="text-xs font-semibold bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                  {group.academicTerm === 'FIRST_TERM' ? 'الفصل الدراسي الأول' : group.academicTerm === 'SECOND_TERM' ? 'الفصل الدراسي الثاني' : group.academicTerm === 'SUMMER_TERM' ? 'الفصل الصيفي' : 'العام بأكمله'}
+                  {group.academicTerm === 'SECOND_TERM' ? 'الفصل الدراسي الثاني' : 'الفصل الدراسي الأول'}
                 </span>
               )}
             </div>
