@@ -32,52 +32,64 @@ export function StudentQrBadge({
 
     try {
       setIsSharing(true);
-      const html2canvas = (await import('html2canvas')).default;
-      const canvas = await html2canvas(badgeRef.current, {
-        scale: 2,
-        backgroundColor: '#ffffff',
-      });
-      
-      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
-      if (!blob) throw new Error('Failed to generate image');
+      const svg = badgeRef.current.querySelector('svg');
+      if (!svg) throw new Error('QR element not found');
+
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const DOMURL = window.URL || window.webkitURL || window;
+      const url = DOMURL.createObjectURL(svgBlob);
 
       let shareText = `مرحباً ${data.fullName}، كود الطالب الخاص بك هو: ${data.studentCode}`;
       if (loginEmail || loginPhone || loginPassword) {
-        shareText += `\\n\\nبيانات الدخول للمنصة:\\n`;
-        if (loginEmail) shareText += `البريد الإلكتروني: ${loginEmail}\\n`;
-        else if (loginPhone) shareText += `رقم الهاتف: ${loginPhone}\\n`;
+        shareText += `\n\nبيانات الدخول للمنصة:\n`;
+        if (loginEmail) shareText += `البريد الإلكتروني: ${loginEmail}\n`;
+        else if (loginPhone) shareText += `رقم الهاتف: ${loginPhone}\n`;
         if (loginPassword) shareText += `كلمة المرور: ${loginPassword}`;
       }
 
-      const file = new File([blob], `student-card-${data.studentCode}.png`, { type: 'image/png' });
+      const img = new Image();
+      img.onload = async () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 400;
+        canvas.height = 400;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, 400, 400);
+          ctx.drawImage(img, 50, 50, 300, 300);
 
-      if (studentPhone) {
-        const downloadUrl = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = downloadUrl;
-        link.download = `student-card-${data.studentCode}.png`;
-        link.click();
-        URL.revokeObjectURL(downloadUrl);
+          canvas.toBlob(async (blob) => {
+            if (!blob) return;
+            const file = new File([blob], `student-card-${data.studentCode}.png`, { type: 'image/png' });
 
-        const noteText = `${shareText}\\n\\n(تم تحميل صورة بطاقة الـ QR على جهازك، يمكنك إرفاقها هنا)`;
-        const waUrl = `https://wa.me/${studentPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(noteText)}`;
-        window.open(waUrl, '_blank');
-      } else if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: 'بطاقة الطالب',
-          text: shareText,
-        });
-      } else {
-        const downloadUrl = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = downloadUrl;
-        link.download = `student-card-${data.studentCode}.png`;
-        link.click();
-        URL.revokeObjectURL(downloadUrl);
+            if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+              await navigator.share({
+                files: [file],
+                title: 'بطاقة الطالب',
+                text: shareText,
+              });
+            } else {
+              const downloadUrl = DOMURL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = downloadUrl;
+              link.download = `student-card-${data.studentCode}.png`;
+              link.click();
+              DOMURL.revokeObjectURL(downloadUrl);
 
-        alert('تم تحميل صورة البطاقة. يمكنك الآن مشاركتها.');
-      }
+              if (studentPhone) {
+                const noteText = `${shareText}\n\n(تم تحميل صورة بطاقة الـ QR على جهازك، يمكنك إرفاقها هنا)`;
+                const waUrl = `https://wa.me/${studentPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(noteText)}`;
+                window.open(waUrl, '_blank');
+              } else {
+                alert('تم تحميل صورة البطاقة. يمكنك الآن مشاركتها.');
+              }
+            }
+          }, 'image/png');
+        }
+        DOMURL.revokeObjectURL(url);
+      };
+      img.src = url;
     } catch (error) {
       console.error('Error sharing:', error);
       alert('حدث خطأ أثناء محاولة المشاركة.');
@@ -110,28 +122,23 @@ export function StudentQrBadge({
   };
 
   return (
-    <div className="flex flex-col items-center w-full max-w-md mx-auto space-y-6">
-      <div 
-        ref={badgeRef} 
-        className="flex flex-col items-center w-full p-8 pb-10 relative bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden"
-      >
-        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-primary-400 to-primary-600"></div>
+    <div className="flex flex-col items-center border-none rounded-3xl shadow-sm ring-1 ring-slate-100 relative overflow-hidden bg-gradient-to-b from-white to-slate-50">
+      <div ref={badgeRef} className="flex flex-col items-center w-full p-8 pb-6 relative bg-white">
+        <div className="absolute top-0 w-full h-2 bg-gradient-to-r from-primary-400 to-primary-600"></div>
 
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-6 mt-2">
-          <QRCode value={data.qrCodeToken} size={220} />
+        <div className="bg-white p-5 rounded-2xl shadow-sm ring-1 ring-slate-100 mb-6 group hover:shadow-md transition-shadow mt-2">
+          <QRCode value={data.qrCodeToken} size={220} className="group-hover:scale-105 transition-transform duration-300" />
         </div>
-        
-        <div className="flex flex-col items-center justify-center w-full gap-3">
-          <h3 className="text-xl font-bold text-slate-900 leading-tight text-center m-0">{data.fullName}</h3>
-          <div className="bg-primary-50 py-2 px-6 rounded-xl border border-primary-100 inline-block text-center mx-auto">
-            <span className="text-primary-700 font-mono text-base font-bold" dir="ltr">
-              {data.studentCode}
-            </span>
-          </div>
+
+        <div className="text-center w-full space-y-1">
+          <h3 className="text-xl font-bold text-slate-900">{data.fullName}</h3>
+          <p className="text-primary-600 font-mono text-sm tracking-wider font-medium bg-primary-50 py-1 px-3 rounded-md inline-block">
+            {data.studentCode}
+          </p>
         </div>
       </div>
 
-      <div className="w-full">
+      <div className="w-full p-8 pt-2">
         {showConfirm ? (
           <div className="flex flex-col items-center space-y-4 p-5 bg-amber-50 border border-amber-200 rounded-2xl w-full">
             <p className="text-sm text-amber-800 text-center font-medium leading-relaxed">

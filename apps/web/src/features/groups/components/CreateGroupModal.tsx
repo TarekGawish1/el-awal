@@ -144,8 +144,6 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
   const academicTermOptions = [
     { label: 'الفصل الدراسي الأول', value: 'FIRST_TERM' },
     { label: 'الفصل الدراسي الثاني', value: 'SECOND_TERM' },
-    { label: 'الفصل الصيفي', value: 'SUMMER_TERM' },
-    { label: 'العام بالكامل', value: 'FULL_YEAR' },
   ];
 
   useEffect(() => {
