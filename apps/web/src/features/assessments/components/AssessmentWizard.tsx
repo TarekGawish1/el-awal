@@ -107,12 +107,17 @@ export function AssessmentWizard() {
     createAssessment(
       { ...data, type: 'EXAM', isPublished, questions: payloadQuestions } as any,
       {
-        onSuccess: (res) => {
+        onSuccess: (res: any) => {
           toast.success(isPublished ? 'تم إنشاء ونشر الاختبار بنجاح' : 'تم حفظ الاختبار كمسودة');
-          router.push(`/teacher/assessments/${res.id}`);
+          const id = res?.id || res?.data?.id;
+          if (id) {
+            router.push(`/teacher/assessments/${id}`);
+          } else {
+            router.push('/teacher/assessments');
+          }
         },
         onError: (err: any) => {
-          toast.error(err.message || 'حدث خطأ أثناء إنشاء الاختبار');
+          toast.error(err?.message || 'حدث خطأ أثناء إنشاء الاختبار');
         }
       }
     );
@@ -168,7 +173,7 @@ export function AssessmentWizard() {
         </div>
 
         {/* Form Content */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible">
           
           {currentStep === 'metadata' && (
             <div className="p-6 sm:p-8 space-y-6">

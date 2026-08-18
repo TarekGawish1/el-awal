@@ -24,7 +24,7 @@ const DAYS = ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'];
 // Generate time options (every 30 mins)
 const generateTimeOptions = () => {
   const options = [];
-  for (let i = 0; i < 24; i++) {
+  for (let i = 7; i <= 23; i++) {
     for (let j = 0; j < 60; j += 30) {
       const h24 = i.toString().padStart(2, '0');
       const min = j.toString().padStart(2, '0');
@@ -36,6 +36,11 @@ const generateTimeOptions = () => {
       });
     }
   }
+  // إضافة الساعة 12 منتصف الليل
+  options.push({
+    value: '00:00',
+    label: '12:00 ص'
+  });
   return options;
 };
 
