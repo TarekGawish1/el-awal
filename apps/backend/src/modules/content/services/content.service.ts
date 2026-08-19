@@ -97,7 +97,7 @@ export class ContentService {
       }
     }
 
-    return this.prisma.educationalContent.create({
+    const created = await this.prisma.educationalContent.create({
       data: {
         title: dto.title,
         description: dto.description,
@@ -115,7 +115,17 @@ export class ContentService {
         groupId: dto.groupId || null,
         lessonId: dto.lessonId || null,
       },
+      include: {
+        group: { select: { id: true, name: true, gradeLevel: true, academicYear: true, academicTerm: true } },
+        session: { select: { id: true, topic: true, sessionDate: true, startTime: true } },
+        lesson: { select: { id: true, title: true } },
+      },
     });
+
+    return {
+      ...created,
+      fileSize: created.fileSize ? Number(created.fileSize) : null,
+    };
   }
 
   /**
