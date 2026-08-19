@@ -12,7 +12,6 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
-import { ProgressBar } from '@/components/ui/ProgressBar';
 import { 
   BookOpen, Video, FileText, ChevronLeft, ChevronRight, Play, 
   CheckCircle2, AlertTriangle, ArrowRight, Download, Award, Clock, User
@@ -122,12 +121,17 @@ export default function StudentCoursesPage() {
 
                 <div className="space-y-3 pt-3 border-t border-slate-100">
                   {/* Progress tracker */}
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <div className="flex justify-between text-xs font-bold">
                       <span className="text-slate-500">نسبة الإنجاز</span>
                       <span className="text-primary-600">{c.progressPercentage || 0}%</span>
                     </div>
-                    <ProgressBar value={c.progressPercentage || 0} size="sm" variant="primary" />
+                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                      <div 
+                        className="bg-primary-600 h-full rounded-full transition-all duration-300"
+                        style={{ width: `${c.progressPercentage || 0}%` }}
+                      />
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
