@@ -42,6 +42,7 @@ describe('LoginContainer Component', () => {
     expect(screen.getByRole('heading', { name: 'تسجيل الدخول' })).toBeInTheDocument();
     expect(screen.getByLabelText(/البريد الإلكتروني أو رقم الهاتف/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^كلمة المرور/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'تسجيل ولي أمر جديد' })).toHaveAttribute('href', '/register/parent');
     expect(mockReplace).not.toHaveBeenCalled();
   });
 

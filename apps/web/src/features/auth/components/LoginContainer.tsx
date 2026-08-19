@@ -2,7 +2,8 @@
 
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { GraduationCap, ShieldCheck } from 'lucide-react';
+import Link from 'next/link';
+import { GraduationCap, ShieldCheck, UserRoundPlus } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui';
 import { LoginForm } from './LoginForm';
 import { useAuth } from '../hooks/useAuth';
@@ -54,6 +55,23 @@ export function LoginContainer() {
             </div>
 
             <LoginForm />
+
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                <div className="w-full border-t border-neutral-100" />
+              </div>
+              <div className="relative flex justify-center">
+                <span className="bg-white px-3 text-[11px] text-neutral-400">أو</span>
+              </div>
+            </div>
+
+            <Link
+              href="/register/parent"
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-primary-200 bg-primary-50 px-4 py-2.5 text-sm font-bold text-primary-700 transition-colors hover:border-primary-300 hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+            >
+              <UserRoundPlus className="h-4 w-4" />
+              <span>تسجيل ولي أمر جديد</span>
+            </Link>
           </CardContent>
         </Card>
 

@@ -1,5 +1,6 @@
 export { LoginForm } from './components/LoginForm';
 export { LoginContainer } from './components/LoginContainer';
+export { ParentRegistrationForm } from './components/ParentRegistrationForm';
 export { useAuth, normalizeAuthErrorMessage } from './hooks/useAuth';
 export { useAuthStore } from './store/auth.store';
 export { loginUser, logoutUser, fetchCurrentUser } from './api/auth.api';
