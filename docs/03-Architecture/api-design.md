@@ -303,6 +303,7 @@ Rate limiting is enforced at the gateway and application layers via `@nestjs/thr
 | # | Domain | Method | Endpoint URI | Actor(s) | Auth | Ownership Guard | Source Req | Status |
 |---|---|---|---|---|---|---|---|---|
 | 1 | Auth | `POST` | `/api/v1/auth/login` | Public | None | None | `FR-USR-001..004` | CONFIRMED |
+| 1a | Auth | `POST` | `/api/v1/auth/parent-access` | Public | None | Linked student/parent record | Parent access flow | CONFIRMED |
 | 2 | Auth | `POST` | `/api/v1/auth/logout` | All Roles | JWT | None | `FR-USR-001..004` | CONFIRMED |
 | 3 | Auth | `GET` | `/api/v1/auth/me` | All Roles | JWT | Self Profile | `FR-USR-001..004` | CONFIRMED |
 | 4 | Students | `GET` | `/api/v1/students` | Teacher, Sec | JWT | Teacher Groups | `FR-STU-004` | CONFIRMED |
@@ -369,6 +370,22 @@ Rate limiting is enforced at the gateway and application layers via `@nestjs/thr
     "correlationId": "req-auth-001"
   }
   ```
+
+---
+
+### 17.2 `POST /api/v1/auth/parent-access`
+- **Purpose**: Authenticate the parent linked by the administration to an already-registered student phone number.
+- **Authorization**: Public
+- **Request Body DTO**:
+  ```json
+  {
+    "studentPhone": "01012345678"
+  }
+  ```
+- **Validation**: `studentPhone` must be a valid Egyptian mobile phone number.
+- **Resolution**: The server normalizes accepted Egyptian phone formats, finds the registered student, verifies an active linked parent, and returns the linked parent session. It never creates a parent account from this request.
+- **Failure (`401 Unauthorized`)**: The student phone is not registered or has no active linked parent.
+- **Success Response**: Same token envelope as `POST /api/v1/auth/login`, with `user.role` equal to `PARENT`.
 
 ---
 
@@ -1243,4 +1260,3 @@ When a student queries `GET /api/v1/assessments/:id`:
 - [x] Security audit passed
 - [x] Cross-document consistency verified
 - [x] Open decisions cleanly documented and classified
-

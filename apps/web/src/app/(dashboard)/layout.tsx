@@ -74,7 +74,15 @@ export default function DashboardLayout({
     { label: 'المدفوعات', href: '/student/payments', icon: DollarSign },
   ];
 
-  const navigationItems = user?.role === 'STUDENT' ? studentNavigationItems : teacherNavigationItems;
+  const parentNavigationItems = [
+    { label: 'أبنائي', href: '/parent/dashboard', icon: LayoutDashboard },
+  ];
+
+  const navigationItems = user?.role === 'STUDENT'
+    ? studentNavigationItems
+    : user?.role === 'PARENT'
+      ? parentNavigationItems
+      : teacherNavigationItems;
 
   // Hydration-safe initial loading screen before auth initialization
   if (!isInitialized) {
@@ -107,7 +115,7 @@ export default function DashboardLayout({
           {/* Brand Logo Header */}
           <div className="p-5 border-b border-neutral-100 flex items-center justify-between">
             <Link
-              href={user?.role === 'STUDENT' ? '/student/dashboard' : '/teacher/dashboard'}
+              href={user?.role === 'STUDENT' ? '/student/dashboard' : user?.role === 'PARENT' ? '/parent/dashboard' : '/teacher/dashboard'}
               className="flex items-center gap-2.5 group cursor-pointer"
               title="الذهاب للرئيسية"
             >
@@ -183,7 +191,7 @@ export default function DashboardLayout({
               {isMobileSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
             <Link
-              href={user?.role === 'STUDENT' ? '/student/dashboard' : '/teacher/dashboard'}
+              href={user?.role === 'STUDENT' ? '/student/dashboard' : user?.role === 'PARENT' ? '/parent/dashboard' : '/teacher/dashboard'}
               className="lg:hidden flex items-center gap-2 group cursor-pointer"
               title="الذهاب للرئيسية"
             >
@@ -201,7 +209,7 @@ export default function DashboardLayout({
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
-            {user?.role !== 'STUDENT' && (
+            {user?.role !== 'STUDENT' && user?.role !== 'PARENT' && (
               <AcademicPeriodSwitcher />
             )}
 

@@ -1,6 +1,6 @@
 import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
-import { AuthTokensResponse, AuthUser, LoginCredentials, RefreshTokenResponse } from '../types/auth.types';
+import { AuthTokensResponse, AuthUser, LoginCredentials, ParentAccessCredentials, RefreshTokenResponse } from '../types/auth.types';
 import { getStoredRefreshToken } from '../utils/auth-tokens';
 
 /**
@@ -13,6 +13,16 @@ export async function loginUser(credentials: LoginCredentials): Promise<AuthToke
       identifier: credentials.identifier.trim(),
       password: credentials.password,
     }),
+  });
+}
+
+/**
+ * Authenticates the parent linked to an administration-registered student phone.
+ */
+export async function parentAccessUser(credentials: ParentAccessCredentials): Promise<AuthTokensResponse> {
+  return apiClient<AuthTokensResponse>(API_ENDPOINTS.AUTH.PARENT_ACCESS, {
+    method: 'POST',
+    body: JSON.stringify({ studentPhone: credentials.studentPhone.trim() }),
   });
 }
 

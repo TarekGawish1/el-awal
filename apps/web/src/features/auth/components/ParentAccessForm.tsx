@@ -2,8 +2,9 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Phone, UserRound } from 'lucide-react';
-import { Button, Input } from '@/components/ui';
+import { AlertCircle, ArrowRight, Phone, UserRound } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle, Button, Input } from '@/components/ui';
+import { useParentAccess } from '../hooks/useParentAccess';
 
 const EGYPTIAN_PHONE_REGEX = /^(?:\+20|0020|0)?1[0125]\d{8}$/;
 
@@ -11,34 +12,41 @@ function normalizePhone(value: string): string {
   return value.replace(/[\s-]/g, '').trim();
 }
 
-export interface ParentAccessFormProps {
-  onSubmit?: (studentPhone: string) => void;
-}
-
-export function ParentAccessForm({ onSubmit }: ParentAccessFormProps) {
+export function ParentAccessForm() {
   const [phone, setPhone] = useState('');
-  const [error, setError] = useState<string>();
+  const [fieldError, setFieldError] = useState<string>();
+  const { accessParent, isLoading, isError, error, resetError } = useParentAccess();
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const normalizedPhone = normalizePhone(phone);
     if (!normalizedPhone) {
-      setError('يرجى إدخال رقم هاتف الطالب');
+      setFieldError('يرجى إدخال رقم هاتف الطالب');
       return;
     }
 
     if (!EGYPTIAN_PHONE_REGEX.test(normalizedPhone)) {
-      setError('يرجى إدخال رقم هاتف مصري صحيح مثل 01012345678');
+      setFieldError('يرجى إدخال رقم هاتف مصري صحيح مثل 01012345678');
       return;
     }
 
-    setError(undefined);
-    onSubmit?.(normalizedPhone);
+    setFieldError(undefined);
+    accessParent(normalizedPhone);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5" noValidate aria-label="نموذج تسجيل ولي الأمر">
+    <form onSubmit={handleSubmit} className="space-y-5" noValidate aria-label="نموذج دخول ولي الأمر">
+      {isError && error && (
+        <Alert variant="error" className="animate-in fade-in-50 duration-200">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-error-600" />
+          <div className="flex-1">
+            <AlertTitle className="text-sm font-bold text-error-800">تعذر الدخول</AlertTitle>
+            <AlertDescription className="text-xs text-error-700">{error}</AlertDescription>
+          </div>
+        </Alert>
+      )}
+
       <Input
         id="parent-access-phone"
         name="phone"
@@ -48,9 +56,10 @@ export function ParentAccessForm({ onSubmit }: ParentAccessFormProps) {
         value={phone}
         onChange={(event) => {
           setPhone(event.target.value);
-          if (error) setError(undefined);
+          if (fieldError) setFieldError(undefined);
+          if (isError) resetError();
         }}
-        error={error}
+        error={fieldError}
         helperText="أدخل رقم هاتف الطالب الذي سجلته الإدارة مسبقًا"
         required
         autoComplete="tel"
@@ -64,6 +73,7 @@ export function ParentAccessForm({ onSubmit }: ParentAccessFormProps) {
         type="submit"
         variant="primary"
         size="lg"
+        isLoading={isLoading}
         className="mt-2 w-full font-bold shadow-sm"
         aria-label="متابعة دخول ولي الأمر"
       >

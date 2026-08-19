@@ -17,6 +17,9 @@ describe('AuthService', () => {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
     },
+    studentProfile: {
+      findFirst: jest.fn(),
+    },
     refreshTokenSession: {
       create: jest.fn().mockResolvedValue({ id: 'session-1' }),
       findUnique: jest.fn(),
@@ -142,6 +145,54 @@ describe('AuthService', () => {
 
       expect(result.accessToken).toBe('new-access-token');
       expect(result.refreshToken).toBe('new-refresh-token');
+    });
+  });
+
+  describe('parentAccess', () => {
+    it('authenticates the parent linked to a registered student phone', async () => {
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue({
+        parentLinks: [
+          {
+            parent: {
+              user: {
+                id: 'parent-user-1',
+                fullName: 'أحمد محمود',
+                email: 'parent@elawal.com',
+                phone: '+201099999991',
+                role: UserRole.PARENT,
+                isActive: true,
+                deletedAt: null,
+                parentProfile: { id: 'parent-profile-1' },
+              },
+            },
+          },
+        ],
+      });
+      mockJwtService.signAsync
+        .mockResolvedValueOnce('parent-access-token')
+        .mockResolvedValueOnce('parent-refresh-token');
+
+      const result = await service.parentAccess({ studentPhone: '01011111111' });
+
+      expect(result.user.role).toBe(UserRole.PARENT);
+      expect(result.user.parentProfileId).toBe('parent-profile-1');
+      expect(mockPrismaService.studentProfile.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            user: expect.objectContaining({
+              phone: { in: expect.arrayContaining(['01011111111', '+201011111111']) },
+            }),
+          },
+        }),
+      );
+    });
+
+    it('rejects an unregistered student phone', async () => {
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.parentAccess({ studentPhone: '01011111111' }),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 });
