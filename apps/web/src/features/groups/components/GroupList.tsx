@@ -281,10 +281,11 @@ export function GroupList() {
       </div>
 
       {/* Filters Toolbar */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 items-center">
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 space-y-4">
+        {/* Row 1: Search, Academic Year, Term */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
           {/* Search Input */}
-          <div className="relative">
+          <div className="md:col-span-6 relative">
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-slate-400" />
             </div>
@@ -296,8 +297,33 @@ export function GroupList() {
             />
           </div>
 
+          {/* Academic Year / العام الدراسي MultiSelect Checkboxes Dropdown */}
+          <div className="md:col-span-3">
+            <MultiSelectDropdown
+              placeholder="العام الدراسي"
+              allSelectedLabel="جميع الأعوام الدراسية"
+              options={availableYears}
+              selectedValues={selectedYears}
+              onChange={setSelectedYears}
+            />
+          </div>
+
+          {/* Academic Term / الفصل الدراسي MultiSelect Checkboxes Dropdown */}
+          <div className="md:col-span-3">
+            <MultiSelectDropdown
+              placeholder="الفصل الدراسي"
+              allSelectedLabel="جميع الفصول الدراسية"
+              options={availableTerms}
+              selectedValues={selectedTerms}
+              onChange={setSelectedTerms}
+            />
+          </div>
+        </div>
+
+        {/* Row 2: Stage, Grade, Locations/Centers */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
           {/* Stage MultiSelect Checkboxes Dropdown */}
-          <div>
+          <div className="md:col-span-3">
             <MultiSelectDropdown
               placeholder="المرحلة التعليمية"
               allSelectedLabel="جميع المراحل التعليمية"
@@ -312,7 +338,7 @@ export function GroupList() {
           </div>
 
           {/* Grade Level / السنة الدراسية MultiSelect Checkboxes Dropdown */}
-          <div>
+          <div className="md:col-span-3">
             <MultiSelectDropdown
               placeholder="الصف الدراسي"
               allSelectedLabel="جميع الصفوف الدراسية"
@@ -323,30 +349,8 @@ export function GroupList() {
             />
           </div>
 
-          {/* Academic Year / العام الدراسي MultiSelect Checkboxes Dropdown */}
-          <div>
-            <MultiSelectDropdown
-              placeholder="العام الدراسي"
-              allSelectedLabel="جميع الأعوام الدراسية"
-              options={availableYears}
-              selectedValues={selectedYears}
-              onChange={setSelectedYears}
-            />
-          </div>
-
-          {/* Academic Term / الفصل الدراسي MultiSelect Checkboxes Dropdown */}
-          <div>
-            <MultiSelectDropdown
-              placeholder="الفصل الدراسي"
-              allSelectedLabel="جميع الفصول الدراسية"
-              options={availableTerms}
-              selectedValues={selectedTerms}
-              onChange={setSelectedTerms}
-            />
-          </div>
-
           {/* Place / Location MultiSelect Checkboxes Dropdown */}
-          <div>
+          <div className="md:col-span-6">
             <MultiSelectDropdown
               placeholder="المكان / السنتر"
               allSelectedLabel="جميع الأماكن والسناتر"
