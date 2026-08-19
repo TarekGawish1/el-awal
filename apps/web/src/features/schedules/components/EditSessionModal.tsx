@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { X, Calendar, Clock, BookOpen, Loader2, Edit3, Trash2 } from 'lucide-react';
+import { X, Calendar, Clock, BookOpen, Loader2, Edit3, Trash2, AlertTriangle } from 'lucide-react';
 import { useUpdateSession, useDeleteSession, useSessionTopics } from '../hooks/useSchedules';
 import { LessonSessionItem } from '../types/schedules.types';
+import { findSessionConflict, formatArabicTimeRange12H } from '../utils/time.utils';
+import { ArabicTimeSelect } from './ArabicTimeSelect';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
@@ -27,9 +29,10 @@ interface EditSessionModalProps {
   isOpen: boolean;
   session: LessonSessionItem | null;
   onClose: () => void;
+  sessions?: LessonSessionItem[];
 }
 
-export function EditSessionModal({ isOpen, session, onClose }: EditSessionModalProps) {
+export function EditSessionModal({ isOpen, session, onClose, sessions = [] }: EditSessionModalProps) {
   const { mutate: updateSessionMutate, isPending } = useUpdateSession();
   const { mutate: deleteSessionMutate, isPending: isDeleting } = useDeleteSession();
   const { data: existingTopics = [] } = useSessionTopics(session?.group?.gradeLevel, session?.groupId);
@@ -46,6 +49,14 @@ export function EditSessionModal({ isOpen, session, onClose }: EditSessionModalP
   });
 
   const isCancelledVal = watch('isCancelled');
+  const watchDate = watch('sessionDate');
+  const watchStartTime = watch('startTime');
+  const watchEndTime = watch('endTime');
+
+  const conflictingSession = useMemo(() => {
+    if (!isOpen || !session || isCancelledVal || !watchDate || !watchStartTime) return null;
+    return findSessionConflict(sessions, watchDate, watchStartTime, watchEndTime, session.id);
+  }, [isOpen, session, isCancelledVal, sessions, watchDate, watchStartTime, watchEndTime]);
 
   useEffect(() => {
     if (isOpen && session) {
@@ -72,6 +83,11 @@ export function EditSessionModal({ isOpen, session, onClose }: EditSessionModalP
   };
 
   const onSubmit = (data: EditSessionFormData) => {
+    if (!data.isCancelled && conflictingSession) {
+      toast.error('لا يمكن حفظ التعديل لوجود تعارض زمني مع حصة أخرى');
+      return;
+    }
+
     updateSessionMutate(
       {
         id: session.id,
@@ -193,28 +209,34 @@ export function EditSessionModal({ isOpen, session, onClose }: EditSessionModalP
             </div>
 
             <div>
-              <Label className="mb-1 block text-xs font-bold text-slate-700 flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-primary-600" />
-                وقت البدء
-              </Label>
-              <Input
-                type="time"
-                {...register('startTime')}
+              <ArabicTimeSelect
+                label="وقت البدء"
+                value={watchStartTime}
                 disabled={isPending || isDeleting}
-                className="h-10 text-xs bg-white rounded-xl"
+                onChange={(val) => {
+                  setValue('startTime', val, { shouldValidate: true });
+                  // If endTime is empty or earlier than new start, adjust endTime to val + 90 min
+                  const [sH, sM] = val.split(':').map(Number);
+                  const endMin = (sH * 60 + (sM || 0) + 90) % (24 * 60);
+                  const endH = Math.floor(endMin / 60);
+                  const endM = endMin % 60;
+                  const defaultEnd = `${endH < 10 ? '0' : ''}${endH}:${endM < 10 ? '0' : ''}${endM}`;
+                  if (!watchEndTime || watchEndTime <= val) {
+                    setValue('endTime', defaultEnd, { shouldValidate: true });
+                  }
+                }}
               />
             </div>
 
             <div>
-              <Label className="mb-1 block text-xs font-bold text-slate-700 flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-emerald-600" />
-                وقت الانتهاء
-              </Label>
-              <Input
-                type="time"
-                {...register('endTime')}
+              <ArabicTimeSelect
+                label="وقت الانتهاء"
+                value={watchEndTime}
+                align="left"
                 disabled={isPending || isDeleting}
-                className="h-10 text-xs bg-white rounded-xl"
+                onChange={(val) => {
+                  setValue('endTime', val, { shouldValidate: true });
+                }}
               />
             </div>
           </div>
@@ -255,6 +277,24 @@ export function EditSessionModal({ isOpen, session, onClose }: EditSessionModalP
             )}
           </div>
 
+          {/* Conflict Warning Banner */}
+          {conflictingSession && (
+            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 flex items-start gap-2.5 animate-in fade-in-50 duration-200">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-xs space-y-1">
+                <p className="font-bold text-amber-900">تنبيه: يوجد تعارض زمني مع حصة أخرى مسجلة!</p>
+                <p className="text-amber-800 leading-relaxed font-medium">
+                  لديك بالفعل حصة <span className="font-bold">"{conflictingSession.topic}"</span> لمجموعة{' '}
+                  <span className="font-bold">
+                    ({conflictingSession.group?.gradeLevel || conflictingSession.group?.name || 'مجموعة دراسية'})
+                  </span>{' '}
+                  في نفس التوقيت ({formatArabicTimeRange12H(conflictingSession.startTime, conflictingSession.endTime)}).
+                  يرجى تعديل التوقيت لتفادي التعارض.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Footer Actions */}
           <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
             <button
@@ -271,7 +311,14 @@ export function EditSessionModal({ isOpen, session, onClose }: EditSessionModalP
               <Button type="button" variant="outline" onClick={handleClose} disabled={isPending || isDeleting}>
                 إلغاء
               </Button>
-              <Button type="submit" disabled={isPending || isDeleting} className="shadow-md shadow-primary/20 min-w-[120px]">
+              <Button
+                type="submit"
+                disabled={isPending || isDeleting || !!conflictingSession}
+                title={conflictingSession ? 'يرجى تغيير التوقيت لتفادي التعارض الزمني' : undefined}
+                className={`shadow-md shadow-primary/20 min-w-[120px] ${
+                  conflictingSession ? 'opacity-50 cursor-not-allowed bg-slate-300 border-slate-300 text-slate-600' : ''
+                }`}
+              >
                 {isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 ml-2 animate-spin" />

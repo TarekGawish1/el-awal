@@ -86,11 +86,78 @@ export class SchedulesService {
     throw new ForbiddenException('Unauthorized access');
   }
 
+  private parseTimeToMinutes(timeStr?: string | null): number | null {
+    if (!timeStr) return null;
+    const clean = timeStr.trim();
+    if (clean.includes('م') || clean.includes('ص')) {
+      const match = clean.match(/(\d{1,2}):(\d{2})\s*(م|ص)?/);
+      if (!match) return null;
+      let h = parseInt(match[1], 10);
+      const m = parseInt(match[2], 10);
+      const isPM = match[3] === 'م';
+      if (isPM && h < 12) h += 12;
+      if (!isPM && h === 12) h = 0;
+      return h * 60 + m;
+    }
+    const match = clean.match(/(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?/);
+    if (!match) return null;
+    let h = parseInt(match[1], 10);
+    const m = parseInt(match[2], 10);
+    const meridian = match[3]?.toUpperCase();
+    if (meridian === 'PM' && h < 12) h += 12;
+    if (meridian === 'AM' && h === 12) h = 0;
+    return h * 60 + m;
+  }
+
+  private doTimeIntervalsOverlap(
+    startA?: string | null,
+    endA?: string | null,
+    startB?: string | null,
+    endB?: string | null,
+  ): boolean {
+    const sA = this.parseTimeToMinutes(startA);
+    const sB = this.parseTimeToMinutes(startB);
+    if (sA === null || sB === null) return false;
+
+    let eA = this.parseTimeToMinutes(endA);
+    let eB = this.parseTimeToMinutes(endB);
+    if (eA === null || eA <= sA) eA = sA + 90;
+    if (eB === null || eB <= sB) eB = sB + 90;
+
+    return sA < eB && sB < eA;
+  }
+
   /**
-   * Creates a recurring weekly timetable rule for an academic group.
+   * Creates a recurring weekly timetable rule for an academic group with collision validation.
    */
   async createSchedule(dto: CreateScheduleDto, user: AuthenticatedUser) {
     await this.assertGroupAccess(dto.groupId, user, true);
+
+    const teacherId = user.teacherProfileId || user.id;
+    const existingSchedules = await this.prisma.lessonSchedule.findMany({
+      where: {
+        group: {
+          OR: [
+            { teacherId },
+            { teacher: { id: teacherId } },
+            { teacher: { user: { id: user.id } } },
+          ],
+        },
+        dayOfWeek: dto.dayOfWeek,
+      },
+      include: {
+        group: { select: { name: true, gradeLevel: true } },
+      },
+    });
+
+    for (const s of existingSchedules) {
+      if (this.doTimeIntervalsOverlap(dto.startTime, dto.endTime, s.startTime, s.endTime)) {
+        const groupLabel = s.group?.gradeLevel || s.group?.name || 'مجموعة أخرى';
+        throw new BadRequestException(
+          `يوجد تعارض في المواعيد الأسبوعية: لديك بالفعل موعد لمجموعة [${groupLabel}] في نفس التوقيت (${s.startTime} - ${s.endTime || ''})`,
+        );
+      }
+    }
 
     return this.prisma.lessonSchedule.create({
       data: {
@@ -539,7 +606,7 @@ export class SchedulesService {
   }
 
   /**
-   * Creates or updates a physical LessonSession for an academic group.
+   * Creates or updates a physical LessonSession for an academic group with collision validation.
    */
   async createSingleSession(dto: CreateSessionDto, user: AuthenticatedUser) {
     await this.assertGroupAccess(dto.groupId, user, true);
@@ -555,6 +622,45 @@ export class SchedulesService {
         startTime: dto.startTime || null,
       },
     });
+
+    // Check for collisions with other non-cancelled sessions for this teacher on this day
+    if (dto.startTime && !dto.isCancelled) {
+      const teacherId = user.teacherProfileId || user.id;
+      const daySessions = await this.prisma.lessonSession.findMany({
+        where: {
+          group: {
+            OR: [
+              { teacherId },
+              { teacher: { id: teacherId } },
+              { teacher: { user: { id: user.id } } },
+            ],
+          },
+          sessionDate: sessionDateOnly,
+          isCancelled: false,
+          ...(existing ? { id: { not: existing.id } } : {}),
+        },
+        include: {
+          group: { select: { name: true, gradeLevel: true } },
+        },
+      });
+
+      for (const otherSession of daySessions) {
+        if (
+          this.doTimeIntervalsOverlap(
+            dto.startTime,
+            dto.endTime,
+            otherSession.startTime,
+            otherSession.endTime,
+          )
+        ) {
+          const groupLabel = otherSession.group?.gradeLevel || otherSession.group?.name || 'مجموعة أخرى';
+          const timeLabel = otherSession.startTime || '';
+          throw new BadRequestException(
+            `يوجد تعارض زمني: لديك بالفعل حصة مجدولة (${otherSession.topic}) لـ [${groupLabel}] تبدأ الساعة (${timeLabel}) في نفس هذا اليوم`,
+          );
+        }
+      }
+    }
 
     if (existing) {
       return this.prisma.lessonSession.update({
@@ -593,7 +699,7 @@ export class SchedulesService {
   }
 
   /**
-   * Updates an existing physical lesson session.
+   * Updates an existing physical lesson session with collision validation.
    */
   async updateSession(sessionId: string, dto: UpdateSessionDto, user: AuthenticatedUser) {
     const session = await this.prisma.lessonSession.findUnique({
@@ -614,6 +720,49 @@ export class SchedulesService {
     const sessionDateOnly = dto.sessionDate
       ? new Date(dto.sessionDate.includes('T') ? dto.sessionDate.split('T')[0] : dto.sessionDate)
       : session.sessionDate;
+
+    const targetStartTime = dto.startTime !== undefined ? dto.startTime : session.startTime;
+    const targetEndTime = dto.endTime !== undefined ? dto.endTime : session.endTime;
+    const targetIsCancelled = dto.isCancelled !== undefined ? dto.isCancelled : session.isCancelled;
+
+    // Check for collisions with other sessions for the teacher
+    if (targetStartTime && !targetIsCancelled) {
+      const teacherId = user.teacherProfileId || user.id;
+      const daySessions = await this.prisma.lessonSession.findMany({
+        where: {
+          group: {
+            OR: [
+              { teacherId },
+              { teacher: { id: teacherId } },
+              { teacher: { user: { id: user.id } } },
+            ],
+          },
+          sessionDate: sessionDateOnly,
+          isCancelled: false,
+          id: { not: sessionId },
+        },
+        include: {
+          group: { select: { name: true, gradeLevel: true } },
+        },
+      });
+
+      for (const otherSession of daySessions) {
+        if (
+          this.doTimeIntervalsOverlap(
+            targetStartTime,
+            targetEndTime,
+            otherSession.startTime,
+            otherSession.endTime,
+          )
+        ) {
+          const groupLabel = otherSession.group?.gradeLevel || otherSession.group?.name || 'مجموعة أخرى';
+          const timeLabel = otherSession.startTime || '';
+          throw new BadRequestException(
+            `يوجد تعارض زمني: لديك بالفعل حصة مجدولة (${otherSession.topic}) لـ [${groupLabel}] تبدأ الساعة (${timeLabel}) في نفس هذا اليوم`,
+          );
+        }
+      }
+    }
 
     return this.prisma.lessonSession.update({
       where: { id: sessionId },

@@ -1,9 +1,17 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { Clock, Users, FileText, Plus } from 'lucide-react';
+import { Clock, Users, FileText, Plus, AlertTriangle } from 'lucide-react';
 import { LessonSessionItem } from '../types/schedules.types';
-import { formatArabicTime12H, formatArabicTimeRange12H, formatArabicTimeRangeCompact, parseTimeToMinutes, toLocalDateStr } from '../utils/time.utils';
+import {
+  formatArabicTime12H,
+  formatArabicTimeRange12H,
+  formatArabicTimeRangeCompact,
+  parseTimeToMinutes,
+  toLocalDateStr,
+  calculateOverlappingColumns,
+  getGradeLevelTheme,
+} from '../utils/time.utils';
 
 interface WeeklyCalendarViewProps {
   currentDate: Date;
@@ -25,39 +33,6 @@ const HOURS = Array.from({ length: TOTAL_HOURS }, (_, i) => {
   const labelEn = `${h12 < 10 ? '0' : ''}${h12}:00 ${h24 >= 12 ? 'PM' : 'AM'}`;
   return { hour24: h24, label, labelEn };
 });
-
-const PASTEL_THEMES = [
-  {
-    bg: 'bg-purple-100/95 hover:bg-purple-200/95 text-purple-950 border-purple-300/80 shadow-purple-900/5',
-    badge: 'bg-purple-200 text-purple-900',
-    iconColor: 'text-purple-700',
-  },
-  {
-    bg: 'bg-amber-100/95 hover:bg-amber-200/95 text-amber-950 border-amber-300/80 shadow-amber-900/5',
-    badge: 'bg-amber-200 text-amber-900',
-    iconColor: 'text-amber-700',
-  },
-  {
-    bg: 'bg-sky-100/95 hover:bg-sky-200/95 text-sky-950 border-sky-300/80 shadow-sky-900/5',
-    badge: 'bg-sky-200 text-sky-900',
-    iconColor: 'text-sky-700',
-  },
-  {
-    bg: 'bg-pink-100/95 hover:bg-pink-200/95 text-pink-950 border-pink-300/80 shadow-pink-900/5',
-    badge: 'bg-pink-200 text-pink-900',
-    iconColor: 'text-pink-700',
-  },
-  {
-    bg: 'bg-emerald-100/95 hover:bg-emerald-200/95 text-emerald-950 border-emerald-300/80 shadow-emerald-900/5',
-    badge: 'bg-emerald-200 text-emerald-900',
-    iconColor: 'text-emerald-700',
-  },
-  {
-    bg: 'bg-indigo-100/95 hover:bg-indigo-200/95 text-indigo-950 border-indigo-300/80 shadow-indigo-900/5',
-    badge: 'bg-indigo-200 text-indigo-900',
-    iconColor: 'text-indigo-700',
-  },
-];
 
 export function WeeklyCalendarView({
   currentDate,
@@ -115,10 +90,6 @@ export function WeeklyCalendarView({
     });
     return map;
   }, [sessions]);
-
-  const getSessionTheme = (index: number) => {
-    return PASTEL_THEMES[index % PASTEL_THEMES.length];
-  };
 
   const calculateSessionPosition = (session: LessonSessionItem) => {
     const startMin = parseTimeToMinutes(session.startTime) ?? 16 * 60; // default 4 PM
@@ -215,6 +186,8 @@ export function WeeklyCalendarView({
             {/* Day Columns */}
             {weekDays.map((day, dayIdx) => {
               const daySessions = sessionsByDate.get(day.dateStr) || [];
+              const layoutMap = calculateOverlappingColumns(daySessions);
+
               const popupAlign =
                 dayIdx <= 1 ? 'right-0' : dayIdx >= 5 ? 'left-0' : 'right-1/2 translate-x-1/2';
 
@@ -228,18 +201,27 @@ export function WeeklyCalendarView({
                   }`}
                 >
                   {/* Spanning Session Cards */}
-                  {daySessions.map((session, sIdx) => {
+                  {daySessions.map((session) => {
                     const isCancelled = !!session.isCancelled;
-                    const standardTheme = getSessionTheme(sIdx);
+                    const gradeTheme = getGradeLevelTheme(session.group?.gradeLevel, session.group?.name);
                     const theme = isCancelled
                       ? {
                           bg: 'bg-rose-50/90 hover:bg-rose-100/90 text-rose-950 border-rose-300 border-dashed shadow-rose-950/5 opacity-85',
                           badge: 'bg-rose-200/90 text-rose-900',
                           iconColor: 'text-rose-600',
+                          borderColor: 'border-rose-300',
                         }
-                      : standardTheme;
+                      : gradeTheme;
+
+                    const layoutInfo = layoutMap.get(session.id) || {
+                      colIndex: 0,
+                      colCount: 1,
+                      hasConflict: false,
+                    };
 
                     const { topPx, heightPx } = calculateSessionPosition(session);
+                    const colWidthPercent = 100 / layoutInfo.colCount;
+                    const rightPercent = layoutInfo.colIndex * colWidthPercent;
 
                     return (
                       <div
@@ -251,16 +233,20 @@ export function WeeklyCalendarView({
                         style={{
                           top: `${topPx + 2}px`,
                           height: `${heightPx - 4}px`,
+                          width: layoutInfo.colCount > 1 ? `calc(${colWidthPercent}% - 3px)` : 'calc(100% - 4px)',
+                          right: layoutInfo.colCount > 1 ? `calc(${rightPercent}% + 1.5px)` : '2px',
                         }}
-                        className={`group/session absolute inset-x-0.5 rounded-2xl border shadow-xs transition-all cursor-pointer hover:z-50 p-1.5 flex flex-col justify-center overflow-visible z-10 ${theme.bg}`}
+                        className={`group/session absolute rounded-2xl border shadow-xs transition-all cursor-pointer hover:z-50 p-1.5 flex flex-col justify-center overflow-visible z-10 ${
+                          theme.bg
+                        } ${layoutInfo.hasConflict ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
                       >
                         {/* DEFAULT MINIMAL VIEW: Centered Time & Grade Level Only */}
                         <div className="flex flex-col items-center justify-center gap-1 w-full text-center group-hover/session:hidden transition-all my-auto min-w-0">
                           {/* Centered 12h Arabic Time - Contained inside white oval shape */}
-                          <div className="w-full max-w-full bg-white/95 backdrop-blur-xs rounded-full border border-black/10 shadow-2xs py-1 px-1.5 flex items-center justify-center gap-1 text-center overflow-hidden">
+                          <div className="w-full max-w-full bg-white/95 backdrop-blur-xs rounded-full border border-black/10 shadow-2xs py-1 px-1 flex items-center justify-center gap-1 text-center overflow-hidden">
                             <Clock className={`w-3 h-3 ${theme.iconColor} shrink-0`} />
                             <span
-                              className={`text-[9px] sm:text-[9.5px] font-black tracking-tight whitespace-nowrap leading-none truncate max-w-full ${
+                              className={`text-[8.5px] sm:text-[9.5px] font-black tracking-tight whitespace-nowrap leading-none truncate max-w-full ${
                                 isCancelled ? 'text-rose-900 line-through' : 'text-slate-800'
                               }`}
                               dir="rtl"
@@ -268,15 +254,23 @@ export function WeeklyCalendarView({
                               {formatArabicTimeRangeCompact(session.startTime || '16:00', session.endTime)}
                             </span>
                             {isCancelled && (
-                              <span className="text-[8px] font-black bg-rose-600 text-white px-1 py-0.2 rounded-full shrink-0">
+                              <span className="text-[7.5px] font-black bg-rose-600 text-white px-1 py-0.2 rounded-full shrink-0">
                                 ملغاة
+                              </span>
+                            )}
+                            {layoutInfo.hasConflict && (
+                              <span
+                                className="text-[7.5px] font-black bg-amber-500 text-slate-950 px-1 py-0.2 rounded-full shrink-0"
+                                title="يوجد تعارض زمني مع حصة أخرى"
+                              >
+                                ⚠️
                               </span>
                             )}
                           </div>
 
                           {/* Grade Level / Group Name */}
                           <div
-                            className={`text-[9.5px] sm:text-[10px] font-extrabold px-1.5 py-1 rounded-xl text-center break-words max-w-full leading-snug w-full shadow-2xs ${theme.badge} ${
+                            className={`text-[9px] sm:text-[10px] font-extrabold px-1.5 py-1 rounded-xl text-center break-words max-w-full leading-snug w-full shadow-2xs ${theme.badge} ${
                               isCancelled ? 'line-through decoration-rose-500' : ''
                             }`}
                           >
@@ -303,6 +297,10 @@ export function WeeklyCalendarView({
                                   <span className="w-2 h-2 rounded-full bg-rose-600" />
                                   ⚠️ الحصة ملغاة لهذا اليوم
                                 </span>
+                              ) : layoutInfo.hasConflict ? (
+                                <span className="text-[10px] font-extrabold text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300 flex items-center gap-1">
+                                  ⚠️ تعارض زمني في الموعد
+                                </span>
                               ) : (
                                 <span className="text-[10px] font-extrabold text-primary-700 bg-primary-50 px-2.5 py-0.5 rounded-full border border-primary-100">
                                   📖 تفاصيل الحصة المجدولة
@@ -324,6 +322,11 @@ export function WeeklyCalendarView({
                             {isCancelled && session.cancellationReason && (
                               <p className="text-xs text-rose-700 font-semibold mt-1">
                                 سبب الإلغاء: {session.cancellationReason}
+                              </p>
+                            )}
+                            {layoutInfo.hasConflict && (
+                              <p className="text-[11px] text-amber-800 font-bold mt-1 bg-amber-50 p-1.5 rounded-lg border border-amber-200">
+                                تنبيه: تتداخل هذه الحصة في نفس التوقيت مع حصة أخرى اليوم.
                               </p>
                             )}
                           </div>
@@ -382,3 +385,4 @@ export function WeeklyCalendarView({
     </div>
   );
 }
+

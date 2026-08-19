@@ -1,16 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { X, Calendar, Clock, BookOpen, Layers, Loader2, Plus, Sparkles } from 'lucide-react';
+import { X, Calendar, Clock, BookOpen, Layers, Loader2, Plus, Sparkles, AlertTriangle } from 'lucide-react';
 import { useCreateSession, useSessionTopics } from '../hooks/useSchedules';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
+import { LessonSessionItem } from '../types/schedules.types';
+import { findSessionConflict, formatArabicTimeRange12H } from '../utils/time.utils';
+import { ArabicTimeSelect } from './ArabicTimeSelect';
 import toast from 'react-hot-toast';
 
 const sessionSchema = z.object({
@@ -28,6 +31,8 @@ interface CreateSessionModalProps {
   onClose: () => void;
   initialGroupId?: string;
   initialDate?: string;
+  initialTime?: string;
+  sessions?: LessonSessionItem[];
 }
 
 export function CreateSessionModal({
@@ -35,10 +40,22 @@ export function CreateSessionModal({
   onClose,
   initialGroupId,
   initialDate,
+  initialTime,
+  sessions = [],
 }: CreateSessionModalProps) {
   const { data: groups = [], isLoading: isLoadingGroups } = useGroups();
   const { activeYear, activeTerm } = useStoredAcademicPeriod(groups as any);
   const { mutate: createSessionMutate, isPending } = useCreateSession();
+
+  const defaultStart = initialTime || '16:00';
+  const calculateDefaultEndTime = (sTime: string) => {
+    const [sH, sM] = sTime.split(':').map(Number);
+    if (isNaN(sH)) return '17:30';
+    const endMin = (sH * 60 + (sM || 0) + 90) % (24 * 60);
+    const endH = Math.floor(endMin / 60);
+    const endM = endMin % 60;
+    return `${endH < 10 ? '0' : ''}${endH}:${endM < 10 ? '0' : ''}${endM}`;
+  };
 
   const {
     register,
@@ -52,28 +69,38 @@ export function CreateSessionModal({
     defaultValues: {
       groupId: initialGroupId || '',
       sessionDate: initialDate || new Date().toISOString().split('T')[0],
-      startTime: '16:00',
-      endTime: '18:00',
+      startTime: defaultStart,
+      endTime: calculateDefaultEndTime(defaultStart),
       topic: '',
     },
   });
 
   const selectedGroupId = watch('groupId');
+  const watchDate = watch('sessionDate');
+  const watchStartTime = watch('startTime');
+  const watchEndTime = watch('endTime');
+
   const selectedGroup = groups.find((g) => g.id === selectedGroupId);
   const { data: existingTopics = [] } = useSessionTopics(selectedGroup?.gradeLevel, selectedGroupId);
+
+  const conflictingSession = useMemo(() => {
+    if (!isOpen || !watchDate || !watchStartTime) return null;
+    return findSessionConflict(sessions, watchDate, watchStartTime, watchEndTime);
+  }, [isOpen, sessions, watchDate, watchStartTime, watchEndTime]);
 
   useEffect(() => {
     if (isOpen) {
       const todayStr = new Date().toISOString().split('T')[0];
+      const startT = initialTime || '16:00';
       reset({
         groupId: initialGroupId || (groups[0]?.id ?? ''),
         sessionDate: initialDate || todayStr,
-        startTime: '16:00',
-        endTime: '18:00',
+        startTime: startT,
+        endTime: calculateDefaultEndTime(startT),
         topic: '',
       });
     }
-  }, [isOpen, initialGroupId, initialDate, groups, reset]);
+  }, [isOpen, initialGroupId, initialDate, initialTime, groups, reset]);
 
   if (!isOpen) return null;
 
@@ -84,6 +111,11 @@ export function CreateSessionModal({
   };
 
   const onSubmit = (data: SessionFormData) => {
+    if (conflictingSession) {
+      toast.error('لا يمكن حفظ الحصة لوجود تعارض في الموعد مع حصة أخرى مسجلة');
+      return;
+    }
+
     createSessionMutate(
       {
         groupId: data.groupId,
@@ -172,28 +204,27 @@ export function CreateSessionModal({
             </div>
 
             <div>
-              <Label className="mb-1 block text-xs font-bold text-slate-700 flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-primary-600" />
-                وقت البدء
-              </Label>
-              <Input
-                type="time"
-                {...register('startTime')}
+              <ArabicTimeSelect
+                label="وقت البدء"
+                value={watchStartTime}
                 disabled={isPending}
-                className="h-10 text-xs bg-white rounded-xl"
+                onChange={(val) => {
+                  setValue('startTime', val, { shouldValidate: true });
+                  // Automatically adjust endTime to startTime + 90 minutes
+                  setValue('endTime', calculateDefaultEndTime(val), { shouldValidate: true });
+                }}
               />
             </div>
 
             <div>
-              <Label className="mb-1 block text-xs font-bold text-slate-700 flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-emerald-600" />
-                وقت الانتهاء
-              </Label>
-              <Input
-                type="time"
-                {...register('endTime')}
+              <ArabicTimeSelect
+                label="وقت الانتهاء"
+                value={watchEndTime}
+                align="left"
                 disabled={isPending}
-                className="h-10 text-xs bg-white rounded-xl"
+                onChange={(val) => {
+                  setValue('endTime', val, { shouldValidate: true });
+                }}
               />
             </div>
           </div>
@@ -237,12 +268,37 @@ export function CreateSessionModal({
             )}
           </div>
 
+          {/* Conflict Warning Banner */}
+          {conflictingSession && (
+            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 flex items-start gap-2.5 animate-in fade-in-50 duration-200">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-xs space-y-1">
+                <p className="font-bold text-amber-900">تنبيه: يوجد تعارض زمني مع حصة أخرى مسجلة!</p>
+                <p className="text-amber-800 leading-relaxed font-medium">
+                  لديك بالفعل حصة <span className="font-bold">"{conflictingSession.topic}"</span> لمجموعة{' '}
+                  <span className="font-bold">
+                    ({conflictingSession.group?.gradeLevel || conflictingSession.group?.name || 'مجموعة دراسية'})
+                  </span>{' '}
+                  في نفس التوقيت ({formatArabicTimeRange12H(conflictingSession.startTime, conflictingSession.endTime)}).
+                  يرجى تغيير التوقيت لتجنب تداخل الحصص.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Footer Actions */}
           <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
             <Button type="button" variant="outline" onClick={handleClose} disabled={isPending}>
               إلغاء
             </Button>
-            <Button type="submit" disabled={isPending} className="shadow-md shadow-primary/20 min-w-[130px]">
+            <Button
+              type="submit"
+              disabled={isPending || !!conflictingSession}
+              title={conflictingSession ? 'يرجى تغيير التوقيت لتفادي التعارض الزمني' : undefined}
+              className={`shadow-md shadow-primary/20 min-w-[130px] ${
+                conflictingSession ? 'opacity-50 cursor-not-allowed bg-slate-300 border-slate-300 text-slate-600' : ''
+              }`}
+            >
               {isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 ml-2 animate-spin" />

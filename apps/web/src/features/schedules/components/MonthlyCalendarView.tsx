@@ -3,7 +3,12 @@
 import { useMemo } from 'react';
 import { Clock, FileText, Users, Plus } from 'lucide-react';
 import { LessonSessionItem } from '../types/schedules.types';
-import { formatArabicTime12H, toLocalDateStr } from '../utils/time.utils';
+import {
+  formatArabicTime12H,
+  toLocalDateStr,
+  getGradeLevelTheme,
+  calculateOverlappingColumns,
+} from '../utils/time.utils';
 
 interface MonthlyCalendarViewProps {
   currentDate: Date;
@@ -161,11 +166,15 @@ export function MonthlyCalendarView({
 
               {/* Day Sessions Pills */}
               <div className="space-y-1 overflow-y-auto max-h-[85px]">
-                {daySessions.map((session, sIdx) => {
+                {daySessions.map((session) => {
                   const isCancelled = !!session.isCancelled;
+                  const gradeTheme = getGradeLevelTheme(session.group?.gradeLevel, session.group?.name);
+                  const layoutMap = calculateOverlappingColumns(daySessions);
+                  const layoutInfo = layoutMap.get(session.id);
+
                   const theme = isCancelled
                     ? 'bg-rose-100/90 text-rose-900 border-rose-300 border-dashed line-through decoration-rose-400 opacity-80'
-                    : PASTEL_THEMES[sIdx % PASTEL_THEMES.length];
+                    : gradeTheme.bg;
 
                   return (
                     <div
@@ -174,18 +183,26 @@ export function MonthlyCalendarView({
                         e.stopPropagation();
                         onSelectSession(session);
                       }}
-                      className={`px-2 py-1 rounded-lg border text-[10px] font-extrabold truncate cursor-pointer transition-all hover:scale-[1.02] shadow-2xs ${theme}`}
-                      title={`${session.topic} (${session.startTime || ''})${isCancelled ? ' - ملغاة' : ''}`}
+                      className={`px-2 py-1 rounded-lg border text-[10px] font-extrabold truncate cursor-pointer transition-all hover:scale-[1.02] shadow-2xs ${theme} ${
+                        layoutInfo?.hasConflict ? 'ring-1 ring-amber-400' : ''
+                      }`}
+                      title={`${session.topic} (${session.startTime || ''})${
+                        isCancelled ? ' - ملغاة' : layoutInfo?.hasConflict ? ' - تعارض في الموعد' : ''
+                      }`}
                     >
                       <span className="opacity-75 mr-1 font-semibold">
                         {formatArabicTime12H(session.startTime)}
                       </span>
                       <span>{session.topic || 'حصة'}</span>
-                      {isCancelled && (
+                      {isCancelled ? (
                         <span className="mr-1 text-[9px] text-rose-700 font-black no-underline">
                           (ملغاة)
                         </span>
-                      )}
+                      ) : layoutInfo?.hasConflict ? (
+                        <span className="mr-1 text-[9px] text-amber-800 font-black">
+                          ⚠️
+                        </span>
+                      ) : null}
                     </div>
                   );
                 })}
