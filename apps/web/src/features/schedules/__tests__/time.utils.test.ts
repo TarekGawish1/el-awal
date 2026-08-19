@@ -14,8 +14,8 @@ import {
 describe('time.utils', () => {
   describe('formatArabicTime12H', () => {
     it('formats 24-hour time to Arabic 12-hour format', () => {
-      expect(formatArabicTime12H('17:00')).toBe('05:00 م');
-      expect(formatArabicTime12H('09:30')).toBe('09:30 ص');
+      expect(formatArabicTime12H('17:00')).toBe('5:00 م');
+      expect(formatArabicTime12H('09:30')).toBe('9:30 ص');
       expect(formatArabicTime12H('12:00')).toBe('12:00 م');
       expect(formatArabicTime12H('00:00')).toBe('12:00 ص');
     });
@@ -29,12 +29,12 @@ describe('time.utils', () => {
 
   describe('formatArabicTimeRangeCompact', () => {
     it('omits repeated meridian when both times are in the same period', () => {
-      expect(formatArabicTimeRangeCompact('17:00', '19:30')).toBe('05:00 - 07:30 م');
-      expect(formatArabicTimeRangeCompact('08:00', '09:30')).toBe('08:00 - 09:30 ص');
+      expect(formatArabicTimeRangeCompact('17:00', '19:30')).toBe('5:00 - 7:30 م');
+      expect(formatArabicTimeRangeCompact('08:00', '09:30')).toBe('8:00 - 9:30 ص');
     });
 
     it('keeps both meridians when times span different periods', () => {
-      expect(formatArabicTimeRangeCompact('11:00', '13:00')).toBe('11:00 ص - 01:00 م');
+      expect(formatArabicTimeRangeCompact('11:00', '13:00')).toBe('11:00 ص - 1:00 م');
     });
 
     it('handles single time values gracefully', () => {
