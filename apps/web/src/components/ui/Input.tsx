@@ -38,6 +38,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             disabled={disabled}
             aria-invalid={!!error}
             aria-describedby={error ? errorId : helperText ? helperId : undefined}
+            dir="auto"
             className={cn(
               'w-full rounded-md border border-neutral-300 bg-white px-3.5 py-2.5 text-sm text-neutral-900 placeholder:text-neutral-400 shadow-xs transition-colors',
               'focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500',
