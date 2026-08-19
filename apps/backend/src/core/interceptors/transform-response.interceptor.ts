@@ -19,6 +19,9 @@ function serializeBigInt(obj: any): any {
   if (Array.isArray(obj)) return obj.map(serializeBigInt);
   if (typeof obj === 'object') {
     if (obj instanceof Date) return obj;
+    if (obj.constructor?.name === 'Decimal' && typeof obj.toNumber === 'function') {
+      return obj.toNumber();
+    }
     const res: Record<string, any> = {};
     for (const [k, v] of Object.entries(obj)) {
       res[k] = serializeBigInt(v);
