@@ -19,7 +19,7 @@ function serializeBigInt(obj: any): any {
   if (Array.isArray(obj)) return obj.map(serializeBigInt);
   if (typeof obj === 'object') {
     if (obj instanceof Date) return obj;
-    if (obj.constructor?.name === 'Decimal' && typeof obj.toNumber === 'function') {
+    if (typeof obj.toNumber === 'function' && typeof obj.toFixed === 'function' && Array.isArray(obj.d)) {
       return obj.toNumber();
     }
     const res: Record<string, any> = {};
