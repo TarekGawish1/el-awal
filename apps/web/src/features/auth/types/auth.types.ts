@@ -33,6 +33,30 @@ export interface RefreshTokenPayload {
   refreshToken: string;
 }
 
+export interface AuthUser {
+  id: string;
+  fullName: string;
+  email?: string;
+  phone?: string;
+  role: UserRole;
+  teacherProfileId?: string;
+  studentProfileId?: string;
+  parentProfileId?: string;
+  secretariatProfileId?: string;
+}
+
+export interface AuthTokensResponse {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  expiresIn: number;
+  user: AuthUser;
+}
+
+export interface RefreshTokenPayload {
+  refreshToken: string;
+}
+
 export interface RefreshTokenResponse {
   accessToken: string;
   refreshToken: string;
@@ -44,4 +68,5 @@ export interface AuthState {
   refreshToken: string | null;
   isAuthenticated: boolean;
   isInitialized: boolean;
+  isValidating: boolean;
 }

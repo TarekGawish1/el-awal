@@ -33,6 +33,38 @@ describe('Dashboard Route Protection & Authentication Guard', () => {
       user: null,
       isAuthenticated: false,
       isInitialized: false,
+      isValidating: false,
+      login: vi.fn(),
+      loginAsync: vi.fn(),
+      isLoading: false,
+      isSuccess: false,
+      isError: false,
+      error: null,
+      rawError: null,
+      resetError: vi.fn(),
+      logout: vi.fn(),
+    });
+
+    renderWithProviders(
+      <DashboardLayout>
+        <div>Protected Dashboard Content</div>
+      </DashboardLayout>
+    );
+
+    expect(screen.getByText('جاري التحقق من بيانات الدخول...')).toBeInTheDocument();
+    expect(screen.queryByText('Protected Dashboard Content')).not.toBeInTheDocument();
+  });
+
+  it('shows loading state while auth session is being validated against backend', () => {
+    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
+      user: {
+        id: 'usr-1',
+        fullName: 'أ. طارق عبد الله',
+        role: 'TEACHER',
+      } as any,
+      isAuthenticated: true, // Appears authenticated from localStorage
+      isInitialized: true,   // Local init complete
+      isValidating: true,    // BUT still validating against backend
       login: vi.fn(),
       loginAsync: vi.fn(),
       isLoading: false,
@@ -59,6 +91,7 @@ describe('Dashboard Route Protection & Authentication Guard', () => {
       user: null,
       isAuthenticated: false,
       isInitialized: true,
+      isValidating: false,
       login: vi.fn(),
       loginAsync: vi.fn(),
       isLoading: false,
@@ -91,6 +124,7 @@ describe('Dashboard Route Protection & Authentication Guard', () => {
       },
       isAuthenticated: true,
       isInitialized: true,
+      isValidating: false,
       login: vi.fn(),
       loginAsync: vi.fn(),
       isLoading: false,
