@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import { Clock, Users, FileText, Plus } from 'lucide-react';
 import { LessonSessionItem } from '../types/schedules.types';
-import { formatArabicTimeRange12H, parseTimeToMinutes } from '../utils/time.utils';
+import { formatArabicTime12H, formatArabicTimeRange12H, parseTimeToMinutes } from '../utils/time.utils';
 
 interface WeeklyCalendarViewProps {
   currentDate: Date;
@@ -185,7 +185,7 @@ export function WeeklyCalendarView({
 
       {/* Main Continuous Calendar Body */}
       <div className="overflow-x-auto overflow-y-auto max-h-[720px]">
-        <div className="flex min-w-[760px] relative">
+        <div className="flex min-w-[860px] relative">
           {/* Time Labels Column */}
           <div className="w-16 sm:w-20 shrink-0 border-l border-slate-100 bg-slate-50/30 select-none">
             {HOURS.map((hour) => (
@@ -250,10 +250,11 @@ export function WeeklyCalendarView({
                           </h4>
 
                           {/* Time range (12-hour Arabic) */}
-                          <div className="flex items-center gap-1 text-[10px] font-bold opacity-90">
+                          <div className="flex items-center gap-1.5 text-[10px] font-extrabold text-slate-800 bg-white/80 py-0.5 px-1.5 rounded-md w-fit border border-black/5 shadow-2xs my-0.5">
                             <Clock className={`w-3 h-3 ${theme.iconColor} shrink-0`} />
-                            <span className="truncate">
-                              {formatArabicTimeRange12H(session.startTime || '16:00', session.endTime)}
+                            <span className="whitespace-nowrap" dir="rtl">
+                              {formatArabicTime12H(session.startTime || '16:00')}
+                              {session.endTime ? ` - ${formatArabicTime12H(session.endTime)}` : ''}
                             </span>
                           </div>
 
