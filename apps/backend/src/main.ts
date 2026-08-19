@@ -67,6 +67,11 @@ async function bootstrap() {
         return callback(null, true);
       }
 
+      // Automatically allow Vercel deployment origins (vercel.app)
+      if (/^https:\/\/(.*\.)?vercel\.app$/i.test(origin)) {
+        return callback(null, true);
+      }
+
       logger.warn(`⚠️ CORS blocked request from unauthorized origin: ${origin}`);
       callback(new Error(`Origin ${origin} not allowed by CORS`));
     },
