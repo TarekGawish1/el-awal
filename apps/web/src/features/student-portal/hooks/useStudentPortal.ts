@@ -92,3 +92,11 @@ export function useStudentAttendance() {
     enabled: !!studentId,
   });
 }
+
+export function useGroupSessions(groupId: string) {
+  return useQuery({
+    queryKey: ['group-sessions', groupId],
+    queryFn: () => apiClient<any>(`/schedules/group/${groupId}/sessions`),
+    enabled: !!groupId,
+  });
+}

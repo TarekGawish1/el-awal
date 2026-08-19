@@ -225,6 +225,7 @@ export class SchedulesService {
       orderBy: [{ sessionDate: 'desc' }, { startTime: 'desc' }],
       include: {
         group: { select: { id: true, name: true, gradeLevel: true, academicYear: true, academicTerm: true } },
+        schedule: { select: { id: true, location: true } },
         educationalContents: {
           select: {
             id: true,
