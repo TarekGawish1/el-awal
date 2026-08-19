@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, FormProvider, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -22,9 +22,71 @@ import toast from 'react-hot-toast';
 
 type Step = 'metadata' | 'questions' | 'review';
 
+import { Group, GroupSchedule } from '../../groups/types/groups.types';
+
+function getNextSessionDate(groups: Group[], targetGroupIds: string[]): Date | null {
+  if (!targetGroupIds || targetGroupIds.length === 0) return null;
+  
+  const selectedGroups = groups.filter(g => targetGroupIds.includes(g.id));
+  const schedules: GroupSchedule[] = [];
+  selectedGroups.forEach(g => {
+    if (g.schedules && g.schedules.length > 0) {
+      schedules.push(...g.schedules);
+    }
+  });
+  
+  if (schedules.length === 0) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(15, 0, 0, 0); // 3:00 PM
+    return tomorrow;
+  }
+  
+  const now = new Date();
+  let minDiff = Infinity;
+  let nextSessionDate = new Date();
+  
+  schedules.forEach(sched => {
+    const schedDay = sched.dayOfWeek; // 0=Sunday, 1=Monday, ..., 6=Saturday
+    let hours = 15; // default to 3 PM
+    let minutes = 0;
+    if (sched.startTime) {
+      const parts = sched.startTime.split(':');
+      if (parts.length >= 2) {
+        hours = parseInt(parts[0], 10);
+        minutes = parseInt(parts[1], 10);
+      }
+    }
+    
+    const currentDay = now.getDay();
+    let daysDiff = (schedDay - currentDay + 7) % 7;
+    
+    if (daysDiff === 0) {
+      const sessionToday = new Date(now);
+      sessionToday.setHours(hours, minutes, 0, 0);
+      if (sessionToday.getTime() <= now.getTime()) {
+        daysDiff = 7;
+      }
+    }
+    
+    const targetDate = new Date(now);
+    targetDate.setDate(now.getDate() + daysDiff);
+    targetDate.setHours(hours, minutes, 0, 0);
+    
+    const diffTime = targetDate.getTime() - now.getTime();
+    if (diffTime < minDiff) {
+      minDiff = diffTime;
+      nextSessionDate = targetDate;
+    }
+  });
+  
+  return nextSessionDate;
+}
+
 export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMENT' }) {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState<Step>('metadata');
+  const [dueDateOption, setDueDateOption] = useState<'NEXT_SESSION' | 'CUSTOM'>('NEXT_SESSION');
   
   const { mutate: createAssessment, isPending } = useCreateAssessment();
 
@@ -68,6 +130,19 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
   const { data: allGroups } = useGroups();
   const { activeYear, activeTerm } = useStoredAcademicPeriod(allGroups);
   
+  const watchedTargetGroupIds = formDataValues.targetGroupIds;
+
+  useEffect(() => {
+    if (type === 'ASSIGNMENT' && dueDateOption === 'NEXT_SESSION') {
+      const calculatedDate = getNextSessionDate(allGroups || [], watchedTargetGroupIds || []);
+      if (calculatedDate) {
+        methods.setValue('dueDate', calculatedDate.toISOString(), { shouldValidate: true, shouldDirty: true });
+      } else {
+        methods.setValue('dueDate', '', { shouldValidate: true });
+      }
+    }
+  }, [watchedTargetGroupIds, dueDateOption, allGroups, type]);
+
   const availableGroups = allGroups?.filter(g => 
     g.gradeLevel === selectedGrade && 
     g.academicYear === activeYear && 
@@ -342,17 +417,75 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                 </div>
 
                 {type === 'ASSIGNMENT' ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-4">
                     <div>
-                      <Label className="mb-2 block">موعد تسليم الواجب (تاريخ الاستحقاق)</Label>
-                      <DateTimePicker
-                        value={formDataValues.dueDate}
-                        onChange={(val) => {
-                          methods.setValue('dueDate', val, { shouldValidate: true, shouldDirty: true });
-                        }}
-                        placeholder="اختر تاريخ ووقت التسليم..."
-                      />
+                      <Label className="mb-2 block font-medium">موعد التسليم <span className="text-red-500">*</span></Label>
+                      <div className="flex flex-wrap gap-3 mb-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDueDateOption('NEXT_SESSION');
+                            const calculatedDate = getNextSessionDate(allGroups || [], watchedTargetGroupIds || []);
+                            if (calculatedDate) {
+                              methods.setValue('dueDate', calculatedDate.toISOString(), { shouldValidate: true, shouldDirty: true });
+                            } else {
+                              methods.setValue('dueDate', '', { shouldValidate: true });
+                            }
+                          }}
+                          className={`py-2 px-4 rounded-xl border-2 text-sm font-bold transition-all shadow-sm ${
+                            dueDateOption === 'NEXT_SESSION'
+                              ? 'border-primary-500 bg-primary-50 text-primary-700 ring-2 ring-primary-50'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                          }`}
+                        >
+                          🗓️ الحصة القادمة (تلقائي)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDueDateOption('CUSTOM');
+                          }}
+                          className={`py-2 px-4 rounded-xl border-2 text-sm font-bold transition-all shadow-sm ${
+                            dueDateOption === 'CUSTOM'
+                              ? 'border-primary-500 bg-primary-50 text-primary-700 ring-2 ring-primary-50'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                          }`}
+                        >
+                          ⚙️ تاريخ ووقت مخصص
+                        </button>
+                      </div>
                     </div>
+
+                    {dueDateOption === 'NEXT_SESSION' ? (
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm max-w-lg">
+                        <span className="text-slate-500 block mb-1">تاريخ التسليم التلقائي المحسوب:</span>
+                        <span className="font-bold text-slate-800 text-base">
+                          {formDataValues.dueDate
+                            ? new Date(formDataValues.dueDate).toLocaleDateString('ar-EG', {
+                                weekday: 'long',
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                                hour: 'numeric',
+                                minute: '2-digit',
+                              })
+                            : 'يرجى تحديد المجموعات المستهدفة أولاً لحساب موعد الحصة القادمة'}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <Label className="mb-2 block">اختر تاريخ ووقت التسليم</Label>
+                          <DateTimePicker
+                            value={formDataValues.dueDate}
+                            onChange={(val) => {
+                              methods.setValue('dueDate', val, { shouldValidate: true, shouldDirty: true });
+                            }}
+                            placeholder="اختر تاريخ ووقت التسليم..."
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
