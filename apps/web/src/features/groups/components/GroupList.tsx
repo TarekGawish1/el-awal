@@ -118,7 +118,7 @@ export function GroupList() {
   // Dynamic Academic Years from groups + standard defaults
   const availableYears = useMemo(() => {
     const yearsSet = new Set<string>();
-    yearsSet.add('2025-2026');
+    yearsSet.add('2026-2027');
     yearsSet.add('2026-2027');
     yearsSet.add('2024-2025');
 

@@ -41,7 +41,7 @@ export class GroupsService {
       data: {
         name: dto.name,
         gradeLevel: dto.gradeLevel,
-        academicYear: dto.academicYear || '2025-2026',
+        academicYear: dto.academicYear || '2026-2027',
         academicTerm: dto.academicTerm || 'FIRST_TERM',
         description: dto.description,
         maxCapacity: dto.maxCapacity || 50,

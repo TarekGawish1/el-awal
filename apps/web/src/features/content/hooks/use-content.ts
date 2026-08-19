@@ -1,17 +1,24 @@
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchContent,
   generatePresignedUrl,
   uploadFileToR2,
   createContent,
+  uploadContentDirectly,
+  updateContentDirectly,
+  updateContent,
+  fetchGroupSessions,
   deleteContent,
+  UploadProgressCallback,
 } from '../api/content.api';
-import { CreateContentPayload, PresignedUploadPayload } from '../types/content.types';
+import { CreateContentPayload, UpdateContentPayload, PresignedUploadPayload } from '../types/content.types';
 
 export const contentKeys = {
   all: ['content'] as const,
   lists: () => [...contentKeys.all, 'list'] as const,
   list: (filters: string) => [...contentKeys.lists(), { filters }] as const,
+  groupSessions: (groupId: string) => ['schedules', 'group-sessions', groupId] as const,
 };
 
 export function useContent(query?: Record<string, string>) {
@@ -21,37 +28,206 @@ export function useContent(query?: Record<string, string>) {
   });
 }
 
+export function useGroupSessions(groupId?: string) {
+  return useQuery({
+    queryKey: contentKeys.groupSessions(groupId || ''),
+    queryFn: () => fetchGroupSessions(groupId || ''),
+    enabled: !!groupId && groupId !== 'ALL',
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export type UploadStage = 'idle' | 'uploading' | 'processing' | 'success' | 'error';
+
 export function useUploadContent() {
   const queryClient = useQueryClient();
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [loadedBytes, setLoadedBytes] = useState<number>(0);
+  const [totalBytes, setTotalBytes] = useState<number>(0);
+  const [stage, setStage] = useState<UploadStage>('idle');
 
-  return useMutation({
-    mutationFn: async ({ file, metadata }: { file: File; metadata: Omit<CreateContentPayload, 'fileKey' | 'fileUrl'> & { originalFileName: string } }) => {
-      // 1. Get presigned URL
-      const presignedPayload: PresignedUploadPayload = {
-        fileName: metadata.originalFileName,
-        contentType: file.type || 'application/octet-stream',
-        fileSizeBytes: file.size,
-        folder: 'courses', // default folder based on backend enum
+  const resetProgress = useCallback(() => {
+    setUploadProgress(0);
+    setLoadedBytes(0);
+    setTotalBytes(0);
+    setStage('idle');
+  }, []);
+
+  const mutation = useMutation({
+    mutationFn: async ({
+      file,
+      metadata,
+      onProgress,
+    }: {
+      file: File;
+      metadata: Omit<CreateContentPayload, 'fileKey' | 'fileUrl'> & { originalFileName: string };
+      onProgress?: UploadProgressCallback;
+    }) => {
+      setStage('uploading');
+      setUploadProgress(0);
+      setLoadedBytes(0);
+      setTotalBytes(file.size);
+
+      const handleProgress: UploadProgressCallback = (pct, loaded, total) => {
+        setUploadProgress(pct);
+        setLoadedBytes(loaded);
+        setTotalBytes(total);
+        if (pct >= 100) {
+          setStage('processing');
+        } else {
+          setStage('uploading');
+        }
+        onProgress?.(pct, loaded, total);
       };
-      const presigned = await generatePresignedUrl(presignedPayload);
 
-      // 2. Upload file directly to R2
-      await uploadFileToR2(presigned.uploadUrl, file);
+      // 1. Direct Multipart upload through backend (with real-time progress)
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('title', metadata.title);
+        if (metadata.description) formData.append('description', metadata.description);
+        formData.append('contentType', metadata.contentType);
+        if (metadata.gradeLevel) formData.append('gradeLevel', metadata.gradeLevel);
+        if (metadata.academicYear) formData.append('academicYear', metadata.academicYear);
+        if (metadata.academicTerm) formData.append('academicTerm', metadata.academicTerm);
+        if (metadata.groupId) formData.append('groupId', metadata.groupId);
+        if (metadata.sessionTopic) formData.append('sessionTopic', metadata.sessionTopic);
+        if (metadata.sessionId) formData.append('sessionId', metadata.sessionId);
 
-      // 3. Create content record in DB
-      const createPayload: CreateContentPayload = {
-        ...metadata,
-        fileKey: presigned.fileKey,
-        fileUrl: presigned.publicUrl,
-        fileSize: file.size,
-        mimeType: file.type,
-      };
-      return createContent(createPayload);
+        const result = await uploadContentDirectly(formData, handleProgress);
+        setUploadProgress(100);
+        setStage('success');
+        return result;
+      } catch (directError: any) {
+        console.warn('Direct upload failed, attempting presigned fallback:', directError);
+
+        // 2. Fallback to presigned R2 upload with progress tracking
+        const mimeType = file.type || 'application/octet-stream';
+        const presignedPayload: PresignedUploadPayload = {
+          fileName: metadata.originalFileName,
+          contentType: mimeType,
+          fileSizeBytes: file.size,
+          folder: 'courses',
+        };
+        const presigned = await generatePresignedUrl(presignedPayload);
+        await uploadFileToR2(presigned.uploadUrl, file, mimeType, handleProgress);
+
+        setStage('processing');
+        const createPayload: CreateContentPayload = {
+          ...metadata,
+          fileKey: presigned.fileKey,
+          fileUrl: presigned.publicUrl,
+          fileSize: file.size,
+          mimeType,
+        };
+        const result = await createContent(createPayload);
+        setUploadProgress(100);
+        setStage('success');
+        return result;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: contentKeys.lists() });
     },
+    onError: () => {
+      setStage('error');
+    },
   });
+
+  return {
+    ...mutation,
+    uploadProgress,
+    loadedBytes,
+    totalBytes,
+    stage,
+    resetProgress,
+  };
+}
+
+export function useUpdateContent() {
+  const queryClient = useQueryClient();
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [loadedBytes, setLoadedBytes] = useState<number>(0);
+  const [totalBytes, setTotalBytes] = useState<number>(0);
+  const [stage, setStage] = useState<UploadStage>('idle');
+
+  const resetProgress = useCallback(() => {
+    setUploadProgress(0);
+    setLoadedBytes(0);
+    setTotalBytes(0);
+    setStage('idle');
+  }, []);
+
+  const mutation = useMutation({
+    mutationFn: async ({
+      id,
+      metadata,
+      file,
+      onProgress,
+    }: {
+      id: string;
+      metadata: UpdateContentPayload & { originalFileName?: string };
+      file?: File | null;
+      onProgress?: UploadProgressCallback;
+    }) => {
+      if (file) {
+        setStage('uploading');
+        setUploadProgress(0);
+        setLoadedBytes(0);
+        setTotalBytes(file.size);
+
+        const handleProgress: UploadProgressCallback = (pct, loaded, total) => {
+          setUploadProgress(pct);
+          setLoadedBytes(loaded);
+          setTotalBytes(total);
+          if (pct >= 100) {
+            setStage('processing');
+          } else {
+            setStage('uploading');
+          }
+          onProgress?.(pct, loaded, total);
+        };
+
+        const formData = new FormData();
+        formData.append('file', file);
+        if (metadata.title !== undefined) formData.append('title', metadata.title);
+        if (metadata.description !== undefined) formData.append('description', metadata.description);
+        if (metadata.contentType !== undefined) formData.append('contentType', metadata.contentType);
+        if (metadata.gradeLevel !== undefined) formData.append('gradeLevel', metadata.gradeLevel);
+        if (metadata.academicYear !== undefined) formData.append('academicYear', metadata.academicYear);
+        if (metadata.academicTerm !== undefined) formData.append('academicTerm', metadata.academicTerm);
+        if (metadata.groupId !== undefined) formData.append('groupId', metadata.groupId);
+        if (metadata.sessionTopic !== undefined) formData.append('sessionTopic', metadata.sessionTopic);
+        if (metadata.sessionId !== undefined) formData.append('sessionId', metadata.sessionId);
+
+        const result = await updateContentDirectly(id, formData, handleProgress);
+        setUploadProgress(100);
+        setStage('success');
+        return result;
+      }
+
+      setStage('processing');
+      // 2. Metadata-only update
+      const result = await updateContent(id, metadata);
+      setStage('success');
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: contentKeys.lists() });
+    },
+    onError: () => {
+      setStage('error');
+    },
+  });
+
+  return {
+    ...mutation,
+    uploadProgress,
+    loadedBytes,
+    totalBytes,
+    stage,
+    resetProgress,
+  };
 }
 
 export function useDeleteContent() {

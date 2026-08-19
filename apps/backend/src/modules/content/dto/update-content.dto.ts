@@ -1,5 +1,4 @@
 import {
-  IsNotEmpty,
   IsString,
   MinLength,
   IsEnum,
@@ -8,34 +7,35 @@ import {
   IsInt,
   Min,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { ContentType } from '@prisma/client';
 
-export class CreateContentDto {
-  @ApiProperty({ example: 'ملخص النحو - الوحدة الأولى', minLength: 3 })
+export class UpdateContentDto {
+  @ApiPropertyOptional({ example: 'ملخص النحو - الوحدة الأولى المحدث', minLength: 3 })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'Title is required' })
   @MinLength(3)
-  title: string;
+  title?: string;
 
   @ApiPropertyOptional({ example: 'ملف PDF يحتوي على ملخص شامل لدروس همزة القطع والوصل والمشتقات' })
   @IsOptional()
   @IsString()
   description?: string;
 
-  @ApiProperty({ enum: ContentType, example: ContentType.SUMMARY })
+  @ApiPropertyOptional({ enum: ContentType, example: ContentType.SUMMARY })
+  @IsOptional()
   @IsEnum(ContentType)
-  contentType: ContentType;
+  contentType?: ContentType;
 
-  @ApiProperty({ description: 'Cloudflare R2 object key', example: 'uploads/courses/1723820000-summary.pdf' })
+  @ApiPropertyOptional({ description: 'Cloudflare R2 object key' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'File key is required' })
-  fileKey: string;
+  fileKey?: string;
 
-  @ApiProperty({ description: 'Public or presigned URL for file', example: 'https://cdn.elawal.com/uploads/courses/1723820000-summary.pdf' })
+  @ApiPropertyOptional({ description: 'Public or presigned URL for file' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'File URL is required' })
-  fileUrl: string;
+  fileUrl?: string;
 
   @ApiPropertyOptional({ description: 'File size in bytes', example: 5242880 })
   @IsOptional()

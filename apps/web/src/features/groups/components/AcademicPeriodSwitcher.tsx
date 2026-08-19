@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 
 const STORAGE_KEY = 'el_awal_saved_academic_years';
-const DEFAULT_YEARS = ['2025-2026', '2026-2027', '2024-2025', '2027-2028', '2023-2024'];
+const DEFAULT_YEARS = ['2026-2027', '2027-2028', '2025-2026', '2028-2029', '2024-2025'];
 
 export function AcademicPeriodSwitcher() {
   const [isOpen, setIsOpen] = useState(false);

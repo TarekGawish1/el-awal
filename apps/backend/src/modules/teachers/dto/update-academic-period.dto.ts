@@ -4,7 +4,7 @@ import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 export class UpdateAcademicPeriodDto {
   @ApiProperty({
     description: 'Active academic year for the teacher',
-    example: '2025-2026',
+    example: '2026-2027',
   })
   @IsString()
   @IsNotEmpty()

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
+import { APP_CONFIG } from '@/config/app.config';
 import { Group } from '../types/groups.types';
 
 export const STORAGE_YEAR_KEY = 'el_awal_default_academic_year';
@@ -15,14 +16,14 @@ export interface AcademicPeriodResponse {
 }
 
 /**
- * Fetch academic period from database
+ * Fetch academic period directly from database
  */
 export async function fetchAcademicPeriod(): Promise<AcademicPeriodResponse> {
   return apiClient<AcademicPeriodResponse>(API_ENDPOINTS.TEACHER.ACADEMIC_PERIOD);
 }
 
 /**
- * Save academic period to database
+ * Save academic period directly to database
  */
 export async function updateAcademicPeriodInDb(payload: {
   activeAcademicYear: string;
@@ -35,57 +36,37 @@ export async function updateAcademicPeriodInDb(payload: {
 }
 
 /**
- * Calculates current default academic year based on calendar date (e.g. 2025-2026).
+ * Static baseline fallback constants (no date calculations)
  */
+export const DEFAULT_ACADEMIC_YEAR = APP_CONFIG.defaultAcademicYear || '2026-2027';
+export const DEFAULT_ACADEMIC_TERM = 'FIRST_TERM';
+
 export function getDefaultAcademicYear(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1; // 1-12
-  if (month >= 8) {
-    return `${year}-${year + 1}`;
-  } else {
-    return `${year - 1}-${year}`;
-  }
+  return DEFAULT_ACADEMIC_YEAR;
 }
 
-/**
- * Calculates current default academic semester based on calendar month.
- */
 export function getDefaultAcademicTerm(): string {
-  const now = new Date();
-  const month = now.getMonth() + 1; // 1-12
-  if (month >= 8 || month === 1) {
-    return 'FIRST_TERM';
-  } else {
-    return 'SECOND_TERM';
-  }
+  return DEFAULT_ACADEMIC_TERM;
 }
 
 /**
- * Hook to read, persist, and synchronize the active academic year & semester with the Database.
+ * Primary Hook to read, persist, and synchronize the active academic year & semester in the Database.
+ * The database (teacher_profiles table) is the authoritative source of truth.
  */
 export function useStoredAcademicPeriod(groups?: Group[]) {
   const queryClient = useQueryClient();
-  const [hasUserChanged, setHasUserChanged] = useState(false);
 
-  // 1. Fetch persistent preference from database
-  const { data: dbPeriod } = useQuery({
+  // 1. Fetch persistent preference directly from database
+  const { data: dbPeriod, isLoading: isLoadingDb } = useQuery({
     queryKey: ['teacher', 'academic-period'],
     queryFn: fetchAcademicPeriod,
-    staleTime: 5 * 60 * 1000,
-    retry: false,
+    staleTime: 10 * 60 * 1000,
+    retry: 1,
   });
 
-  // 2. Mutation to persist to database
-  const mutation = useMutation({
-    mutationFn: updateAcademicPeriodInDb,
-    onSuccess: (data) => {
-      queryClient.setQueryData(['teacher', 'academic-period'], data);
-    },
-  });
-
+  // Local state initialized with cached / stored / default value
   const [selectedYears, setSelectedYearsState] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return [];
+    if (typeof window === 'undefined') return [DEFAULT_ACADEMIC_YEAR];
     try {
       const stored = localStorage.getItem(STORAGE_YEAR_KEY);
       if (stored) {
@@ -95,11 +76,11 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
     } catch {
       // ignore
     }
-    return [];
+    return [DEFAULT_ACADEMIC_YEAR];
   });
 
   const [selectedTerms, setSelectedTermsState] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return [];
+    if (typeof window === 'undefined') return [DEFAULT_ACADEMIC_TERM];
     try {
       const stored = localStorage.getItem(STORAGE_TERM_KEY);
       if (stored) {
@@ -109,52 +90,38 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
     } catch {
       // ignore
     }
-    return [];
+    return [DEFAULT_ACADEMIC_TERM];
   });
 
-  // Sync DB values when loaded if user has not interacted yet
+  // 2. Mutation to persist changes directly to database
+  const mutation = useMutation({
+    mutationFn: updateAcademicPeriodInDb,
+    onSuccess: (data) => {
+      queryClient.setQueryData(['teacher', 'academic-period'], data);
+      queryClient.invalidateQueries({ queryKey: ['teacher', 'dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['teacher', 'groups'] });
+    },
+  });
+
+  // When database data arrives, synchronize state and local storage cache with database values
   useEffect(() => {
-    if (dbPeriod && !hasUserChanged) {
-      if (dbPeriod.activeAcademicYear && selectedYears.length === 0) {
-        setSelectedYearsState([dbPeriod.activeAcademicYear]);
+    if (dbPeriod?.activeAcademicYear) {
+      setSelectedYearsState([dbPeriod.activeAcademicYear]);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(STORAGE_YEAR_KEY, JSON.stringify([dbPeriod.activeAcademicYear]));
+        } catch {}
       }
-      if (dbPeriod.activeAcademicTerm && selectedTerms.length === 0) {
-        setSelectedTermsState([dbPeriod.activeAcademicTerm]);
+    }
+    if (dbPeriod?.activeAcademicTerm) {
+      setSelectedTermsState([dbPeriod.activeAcademicTerm]);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(STORAGE_TERM_KEY, JSON.stringify([dbPeriod.activeAcademicTerm]));
+        } catch {}
       }
     }
-  }, [dbPeriod, hasUserChanged, selectedYears.length, selectedTerms.length]);
-
-  // Smart fallback resolution from actual groups if neither DB nor user preference exists
-  useEffect(() => {
-    if (hasUserChanged || !groups || groups.length === 0) return;
-
-    const storedYear = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_YEAR_KEY) : null;
-    const storedTerm = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_TERM_KEY) : null;
-
-    if (!storedYear && !dbPeriod?.activeAcademicYear && selectedYears.length === 0) {
-      const yearCounts: Record<string, number> = {};
-      groups.forEach((g) => {
-        if (g.academicYear) {
-          yearCounts[g.academicYear] = (yearCounts[g.academicYear] || 0) + 1;
-        }
-      });
-      const groupYears = Object.keys(yearCounts).sort((a, b) => yearCounts[b] - yearCounts[a]);
-      const resolvedYear = groupYears[0] || getDefaultAcademicYear();
-      setSelectedYearsState([resolvedYear]);
-    }
-
-    if (!storedTerm && !dbPeriod?.activeAcademicTerm && selectedTerms.length === 0) {
-      const termCounts: Record<string, number> = {};
-      groups.forEach((g) => {
-        if (g.academicTerm) {
-          termCounts[g.academicTerm] = (termCounts[g.academicTerm] || 0) + 1;
-        }
-      });
-      const groupTerms = Object.keys(termCounts).sort((a, b) => termCounts[b] - termCounts[a]);
-      const resolvedTerm = groupTerms[0] || getDefaultAcademicTerm();
-      setSelectedTermsState([resolvedTerm]);
-    }
-  }, [groups, dbPeriod, hasUserChanged, selectedYears.length, selectedTerms.length]);
+  }, [dbPeriod?.activeAcademicYear, dbPeriod?.activeAcademicTerm]);
 
   // Cross-component and cross-tab synchronization
   useEffect(() => {
@@ -187,7 +154,6 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
   }, []);
 
   const setSelectedYears = (years: string[]) => {
-    setHasUserChanged(true);
     setSelectedYearsState(years);
 
     if (typeof window !== 'undefined') {
@@ -199,9 +165,9 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
       }
     }
 
-    // Persist to database if single year selected
+    // Persist directly to database
     if (years.length === 1) {
-      const currentTerm = selectedTerms.length === 1 ? selectedTerms[0] : (dbPeriod?.activeAcademicTerm || 'FIRST_TERM');
+      const currentTerm = selectedTerms.length === 1 ? selectedTerms[0] : (dbPeriod?.activeAcademicTerm || DEFAULT_ACADEMIC_TERM);
       mutation.mutate({
         activeAcademicYear: years[0],
         activeAcademicTerm: currentTerm,
@@ -210,7 +176,6 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
   };
 
   const setSelectedTerms = (terms: string[]) => {
-    setHasUserChanged(true);
     setSelectedTermsState(terms);
 
     if (typeof window !== 'undefined') {
@@ -222,9 +187,9 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
       }
     }
 
-    // Persist to database if single term selected
+    // Persist directly to database
     if (terms.length === 1) {
-      const currentYear = selectedYears.length === 1 ? selectedYears[0] : (dbPeriod?.activeAcademicYear || '2025-2026');
+      const currentYear = selectedYears.length === 1 ? selectedYears[0] : (dbPeriod?.activeAcademicYear || DEFAULT_ACADEMIC_YEAR);
       mutation.mutate({
         activeAcademicYear: currentYear,
         activeAcademicTerm: terms[0],
@@ -232,8 +197,8 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
     }
   };
 
-  const activeYear = selectedYears[0] || dbPeriod?.activeAcademicYear || '2025-2026';
-  const activeTerm = selectedTerms[0] || dbPeriod?.activeAcademicTerm || 'FIRST_TERM';
+  const activeYear = selectedYears[0] || dbPeriod?.activeAcademicYear || DEFAULT_ACADEMIC_YEAR;
+  const activeTerm = selectedTerms[0] || dbPeriod?.activeAcademicTerm || DEFAULT_ACADEMIC_TERM;
 
   return {
     selectedYears,
@@ -243,6 +208,7 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
     activeYear,
     activeTerm,
     dbPeriod,
+    isLoading: isLoadingDb,
     isSyncingWithDb: mutation.isPending,
   };
 }
@@ -251,4 +217,3 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
  * Alias for useStoredAcademicPeriod for backwards/clean imports
  */
 export const useAcademicPeriod = useStoredAcademicPeriod;
-

@@ -69,6 +69,29 @@ export class StorageService {
   }
 
   /**
+   * Directly uploads a file buffer to Cloudflare R2 bucket.
+   */
+  async uploadBuffer(key: string, buffer: Buffer, contentType: string): Promise<{ fileKey: string; publicUrl: string }> {
+    try {
+      const command = new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+        Body: buffer,
+        ContentType: contentType,
+      });
+
+      await this.s3Client.send(command);
+      return {
+        fileKey: key,
+        publicUrl: `${this.publicUrlBase}/${key}`,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to upload buffer for key [${key}] to R2:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Generates a temporary time-bound presigned URL to download private files.
    */
   async generatePresignedDownloadUrl(

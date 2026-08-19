@@ -113,9 +113,13 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
     endpoint.includes(API_ENDPOINTS.AUTH.LOGOUT);
 
   const defaultHeaders: Record<string, string> = {
-    'Content-Type': 'application/json',
     Accept: 'application/json',
   };
+
+  // Only set application/json if body is not FormData
+  if (!(customConfig.body instanceof FormData)) {
+    defaultHeaders['Content-Type'] = 'application/json';
+  }
 
   // Attach Bearer Token ONLY if request is destined for internal API base
   if (isInternalApi) {

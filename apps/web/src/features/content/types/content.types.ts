@@ -61,3 +61,28 @@ export interface CreateContentPayload {
   sessionId?: string;
   lessonId?: string;
 }
+
+export interface UpdateContentPayload {
+  title?: string;
+  description?: string;
+  contentType?: ContentType;
+  fileKey?: string;
+  fileUrl?: string;
+  fileSize?: number;
+  mimeType?: string;
+  groupId?: string;
+  gradeLevel?: string;
+  academicYear?: string;
+  academicTerm?: string;
+  sessionTopic?: string;
+  sessionId?: string;
+  lessonId?: string;
+}
+
+export interface GroupSessionOption {
+  id: string;
+  topic?: string | null;
+  sessionDate: string;
+  startTime?: string | null;
+}
+

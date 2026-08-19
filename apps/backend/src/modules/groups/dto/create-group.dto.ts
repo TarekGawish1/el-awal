@@ -46,7 +46,7 @@ export class CreateGroupDto {
   @IsNotEmpty({ message: 'Grade level is required' })
   gradeLevel: string;
 
-  @ApiPropertyOptional({ example: '2025-2026', default: '2025-2026' })
+  @ApiPropertyOptional({ example: '2026-2027', default: '2026-2027' })
   @IsOptional()
   @IsString()
   academicYear?: string;

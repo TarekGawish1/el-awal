@@ -105,7 +105,7 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
   const [formData, setFormData] = useState<CreateGroupPayload>({
     name: '',
     gradeLevel: '',
-    academicYear: '2025-2026',
+    academicYear: '2026-2027',
     academicTerm: 'FIRST_TERM',
     maxCapacity: 50,
     monthlyFee: 100,
@@ -120,7 +120,7 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
     if (isOpen) {
       setFormData((prev) => ({
         ...prev,
-        academicYear: activeYear || prev.academicYear || '2025-2026',
+        academicYear: activeYear || prev.academicYear || '2026-2027',
         academicTerm: (activeTerm as any) || prev.academicTerm || 'FIRST_TERM',
       }));
     }
@@ -150,10 +150,10 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
   };
 
   const academicYearOptions = [
-    { label: '2025-2026', value: '2025-2026' },
     { label: '2026-2027', value: '2026-2027' },
     { label: '2027-2028', value: '2027-2028' },
-    { label: '2024-2025', value: '2024-2025' },
+    { label: '2028-2029', value: '2028-2029' },
+    { label: '2025-2026', value: '2025-2026' },
   ];
 
   const academicTermOptions = [
@@ -218,7 +218,7 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
           setFormData({ 
             name: '', 
             gradeLevel: '', 
-            academicYear: '2025-2026',
+            academicYear: '2026-2027',
             academicTerm: 'FIRST_TERM',
             maxCapacity: 50, 
             monthlyFee: 100,
@@ -267,7 +267,7 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
             <div className="grid grid-cols-2 gap-3 bg-slate-50/60 p-3 rounded-xl border border-slate-100">
               <div>
                 <AcademicYearSelect
-                  value={formData.academicYear || '2025-2026'}
+                  value={formData.academicYear || '2026-2027'}
                   onChange={val => setFormData({ ...formData, academicYear: val })}
                 />
               </div>

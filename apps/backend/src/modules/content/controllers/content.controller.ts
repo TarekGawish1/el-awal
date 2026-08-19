@@ -2,17 +2,23 @@ import {
   Controller,
   Post,
   Get,
+  Put,
   Body,
   Query,
   Param,
   Delete,
   HttpCode,
   HttpStatus,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { ContentService } from '../services/content.service';
 import { PresignedUploadDto } from '../dto/presigned-upload.dto';
 import { CreateContentDto } from '../dto/create-content.dto';
+import { UpdateContentDto } from '../dto/update-content.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
 import {
   CurrentUser,
@@ -25,6 +31,38 @@ import { UserRole, ContentType } from '@prisma/client';
 @Controller('content')
 export class ContentController {
   constructor(private readonly contentService: ContentService) {}
+
+  @Post('upload-direct')
+  @UseInterceptors(FileInterceptor('file'))
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Direct multipart file upload with automatic R2 storage and database persistence' })
+  async uploadDirect(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: any,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (!file) {
+      throw new BadRequestException('الملف مطلوب للرفع');
+    }
+
+    return this.contentService.uploadAndCreateContent(
+      user.teacherProfileId || user.id,
+      file,
+      {
+        title: body.title,
+        description: body.description,
+        contentType: (body.contentType as ContentType) || ContentType.FILE,
+        gradeLevel: body.gradeLevel || undefined,
+        academicYear: body.academicYear || undefined,
+        academicTerm: body.academicTerm || undefined,
+        groupId: body.groupId || undefined,
+        sessionId: body.sessionId || undefined,
+        sessionTopic: body.sessionTopic || undefined,
+        lessonId: body.lessonId || undefined,
+      },
+    );
+  }
 
   @Post('presigned-upload-url')
   @HttpCode(HttpStatus.OK)
@@ -77,6 +115,43 @@ export class ContentController {
         contentType,
         includeGradeScope: includeGradeScope === 'true' || includeGradeScope === '1',
       },
+    );
+  }
+
+  @Put(':id')
+  @UseInterceptors(FileInterceptor('file'))
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiConsumes('multipart/form-data', 'application/json')
+  @ApiOperation({ summary: 'Update educational content metadata and optionally replace the file' })
+  @ApiResponse({ status: 200, description: 'Content successfully updated' })
+  async updateContent(
+    @Param('id') id: string,
+    @Body() body: any,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const dto: UpdateContentDto = {
+      title: body.title,
+      description: body.description,
+      contentType: body.contentType as ContentType,
+      gradeLevel: body.gradeLevel,
+      academicYear: body.academicYear,
+      academicTerm: body.academicTerm,
+      groupId: body.groupId,
+      sessionId: body.sessionId,
+      sessionTopic: body.sessionTopic,
+      lessonId: body.lessonId,
+      fileKey: body.fileKey,
+      fileUrl: body.fileUrl,
+      fileSize: body.fileSize ? Number(body.fileSize) : undefined,
+      mimeType: body.mimeType,
+    };
+
+    return this.contentService.updateContent(
+      id,
+      user.teacherProfileId || user.id,
+      dto,
+      file,
     );
   }
 

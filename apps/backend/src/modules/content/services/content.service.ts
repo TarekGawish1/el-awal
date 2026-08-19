@@ -4,6 +4,7 @@ import { PrismaService } from '../../../core/database/prisma.service';
 import { StorageService } from '../../../integrations/storage/storage.service';
 import { PresignedUploadDto } from '../dto/presigned-upload.dto';
 import { CreateContentDto } from '../dto/create-content.dto';
+import { UpdateContentDto } from '../dto/update-content.dto';
 import { ContentType } from '@prisma/client';
 
 @Injectable()
@@ -63,7 +64,7 @@ export class ContentService {
         where: { id: teacherId },
         select: { activeAcademicYear: true, activeAcademicTerm: true },
       });
-      if (!academicYear) academicYear = teacher?.activeAcademicYear || '2025-2026';
+      if (!academicYear) academicYear = teacher?.activeAcademicYear || '2026-2027';
       if (!academicTerm) academicTerm = teacher?.activeAcademicTerm || 'FIRST_TERM';
     }
 
@@ -96,7 +97,7 @@ export class ContentService {
       }
     }
 
-    return this.prisma.educationalContent.create({
+    const created = await this.prisma.educationalContent.create({
       data: {
         title: dto.title,
         description: dto.description,
@@ -114,6 +115,59 @@ export class ContentService {
         groupId: dto.groupId || null,
         lessonId: dto.lessonId || null,
       },
+      include: {
+        group: { select: { id: true, name: true, gradeLevel: true, academicYear: true, academicTerm: true } },
+        session: { select: { id: true, topic: true, sessionDate: true, startTime: true } },
+        lesson: { select: { id: true, title: true } },
+      },
+    });
+
+    return {
+      ...created,
+      fileSize: created.fileSize ? Number(created.fileSize) : null,
+    };
+  }
+
+  /**
+   * Directly uploads buffer to Cloudflare R2 and creates the EducationalContent record in one shot.
+   */
+  async uploadAndCreateContent(
+    teacherId: string,
+    file: Express.Multer.File,
+    meta: {
+      title: string;
+      description?: string;
+      contentType: ContentType;
+      gradeLevel?: string;
+      academicYear?: string;
+      academicTerm?: string;
+      groupId?: string;
+      sessionId?: string;
+      sessionTopic?: string;
+      lessonId?: string;
+    },
+  ) {
+    const fileExt = file.originalname.split('.').pop() || 'bin';
+    const uniqueKey = `courses/${teacherId}/${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+    const contentType = file.mimetype || 'application/octet-stream';
+
+    const uploadRes = await this.storageService.uploadBuffer(uniqueKey, file.buffer, contentType);
+
+    return this.createContent(teacherId, {
+      title: meta.title,
+      description: meta.description,
+      contentType: meta.contentType,
+      fileKey: uploadRes.fileKey,
+      fileUrl: uploadRes.publicUrl,
+      fileSize: file.size,
+      mimeType: contentType,
+      gradeLevel: meta.gradeLevel,
+      academicYear: meta.academicYear,
+      academicTerm: meta.academicTerm,
+      groupId: meta.groupId,
+      sessionId: meta.sessionId,
+      sessionTopic: meta.sessionTopic,
+      lessonId: meta.lessonId,
     });
   }
 
@@ -148,7 +202,7 @@ export class ContentService {
 
     const where: any = { teacherId };
 
-    if (contentType) {
+    if (contentType && (contentType as string) !== 'ALL') {
       where.contentType = contentType;
     }
     if (lessonId) {
@@ -161,7 +215,7 @@ export class ContentService {
       where.sessionTopic = sessionTopic;
     }
 
-    if (groupId) {
+    if (groupId && groupId !== 'ALL') {
       if (includeGradeScope) {
         const group = await this.prisma.academicGroup.findUnique({
           where: { id: groupId },
@@ -185,13 +239,13 @@ export class ContentService {
         where.groupId = groupId;
       }
     } else {
-      if (gradeLevel) {
+      if (gradeLevel && gradeLevel !== 'ALL') {
         where.gradeLevel = gradeLevel;
       }
-      if (academicYear) {
+      if (academicYear && academicYear !== 'ALL') {
         where.academicYear = academicYear;
       }
-      if (academicTerm) {
+      if (academicTerm && academicTerm !== 'ALL') {
         where.academicTerm = academicTerm;
       }
     }
@@ -242,5 +296,116 @@ export class ContentService {
     });
 
     return { success: true };
+  }
+
+  /**
+   * Updates educational content metadata and optionally replaces the uploaded file in R2 storage.
+   */
+  async updateContent(
+    id: string,
+    teacherId: string,
+    dto: UpdateContentDto,
+    file?: Express.Multer.File,
+  ) {
+    const existing = await this.prisma.educationalContent.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundException(`Content [${id}] not found`);
+    }
+
+    if (existing.teacherId !== teacherId) {
+      throw new ForbiddenException('You do not own this content');
+    }
+
+    let fileKey = existing.fileKey;
+    let fileUrl = existing.fileUrl;
+    let fileSize = existing.fileSize;
+    let mimeType = existing.mimeType;
+
+    // If a replacement file was uploaded:
+    if (file) {
+      const fileExt = file.originalname.split('.').pop() || 'bin';
+      const uniqueKey = `courses/${teacherId}/${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+      const uploadContentType = file.mimetype || 'application/octet-stream';
+
+      const uploadRes = await this.storageService.uploadBuffer(uniqueKey, file.buffer, uploadContentType);
+
+      // Clean up previous storage file
+      if (existing.fileKey) {
+        await this.storageService.deleteObject(existing.fileKey).catch((err) => {
+          this.logger.warn(`Failed to delete replaced object [${existing.fileKey}] from R2`, err);
+        });
+      }
+
+      fileKey = uploadRes.fileKey;
+      fileUrl = uploadRes.publicUrl;
+      fileSize = BigInt(file.size);
+      mimeType = uploadContentType;
+    } else if (dto.fileKey && dto.fileUrl) {
+      fileKey = dto.fileKey;
+      fileUrl = dto.fileUrl;
+      if (dto.fileSize !== undefined) fileSize = BigInt(dto.fileSize);
+      if (dto.mimeType) mimeType = dto.mimeType;
+    }
+
+    // Resolve group metadata if groupId changed
+    let gradeLevel = dto.gradeLevel !== undefined ? dto.gradeLevel : existing.gradeLevel;
+    let academicYear = dto.academicYear !== undefined ? dto.academicYear : existing.academicYear;
+    let academicTerm = dto.academicTerm !== undefined ? dto.academicTerm : existing.academicTerm;
+    let sessionTopic = dto.sessionTopic !== undefined ? dto.sessionTopic : existing.sessionTopic;
+
+    if (dto.groupId && dto.groupId !== existing.groupId) {
+      const group = await this.prisma.academicGroup.findUnique({ where: { id: dto.groupId } });
+      if (group) {
+        if (group.teacherId !== teacherId) {
+          throw new ForbiddenException('You do not own this academic group');
+        }
+        if (!gradeLevel) gradeLevel = group.gradeLevel;
+        if (!academicYear) academicYear = group.academicYear;
+        if (!academicTerm) academicTerm = group.academicTerm;
+      }
+    }
+
+    if (dto.sessionId && dto.sessionId !== existing.sessionId) {
+      const session = await this.prisma.lessonSession.findUnique({
+        where: { id: dto.sessionId },
+      });
+      if (session && session.topic && !dto.sessionTopic) {
+        sessionTopic = session.topic;
+      }
+    }
+
+    const updated = await this.prisma.educationalContent.update({
+      where: { id },
+      data: {
+        title: dto.title !== undefined ? dto.title : existing.title,
+        description: dto.description !== undefined ? dto.description : existing.description,
+        contentType: dto.contentType !== undefined ? dto.contentType : existing.contentType,
+        gradeLevel: gradeLevel || null,
+        academicYear: academicYear || null,
+        academicTerm: academicTerm || null,
+        sessionTopic: sessionTopic || null,
+        groupId: dto.groupId !== undefined ? (dto.groupId ? dto.groupId : null) : existing.groupId,
+        sessionId: dto.sessionId !== undefined ? (dto.sessionId ? dto.sessionId : null) : existing.sessionId,
+        lessonId: dto.lessonId !== undefined ? (dto.lessonId ? dto.lessonId : null) : existing.lessonId,
+        fileKey,
+        fileUrl,
+        fileSize,
+        mimeType,
+      },
+      include: {
+        group: { select: { id: true, name: true, gradeLevel: true, academicYear: true, academicTerm: true } },
+        session: { select: { id: true, topic: true, sessionDate: true, startTime: true } },
+        lesson: { select: { id: true, title: true } },
+        _count: { select: { progresses: true } },
+      },
+    });
+
+    return {
+      ...updated,
+      fileSize: updated.fileSize ? Number(updated.fileSize) : null,
+    };
   }
 }
