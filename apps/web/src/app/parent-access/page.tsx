@@ -2,14 +2,14 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { GraduationCap, ShieldCheck } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui';
-import { ParentRegistrationForm } from '@/features/auth';
+import { ParentAccessForm } from '@/features/auth';
 
 export const metadata: Metadata = {
-  title: 'تسجيل ولي أمر | منصة الأول التعليمية',
-  description: 'تسجيل ولي أمر جديد باستخدام رقم الهاتف في منصة الأول التعليمية',
+  title: 'دخول ولي الأمر | منصة الأول التعليمية',
+  description: 'دخول ولي الأمر باستخدام رقم هاتف الطالب المسجل في منصة الأول التعليمية',
 };
 
-export default function ParentRegistrationPage() {
+export default function ParentAccessPage() {
   return (
     <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-neutral-50 text-sm text-neutral-500">جاري التحميل...</div>}>
       <main className="flex min-h-screen flex-col items-center justify-center bg-neutral-50 px-4 py-12 sm:px-6 lg:px-8">
@@ -29,10 +29,10 @@ export default function ParentRegistrationPage() {
           <Card className="border-neutral-200/90 bg-white shadow-sm">
             <CardContent className="p-6 sm:p-8">
               <div className="mb-6 text-start">
-                <h2 className="text-base font-bold text-neutral-900">تسجيل ولي أمر جديد</h2>
-                <p className="mt-0.5 text-xs text-neutral-500">أدخل رقم هاتفك للبدء في إنشاء حسابك</p>
+                <h2 className="text-base font-bold text-neutral-900">دخول ولي الأمر</h2>
+                <p className="mt-0.5 text-xs text-neutral-500">أدخل رقم هاتف الطالب المسجل لدى الإدارة</p>
               </div>
-              <ParentRegistrationForm />
+              <ParentAccessForm />
             </CardContent>
           </Card>
 

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, CheckCircle2, Phone, UserRoundPlus } from 'lucide-react';
+import { ArrowRight, Phone, UserRound } from 'lucide-react';
 import { Button, Input } from '@/components/ui';
 
 const EGYPTIAN_PHONE_REGEX = /^(?:\+20|0020|0)?1[0125]\d{8}$/;
@@ -11,17 +11,20 @@ function normalizePhone(value: string): string {
   return value.replace(/[\s-]/g, '').trim();
 }
 
-export function ParentRegistrationForm() {
+export interface ParentAccessFormProps {
+  onSubmit?: (studentPhone: string) => void;
+}
+
+export function ParentAccessForm({ onSubmit }: ParentAccessFormProps) {
   const [phone, setPhone] = useState('');
   const [error, setError] = useState<string>();
-  const [isSubmitted, setIsSubmitted] = useState(false);
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const normalizedPhone = normalizePhone(phone);
     if (!normalizedPhone) {
-      setError('يرجى إدخال رقم الهاتف');
+      setError('يرجى إدخال رقم هاتف الطالب');
       return;
     }
 
@@ -31,38 +34,16 @@ export function ParentRegistrationForm() {
     }
 
     setError(undefined);
-    setIsSubmitted(true);
+    onSubmit?.(normalizedPhone);
   };
-
-  if (isSubmitted) {
-    return (
-      <div className="space-y-5 text-center" role="status" aria-live="polite">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success-50 text-success-600">
-          <CheckCircle2 className="h-7 w-7" />
-        </div>
-        <div className="space-y-1">
-          <h2 className="text-base font-bold text-neutral-900">تم استلام رقم الهاتف</h2>
-          <p className="text-xs leading-6 text-neutral-500">
-            سيتم التحقق من الرقم قبل استكمال تسجيل حساب ولي الأمر.
-          </p>
-        </div>
-        <Link
-          href="/login"
-          className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-primary-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
-        >
-          العودة إلى تسجيل الدخول
-        </Link>
-      </div>
-    );
-  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5" noValidate aria-label="نموذج تسجيل ولي الأمر">
       <Input
-        id="parent-registration-phone"
+        id="parent-access-phone"
         name="phone"
         type="tel"
-        label="رقم الهاتف"
+        label="رقم هاتف الطالب المسجل"
         placeholder="01012345678"
         value={phone}
         onChange={(event) => {
@@ -70,7 +51,7 @@ export function ParentRegistrationForm() {
           if (error) setError(undefined);
         }}
         error={error}
-        helperText="استخدم رقم الهاتف المرتبط ببيانات الطالب"
+        helperText="أدخل رقم هاتف الطالب الذي سجلته الإدارة مسبقًا"
         required
         autoComplete="tel"
         autoFocus
@@ -84,10 +65,10 @@ export function ParentRegistrationForm() {
         variant="primary"
         size="lg"
         className="mt-2 w-full font-bold shadow-sm"
-        aria-label="متابعة تسجيل ولي الأمر"
+        aria-label="متابعة دخول ولي الأمر"
       >
-        <UserRoundPlus className="me-2 h-4 w-4" />
-        <span>متابعة التسجيل</span>
+        <UserRound className="me-2 h-4 w-4" />
+        <span>متابعة</span>
       </Button>
 
       <Link
