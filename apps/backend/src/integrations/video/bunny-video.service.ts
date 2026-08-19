@@ -85,7 +85,7 @@ export class BunnyVideoService {
           AccessKey: this.apiKey,
           'Content-Type': 'application/octet-stream',
         },
-        body: buffer,
+        body: new Uint8Array(buffer) as unknown as BodyInit,
       });
 
       if (!response.ok) {
