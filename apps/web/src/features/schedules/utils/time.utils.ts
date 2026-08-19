@@ -99,3 +99,22 @@ export function parseTimeToMinutes(timeStr?: string | null): number | null {
 
   return h * 60 + m;
 }
+
+/**
+ * Safely formats any Date or date string to local YYYY-MM-DD without UTC timezone drift.
+ */
+export function toLocalDateStr(d?: Date | string | null): string {
+  if (!d) return '';
+  if (typeof d === 'string') {
+    if (d.includes('T')) return d.split('T')[0];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+    const parsed = new Date(d);
+    if (isNaN(parsed.getTime())) return d;
+    d = parsed;
+  }
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+

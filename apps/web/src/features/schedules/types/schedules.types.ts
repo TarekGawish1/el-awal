@@ -6,6 +6,8 @@ export interface LessonSessionItem {
   startTime?: string | null;
   endTime?: string | null;
   topic?: string | null;
+  isCancelled?: boolean;
+  cancellationReason?: string | null;
   createdAt: string;
   group?: {
     id: string;
@@ -38,6 +40,8 @@ export interface CreateSessionPayload {
   endTime?: string;
   topic: string;
   scheduleId?: string;
+  isCancelled?: boolean;
+  cancellationReason?: string;
 }
 
 export interface UpdateSessionPayload {
@@ -46,6 +50,8 @@ export interface UpdateSessionPayload {
   endTime?: string;
   topic?: string;
   groupId?: string;
+  isCancelled?: boolean;
+  cancellationReason?: string | null;
 }
 
 export interface GenerateSessionsPayload {

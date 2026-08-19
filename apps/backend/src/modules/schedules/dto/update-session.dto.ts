@@ -31,4 +31,13 @@ export class UpdateSessionDto {
   @IsOptional()
   @IsUUID()
   groupId?: string;
+
+  @ApiPropertyOptional({ description: 'Mark session as canceled for this day', example: true })
+  @IsOptional()
+  isCancelled?: boolean;
+
+  @ApiPropertyOptional({ description: 'Reason for session cancellation', example: 'ظرف طارئ للمعلم أو عطلة رسمية' })
+  @IsOptional()
+  @IsString()
+  cancellationReason?: string;
 }

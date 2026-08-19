@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { useTeacherSessions } from '../hooks/useSchedules';
 import { LessonSessionItem } from '../types/schedules.types';
-import { formatArabicTimeRange12H } from '../utils/time.utils';
+import { formatArabicTimeRange12H, toLocalDateStr } from '../utils/time.utils';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
 
@@ -99,9 +99,9 @@ export function TeacherSessionsCalendar() {
 
   // Find the next upcoming or today's session for the "Reminder" card
   const nextUpcomingSession = useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = toLocalDateStr(new Date());
     const upcoming = sessions.filter((s) => {
-      const d = s.sessionDate.includes('T') ? s.sessionDate.split('T')[0] : s.sessionDate;
+      const d = toLocalDateStr(s.sessionDate);
       return d >= todayStr;
     });
     return upcoming.length > 0 ? upcoming[0] : sessions[0] || null;
@@ -120,11 +120,12 @@ export function TeacherSessionsCalendar() {
         year: 'numeric',
       });
     }
-    // Weekly
-    const d = new Date(currentDate);
-    const day = d.getDay();
+    // Weekly - Saturday to Friday
+    const d = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
+    const day = d.getDay(); // 0 = Sun .. 6 = Sat
+    const diffToSaturday = (day + 1) % 7;
     const start = new Date(d);
-    start.setDate(d.getDate() - day);
+    start.setDate(d.getDate() - diffToSaturday);
     const end = new Date(start);
     end.setDate(start.getDate() + 6);
 
