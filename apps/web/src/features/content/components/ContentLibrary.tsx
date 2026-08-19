@@ -60,18 +60,34 @@ const TERM_OPTIONS = [
   { value: 'SECOND_TERM', label: 'الفصل الدراسي الثاني (ترم ثانٍ)' },
 ];
 
+const STAGE_OPTIONS = [
+  { value: 'ALL', label: 'جميع المراحل الدراسية' },
+  { value: 'PRIMARY', label: 'المرحلة الابتدائية' },
+  { value: 'PREPARATORY', label: 'المرحلة الإعدادية' },
+  { value: 'SECONDARY', label: 'المرحلة الثانوية' },
+];
+
 const CONTENT_TYPE_OPTIONS = [
   { value: 'ALL', label: 'جميع أنواع الملفات' },
   { value: ContentType.FILE, label: 'ملفات عامة وملازم' },
   { value: ContentType.SUMMARY, label: 'ملخصات دراسية' },
   { value: ContentType.REFERENCE, label: 'مراجع وواجبات' },
-  { value: ContentType.LECTURE_RECORDING, label: 'تسجيلات الحصص (فيديو Bunny)' },
+  { value: ContentType.LECTURE_RECORDING, label: 'تسجيلات الحصص (فيديو)' },
 ];
+
+function getAcademicStage(gradeLevel?: string | null): string {
+  if (!gradeLevel) return '';
+  if (gradeLevel.includes('الابتدائي')) return 'PRIMARY';
+  if (gradeLevel.includes('الإعدادي')) return 'PREPARATORY';
+  if (gradeLevel.includes('الثانوي')) return 'SECONDARY';
+  return '';
+}
 
 export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedYear, setSelectedYear] = useState<string>('ALL');
   const [selectedTerm, setSelectedTerm] = useState<string>('ALL');
+  const [selectedStage, setSelectedStage] = useState<string>('ALL');
   const [selectedGrade, setSelectedGrade] = useState<string>('ALL');
   const [selectedType, setSelectedType] = useState<string>('ALL');
   const [editingContent, setEditingContent] = useState<EducationalContent | null>(null);
@@ -92,6 +108,11 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
 
   const { data: contents = [], isLoading, isError, error, refetch } = useContent(queryParams);
   const { mutate: deleteContent, isPending: isDeleting } = useDeleteContent();
+
+  const gradeOptionsForStage = useMemo(
+    () => GRADE_OPTIONS.filter((option) => option.value === 'ALL' || selectedStage === 'ALL' || getAcademicStage(option.value) === selectedStage),
+    [selectedStage],
+  );
 
   // Dynamic Academic Years options including all preset years + actual content/group years
   const academicYearOptions = useMemo(() => {
@@ -122,25 +143,27 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
     ];
   }, [groups, contents, activeYear]);
 
-  // Client-side search filtering by title, topic, lesson, or description
+  // Client-side filtering for search and the broader academic-stage filter.
   const filteredContents = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
-    if (!query) return contents;
     return contents.filter((content) => {
-      return (
+      const matchesSearch = !query || (
         content.title.toLowerCase().includes(query) ||
         (content.description && content.description.toLowerCase().includes(query)) ||
         (content.sessionTopic && content.sessionTopic.toLowerCase().includes(query)) ||
         (content.gradeLevel && content.gradeLevel.toLowerCase().includes(query)) ||
         (content.group?.name && content.group.name.toLowerCase().includes(query))
       );
+      const matchesStage = selectedStage === 'ALL' || getAcademicStage(content.gradeLevel) === selectedStage;
+      return matchesSearch && matchesStage;
     });
-  }, [contents, searchQuery]);
+  }, [contents, searchQuery, selectedStage]);
 
   const isFiltered =
     searchQuery !== '' ||
     selectedYear !== 'ALL' ||
     selectedTerm !== 'ALL' ||
+    selectedStage !== 'ALL' ||
     selectedGrade !== 'ALL' ||
     selectedType !== 'ALL';
 
@@ -148,6 +171,7 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
     setSearchQuery('');
     setSelectedYear('ALL');
     setSelectedTerm('ALL');
+    setSelectedStage('ALL');
     setSelectedGrade('ALL');
     setSelectedType('ALL');
   };
@@ -243,9 +267,9 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
         </div>
 
         {/* Filters Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3 items-center">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 items-center">
           {/* Search Input */}
-          <div className="sm:col-span-2 lg:col-span-4 xl:col-span-1 relative">
+            <div className="sm:col-span-2 lg:col-span-4 xl:col-span-2 relative">
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-slate-400" />
             </div>
@@ -280,13 +304,27 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
             />
           </div>
 
+          {/* Academic Stage Dropdown */}
+          <div>
+            <Select
+              aria-label="اختيار المرحلة الدراسية"
+              value={selectedStage}
+              onChange={(e) => {
+                setSelectedStage(e.target.value);
+                setSelectedGrade('ALL');
+              }}
+              options={STAGE_OPTIONS}
+              className="h-10 text-xs sm:text-sm bg-slate-50/70 border-slate-200 rounded-xl focus:bg-white"
+            />
+          </div>
+
           {/* Grade Level Dropdown */}
           <div>
             <Select
               aria-label="اختيار الصف الدراسي"
               value={selectedGrade}
               onChange={(e) => setSelectedGrade(e.target.value)}
-              options={GRADE_OPTIONS}
+              options={gradeOptionsForStage}
               className="h-10 text-xs sm:text-sm bg-slate-50/70 border-slate-200 rounded-xl focus:bg-white"
             />
           </div>
