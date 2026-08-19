@@ -24,18 +24,8 @@ type Step = 'metadata' | 'questions' | 'review';
 
 import { Group, GroupSchedule } from '../../groups/types/groups.types';
 
-function getNextSessionDate(groups: Group[], targetGroupIds: string[]): Date | null {
-  if (!targetGroupIds || targetGroupIds.length === 0) return null;
-  
-  const selectedGroups = groups.filter(g => targetGroupIds.includes(g.id));
-  const schedules: GroupSchedule[] = [];
-  selectedGroups.forEach(g => {
-    if (g.schedules && g.schedules.length > 0) {
-      schedules.push(...g.schedules);
-    }
-  });
-  
-  if (schedules.length === 0) {
+function getGroupNextSessionDate(group: Group): Date | null {
+  if (!group.schedules || group.schedules.length === 0) {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(15, 0, 0, 0); // 3:00 PM
@@ -46,9 +36,9 @@ function getNextSessionDate(groups: Group[], targetGroupIds: string[]): Date | n
   let minDiff = Infinity;
   let nextSessionDate = new Date();
   
-  schedules.forEach(sched => {
-    const schedDay = sched.dayOfWeek; // 0=Sunday, 1=Monday, ..., 6=Saturday
-    let hours = 15; // default to 3 PM
+  group.schedules.forEach(sched => {
+    const schedDay = sched.dayOfWeek;
+    let hours = 15;
     let minutes = 0;
     if (sched.startTime) {
       const parts = sched.startTime.split(':');
@@ -81,6 +71,24 @@ function getNextSessionDate(groups: Group[], targetGroupIds: string[]): Date | n
   });
   
   return nextSessionDate;
+}
+
+function getNextSessionDate(groups: Group[], targetGroupIds: string[]): Date | null {
+  if (!targetGroupIds || targetGroupIds.length === 0) return null;
+  
+  const selectedGroups = groups.filter(g => targetGroupIds.includes(g.id));
+  let latestDate: Date | null = null;
+  
+  selectedGroups.forEach(g => {
+    const d = getGroupNextSessionDate(g);
+    if (d) {
+      if (!latestDate || d.getTime() > latestDate.getTime()) {
+        latestDate = d;
+      }
+    }
+  });
+  
+  return latestDate;
 }
 
 export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMENT' }) {
@@ -457,20 +465,35 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                     </div>
 
                     {dueDateOption === 'NEXT_SESSION' ? (
-                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm max-w-lg">
-                        <span className="text-slate-500 block mb-1">تاريخ التسليم التلقائي المحسوب:</span>
-                        <span className="font-bold text-slate-800 text-base">
-                          {formDataValues.dueDate
-                            ? new Date(formDataValues.dueDate).toLocaleDateString('ar-EG', {
-                                weekday: 'long',
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric',
-                                hour: 'numeric',
-                                minute: '2-digit',
-                              })
-                            : 'يرجى تحديد المجموعات المستهدفة أولاً لحساب موعد الحصة القادمة'}
-                        </span>
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm max-w-lg space-y-3">
+                        <span className="text-slate-500 block">تواريخ التسليم التلقائية لكل مجموعة (موعد الحصة القادمة):</span>
+                        {watchedTargetGroupIds && watchedTargetGroupIds.length > 0 ? (
+                          <div className="space-y-2">
+                            {allGroups
+                              ?.filter(g => watchedTargetGroupIds.includes(g.id))
+                              .map(group => {
+                                const groupDate = getGroupNextSessionDate(group);
+                                return (
+                                  <div key={group.id} className="flex justify-between items-center bg-white px-3 py-2 rounded-lg border border-slate-150 shadow-sm">
+                                    <span className="font-bold text-slate-700">{group.name}</span>
+                                    <span className="text-primary-600 font-bold">
+                                      {groupDate
+                                        ? groupDate.toLocaleDateString('ar-EG', {
+                                            weekday: 'long',
+                                            month: 'short',
+                                            day: 'numeric',
+                                            hour: 'numeric',
+                                            minute: '2-digit',
+                                          })
+                                        : 'بدون جدول'}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        ) : (
+                          <div className="text-slate-400 italic">يرجى تحديد المجموعات المستهدفة أولاً لحساب موعد الحصة القادمة لكل منها.</div>
+                        )}
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
