@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { ContentType } from '../types/content.types';
 import { useUploadContent, useGroupSessions } from '../hooks/use-content';
-import { useSessionTopics } from '@/features/schedules/hooks/useSchedules';
+import { useSessionTopics, useTeacherSessions } from '@/features/schedules/hooks/useSchedules';
 import { formatArabicTime12H } from '@/features/schedules/utils/time.utils';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
@@ -137,14 +137,28 @@ export function UploadModal({
   const selectedSessionId = watch('sessionId');
   const sessionTopicValue = watch('sessionTopic');
 
-  // Query sessions for selected group or first group of grade
+  // Query sessions for a specific group, or all groups in the selected grade.
   const effectiveGroupId =
     selectedTargetScope === 'SPECIFIC_GROUP'
       ? selectedGroupId
-      : groups.find((g) => g.gradeLevel === selectedGradeLevel)?.id;
+      : undefined;
 
-  const { data: groupSessions = [], isLoading: isLoadingSessions } = useGroupSessions(effectiveGroupId);
-  const { data: dbTopics = [] } = useSessionTopics(selectedGradeLevel, effectiveGroupId);
+  const { data: selectedGroupSessions = [], isLoading: isLoadingGroupSessions } = useGroupSessions(effectiveGroupId);
+  const { data: gradeSessions = [], isLoading: isLoadingGradeSessions } = useTeacherSessions(
+    {
+      gradeLevel: selectedGradeLevel,
+      academicYear: activeYear,
+      academicTerm: activeTerm,
+      timeframe: 'ALL',
+    },
+  );
+  const { data: dbTopics = [] } = useSessionTopics(
+    selectedGradeLevel,
+    selectedTargetScope === 'SPECIFIC_GROUP' ? selectedGroupId : undefined,
+  );
+  const groupSessions = selectedTargetScope === 'SPECIFIC_GROUP' ? selectedGroupSessions : gradeSessions;
+  const isLoadingSessions =
+    selectedTargetScope === 'SPECIFIC_GROUP' ? isLoadingGroupSessions : isLoadingGradeSessions;
 
   // Determine file type category (image, video, pdf, audio, other)
   const fileCategory = useMemo<'image' | 'video' | 'audio' | 'pdf' | 'other'>(() => {
