@@ -126,7 +126,7 @@ export default function StudentAttendancePage() {
       case 'PRESENT':
         return <Badge variant="success" className="gap-1 font-medium"><CheckCircle2 className="w-3 h-3" /> حاضر</Badge>;
       case 'ABSENT':
-        return <Badge variant="destructive" className="gap-1 font-medium"><XCircle className="w-3 h-3" /> غائب</Badge>;
+        return <Badge variant="error" className="gap-1 font-medium"><XCircle className="w-3 h-3" /> غائب</Badge>;
       case 'EXCUSED':
         return <Badge variant="warning" className="gap-1 font-medium"><Clock className="w-3 h-3" /> معذر</Badge>;
       default:
