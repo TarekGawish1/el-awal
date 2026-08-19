@@ -40,6 +40,34 @@ export function formatArabicTimeRange12H(
 }
 
 /**
+ * Returns a compact formatted Arabic time range for constrained cards/pills:
+ * e.g. "05:00 - 07:30 م" (omits repeated period if same meridian) or "05:00 م"
+ */
+export function formatArabicTimeRangeCompact(
+  startTime?: string | null,
+  endTime?: string | null,
+): string {
+  const start = formatArabicTime12H(startTime);
+  const end = formatArabicTime12H(endTime);
+
+  if (!start && !end) return '';
+  if (start && !end) return start;
+  if (!start && end) return end;
+
+  // Extract periods
+  const startPeriod = start.includes('م') ? 'م' : start.includes('ص') ? 'ص' : null;
+  const endPeriod = end.includes('م') ? 'م' : end.includes('ص') ? 'ص' : null;
+
+  if (startPeriod && endPeriod && startPeriod === endPeriod) {
+    // Strip period from start: "05:00 م" -> "05:00"
+    const startClean = start.replace(/\s*(م|ص)/, '').trim();
+    return `${startClean} - ${end}`;
+  }
+
+  return `${start} - ${end}`;
+}
+
+/**
  * Parses time string to total minutes from midnight for calendar position calculations.
  */
 export function parseTimeToMinutes(timeStr?: string | null): number | null {

@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import { Clock, Users, FileText, Plus } from 'lucide-react';
 import { LessonSessionItem } from '../types/schedules.types';
-import { formatArabicTime12H, formatArabicTimeRange12H, parseTimeToMinutes } from '../utils/time.utils';
+import { formatArabicTime12H, formatArabicTimeRange12H, formatArabicTimeRangeCompact, parseTimeToMinutes } from '../utils/time.utils';
 
 interface WeeklyCalendarViewProps {
   currentDate: Date;
@@ -243,40 +243,30 @@ export function WeeklyCalendarView({
                           top: `${topPx + 2}px`,
                           height: `${heightPx - 4}px`,
                         }}
-                        className={`group/session absolute inset-x-1 rounded-2xl border shadow-xs transition-all cursor-pointer hover:z-50 p-2 flex flex-col justify-center overflow-visible z-10 ${theme.bg}`}
+                        className={`group/session absolute inset-x-0.5 rounded-2xl border shadow-xs transition-all cursor-pointer hover:z-50 p-1.5 flex flex-col justify-center overflow-visible z-10 ${theme.bg}`}
                       >
                         {/* DEFAULT MINIMAL VIEW: Centered Time & Grade Level Only */}
-                        <div className="flex flex-col items-center justify-center gap-1.5 w-full text-center group-hover/session:hidden transition-all my-auto">
-                          {/* Centered 12h Arabic Time - Contained inside white shape */}
-                          <div className="w-full bg-white/95 rounded-xl border border-black/10 shadow-2xs py-1.5 px-2 flex items-center justify-center gap-1.5 text-center">
-                            <Clock className={`w-3.5 h-3.5 ${theme.iconColor} shrink-0`} />
+                        <div className="flex flex-col items-center justify-center gap-1 w-full text-center group-hover/session:hidden transition-all my-auto min-w-0">
+                          {/* Centered 12h Arabic Time - Contained inside white oval shape */}
+                          <div className="w-full max-w-full bg-white/95 backdrop-blur-xs rounded-full border border-black/10 shadow-2xs py-1 px-1.5 flex items-center justify-center gap-1 text-center overflow-hidden">
+                            <Clock className={`w-3 h-3 ${theme.iconColor} shrink-0`} />
                             <span
-                              className="text-[10px] font-black text-slate-800 tracking-tight whitespace-nowrap leading-none"
-                              dir="ltr"
+                              className="text-[9px] sm:text-[9.5px] font-black text-slate-800 tracking-tight whitespace-nowrap leading-none truncate max-w-full"
+                              dir="rtl"
                             >
-                              <bdi className="font-black">
-                                {formatArabicTime12H(session.startTime || '16:00')}
-                              </bdi>
-                              {session.endTime && (
-                                <>
-                                  <span className="mx-1 text-slate-400 font-bold">-</span>
-                                  <bdi className="font-black">
-                                    {formatArabicTime12H(session.endTime)}
-                                  </bdi>
-                                </>
-                              )}
+                              {formatArabicTimeRangeCompact(session.startTime || '16:00', session.endTime)}
                             </span>
                           </div>
 
                           {/* Grade Level / Group Name */}
                           <div
-                            className={`text-[10px] font-extrabold px-2 py-1 rounded-xl text-center break-words max-w-full leading-snug w-full shadow-2xs ${theme.badge}`}
+                            className={`text-[9.5px] sm:text-[10px] font-extrabold px-1.5 py-1 rounded-xl text-center break-words max-w-full leading-snug w-full shadow-2xs ${theme.badge}`}
                           >
                             {session.group?.gradeLevel || session.group?.name || 'حصة دراسية'}
                             {session.group?.name &&
                               session.group?.gradeLevel &&
                               session.group.name !== session.group.gradeLevel && (
-                                <span className="block text-[8.5px] opacity-85 mt-0.5 font-bold">
+                                <span className="block text-[8px] opacity-85 mt-0.5 font-bold truncate">
                                   ({session.group.name})
                                 </span>
                               )}
