@@ -1,21 +1,25 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   X,
-  Edit2,
+  Edit,
+  UploadCloud,
   FileText,
   Loader2,
   Calendar,
   Layers,
   BookOpen,
-  UploadCloud,
+  RefreshCw,
   FileDown,
   Check,
-  RefreshCw,
+  Image as ImageIcon,
+  Video as VideoIcon,
+  Music,
+  FileCode,
 } from 'lucide-react';
 import { ContentType, EducationalContent } from '../types/content.types';
 import { useUpdateContent, useGroupSessions } from '../hooks/use-content';
@@ -25,6 +29,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Textarea } from '@/components/ui/Textarea';
+import { ProgressBar } from '@/components/ui/ProgressBar';
 import toast from 'react-hot-toast';
 
 const ALL_GRADE_LEVELS = [
@@ -79,10 +84,13 @@ const ALLOWED_TYPES = [
   'image/jpeg',
   'image/png',
   'image/webp',
+  'image/gif',
   'audio/mpeg',
   'audio/mp3',
   'audio/wav',
   'video/mp4',
+  'video/webm',
+  'video/quicktime',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/msword',
 ];
@@ -90,21 +98,30 @@ const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
 interface EditContentModalProps {
   isOpen: boolean;
-  onClose: () => void;
   content: EducationalContent | null;
+  onClose: () => void;
 }
 
-export function EditContentModal({ isOpen, onClose, content }: EditContentModalProps) {
+export function EditContentModal({ isOpen, content, onClose }: EditContentModalProps) {
   const [replacementFile, setReplacementFile] = useState<File | null>(null);
+  const [replacementPreviewUrl, setReplacementPreviewUrl] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [isReplacingFile, setIsReplacingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: groupsData } = useGroups();
   const groups = groupsData || [];
-  const { activeYear, activeTerm } = useStoredAcademicPeriod(groups as any);
+  const { activeYear, activeTerm } = useStoredAcademicPeriod(groups);
 
-  const { mutate: updateContentMutate, isPending } = useUpdateContent();
+  const {
+    mutateAsync: updateContentMutate,
+    isPending,
+    uploadProgress,
+    loadedBytes,
+    totalBytes,
+    stage: uploadStage,
+    resetProgress,
+  } = useUpdateContent();
 
   const {
     register,
@@ -123,13 +140,37 @@ export function EditContentModal({ isOpen, onClose, content }: EditContentModalP
   const selectedSessionId = watch('sessionId');
   const sessionTopicValue = watch('sessionTopic');
 
-  // Query sessions for selected group or grade level groups
   const effectiveGroupId =
     selectedTargetScope === 'SPECIFIC_GROUP'
       ? selectedGroupId
       : groups.find((g) => g.gradeLevel === selectedGradeLevel)?.id;
 
   const { data: groupSessions = [], isLoading: isLoadingSessions } = useGroupSessions(effectiveGroupId);
+
+  // Replacement file category
+  const replacementCategory = useMemo<'image' | 'video' | 'audio' | 'pdf' | 'other'>(() => {
+    if (!replacementFile) return 'other';
+    const type = replacementFile.type.toLowerCase();
+    const name = replacementFile.name.toLowerCase();
+    if (type.startsWith('image/') || name.match(/\.(jpg|jpeg|png|webp|gif)$/)) return 'image';
+    if (type.startsWith('video/') || name.match(/\.(mp4|webm|mov|mkv)$/)) return 'video';
+    if (type.startsWith('audio/') || name.match(/\.(mp3|wav|ogg|m4a)$/)) return 'audio';
+    if (type.includes('pdf') || name.endsWith('.pdf')) return 'pdf';
+    return 'other';
+  }, [replacementFile]);
+
+  // Image preview memory lifecycle
+  useEffect(() => {
+    if (replacementFile && replacementCategory === 'image') {
+      const url = URL.createObjectURL(replacementFile);
+      setReplacementPreviewUrl(url);
+      return () => {
+        URL.revokeObjectURL(url);
+      };
+    } else {
+      setReplacementPreviewUrl(null);
+    }
+  }, [replacementFile, replacementCategory]);
 
   const handleLessonSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
@@ -180,18 +221,22 @@ export function EditContentModal({ isOpen, onClose, content }: EditContentModalP
       });
 
       setReplacementFile(null);
+      setReplacementPreviewUrl(null);
       setFileError(null);
       setIsReplacingFile(false);
+      resetProgress();
     }
-  }, [isOpen, content, reset, activeYear, activeTerm]);
+  }, [isOpen, content, reset, activeYear, activeTerm, resetProgress]);
 
   if (!isOpen || !content) return null;
 
   const handleClose = () => {
     if (isPending) return;
     setReplacementFile(null);
+    setReplacementPreviewUrl(null);
     setFileError(null);
     setIsReplacingFile(false);
+    resetProgress();
     onClose();
   };
 
@@ -211,18 +256,6 @@ export function EditContentModal({ isOpen, onClose, content }: EditContentModalP
     }
 
     setReplacementFile(selectedFile);
-  };
-
-  const handleSessionDropdownChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value;
-    setValue('sessionId', val);
-
-    if (val && val !== '__CUSTOM__') {
-      const matched = groupSessions.find((s) => s.id === val);
-      if (matched && matched.topic) {
-        setValue('sessionTopic', matched.topic);
-      }
-    }
   };
 
   const onSubmit = async (data: EditFormData) => {
@@ -249,20 +282,22 @@ export function EditContentModal({ isOpen, onClose, content }: EditContentModalP
         },
         {
           onSuccess: () => {
-            toast.success('تم تحديث المرفق بنجاح');
+            toast.success('تم تحديث بيانات المرفق بنجاح');
             handleClose();
           },
           onError: (err: any) => {
-            toast.error(err.message || 'حدث خطأ أثناء حفظ التعديلات');
+            toast.error(err.message || 'حدث خطأ أثناء تحديث المرفق');
           },
-        }
+        },
       );
-    } catch (err: any) {
-      toast.error(err.message || 'حدث خطأ أثناء حفظ التعديلات');
+    } catch {
+      // Error handled by mutation onError
     }
   };
 
   const filteredGroups = groups.filter((g) => {
+    if (activeYear && g.academicYear && g.academicYear !== activeYear) return false;
+    if (activeTerm && g.academicTerm && g.academicTerm !== activeTerm) return false;
     if (selectedGradeLevel && g.gradeLevel !== selectedGradeLevel) return false;
     return true;
   });
@@ -275,73 +310,62 @@ export function EditContentModal({ isOpen, onClose, content }: EditContentModalP
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 overflow-y-auto backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 overflow-y-auto backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden my-auto border border-slate-100 flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/80">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center font-bold">
-              <Edit2 className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center font-bold">
+              <Edit className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-800">تعديل بيانات المرفق</h2>
-              <p className="text-xs text-slate-500">تحديث تفاصيل الملف، الدرس المرتبط، أو استبدال الملف المرفوع</p>
+              <p className="text-xs text-slate-500">تحديث العنوان، نطاق المشاركة، أو استبدال الملف المرفوع</p>
             </div>
           </div>
           <button
             onClick={handleClose}
             disabled={isPending}
-            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors"
+            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors disabled:opacity-50"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Form Body */}
+        {/* Scrollable Form Content */}
         <div className="p-6 overflow-y-auto flex-1">
           <form id="edit-content-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            {/* Title & Content Type */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="sm:col-span-2">
-                <Label className="mb-1 block text-xs font-bold text-slate-700">
-                  عنوان المرفق / الملزمة <span className="text-red-500">*</span>
+            {/* Title and Content Type */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label className="mb-1 block text-sm font-bold text-slate-700">
+                  عنوان الملف / المذكرة <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   {...register('title')}
-                  placeholder="مثال: مذكرة مراجعة النحو الشاملة"
+                  placeholder="مثال: مذكرة مراجعة ليلة الامتحان"
+                  className={errors.title ? 'border-red-500' : ''}
                   disabled={isPending}
-                  className="text-sm font-semibold"
                 />
-                {errors.title && <p className="text-red-500 text-xs mt-1">{errors.title.message}</p>}
+                {errors.title && <p className="text-red-500 text-xs mt-1 font-medium">{errors.title.message}</p>}
               </div>
 
               <div>
-                <Label className="mb-1 block text-xs font-bold text-slate-700">
-                  نوع المرفق <span className="text-red-500">*</span>
+                <Label className="mb-1 block text-sm font-bold text-slate-700">
+                  نوع المحتوى <span className="text-red-500">*</span>
                 </Label>
                 <select
                   {...register('contentType')}
+                  className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50 disabled:bg-slate-100"
                   disabled={isPending}
-                  className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium"
                 >
                   <option value={ContentType.FILE}>ملف عام / ملزمة</option>
                   <option value={ContentType.SUMMARY}>ملخص دراسي</option>
-                  <option value={ContentType.REFERENCE}>مرجع / واجب</option>
+                  <option value={ContentType.REFERENCE}>مرجع أو واجب إضافي</option>
                   <option value={ContentType.LECTURE_RECORDING}>تسجيل حصة (فيديو)</option>
                 </select>
+                {errors.contentType && <p className="text-red-500 text-xs mt-1 font-medium">{errors.contentType.message}</p>}
               </div>
-            </div>
-
-            {/* Description */}
-            <div>
-              <Label className="mb-1 block text-xs font-bold text-slate-700">وصف المرفق وملاحظات للطلاب</Label>
-              <Textarea
-                {...register('description')}
-                placeholder="أدخل وصفاً مختصراً لمحتوى هذا الملف وإرشادات المذاكرة..."
-                disabled={isPending}
-                rows={2}
-                className="text-xs resize-none"
-              />
             </div>
 
             {/* Scope / Grade & Session Scoping */}
@@ -360,7 +384,7 @@ export function EditContentModal({ isOpen, onClose, content }: EditContentModalP
                   <select
                     {...register('gradeLevel')}
                     disabled={isPending}
-                    className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium"
+                    className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium disabled:bg-slate-100 disabled:opacity-75"
                   >
                     <option value="">-- اختر الصف الدراسي --</option>
                     {ALL_GRADE_LEVELS.map((g) => (
@@ -379,7 +403,7 @@ export function EditContentModal({ isOpen, onClose, content }: EditContentModalP
                   <select
                     {...register('targetScope')}
                     disabled={isPending}
-                    className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:bg-slate-100 disabled:opacity-75"
                   >
                     <option value="ALL_GRADE_GROUPS">جميع مجموعات هذا الصف الدراسي</option>
                     <option value="SPECIFIC_GROUP">مجموعة معينة فقط</option>
@@ -397,7 +421,7 @@ export function EditContentModal({ isOpen, onClose, content }: EditContentModalP
                   <select
                     {...register('groupId')}
                     disabled={isPending}
-                    className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:bg-slate-100 disabled:opacity-75"
                   >
                     <option value="">-- اختر مجموعة --</option>
                     {filteredGroups.map((group) => (
@@ -433,7 +457,7 @@ export function EditContentModal({ isOpen, onClose, content }: EditContentModalP
                         ? '__CUSTOM__'
                         : ''
                     }
-                    className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium"
+                    className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium disabled:bg-slate-100 disabled:opacity-75"
                   >
                     <option value="">-- بدون ربط بحصة محددة (مرفق عام للمنهج) --</option>
 
@@ -464,7 +488,7 @@ export function EditContentModal({ isOpen, onClose, content }: EditContentModalP
                     {...register('sessionTopic')}
                     placeholder="عنوان أو موضوع الدرس (مثال: الحصة الأولى - اسم الفاعل والمفعول)"
                     disabled={isPending}
-                    className="text-xs sm:text-sm bg-white"
+                    className="text-xs sm:text-sm bg-white disabled:bg-slate-100"
                   />
                 </div>
                 {selectedTargetScope === 'ALL_GRADE_GROUPS' && selectedGradeLevel && (
@@ -516,23 +540,27 @@ export function EditContentModal({ isOpen, onClose, content }: EditContentModalP
               ) : (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-700">رفع ملف جديد بديل:</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsReplacingFile(false);
-                        setReplacementFile(null);
-                        setFileError(null);
-                      }}
-                      className="text-xs text-slate-400 hover:text-slate-600 hover:underline"
-                    >
-                      إلغاء الاستبدال والاحتفاظ بالملف الحالي
-                    </button>
+                    <span className="text-xs font-bold text-slate-700">رفع ملف بديل (صورة، فيديو، مستند):</span>
+                    {!isPending && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsReplacingFile(false);
+                          setReplacementFile(null);
+                          setReplacementPreviewUrl(null);
+                          setFileError(null);
+                          resetProgress();
+                        }}
+                        className="text-xs text-slate-400 hover:text-slate-600 hover:underline"
+                      >
+                        إلغاء الاستبدال والاحتفاظ بالملف الحالي
+                      </button>
+                    )}
                   </div>
 
                   {!replacementFile ? (
                     <div
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={() => !isPending && fileInputRef.current?.click()}
                       className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all bg-white hover:bg-slate-50 ${
                         fileError ? 'border-red-300 bg-red-50/20' : 'border-slate-300 hover:border-primary-400'
                       }`}
@@ -542,28 +570,72 @@ export function EditContentModal({ isOpen, onClose, content }: EditContentModalP
                         ref={fileInputRef}
                         onChange={handleFileChange}
                         className="hidden"
-                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.mp3,.mp4,.wav"
+                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.gif,.mp3,.mp4,.webm,.mov,.wav"
+                        disabled={isPending}
                       />
-                      <UploadCloud className="w-7 h-7 text-primary-500 mx-auto mb-2" />
+                      <UploadCloud className="w-8 h-8 text-primary-500 mx-auto mb-2" />
                       <p className="text-xs font-bold text-slate-700">اضغط لاختيار ملف بديل جديد</p>
-                      <p className="text-[10px] text-slate-400 mt-1">PDF, Word, صور, تسجيلات (حتى 100MB)</p>
+                      <p className="text-[10px] text-slate-400 mt-1">PDF, Word, صور, تسجيلات فيديو MP4 (حتى 100MB)</p>
                     </div>
                   ) : (
-                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <Check className="w-5 h-5 text-emerald-600" />
-                        <div>
-                          <p className="text-xs font-bold text-emerald-900">{replacementFile.name}</p>
-                          <p className="text-[11px] text-emerald-600">{formatFileSize(replacementFile.size)}</p>
+                    <div className="space-y-3">
+                      <div className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 overflow-hidden">
+                          {replacementCategory === 'image' && replacementPreviewUrl ? (
+                            <div className="w-12 h-12 rounded-lg overflow-hidden border border-slate-200 shrink-0 bg-slate-100">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={replacementPreviewUrl}
+                                alt="معاينة الصورة البديلة"
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                              {replacementCategory === 'video' ? (
+                                <VideoIcon className="w-5 h-5 text-rose-500" />
+                              ) : (
+                                <FileText className="w-5 h-5 text-primary-600" />
+                              )}
+                            </div>
+                          )}
+
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-900 truncate">{replacementFile.name}</p>
+                            <p className="text-[11px] text-slate-500">{formatFileSize(replacementFile.size)}</p>
+                          </div>
                         </div>
+
+                        {!isPending && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReplacementFile(null);
+                              setReplacementPreviewUrl(null);
+                              if (fileInputRef.current) fileInputRef.current.value = '';
+                            }}
+                            className="text-slate-400 hover:text-red-500 p-1 rounded-lg"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setReplacementFile(null)}
-                        className="text-slate-400 hover:text-red-500 p-1"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
+
+                      {/* Upload Progress Bar for replacement */}
+                      {isPending && (
+                        <ProgressBar
+                          progress={uploadProgress}
+                          loadedBytes={loadedBytes}
+                          totalBytes={totalBytes}
+                          stage={uploadStage}
+                          fileName={replacementFile.name}
+                          statusMessage={
+                            uploadStage === 'processing'
+                              ? 'جاري حفظ ومعالجة الملف الجديد على الخادم...'
+                              : `جاري رفع الملف البديل... ${uploadProgress}%`
+                          }
+                        />
+                      )}
                     </div>
                   )}
 
@@ -571,29 +643,54 @@ export function EditContentModal({ isOpen, onClose, content }: EditContentModalP
                 </div>
               )}
             </div>
+
+            {/* Description */}
+            <div>
+              <Label className="mb-1 block text-sm font-bold text-slate-700">ملاحظات أو وصف إضافي (اختياري)</Label>
+              <Textarea
+                {...register('description')}
+                placeholder="أضف تفاصيل أو تعديل لوصف المرفق..."
+                rows={2}
+                disabled={isPending}
+                className="disabled:bg-slate-100"
+              />
+            </div>
           </form>
         </div>
 
         {/* Footer Actions */}
-        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3">
-          <Button type="button" variant="outline" onClick={handleClose} disabled={isPending}>
-            إلغاء
-          </Button>
-          <Button
-            type="submit"
-            form="edit-content-form"
-            disabled={isPending}
-            className="shadow-md shadow-primary/20 min-w-[120px]"
-          >
-            {isPending ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                جاري الحفظ...
+        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+          <div className="text-xs text-slate-500">
+            {isPending && (
+              <span className="flex items-center gap-1.5 text-primary-700 font-bold">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                جاري المعالجة...
               </span>
-            ) : (
-              'حفظ التعديلات'
             )}
-          </Button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Button type="button" variant="outline" onClick={handleClose} disabled={isPending}>
+              إلغاء
+            </Button>
+            <Button
+              type="submit"
+              form="edit-content-form"
+              disabled={isPending}
+              className="shadow-md shadow-primary/20 min-w-[140px]"
+            >
+              {isPending ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {uploadStage === 'uploading'
+                    ? `جاري الرفع (${uploadProgress}%)`
+                    : 'جاري الحفظ...'}
+                </span>
+              ) : (
+                'حفظ التعديلات'
+              )}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
