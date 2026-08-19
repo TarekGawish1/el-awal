@@ -53,6 +53,7 @@ export interface AssessmentDetail {
   dueDate: string | null;
   durationMinutes: number | null;
   questions: AssessmentQuestion[];
+  mySubmission?: any;
   _count?: {
     submissions: number;
     questions: number;

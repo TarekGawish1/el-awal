@@ -7,6 +7,7 @@ import {
   fetchAssessmentSubmissions,
   fetchSubmissionDetail,
   gradeSubmission,
+  submitAssessment,
 } from '../api/assessments.api';
 import {
   CreateAssessmentPayload,
@@ -88,6 +89,19 @@ export function useGradeSubmission() {
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: assessmentKeys.submissionDetail(variables.submissionId) });
       queryClient.invalidateQueries({ queryKey: assessmentKeys.submissions(data.assessmentId) });
+    },
+  });
+}
+
+export function useSubmitAssessment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: { answers: { questionId: string; answerGiven: string }[] } }) =>
+      submitAssessment(id, payload),
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: assessmentKeys.detail(variables.id) });
+      queryClient.invalidateQueries({ queryKey: assessmentKeys.lists() });
     },
   });
 }

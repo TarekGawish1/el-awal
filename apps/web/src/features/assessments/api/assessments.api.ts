@@ -55,9 +55,16 @@ export async function fetchSubmissionDetail(submissionId: string): Promise<Asses
   return await apiClient<AssessmentSubmissionDetail>(API_ENDPOINTS.ASSESSMENTS.SUBMISSION_DETAIL(submissionId));
 }
 
-export async function gradeSubmission(submissionId: string, payload: GradeSubmissionPayload): Promise<AssessmentSubmissionDetail> {
-  return await apiClient<AssessmentSubmissionDetail>(`${API_ENDPOINTS.ASSESSMENTS.SUBMISSION_DETAIL(submissionId)}/grade`, {
+export async function gradeSubmission(submissionId: string, payload: { manualGrades: { questionId: string; pointsEarned: number; teacherFeedback?: string }[]; feedback?: string }): Promise<any> {
+  return await apiClient<any>(`${API_ENDPOINTS.ASSESSMENTS.SUBMISSION_DETAIL(submissionId)}/grade`, {
     method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function submitAssessment(id: string, payload: { answers: { questionId: string; answerGiven: string }[] }): Promise<any> {
+  return await apiClient<any>(API_ENDPOINTS.ASSESSMENTS.SUBMIT(id), {
+    method: 'POST',
     body: JSON.stringify(payload),
   });
 }
