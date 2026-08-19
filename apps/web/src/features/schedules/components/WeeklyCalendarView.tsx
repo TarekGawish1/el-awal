@@ -213,8 +213,10 @@ export function WeeklyCalendarView({
             </div>
 
             {/* Day Columns */}
-            {weekDays.map((day) => {
+            {weekDays.map((day, dayIdx) => {
               const daySessions = sessionsByDate.get(day.dateStr) || [];
+              const popupAlign =
+                dayIdx <= 1 ? 'right-0' : dayIdx >= 5 ? 'left-0' : 'right-1/2 translate-x-1/2';
 
               return (
                 <div
@@ -241,75 +243,107 @@ export function WeeklyCalendarView({
                           top: `${topPx + 2}px`,
                           height: `${heightPx - 4}px`,
                         }}
-                        className={`group/session absolute inset-x-1 rounded-2xl border shadow-xs transition-all cursor-pointer hover:z-50 p-2.5 flex flex-col justify-center overflow-visible z-10 ${theme.bg}`}
+                        className={`group/session absolute inset-x-1 rounded-2xl border shadow-xs transition-all cursor-pointer hover:z-50 p-2 flex flex-col justify-center overflow-visible z-10 ${theme.bg}`}
                       >
                         {/* DEFAULT MINIMAL VIEW: Centered Time & Grade Level Only */}
                         <div className="flex flex-col items-center justify-center gap-1.5 w-full text-center group-hover/session:hidden transition-all my-auto">
-                          {/* Centered 12h Arabic Time */}
-                          <div className="flex items-center justify-center gap-1.5 text-[10px] font-black text-slate-800 bg-white/90 py-1 px-2 rounded-xl border border-black/5 shadow-2xs w-full text-center">
+                          {/* Centered 12h Arabic Time - Contained inside white shape */}
+                          <div className="w-full bg-white/95 rounded-xl border border-black/10 shadow-2xs py-1.5 px-2 flex items-center justify-center gap-1.5 text-center">
                             <Clock className={`w-3.5 h-3.5 ${theme.iconColor} shrink-0`} />
-                            <span className="whitespace-nowrap font-black" dir="rtl">
-                              {formatArabicTime12H(session.startTime || '16:00')}
-                              {session.endTime ? ` - ${formatArabicTime12H(session.endTime)}` : ''}
+                            <span
+                              className="text-[10px] font-black text-slate-800 tracking-tight whitespace-nowrap leading-none"
+                              dir="ltr"
+                            >
+                              <bdi className="font-black">
+                                {formatArabicTime12H(session.startTime || '16:00')}
+                              </bdi>
+                              {session.endTime && (
+                                <>
+                                  <span className="mx-1 text-slate-400 font-bold">-</span>
+                                  <bdi className="font-black">
+                                    {formatArabicTime12H(session.endTime)}
+                                  </bdi>
+                                </>
+                              )}
                             </span>
                           </div>
 
                           {/* Grade Level / Group Name */}
-                          <div className={`text-[10px] font-extrabold px-2.5 py-1 rounded-xl text-center break-words max-w-full leading-snug w-full shadow-2xs ${theme.badge}`}>
+                          <div
+                            className={`text-[10px] font-extrabold px-2 py-1 rounded-xl text-center break-words max-w-full leading-snug w-full shadow-2xs ${theme.badge}`}
+                          >
                             {session.group?.gradeLevel || session.group?.name || 'حصة دراسية'}
-                            {session.group?.name && session.group?.gradeLevel && session.group.name !== session.group.gradeLevel && (
-                              <span className="block text-[8.5px] opacity-85 mt-0.5 font-bold">
-                                ({session.group.name})
-                              </span>
-                            )}
+                            {session.group?.name &&
+                              session.group?.gradeLevel &&
+                              session.group.name !== session.group.gradeLevel && (
+                                <span className="block text-[8.5px] opacity-85 mt-0.5 font-bold">
+                                  ({session.group.name})
+                                </span>
+                              )}
                           </div>
                         </div>
 
-                        {/* EXPANDED HOVER VIEW: All details appear in a floating expanded card */}
-                        <div className="hidden group-hover/session:flex flex-col gap-2 w-full p-2.5 bg-white rounded-2xl shadow-2xl border border-slate-200 text-start animate-in fade-in zoom-in-95 duration-150 relative -m-1 z-50">
-                          {/* Topic Title */}
-                          <div className="border-b border-slate-100 pb-1.5">
-                            <span className="text-[9px] font-bold text-primary-600 uppercase tracking-wider block mb-0.5">موضوع الدرس</span>
-                            <h4 className="text-xs font-black text-slate-900 leading-snug break-words">
+                        {/* EXPANDED HOVER VIEW: Wide floating card with generous breathing room */}
+                        <div
+                          className={`hidden group-hover/session:flex flex-col gap-3 w-72 sm:w-80 p-4 bg-white rounded-3xl shadow-2xl border border-slate-200/90 text-start animate-in fade-in zoom-in-95 duration-150 absolute top-0 ${popupAlign} z-50 pointer-events-auto`}
+                        >
+                          {/* Header Badge & Topic Title */}
+                          <div className="border-b border-slate-100 pb-2">
+                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                              <span className="text-[10px] font-extrabold text-primary-700 bg-primary-50 px-2.5 py-0.5 rounded-full border border-primary-100">
+                                📖 تفاصيل الحصة المجدولة
+                              </span>
+                              {session.group?.gradeLevel && (
+                                <span className="text-[10px] font-bold text-slate-500">
+                                  {session.group.gradeLevel}
+                                </span>
+                              )}
+                            </div>
+                            <h4 className="text-sm font-black text-slate-900 leading-snug break-words">
                               {session.topic || 'حصة بدون عنوان'}
                             </h4>
                           </div>
 
-                          {/* Time badge */}
-                          <div className="flex items-center gap-1.5 text-[10px] font-extrabold text-slate-800 bg-slate-50 py-1 px-2.5 rounded-xl border border-slate-100">
-                            <Clock className={`w-3.5 h-3.5 ${theme.iconColor} shrink-0`} />
-                            <span className="whitespace-nowrap font-black" dir="rtl">
-                              {formatArabicTime12H(session.startTime || '16:00')}
-                              {session.endTime ? ` - ${formatArabicTime12H(session.endTime)}` : ''}
-                            </span>
+                          {/* Time & Group Box */}
+                          <div className="space-y-1.5 bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
+                            <div className="flex items-center gap-2 text-xs font-extrabold text-slate-800">
+                              <Clock className={`w-4 h-4 ${theme.iconColor} shrink-0`} />
+                              <span dir="rtl">
+                                من {formatArabicTime12H(session.startTime || '16:00')}{' '}
+                                {session.endTime ? `إلى ${formatArabicTime12H(session.endTime)}` : ''}
+                              </span>
+                            </div>
+
+                            {session.group && (
+                              <div className="flex items-center gap-2 text-xs font-bold text-slate-600 pt-1 border-t border-slate-200/60">
+                                <Users className="w-3.5 h-3.5 text-primary-600 shrink-0" />
+                                <span>المجموعة: {session.group.name}</span>
+                              </div>
+                            )}
                           </div>
 
-                          {/* Group & Grade details */}
-                          {session.group && (
-                            <div className="text-[10px] font-bold text-slate-700 bg-slate-50 py-1 px-2.5 rounded-xl border border-slate-100 space-y-0.5">
-                              <div>🎓 {session.group.gradeLevel}</div>
-                              <div className="text-[9px] text-slate-500">👥 {session.group.name}</div>
-                            </div>
-                          )}
-
                           {/* Footer: Attachments & Attendees */}
-                          <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px] font-black text-slate-600">
-                            <span className="flex items-center gap-1 text-amber-700">
+                          <div className="flex items-center justify-between text-xs font-black">
+                            <span className="flex items-center gap-1.5 text-amber-700 bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-100">
                               <FileText className="w-3.5 h-3.5" />
-                              {session.educationalContents?.length || session._count?.educationalContents || 0} مرفقات
+                              {session.educationalContents?.length ||
+                                session._count?.educationalContents ||
+                                0}{' '}
+                              مرفقات
                             </span>
 
-                            <span className="flex items-center gap-1 text-emerald-700">
+                            <span className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-100">
                               <Users className="w-3.5 h-3.5" />
                               {session._count?.attendanceRecords || 0} حاضرين
                             </span>
                           </div>
 
-                          {/* Action hint */}
-                          <div className="text-center pt-0.5">
-                            <span className="text-[9px] font-extrabold text-primary-600 hover:underline">
-                              اضغط لفتح تفاصيل الحصة والمرفقات ←
-                            </span>
+                          {/* Action button hint */}
+                          <div className="pt-1">
+                            <div className="w-full py-2 bg-primary-50 hover:bg-primary-100 text-primary-700 font-extrabold text-xs rounded-xl text-center transition-colors flex items-center justify-center gap-1.5 shadow-2xs">
+                              <span>فتح تفاصيل الحصة والمرفقات</span>
+                              <span>←</span>
+                            </div>
                           </div>
                         </div>
                       </div>
