@@ -10,6 +10,7 @@ import {
   Trash2,
   Edit2,
   Video,
+  Play,
   AlertCircle,
   Calendar,
   Layers,
@@ -26,6 +27,7 @@ import { ContentType, EducationalContent } from '../types/content.types';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
 import { EditContentModal } from './EditContentModal';
+import { VideoPlayerModal } from './VideoPlayerModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
@@ -63,7 +65,7 @@ const CONTENT_TYPE_OPTIONS = [
   { value: ContentType.FILE, label: 'ملفات عامة وملازم' },
   { value: ContentType.SUMMARY, label: 'ملخصات دراسية' },
   { value: ContentType.REFERENCE, label: 'مراجع وواجبات' },
-  { value: ContentType.LECTURE_RECORDING, label: 'تسجيلات الحصص (فيديو)' },
+  { value: ContentType.LECTURE_RECORDING, label: 'تسجيلات الحصص (فيديو Bunny)' },
 ];
 
 export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void }) {
@@ -73,6 +75,7 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
   const [selectedGrade, setSelectedGrade] = useState<string>('ALL');
   const [selectedType, setSelectedType] = useState<string>('ALL');
   const [editingContent, setEditingContent] = useState<EducationalContent | null>(null);
+  const [playingVideo, setPlayingVideo] = useState<EducationalContent | null>(null);
 
   const { data: groups = [] } = useGroups();
   const { activeYear } = useStoredAcademicPeriod(groups as any);
@@ -182,7 +185,7 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
       case ContentType.REFERENCE:
         return 'مرجع / واجب';
       case ContentType.LECTURE_RECORDING:
-        return 'تسجيل حصة';
+        return 'تسجيل حصة (فيديو)';
       default:
         return 'ملف';
     }
@@ -207,7 +210,7 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
             </span>
           </div>
           <p className="text-slate-500 text-sm">
-            إدارة ورفع الملازم، ملخصات الدروس، ومرفقات الحصص للصفوف والمجموعات الدراسية
+            إدارة ورفع الملازم، ملخصات الدروس، ومرفقات الحصص للصفوف والمجموعات الدراسية مع دعم تشغيل الفيديو عبر Bunny Stream
           </p>
         </div>
 
@@ -356,101 +359,132 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredContents.map((content) => (
-            <div
-              key={content.id}
-              className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between"
-            >
-              <div>
-                {/* Header & Icon */}
-                <div className="flex items-start gap-3.5 mb-3">
-                  <div className="bg-slate-50 w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border border-slate-100 group-hover:scale-105 transition-transform">
-                    {getIcon(content.contentType)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-slate-800 text-base line-clamp-1 mb-1" title={content.title}>
-                      {content.title}
-                    </h3>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[11px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">
-                        {getTypeLabel(content.contentType)}
-                      </span>
-                      <span className="text-xs text-slate-400 font-medium">{formatFileSize(content.fileSize)}</span>
+          {filteredContents.map((content) => {
+            const isVideo =
+              content.contentType === ContentType.LECTURE_RECORDING ||
+              content.fileKey?.startsWith('bunny:') ||
+              content.mimeType?.startsWith('video/') ||
+              content.fileUrl?.includes('mediadelivery.net') ||
+              content.fileUrl?.includes('bunny');
+
+            return (
+              <div
+                key={content.id}
+                className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between"
+              >
+                <div>
+                  {/* Header & Icon */}
+                  <div className="flex items-start gap-3.5 mb-3">
+                    <div
+                      onClick={() => isVideo && setPlayingVideo(content)}
+                      className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border group-hover:scale-105 transition-transform ${
+                        isVideo
+                          ? 'bg-rose-50 border-rose-100 text-rose-500 cursor-pointer'
+                          : 'bg-slate-50 border-slate-100 text-slate-500'
+                      }`}
+                    >
+                      {getIcon(content.contentType)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-slate-800 text-base line-clamp-1 mb-1" title={content.title}>
+                        {content.title}
+                      </h3>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">
+                          {getTypeLabel(content.contentType)}
+                        </span>
+                        {isVideo && (
+                          <span className="text-[10px] font-bold bg-rose-50 text-rose-600 px-2 py-0.5 rounded-md border border-rose-100">
+                            Bunny Video
+                          </span>
+                        )}
+                        <span className="text-xs text-slate-400 font-medium">{formatFileSize(content.fileSize)}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Session Topic / Badge */}
-                {content.sessionTopic && (
-                  <div className="mb-3 bg-amber-50/80 border border-amber-200/60 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs font-bold text-amber-800">
-                    <BookOpen className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                    <span className="truncate">{content.sessionTopic}</span>
+                  {/* Session Topic / Badge */}
+                  {content.sessionTopic && (
+                    <div className="mb-3 bg-amber-50/80 border border-amber-200/60 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs font-bold text-amber-800">
+                      <BookOpen className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span className="truncate">{content.sessionTopic}</span>
+                    </div>
+                  )}
+
+                  {/* Description */}
+                  {content.description && (
+                    <p className="text-xs text-slate-500 line-clamp-2 mb-3 leading-relaxed">{content.description}</p>
+                  )}
+
+                  {/* Badges: Grade Level & Target Groups */}
+                  <div className="flex flex-wrap gap-1.5 mb-4">
+                    {content.gradeLevel && (
+                      <span className="text-[11px] font-bold bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-md border border-blue-100 flex items-center gap-1">
+                        <Layers className="w-3 h-3 text-blue-500" />
+                        {content.gradeLevel}
+                      </span>
+                    )}
+
+                    {content.group ? (
+                      <span className="text-[11px] font-medium bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-md border border-emerald-100 flex items-center gap-1">
+                        <Users className="w-3 h-3 text-emerald-500" />
+                        {content.group.name}
+                      </span>
+                    ) : content.gradeLevel ? (
+                      <span className="text-[11px] font-medium bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-md border border-indigo-100 flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-indigo-500" />
+                        كل مجموعات الصف
+                      </span>
+                    ) : null}
+
+                    {content.academicYear && (
+                      <span className="text-[10px] text-slate-400 font-medium px-2 py-0.5 bg-slate-50 rounded-md border border-slate-100">
+                        {content.academicYear} • {content.academicTerm === 'SECOND_TERM' ? 'ترم 2' : 'ترم 1'}
+                      </span>
+                    )}
                   </div>
-                )}
+                </div>
 
-                {/* Description */}
-                {content.description && (
-                  <p className="text-xs text-slate-500 line-clamp-2 mb-3 leading-relaxed">{content.description}</p>
-                )}
-
-                {/* Badges: Grade Level & Target Groups */}
-                <div className="flex flex-wrap gap-1.5 mb-4">
-                  {content.gradeLevel && (
-                    <span className="text-[11px] font-bold bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-md border border-blue-100 flex items-center gap-1">
-                      <Layers className="w-3 h-3 text-blue-500" />
-                      {content.gradeLevel}
-                    </span>
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2 pt-3 border-t border-slate-100 mt-2">
+                  {isVideo ? (
+                    <button
+                      onClick={() => setPlayingVideo(content)}
+                      className="flex-1 flex items-center justify-center h-9 bg-rose-50 text-rose-700 hover:bg-rose-100 font-bold rounded-xl transition-colors text-xs gap-1.5 border border-rose-100 cursor-pointer"
+                    >
+                      <Play className="w-3.5 h-3.5 fill-current" />
+                      تشغيل ومشاهدة الحصة
+                    </button>
+                  ) : (
+                    <a
+                      href={content.fileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex-1 flex items-center justify-center h-9 bg-primary-50 text-primary-700 hover:bg-primary-100 font-bold rounded-xl transition-colors text-xs gap-1.5"
+                    >
+                      <FileDown className="w-3.5 h-3.5" />
+                      فتح وتحميل المرفق
+                    </a>
                   )}
-
-                  {content.group ? (
-                    <span className="text-[11px] font-medium bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-md border border-emerald-100 flex items-center gap-1">
-                      <Users className="w-3 h-3 text-emerald-500" />
-                      {content.group.name}
-                    </span>
-                  ) : content.gradeLevel ? (
-                    <span className="text-[11px] font-medium bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-md border border-indigo-100 flex items-center gap-1">
-                      <Sparkles className="w-3 h-3 text-indigo-500" />
-                      كل مجموعات الصف
-                    </span>
-                  ) : null}
-
-                  {content.academicYear && (
-                    <span className="text-[10px] text-slate-400 font-medium px-2 py-0.5 bg-slate-50 rounded-md border border-slate-100">
-                      {content.academicYear} • {content.academicTerm === 'SECOND_TERM' ? 'ترم 2' : 'ترم 1'}
-                    </span>
-                  )}
+                  <button
+                    onClick={() => setEditingContent(content)}
+                    className="w-9 h-9 flex items-center justify-center text-slate-500 hover:text-primary-600 hover:bg-primary-50 rounded-xl transition-colors border border-slate-200/80 cursor-pointer"
+                    title="تعديل المرفق"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(content.id, content.title)}
+                    disabled={isDeleting}
+                    className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                    title="حذف الملف"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2 pt-3 border-t border-slate-100 mt-2">
-                <a
-                  href={content.fileUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex-1 flex items-center justify-center h-9 bg-primary-50 text-primary-700 hover:bg-primary-100 font-bold rounded-xl transition-colors text-xs gap-1.5"
-                >
-                  <FileDown className="w-3.5 h-3.5" />
-                  فتح وتحميل المرفق
-                </a>
-                <button
-                  onClick={() => setEditingContent(content)}
-                  className="w-9 h-9 flex items-center justify-center text-slate-500 hover:text-primary-600 hover:bg-primary-50 rounded-xl transition-colors border border-slate-200/80 cursor-pointer"
-                  title="تعديل المرفق"
-                >
-                  <Edit2 className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleDelete(content.id, content.title)}
-                  disabled={isDeleting}
-                  className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-                  title="حذف الملف"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -459,6 +493,13 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
         isOpen={!!editingContent}
         content={editingContent}
         onClose={() => setEditingContent(null)}
+      />
+
+      {/* Video Player Modal for Bunny Stream Playback */}
+      <VideoPlayerModal
+        isOpen={!!playingVideo}
+        content={playingVideo}
+        onClose={() => setPlayingVideo(null)}
       />
     </div>
   );
