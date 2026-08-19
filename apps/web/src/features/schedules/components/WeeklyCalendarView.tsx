@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo } from 'react';
-import { Clock, Users, FileText, QrCode, Sparkles, CheckCircle2 } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Clock, Users, FileText, Plus } from 'lucide-react';
 import { LessonSessionItem } from '../types/schedules.types';
 
 interface WeeklyCalendarViewProps {
@@ -11,56 +11,65 @@ interface WeeklyCalendarViewProps {
   onAddSessionForDate?: (dateStr: string, timeStr?: string) => void;
 }
 
-const HOURS = [
-  { hour24: 8, label: '08:00 AM' },
-  { hour24: 9, label: '09:00 AM' },
-  { hour24: 10, label: '10:00 AM' },
-  { hour24: 11, label: '11:00 AM' },
-  { hour24: 12, label: '12:00 PM' },
-  { hour24: 13, label: '01:00 PM' },
-  { hour24: 14, label: '02:00 PM' },
-  { hour24: 15, label: '03:00 PM' },
-  { hour24: 16, label: '04:00 PM' },
-  { hour24: 17, label: '05:00 PM' },
-  { hour24: 18, label: '06:00 PM' },
-  { hour24: 19, label: '07:00 PM' },
-  { hour24: 20, label: '08:00 PM' },
-  { hour24: 21, label: '09:00 PM' },
-  { hour24: 22, label: '10:00 PM' },
-];
+const START_HOUR = 8; // 08:00 AM
+const END_HOUR = 23; // 11:00 PM
+const TOTAL_HOURS = END_HOUR - START_HOUR; // 15 hours
+const HOUR_HEIGHT = 88; // pixels per hour
+
+const HOURS = Array.from({ length: TOTAL_HOURS }, (_, i) => {
+  const h24 = START_HOUR + i;
+  const period = h24 >= 12 ? 'م' : 'ص';
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  const label = `${h12 < 10 ? '0' : ''}${h12}:00 ${period}`;
+  const labelEn = `${h12 < 10 ? '0' : ''}${h12}:00 ${h24 >= 12 ? 'PM' : 'AM'}`;
+  return { hour24: h24, label, labelEn };
+});
 
 const PASTEL_THEMES = [
   {
-    bg: 'bg-purple-100/90 hover:bg-purple-200/90 text-purple-950 border-purple-200/90',
-    badge: 'bg-purple-200/70 text-purple-900',
+    bg: 'bg-purple-100/95 hover:bg-purple-200/95 text-purple-950 border-purple-300/80 shadow-purple-900/5',
+    badge: 'bg-purple-200 text-purple-900',
     iconColor: 'text-purple-700',
   },
   {
-    bg: 'bg-amber-100/90 hover:bg-amber-200/90 text-amber-950 border-amber-200/90',
-    badge: 'bg-amber-200/70 text-amber-900',
+    bg: 'bg-amber-100/95 hover:bg-amber-200/95 text-amber-950 border-amber-300/80 shadow-amber-900/5',
+    badge: 'bg-amber-200 text-amber-900',
     iconColor: 'text-amber-700',
   },
   {
-    bg: 'bg-sky-100/90 hover:bg-sky-200/90 text-sky-950 border-sky-200/90',
-    badge: 'bg-sky-200/70 text-sky-900',
+    bg: 'bg-sky-100/95 hover:bg-sky-200/95 text-sky-950 border-sky-300/80 shadow-sky-900/5',
+    badge: 'bg-sky-200 text-sky-900',
     iconColor: 'text-sky-700',
   },
   {
-    bg: 'bg-pink-100/90 hover:bg-pink-200/90 text-pink-950 border-pink-200/90',
-    badge: 'bg-pink-200/70 text-pink-900',
+    bg: 'bg-pink-100/95 hover:bg-pink-200/95 text-pink-950 border-pink-300/80 shadow-pink-900/5',
+    badge: 'bg-pink-200 text-pink-900',
     iconColor: 'text-pink-700',
   },
   {
-    bg: 'bg-emerald-100/90 hover:bg-emerald-200/90 text-emerald-950 border-emerald-200/90',
-    badge: 'bg-emerald-200/70 text-emerald-900',
+    bg: 'bg-emerald-100/95 hover:bg-emerald-200/95 text-emerald-950 border-emerald-300/80 shadow-emerald-900/5',
+    badge: 'bg-emerald-200 text-emerald-900',
     iconColor: 'text-emerald-700',
   },
   {
-    bg: 'bg-indigo-100/90 hover:bg-indigo-200/90 text-indigo-950 border-indigo-200/90',
-    badge: 'bg-indigo-200/70 text-indigo-900',
+    bg: 'bg-indigo-100/95 hover:bg-indigo-200/95 text-indigo-950 border-indigo-300/80 shadow-indigo-900/5',
+    badge: 'bg-indigo-200 text-indigo-900',
     iconColor: 'text-indigo-700',
   },
 ];
+
+function parseTimeToMinutes(timeStr?: string | null): number | null {
+  if (!timeStr) return null;
+  const clean = timeStr.trim();
+  const match = clean.match(/(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?/);
+  if (!match) return null;
+  let h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  const meridian = match[3]?.toUpperCase();
+  if (meridian === 'PM' && h < 12) h += 12;
+  if (meridian === 'AM' && h === 12) h = 0;
+  return h * 60 + m;
+}
 
 export function WeeklyCalendarView({
   currentDate,
@@ -68,7 +77,7 @@ export function WeeklyCalendarView({
   onSelectSession,
   onAddSessionForDate,
 }: WeeklyCalendarViewProps) {
-  // Calculate 7 days for the week containing currentDate (starting Saturday or Sunday)
+  // Calculate 7 days for the current week starting Saturday
   const weekDays = useMemo(() => {
     const days: Array<{
       date: Date;
@@ -82,15 +91,17 @@ export function WeeklyCalendarView({
     const todayStr = new Date().toISOString().split('T')[0];
     const selectedStr = currentDate.toISOString().split('T')[0];
 
-    // Find Sunday of the current week (or Saturday)
+    // Find Saturday of the week
     const current = new Date(currentDate);
     const dayOfWeek = current.getDay(); // 0 = Sun .. 6 = Sat
-    const startOfWeek = new Date(current);
-    startOfWeek.setDate(current.getDate() - dayOfWeek);
+    // In Arabic week: Saturday is day 0
+    const diffToSaturday = (dayOfWeek + 1) % 7;
+    const saturday = new Date(current);
+    saturday.setDate(current.getDate() - diffToSaturday);
 
     for (let i = 0; i < 7; i++) {
-      const d = new Date(startOfWeek);
-      d.setDate(startOfWeek.getDate() + i);
+      const d = new Date(saturday);
+      d.setDate(saturday.getDate() + i);
       const dateStr = d.toISOString().split('T')[0];
 
       days.push({
@@ -106,23 +117,14 @@ export function WeeklyCalendarView({
     return days;
   }, [currentDate]);
 
-  // Group sessions by date and hour slot
-  const sessionsByDateAndHour = useMemo(() => {
+  // Group sessions by date string YYYY-MM-DD
+  const sessionsByDate = useMemo(() => {
     const map = new Map<string, LessonSessionItem[]>();
-
     sessions.forEach((s) => {
-      const dateStr = s.sessionDate.includes('T') ? s.sessionDate.split('T')[0] : s.sessionDate;
-      let hourNum = 16; // default 4 PM
-      if (s.startTime) {
-        const [h] = s.startTime.split(':').map(Number);
-        if (!isNaN(h)) hourNum = h;
-      }
-
-      const key = `${dateStr}_${hourNum}`;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(s);
+      const d = s.sessionDate.includes('T') ? s.sessionDate.split('T')[0] : s.sessionDate;
+      if (!map.has(d)) map.set(d, []);
+      map.get(d)!.push(s);
     });
-
     return map;
   }, [sessions]);
 
@@ -130,128 +132,175 @@ export function WeeklyCalendarView({
     return PASTEL_THEMES[index % PASTEL_THEMES.length];
   };
 
+  const calculateSessionPosition = (session: LessonSessionItem) => {
+    const startMin = parseTimeToMinutes(session.startTime) ?? 16 * 60; // default 4 PM
+    let endMin = parseTimeToMinutes(session.endTime);
+
+    if (!endMin || endMin <= startMin) {
+      endMin = startMin + 90; // default 1.5 hours duration
+    }
+
+    const startHourFraction = Math.max(0, (startMin - START_HOUR * 60) / 60);
+    const durationHours = Math.max(0.75, (endMin - startMin) / 60);
+
+    const topPx = startHourFraction * HOUR_HEIGHT;
+    const heightPx = Math.max(64, durationHours * HOUR_HEIGHT);
+
+    return { topPx, heightPx };
+  };
+
+  const handleColumnClick = (e: React.MouseEvent<HTMLDivElement>, dateStr: string) => {
+    if (!onAddSessionForDate) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickY = e.clientY - rect.top;
+    const clickedHour = Math.min(
+      END_HOUR - 1,
+      Math.max(START_HOUR, Math.floor(clickY / HOUR_HEIGHT) + START_HOUR),
+    );
+    const timePad = clickedHour < 10 ? `0${clickedHour}:00` : `${clickedHour}:00`;
+    onAddSessionForDate(dateStr, timePad);
+  };
+
   return (
     <div className="bg-white rounded-3xl border border-slate-100 shadow-xs overflow-hidden flex flex-col min-w-0">
-      {/* Top Days Header Row (Matching Photo Style) */}
-      <div className="grid grid-cols-8 border-b border-slate-100 bg-slate-50/70">
-        {/* Timezone / Time axis corner */}
-        <div className="p-4 text-center border-l border-slate-100 flex flex-col items-center justify-center">
-          <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">التوقيت</span>
-          <span className="text-[10px] text-slate-400 font-medium">مصر (GMT+3)</span>
+      {/* Top Days Header Row */}
+      <div className="flex border-b border-slate-100 bg-slate-50/80 sticky top-0 z-20">
+        {/* Time corner header */}
+        <div className="w-16 sm:w-20 shrink-0 p-3 text-center border-l border-slate-100 flex flex-col items-center justify-center">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">الوقت</span>
+          <span className="text-[9px] text-slate-400 font-medium">GMT+3</span>
         </div>
 
-        {/* 7 Days Headers */}
-        {weekDays.map((day) => (
-          <div
-            key={day.dateStr}
-            className={`p-3 text-center border-l border-slate-100 transition-all flex flex-col items-center justify-center gap-1 ${
-              day.isToday
-                ? 'bg-sky-50/90 text-sky-900 font-bold border-b-2 border-sky-500'
-                : 'hover:bg-slate-100/60'
-            }`}
-          >
-            <span className="text-xs font-bold text-slate-500">{day.dayName}</span>
+        {/* 7 Day Column Headers */}
+        <div className="flex-1 grid grid-cols-7 divide-x divide-x-reverse divide-slate-100">
+          {weekDays.map((day) => (
             <div
-              className={`w-9 h-9 rounded-2xl flex items-center justify-center text-base font-black transition-all ${
-                day.isToday
-                  ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30'
-                  : 'text-slate-800'
+              key={day.dateStr}
+              className={`p-3 text-center transition-all flex flex-col items-center justify-center gap-1 ${
+                day.isToday ? 'bg-sky-50/90 text-sky-900 border-b-2 border-sky-500' : 'hover:bg-slate-100/50'
               }`}
             >
-              {day.dayNumber}
+              <span className="text-xs font-bold text-slate-500 truncate max-w-full">{day.dayName}</span>
+              <div
+                className={`w-9 h-9 rounded-2xl flex items-center justify-center text-sm font-black transition-all ${
+                  day.isToday
+                    ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30'
+                    : 'text-slate-800'
+                }`}
+              >
+                {day.dayNumber}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
-      {/* Main Hourly Grid */}
-      <div className="overflow-x-auto overflow-y-auto max-h-[680px]">
-        <div className="min-w-[800px]">
-          {HOURS.map((hour) => (
-            <div key={hour.hour24} className="grid grid-cols-8 border-b border-slate-100/90 min-h-[96px]">
-              {/* Hour Label */}
-              <div className="p-2 border-l border-slate-100/90 text-end pr-3 flex items-start justify-end">
-                <span className="text-[11px] font-bold text-slate-400 tracking-tight pt-1">
-                  {hour.label}
-                </span>
+      {/* Main Continuous Calendar Body */}
+      <div className="overflow-x-auto overflow-y-auto max-h-[720px]">
+        <div className="flex min-w-[760px] relative">
+          {/* Time Labels Column */}
+          <div className="w-16 sm:w-20 shrink-0 border-l border-slate-100 bg-slate-50/30 select-none">
+            {HOURS.map((hour) => (
+              <div
+                key={hour.hour24}
+                style={{ height: `${HOUR_HEIGHT}px` }}
+                className="border-b border-slate-100/80 px-1.5 py-2 text-center flex flex-col justify-start items-center"
+              >
+                <span className="text-[11px] font-bold text-slate-500">{hour.label}</span>
               </div>
+            ))}
+          </div>
 
-              {/* 7 Columns for the week */}
-              {weekDays.map((day) => {
-                const key = `${day.dateStr}_${hour.hour24}`;
-                const cellSessions = sessionsByDateAndHour.get(key) || [];
+          {/* 7 Days Columns with Continuous Absolute Session Spanning */}
+          <div className="flex-1 grid grid-cols-7 divide-x divide-x-reverse divide-slate-100 relative">
+            {/* Background Horizontal Hour Grid Lines */}
+            <div className="absolute inset-0 pointer-events-none flex flex-col">
+              {HOURS.map((hour) => (
+                <div
+                  key={hour.hour24}
+                  style={{ height: `${HOUR_HEIGHT}px` }}
+                  className="border-b border-slate-100/80 w-full"
+                />
+              ))}
+            </div>
 
-                return (
-                  <div
-                    key={day.dateStr}
-                    onClick={() => {
-                      if (cellSessions.length === 0 && onAddSessionForDate) {
-                        const timePad = hour.hour24 < 10 ? `0${hour.hour24}:00` : `${hour.hour24}:00`;
-                        onAddSessionForDate(day.dateStr, timePad);
-                      }
-                    }}
-                    className={`p-1.5 border-l border-slate-100/90 flex flex-col gap-1.5 relative transition-colors group ${
-                      day.isToday ? 'bg-sky-50/20' : 'hover:bg-slate-50/60'
-                    }`}
-                  >
-                    {/* Render Session Cards */}
-                    {cellSessions.map((session, sIdx) => {
-                      const theme = getSessionTheme(sIdx);
+            {/* Day Columns */}
+            {weekDays.map((day) => {
+              const daySessions = sessionsByDate.get(day.dateStr) || [];
 
-                      return (
-                        <div
-                          key={session.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSelectSession(session);
-                          }}
-                          className={`p-2.5 rounded-2xl border shadow-2xs transition-all cursor-pointer transform hover:-translate-y-0.5 hover:shadow-md ${theme.bg}`}
-                        >
-                          {/* Title */}
-                          <div className="flex items-start justify-between gap-1 mb-1">
-                            <h4 className="text-xs font-black leading-snug line-clamp-2">
-                              {session.topic || 'حصة بدون عنوان'}
-                            </h4>
-                          </div>
+              return (
+                <div
+                  key={day.dateStr}
+                  onClick={(e) => handleColumnClick(e, day.dateStr)}
+                  style={{ height: `${TOTAL_HOURS * HOUR_HEIGHT}px` }}
+                  className={`relative transition-colors cursor-pointer group ${
+                    day.isToday ? 'bg-sky-50/10' : 'hover:bg-slate-50/40'
+                  }`}
+                >
+                  {/* Spanning Session Cards */}
+                  {daySessions.map((session, sIdx) => {
+                    const theme = getSessionTheme(sIdx);
+                    const { topPx, heightPx } = calculateSessionPosition(session);
 
-                          {/* Time & Group info */}
-                          <div className="flex items-center gap-1.5 text-[10px] font-semibold opacity-85 mb-1.5">
-                            <Clock className={`w-3 h-3 ${theme.iconColor}`} />
-                            <span>
-                              {session.startTime || `${hour.label}`}
+                    return (
+                      <div
+                        key={session.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectSession(session);
+                        }}
+                        style={{
+                          top: `${topPx + 2}px`,
+                          height: `${heightPx - 4}px`,
+                        }}
+                        className={`absolute inset-x-1 rounded-2xl border shadow-xs transition-all cursor-pointer hover:scale-[1.02] hover:shadow-lg hover:z-30 p-2.5 flex flex-col justify-between overflow-hidden z-10 ${theme.bg}`}
+                      >
+                        {/* Session Header & Title */}
+                        <div className="space-y-1 min-w-0">
+                          <h4 className="text-xs font-black leading-snug line-clamp-2 text-slate-900">
+                            {session.topic || 'حصة بدون عنوان'}
+                          </h4>
+
+                          {/* Time range */}
+                          <div className="flex items-center gap-1 text-[10px] font-bold opacity-90">
+                            <Clock className={`w-3 h-3 ${theme.iconColor} shrink-0`} />
+                            <span className="truncate">
+                              {session.startTime || '16:00'}
                               {session.endTime ? ` - ${session.endTime}` : ''}
                             </span>
                           </div>
 
-                          {/* Group Chip */}
+                          {/* Group badge */}
                           {session.group && (
                             <div
-                              className={`text-[9px] font-bold px-2 py-0.5 rounded-lg inline-block truncate max-w-full mb-1.5 ${theme.badge}`}
+                              className={`text-[9px] font-extrabold px-2 py-0.5 rounded-md inline-block truncate max-w-full ${theme.badge}`}
                             >
-                              {session.group.name} ({session.group.gradeLevel})
+                              {session.group.name}
                             </div>
                           )}
+                        </div>
 
-                          {/* Counters: Attachments & Attendees */}
-                          <div className="flex items-center justify-between pt-1 border-t border-black/5 text-[10px] font-bold opacity-80">
-                            <span className="flex items-center gap-1">
+                        {/* Session Footer: Attachments & Attendees */}
+                        {heightPx >= 85 && (
+                          <div className="flex items-center justify-between pt-1 border-t border-black/5 text-[10px] font-black opacity-80 mt-auto">
+                            <span className="flex items-center gap-1" title="المرفقات">
                               <FileText className="w-3 h-3" />
                               {session.educationalContents?.length || session._count?.educationalContents || 0}
                             </span>
 
-                            <span className="flex items-center gap-1">
+                            <span className="flex items-center gap-1" title="الطلاب الحاضرين">
                               <Users className="w-3 h-3" />
                               {session._count?.attendanceRecords || 0} حاضر
                             </span>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
