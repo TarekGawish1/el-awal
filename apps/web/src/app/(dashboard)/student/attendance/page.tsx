@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import QRCode from 'react-qr-code';
-import { QrCode, Calendar, TrendingUp, CheckCircle2, XCircle, Clock, Download } from 'lucide-react';
+import { QrCode, Calendar, TrendingUp, CheckCircle2, XCircle, Clock, Download, X } from 'lucide-react';
 import { formatArabicDate, formatArabicTime } from '@/lib/utils/formatters';
 
 export default function StudentAttendancePage() {
@@ -15,6 +15,7 @@ export default function StudentAttendancePage() {
   const { data: qrData, isLoading: isQrLoading } = useStudentQrCode();
   const { data: attendanceData, isLoading: isAttendanceLoading } = useStudentAttendance();
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const badgeRef = useRef<HTMLDivElement>(null);
 
   const studentName = profile?.user?.fullName || 'الطالب';
@@ -182,9 +183,20 @@ export default function StudentAttendancePage() {
                 {/* Decorative element */}
                 <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-primary-500 to-primary-700"></div>
 
-                <div className="bg-white p-4 rounded-xl shadow-xs ring-1 ring-slate-100 mb-5 mt-2 transition-transform hover:scale-102 duration-300">
+                <div 
+                  onClick={() => qrData?.qrCodeToken && setIsQrModalOpen(true)}
+                  className="bg-white p-4 rounded-xl shadow-xs ring-1 ring-slate-100 mb-5 mt-2 transition-all hover:scale-105 hover:shadow-md cursor-pointer relative group duration-300"
+                  title="اضغط لتكبير الكود"
+                >
                   {qrData?.qrCodeToken ? (
-                    <QRCode value={qrData.qrCodeToken} size={180} />
+                    <>
+                      <QRCode value={qrData.qrCodeToken} size={180} />
+                      <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/5 transition-colors flex items-center justify-center rounded-xl">
+                        <span className="text-xs font-bold text-white bg-slate-900/80 px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          اضغط للتكبير
+                        </span>
+                      </div>
+                    </>
                   ) : (
                     <div className="w-[180px] h-[180px] bg-slate-100 flex items-center justify-center rounded-lg text-slate-400 text-xs">
                       لا يوجد كود QR
@@ -323,6 +335,48 @@ export default function StudentAttendancePage() {
           </Card>
         </div>
       </div>
+
+      {/* Large QR Modal Overlay */}
+      {isQrModalOpen && qrData?.qrCodeToken && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setIsQrModalOpen(false)}
+        >
+          <div 
+            className="bg-white rounded-3xl p-8 max-w-sm w-full mx-4 shadow-2xl border border-slate-100 flex flex-col items-center relative animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button 
+              onClick={() => setIsQrModalOpen(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
+              aria-label="إغلاق"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Modal Title */}
+            <div className="text-center mb-6">
+              <h2 className="text-lg font-bold text-slate-800">بطاقة الحضور السريع</h2>
+              <p className="text-xs text-slate-500 mt-1">وجه الكود لقارئ الـ QR لتسجيل حضورك</p>
+            </div>
+
+            {/* QR Code Container */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm ring-1 ring-slate-100 mb-6">
+              <QRCode value={qrData.qrCodeToken} size={250} />
+            </div>
+
+            {/* Student Info */}
+            <div className="text-center space-y-2 w-full">
+              <h3 className="text-xl font-bold text-slate-900">{studentName}</h3>
+              <p className="text-base font-bold text-primary-600 font-mono tracking-wider">{studentCode}</p>
+              <Badge variant="outline" className="bg-slate-50 border-slate-200 text-slate-600 px-4 py-1 text-xs">
+                {gradeLevel}
+              </Badge>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
