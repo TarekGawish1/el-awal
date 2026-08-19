@@ -54,6 +54,15 @@ export class PrismaService
     try {
       await this.$connect();
       this.logger.log('✅ PostgreSQL connection successfully established.');
+
+      try {
+        await this.$executeRawUnsafe(`
+          ALTER TABLE "lesson_sessions" ADD COLUMN IF NOT EXISTS "end_time" VARCHAR(10);
+        `);
+        this.logger.log('✅ Verified/Updated lesson_sessions schema columns.');
+      } catch (schemaErr: any) {
+        this.logger.warn(`Schema check warning: ${schemaErr?.message || schemaErr}`);
+      }
     } catch (error) {
       this.logger.error('❌ Failed to connect to PostgreSQL database:', error);
       throw error;

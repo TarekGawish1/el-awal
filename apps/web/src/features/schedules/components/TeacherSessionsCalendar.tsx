@@ -342,7 +342,7 @@ export function TeacherSessionsCalendar() {
                 </button>
               </div>
 
-              <h2 className="text-base sm:text-lg font-black text-slate-800 tracking-tight mr-2">
+              <h2 className="text-sm sm:text-base font-black text-slate-800 tracking-tight mr-2 whitespace-nowrap">
                 {headerDateLabel}
               </h2>
             </div>
