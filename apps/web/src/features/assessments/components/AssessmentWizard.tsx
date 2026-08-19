@@ -129,11 +129,17 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
       questions: payloadQuestions,
     };
     
-    if (!payload.startDate) delete payload.startDate;
+    if (type === 'ASSIGNMENT') {
+      delete payload.durationMinutes;
+      delete payload.startDate;
+    } else {
+      if (!payload.startDate) delete payload.startDate;
+      if (!payload.durationMinutes) delete payload.durationMinutes;
+    }
+    
     if (!payload.dueDate) delete payload.dueDate;
     if (!payload.academicStage) delete payload.academicStage;
     if (!payload.gradeLevel) delete payload.gradeLevel;
-    if (!payload.durationMinutes) delete payload.durationMinutes;
     if (!payload.targetGroupIds || payload.targetGroupIds.length === 0) delete payload.targetGroupIds;
     
     // Remove extra properties that the backend ValidationPipe forbids
@@ -335,26 +341,41 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="mb-2 block">موعد بدء {type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار'} (اختياري)</Label>
-                    <DateTimePicker
-                      value={formDataValues.startDate}
-                      onChange={(val) => {
-                        methods.setValue('startDate', val, { shouldValidate: true, shouldDirty: true });
-                      }}
-                      placeholder="اختر موعد البدء..."
-                    />
+                {type === 'ASSIGNMENT' ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="mb-2 block">موعد تسليم الواجب (تاريخ الاستحقاق)</Label>
+                      <DateTimePicker
+                        value={formDataValues.dueDate}
+                        onChange={(val) => {
+                          methods.setValue('dueDate', val, { shouldValidate: true, shouldDirty: true });
+                        }}
+                        placeholder="اختر تاريخ ووقت التسليم..."
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <Label className="mb-2 block">مدة {type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار'} (بالدقائق)</Label>
-                    <Input 
-                      type="number"
-                      {...methods.register('durationMinutes')} 
-                      placeholder={type === 'ASSIGNMENT' ? "اتركه فارغاً لواجب بدون وقت محدد" : "اتركه فارغاً لاختبار بدون وقت محدد"}
-                    />
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="mb-2 block">موعد بدء الاختبار (اختياري)</Label>
+                      <DateTimePicker
+                        value={formDataValues.startDate}
+                        onChange={(val) => {
+                          methods.setValue('startDate', val, { shouldValidate: true, shouldDirty: true });
+                        }}
+                        placeholder="اختر موعد البدء..."
+                      />
+                    </div>
+                    <div>
+                      <Label className="mb-2 block">مدة الاختبار (بالدقائق)</Label>
+                      <Input 
+                        type="number"
+                        {...methods.register('durationMinutes')} 
+                        placeholder="اتركه فارغاً لاختبار بدون وقت محدد"
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
 
               </div>
 
@@ -455,10 +476,28 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                     <span className="text-slate-500 block mb-1">درجة النجاح</span>
                     <span className="font-bold text-slate-800 text-lg">{formData.passingScore}</span>
                   </div>
-                  <div className="bg-white p-3 rounded-lg border border-slate-100">
-                    <span className="text-slate-500 block mb-1">المدة المحددة</span>
-                    <span className="font-bold text-slate-800 text-lg">{formData.durationMinutes ? `${formData.durationMinutes} دقيقة` : 'بدون وقت'}</span>
-                  </div>
+                  {type === 'ASSIGNMENT' ? (
+                    <div className="bg-white p-3 rounded-lg border border-slate-100">
+                      <span className="text-slate-500 block mb-1">موعد التسليم</span>
+                      <span className="font-bold text-slate-800 text-sm">
+                        {formData.dueDate 
+                          ? new Date(formData.dueDate).toLocaleDateString('ar-EG', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: 'numeric',
+                              minute: '2-digit',
+                            })
+                          : 'بدون موعد تسليم'}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="bg-white p-3 rounded-lg border border-slate-100">
+                      <span className="text-slate-500 block mb-1">المدة المحددة</span>
+                      <span className="font-bold text-slate-800 text-lg">
+                        {formData.durationMinutes ? `${formData.durationMinutes} دقيقة` : 'بدون وقت'}
+                      </span>
+                    </div>
+                  )}
                   <div className="bg-white p-3 rounded-lg border border-slate-100">
                     <span className="text-slate-500 block mb-1">عدد الأسئلة</span>
                     <span className="font-bold text-slate-800 text-lg">{fields.length}</span>
