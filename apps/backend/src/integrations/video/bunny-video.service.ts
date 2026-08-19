@@ -22,6 +22,17 @@ export interface UploadVideoResult {
   playbackUrl: string;
 }
 
+export interface DirectUploadCredentialsResult {
+  videoId: string;
+  libraryId: string;
+  uploadUrl: string;
+  authorizationSignature: string;
+  authorizationExpire: number;
+  accessKey: string;
+  embedUrl: string;
+  playbackUrl: string;
+}
+
 @Injectable()
 export class BunnyVideoService {
   private readonly logger = new Logger(BunnyVideoService.name);
@@ -71,6 +82,32 @@ export class BunnyVideoService {
       this.logger.error(`Failed to create Bunny Stream video [${title}]:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Generates direct client-to-Bunny upload credentials with SHA256 signature for secure browser uploads.
+   */
+  async generateDirectUploadCredentials(title: string, expiresInSeconds = 7200): Promise<DirectUploadCredentialsResult> {
+    const { videoId } = await this.createDirectUploadVideo(title);
+    const expirationTime = Math.floor(Date.now() / 1000) + expiresInSeconds;
+    const rawAuth = `${this.libraryId}${this.apiKey}${expirationTime}${videoId}`;
+    const authorizationSignature = createHash('sha256').update(rawAuth).digest('hex');
+
+    const embedUrl = `https://iframe.mediadelivery.net/embed/${this.libraryId}/${videoId}`;
+    const playbackUrl = this.tokenSecurityKey
+      ? this.generateSecurePlaybackUrl(videoId)
+      : `https://${this.cdnHostname}/${videoId}/playlist.m3u8`;
+
+    return {
+      videoId,
+      libraryId: this.libraryId,
+      uploadUrl: `https://video.bunnycdn.com/library/${this.libraryId}/videos/${videoId}`,
+      authorizationSignature,
+      authorizationExpire: expirationTime,
+      accessKey: this.apiKey,
+      embedUrl,
+      playbackUrl,
+    };
   }
 
   /**

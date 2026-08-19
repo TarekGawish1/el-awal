@@ -41,6 +41,13 @@ export class ContentService {
   }
 
   /**
+   * Generates direct client-to-Bunny Stream upload credentials for video recordings.
+   */
+  async generatePresignedVideoUpload(title: string) {
+    return this.bunnyVideoService.generateDirectUploadCredentials(title);
+  }
+
+  /**
    * Registers educational asset metadata in the library attached to a teacher, gradeLevel, group, session, or lesson.
    */
   async createContent(teacherId: string, dto: CreateContentDto) {

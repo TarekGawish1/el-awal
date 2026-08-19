@@ -5,6 +5,7 @@ import {
   EducationalContent,
   PresignedUploadPayload,
   PresignedUploadResponse,
+  PresignedVideoUploadResponse,
   CreateContentPayload,
   UpdateContentPayload,
   GroupSessionOption,
@@ -97,6 +98,66 @@ export async function generatePresignedUrl(payload: PresignedUploadPayload): Pro
   });
 }
 
+export async function generatePresignedVideoUpload(title: string): Promise<PresignedVideoUploadResponse> {
+  return apiClient<PresignedVideoUploadResponse>('/content/presigned-video-upload', {
+    method: 'POST',
+    body: JSON.stringify({ title }),
+  });
+}
+
+/**
+ * Direct browser-to-Bunny Stream upload with upload progress tracking
+ */
+export function uploadVideoToBunny(
+  uploadUrl: string,
+  file: File,
+  credentials: Partial<PresignedVideoUploadResponse>,
+  onProgress?: UploadProgressCallback,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', uploadUrl);
+
+    if (credentials.accessKey) {
+      xhr.setRequestHeader('AccessKey', credentials.accessKey);
+    }
+    if (credentials.authorizationSignature && credentials.authorizationExpire) {
+      xhr.setRequestHeader('AuthorizationSignature', credentials.authorizationSignature);
+      xhr.setRequestHeader('AuthorizationExpire', credentials.authorizationExpire.toString());
+      if (credentials.libraryId) xhr.setRequestHeader('LibraryId', credentials.libraryId);
+      if (credentials.videoId) xhr.setRequestHeader('VideoId', credentials.videoId);
+    }
+    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+
+    if (xhr.upload && onProgress) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable && event.total > 0) {
+          const percent = Math.min(Math.round((event.loaded / event.total) * 100), 100);
+          onProgress(percent, event.loaded, event.total);
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        reject(new Error(`فشل رفع الفيديو إلى Bunny Stream (كود: ${xhr.status})`));
+      }
+    };
+
+    xhr.onerror = () => {
+      reject(new Error('تعذر الاتصال بسحابة Bunny Stream أثناء رفع الفيديو. يرجى التحقق من اتصال الإنترنت.'));
+    };
+
+    xhr.onabort = () => {
+      reject(new Error('تم إلغاء رفع الفيديو'));
+    };
+
+    xhr.send(file);
+  });
+}
+
 export function uploadFileToR2(
   uploadUrl: string,
   file: File,
@@ -128,6 +189,10 @@ export function uploadFileToR2(
 
     xhr.onerror = () => {
       reject(new Error('تعذر الاتصال بخادم التخزين السحابي أثناء الرفع.'));
+    };
+
+    xhr.onabort = () => {
+      reject(new Error('تم إلغاء رفع الملف'));
     };
 
     xhr.send(file);
