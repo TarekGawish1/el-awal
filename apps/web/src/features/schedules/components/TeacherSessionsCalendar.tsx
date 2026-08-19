@@ -466,6 +466,8 @@ export function TeacherSessionsCalendar() {
           setCreateTimePrefill(undefined);
         }}
         initialDate={createDatePrefill}
+        initialTime={createTimePrefill}
+        sessions={rawSessions}
       />
 
       {/* Edit Session Modal */}
@@ -473,6 +475,7 @@ export function TeacherSessionsCalendar() {
         isOpen={!!editingSession}
         session={editingSession}
         onClose={() => setEditingSession(null)}
+        sessions={rawSessions}
       />
 
       {/* Generate Sessions Modal */}

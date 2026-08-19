@@ -19,15 +19,16 @@ interface EditGroupModalProps {
 
 const generateTimeOptions = () => {
   const options = [];
-  for (let i = 7; i <= 23; i++) {
-    for (let j = 0; j < 60; j += 30) {
+  for (let i = 6; i <= 23; i++) {
+    for (let j = 0; j < 60; j += 15) {
       const hour24 = i.toString().padStart(2, '0');
       const minute = j.toString().padStart(2, '0');
       const value = `${hour24}:${minute}`;
       
       const hour12 = i % 12 || 12;
+      const hour12Str = hour12 < 10 ? `0${hour12}` : `${hour12}`;
       const ampm = i < 12 ? 'ص' : 'م';
-      const label = `${hour12}:${minute} ${ampm}`;
+      const label = `${hour12Str}:${minute} ${ampm}`;
       
       options.push({ label, value });
     }

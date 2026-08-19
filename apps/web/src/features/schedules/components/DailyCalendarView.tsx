@@ -1,9 +1,15 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Clock, Users, FileText, QrCode, Sparkles, BookOpen, UploadCloud } from 'lucide-react';
+import { Clock, Users, FileText, QrCode, Sparkles, BookOpen, UploadCloud, AlertTriangle } from 'lucide-react';
 import { LessonSessionItem } from '../types/schedules.types';
-import { formatArabicTime12H, formatArabicTimeRange12H, toLocalDateStr } from '../utils/time.utils';
+import {
+  formatArabicTime12H,
+  formatArabicTimeRange12H,
+  toLocalDateStr,
+  getGradeLevelTheme,
+  calculateOverlappingColumns,
+} from '../utils/time.utils';
 import { Button } from '@/components/ui/Button';
 
 interface DailyCalendarViewProps {
@@ -45,6 +51,10 @@ export function DailyCalendarView({
       return d === dateStr;
     });
   }, [sessions, dateStr]);
+
+  const layoutMap = useMemo(() => {
+    return calculateOverlappingColumns(daySessions);
+  }, [daySessions]);
 
   const sessionsByHour = useMemo(() => {
     const map = new Map<number, LessonSessionItem[]>();
@@ -120,6 +130,8 @@ export function DailyCalendarView({
                 {hourSessions.length > 0 ? (
                   hourSessions.map((session) => {
                     const isCancelled = !!session.isCancelled;
+                    const gradeTheme = getGradeLevelTheme(session.group?.gradeLevel, session.group?.name);
+                    const layoutInfo = layoutMap.get(session.id);
 
                     return (
                       <div
@@ -131,7 +143,7 @@ export function DailyCalendarView({
                         className={`p-4 rounded-2xl border shadow-2xs hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer ${
                           isCancelled
                             ? 'bg-rose-50/80 border-rose-200 border-dashed hover:border-rose-300'
-                            : 'bg-gradient-to-r from-sky-50/80 to-indigo-50/50 border-sky-100 hover:border-sky-300'
+                            : `${gradeTheme.bg} ${layoutInfo?.hasConflict ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`
                         }`}
                       >
                         <div className="space-y-1">
@@ -148,6 +160,12 @@ export function DailyCalendarView({
                                 ملغاة لهذا اليوم
                               </span>
                             )}
+                            {layoutInfo?.hasConflict && !isCancelled && (
+                              <span className="text-[10px] font-black px-2 py-0.5 bg-amber-500 text-slate-950 rounded-md shadow-2xs flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3" />
+                                تعارض في الموعد
+                              </span>
+                            )}
                             {session.group && (
                               <span className="text-[10px] font-bold px-2 py-0.5 bg-white text-primary-700 rounded-md border border-primary-100 shadow-2xs">
                                 {session.group.name} ({session.group.gradeLevel})
@@ -160,25 +178,25 @@ export function DailyCalendarView({
                               سبب الإلغاء: {session.cancellationReason}
                             </p>
                           )}
+                        </div>
 
-                          <div className="flex items-center gap-4 text-xs text-slate-500 font-medium">
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3.5 h-3.5 text-primary-600" />
-                              <span>
-                                {formatArabicTimeRange12H(session.startTime, session.endTime) || hour.label}
-                              </span>
+                        <div className="flex items-center gap-4 text-xs text-slate-500 font-medium">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-primary-600" />
+                            <span>
+                              {formatArabicTimeRange12H(session.startTime, session.endTime) || hour.label}
                             </span>
+                          </span>
 
-                            <span className="flex items-center gap-1 text-amber-700">
-                              <FileText className="w-3.5 h-3.5 text-amber-600" />
-                              {session.educationalContents?.length || session._count?.educationalContents || 0} مرفقات
-                            </span>
+                          <span className="flex items-center gap-1 text-amber-700">
+                            <FileText className="w-3.5 h-3.5 text-amber-600" />
+                            {session.educationalContents?.length || session._count?.educationalContents || 0} مرفقات
+                          </span>
 
-                            <span className="flex items-center gap-1 text-emerald-700">
-                              <Users className="w-3.5 h-3.5 text-emerald-600" />
-                              {session._count?.attendanceRecords || 0} حاضرين
-                            </span>
-                          </div>
+                          <span className="flex items-center gap-1 text-emerald-700">
+                            <Users className="w-3.5 h-3.5 text-emerald-600" />
+                            {session._count?.attendanceRecords || 0} حاضرين
+                          </span>
                         </div>
 
                         <div className="flex items-center gap-2">
