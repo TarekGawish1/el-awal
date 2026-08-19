@@ -244,26 +244,32 @@ export function WeeklyCalendarView({
                         className={`absolute inset-x-1 rounded-2xl border shadow-xs transition-all cursor-pointer hover:scale-[1.02] hover:shadow-lg hover:z-30 p-2.5 flex flex-col justify-between overflow-hidden z-10 ${theme.bg}`}
                       >
                         {/* Session Header & Title */}
-                        <div className="space-y-1 min-w-0">
-                          <h4 className="text-xs font-black leading-snug line-clamp-2 text-slate-900">
+                        <div className="space-y-1.5 min-w-0">
+                          {/* Topic title - fully visible without cropping */}
+                          <h4 className="text-xs font-black leading-snug text-slate-900 break-words text-start">
                             {session.topic || 'حصة بدون عنوان'}
                           </h4>
 
-                          {/* Time range (12-hour Arabic) */}
-                          <div className="flex items-center gap-1.5 text-[10px] font-extrabold text-slate-800 bg-white/80 py-0.5 px-1.5 rounded-md w-fit border border-black/5 shadow-2xs my-0.5">
-                            <Clock className={`w-3 h-3 ${theme.iconColor} shrink-0`} />
-                            <span className="whitespace-nowrap" dir="rtl">
+                          {/* Time range (12-hour Arabic) - Centered */}
+                          <div className="flex items-center justify-center gap-1.5 text-[10px] font-black text-slate-800 bg-white/90 py-1 px-2 rounded-xl border border-black/5 shadow-2xs my-1 w-full text-center">
+                            <Clock className={`w-3.5 h-3.5 ${theme.iconColor} shrink-0`} />
+                            <span className="whitespace-nowrap font-black" dir="rtl">
                               {formatArabicTime12H(session.startTime || '16:00')}
                               {session.endTime ? ` - ${formatArabicTime12H(session.endTime)}` : ''}
                             </span>
                           </div>
 
-                          {/* Group badge */}
+                          {/* Group & Grade Level badge - fully visible without cropping */}
                           {session.group && (
                             <div
-                              className={`text-[9px] font-extrabold px-2 py-0.5 rounded-md inline-block truncate max-w-full ${theme.badge}`}
+                              className={`text-[9.5px] font-bold px-2 py-1 rounded-lg inline-block break-words max-w-full leading-normal ${theme.badge}`}
                             >
-                              {session.group.name}
+                              <span>{session.group.name}</span>
+                              {session.group.gradeLevel && session.group.name !== session.group.gradeLevel && (
+                                <span className="block text-[8.5px] opacity-80 mt-0.5">
+                                  {session.group.gradeLevel}
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>
