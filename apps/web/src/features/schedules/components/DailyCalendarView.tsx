@@ -139,7 +139,10 @@ export function DailyCalendarView({
                         <div className="flex items-center gap-4 text-xs text-slate-500 font-medium">
                           <span className="flex items-center gap-1">
                             <Clock className="w-3.5 h-3.5 text-primary-600" />
-                            {session.startTime || hour.label}
+                            <span>
+                              {session.startTime || hour.label}
+                              {session.endTime ? ` - ${session.endTime}` : ''}
+                            </span>
                           </span>
 
                           <span className="flex items-center gap-1 text-amber-700">

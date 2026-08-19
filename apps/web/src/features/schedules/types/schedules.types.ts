@@ -35,6 +35,7 @@ export interface CreateSessionPayload {
   groupId: string;
   sessionDate: string;
   startTime?: string;
+  endTime?: string;
   topic: string;
   scheduleId?: string;
 }
@@ -42,6 +43,7 @@ export interface CreateSessionPayload {
 export interface UpdateSessionPayload {
   sessionDate?: string;
   startTime?: string;
+  endTime?: string;
   topic?: string;
   groupId?: string;
 }

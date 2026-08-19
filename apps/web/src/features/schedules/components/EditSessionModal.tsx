@@ -15,6 +15,7 @@ import toast from 'react-hot-toast';
 const editSessionSchema = z.object({
   sessionDate: z.string().min(1, 'تاريخ الحصة مطلوب'),
   startTime: z.string().optional(),
+  endTime: z.string().optional(),
   topic: z.string().min(2, 'عنوان أو موضوع الحصة مطلوب'),
 });
 
@@ -49,6 +50,7 @@ export function EditSessionModal({ isOpen, session, onClose }: EditSessionModalP
       reset({
         sessionDate: dateStr,
         startTime: session.startTime || '16:00',
+        endTime: session.endTime || '',
         topic: session.topic || '',
       });
     }
@@ -69,6 +71,7 @@ export function EditSessionModal({ isOpen, session, onClose }: EditSessionModalP
         payload: {
           sessionDate: data.sessionDate,
           startTime: data.startTime || undefined,
+          endTime: data.endTime || undefined,
           topic: data.topic.trim(),
         },
       },
@@ -98,11 +101,11 @@ export function EditSessionModal({ isOpen, session, onClose }: EditSessionModalP
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 overflow-y-auto backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden my-auto border border-slate-100 flex flex-col">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden my-auto border border-slate-100 flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/80">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center font-bold">
+            <div className="w-10 h-10 rounded-2xl bg-primary-50 text-primary-600 flex items-center justify-center font-bold">
               <Edit3 className="w-5 h-5" />
             </div>
             <div>
@@ -123,8 +126,8 @@ export function EditSessionModal({ isOpen, session, onClose }: EditSessionModalP
 
         {/* Form Body */}
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
-          {/* Date and Time */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Date, Start Time, and End Time */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <Label className="mb-1 block text-xs font-bold text-slate-700 flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5 text-primary-600" />
@@ -134,7 +137,7 @@ export function EditSessionModal({ isOpen, session, onClose }: EditSessionModalP
                 type="date"
                 {...register('sessionDate')}
                 disabled={isPending || isDeleting}
-                className="h-10 text-sm bg-white"
+                className="h-10 text-xs bg-white rounded-xl"
               />
               {errors.sessionDate && <p className="text-red-500 text-xs mt-1 font-medium">{errors.sessionDate.message}</p>}
             </div>
@@ -148,7 +151,20 @@ export function EditSessionModal({ isOpen, session, onClose }: EditSessionModalP
                 type="time"
                 {...register('startTime')}
                 disabled={isPending || isDeleting}
-                className="h-10 text-sm bg-white"
+                className="h-10 text-xs bg-white rounded-xl"
+              />
+            </div>
+
+            <div>
+              <Label className="mb-1 block text-xs font-bold text-slate-700 flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-emerald-600" />
+                وقت الانتهاء
+              </Label>
+              <Input
+                type="time"
+                {...register('endTime')}
+                disabled={isPending || isDeleting}
+                className="h-10 text-xs bg-white rounded-xl"
               />
             </div>
           </div>

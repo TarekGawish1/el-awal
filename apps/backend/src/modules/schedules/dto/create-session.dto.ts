@@ -23,6 +23,11 @@ export class CreateSessionDto {
   @IsString()
   startTime?: string;
 
+  @ApiPropertyOptional({ description: 'End time in format HH:MM', example: '18:00' })
+  @IsOptional()
+  @IsString()
+  endTime?: string;
+
   @ApiProperty({ description: 'Lesson Topic or Name', example: 'الحصة 1: المحاضرة التأسيسية واسم الفاعل' })
   @IsString()
   @IsNotEmpty({ message: 'عنوان وموضوع الحصة مطلوب' })

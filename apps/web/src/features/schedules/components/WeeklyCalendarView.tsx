@@ -217,7 +217,10 @@ export function WeeklyCalendarView({
                           {/* Time & Group info */}
                           <div className="flex items-center gap-1.5 text-[10px] font-semibold opacity-85 mb-1.5">
                             <Clock className={`w-3 h-3 ${theme.iconColor}`} />
-                            <span>{session.startTime || `${hour.label}`}</span>
+                            <span>
+                              {session.startTime || `${hour.label}`}
+                              {session.endTime ? ` - ${session.endTime}` : ''}
+                            </span>
                           </div>
 
                           {/* Group Chip */}

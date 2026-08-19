@@ -192,6 +192,7 @@ export class SchedulesService {
                 scheduleId: schedule.id,
                 sessionDate: sessionDateOnly,
                 startTime: schedule.startTime,
+                endTime: schedule.endTime || null,
                 topic,
               },
             });
@@ -208,7 +209,7 @@ export class SchedulesService {
     return {
       groupId,
       groupName: group.name,
-      generatedCount: createdSessions.length,
+      totalGenerated: createdSessions.length,
       sessions: createdSessions,
     };
   }
@@ -378,6 +379,7 @@ export class SchedulesService {
         where: { id: existing.id },
         data: {
           topic: dto.topic,
+          endTime: dto.endTime !== undefined ? dto.endTime : existing.endTime,
           scheduleId: dto.scheduleId || existing.scheduleId,
         },
         include: {
@@ -392,6 +394,7 @@ export class SchedulesService {
         groupId: dto.groupId,
         sessionDate: sessionDateOnly,
         startTime: dto.startTime || null,
+        endTime: dto.endTime || null,
         topic: dto.topic,
         scheduleId: dto.scheduleId || null,
       },
@@ -431,6 +434,7 @@ export class SchedulesService {
         topic: dto.topic !== undefined ? dto.topic : session.topic,
         sessionDate: sessionDateOnly,
         startTime: dto.startTime !== undefined ? dto.startTime : session.startTime,
+        endTime: dto.endTime !== undefined ? dto.endTime : session.endTime,
         groupId: dto.groupId || session.groupId,
       },
       include: {

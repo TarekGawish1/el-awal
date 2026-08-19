@@ -336,6 +336,7 @@ model LessonSession {
   scheduleId  String?  @map("schedule_id") @db.Uuid
   sessionDate DateTime @map("session_date") @db.Date
   startTime   String?  @map("start_time") @db.VarChar(10)
+  endTime     String?  @map("end_time") @db.VarChar(10)
   topic       String?  @map("topic") @db.VarChar(255)
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 

@@ -17,6 +17,11 @@ export class UpdateSessionDto {
   @IsString()
   startTime?: string;
 
+  @ApiPropertyOptional({ description: 'End time in format HH:MM', example: '18:00' })
+  @IsOptional()
+  @IsString()
+  endTime?: string;
+
   @ApiPropertyOptional({ description: 'Lesson Topic or Title', example: 'الحصة 1: المحاضرة التأسيسية واسم الفاعل' })
   @IsOptional()
   @IsString()

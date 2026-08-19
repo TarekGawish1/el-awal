@@ -135,7 +135,12 @@ export function SessionDetailsModal({
 
               <p className="text-xs text-slate-500 font-medium flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-primary-600" />
-                {formatArabicFullDate(session.sessionDate)} {session.startTime ? `• الساعة ${session.startTime}` : ''}
+                <span>{formatArabicFullDate(session.sessionDate)}</span>
+                {session.startTime && (
+                  <span className="text-slate-700 font-bold">
+                    • من {session.startTime} {session.endTime ? `إلى ${session.endTime}` : ''}
+                  </span>
+                )}
               </p>
             </div>
 
