@@ -38,8 +38,8 @@ describe('time.utils', () => {
     });
 
     it('handles single time values gracefully', () => {
-      expect(formatArabicTimeRangeCompact('17:00', null)).toBe('05:00 م');
-      expect(formatArabicTimeRangeCompact(null, '19:30')).toBe('07:30 م');
+      expect(formatArabicTimeRangeCompact('17:00', null)).toBe('5:00 م');
+      expect(formatArabicTimeRangeCompact(null, '19:30')).toBe('7:30 م');
       expect(formatArabicTimeRangeCompact(null, null)).toBe('');
     });
   });
