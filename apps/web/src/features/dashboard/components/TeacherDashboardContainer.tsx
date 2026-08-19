@@ -19,19 +19,6 @@ import { DashboardEmptyState } from './DashboardEmptyState';
 export function TeacherDashboardContainer() {
   const router = useRouter();
 
-  // Read initial filter values from URL params or defaults
-  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const initialFilters: DashboardFilterState = {
-    academicYear: searchParams?.get('academicYear') || DEFAULT_DASHBOARD_FILTERS.academicYear,
-    academicTerm: searchParams?.get('academicTerm') || 'ALL',
-    groupId: searchParams?.get('groupId') || DEFAULT_DASHBOARD_FILTERS.groupId,
-    dateRange: (searchParams?.get('dateRange') as DateRangePreset) || DEFAULT_DASHBOARD_FILTERS.dateRange,
-    startDate: searchParams?.get('startDate') || undefined,
-    endDate: searchParams?.get('endDate') || undefined,
-  };
-
-  const [filters, setFilters] = useState<DashboardFilterState>(initialFilters);
-
   // Fetch groups for filter dropdown
   const { data: groups = [], isLoading: isGroupsLoading } = useTeacherGroups();
 
@@ -45,7 +32,20 @@ export function TeacherDashboardContainer() {
     activeTerm,
   } = useStoredAcademicPeriod(groups as any);
 
-  // Sync initial / current filters with active academic period if not explicitly set in URL
+  // Read initial filter values from URL params or active academic period
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const initialFilters: DashboardFilterState = {
+    academicYear: searchParams?.get('academicYear') || activeYear,
+    academicTerm: searchParams?.get('academicTerm') || 'ALL',
+    groupId: searchParams?.get('groupId') || DEFAULT_DASHBOARD_FILTERS.groupId,
+    dateRange: (searchParams?.get('dateRange') as DateRangePreset) || DEFAULT_DASHBOARD_FILTERS.dateRange,
+    startDate: searchParams?.get('startDate') || undefined,
+    endDate: searchParams?.get('endDate') || undefined,
+  };
+
+  const [filters, setFilters] = useState<DashboardFilterState>(initialFilters);
+
+  // Sync current filters with active academic period if not explicitly overridden in URL
   React.useEffect(() => {
     if (!searchParams?.get('academicYear') && activeYear) {
       setFilters((prev) => (prev.academicYear !== activeYear ? { ...prev, academicYear: activeYear } : prev));

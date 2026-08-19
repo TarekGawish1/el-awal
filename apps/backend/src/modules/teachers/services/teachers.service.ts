@@ -12,8 +12,21 @@ export class TeachersService {
   async getDashboardOverview(teacherId: string, query: DashboardOverviewQueryDto) {
     const isSpecificGroup = query.groupId && query.groupId !== 'ALL';
 
+    // Resolve teacher ID (if user is secretariat, fallback to primary teacher profile)
+    const teacherProfile = await this.prisma.teacherProfile.findUnique({
+      where: { id: teacherId },
+    });
+
+    let effectiveTeacherId = teacherId;
+    if (!teacherProfile) {
+      const primaryTeacher = await this.prisma.teacherProfile.findFirst();
+      if (primaryTeacher) {
+        effectiveTeacherId = primaryTeacher.id;
+      }
+    }
+
     // 1. Fetch teacher groups
-    const groupWhere: any = { teacherId, isActive: true };
+    const groupWhere: any = { teacherId: effectiveTeacherId, isActive: true };
     if (isSpecificGroup) {
       groupWhere.id = query.groupId;
     }
@@ -172,7 +185,7 @@ export class TeachersService {
     const pendingSubmissions = await this.prisma.assessmentSubmission.findMany({
       where: {
         assessment: {
-          teacherId,
+          teacherId: effectiveTeacherId,
           ...(isSpecificGroup ? { groupId: query.groupId } : { groupId: { in: groupIds } }),
         },
         status: SubmissionStatus.SUBMITTED,
@@ -321,14 +334,26 @@ export class TeachersService {
     };
   }
 
-  async getAcademicPeriod(teacherId: string) {
-    const profile = await this.prisma.teacherProfile.findUnique({
-      where: { id: teacherId },
-      select: {
-        activeAcademicYear: true,
-        activeAcademicTerm: true,
-      },
-    });
+  async getAcademicPeriod(teacherId?: string) {
+    let profile = null;
+    if (teacherId) {
+      profile = await this.prisma.teacherProfile.findUnique({
+        where: { id: teacherId },
+        select: {
+          activeAcademicYear: true,
+          activeAcademicTerm: true,
+        },
+      });
+    }
+
+    if (!profile) {
+      profile = await this.prisma.teacherProfile.findFirst({
+        select: {
+          activeAcademicYear: true,
+          activeAcademicTerm: true,
+        },
+      });
+    }
 
     return {
       activeAcademicYear: profile?.activeAcademicYear || '2026-2027',
@@ -340,10 +365,30 @@ export class TeachersService {
     teacherId: string,
     dto: { activeAcademicYear: string; activeAcademicTerm: string },
   ) {
-    const updated = await this.prisma.teacherProfile.upsert({
+    // 1. Globally update all teacher profiles in the database so all teachers and assistants stay synchronized
+    await this.prisma.teacherProfile.updateMany({
+      data: {
+        activeAcademicYear: dto.activeAcademicYear,
+        activeAcademicTerm: dto.activeAcademicTerm,
+      },
+    });
+
+    const existing = await this.prisma.teacherProfile.findUnique({
       where: { id: teacherId },
+    });
+
+    let targetId = teacherId;
+    if (!existing) {
+      const primaryTeacher = await this.prisma.teacherProfile.findFirst();
+      if (primaryTeacher) {
+        targetId = primaryTeacher.id;
+      }
+    }
+
+    const updated = await this.prisma.teacherProfile.upsert({
+      where: { id: targetId },
       create: {
-        id: teacherId,
+        id: targetId,
         activeAcademicYear: dto.activeAcademicYear,
         activeAcademicTerm: dto.activeAcademicTerm,
       },
@@ -356,6 +401,10 @@ export class TeachersService {
         activeAcademicTerm: true,
       },
     });
+
+    this.logger.log(
+      `Academic period updated globally to [${dto.activeAcademicYear} - ${dto.activeAcademicTerm}] by user [${teacherId}]`,
+    );
 
     return updated;
   }
