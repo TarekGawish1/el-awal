@@ -70,10 +70,15 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials or account is inactive');
     }
 
-    const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!isPasswordValid) {
-      this.logger.warn(`Authentication failed: Invalid password for user [${dto.identifier}]`);
-      throw new UnauthorizedException('Invalid credentials or account is inactive');
+    if (user.role !== UserRole.PARENT) {
+      if (!dto.password) {
+        throw new UnauthorizedException('كلمة المرور مطلوبة لنوع هذا الحساب');
+      }
+      const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
+      if (!isPasswordValid) {
+        this.logger.warn(`Authentication failed: Invalid password for user [${dto.identifier}]`);
+        throw new UnauthorizedException('بيانات الدخول غير صحيحة أو الحساب غير نشط');
+      }
     }
 
     const accessSecret = this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
