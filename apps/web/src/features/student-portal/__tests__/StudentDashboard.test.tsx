@@ -8,6 +8,7 @@ vi.mock('../hooks/useStudentPortal', () => ({
   useStudentCourses: vi.fn(),
   useStudentAssessments: vi.fn(),
   useStudentAttendance: vi.fn(),
+  useGroupSessions: vi.fn().mockReturnValue({ data: [] }),
 }));
 
 describe('StudentDashboard', () => {

@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { LessonSessionItem } from '../types/schedules.types';
+import { toLocalDateStr } from '../utils/time.utils';
 
 interface MiniCalendarProps {
   currentDate: Date;
@@ -24,7 +25,7 @@ export function MiniCalendar({ currentDate, onSelectDate, sessions }: MiniCalend
   const sessionDatesSet = useMemo(() => {
     const set = new Set<string>();
     sessions.forEach((s) => {
-      const d = s.sessionDate.includes('T') ? s.sessionDate.split('T')[0] : s.sessionDate;
+      const d = toLocalDateStr(s.sessionDate);
       set.add(d);
     });
     return set;
@@ -50,13 +51,13 @@ export function MiniCalendar({ currentDate, onSelectDate, sessions }: MiniCalend
       hasSession: boolean;
     }> = [];
 
-    const todayStr = new Date().toISOString().split('T')[0];
-    const selectedStr = currentDate.toISOString().split('T')[0];
+    const todayStr = toLocalDateStr(new Date());
+    const selectedStr = toLocalDateStr(currentDate);
 
     // Previous month padding days
     for (let i = startingDayOfWeek - 1; i >= 0; i--) {
       const prevDate = new Date(year, month - 1, prevMonthLastDay - i);
-      const dateStr = prevDate.toISOString().split('T')[0];
+      const dateStr = toLocalDateStr(prevDate);
       days.push({
         date: prevDate,
         dateStr,
@@ -71,7 +72,7 @@ export function MiniCalendar({ currentDate, onSelectDate, sessions }: MiniCalend
     // Current month days
     for (let day = 1; day <= totalDaysInMonth; day++) {
       const thisDate = new Date(year, month, day);
-      const dateStr = thisDate.toISOString().split('T')[0];
+      const dateStr = toLocalDateStr(thisDate);
       days.push({
         date: thisDate,
         dateStr,
@@ -87,7 +88,7 @@ export function MiniCalendar({ currentDate, onSelectDate, sessions }: MiniCalend
     const remainingCells = (7 - (days.length % 7)) % 7;
     for (let i = 1; i <= remainingCells; i++) {
       const nextDate = new Date(year, month + 1, i);
-      const dateStr = nextDate.toISOString().split('T')[0];
+      const dateStr = toLocalDateStr(nextDate);
       days.push({
         date: nextDate,
         dateStr,

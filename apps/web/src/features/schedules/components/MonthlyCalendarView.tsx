@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { Clock, FileText, Users, Plus } from 'lucide-react';
 import { LessonSessionItem } from '../types/schedules.types';
-import { formatArabicTime12H } from '../utils/time.utils';
+import { formatArabicTime12H, toLocalDateStr } from '../utils/time.utils';
 
 interface MonthlyCalendarViewProps {
   currentDate: Date;
@@ -35,7 +35,7 @@ export function MonthlyCalendarView({
   const sessionsByDate = useMemo(() => {
     const map = new Map<string, LessonSessionItem[]>();
     sessions.forEach((s) => {
-      const d = s.sessionDate.includes('T') ? s.sessionDate.split('T')[0] : s.sessionDate;
+      const d = toLocalDateStr(s.sessionDate);
       if (!map.has(d)) map.set(d, []);
       map.get(d)!.push(s);
     });
@@ -59,12 +59,12 @@ export function MonthlyCalendarView({
       isToday: boolean;
     }> = [];
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = toLocalDateStr(new Date());
 
     // Prev month padding
     for (let i = startingDayOfWeek - 1; i >= 0; i--) {
       const d = new Date(year, month - 1, prevMonthLastDay - i);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = toLocalDateStr(d);
       days.push({
         date: d,
         dateStr,
@@ -77,7 +77,7 @@ export function MonthlyCalendarView({
     // Current month
     for (let day = 1; day <= totalDaysInMonth; day++) {
       const d = new Date(year, month, day);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = toLocalDateStr(d);
       days.push({
         date: d,
         dateStr,
@@ -91,7 +91,7 @@ export function MonthlyCalendarView({
     const remaining = (7 - (days.length % 7)) % 7;
     for (let i = 1; i <= remaining; i++) {
       const d = new Date(year, month + 1, i);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = toLocalDateStr(d);
       days.push({
         date: d,
         dateStr,
@@ -162,7 +162,10 @@ export function MonthlyCalendarView({
               {/* Day Sessions Pills */}
               <div className="space-y-1 overflow-y-auto max-h-[85px]">
                 {daySessions.map((session, sIdx) => {
-                  const theme = PASTEL_THEMES[sIdx % PASTEL_THEMES.length];
+                  const isCancelled = !!session.isCancelled;
+                  const theme = isCancelled
+                    ? 'bg-rose-100/90 text-rose-900 border-rose-300 border-dashed line-through decoration-rose-400 opacity-80'
+                    : PASTEL_THEMES[sIdx % PASTEL_THEMES.length];
 
                   return (
                     <div
@@ -172,12 +175,17 @@ export function MonthlyCalendarView({
                         onSelectSession(session);
                       }}
                       className={`px-2 py-1 rounded-lg border text-[10px] font-extrabold truncate cursor-pointer transition-all hover:scale-[1.02] shadow-2xs ${theme}`}
-                      title={`${session.topic} (${session.startTime || ''})`}
+                      title={`${session.topic} (${session.startTime || ''})${isCancelled ? ' - ملغاة' : ''}`}
                     >
                       <span className="opacity-75 mr-1 font-semibold">
                         {formatArabicTime12H(session.startTime)}
                       </span>
                       <span>{session.topic || 'حصة'}</span>
+                      {isCancelled && (
+                        <span className="mr-1 text-[9px] text-rose-700 font-black no-underline">
+                          (ملغاة)
+                        </span>
+                      )}
                     </div>
                   );
                 })}

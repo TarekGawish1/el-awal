@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { Clock, Users, FileText, QrCode, Sparkles, BookOpen, UploadCloud } from 'lucide-react';
 import { LessonSessionItem } from '../types/schedules.types';
-import { formatArabicTime12H, formatArabicTimeRange12H } from '../utils/time.utils';
+import { formatArabicTime12H, formatArabicTimeRange12H, toLocalDateStr } from '../utils/time.utils';
 import { Button } from '@/components/ui/Button';
 
 interface DailyCalendarViewProps {
@@ -37,11 +37,11 @@ export function DailyCalendarView({
   onSelectSession,
   onAddSessionForDate,
 }: DailyCalendarViewProps) {
-  const dateStr = currentDate.toISOString().split('T')[0];
+  const dateStr = toLocalDateStr(currentDate);
 
   const daySessions = useMemo(() => {
     return sessions.filter((s) => {
-      const d = s.sessionDate.includes('T') ? s.sessionDate.split('T')[0] : s.sessionDate;
+      const d = toLocalDateStr(s.sessionDate);
       return d === dateStr;
     });
   }, [sessions, dateStr]);
@@ -118,52 +118,77 @@ export function DailyCalendarView({
               {/* Session Cards Column */}
               <div className="flex-1 space-y-3">
                 {hourSessions.length > 0 ? (
-                  hourSessions.map((session) => (
-                    <div
-                      key={session.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelectSession(session);
-                      }}
-                      className="p-4 bg-gradient-to-r from-sky-50/80 to-indigo-50/50 rounded-2xl border border-sky-100 shadow-2xs hover:shadow-md hover:border-sky-300 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="font-extrabold text-slate-900 text-sm">{session.topic || 'حصة بدون عنوان'}</h4>
-                          {session.group && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 bg-white text-primary-700 rounded-md border border-primary-100 shadow-2xs">
-                              {session.group.name} ({session.group.gradeLevel})
-                            </span>
+                  hourSessions.map((session) => {
+                    const isCancelled = !!session.isCancelled;
+
+                    return (
+                      <div
+                        key={session.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectSession(session);
+                        }}
+                        className={`p-4 rounded-2xl border shadow-2xs hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer ${
+                          isCancelled
+                            ? 'bg-rose-50/80 border-rose-200 border-dashed hover:border-rose-300'
+                            : 'bg-gradient-to-r from-sky-50/80 to-indigo-50/50 border-sky-100 hover:border-sky-300'
+                        }`}
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4
+                              className={`font-extrabold text-sm ${
+                                isCancelled ? 'text-rose-900 line-through decoration-rose-400' : 'text-slate-900'
+                              }`}
+                            >
+                              {session.topic || 'حصة بدون عنوان'}
+                            </h4>
+                            {isCancelled && (
+                              <span className="text-[10px] font-black px-2 py-0.5 bg-rose-600 text-white rounded-md shadow-2xs">
+                                ملغاة لهذا اليوم
+                              </span>
+                            )}
+                            {session.group && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 bg-white text-primary-700 rounded-md border border-primary-100 shadow-2xs">
+                                {session.group.name} ({session.group.gradeLevel})
+                              </span>
+                            )}
+                          </div>
+
+                          {isCancelled && session.cancellationReason && (
+                            <p className="text-xs text-rose-700 font-semibold">
+                              سبب الإلغاء: {session.cancellationReason}
+                            </p>
                           )}
-                        </div>
 
-                        <div className="flex items-center gap-4 text-xs text-slate-500 font-medium">
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5 text-primary-600" />
-                            <span>
-                              {formatArabicTimeRange12H(session.startTime, session.endTime) || hour.label}
+                          <div className="flex items-center gap-4 text-xs text-slate-500 font-medium">
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-primary-600" />
+                              <span>
+                                {formatArabicTimeRange12H(session.startTime, session.endTime) || hour.label}
+                              </span>
                             </span>
-                          </span>
 
-                          <span className="flex items-center gap-1 text-amber-700">
-                            <FileText className="w-3.5 h-3.5 text-amber-600" />
-                            {session.educationalContents?.length || session._count?.educationalContents || 0} مرفقات
-                          </span>
+                            <span className="flex items-center gap-1 text-amber-700">
+                              <FileText className="w-3.5 h-3.5 text-amber-600" />
+                              {session.educationalContents?.length || session._count?.educationalContents || 0} مرفقات
+                            </span>
 
-                          <span className="flex items-center gap-1 text-emerald-700">
-                            <Users className="w-3.5 h-3.5 text-emerald-600" />
-                            {session._count?.attendanceRecords || 0} حاضرين
+                            <span className="flex items-center gap-1 text-emerald-700">
+                              <Users className="w-3.5 h-3.5 text-emerald-600" />
+                              {session._count?.attendanceRecords || 0} حاضرين
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-primary-600 font-bold hover:underline">
+                            عرض التفاصيل والمرفقات ←
                           </span>
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-primary-600 font-bold hover:underline">
-                          عرض التفاصيل والمرفقات ←
-                        </span>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="h-6 border-b border-dashed border-slate-100 group-hover:border-slate-300 flex items-center">
                     <span className="text-[10px] text-slate-300 group-hover:text-primary-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">

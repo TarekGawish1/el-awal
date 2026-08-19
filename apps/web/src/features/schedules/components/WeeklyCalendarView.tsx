@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import { Clock, Users, FileText, Plus } from 'lucide-react';
 import { LessonSessionItem } from '../types/schedules.types';
-import { formatArabicTime12H, formatArabicTimeRange12H, formatArabicTimeRangeCompact, parseTimeToMinutes } from '../utils/time.utils';
+import { formatArabicTime12H, formatArabicTimeRange12H, formatArabicTimeRangeCompact, parseTimeToMinutes, toLocalDateStr } from '../utils/time.utils';
 
 interface WeeklyCalendarViewProps {
   currentDate: Date;
@@ -76,11 +76,11 @@ export function WeeklyCalendarView({
       isSelected: boolean;
     }> = [];
 
-    const todayStr = new Date().toISOString().split('T')[0];
-    const selectedStr = currentDate.toISOString().split('T')[0];
+    const todayStr = toLocalDateStr(new Date());
+    const selectedStr = toLocalDateStr(currentDate);
 
     // Find Saturday of the week
-    const current = new Date(currentDate);
+    const current = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
     const dayOfWeek = current.getDay(); // 0 = Sun .. 6 = Sat
     // In Arabic week: Saturday is day 0
     const diffToSaturday = (dayOfWeek + 1) % 7;
@@ -90,7 +90,7 @@ export function WeeklyCalendarView({
     for (let i = 0; i < 7; i++) {
       const d = new Date(saturday);
       d.setDate(saturday.getDate() + i);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = toLocalDateStr(d);
 
       days.push({
         date: d,
@@ -109,7 +109,7 @@ export function WeeklyCalendarView({
   const sessionsByDate = useMemo(() => {
     const map = new Map<string, LessonSessionItem[]>();
     sessions.forEach((s) => {
-      const d = s.sessionDate.includes('T') ? s.sessionDate.split('T')[0] : s.sessionDate;
+      const d = toLocalDateStr(s.sessionDate);
       if (!map.has(d)) map.set(d, []);
       map.get(d)!.push(s);
     });
@@ -229,7 +229,16 @@ export function WeeklyCalendarView({
                 >
                   {/* Spanning Session Cards */}
                   {daySessions.map((session, sIdx) => {
-                    const theme = getSessionTheme(sIdx);
+                    const isCancelled = !!session.isCancelled;
+                    const standardTheme = getSessionTheme(sIdx);
+                    const theme = isCancelled
+                      ? {
+                          bg: 'bg-rose-50/90 hover:bg-rose-100/90 text-rose-950 border-rose-300 border-dashed shadow-rose-950/5 opacity-85',
+                          badge: 'bg-rose-200/90 text-rose-900',
+                          iconColor: 'text-rose-600',
+                        }
+                      : standardTheme;
+
                     const { topPx, heightPx } = calculateSessionPosition(session);
 
                     return (
@@ -251,16 +260,25 @@ export function WeeklyCalendarView({
                           <div className="w-full max-w-full bg-white/95 backdrop-blur-xs rounded-full border border-black/10 shadow-2xs py-1 px-1.5 flex items-center justify-center gap-1 text-center overflow-hidden">
                             <Clock className={`w-3 h-3 ${theme.iconColor} shrink-0`} />
                             <span
-                              className="text-[9px] sm:text-[9.5px] font-black text-slate-800 tracking-tight whitespace-nowrap leading-none truncate max-w-full"
+                              className={`text-[9px] sm:text-[9.5px] font-black tracking-tight whitespace-nowrap leading-none truncate max-w-full ${
+                                isCancelled ? 'text-rose-900 line-through' : 'text-slate-800'
+                              }`}
                               dir="rtl"
                             >
                               {formatArabicTimeRangeCompact(session.startTime || '16:00', session.endTime)}
                             </span>
+                            {isCancelled && (
+                              <span className="text-[8px] font-black bg-rose-600 text-white px-1 py-0.2 rounded-full shrink-0">
+                                ملغاة
+                              </span>
+                            )}
                           </div>
 
                           {/* Grade Level / Group Name */}
                           <div
-                            className={`text-[9.5px] sm:text-[10px] font-extrabold px-1.5 py-1 rounded-xl text-center break-words max-w-full leading-snug w-full shadow-2xs ${theme.badge}`}
+                            className={`text-[9.5px] sm:text-[10px] font-extrabold px-1.5 py-1 rounded-xl text-center break-words max-w-full leading-snug w-full shadow-2xs ${theme.badge} ${
+                              isCancelled ? 'line-through decoration-rose-500' : ''
+                            }`}
                           >
                             {session.group?.gradeLevel || session.group?.name || 'حصة دراسية'}
                             {session.group?.name &&
@@ -280,18 +298,34 @@ export function WeeklyCalendarView({
                           {/* Header Badge & Topic Title */}
                           <div className="border-b border-slate-100 pb-2">
                             <div className="flex items-center justify-between gap-2 mb-1.5">
-                              <span className="text-[10px] font-extrabold text-primary-700 bg-primary-50 px-2.5 py-0.5 rounded-full border border-primary-100">
-                                📖 تفاصيل الحصة المجدولة
-                              </span>
+                              {isCancelled ? (
+                                <span className="text-[10px] font-extrabold text-rose-800 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200 flex items-center gap-1">
+                                  <span className="w-2 h-2 rounded-full bg-rose-600" />
+                                  ⚠️ الحصة ملغاة لهذا اليوم
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-extrabold text-primary-700 bg-primary-50 px-2.5 py-0.5 rounded-full border border-primary-100">
+                                  📖 تفاصيل الحصة المجدولة
+                                </span>
+                              )}
                               {session.group?.gradeLevel && (
                                 <span className="text-[10px] font-bold text-slate-500">
                                   {session.group.gradeLevel}
                                 </span>
                               )}
                             </div>
-                            <h4 className="text-sm font-black text-slate-900 leading-snug break-words">
+                            <h4
+                              className={`text-sm font-black leading-snug break-words ${
+                                isCancelled ? 'text-rose-900 line-through decoration-rose-400' : 'text-slate-900'
+                              }`}
+                            >
                               {session.topic || 'حصة بدون عنوان'}
                             </h4>
+                            {isCancelled && session.cancellationReason && (
+                              <p className="text-xs text-rose-700 font-semibold mt-1">
+                                سبب الإلغاء: {session.cancellationReason}
+                              </p>
+                            )}
                           </div>
 
                           {/* Time & Group Box */}

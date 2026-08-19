@@ -17,6 +17,8 @@ const editSessionSchema = z.object({
   startTime: z.string().optional(),
   endTime: z.string().optional(),
   topic: z.string().min(2, 'عنوان أو موضوع الحصة مطلوب'),
+  isCancelled: z.boolean().optional(),
+  cancellationReason: z.string().optional(),
 });
 
 type EditSessionFormData = z.infer<typeof editSessionSchema>;
@@ -36,11 +38,14 @@ export function EditSessionModal({ isOpen, session, onClose }: EditSessionModalP
     register,
     handleSubmit,
     setValue,
+    watch,
     reset,
     formState: { errors },
   } = useForm<EditSessionFormData>({
     resolver: zodResolver(editSessionSchema),
   });
+
+  const isCancelledVal = watch('isCancelled');
 
   useEffect(() => {
     if (isOpen && session) {
@@ -52,6 +57,8 @@ export function EditSessionModal({ isOpen, session, onClose }: EditSessionModalP
         startTime: session.startTime || '16:00',
         endTime: session.endTime || '',
         topic: session.topic || '',
+        isCancelled: !!session.isCancelled,
+        cancellationReason: session.cancellationReason || '',
       });
     }
   }, [isOpen, session, reset]);
@@ -73,6 +80,8 @@ export function EditSessionModal({ isOpen, session, onClose }: EditSessionModalP
           startTime: data.startTime || undefined,
           endTime: data.endTime || undefined,
           topic: data.topic.trim(),
+          isCancelled: data.isCancelled,
+          cancellationReason: data.isCancelled ? data.cancellationReason?.trim() || 'إلغاء الحصة لهذا اليوم' : null,
         },
       },
       {
@@ -126,6 +135,47 @@ export function EditSessionModal({ isOpen, session, onClose }: EditSessionModalP
 
         {/* Form Body */}
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+          {/* Cancellation Toggle Banner */}
+          <div
+            className={`p-3.5 rounded-2xl border transition-all ${
+              isCancelledVal
+                ? 'bg-rose-50 border-rose-200 text-rose-900'
+                : 'bg-slate-50 border-slate-200/80 text-slate-700'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="isCancelledCheckbox"
+                  {...register('isCancelled')}
+                  className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 cursor-pointer"
+                />
+                <label htmlFor="isCancelledCheckbox" className="text-xs font-black cursor-pointer select-none">
+                  تحديد الحصة كـ «ملغاة» لهذا اليوم
+                </label>
+              </div>
+              {isCancelledVal && (
+                <span className="text-[10px] font-black bg-rose-600 text-white px-2 py-0.5 rounded-md">
+                  ملغاة
+                </span>
+              )}
+            </div>
+
+            {isCancelledVal && (
+              <div className="mt-2.5 pt-2.5 border-t border-rose-200">
+                <Label className="block text-[11px] font-bold text-rose-800 mb-1">
+                  سبب الإلغاء (اختياري):
+                </Label>
+                <Input
+                  {...register('cancellationReason')}
+                  placeholder="مثال: عطلة رسمية أو ظرف طارئ للمعلم"
+                  className="bg-white text-xs h-9 border-rose-200"
+                />
+              </div>
+            )}
+          </div>
+
           {/* Date, Start Time, and End Time */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>

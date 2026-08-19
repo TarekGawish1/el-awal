@@ -248,7 +248,146 @@ export class SchedulesService {
   }
 
   /**
+   * Computes UTC date boundaries for a given academic year and semester/term.
+   * FIRST_TERM: Aug 1 to Jan 31
+   * SECOND_TERM: Feb 1 to Jul 31
+   */
+  getSemesterDateWindow(academicYear?: string, academicTerm?: string): { startDate: Date; endDate: Date } {
+    let startYear = 2026;
+    let endYear = 2027;
+
+    if (academicYear && academicYear.includes('-')) {
+      const parts = academicYear.split('-');
+      const y1 = parseInt(parts[0], 10);
+      const y2 = parseInt(parts[1], 10);
+      if (!isNaN(y1)) startYear = y1;
+      if (!isNaN(y2)) endYear = y2;
+      else endYear = startYear + 1;
+    }
+
+    if (academicTerm === 'FIRST_TERM') {
+      return {
+        startDate: new Date(Date.UTC(startYear, 7, 1)), // Aug 1
+        endDate: new Date(Date.UTC(endYear, 0, 31)), // Jan 31
+      };
+    }
+
+    if (academicTerm === 'SECOND_TERM') {
+      return {
+        startDate: new Date(Date.UTC(endYear, 1, 1)), // Feb 1
+        endDate: new Date(Date.UTC(endYear, 6, 31)), // Jul 31
+      };
+    }
+
+    // Default: full academic year (Aug 1 to Jul 31)
+    return {
+      startDate: new Date(Date.UTC(startYear, 7, 1)),
+      endDate: new Date(Date.UTC(endYear, 6, 31)),
+    };
+  }
+
+  /**
+   * Auto-ensures physical LessonSession records exist for all recurring schedules across the semester.
+   */
+  async autoEnsureSemesterSessionsForGroups(
+    groupsWithSchedules: Array<{
+      id: string;
+      name: string;
+      academicYear?: string | null;
+      academicTerm?: string | null;
+      schedules: Array<{
+        id: string;
+        dayOfWeek: number;
+        startTime: string;
+        endTime?: string | null;
+      }>;
+    }>,
+    targetYear?: string,
+    targetTerm?: string,
+  ) {
+    if (!groupsWithSchedules || groupsWithSchedules.length === 0) return;
+
+    const eligibleGroups = groupsWithSchedules.filter((g) => g.schedules && g.schedules.length > 0);
+    if (eligibleGroups.length === 0) return;
+
+    for (const group of eligibleGroups) {
+      const year = group.academicYear || targetYear || '2026-2027';
+      const term = group.academicTerm || targetTerm || 'FIRST_TERM';
+      const { startDate, endDate } = this.getSemesterDateWindow(year, term);
+
+      // Find existing sessions for this group in the date window
+      const existingSessions = await this.prisma.lessonSession.findMany({
+        where: {
+          groupId: group.id,
+          sessionDate: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        select: {
+          sessionDate: true,
+          startTime: true,
+        },
+      });
+
+      const existingSet = new Set<string>();
+      existingSessions.forEach((s) => {
+        const dStr = s.sessionDate.toISOString().split('T')[0];
+        existingSet.add(`${dStr}_${s.startTime || ''}`);
+      });
+
+      const sessionsToCreate: Array<{
+        groupId: string;
+        scheduleId: string;
+        sessionDate: Date;
+        startTime: string;
+        endTime: string | null;
+        topic: string;
+      }> = [];
+
+      const current = new Date(startDate);
+      while (current <= endDate) {
+        const dayOfWeek = current.getUTCDay(); // 0 = Sunday .. 6 = Saturday
+        const matchingSchedules = group.schedules.filter((s) => s.dayOfWeek === dayOfWeek);
+
+        for (const schedule of matchingSchedules) {
+          const sessionDateOnly = new Date(
+            Date.UTC(current.getUTCFullYear(), current.getUTCMonth(), current.getUTCDate()),
+          );
+          const dateStr = sessionDateOnly.toISOString().split('T')[0];
+          const key = `${dateStr}_${schedule.startTime || ''}`;
+
+          if (!existingSet.has(key)) {
+            existingSet.add(key);
+            sessionsToCreate.push({
+              groupId: group.id,
+              scheduleId: schedule.id,
+              sessionDate: sessionDateOnly,
+              startTime: schedule.startTime,
+              endTime: schedule.endTime || null,
+              topic: `حصة - ${dateStr}`,
+            });
+          }
+        }
+
+        current.setUTCDate(current.getUTCDate() + 1);
+      }
+
+      if (sessionsToCreate.length > 0) {
+        await this.prisma.lessonSession.createMany({
+          data: sessionsToCreate,
+          skipDuplicates: true,
+        });
+        this.logger.log(
+          `Auto-populated ${sessionsToCreate.length} semester sessions for group [${group.name}] (${year} - ${term})`,
+        );
+      }
+    }
+  }
+
+  /**
    * Retrieves teacher's physical lesson sessions with comprehensive filtering (timeline, calendar, past, upcoming).
+   * Automatically synchronizes and populates recurring group sessions across the semester.
    */
   async getTeacherSessions(
     user: AuthenticatedUser,
@@ -263,7 +402,26 @@ export class SchedulesService {
       search?: string;
     },
   ) {
-    const teacherId = user.teacherProfileId || user.id;
+    let teacherProfile = user.teacherProfileId
+      ? await this.prisma.teacherProfile.findUnique({ where: { id: user.teacherProfileId } })
+      : await this.prisma.teacherProfile.findFirst({ where: { user: { id: user.id } } });
+
+    if (!teacherProfile && user.role === UserRole.TEACHER) {
+      teacherProfile = await this.prisma.teacherProfile.findFirst();
+    }
+
+    const effectiveTeacherProfileId = teacherProfile?.id || user.teacherProfileId || user.id;
+    const teacherWhereCondition =
+      user.role === UserRole.SECRETARIAT
+        ? {}
+        : {
+            OR: [
+              { teacherId: effectiveTeacherProfileId },
+              { teacher: { id: effectiveTeacherProfileId } },
+              { teacher: { user: { id: user.id } } },
+            ],
+          };
+
     const {
       groupId,
       gradeLevel,
@@ -275,9 +433,32 @@ export class SchedulesService {
       search,
     } = params || {};
 
+    // Auto-ensure semester sessions are created for teacher's active groups
+    try {
+      const teacherGroups = await this.prisma.academicGroup.findMany({
+        where: {
+          isActive: true,
+          ...teacherWhereCondition,
+          ...(groupId && groupId !== 'ALL' ? { id: groupId } : {}),
+          ...(gradeLevel && gradeLevel !== 'ALL' ? { gradeLevel } : {}),
+          ...(academicYear && academicYear !== 'ALL' ? { academicYear } : {}),
+          ...(academicTerm && academicTerm !== 'ALL' ? { academicTerm } : {}),
+        },
+        include: {
+          schedules: true,
+        },
+      });
+
+      if (teacherGroups.length > 0) {
+        await this.autoEnsureSemesterSessionsForGroups(teacherGroups, academicYear, academicTerm);
+      }
+    } catch (err: any) {
+      this.logger.warn(`Could not auto-ensure semester sessions: ${err?.message}`);
+    }
+
     const where: any = {
       group: {
-        OR: [{ teacherId }, { teacher: { id: teacherId } }],
+        ...teacherWhereCondition,
       },
     };
 
@@ -382,6 +563,9 @@ export class SchedulesService {
           topic: dto.topic,
           endTime: dto.endTime !== undefined ? dto.endTime : existing.endTime,
           scheduleId: dto.scheduleId || existing.scheduleId,
+          isCancelled: dto.isCancelled !== undefined ? dto.isCancelled : existing.isCancelled,
+          cancellationReason:
+            dto.cancellationReason !== undefined ? dto.cancellationReason : existing.cancellationReason,
         },
         include: {
           group: { select: { id: true, name: true, gradeLevel: true, academicYear: true, academicTerm: true } },
@@ -398,6 +582,8 @@ export class SchedulesService {
         endTime: dto.endTime || null,
         topic: dto.topic,
         scheduleId: dto.scheduleId || null,
+        isCancelled: dto.isCancelled || false,
+        cancellationReason: dto.cancellationReason || null,
       },
       include: {
         group: { select: { id: true, name: true, gradeLevel: true, academicYear: true, academicTerm: true } },
@@ -437,6 +623,13 @@ export class SchedulesService {
         startTime: dto.startTime !== undefined ? dto.startTime : session.startTime,
         endTime: dto.endTime !== undefined ? dto.endTime : session.endTime,
         groupId: dto.groupId || session.groupId,
+        isCancelled: dto.isCancelled !== undefined ? dto.isCancelled : session.isCancelled,
+        cancellationReason:
+          dto.cancellationReason !== undefined
+            ? dto.cancellationReason
+            : dto.isCancelled === false
+            ? null
+            : session.cancellationReason,
       },
       include: {
         group: { select: { id: true, name: true, gradeLevel: true, academicYear: true, academicTerm: true } },

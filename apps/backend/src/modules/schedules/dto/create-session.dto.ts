@@ -37,4 +37,13 @@ export class CreateSessionDto {
   @IsOptional()
   @IsUUID()
   scheduleId?: string;
+
+  @ApiPropertyOptional({ description: 'Mark session as canceled', example: false })
+  @IsOptional()
+  isCancelled?: boolean;
+
+  @ApiPropertyOptional({ description: 'Reason for cancellation' })
+  @IsOptional()
+  @IsString()
+  cancellationReason?: string;
 }
