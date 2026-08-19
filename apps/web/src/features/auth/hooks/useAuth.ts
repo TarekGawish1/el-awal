@@ -54,18 +54,11 @@ export function useAuth() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const { user, isAuthenticated, isInitialized, isValidating, setSession, clearSession, initialize, validateSession } = useAuthStore();
+  const { user, isAuthenticated, isInitialized, setSession, clearSession, initialize } = useAuthStore();
 
   useEffect(() => {
     initialize();
   }, [initialize]);
-
-  // After synchronous localStorage hydration, validate stored tokens against the backend
-  useEffect(() => {
-    if (isInitialized && isAuthenticated) {
-      validateSession();
-    }
-  }, [isInitialized, isAuthenticated, validateSession]);
 
   const loginMutation = useMutation({
     mutationFn: (credentials: LoginCredentials) => loginUser(credentials),
@@ -98,7 +91,6 @@ export function useAuth() {
     user,
     isAuthenticated,
     isInitialized,
-    isValidating,
     login: loginMutation.mutate,
     loginAsync: loginMutation.mutateAsync,
     isLoading: loginMutation.isPending,

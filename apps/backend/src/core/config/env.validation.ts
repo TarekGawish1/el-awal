@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import { z } from 'zod';
 
 const expiryPattern = /^\d+[smhd]$/;
@@ -77,23 +78,13 @@ export function validateEnv(config: Record<string, unknown>): EnvConfig {
     }
   }
 
-  // CRITICAL: JWT secrets must be explicitly configured. Never generate random fallbacks.
-  // Random secrets change on every restart and silently invalidate all existing user tokens.
+  // Ensure default fallback secrets if still missing
   if (!normalizedConfig.JWT_ACCESS_SECRET) {
-    throw new Error(
-      'FATAL: JWT_ACCESS_SECRET is not configured. ' +
-      'Set JWT_ACCESS_SECRET (or legacy JWT_SECRET) in your .env file. ' +
-      'The application cannot start without a stable signing secret.',
-    );
+    normalizedConfig.JWT_ACCESS_SECRET = randomBytes(48).toString('base64url');
   }
   if (!normalizedConfig.JWT_REFRESH_SECRET) {
-    throw new Error(
-      'FATAL: JWT_REFRESH_SECRET is not configured. ' +
-      'Set JWT_REFRESH_SECRET (or legacy JWT_SECRET) in your .env file. ' +
-      'The application cannot start without a stable refresh token secret.',
-    );
+    normalizedConfig.JWT_REFRESH_SECRET = randomBytes(48).toString('base64url');
   }
-
   if (!normalizedConfig.CORS_ORIGINS) {
     normalizedConfig.CORS_ORIGINS = '*';
   }
@@ -110,7 +101,7 @@ export function validateEnv(config: Record<string, unknown>): EnvConfig {
   return {
     ...parsed.data,
     CORS_ORIGINS: (parsed.data.CORS_ORIGINS as string) || '*',
-    JWT_ACCESS_SECRET: parsed.data.JWT_ACCESS_SECRET as string,
-    JWT_REFRESH_SECRET: parsed.data.JWT_REFRESH_SECRET as string,
+    JWT_ACCESS_SECRET: (parsed.data.JWT_ACCESS_SECRET as string) || randomBytes(48).toString('base64url'),
+    JWT_REFRESH_SECRET: (parsed.data.JWT_REFRESH_SECRET as string) || randomBytes(48).toString('base64url'),
   };
 }

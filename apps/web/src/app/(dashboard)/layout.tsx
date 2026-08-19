@@ -30,15 +30,15 @@ export default function DashboardLayout({
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isAuthenticated, isInitialized, isValidating, logout } = useAuth();
+  const { user, isAuthenticated, isInitialized, logout } = useAuth();
 
   // Authentication Route Protection
   useEffect(() => {
-    if (isInitialized && !isValidating && !isAuthenticated) {
+    if (isInitialized && !isAuthenticated) {
       const redirectParam = pathname ? `?redirect=${encodeURIComponent(pathname)}` : '';
       router.replace(`/login${redirectParam}`);
     }
-  }, [isInitialized, isValidating, isAuthenticated, pathname, router]);
+  }, [isInitialized, isAuthenticated, pathname, router]);
 
   const getRoleLabel = (role?: string) => {
     switch (role) {
@@ -84,8 +84,8 @@ export default function DashboardLayout({
       ? parentNavigationItems
       : teacherNavigationItems;
 
-  // Hydration-safe initial loading screen before auth initialization and validation finishes
-  if (!isInitialized || isValidating) {
+  // Hydration-safe initial loading screen before auth initialization
+  if (!isInitialized) {
     return (
       <div className="min-h-screen bg-neutral-50 flex items-center justify-center text-sm text-neutral-500">
         جاري التحقق من بيانات الدخول...

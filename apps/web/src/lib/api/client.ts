@@ -18,9 +18,6 @@ interface RequestOptions extends RequestInit {
 // Concurrency mutex: In-flight refresh promise shared across all simultaneous 401 requests
 let refreshPromise: Promise<string | null> | null = null;
 
-// Guard to prevent multiple concurrent 401 handlers from all triggering redirects
-let isHandlingAuthFailure = false;
-
 async function executeRefreshToken(): Promise<string | null> {
   const currentRefreshToken = getStoredRefreshToken();
   if (!currentRefreshToken) {
@@ -77,19 +74,13 @@ async function getRefreshedAccessToken(): Promise<string | null> {
 }
 
 function handleAuthFailure(): void {
-  if (isHandlingAuthFailure) return;
-  isHandlingAuthFailure = true;
-
   clearStoredTokens();
   useAuthStore.getState().clearSession();
 
   if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
     const currentPath = window.location.pathname + window.location.search;
     const redirectParam = currentPath && currentPath !== '/' ? `?redirect=${encodeURIComponent(currentPath)}` : '';
-    // Use replace to avoid adding to history, and prevent multiple concurrent redirects
-    window.location.replace(`/login${redirectParam}`);
-  } else {
-    isHandlingAuthFailure = false;
+    window.location.href = `/login${redirectParam}`;
   }
 }
 
