@@ -5,6 +5,10 @@ export interface LoginCredentials {
   password: string;
 }
 
+export interface ParentAccessCredentials {
+  studentPhone: string;
+}
+
 export interface AuthUser {
   id: string;
   fullName: string;

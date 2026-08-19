@@ -8,6 +8,7 @@ export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost
 export const API_ENDPOINTS = {
   AUTH: {
     LOGIN: '/auth/login',
+    PARENT_ACCESS: '/auth/parent-access',
     LOGOUT: '/auth/logout',
     REFRESH: '/auth/refresh',
     ME: '/users/me',
@@ -72,6 +73,7 @@ export const API_ENDPOINTS = {
     PROGRESS: '/sync/progress',
   },
   PARENT_PORTAL: {
+    LINKED_STUDENTS: '/parent-portal/students',
     CHILD_OVERVIEW: (id: string) => `/parent-portal/students/${id}/overview`,
   },
 } as const;

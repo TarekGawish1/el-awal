@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from '../services/auth.service';
 import { LoginDto } from '../dto/login.dto';
+import { ParentAccessDto } from '../dto/parent-access.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { AuthTokensResponseDto } from '../dto/auth-response.dto';
 import { Public } from '../../../core/security/decorators/public.decorator';
@@ -21,6 +22,17 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Invalid credentials or account is inactive' })
   async login(@Body() dto: LoginDto): Promise<AuthTokensResponseDto> {
     return this.authService.login(dto);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Post('parent-access')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Authenticate as the linked parent using a registered student phone number' })
+  @ApiResponse({ status: 200, description: 'Parent authentication successful, returns tokens and parent user object', type: AuthTokensResponseDto })
+  @ApiResponse({ status: 401, description: 'Student phone is not registered or has no active linked parent' })
+  async parentAccess(@Body() dto: ParentAccessDto): Promise<AuthTokensResponseDto> {
+    return this.authService.parentAccess(dto);
   }
 
   @Public()
