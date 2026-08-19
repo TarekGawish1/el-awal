@@ -24,6 +24,7 @@ import {
 import { ContentType, EducationalContent } from '../types/content.types';
 import { useUpdateContent, useGroupSessions } from '../hooks/use-content';
 import { useSessionTopics } from '@/features/schedules/hooks/useSchedules';
+import { formatArabicTime12H } from '@/features/schedules/utils/time.utils';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
 import { Button } from '@/components/ui/Button';
@@ -456,7 +457,7 @@ export function EditContentModal({ isOpen, content, onClose }: EditContentModalP
                       <optgroup label="حصص المجموعة المجدولة في قاعدة البيانات">
                         {groupSessions.map((session) => (
                           <option key={session.id} value={`SESSION_${session.id}`}>
-                            {session.topic || 'حصة بدون عنوان'} ({session.sessionDate.includes('T') ? session.sessionDate.split('T')[0] : session.sessionDate}{session.startTime ? ` • ${session.startTime}` : ''})
+                            {session.topic || 'حصة بدون عنوان'} ({session.sessionDate.includes('T') ? session.sessionDate.split('T')[0] : session.sessionDate}{session.startTime ? ` • ${formatArabicTime12H(session.startTime)}` : ''})
                           </option>
                         ))}
                       </optgroup>

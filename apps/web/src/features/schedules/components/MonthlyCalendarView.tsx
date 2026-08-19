@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { Clock, FileText, Users, Plus } from 'lucide-react';
 import { LessonSessionItem } from '../types/schedules.types';
+import { formatArabicTime12H } from '../utils/time.utils';
 
 interface MonthlyCalendarViewProps {
   currentDate: Date;
@@ -173,7 +174,9 @@ export function MonthlyCalendarView({
                       className={`px-2 py-1 rounded-lg border text-[10px] font-extrabold truncate cursor-pointer transition-all hover:scale-[1.02] shadow-2xs ${theme}`}
                       title={`${session.topic} (${session.startTime || ''})`}
                     >
-                      <span className="opacity-75 mr-1 font-semibold">{session.startTime || ''}</span>
+                      <span className="opacity-75 mr-1 font-semibold">
+                        {formatArabicTime12H(session.startTime)}
+                      </span>
                       <span>{session.topic || 'حصة'}</span>
                     </div>
                   );

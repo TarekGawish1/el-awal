@@ -3,6 +3,7 @@
 import React, { useMemo } from 'react';
 import { Clock, Users, FileText, Plus } from 'lucide-react';
 import { LessonSessionItem } from '../types/schedules.types';
+import { formatArabicTimeRange12H, parseTimeToMinutes } from '../utils/time.utils';
 
 interface WeeklyCalendarViewProps {
   currentDate: Date;
@@ -57,19 +58,6 @@ const PASTEL_THEMES = [
     iconColor: 'text-indigo-700',
   },
 ];
-
-function parseTimeToMinutes(timeStr?: string | null): number | null {
-  if (!timeStr) return null;
-  const clean = timeStr.trim();
-  const match = clean.match(/(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?/);
-  if (!match) return null;
-  let h = parseInt(match[1], 10);
-  const m = parseInt(match[2], 10);
-  const meridian = match[3]?.toUpperCase();
-  if (meridian === 'PM' && h < 12) h += 12;
-  if (meridian === 'AM' && h === 12) h = 0;
-  return h * 60 + m;
-}
 
 export function WeeklyCalendarView({
   currentDate,
@@ -261,12 +249,11 @@ export function WeeklyCalendarView({
                             {session.topic || 'حصة بدون عنوان'}
                           </h4>
 
-                          {/* Time range */}
+                          {/* Time range (12-hour Arabic) */}
                           <div className="flex items-center gap-1 text-[10px] font-bold opacity-90">
                             <Clock className={`w-3 h-3 ${theme.iconColor} shrink-0`} />
                             <span className="truncate">
-                              {session.startTime || '16:00'}
-                              {session.endTime ? ` - ${session.endTime}` : ''}
+                              {formatArabicTimeRange12H(session.startTime || '16:00', session.endTime)}
                             </span>
                           </div>
 

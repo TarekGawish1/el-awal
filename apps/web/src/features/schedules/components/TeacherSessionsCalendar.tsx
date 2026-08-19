@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useTeacherSessions } from '../hooks/useSchedules';
 import { LessonSessionItem } from '../types/schedules.types';
+import { formatArabicTimeRange12H } from '../utils/time.utils';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
 
@@ -235,8 +236,7 @@ export function TeacherSessionsCalendar() {
                 <span className="text-xs font-bold text-teal-300 flex items-center gap-1">
                   <Clock className="w-3 h-3" />
                   <span>
-                    {nextUpcomingSession.startTime || '16:00'}
-                    {nextUpcomingSession.endTime ? ` - ${nextUpcomingSession.endTime}` : ''}
+                    {formatArabicTimeRange12H(nextUpcomingSession.startTime || '16:00', nextUpcomingSession.endTime)}
                   </span>
                 </span>
               </div>

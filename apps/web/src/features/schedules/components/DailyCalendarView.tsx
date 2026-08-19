@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { Clock, Users, FileText, QrCode, Sparkles, BookOpen, UploadCloud } from 'lucide-react';
 import { LessonSessionItem } from '../types/schedules.types';
+import { formatArabicTime12H, formatArabicTimeRange12H } from '../utils/time.utils';
 import { Button } from '@/components/ui/Button';
 
 interface DailyCalendarViewProps {
@@ -13,21 +14,21 @@ interface DailyCalendarViewProps {
 }
 
 const HOURS = [
-  { hour24: 8, label: '08:00 AM' },
-  { hour24: 9, label: '09:00 AM' },
-  { hour24: 10, label: '10:00 AM' },
-  { hour24: 11, label: '11:00 AM' },
-  { hour24: 12, label: '12:00 PM' },
-  { hour24: 13, label: '01:00 PM' },
-  { hour24: 14, label: '02:00 PM' },
-  { hour24: 15, label: '03:00 PM' },
-  { hour24: 16, label: '04:00 PM' },
-  { hour24: 17, label: '05:00 PM' },
-  { hour24: 18, label: '06:00 PM' },
-  { hour24: 19, label: '07:00 PM' },
-  { hour24: 20, label: '08:00 PM' },
-  { hour24: 21, label: '09:00 PM' },
-  { hour24: 22, label: '10:00 PM' },
+  { hour24: 8, label: '08:00 ص' },
+  { hour24: 9, label: '09:00 ص' },
+  { hour24: 10, label: '10:00 ص' },
+  { hour24: 11, label: '11:00 ص' },
+  { hour24: 12, label: '12:00 م' },
+  { hour24: 13, label: '01:00 م' },
+  { hour24: 14, label: '02:00 م' },
+  { hour24: 15, label: '03:00 م' },
+  { hour24: 16, label: '04:00 م' },
+  { hour24: 17, label: '05:00 م' },
+  { hour24: 18, label: '06:00 م' },
+  { hour24: 19, label: '07:00 م' },
+  { hour24: 20, label: '08:00 م' },
+  { hour24: 21, label: '09:00 م' },
+  { hour24: 22, label: '10:00 م' },
 ];
 
 export function DailyCalendarView({
@@ -140,8 +141,7 @@ export function DailyCalendarView({
                           <span className="flex items-center gap-1">
                             <Clock className="w-3.5 h-3.5 text-primary-600" />
                             <span>
-                              {session.startTime || hour.label}
-                              {session.endTime ? ` - ${session.endTime}` : ''}
+                              {formatArabicTimeRange12H(session.startTime, session.endTime) || hour.label}
                             </span>
                           </span>
 

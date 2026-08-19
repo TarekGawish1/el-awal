@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { LessonSessionItem } from '../types/schedules.types';
 import { useDeleteSession } from '../hooks/useSchedules';
+import { formatArabicTime12H } from '../utils/time.utils';
 import { VideoPlayerModal } from '@/features/content/components/VideoPlayerModal';
 import { Button } from '@/components/ui/Button';
 import toast from 'react-hot-toast';
@@ -138,7 +139,8 @@ export function SessionDetailsModal({
                 <span>{formatArabicFullDate(session.sessionDate)}</span>
                 {session.startTime && (
                   <span className="text-slate-700 font-bold">
-                    • من {session.startTime} {session.endTime ? `إلى ${session.endTime}` : ''}
+                    • من {formatArabicTime12H(session.startTime)}{' '}
+                    {session.endTime ? `إلى ${formatArabicTime12H(session.endTime)}` : ''}
                   </span>
                 )}
               </p>
