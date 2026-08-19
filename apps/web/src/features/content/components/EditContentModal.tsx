@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { ContentType, EducationalContent } from '../types/content.types';
 import { useUpdateContent, useGroupSessions } from '../hooks/use-content';
+import { useSessionTopics } from '@/features/schedules/hooks/useSchedules';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
 import { Button } from '@/components/ui/Button';
@@ -45,23 +46,6 @@ const ALL_GRADE_LEVELS = [
   { value: 'الصف الرابع الابتدائي', label: 'الصف الرابع الابتدائي' },
   { value: 'الصف الخامس الابتدائي', label: 'الصف الخامس الابتدائي' },
   { value: 'الصف السادس الابتدائي', label: 'الصف السادس الابتدائي' },
-];
-
-export const STANDARD_LESSONS = [
-  'الحصة 1: المحاضرة التأسيسية وتمهيد المنهج',
-  'الحصة 2: شرح الوحدة الأولى (الدرس الأول)',
-  'الحصة 3: شرح الوحدة الأولى (الدرس الثاني)',
-  'الحصة 4: تدريبات وحل تمارين الوحدة الأولى',
-  'الحصة 5: اختبار وتقييم الوحدة الأولى',
-  'الحصة 6: شرح الوحدة الثانية (الدرس الأول)',
-  'الحصة 7: شرح الوحدة الثانية (الدرس الثاني)',
-  'الحصة 8: تدريبات وتطبيقات الوحدة الثانية',
-  'الحصة 9: مراجعة منتصف الفصل الدراسي (ميدتيرم)',
-  'الحصة 10: شرح الوحدة الثالثة (الدرس الأول)',
-  'الحصة 11: شرح الوحدة الثالثة (الدرس الثاني)',
-  'الحصة 12: تدريبات وحل بنك الأسئلة الشامل',
-  'مذكرة المراجعة النهائية ونماذج الامتحانات',
-  'حل تدريبات كتاب الوزارة والنماذج الاسترشادية',
 ];
 
 const editSchema = z.object({
@@ -146,6 +130,7 @@ export function EditContentModal({ isOpen, content, onClose }: EditContentModalP
       : groups.find((g) => g.gradeLevel === selectedGradeLevel)?.id;
 
   const { data: groupSessions = [], isLoading: isLoadingSessions } = useGroupSessions(effectiveGroupId);
+  const { data: dbTopics = [] } = useSessionTopics(selectedGradeLevel, effectiveGroupId);
 
   // Replacement file category
   const replacementCategory = useMemo<'image' | 'video' | 'audio' | 'pdf' | 'other'>(() => {
@@ -193,7 +178,13 @@ export function EditContentModal({ isOpen, content, onClose }: EditContentModalP
       return;
     }
 
-    // Standard lesson option
+    if (val.startsWith('TOPIC_')) {
+      const t = val.replace('TOPIC_', '');
+      setValue('sessionId', '');
+      setValue('sessionTopic', t);
+      return;
+    }
+
     setValue('sessionId', '');
     setValue('sessionTopic', val);
   };
@@ -451,8 +442,8 @@ export function EditContentModal({ isOpen, content, onClose }: EditContentModalP
                     value={
                       selectedSessionId
                         ? `SESSION_${selectedSessionId}`
-                        : STANDARD_LESSONS.includes(sessionTopicValue || '')
-                        ? sessionTopicValue
+                        : sessionTopicValue && dbTopics.includes(sessionTopicValue)
+                        ? `TOPIC_${sessionTopicValue}`
                         : sessionTopicValue
                         ? '__CUSTOM__'
                         : ''
@@ -462,22 +453,24 @@ export function EditContentModal({ isOpen, content, onClose }: EditContentModalP
                     <option value="">-- بدون ربط بحصة محددة (مرفق عام للمنهج) --</option>
 
                     {groupSessions.length > 0 && (
-                      <optgroup label="حصص المجموعة المجدولة">
+                      <optgroup label="حصص المجموعة المجدولة في قاعدة البيانات">
                         {groupSessions.map((session) => (
                           <option key={session.id} value={`SESSION_${session.id}`}>
-                            {session.topic || 'حصة بدون عنوان'} ({session.sessionDate})
+                            {session.topic || 'حصة بدون عنوان'} ({session.sessionDate.includes('T') ? session.sessionDate.split('T')[0] : session.sessionDate}{session.startTime ? ` • ${session.startTime}` : ''})
                           </option>
                         ))}
                       </optgroup>
                     )}
 
-                    <optgroup label="قائمة الدروس والمحاضرات المقترحة">
-                      {STANDARD_LESSONS.map((lesson) => (
-                        <option key={lesson} value={lesson}>
-                          {lesson}
-                        </option>
-                      ))}
-                    </optgroup>
+                    {dbTopics.length > 0 && (
+                      <optgroup label="عناوين وموضوعات الحصص المسجلة بقاعدة البيانات">
+                        {dbTopics.map((topic) => (
+                          <option key={topic} value={`TOPIC_${topic}`}>
+                            {topic}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
 
                     <option value="__CUSTOM__">+ كتابة موضوع درس مخصص يدوياً...</option>
                   </select>

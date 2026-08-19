@@ -8,6 +8,8 @@ import {
 import { PrismaService } from '../../../core/database/prisma.service';
 import { CreateScheduleDto } from '../dto/create-schedule.dto';
 import { GenerateSessionsDto } from '../dto/generate-sessions.dto';
+import { CreateSessionDto } from '../dto/create-session.dto';
+import { UpdateSessionDto } from '../dto/update-session.dto';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { UserRole, GroupEnrollmentStatus } from '@prisma/client';
 
@@ -221,11 +223,254 @@ export class SchedulesService {
       where: { groupId },
       orderBy: [{ sessionDate: 'desc' }, { startTime: 'desc' }],
       include: {
+        group: { select: { id: true, name: true, gradeLevel: true, academicYear: true, academicTerm: true } },
         _count: {
-          select: { attendanceRecords: true },
+          select: { attendanceRecords: true, educationalContents: true },
         },
       },
     });
+  }
+
+  /**
+   * Retrieves teacher's physical lesson sessions with comprehensive filtering (timeline, calendar, past, upcoming).
+   */
+  async getTeacherSessions(
+    user: AuthenticatedUser,
+    params?: {
+      groupId?: string;
+      gradeLevel?: string;
+      academicYear?: string;
+      academicTerm?: string;
+      startDate?: string;
+      endDate?: string;
+      timeframe?: 'PAST' | 'TODAY' | 'UPCOMING' | 'ALL';
+      search?: string;
+    },
+  ) {
+    const teacherId = user.teacherProfileId || user.id;
+    const {
+      groupId,
+      gradeLevel,
+      academicYear,
+      academicTerm,
+      startDate,
+      endDate,
+      timeframe = 'ALL',
+      search,
+    } = params || {};
+
+    const where: any = {
+      group: {
+        OR: [{ teacherId }, { teacher: { id: teacherId } }],
+      },
+    };
+
+    if (groupId && groupId !== 'ALL') {
+      where.groupId = groupId;
+    }
+    if (gradeLevel && gradeLevel !== 'ALL') {
+      where.group.gradeLevel = gradeLevel;
+    }
+    if (academicYear && academicYear !== 'ALL') {
+      where.group.academicYear = academicYear;
+    }
+    if (academicTerm && academicTerm !== 'ALL') {
+      where.group.academicTerm = academicTerm;
+    }
+    if (search && search.trim()) {
+      where.OR = [
+        { topic: { contains: search.trim(), mode: 'insensitive' } },
+        { group: { name: { contains: search.trim(), mode: 'insensitive' } } },
+      ];
+    }
+
+    const today = new Date();
+    const todayDate = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+
+    if (timeframe === 'TODAY') {
+      where.sessionDate = todayDate;
+    } else if (timeframe === 'PAST') {
+      where.sessionDate = { lt: todayDate };
+    } else if (timeframe === 'UPCOMING') {
+      where.sessionDate = { gte: todayDate };
+    } else if (startDate || endDate) {
+      where.sessionDate = {};
+      if (startDate) where.sessionDate.gte = new Date(startDate);
+      if (endDate) where.sessionDate.lte = new Date(endDate);
+    }
+
+    const orderBy =
+      timeframe === 'PAST'
+        ? [{ sessionDate: 'desc' as const }, { startTime: 'desc' as const }]
+        : [{ sessionDate: 'asc' as const }, { startTime: 'asc' as const }];
+
+    return this.prisma.lessonSession.findMany({
+      where,
+      orderBy,
+      include: {
+        group: {
+          select: {
+            id: true,
+            name: true,
+            gradeLevel: true,
+            academicYear: true,
+            academicTerm: true,
+          },
+        },
+        _count: {
+          select: {
+            attendanceRecords: true,
+            educationalContents: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Creates or updates a physical LessonSession for an academic group.
+   */
+  async createSingleSession(dto: CreateSessionDto, user: AuthenticatedUser) {
+    await this.assertGroupAccess(dto.groupId, user, true);
+
+    const sessionDateOnly = new Date(
+      dto.sessionDate.includes('T') ? dto.sessionDate.split('T')[0] : dto.sessionDate,
+    );
+
+    const existing = await this.prisma.lessonSession.findFirst({
+      where: {
+        groupId: dto.groupId,
+        sessionDate: sessionDateOnly,
+        startTime: dto.startTime || null,
+      },
+    });
+
+    if (existing) {
+      return this.prisma.lessonSession.update({
+        where: { id: existing.id },
+        data: {
+          topic: dto.topic,
+          scheduleId: dto.scheduleId || existing.scheduleId,
+        },
+        include: {
+          group: { select: { id: true, name: true, gradeLevel: true, academicYear: true, academicTerm: true } },
+          _count: { select: { attendanceRecords: true, educationalContents: true } },
+        },
+      });
+    }
+
+    return this.prisma.lessonSession.create({
+      data: {
+        groupId: dto.groupId,
+        sessionDate: sessionDateOnly,
+        startTime: dto.startTime || null,
+        topic: dto.topic,
+        scheduleId: dto.scheduleId || null,
+      },
+      include: {
+        group: { select: { id: true, name: true, gradeLevel: true, academicYear: true, academicTerm: true } },
+        _count: { select: { attendanceRecords: true, educationalContents: true } },
+      },
+    });
+  }
+
+  /**
+   * Updates an existing physical lesson session.
+   */
+  async updateSession(sessionId: string, dto: UpdateSessionDto, user: AuthenticatedUser) {
+    const session = await this.prisma.lessonSession.findUnique({
+      where: { id: sessionId },
+      include: { group: true },
+    });
+
+    if (!session) {
+      throw new NotFoundException(`Lesson session [${sessionId}] not found`);
+    }
+
+    await this.assertGroupAccess(session.groupId, user, true);
+
+    if (dto.groupId && dto.groupId !== session.groupId) {
+      await this.assertGroupAccess(dto.groupId, user, true);
+    }
+
+    const sessionDateOnly = dto.sessionDate
+      ? new Date(dto.sessionDate.includes('T') ? dto.sessionDate.split('T')[0] : dto.sessionDate)
+      : session.sessionDate;
+
+    return this.prisma.lessonSession.update({
+      where: { id: sessionId },
+      data: {
+        topic: dto.topic !== undefined ? dto.topic : session.topic,
+        sessionDate: sessionDateOnly,
+        startTime: dto.startTime !== undefined ? dto.startTime : session.startTime,
+        groupId: dto.groupId || session.groupId,
+      },
+      include: {
+        group: { select: { id: true, name: true, gradeLevel: true, academicYear: true, academicTerm: true } },
+        _count: { select: { attendanceRecords: true, educationalContents: true } },
+      },
+    });
+  }
+
+  /**
+   * Deletes a physical lesson session.
+   */
+  async deleteSession(sessionId: string, user: AuthenticatedUser) {
+    const session = await this.prisma.lessonSession.findUnique({
+      where: { id: sessionId },
+      include: { group: true },
+    });
+
+    if (!session) {
+      throw new NotFoundException(`Lesson session [${sessionId}] not found`);
+    }
+
+    await this.assertGroupAccess(session.groupId, user, true);
+
+    return this.prisma.lessonSession.delete({
+      where: { id: sessionId },
+    });
+  }
+
+  /**
+   * Returns distinct session topics stored in the database for the teacher.
+   */
+  async getTeacherSessionTopics(user: AuthenticatedUser, gradeLevel?: string, groupId?: string) {
+    const teacherId = user.teacherProfileId || user.id;
+
+    const where: any = {
+      group: {
+        OR: [{ teacherId }, { teacher: { id: teacherId } }],
+      },
+      topic: { not: null },
+    };
+
+    if (groupId && groupId !== 'ALL') where.groupId = groupId;
+    if (gradeLevel && gradeLevel !== 'ALL') where.group.gradeLevel = gradeLevel;
+
+    const sessions = await this.prisma.lessonSession.findMany({
+      where,
+      select: { topic: true },
+      distinct: ['topic'],
+      orderBy: { topic: 'asc' },
+    });
+
+    const contentTopics = await this.prisma.educationalContent.findMany({
+      where: {
+        teacherId,
+        sessionTopic: { not: null },
+        ...(gradeLevel && gradeLevel !== 'ALL' ? { gradeLevel } : {}),
+        ...(groupId && groupId !== 'ALL' ? { groupId } : {}),
+      },
+      select: { sessionTopic: true },
+      distinct: ['sessionTopic'],
+    });
+
+    const set = new Set<string>();
+    sessions.forEach((s) => s.topic && set.add(s.topic.trim()));
+    contentTopics.forEach((c) => c.sessionTopic && set.add(c.sessionTopic.trim()));
+
+    return Array.from(set).filter(Boolean);
   }
 
   /**
@@ -298,7 +543,7 @@ export class SchedulesService {
             },
             include: {
               group: { select: { id: true, name: true, gradeLevel: true } },
-              _count: { select: { attendanceRecords: true } }
+              _count: { select: { attendanceRecords: true, educationalContents: true } }
             }
           });
 
@@ -316,7 +561,7 @@ export class SchedulesService {
               },
               include: {
                 group: { select: { id: true, name: true, gradeLevel: true } },
-                _count: { select: { attendanceRecords: true } }
+                _count: { select: { attendanceRecords: true, educationalContents: true } }
               }
             });
           }

@@ -57,9 +57,10 @@ export default function DashboardLayout({
 
   const teacherNavigationItems = [
     { label: 'لوحة التحكم', href: '/teacher/dashboard', icon: LayoutDashboard },
-    { label: 'المجموعات الدراسية', href: '/teacher/groups', icon: Calendar },
+    { label: 'المجموعات الدراسية', href: '/teacher/groups', icon: Users },
+    { label: 'جدول وحصص المعلم', href: '/teacher/schedules', icon: Calendar },
     { label: 'رصد الحضور والـ QR', href: '/teacher/attendance', icon: QrCode },
-    { label: 'سجل الطلاب', href: '/teacher/students', icon: Users },
+    { label: 'سجل الطلاب', href: '/teacher/students', icon: GraduationCap },
     { label: 'الواجبات والاختبارات', href: '/teacher/assessments', icon: FileText },
     { label: 'المحتوى والدروس', href: '/teacher/content', icon: BookOpen },
     { label: 'الماليات والمصروفات', href: '/teacher/finance', icon: DollarSign },
