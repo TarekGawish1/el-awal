@@ -56,11 +56,13 @@ export function getDefaultAcademicTerm(): string {
 export function useStoredAcademicPeriod(groups?: Group[]) {
   const queryClient = useQueryClient();
 
-  // 1. Fetch persistent preference directly from database
+  // 1. Fetch persistent preference directly from database with automatic periodic background synchronization & focus refetch
   const { data: dbPeriod, isLoading: isLoadingDb } = useQuery({
     queryKey: ['teacher', 'academic-period'],
     queryFn: fetchAcademicPeriod,
-    staleTime: 10 * 60 * 1000,
+    staleTime: 5000,
+    refetchInterval: 15000, // Background polling every 15s so all assistants & teachers stay automatically updated
+    refetchOnWindowFocus: true, // Immediately syncs whenever the user focuses the browser tab
     retry: 1,
   });
 
@@ -98,18 +100,25 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
     mutationFn: updateAcademicPeriodInDb,
     onSuccess: (data) => {
       queryClient.setQueryData(['teacher', 'academic-period'], data);
-      queryClient.invalidateQueries({ queryKey: ['teacher', 'dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['teacher', 'groups'] });
+      queryClient.invalidateQueries({ queryKey: ['teacher'] });
+      queryClient.invalidateQueries({ queryKey: ['groups'] });
+      queryClient.invalidateQueries({ queryKey: ['schedules'] });
+      queryClient.invalidateQueries({ queryKey: ['content'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance'] });
+      queryClient.invalidateQueries({ queryKey: ['assessments'] });
+      queryClient.invalidateQueries({ queryKey: ['finance'] });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
     },
   });
 
-  // When database data arrives, synchronize state and local storage cache with database values
+  // When database data arrives or updates from background sync, prioritize database over local cache
   useEffect(() => {
     if (dbPeriod?.activeAcademicYear) {
       setSelectedYearsState([dbPeriod.activeAcademicYear]);
       if (typeof window !== 'undefined') {
         try {
           localStorage.setItem(STORAGE_YEAR_KEY, JSON.stringify([dbPeriod.activeAcademicYear]));
+          window.dispatchEvent(new Event('el_awal_academic_period_changed'));
         } catch {}
       }
     }
@@ -118,6 +127,7 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
       if (typeof window !== 'undefined') {
         try {
           localStorage.setItem(STORAGE_TERM_KEY, JSON.stringify([dbPeriod.activeAcademicTerm]));
+          window.dispatchEvent(new Event('el_awal_academic_period_changed'));
         } catch {}
       }
     }
@@ -197,8 +207,8 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
     }
   };
 
-  const activeYear = selectedYears[0] || dbPeriod?.activeAcademicYear || DEFAULT_ACADEMIC_YEAR;
-  const activeTerm = selectedTerms[0] || dbPeriod?.activeAcademicTerm || DEFAULT_ACADEMIC_TERM;
+  const activeYear = dbPeriod?.activeAcademicYear || selectedYears[0] || DEFAULT_ACADEMIC_YEAR;
+  const activeTerm = dbPeriod?.activeAcademicTerm || selectedTerms[0] || DEFAULT_ACADEMIC_TERM;
 
   return {
     selectedYears,

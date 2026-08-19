@@ -37,6 +37,18 @@ export class GroupsService {
    * Creates a new physical academic group assigned to the authenticated teacher.
    */
   async createGroup(teacherId: string, dto: CreateGroupDto) {
+    const teacherProfile = await this.prisma.teacherProfile.findUnique({
+      where: { id: teacherId },
+    });
+
+    let effectiveTeacherId = teacherId;
+    if (!teacherProfile) {
+      const primaryTeacher = await this.prisma.teacherProfile.findFirst();
+      if (primaryTeacher) {
+        effectiveTeacherId = primaryTeacher.id;
+      }
+    }
+
     return this.prisma.academicGroup.create({
       data: {
         name: dto.name,
@@ -46,7 +58,7 @@ export class GroupsService {
         description: dto.description,
         maxCapacity: dto.maxCapacity || 50,
         monthlyFee: dto.monthlyFee || 0.0,
-        teacherId,
+        teacherId: effectiveTeacherId,
         schedules: dto.schedules?.length ? {
           create: dto.schedules.map(s => ({
             dayOfWeek: s.dayOfWeek,
@@ -64,7 +76,19 @@ export class GroupsService {
    * Lists all active groups managed by a specific teacher.
    */
   async getTeacherGroups(teacherId: string, academicYear?: string, academicTerm?: string) {
-    const where: any = { teacherId, isActive: true };
+    const teacherProfile = await this.prisma.teacherProfile.findUnique({
+      where: { id: teacherId },
+    });
+
+    let effectiveTeacherId = teacherId;
+    if (!teacherProfile) {
+      const primaryTeacher = await this.prisma.teacherProfile.findFirst();
+      if (primaryTeacher) {
+        effectiveTeacherId = primaryTeacher.id;
+      }
+    }
+
+    const where: any = { teacherId: effectiveTeacherId, isActive: true };
     if (academicYear) where.academicYear = academicYear;
     if (academicTerm) where.academicTerm = academicTerm;
 
