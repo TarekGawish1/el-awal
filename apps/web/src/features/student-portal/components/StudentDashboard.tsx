@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
-import { useStudentProfile, useStudentCourses, useStudentAssessments, useStudentAttendance } from '../hooks/useStudentPortal';
+import { useStudentProfile, useStudentCourses, useStudentAssessments, useStudentAttendance, useGroupSessions } from '../hooks/useStudentPortal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { BookOpen, FileText, QrCode, TrendingUp, Calendar, AlertTriangle } from 'lucide-react';
+import { BookOpen, FileText, QrCode, TrendingUp, Calendar, AlertTriangle, Clock } from 'lucide-react';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
 import Link from 'next/link';
@@ -14,11 +14,68 @@ export function StudentDashboard() {
   const { data: assessments, isLoading: isAssessmentsLoading } = useStudentAssessments();
   const { data: attendance, isLoading: isAttendanceLoading } = useStudentAttendance();
 
+  const enrolledGroups = profile?.groupEnrollments || [];
+  const primaryGroupId = enrolledGroups[0]?.group?.id;
+
+  const { data: sessions } = useGroupSessions(primaryGroupId);
+
+  const nextSession = React.useMemo(() => {
+    if (!sessions) return null;
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    
+    const upcoming = sessions
+      .filter((session: any) => {
+        const sessionDateStr = session.sessionDate.split('T')[0];
+        return sessionDateStr >= todayStr;
+      })
+      .sort((a: any, b: any) => {
+        const dateA = new Date(a.sessionDate);
+        const dateB = new Date(b.sessionDate);
+        if (dateA.getTime() !== dateB.getTime()) {
+          return dateA.getTime() - dateB.getTime();
+        }
+        return (a.startTime || '').localeCompare(b.startTime || '');
+      });
+      
+    return upcoming[0] || null;
+  }, [sessions]);
+
+  const formatSessionDateTime = (sessionDateStr: string, startTime: string) => {
+    if (!sessionDateStr) return '';
+    const date = new Date(sessionDateStr);
+    
+    const days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+    const dayName = days[date.getDay()];
+    
+    const months = [
+      'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+      'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+    ];
+    const monthName = months[date.getMonth()];
+    
+    const day = date.getDate();
+    
+    let timeStr = startTime || '';
+    if (startTime) {
+      const parts = startTime.split(':');
+      if (parts.length >= 2) {
+        let hour = parseInt(parts[0], 10);
+        const minute = parts[1];
+        const ampm = hour >= 12 ? 'مساءً' : 'صباحاً';
+        hour = hour % 12;
+        hour = hour ? hour : 12;
+        timeStr = `الساعة ${hour}:${minute} ${ampm}`;
+      }
+    }
+    
+    return `${dayName}، ${day} ${monthName} - ${timeStr}`;
+  };
+
   if (isProfileLoading) {
     return <div className="space-y-4"><Skeleton className="h-40 w-full" /><Skeleton className="h-64 w-full" /></div>;
   }
 
-  const enrolledGroups = profile?.groupEnrollments || [];
   const studentName = profile?.user?.fullName || 'طالب';
 
   return (
@@ -49,6 +106,46 @@ export function StudentDashboard() {
           <Link href="/student/attendance" className="absolute inset-0" />
         </div>
       </div>
+
+      {/* Next Session Details Card */}
+      {nextSession && (
+        <Card className="border-none bg-gradient-to-r from-amber-500/10 to-orange-500/5 border border-amber-500/20 shadow-xs rounded-2xl overflow-hidden hover:shadow-md transition-shadow">
+          <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-amber-500 text-white rounded-xl shadow-sm">
+                <Clock className="w-6 h-6 animate-pulse" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant="outline" className="bg-amber-100/80 border-amber-200 text-amber-900 text-xs font-extrabold shadow-none">
+                    موعد الحصة القادمة
+                  </Badge>
+                  {nextSession.topic && (
+                    <span className="text-xs font-medium text-slate-500">
+                      | {nextSession.topic}
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-base font-bold text-slate-800">
+                  {formatSessionDateTime(nextSession.sessionDate, nextSession.startTime)}
+                </h3>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              {nextSession.schedule?.location ? (
+                <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200/50">
+                  📍 {nextSession.schedule.location}
+                </span>
+              ) : (
+                <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200/50">
+                  📍 مقر السنتر
+                </span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-none shadow-sm shadow-slate-200/50 hover:shadow-md transition-shadow">
