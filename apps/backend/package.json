@@ -5,7 +5,7 @@
   "scripts": {
     "postinstall": "prisma generate",
     "prebuild": "node -e \"try { require('fs').rmSync('dist', { recursive: true, force: true }); } catch (e) {}\"",
-    "build": "nest build",
+    "build": "npx nest build",
     "heroku-postbuild": "prisma generate && npm run build",
     "format": "prettier --write \"src/**/*.ts\"",
     "start": "nest start",
