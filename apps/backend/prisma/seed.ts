@@ -22,7 +22,7 @@ import {
   CourseAccessStatus,
   ContentType,
 } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 
 const connectionUrl = process.env.DATABASE_URL || process.env.DIRECT_URL;
 const prisma = new PrismaClient({
