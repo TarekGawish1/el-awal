@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Put,
   Body,
   Query,
   Param,
@@ -17,6 +18,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '
 import { ContentService } from '../services/content.service';
 import { PresignedUploadDto } from '../dto/presigned-upload.dto';
 import { CreateContentDto } from '../dto/create-content.dto';
+import { UpdateContentDto } from '../dto/update-content.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
 import {
   CurrentUser,
@@ -113,6 +115,43 @@ export class ContentController {
         contentType,
         includeGradeScope: includeGradeScope === 'true' || includeGradeScope === '1',
       },
+    );
+  }
+
+  @Put(':id')
+  @UseInterceptors(FileInterceptor('file'))
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiConsumes('multipart/form-data', 'application/json')
+  @ApiOperation({ summary: 'Update educational content metadata and optionally replace the file' })
+  @ApiResponse({ status: 200, description: 'Content successfully updated' })
+  async updateContent(
+    @Param('id') id: string,
+    @Body() body: any,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const dto: UpdateContentDto = {
+      title: body.title,
+      description: body.description,
+      contentType: body.contentType as ContentType,
+      gradeLevel: body.gradeLevel,
+      academicYear: body.academicYear,
+      academicTerm: body.academicTerm,
+      groupId: body.groupId,
+      sessionId: body.sessionId,
+      sessionTopic: body.sessionTopic,
+      lessonId: body.lessonId,
+      fileKey: body.fileKey,
+      fileUrl: body.fileUrl,
+      fileSize: body.fileSize ? Number(body.fileSize) : undefined,
+      mimeType: body.mimeType,
+    };
+
+    return this.contentService.updateContent(
+      id,
+      user.teacherProfileId || user.id,
+      dto,
+      file,
     );
   }
 

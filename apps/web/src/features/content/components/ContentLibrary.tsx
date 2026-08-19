@@ -8,6 +8,7 @@ import {
   FileText,
   FileDown,
   Trash2,
+  Edit2,
   Video,
   AlertCircle,
   Calendar,
@@ -24,6 +25,7 @@ import { useContent, useDeleteContent } from '../hooks/use-content';
 import { ContentType, EducationalContent } from '../types/content.types';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
+import { EditContentModal } from './EditContentModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
@@ -70,6 +72,7 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
   const [selectedTerm, setSelectedTerm] = useState<string>('ALL');
   const [selectedGrade, setSelectedGrade] = useState<string>('ALL');
   const [selectedType, setSelectedType] = useState<string>('ALL');
+  const [editingContent, setEditingContent] = useState<EducationalContent | null>(null);
 
   const { data: groups = [] } = useGroups();
   const { activeYear } = useStoredAcademicPeriod(groups as any);
@@ -431,6 +434,13 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
                   فتح وتحميل المرفق
                 </a>
                 <button
+                  onClick={() => setEditingContent(content)}
+                  className="w-9 h-9 flex items-center justify-center text-slate-500 hover:text-primary-600 hover:bg-primary-50 rounded-xl transition-colors border border-slate-200/80 cursor-pointer"
+                  title="تعديل المرفق"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                <button
                   onClick={() => handleDelete(content.id, content.title)}
                   disabled={isDeleting}
                   className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
@@ -443,6 +453,13 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
           ))}
         </div>
       )}
+
+      {/* Edit Content Modal */}
+      <EditContentModal
+        isOpen={!!editingContent}
+        content={editingContent}
+        onClose={() => setEditingContent(null)}
+      />
     </div>
   );
 }

@@ -9,6 +9,14 @@ import { ContentType } from '../types/content.types';
 vi.mock('../hooks/use-content', () => ({
   useContent: vi.fn(),
   useDeleteContent: vi.fn(),
+  useUpdateContent: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
+  useGroupSessions: () => ({
+    data: [],
+    isLoading: false,
+  }),
 }));
 
 vi.mock('@/features/groups/hooks/useAcademicPeriod', () => ({
@@ -102,7 +110,7 @@ describe('ContentLibrary', () => {
     renderWithProviders(<ContentLibrary onUploadClick={vi.fn()} />);
     expect(screen.getByText('ملخص الدرس الأول')).toBeInTheDocument();
     expect(screen.getByText('الحصة 1: النحو')).toBeInTheDocument();
-    expect(screen.getByText('الصف الثالث الإعدادي')).toBeInTheDocument();
+    expect(screen.getAllByText('الصف الثالث الإعدادي').length).toBeGreaterThan(0);
   });
 
   it('calls onUploadClick when upload button is clicked', () => {

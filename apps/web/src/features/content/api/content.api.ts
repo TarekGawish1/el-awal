@@ -49,6 +49,25 @@ export async function createContent(payload: CreateContentPayload): Promise<Educ
   });
 }
 
+export async function updateContentDirectly(id: string, formData: FormData): Promise<EducationalContent> {
+  return apiClient<EducationalContent>(`/content/${id}`, {
+    method: 'PUT',
+    body: formData,
+  });
+}
+
+export async function updateContent(id: string, payload: UpdateContentPayload): Promise<EducationalContent> {
+  return apiClient<EducationalContent>(`/content/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchGroupSessions(groupId: string): Promise<GroupSessionOption[]> {
+  if (!groupId) return [];
+  return apiClient<GroupSessionOption[]>(`/schedules/group/${groupId}/sessions`);
+}
+
 export async function deleteContent(id: string): Promise<{ success: boolean }> {
   return apiClient<{ success: boolean }>(`/content/${id}`, {
     method: 'DELETE',
