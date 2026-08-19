@@ -4,6 +4,7 @@ export interface LessonSessionItem {
   scheduleId?: string | null;
   sessionDate: string;
   startTime?: string | null;
+  endTime?: string | null;
   topic?: string | null;
   createdAt: string;
   group?: {
@@ -13,6 +14,17 @@ export interface LessonSessionItem {
     academicYear?: string;
     academicTerm?: string;
   } | null;
+  educationalContents?: Array<{
+    id: string;
+    title: string;
+    description?: string | null;
+    contentType: string;
+    fileUrl: string;
+    fileKey: string;
+    fileSize?: number | null;
+    mimeType?: string | null;
+    createdAt: string;
+  }>;
   _count?: {
     attendanceRecords: number;
     educationalContents: number;

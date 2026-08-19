@@ -224,6 +224,20 @@ export class SchedulesService {
       orderBy: [{ sessionDate: 'desc' }, { startTime: 'desc' }],
       include: {
         group: { select: { id: true, name: true, gradeLevel: true, academicYear: true, academicTerm: true } },
+        educationalContents: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            contentType: true,
+            fileUrl: true,
+            fileKey: true,
+            fileSize: true,
+            mimeType: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        },
         _count: {
           select: { attendanceRecords: true, educationalContents: true },
         },
@@ -316,6 +330,20 @@ export class SchedulesService {
             academicYear: true,
             academicTerm: true,
           },
+        },
+        educationalContents: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            contentType: true,
+            fileUrl: true,
+            fileKey: true,
+            fileSize: true,
+            mimeType: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
         },
         _count: {
           select: {
