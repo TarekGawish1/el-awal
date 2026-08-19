@@ -393,11 +393,6 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
                         <span className="text-[11px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">
                           {getTypeLabel(content.contentType)}
                         </span>
-                        {isVideo && (
-                          <span className="text-[10px] font-bold bg-rose-50 text-rose-600 px-2 py-0.5 rounded-md border border-rose-100">
-                            Bunny Video
-                          </span>
-                        )}
                         <span className="text-xs text-slate-400 font-medium">{formatFileSize(content.fileSize)}</span>
                       </div>
                     </div>
