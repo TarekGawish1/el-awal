@@ -241,17 +241,12 @@ export function WeeklyCalendarView({
                           top: `${topPx + 2}px`,
                           height: `${heightPx - 4}px`,
                         }}
-                        className={`absolute inset-x-1 rounded-2xl border shadow-xs transition-all cursor-pointer hover:scale-[1.02] hover:shadow-lg hover:z-30 p-2.5 flex flex-col justify-between overflow-hidden z-10 ${theme.bg}`}
+                        className={`group/session absolute inset-x-1 rounded-2xl border shadow-xs transition-all cursor-pointer hover:z-50 p-2.5 flex flex-col justify-center overflow-visible z-10 ${theme.bg}`}
                       >
-                        {/* Session Header & Title */}
-                        <div className="space-y-1.5 min-w-0">
-                          {/* Topic title - fully visible without cropping */}
-                          <h4 className="text-xs font-black leading-snug text-slate-900 break-words text-start">
-                            {session.topic || 'حصة بدون عنوان'}
-                          </h4>
-
-                          {/* Time range (12-hour Arabic) - Centered */}
-                          <div className="flex items-center justify-center gap-1.5 text-[10px] font-black text-slate-800 bg-white/90 py-1 px-2 rounded-xl border border-black/5 shadow-2xs my-1 w-full text-center">
+                        {/* DEFAULT MINIMAL VIEW: Centered Time & Grade Level Only */}
+                        <div className="flex flex-col items-center justify-center gap-1.5 w-full text-center group-hover/session:hidden transition-all my-auto">
+                          {/* Centered 12h Arabic Time */}
+                          <div className="flex items-center justify-center gap-1.5 text-[10px] font-black text-slate-800 bg-white/90 py-1 px-2 rounded-xl border border-black/5 shadow-2xs w-full text-center">
                             <Clock className={`w-3.5 h-3.5 ${theme.iconColor} shrink-0`} />
                             <span className="whitespace-nowrap font-black" dir="rtl">
                               {formatArabicTime12H(session.startTime || '16:00')}
@@ -259,35 +254,64 @@ export function WeeklyCalendarView({
                             </span>
                           </div>
 
-                          {/* Group & Grade Level badge - fully visible without cropping */}
-                          {session.group && (
-                            <div
-                              className={`text-[9.5px] font-bold px-2 py-1 rounded-lg inline-block break-words max-w-full leading-normal ${theme.badge}`}
-                            >
-                              <span>{session.group.name}</span>
-                              {session.group.gradeLevel && session.group.name !== session.group.gradeLevel && (
-                                <span className="block text-[8.5px] opacity-80 mt-0.5">
-                                  {session.group.gradeLevel}
-                                </span>
-                              )}
-                            </div>
-                          )}
+                          {/* Grade Level / Group Name */}
+                          <div className={`text-[10px] font-extrabold px-2.5 py-1 rounded-xl text-center break-words max-w-full leading-snug w-full shadow-2xs ${theme.badge}`}>
+                            {session.group?.gradeLevel || session.group?.name || 'حصة دراسية'}
+                            {session.group?.name && session.group?.gradeLevel && session.group.name !== session.group.gradeLevel && (
+                              <span className="block text-[8.5px] opacity-85 mt-0.5 font-bold">
+                                ({session.group.name})
+                              </span>
+                            )}
+                          </div>
                         </div>
 
-                        {/* Session Footer: Attachments & Attendees */}
-                        {heightPx >= 85 && (
-                          <div className="flex items-center justify-between pt-1 border-t border-black/5 text-[10px] font-black opacity-80 mt-auto">
-                            <span className="flex items-center gap-1" title="المرفقات">
-                              <FileText className="w-3 h-3" />
-                              {session.educationalContents?.length || session._count?.educationalContents || 0}
-                            </span>
+                        {/* EXPANDED HOVER VIEW: All details appear in a floating expanded card */}
+                        <div className="hidden group-hover/session:flex flex-col gap-2 w-full p-2.5 bg-white rounded-2xl shadow-2xl border border-slate-200 text-start animate-in fade-in zoom-in-95 duration-150 relative -m-1 z-50">
+                          {/* Topic Title */}
+                          <div className="border-b border-slate-100 pb-1.5">
+                            <span className="text-[9px] font-bold text-primary-600 uppercase tracking-wider block mb-0.5">موضوع الدرس</span>
+                            <h4 className="text-xs font-black text-slate-900 leading-snug break-words">
+                              {session.topic || 'حصة بدون عنوان'}
+                            </h4>
+                          </div>
 
-                            <span className="flex items-center gap-1" title="الطلاب الحاضرين">
-                              <Users className="w-3 h-3" />
-                              {session._count?.attendanceRecords || 0} حاضر
+                          {/* Time badge */}
+                          <div className="flex items-center gap-1.5 text-[10px] font-extrabold text-slate-800 bg-slate-50 py-1 px-2.5 rounded-xl border border-slate-100">
+                            <Clock className={`w-3.5 h-3.5 ${theme.iconColor} shrink-0`} />
+                            <span className="whitespace-nowrap font-black" dir="rtl">
+                              {formatArabicTime12H(session.startTime || '16:00')}
+                              {session.endTime ? ` - ${formatArabicTime12H(session.endTime)}` : ''}
                             </span>
                           </div>
-                        )}
+
+                          {/* Group & Grade details */}
+                          {session.group && (
+                            <div className="text-[10px] font-bold text-slate-700 bg-slate-50 py-1 px-2.5 rounded-xl border border-slate-100 space-y-0.5">
+                              <div>🎓 {session.group.gradeLevel}</div>
+                              <div className="text-[9px] text-slate-500">👥 {session.group.name}</div>
+                            </div>
+                          )}
+
+                          {/* Footer: Attachments & Attendees */}
+                          <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px] font-black text-slate-600">
+                            <span className="flex items-center gap-1 text-amber-700">
+                              <FileText className="w-3.5 h-3.5" />
+                              {session.educationalContents?.length || session._count?.educationalContents || 0} مرفقات
+                            </span>
+
+                            <span className="flex items-center gap-1 text-emerald-700">
+                              <Users className="w-3.5 h-3.5" />
+                              {session._count?.attendanceRecords || 0} حاضرين
+                            </span>
+                          </div>
+
+                          {/* Action hint */}
+                          <div className="text-center pt-0.5">
+                            <span className="text-[9px] font-extrabold text-primary-600 hover:underline">
+                              اضغط لفتح تفاصيل الحصة والمرفقات ←
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     );
                   })}
