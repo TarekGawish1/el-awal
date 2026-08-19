@@ -22,7 +22,7 @@ import toast from 'react-hot-toast';
 
 type Step = 'metadata' | 'questions' | 'review';
 
-export function AssessmentWizard() {
+export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMENT' }) {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState<Step>('metadata');
   
@@ -124,7 +124,7 @@ export function AssessmentWizard() {
     // Scrub empty fields
     const payload: any = {
       ...data,
-      type: 'EXAM',
+      type,
       isPublished,
       questions: payloadQuestions,
     };
@@ -139,11 +139,13 @@ export function AssessmentWizard() {
     // Remove extra properties that the backend ValidationPipe forbids
     delete payload.isAutoGraded;
 
+    const label = type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار';
+
     createAssessment(
       payload,
       {
         onSuccess: (res: any) => {
-          toast.success(isPublished ? 'تم إنشاء ونشر الاختبار بنجاح' : 'تم حفظ الاختبار كمسودة');
+          toast.success(isPublished ? `تم إنشاء ونشر ${label} بنجاح` : `تم حفظ ${label} كمسودة`);
           const id = res?.id || res?.data?.id;
           if (id) {
             router.push(`/teacher/assessments/${id}`);
@@ -152,7 +154,7 @@ export function AssessmentWizard() {
           }
         },
         onError: (err: any) => {
-          toast.error(err?.message || 'حدث خطأ أثناء إنشاء الاختبار');
+          toast.error(err?.message || `حدث خطأ أثناء إنشاء ${label}`);
         }
       }
     );
@@ -214,15 +216,15 @@ export function AssessmentWizard() {
             <div className="p-6 sm:p-8 space-y-6">
               <div>
                 <h2 className="text-xl font-bold text-slate-800 mb-1">المعلومات الأساسية</h2>
-                <p className="text-slate-500 text-sm">أدخل تفاصيل الاختبار مثل العنوان، الوصف، والمدة المحددة.</p>
+                <p className="text-slate-500 text-sm">أدخل تفاصيل {type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار'} مثل العنوان، الوصف، والمدة المحددة.</p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <Label className="mb-2 block">عنوان الاختبار <span className="text-red-500">*</span></Label>
+                  <Label className="mb-2 block">{type === 'ASSIGNMENT' ? 'عنوان الواجب' : 'عنوان الاختبار'} <span className="text-red-500">*</span></Label>
                   <Input 
                     {...methods.register('title')} 
-                    placeholder="مثال: امتحان منتصف الفصل الدراسي الأول"
+                    placeholder={type === 'ASSIGNMENT' ? "مثال: واجب النحو والبلاغة الأول" : "مثال: امتحان منتصف الفصل الدراسي الأول"}
                     className={errors.title ? 'border-red-500' : ''}
                   />
                   {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title.message}</p>}
@@ -279,7 +281,7 @@ export function AssessmentWizard() {
                 {selectedGrade && (
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                     <Label className="mb-3 block font-bold text-slate-800">
-                      المجموعات المستهدفة <span className="text-sm font-normal text-slate-500">(اختر المجموعات التي ستمتحن)</span>
+                      المجموعات المستهدفة <span className="text-sm font-normal text-slate-500">({type === 'ASSIGNMENT' ? 'اختر المجموعات المستهدفة للواجب' : 'اختر المجموعات التي ستمتحن'})</span>
                     </Label>
                     
                     {availableGroups.length > 0 ? (
@@ -335,7 +337,7 @@ export function AssessmentWizard() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <Label className="mb-2 block">موعد بدء الاختبار (اختياري)</Label>
+                    <Label className="mb-2 block">موعد بدء {type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار'} (اختياري)</Label>
                     <DateTimePicker
                       value={formDataValues.startDate}
                       onChange={(val) => {
@@ -345,11 +347,11 @@ export function AssessmentWizard() {
                     />
                   </div>
                   <div>
-                    <Label className="mb-2 block">مدة الاختبار (بالدقائق)</Label>
+                    <Label className="mb-2 block">مدة {type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار'} (بالدقائق)</Label>
                     <Input 
                       type="number"
                       {...methods.register('durationMinutes')} 
-                      placeholder="اتركه فارغاً لاختبار بدون وقت محدد"
+                      placeholder={type === 'ASSIGNMENT' ? "اتركه فارغاً لواجب بدون وقت محدد" : "اتركه فارغاً لاختبار بدون وقت محدد"}
                     />
                   </div>
                 </div>
@@ -370,11 +372,11 @@ export function AssessmentWizard() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <div>
                   <h2 className="text-xl font-bold text-slate-800 mb-1">الأسئلة</h2>
-                  <p className="text-slate-500 text-sm">أضف أسئلة الاختبار وحدد الإجابات الصحيحة والدرجات.</p>
+                  <p className="text-slate-500 text-sm">أضف أسئلة {type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار'} وحدد الإجابات الصحيحة والدرجات.</p>
                 </div>
                 <div className="bg-white border border-slate-200 px-4 py-2 rounded-lg flex items-center gap-3 shadow-sm">
                   <div className="text-sm font-medium text-slate-500">إجمالي درجات الأسئلة:</div>
-                  <div className={`text-lg font-bold ${questionsSum !== (formDataValues.totalScore || 0) ? 'text-amber-500' : 'text-primary'}`} title="الدرجة الكلية المحددة للاختبار">
+                  <div className={`text-lg font-bold ${questionsSum !== (formDataValues.totalScore || 0) ? 'text-amber-500' : 'text-primary'}`} title={type === 'ASSIGNMENT' ? "الدرجة الكلية المحددة للواجب" : "الدرجة الكلية المحددة للاختبار"}>
                     {questionsSum} / {formDataValues.totalScore}
                   </div>
                 </div>
@@ -434,7 +436,7 @@ export function AssessmentWizard() {
             <div className="p-6 sm:p-8 space-y-8">
               <div>
                 <h2 className="text-xl font-bold text-slate-800 mb-1">المراجعة والنشر</h2>
-                <p className="text-slate-500 text-sm">راجع تفاصيل الاختبار قبل حفظه أو نشره للطلاب.</p>
+                <p className="text-slate-500 text-sm">راجع تفاصيل {type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار'} قبل حفظه أو نشره للطلاب.</p>
               </div>
 
               {/* Summary Card */}
@@ -511,7 +513,7 @@ export function AssessmentWizard() {
                     disabled={isPending}
                   >
                     <CheckCircle2 className="w-4 h-4 ml-2" />
-                    نشر الاختبار
+                    نشر {type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار'}
                   </Button>
                 </div>
               </div>

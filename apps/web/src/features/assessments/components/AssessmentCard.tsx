@@ -15,9 +15,14 @@ export function AssessmentCard({ assessment }: AssessmentCardProps) {
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-md transition-shadow duration-200 flex flex-col">
       <div className="p-5 border-b border-slate-100">
         <div className="flex justify-between items-start mb-3">
-          <Badge variant={isPublished ? 'success' : 'warning'} className="mb-2">
-            {isPublished ? 'منشور' : 'مسودة'}
-          </Badge>
+          <div className="flex gap-2 mb-2">
+            <Badge variant={isPublished ? 'success' : 'warning'}>
+              {isPublished ? 'منشور' : 'مسودة'}
+            </Badge>
+            <Badge variant="info">
+              {assessment.type === 'ASSIGNMENT' ? 'واجب' : 'اختبار'}
+            </Badge>
+          </div>
           <div className="text-slate-500 text-sm font-medium bg-slate-50 px-2 py-1 rounded-md">
             {assessment.totalScore} درجة
           </div>

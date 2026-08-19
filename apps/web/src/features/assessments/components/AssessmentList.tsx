@@ -27,12 +27,20 @@ export function AssessmentList() {
           <h1 className="text-2xl font-bold text-slate-800">إدارة الاختبارات والواجبات</h1>
           <p className="text-slate-500 mt-1">قم بإنشاء وإدارة امتحاناتك وتقييم طلابك</p>
         </div>
-        <Link href="/teacher/assessments/new">
-          <Button className="w-full sm:w-auto">
-            <Plus className="w-4 h-4 ml-2" />
-            اختبار جديد
-          </Button>
-        </Link>
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          <Link href="/teacher/assessments/new?type=EXAM" className="w-full sm:w-auto">
+            <Button variant="primary" className="w-full sm:w-auto">
+              <Plus className="w-4 h-4 ml-2" />
+              اختبار جديد
+            </Button>
+          </Link>
+          <Link href="/teacher/assessments/new?type=ASSIGNMENT" className="w-full sm:w-auto">
+            <Button variant="outline" className="w-full sm:w-auto bg-white">
+              <Plus className="w-4 h-4 ml-2" />
+              واجب جديد
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex items-center">
