@@ -1,2 +1,2 @@
-release: npm run prisma:migrate:deploy
+release: npx prisma db push --accept-data-loss
 web: npm run start:prod --workspace=@el-awal/backend
