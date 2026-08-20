@@ -4,7 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../services/auth.service';
 import { PrismaService } from '../../../core/database/prisma.service';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { UserRole } from '@prisma/client';
 
 describe('AuthService', () => {
@@ -16,6 +16,9 @@ describe('AuthService', () => {
     user: {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
+    },
+    studentProfile: {
+      findFirst: jest.fn(),
     },
     refreshTokenSession: {
       create: jest.fn().mockResolvedValue({ id: 'session-1' }),
@@ -108,6 +111,51 @@ describe('AuthService', () => {
         service.login({ identifier: 'teacher@elawal.com', password: 'WrongPassword!' }),
       ).rejects.toThrow(UnauthorizedException);
     });
+
+    it('requires and verifies the generated password for normal parent login', async () => {
+      const plainPassword = 'ParentGenerated9!';
+      const passwordHash = await bcrypt.hash(plainPassword, 10);
+      mockPrismaService.user.findFirst.mockResolvedValue({
+        id: 'parent-user-1',
+        fullName: 'أحمد علي إبراهيم',
+        email: null,
+        phone: '+201099999991',
+        passwordHash,
+        role: UserRole.PARENT,
+        isActive: true,
+        deletedAt: null,
+        parentProfile: { id: 'parent-user-1' },
+      });
+      mockJwtService.signAsync
+        .mockResolvedValueOnce('parent-access-token')
+        .mockResolvedValueOnce('parent-refresh-token');
+
+      const result = await service.login({
+        identifier: '+201099999991',
+        password: plainPassword,
+      });
+
+      expect(result.user.role).toBe(UserRole.PARENT);
+      expect(result.user.parentProfileId).toBe('parent-user-1');
+    });
+
+    it('rejects a normal parent login without a password', async () => {
+      mockPrismaService.user.findFirst.mockResolvedValue({
+        id: 'parent-user-1',
+        fullName: 'أحمد علي إبراهيم',
+        email: null,
+        phone: '+201099999991',
+        passwordHash: '$2b$10$placeholder',
+        role: UserRole.PARENT,
+        isActive: true,
+        deletedAt: null,
+        parentProfile: { id: 'parent-user-1' },
+      });
+
+      await expect(
+        service.login({ identifier: '+201099999991', password: '' }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
   });
 
   describe('refreshToken', () => {
@@ -142,6 +190,54 @@ describe('AuthService', () => {
 
       expect(result.accessToken).toBe('new-access-token');
       expect(result.refreshToken).toBe('new-refresh-token');
+    });
+  });
+
+  describe('parentAccess', () => {
+    it('authenticates the parent linked to a registered student phone', async () => {
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue({
+        parentLinks: [
+          {
+            parent: {
+              user: {
+                id: 'parent-user-1',
+                fullName: 'أحمد محمود',
+                email: 'parent@elawal.com',
+                phone: '+201099999991',
+                role: UserRole.PARENT,
+                isActive: true,
+                deletedAt: null,
+                parentProfile: { id: 'parent-profile-1' },
+              },
+            },
+          },
+        ],
+      });
+      mockJwtService.signAsync
+        .mockResolvedValueOnce('parent-access-token')
+        .mockResolvedValueOnce('parent-refresh-token');
+
+      const result = await service.parentAccess({ studentPhone: '01011111111' });
+
+      expect(result.user.role).toBe(UserRole.PARENT);
+      expect(result.user.parentProfileId).toBe('parent-profile-1');
+      expect(mockPrismaService.studentProfile.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            user: expect.objectContaining({
+              phone: { in: expect.arrayContaining(['01011111111', '+201011111111']) },
+            }),
+          },
+        }),
+      );
+    });
+
+    it('rejects an unregistered student phone', async () => {
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.parentAccess({ studentPhone: '01011111111' }),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 });

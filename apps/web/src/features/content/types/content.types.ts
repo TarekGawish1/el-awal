@@ -45,6 +45,17 @@ export interface PresignedUploadResponse {
   expiresInSeconds: number;
 }
 
+export interface PresignedVideoUploadResponse {
+  videoId: string;
+  libraryId: string;
+  uploadUrl: string;
+  authorizationSignature: string;
+  authorizationExpire: number;
+  accessKey: string;
+  embedUrl: string;
+  playbackUrl: string;
+}
+
 export interface CreateContentPayload {
   title: string;
   description?: string;
@@ -85,4 +96,3 @@ export interface GroupSessionOption {
   sessionDate: string;
   startTime?: string | null;
 }
-

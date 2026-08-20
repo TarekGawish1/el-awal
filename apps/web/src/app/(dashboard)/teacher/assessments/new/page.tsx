@@ -6,15 +6,27 @@ export const metadata: Metadata = {
   description: 'إنشاء اختبار جديد وإضافة الأسئلة',
 };
 
-export default function CreateAssessmentPage() {
+interface PageProps {
+  searchParams: { type?: string };
+}
+
+export default function CreateAssessmentPage({ searchParams }: PageProps) {
+  const isAssignment = searchParams.type === 'ASSIGNMENT';
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">إنشاء اختبار جديد</h1>
-        <p className="text-slate-500 mt-1">اتبع الخطوات لإعداد الاختبار وإضافة الأسئلة وتحديد الدرجات</p>
+        <h1 className="text-2xl font-bold text-slate-800">
+          {isAssignment ? 'إنشاء واجب جديد' : 'إنشاء اختبار جديد'}
+        </h1>
+        <p className="text-slate-500 mt-1">
+          {isAssignment
+            ? 'اتبع الخطوات لإعداد الواجب وإضافة الأسئلة وتحديد الدرجات'
+            : 'اتبع الخطوات لإعداد الاختبار وإضافة الأسئلة وتحديد الدرجات'}
+        </p>
       </div>
       
-      <AssessmentWizard />
+      <AssessmentWizard type={isAssignment ? 'ASSIGNMENT' : 'EXAM'} />
     </div>
   );
 }

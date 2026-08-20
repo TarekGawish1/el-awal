@@ -2,11 +2,12 @@ import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomUUID } from 'crypto';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { LoginDto } from '../dto/login.dto';
+import { ParentAccessDto } from '../dto/parent-access.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
-import { AuthTokensResponseDto, AuthUserDto } from '../dto/auth-response.dto';
+import { AuthTokensResponseDto } from '../dto/auth-response.dto';
 import { UserRole } from '@prisma/client';
 
 export interface JwtTokenPayload {
@@ -16,6 +17,36 @@ export interface JwtTokenPayload {
   role: UserRole;
   typ: 'access' | 'refresh';
   jti?: string;
+}
+
+interface AuthUserRecord {
+  id: string;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  role: UserRole;
+  teacherProfile?: { id: string } | null;
+  studentProfile?: { id: string } | null;
+  parentProfile?: { id: string } | null;
+  secretariatProfile?: { id: string } | null;
+}
+
+function getPhoneVariants(phone: string): string[] {
+  const normalized = phone.replace(/[\s-]/g, '').trim();
+  const nationalNumber = normalized.startsWith('+20')
+    ? normalized.slice(3)
+    : normalized.startsWith('0020')
+      ? normalized.slice(4)
+      : normalized.startsWith('0')
+        ? normalized.slice(1)
+        : normalized;
+
+  return [...new Set([
+    normalized,
+    `0${nationalNumber}`,
+    `+20${nationalNumber}`,
+    `0020${nationalNumber}`,
+  ])];
 }
 
 function parseDurationToMs(duration: string): number {
@@ -70,12 +101,73 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials or account is inactive');
     }
 
+    if (!dto.password) {
+      throw new UnauthorizedException('كلمة المرور مطلوبة');
+    }
+
     const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!isPasswordValid) {
       this.logger.warn(`Authentication failed: Invalid password for user [${dto.identifier}]`);
-      throw new UnauthorizedException('Invalid credentials or account is inactive');
+      throw new UnauthorizedException('بيانات الدخول غير صحيحة أو الحساب غير نشط');
     }
 
+    return this.issueTokens(user);
+  }
+
+  /**
+   * Authenticates through an administration-created student/parent linkage.
+   * The submitted phone identifies the student; the linked parent receives the session.
+   */
+  async parentAccess(dto: ParentAccessDto): Promise<AuthTokensResponseDto> {
+    const student = await this.prisma.studentProfile.findFirst({
+      where: {
+        user: {
+          phone: { in: getPhoneVariants(dto.studentPhone) },
+          isActive: true,
+          deletedAt: null,
+        },
+      },
+      select: {
+        parentLinks: {
+          orderBy: { createdAt: 'asc' },
+          take: 1,
+          select: {
+            parent: {
+              select: {
+                user: {
+                  select: {
+                    id: true,
+                    fullName: true,
+                    email: true,
+                    phone: true,
+                    role: true,
+                    isActive: true,
+                    deletedAt: true,
+                    parentProfile: { select: { id: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const parentUser = student?.parentLinks[0]?.parent.user;
+    if (!parentUser || parentUser.role !== UserRole.PARENT || !parentUser.isActive || parentUser.deletedAt) {
+      this.logger.warn(`Parent access failed for student phone [${dto.studentPhone}]`);
+      throw new UnauthorizedException('رقم الطالب غير مسجل أو لا يوجد ولي أمر مرتبط به');
+    }
+
+    return this.issueTokens(parentUser);
+  }
+
+  /**
+   * Issues a signed access/refresh token pair and persists the refresh session.
+   * Public so the student self-registration flow can auto-authenticate after
+   * a successful account claim.
+   */
+  async issueTokens(user: AuthUserRecord): Promise<AuthTokensResponseDto> {
     const accessSecret = this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
     const refreshSecret = this.configService.getOrThrow<string>('JWT_REFRESH_SECRET');
     const accessExpiry = this.configService.get<string>('JWT_ACCESS_EXPIRES_IN', '15m');
@@ -89,14 +181,13 @@ export class AuthService {
       typ: 'access',
     };
 
-    const refreshJti = randomUUID();
     const refreshPayload: JwtTokenPayload = {
       sub: user.id,
       email: user.email || undefined,
       phone: user.phone || undefined,
       role: user.role,
       typ: 'refresh',
-      jti: refreshJti,
+      jti: randomUUID(),
     };
 
     const [accessToken, refreshToken] = await Promise.all([
@@ -110,37 +201,33 @@ export class AuthService {
       }),
     ]);
 
-    // Track refresh token session in database
     const refreshExpiryMs = parseDurationToMs(refreshExpiry);
-    const expiresAt = new Date(Date.now() + refreshExpiryMs);
     const tokenHash = this.hashToken(refreshToken);
 
     await this.prisma.refreshTokenSession.create({
       data: {
         userId: user.id,
         tokenHash,
-        expiresAt,
+        expiresAt: new Date(Date.now() + refreshExpiryMs),
       },
     });
-
-    const userProfile: AuthUserDto = {
-      id: user.id,
-      fullName: user.fullName,
-      email: user.email || undefined,
-      phone: user.phone || undefined,
-      role: user.role,
-      teacherProfileId: user.teacherProfile?.id,
-      studentProfileId: user.studentProfile?.id,
-      parentProfileId: user.parentProfile?.id,
-      secretariatProfileId: user.secretariatProfile?.id,
-    };
 
     return {
       accessToken,
       refreshToken,
       tokenType: 'Bearer',
       expiresIn: Math.floor(parseDurationToMs(accessExpiry) / 1000),
-      user: userProfile,
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email || undefined,
+        phone: user.phone || undefined,
+        role: user.role,
+        teacherProfileId: user.teacherProfile?.id,
+        studentProfileId: user.studentProfile?.id,
+        parentProfileId: user.parentProfile?.id,
+        secretariatProfileId: user.secretariatProfile?.id,
+      },
     };
   }
 

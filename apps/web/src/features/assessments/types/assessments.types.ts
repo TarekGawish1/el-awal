@@ -26,6 +26,7 @@ export interface AssessmentQuestion {
 export interface AssessmentListItem {
   id: string;
   title: string;
+  type: 'EXAM' | 'ASSIGNMENT';
   totalScore: number;
   passingScore: number;
   isPublished: boolean;
@@ -40,6 +41,7 @@ export interface AssessmentListItem {
 export interface AssessmentDetail {
   id: string;
   title: string;
+  type: 'EXAM' | 'ASSIGNMENT';
   description: string | null;
   groupId: string | null;
   courseId: string | null;
@@ -51,6 +53,7 @@ export interface AssessmentDetail {
   dueDate: string | null;
   durationMinutes: number | null;
   questions: AssessmentQuestion[];
+  mySubmission?: any;
   _count?: {
     submissions: number;
     questions: number;

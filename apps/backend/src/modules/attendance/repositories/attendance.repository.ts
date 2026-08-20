@@ -23,6 +23,7 @@ export class AttendanceRepository {
     sessionId: string,
     studentId: string,
     recordedById: string,
+    notes?: string,
   ): Promise<QrScanResult> {
     const insertedRows = await this.prisma.$queryRaw<AttendanceRecord[]>`
       INSERT INTO "attendance_records" (
@@ -32,6 +33,7 @@ export class AttendanceRepository {
         "status",
         "recording_method",
         "recorded_by_id",
+        "notes",
         "recorded_at"
       ) VALUES (
         gen_random_uuid(),
@@ -40,6 +42,7 @@ export class AttendanceRepository {
         'PRESENT'::"attendance_status",
         'QR_SCAN'::"recording_method",
         ${recordedById}::uuid,
+        ${notes || null},
         CURRENT_TIMESTAMP
       )
       ON CONFLICT ("session_id", "student_id") DO NOTHING

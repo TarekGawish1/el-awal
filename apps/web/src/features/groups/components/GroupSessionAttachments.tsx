@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import toast from 'react-hot-toast';
 
 interface GroupSessionAttachmentsProps {
@@ -54,13 +55,21 @@ export function GroupSessionAttachments({
     );
   });
 
+  const [attachmentToDelete, setAttachmentToDelete] = useState<{ id: string; title: string } | null>(null);
+
   const handleDelete = (id: string, title: string) => {
-    if (window.confirm(`هل أنت متأكد من حذف المرفق "${title}"؟`)) {
-      deleteContent(id, {
-        onSuccess: () => toast.success('تم حذف المرفق بنجاح'),
-        onError: (err: any) => toast.error(err.message || 'حدث خطأ أثناء الحذف'),
-      });
-    }
+    setAttachmentToDelete({ id, title });
+  };
+
+  const handleConfirmDelete = () => {
+    if (!attachmentToDelete) return;
+    deleteContent(attachmentToDelete.id, {
+      onSuccess: () => {
+        toast.success('تم حذف المرفق بنجاح');
+        setAttachmentToDelete(null);
+      },
+      onError: (err: any) => toast.error(err.message || 'حدث خطأ أثناء الحذف'),
+    });
   };
 
   const getIcon = (type: ContentType) => {
@@ -246,6 +255,18 @@ export function GroupSessionAttachments({
         onClose={() => setIsUploadModalOpen(false)}
         initialGroupId={groupId}
         initialGradeLevel={gradeLevel}
+      />
+
+      <ConfirmModal
+        isOpen={!!attachmentToDelete}
+        onClose={() => setAttachmentToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="تأكيد حذف المرفق"
+        message={`هل أنت متأكد من حذف المرفق "${attachmentToDelete?.title}" نهائياً؟`}
+        confirmText="حذف المرفق"
+        cancelText="تراجع"
+        variant="danger"
+        isLoading={isDeleting}
       />
     </div>
   );

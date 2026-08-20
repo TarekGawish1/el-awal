@@ -10,7 +10,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/core/database/prisma.service';
 import { PrismaHealthIndicator, MemoryHealthIndicator } from '@nestjs/terminus';
 import { UserRole, AttendanceStatus, SubmissionStatus, QuestionType } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 
 describe('El Awal Backend E2E Integration Suite (e2e)', () => {
   let app: INestApplication;

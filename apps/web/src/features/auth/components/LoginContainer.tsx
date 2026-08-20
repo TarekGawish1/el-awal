@@ -2,7 +2,8 @@
 
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { GraduationCap, ShieldCheck } from 'lucide-react';
+import Link from 'next/link';
+import { GraduationCap, ShieldCheck, UserPlus, UserRound } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui';
 import { LoginForm } from './LoginForm';
 import { useAuth } from '../hooks/useAuth';
@@ -24,9 +25,9 @@ export function LoginContainer() {
   }, [isInitialized, isAuthenticated, user, router]);
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-neutral-50 flex flex-col justify-center items-center py-6 sm:py-12 px-3.5 sm:px-6 lg:px-8">
       {/* Container Max Width */}
-      <div className="w-full max-w-md space-y-8">
+      <div className="w-full max-w-md space-y-6 sm:space-y-8">
         {/* Brand Header */}
         <div className="text-center space-y-3">
           <div className="inline-flex p-3 bg-primary-600 text-white rounded-2xl shadow-md ring-4 ring-primary-100 animate-in zoom-in-95 duration-200">
@@ -44,9 +45,9 @@ export function LoginContainer() {
         </div>
 
         {/* Login Form Card */}
-        <Card className="shadow-sm border-neutral-200/90 bg-white">
-          <CardContent className="p-6 sm:p-8">
-            <div className="mb-6 text-start">
+        <Card className="shadow-sm border-neutral-200/90 bg-white rounded-2xl sm:rounded-3xl">
+          <CardContent className="p-5 sm:p-8">
+            <div className="mb-5 sm:mb-6 text-start">
               <h2 className="text-base font-bold text-neutral-900">تسجيل الدخول</h2>
               <p className="text-xs text-neutral-500 mt-0.5">
                 أدخل بيانات حسابك المعتمدة للمتابعة إلى لوحة التحكم
@@ -54,6 +55,33 @@ export function LoginContainer() {
             </div>
 
             <LoginForm />
+
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                <div className="w-full border-t border-neutral-100" />
+              </div>
+              <div className="relative flex justify-center">
+                <span className="bg-white px-3 text-[11px] text-neutral-400">أو</span>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Link
+                href="/parent-access"
+                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-primary-200 bg-primary-50 px-4 py-2.5 text-sm font-bold text-primary-700 transition-colors hover:border-primary-300 hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+              >
+                <UserRound className="h-4 w-4" />
+                <span>دخول ولي الأمر</span>
+              </Link>
+
+              <Link
+                href="/register/student"
+                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-4 py-2.5 text-sm font-bold text-neutral-700 transition-colors hover:border-neutral-300 hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+              >
+                <UserPlus className="h-4 w-4" />
+                <span>إنشاء حساب طالب</span>
+              </Link>
+            </div>
           </CardContent>
         </Card>
 

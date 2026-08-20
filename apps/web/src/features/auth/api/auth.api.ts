@@ -1,6 +1,6 @@
 import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
-import { AuthTokensResponse, AuthUser, LoginCredentials, RefreshTokenResponse } from '../types/auth.types';
+import { AuthTokensResponse, AuthUser, LoginCredentials, ParentAccessCredentials, RefreshTokenResponse, StudentRegistrationPayload, StudentRegistrationResult } from '../types/auth.types';
 import { getStoredRefreshToken } from '../utils/auth-tokens';
 
 /**
@@ -12,6 +12,36 @@ export async function loginUser(credentials: LoginCredentials): Promise<AuthToke
     body: JSON.stringify({
       identifier: credentials.identifier.trim(),
       password: credentials.password,
+    }),
+  });
+}
+
+/**
+ * Authenticates the parent linked to an administration-registered student phone.
+ */
+export async function parentAccessUser(credentials: ParentAccessCredentials): Promise<AuthTokensResponse> {
+  return apiClient<AuthTokensResponse>(API_ENDPOINTS.AUTH.PARENT_ACCESS, {
+    method: 'POST',
+    body: JSON.stringify({ studentPhone: credentials.studentPhone.trim() }),
+  });
+}
+
+/**
+ * Self-service student registration via POST /api/v1/auth/student-registration/register.
+ * Creates the student account + parent account + parent-student link, returns
+ * one-time credentials and auto-authenticates the student.
+ */
+export async function registerStudent(
+  payload: StudentRegistrationPayload,
+): Promise<StudentRegistrationResult> {
+  return apiClient<StudentRegistrationResult>(API_ENDPOINTS.AUTH.STUDENT_REGISTRATION_REGISTER, {
+    method: 'POST',
+    body: JSON.stringify({
+      fullName: payload.fullName.trim(),
+      studentPhone: payload.studentPhone.trim(),
+      parentPhone: payload.parentPhone.trim(),
+      academicStage: payload.academicStage,
+      gradeLevel: payload.gradeLevel,
     }),
   });
 }

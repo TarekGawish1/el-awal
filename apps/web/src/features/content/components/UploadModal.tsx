@@ -1,18 +1,34 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { X, UploadCloud, FileText, Loader2, Calendar, Layers, BookOpen } from 'lucide-react';
+import {
+  X,
+  UploadCloud,
+  FileText,
+  Loader2,
+  Calendar,
+  Layers,
+  BookOpen,
+  Image as ImageIcon,
+  Video as VideoIcon,
+  FileCode,
+  Music,
+  CheckCircle,
+} from 'lucide-react';
 import { ContentType } from '../types/content.types';
 import { useUploadContent, useGroupSessions } from '../hooks/use-content';
+import { useSessionTopics, useTeacherSessions } from '@/features/schedules/hooks/useSchedules';
+import { formatArabicTime12H } from '@/features/schedules/utils/time.utils';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Textarea } from '@/components/ui/Textarea';
+import { ProgressBar } from '@/components/ui/ProgressBar';
 import toast from 'react-hot-toast';
 
 const ALL_GRADE_LEVELS = [
@@ -28,23 +44,6 @@ const ALL_GRADE_LEVELS = [
   { value: 'الصف الرابع الابتدائي', label: 'الصف الرابع الابتدائي' },
   { value: 'الصف الخامس الابتدائي', label: 'الصف الخامس الابتدائي' },
   { value: 'الصف السادس الابتدائي', label: 'الصف السادس الابتدائي' },
-];
-
-export const STANDARD_LESSONS = [
-  'الحصة 1: المحاضرة التأسيسية وتمهيد المنهج',
-  'الحصة 2: شرح الوحدة الأولى (الدرس الأول)',
-  'الحصة 3: شرح الوحدة الأولى (الدرس الثاني)',
-  'الحصة 4: تدريبات وحل تمارين الوحدة الأولى',
-  'الحصة 5: اختبار وتقييم الوحدة الأولى',
-  'الحصة 6: شرح الوحدة الثانية (الدرس الأول)',
-  'الحصة 7: شرح الوحدة الثانية (الدرس الثاني)',
-  'الحصة 8: تدريبات وتطبيقات الوحدة الثانية',
-  'الحصة 9: مراجعة منتصف الفصل الدراسي (ميدتيرم)',
-  'الحصة 10: شرح الوحدة الثالثة (الدرس الأول)',
-  'الحصة 11: شرح الوحدة الثالثة (الدرس الثاني)',
-  'الحصة 12: تدريبات وحل بنك الأسئلة الشامل',
-  'مذكرة المراجعة النهائية ونماذج الامتحانات',
-  'حل تدريبات كتاب الوزارة والنماذج الاسترشادية',
 ];
 
 const uploadSchema = z.object({
@@ -65,10 +64,13 @@ const ALLOWED_TYPES = [
   'image/jpeg',
   'image/png',
   'image/webp',
+  'image/gif',
   'audio/mpeg',
   'audio/mp3',
   'audio/wav',
   'video/mp4',
+  'video/webm',
+  'video/quicktime',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/msword',
 ];
@@ -92,6 +94,7 @@ export function UploadModal({
   initialSessionId,
 }: UploadModalProps) {
   const [file, setFile] = useState<File | null>(null);
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -99,7 +102,15 @@ export function UploadModal({
   const groups = groupsData || [];
   const { activeYear, activeTerm } = useStoredAcademicPeriod(groups);
 
-  const { mutate: uploadContent, isPending } = useUploadContent();
+  const {
+    mutate: uploadContent,
+    isPending,
+    uploadProgress,
+    loadedBytes,
+    totalBytes,
+    stage: uploadStage,
+    resetProgress,
+  } = useUploadContent();
 
   const {
     register,
@@ -126,13 +137,53 @@ export function UploadModal({
   const selectedSessionId = watch('sessionId');
   const sessionTopicValue = watch('sessionTopic');
 
-  // Query sessions for selected group or first group of grade
+  // Query sessions for a specific group, or all groups in the selected grade.
   const effectiveGroupId =
     selectedTargetScope === 'SPECIFIC_GROUP'
       ? selectedGroupId
-      : groups.find((g) => g.gradeLevel === selectedGradeLevel)?.id;
+      : undefined;
 
-  const { data: groupSessions = [], isLoading: isLoadingSessions } = useGroupSessions(effectiveGroupId);
+  const { data: selectedGroupSessions = [], isLoading: isLoadingGroupSessions } = useGroupSessions(effectiveGroupId);
+  const { data: gradeSessions = [], isLoading: isLoadingGradeSessions } = useTeacherSessions(
+    {
+      gradeLevel: selectedGradeLevel,
+      academicYear: activeYear,
+      academicTerm: activeTerm,
+      timeframe: 'ALL',
+    },
+  );
+  const { data: dbTopics = [] } = useSessionTopics(
+    selectedGradeLevel,
+    selectedTargetScope === 'SPECIFIC_GROUP' ? selectedGroupId : undefined,
+  );
+  const groupSessions = selectedTargetScope === 'SPECIFIC_GROUP' ? selectedGroupSessions : gradeSessions;
+  const isLoadingSessions =
+    selectedTargetScope === 'SPECIFIC_GROUP' ? isLoadingGroupSessions : isLoadingGradeSessions;
+
+  // Determine file type category (image, video, pdf, audio, other)
+  const fileCategory = useMemo<'image' | 'video' | 'audio' | 'pdf' | 'other'>(() => {
+    if (!file) return 'other';
+    const type = file.type.toLowerCase();
+    const name = file.name.toLowerCase();
+    if (type.startsWith('image/') || name.match(/\.(jpg|jpeg|png|webp|gif)$/)) return 'image';
+    if (type.startsWith('video/') || name.match(/\.(mp4|webm|mov|mkv)$/)) return 'video';
+    if (type.startsWith('audio/') || name.match(/\.(mp3|wav|ogg|m4a)$/)) return 'audio';
+    if (type.includes('pdf') || name.endsWith('.pdf')) return 'pdf';
+    return 'other';
+  }, [file]);
+
+  // Manage image preview memory lifecycle
+  useEffect(() => {
+    if (file && fileCategory === 'image') {
+      const url = URL.createObjectURL(file);
+      setFilePreviewUrl(url);
+      return () => {
+        URL.revokeObjectURL(url);
+      };
+    } else {
+      setFilePreviewUrl(null);
+    }
+  }, [file, fileCategory]);
 
   const handleLessonSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
@@ -152,6 +203,13 @@ export function UploadModal({
       const sess = groupSessions.find((s) => s.id === sId);
       setValue('sessionId', sId);
       setValue('sessionTopic', sess?.topic || 'حصة مجدولة');
+      return;
+    }
+
+    if (val.startsWith('TOPIC_')) {
+      const t = val.replace('TOPIC_', '');
+      setValue('sessionId', '');
+      setValue('sessionTopic', t);
       return;
     }
 
@@ -178,7 +236,9 @@ export function UploadModal({
   const handleClose = () => {
     if (isPending) return;
     setFile(null);
+    setFilePreviewUrl(null);
     setFileError(null);
+    resetProgress();
     reset();
     onClose();
   };
@@ -191,11 +251,11 @@ export function UploadModal({
       return false;
     }
 
-    if (!selectedFile.type && !selectedFile.name.match(/\.(pdf|jpg|jpeg|png|webp|mp3|wav|mp4|doc|docx)$/i)) {
+    if (!selectedFile.type && !selectedFile.name.match(/\.(pdf|jpg|jpeg|png|webp|gif|mp3|wav|mp4|webm|mov|doc|docx)$/i)) {
       setFileError('نوع الملف غير مدعوم');
       return false;
     } else if (selectedFile.type && !ALLOWED_TYPES.includes(selectedFile.type)) {
-      setFileError(`نوع الملف غير مدعوم. الأنواع المسموحة: PDF, صور, صوت, فيديو MP4, و Word`);
+      setFileError(`نوع الملف غير مدعوم. الأنواع المسموحة: PDF, صور, مقاطع فيديو, ملفات صوتية, ومستندات Word`);
       return false;
     }
 
@@ -210,6 +270,11 @@ export function UploadModal({
         const currentTitle = watch('title');
         if (!currentTitle) {
           setValue('title', selectedFile.name.replace(/\.[^/.]+$/, ''));
+        }
+
+        // Auto suggest content type for videos
+        if (selectedFile.type.startsWith('video/')) {
+          setValue('contentType', ContentType.LECTURE_RECORDING);
         }
       } else {
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -262,6 +327,21 @@ export function UploadModal({
     return true;
   });
 
+  const getFileCategoryIcon = () => {
+    switch (fileCategory) {
+      case 'image':
+        return <ImageIcon className="w-5 h-5 text-blue-500" />;
+      case 'video':
+        return <VideoIcon className="w-5 h-5 text-rose-500" />;
+      case 'audio':
+        return <Music className="w-5 h-5 text-amber-500" />;
+      case 'pdf':
+        return <FileText className="w-5 h-5 text-emerald-500" />;
+      default:
+        return <FileCode className="w-5 h-5 text-slate-500" />;
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 overflow-y-auto backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden my-auto border border-slate-100 flex flex-col max-h-[90vh]">
@@ -273,13 +353,13 @@ export function UploadModal({
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-800">رفع مرفقات وملازم الحصص</h2>
-              <p className="text-xs text-slate-500">إضافة ملفات ومذكرات تعليمية وتخصيصها للحصص والمجموعات</p>
+              <p className="text-xs text-slate-500">إضافة ملفات ومذكرات تعليمية وفيديوهات وتخصيصها للحصص والمجموعات</p>
             </div>
           </div>
           <button
             onClick={handleClose}
             disabled={isPending}
-            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors"
+            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors disabled:opacity-50"
           >
             <X className="w-5 h-5" />
           </button>
@@ -318,7 +398,7 @@ export function UploadModal({
                   <select
                     {...register('gradeLevel')}
                     disabled={isPending}
-                    className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium"
+                    className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium disabled:bg-slate-100 disabled:opacity-75"
                   >
                     <option value="">-- اختر الصف الدراسي --</option>
                     {ALL_GRADE_LEVELS.map((g) => (
@@ -337,7 +417,7 @@ export function UploadModal({
                   <select
                     {...register('targetScope')}
                     disabled={isPending}
-                    className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:bg-slate-100 disabled:opacity-75"
                   >
                     <option value="ALL_GRADE_GROUPS">جميع مجموعات هذا الصف الدراسي</option>
                     <option value="SPECIFIC_GROUP">مجموعة معينة فقط</option>
@@ -355,7 +435,7 @@ export function UploadModal({
                   <select
                     {...register('groupId')}
                     disabled={isPending}
-                    className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:bg-slate-100 disabled:opacity-75"
                   >
                     <option value="">-- اختر مجموعة --</option>
                     {filteredGroups.map((group) => (
@@ -390,33 +470,35 @@ export function UploadModal({
                     value={
                       selectedSessionId
                         ? `SESSION_${selectedSessionId}`
-                        : STANDARD_LESSONS.includes(sessionTopicValue || '')
-                        ? sessionTopicValue
+                        : sessionTopicValue && dbTopics.includes(sessionTopicValue)
+                        ? `TOPIC_${sessionTopicValue}`
                         : sessionTopicValue
                         ? '__CUSTOM__'
                         : ''
                     }
-                    className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium"
+                    className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium disabled:bg-slate-100 disabled:opacity-75"
                   >
                     <option value="">-- بدون ربط بحصة محددة (مرفق عام للمنهج) --</option>
 
                     {groupSessions.length > 0 && (
-                      <optgroup label="حصص المجموعة المجدولة">
+                      <optgroup label="حصص المجموعة المجدولة في قاعدة البيانات">
                         {groupSessions.map((session) => (
                           <option key={session.id} value={`SESSION_${session.id}`}>
-                            {session.topic || 'حصة بدون عنوان'} ({session.sessionDate})
+                            {session.topic || 'حصة بدون عنوان'} ({session.sessionDate.includes('T') ? session.sessionDate.split('T')[0] : session.sessionDate}{session.startTime ? ` • ${formatArabicTime12H(session.startTime)}` : ''})
                           </option>
                         ))}
                       </optgroup>
                     )}
 
-                    <optgroup label="قائمة الدروس والمحاضرات المقترحة">
-                      {STANDARD_LESSONS.map((lesson) => (
-                        <option key={lesson} value={lesson}>
-                          {lesson}
-                        </option>
-                      ))}
-                    </optgroup>
+                    {dbTopics.length > 0 && (
+                      <optgroup label="عناوين وموضوعات الحصص المسجلة بقاعدة البيانات">
+                        {dbTopics.map((topic) => (
+                          <option key={topic} value={`TOPIC_${topic}`}>
+                            {topic}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
 
                     <option value="__CUSTOM__">+ كتابة موضوع درس مخصص يدوياً...</option>
                   </select>
@@ -427,7 +509,7 @@ export function UploadModal({
                     {...register('sessionTopic')}
                     placeholder="عنوان أو موضوع الدرس (مثال: الحصة الأولى - اسم الفاعل وصياغته)"
                     disabled={isPending}
-                    className="text-xs sm:text-sm bg-white"
+                    className="text-xs sm:text-sm bg-white disabled:bg-slate-100"
                   />
                 </div>
                 {selectedTargetScope === 'ALL_GRADE_GROUPS' && selectedGradeLevel && (
@@ -441,7 +523,7 @@ export function UploadModal({
             {/* File Drop/Select Area */}
             <div>
               <Label className="mb-2 block text-sm font-bold text-slate-700">
-                الملف المرفق <span className="text-red-500">*</span>
+                الملف المرفق (صورة، فيديو، مذكرة PDF) <span className="text-red-500">*</span>
               </Label>
 
               {!file ? (
@@ -451,40 +533,96 @@ export function UploadModal({
                   }`}
                   onClick={() => !isPending && fileInputRef.current?.click()}
                 >
-                  <UploadCloud className={`w-9 h-9 mx-auto mb-2 ${fileError ? 'text-red-400' : 'text-slate-400'}`} />
-                  <p className="text-sm font-bold text-slate-700 mb-1">اضغط لاختيار ملف من جهازك</p>
-                  <p className="text-xs text-slate-500 mb-2">الحد الأقصى: 100 ميجابايت (PDF, Word, MP4, MP3, صور)</p>
+                  <UploadCloud className={`w-10 h-10 mx-auto mb-2 ${fileError ? 'text-red-400' : 'text-primary-500'}`} />
+                  <p className="text-sm font-bold text-slate-700 mb-1">اضغط لاختيار صورة، فيديو، أو ملف من جهازك</p>
+                  <p className="text-xs text-slate-500 mb-2">الحد الأقصى: 100 ميجابايت (صور JPG/PNG/WebP، فيديو MP4، PDF، صوت، Word)</p>
 
                   <input
                     type="file"
                     ref={fileInputRef}
                     className="hidden"
                     onChange={handleFileChange}
-                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.mp3,.wav,.mp4"
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.gif,.mp3,.wav,.mp4,.webm,.mov"
                     disabled={isPending}
                   />
 
                   {fileError && <p className="text-red-500 text-xs font-bold mt-2">{fileError}</p>}
                 </div>
               ) : (
-                <div className="border border-slate-200 rounded-xl p-3 bg-slate-50 flex items-center justify-between">
-                  <div className="flex items-center gap-3 overflow-hidden">
-                    <div className="bg-primary/10 text-primary w-10 h-10 rounded-lg flex items-center justify-center shrink-0">
-                      <FileText className="w-5 h-5" />
+                <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/80 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      {/* Image Thumbnail Preview or Category Icon */}
+                      {fileCategory === 'image' && filePreviewUrl ? (
+                        <div className="w-14 h-14 rounded-xl overflow-hidden border border-slate-200 shrink-0 bg-slate-100 relative group">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={filePreviewUrl}
+                            alt="معاينة الصورة"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="bg-primary/10 text-primary w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border border-primary/20">
+                          {getFileCategoryIcon()}
+                        </div>
+                      )}
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-slate-800 text-sm truncate">{file.name}</p>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 shrink-0">
+                            {fileCategory === 'image'
+                              ? 'صورة'
+                              : fileCategory === 'video'
+                              ? 'فيديو'
+                              : fileCategory === 'audio'
+                              ? 'صوت'
+                              : fileCategory === 'pdf'
+                              ? 'PDF'
+                              : 'مستند'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-bold text-slate-800 text-sm truncate">{file.name}</p>
-                      <p className="text-xs text-slate-500">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
-                    </div>
+
+                    {!isPending && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFile(null);
+                          if (fileInputRef.current) fileInputRef.current.value = '';
+                        }}
+                        className="text-red-500 hover:bg-red-50 p-2 rounded-xl transition-colors shrink-0 cursor-pointer"
+                        title="إزالة الملف"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
-                  {!isPending && (
-                    <button
-                      type="button"
-                      onClick={() => setFile(null)}
-                      className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors shrink-0"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+
+                  {/* Real-time Upload Progress Bar */}
+                  {isPending && (
+                    <div className="pt-2">
+                      <ProgressBar
+                        progress={uploadProgress}
+                        loadedBytes={loadedBytes}
+                        totalBytes={totalBytes}
+                        stage={uploadStage}
+                        fileName={file.name}
+                        fileType={file.type}
+                        statusMessage={
+                          uploadStage === 'processing'
+                            ? 'تم إرسال الملف! جاري الحفظ والمعالجة السحابية على الخادم...'
+                            : fileCategory === 'video'
+                            ? `جاري رفع الفيديو... ${uploadProgress}%`
+                            : fileCategory === 'image'
+                            ? `جاري رفع الصورة... ${uploadProgress}%`
+                            : `جاري رفع الملف... ${uploadProgress}%`
+                        }
+                      />
+                    </div>
                   )}
                 </div>
               )}
@@ -511,7 +649,7 @@ export function UploadModal({
                 </Label>
                 <select
                   {...register('contentType')}
-                  className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50"
+                  className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50 disabled:bg-slate-100"
                   disabled={isPending}
                 >
                   <option value={ContentType.FILE}>ملف عام / ملزمة</option>
@@ -531,38 +669,48 @@ export function UploadModal({
                 placeholder="أضف تعليمات للطلاب أو تفاصيل عن هذا المرفق..."
                 rows={2}
                 disabled={isPending}
+                className="disabled:bg-slate-100"
               />
             </div>
           </form>
         </div>
 
         {/* Footer Actions */}
-        <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50">
-          <Button type="button" variant="outline" onClick={handleClose} disabled={isPending}>
-            إلغاء
-          </Button>
-          <Button
-            type="submit"
-            form="upload-content-form"
-            disabled={isPending || !file}
-            className="shadow-md shadow-primary/20"
-          >
-            {isPending ? (
-              <>
-                <Loader2 className="w-4 h-4 ml-2 animate-spin" />
-                جاري الرفع والحفظ...
-              </>
-            ) : (
-              <>
-                <UploadCloud className="w-4 h-4 ml-2" />
-                رفع وحفظ المرفق
-              </>
+        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <div className="text-xs text-slate-500">
+            {isPending && (
+              <span className="flex items-center gap-1.5 text-primary-700 font-bold">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                يرجى الانتظار حتى اكتمال الرفع...
+              </span>
             )}
-          </Button>
+          </div>
+
+          <div className="flex gap-3">
+            <Button type="button" variant="outline" onClick={handleClose} disabled={isPending}>
+              إلغاء
+            </Button>
+            <Button
+              type="submit"
+              form="upload-content-form"
+              disabled={isPending || !file}
+              className="shadow-md shadow-primary/20 min-w-[140px]"
+            >
+              {isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+                  {uploadStage === 'processing' ? 'جاري الحفظ...' : `جاري الرفع (${uploadProgress}%)`}
+                </>
+              ) : (
+                <>
+                  <UploadCloud className="w-4 h-4 ml-2" />
+                  رفع وحفظ المرفق
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
   );
 }
-
-

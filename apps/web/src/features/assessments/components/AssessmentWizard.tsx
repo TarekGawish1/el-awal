@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm, FormProvider, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowLeft, ArrowRight, Check, Plus, AlertTriangle, FileText, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Plus, AlertTriangle, FileText, CheckCircle2, Trash2 } from 'lucide-react';
+import { generatePresignedUrl, uploadFileToR2 } from '@/features/content/api/content.api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
@@ -22,9 +23,89 @@ import toast from 'react-hot-toast';
 
 type Step = 'metadata' | 'questions' | 'review';
 
-export function AssessmentWizard() {
+import { Group, GroupSchedule } from '../../groups/types/groups.types';
+
+function getGroupNextSessionDate(group: Group): Date | null {
+  if (!group.schedules || group.schedules.length === 0) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(15, 0, 0, 0); // 3:00 PM
+    return tomorrow;
+  }
+  
+  const now = new Date();
+  let minDiff = Infinity;
+  let nextSessionDate = new Date();
+  
+  group.schedules.forEach(sched => {
+    const schedDay = sched.dayOfWeek;
+    let hours = 15;
+    let minutes = 0;
+    if (sched.startTime) {
+      const parts = sched.startTime.split(':');
+      if (parts.length >= 2) {
+        hours = parseInt(parts[0], 10);
+        minutes = parseInt(parts[1], 10);
+      }
+    }
+    
+    const currentDay = now.getDay();
+    let daysDiff = (schedDay - currentDay + 7) % 7;
+    
+    if (daysDiff === 0) {
+      const sessionToday = new Date(now);
+      sessionToday.setHours(hours, minutes, 0, 0);
+      if (sessionToday.getTime() <= now.getTime()) {
+        daysDiff = 7;
+      }
+    }
+    
+    const targetDate = new Date(now);
+    targetDate.setDate(now.getDate() + daysDiff);
+    targetDate.setHours(hours, minutes, 0, 0);
+    
+    const diffTime = targetDate.getTime() - now.getTime();
+    if (diffTime < minDiff) {
+      minDiff = diffTime;
+      nextSessionDate = targetDate;
+    }
+  });
+  
+  return nextSessionDate;
+}
+
+function getNextSessionDate(groups: Group[], targetGroupIds: string[]): Date | null {
+  if (!targetGroupIds || targetGroupIds.length === 0) return null;
+  
+  const selectedGroups = groups.filter(g => targetGroupIds.includes(g.id));
+  let latestDate: Date | null = null;
+  
+  selectedGroups.forEach(g => {
+    const d = getGroupNextSessionDate(g);
+    if (d) {
+      if (!latestDate || d.getTime() > latestDate.getTime()) {
+        latestDate = d;
+      }
+    }
+  });
+  
+  return latestDate;
+}
+
+export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMENT' }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const paramGroupId = searchParams.get('groupId');
+  const paramTopic = searchParams.get('topic');
+  const paramDueDate = searchParams.get('dueDate');
+
   const [currentStep, setCurrentStep] = useState<Step>('metadata');
+  const [dueDateOption, setDueDateOption] = useState<'NEXT_SESSION' | 'CUSTOM'>(paramDueDate ? 'CUSTOM' : 'NEXT_SESSION');
+  const [homeworkMode, setHomeworkMode] = useState<'INTERACTIVE' | 'BOOKLET'>('INTERACTIVE');
+  const [startPage, setStartPage] = useState<number | ''>('');
+  const [endPage, setEndPage] = useState<number | ''>('');
+  const [bookletImages, setBookletImages] = useState<string[]>([]);
+  const [isUploadingBooklet, setIsUploadingBooklet] = useState(false);
   
   const { mutate: createAssessment, isPending } = useCreateAssessment();
 
@@ -68,6 +149,45 @@ export function AssessmentWizard() {
   const { data: allGroups } = useGroups();
   const { activeYear, activeTerm } = useStoredAcademicPeriod(allGroups);
   
+  const watchedTargetGroupIds = formDataValues.targetGroupIds;
+
+  // Prefill group & topic from search params if provided (e.g. from session calendar modal)
+  useEffect(() => {
+    if (paramGroupId && allGroups && allGroups.length > 0) {
+      const g = allGroups.find(group => group.id === paramGroupId);
+      if (g) {
+        let stage = 'SECONDARY';
+        if (g.gradeLevel?.includes('الابتدائي')) stage = 'PRIMARY';
+        else if (g.gradeLevel?.includes('الإعدادي')) stage = 'MIDDLE';
+
+        methods.setValue('academicStage', stage, { shouldValidate: true });
+        methods.setValue('gradeLevel', g.gradeLevel, { shouldValidate: true });
+        methods.setValue('targetGroupIds', [g.id], { shouldValidate: true });
+
+        if (paramTopic && !methods.getValues('title')) {
+          const prefix = type === 'ASSIGNMENT' ? 'واجب' : 'اختبار';
+          methods.setValue('title', `${prefix}: ${paramTopic}`, { shouldValidate: true });
+        }
+
+        if (paramDueDate) {
+          setDueDateOption('CUSTOM');
+          methods.setValue('dueDate', new Date(paramDueDate).toISOString(), { shouldValidate: true });
+        }
+      }
+    }
+  }, [paramGroupId, paramTopic, paramDueDate, allGroups, type, methods]);
+
+  useEffect(() => {
+    if (type === 'ASSIGNMENT' && dueDateOption === 'NEXT_SESSION') {
+      const calculatedDate = getNextSessionDate(allGroups || [], watchedTargetGroupIds || []);
+      if (calculatedDate) {
+        methods.setValue('dueDate', calculatedDate.toISOString(), { shouldValidate: true, shouldDirty: true });
+      } else {
+        methods.setValue('dueDate', '', { shouldValidate: true });
+      }
+    }
+  }, [watchedTargetGroupIds, dueDateOption, allGroups, type]);
+
   const availableGroups = allGroups?.filter(g => 
     g.gradeLevel === selectedGrade && 
     g.academicYear === activeYear && 
@@ -95,16 +215,80 @@ export function AssessmentWizard() {
     ],
   };
 
+  const handleBookletImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploadingBooklet(true);
+    try {
+      const uploadedUrls: string[] = [...bookletImages];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file.type.startsWith('image/')) {
+          toast.error(`الملف ${file.name} ليس صورة صالحة`);
+          continue;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+          toast.error(`حجم الصورة ${file.name} يتجاوز 5 ميجابايت`);
+          continue;
+        }
+
+        const presigned = await generatePresignedUrl({
+          fileName: file.name,
+          contentType: file.type || 'image/jpeg',
+          fileSizeBytes: file.size,
+          folder: 'assessments',
+        });
+
+        await uploadFileToR2(presigned.uploadUrl, file);
+        uploadedUrls.push(presigned.publicUrl);
+      }
+      setBookletImages(uploadedUrls);
+      toast.success('تم رفع الصور بنجاح');
+    } catch (error) {
+      toast.error('حدث خطأ أثناء رفع بعض الصور');
+    } finally {
+      setIsUploadingBooklet(false);
+      e.target.value = '';
+    }
+  };
+
   const nextStep = async (step: Step) => {
     let isValid = false;
     
     if (currentStep === 'metadata') {
       isValid = await trigger(['title', 'description', 'totalScore', 'passingScore', 'startDate', 'durationMinutes']);
     } else if (currentStep === 'questions') {
-      isValid = await trigger('questions');
-      if (isValid && fields.length === 0) {
-        toast.error('يجب إضافة سؤال واحد على الأقل');
-        isValid = false;
+      if (type === 'ASSIGNMENT' && homeworkMode === 'BOOKLET') {
+        if (!startPage || !endPage) {
+          toast.error('يرجى تحديد أرقام صفحات الواجب');
+          return;
+        }
+        if (Number(startPage) > Number(endPage)) {
+          toast.error('رقم بداية الصفحة لا يمكن أن يكون أكبر من رقم النهاية');
+          return;
+        }
+        
+        // Populate single booklet essay question
+        methods.setValue('questions', [
+          {
+            questionNumber: 1,
+            questionType: QuestionType.ESSAY,
+            points: methods.getValues('totalScore') || 10,
+            questionText: `حل صفحات الملزمة من صفحة ${startPage} إلى صفحة ${endPage}`,
+            optionsData: bookletImages, // store as json
+            correctAnswer: 'Booklet submission',
+            displayOrder: 1,
+          }
+        ], { shouldValidate: true });
+        
+        isValid = true;
+      } else {
+        isValid = await trigger('questions');
+        if (isValid && fields.length === 0) {
+          toast.error('يجب إضافة سؤال واحد على الأقل');
+          isValid = false;
+        }
       }
     }
 
@@ -124,26 +308,34 @@ export function AssessmentWizard() {
     // Scrub empty fields
     const payload: any = {
       ...data,
-      type: 'EXAM',
+      type,
       isPublished,
       questions: payloadQuestions,
     };
     
-    if (!payload.startDate) delete payload.startDate;
+    if (type === 'ASSIGNMENT') {
+      delete payload.durationMinutes;
+      delete payload.startDate;
+    } else {
+      if (!payload.startDate) delete payload.startDate;
+      if (!payload.durationMinutes) delete payload.durationMinutes;
+    }
+    
     if (!payload.dueDate) delete payload.dueDate;
     if (!payload.academicStage) delete payload.academicStage;
     if (!payload.gradeLevel) delete payload.gradeLevel;
-    if (!payload.durationMinutes) delete payload.durationMinutes;
     if (!payload.targetGroupIds || payload.targetGroupIds.length === 0) delete payload.targetGroupIds;
     
     // Remove extra properties that the backend ValidationPipe forbids
     delete payload.isAutoGraded;
 
+    const label = type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار';
+
     createAssessment(
       payload,
       {
         onSuccess: (res: any) => {
-          toast.success(isPublished ? 'تم إنشاء ونشر الاختبار بنجاح' : 'تم حفظ الاختبار كمسودة');
+          toast.success(isPublished ? `تم إنشاء ونشر ${label} بنجاح` : `تم حفظ ${label} كمسودة`);
           const id = res?.id || res?.data?.id;
           if (id) {
             router.push(`/teacher/assessments/${id}`);
@@ -152,7 +344,7 @@ export function AssessmentWizard() {
           }
         },
         onError: (err: any) => {
-          toast.error(err?.message || 'حدث خطأ أثناء إنشاء الاختبار');
+          toast.error(err?.message || `حدث خطأ أثناء إنشاء ${label}`);
         }
       }
     );
@@ -214,15 +406,15 @@ export function AssessmentWizard() {
             <div className="p-6 sm:p-8 space-y-6">
               <div>
                 <h2 className="text-xl font-bold text-slate-800 mb-1">المعلومات الأساسية</h2>
-                <p className="text-slate-500 text-sm">أدخل تفاصيل الاختبار مثل العنوان، الوصف، والمدة المحددة.</p>
+                <p className="text-slate-500 text-sm">أدخل تفاصيل {type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار'} مثل العنوان، الوصف، والمدة المحددة.</p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <Label className="mb-2 block">عنوان الاختبار <span className="text-red-500">*</span></Label>
+                  <Label className="mb-2 block">{type === 'ASSIGNMENT' ? 'عنوان الواجب' : 'عنوان الاختبار'} <span className="text-red-500">*</span></Label>
                   <Input 
                     {...methods.register('title')} 
-                    placeholder="مثال: امتحان منتصف الفصل الدراسي الأول"
+                    placeholder={type === 'ASSIGNMENT' ? "مثال: واجب النحو والبلاغة الأول" : "مثال: امتحان منتصف الفصل الدراسي الأول"}
                     className={errors.title ? 'border-red-500' : ''}
                   />
                   {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title.message}</p>}
@@ -279,7 +471,7 @@ export function AssessmentWizard() {
                 {selectedGrade && (
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                     <Label className="mb-3 block font-bold text-slate-800">
-                      المجموعات المستهدفة <span className="text-sm font-normal text-slate-500">(اختر المجموعات التي ستمتحن)</span>
+                      المجموعات المستهدفة <span className="text-sm font-normal text-slate-500">({type === 'ASSIGNMENT' ? 'اختر المجموعات المستهدفة للواجب' : 'اختر المجموعات التي ستمتحن'})</span>
                     </Label>
                     
                     {availableGroups.length > 0 ? (
@@ -333,26 +525,114 @@ export function AssessmentWizard() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="mb-2 block">موعد بدء الاختبار (اختياري)</Label>
-                    <DateTimePicker
-                      value={formDataValues.startDate}
-                      onChange={(val) => {
-                        methods.setValue('startDate', val, { shouldValidate: true, shouldDirty: true });
-                      }}
-                      placeholder="اختر موعد البدء..."
-                    />
+                {type === 'ASSIGNMENT' ? (
+                  <div className="space-y-4">
+                    <div>
+                      <Label className="mb-2 block font-medium">موعد التسليم <span className="text-red-500">*</span></Label>
+                      <div className="flex flex-wrap gap-3 mb-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDueDateOption('NEXT_SESSION');
+                            const calculatedDate = getNextSessionDate(allGroups || [], watchedTargetGroupIds || []);
+                            if (calculatedDate) {
+                              methods.setValue('dueDate', calculatedDate.toISOString(), { shouldValidate: true, shouldDirty: true });
+                            } else {
+                              methods.setValue('dueDate', '', { shouldValidate: true });
+                            }
+                          }}
+                          className={`py-2 px-4 rounded-xl border-2 text-sm font-bold transition-all shadow-sm ${
+                            dueDateOption === 'NEXT_SESSION'
+                              ? 'border-primary-500 bg-primary-50 text-primary-700 ring-2 ring-primary-50'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                          }`}
+                        >
+                          🗓️ الحصة القادمة (تلقائي)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDueDateOption('CUSTOM');
+                          }}
+                          className={`py-2 px-4 rounded-xl border-2 text-sm font-bold transition-all shadow-sm ${
+                            dueDateOption === 'CUSTOM'
+                              ? 'border-primary-500 bg-primary-50 text-primary-700 ring-2 ring-primary-50'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                          }`}
+                        >
+                          ⚙️ تاريخ ووقت مخصص
+                        </button>
+                      </div>
+                    </div>
+
+                    {dueDateOption === 'NEXT_SESSION' ? (
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm max-w-lg space-y-3">
+                        <span className="text-slate-500 block">تواريخ التسليم التلقائية لكل مجموعة (موعد الحصة القادمة):</span>
+                        {watchedTargetGroupIds && watchedTargetGroupIds.length > 0 ? (
+                          <div className="space-y-2">
+                            {allGroups
+                              ?.filter(g => watchedTargetGroupIds.includes(g.id))
+                              .map(group => {
+                                const groupDate = getGroupNextSessionDate(group);
+                                return (
+                                  <div key={group.id} className="flex justify-between items-center bg-white px-3 py-2 rounded-lg border border-slate-150 shadow-sm">
+                                    <span className="font-bold text-slate-700">{group.name}</span>
+                                    <span className="text-primary-600 font-bold">
+                                      {groupDate
+                                        ? groupDate.toLocaleDateString('ar-EG', {
+                                            weekday: 'long',
+                                            month: 'short',
+                                            day: 'numeric',
+                                            hour: 'numeric',
+                                            minute: '2-digit',
+                                          })
+                                        : 'بدون جدول'}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        ) : (
+                          <div className="text-slate-400 italic">يرجى تحديد المجموعات المستهدفة أولاً لحساب موعد الحصة القادمة لكل منها.</div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <Label className="mb-2 block">اختر تاريخ ووقت التسليم</Label>
+                          <DateTimePicker
+                            value={formDataValues.dueDate}
+                            onChange={(val) => {
+                              methods.setValue('dueDate', val, { shouldValidate: true, shouldDirty: true });
+                            }}
+                            placeholder="اختر تاريخ ووقت التسليم..."
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <Label className="mb-2 block">مدة الاختبار (بالدقائق)</Label>
-                    <Input 
-                      type="number"
-                      {...methods.register('durationMinutes')} 
-                      placeholder="اتركه فارغاً لاختبار بدون وقت محدد"
-                    />
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="mb-2 block">موعد بدء الاختبار (اختياري)</Label>
+                      <DateTimePicker
+                        value={formDataValues.startDate}
+                        onChange={(val) => {
+                          methods.setValue('startDate', val, { shouldValidate: true, shouldDirty: true });
+                        }}
+                        placeholder="اختر موعد البدء..."
+                      />
+                    </div>
+                    <div>
+                      <Label className="mb-2 block">مدة الاختبار (بالدقائق)</Label>
+                      <Input 
+                        type="number"
+                        {...methods.register('durationMinutes')} 
+                        placeholder="اتركه فارغاً لاختبار بدون وقت محدد"
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
 
               </div>
 
@@ -367,17 +647,50 @@ export function AssessmentWizard() {
 
           {currentStep === 'questions' && (
             <div className="p-6 sm:p-8 bg-slate-50/50">
+              {type === 'ASSIGNMENT' && (
+                <div className="mb-8 bg-white p-2 rounded-xl border border-slate-200 flex gap-2 max-w-md mx-auto shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setHomeworkMode('INTERACTIVE')}
+                    className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${
+                      homeworkMode === 'INTERACTIVE'
+                        ? 'bg-primary-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    📝 أسئلة تفاعلية
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHomeworkMode('BOOKLET')}
+                    className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${
+                      homeworkMode === 'BOOKLET'
+                        ? 'bg-primary-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    📖 واجب من الملزمة
+                  </button>
+                </div>
+              )}
+
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <div>
                   <h2 className="text-xl font-bold text-slate-800 mb-1">الأسئلة</h2>
-                  <p className="text-slate-500 text-sm">أضف أسئلة الاختبار وحدد الإجابات الصحيحة والدرجات.</p>
+                  <p className="text-slate-500 text-sm">
+                    {type === 'ASSIGNMENT' && homeworkMode === 'BOOKLET' 
+                      ? 'حدد الصفحات المطلوبة للواجب من الملزمة.' 
+                      : `أضف أسئلة ${type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار'} وحدد الإجابات الصحيحة والدرجات.`}
+                  </p>
                 </div>
-                <div className="bg-white border border-slate-200 px-4 py-2 rounded-lg flex items-center gap-3 shadow-sm">
-                  <div className="text-sm font-medium text-slate-500">إجمالي درجات الأسئلة:</div>
-                  <div className={`text-lg font-bold ${questionsSum !== (formDataValues.totalScore || 0) ? 'text-amber-500' : 'text-primary'}`} title="الدرجة الكلية المحددة للاختبار">
-                    {questionsSum} / {formDataValues.totalScore}
+                {!(type === 'ASSIGNMENT' && homeworkMode === 'BOOKLET') && (
+                  <div className="bg-white border border-slate-200 px-4 py-2 rounded-lg flex items-center gap-3 shadow-sm">
+                    <div className="text-sm font-medium text-slate-500">إجمالي درجات الأسئلة:</div>
+                    <div className={`text-lg font-bold ${questionsSum !== (formDataValues.totalScore || 0) ? 'text-amber-500' : 'text-primary'}`} title={type === 'ASSIGNMENT' ? "الدرجة الكلية المحددة للواجب" : "الدرجة الكلية المحددة للاختبار"}>
+                      {questionsSum} / {formDataValues.totalScore}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {errors.passingScore && (
@@ -387,46 +700,144 @@ export function AssessmentWizard() {
                 </Alert>
               )}
 
-              <div className="space-y-6">
-                {fields.map((field, index) => (
-                  <AssessmentQuestionEditor 
-                    key={field.id} 
-                    index={index} 
-                    onRemove={() => remove(index)} 
-                  />
-                ))}
-              </div>
+              {type === 'ASSIGNMENT' && homeworkMode === 'BOOKLET' ? (
+                // Booklet Mode Form
+                <div className="space-y-6 max-w-2xl mx-auto bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm">
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-800 mb-1">تحديد صفحات الملزمة</h3>
+                    <p className="text-slate-500 text-sm">حدد أرقام الصفحات المطلوب حلها من الملزمة وارفع صوراً لها إن وجد.</p>
+                  </div>
 
-              <div className="mt-8 flex justify-center">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="border-dashed border-2 bg-white hover:bg-slate-50"
-                  onClick={() => append({
-                    questionNumber: fields.length + 1,
-                    questionType: QuestionType.MULTIPLE_CHOICE,
-                    questionText: '',
-                    points: 5,
-                    displayOrder: fields.length + 1,
-                    optionsData: ['الخيار الأول', 'الخيار الثاني', 'الخيار الثالث', 'الخيار الرابع'],
-                    correctAnswer: '',
-                  })}
-                >
-                  <Plus className="w-5 h-5 ml-2" />
-                  إضافة سؤال جديد
-                </Button>
-              </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="mb-2 block">من صفحة <span className="text-red-500">*</span></Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={startPage}
+                        onChange={(e) => setStartPage(e.target.value ? Number(e.target.value) : '')}
+                        placeholder="رقم صفحة البدء"
+                      />
+                    </div>
+                    <div>
+                      <Label className="mb-2 block">إلى صفحة <span className="text-red-500">*</span></Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={endPage}
+                        onChange={(e) => setEndPage(e.target.value ? Number(e.target.value) : '')}
+                        placeholder="رقم صفحة النهاية"
+                      />
+                    </div>
+                  </div>
 
-              <div className="pt-8 mt-8 border-t border-slate-200 flex justify-between">
-                <Button variant="ghost" onClick={() => setCurrentStep('metadata')}>
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                  رجوع
-                </Button>
-                <Button onClick={() => nextStep('review')}>
-                  التالي: المراجعة
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                </Button>
-              </div>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <Label className="block font-medium">صور صفحات الواجب (اختياري)</Label>
+                      <div>
+                        <input
+                          type="file"
+                          id="booklet-images-upload"
+                          className="hidden"
+                          accept="image/*"
+                          multiple
+                          onChange={handleBookletImageUpload}
+                          disabled={isUploadingBooklet}
+                        />
+                        <Label
+                          htmlFor="booklet-images-upload"
+                          className={`text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg cursor-pointer transition-colors font-bold ${
+                            isUploadingBooklet ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
+                        >
+                          {isUploadingBooklet ? 'جاري الرفع...' : '➕ رفع صور الصفحات'}
+                        </Label>
+                      </div>
+                    </div>
+
+                    {bookletImages.length > 0 ? (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-2">
+                        {bookletImages.map((url, idx) => (
+                          <div key={idx} className="relative aspect-[3/4] rounded-lg border border-slate-200 overflow-hidden group">
+                            <img src={url} alt={`Booklet page ${idx + 1}`} className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <button
+                                type="button"
+                                onClick={() => setBookletImages(prev => prev.filter((_, i) => i !== idx))}
+                                className="bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                            <span className="absolute bottom-2 left-2 bg-slate-900/60 text-white text-xs px-2 py-0.5 rounded font-medium">
+                              صفحة {idx + 1}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center text-slate-400 text-sm">
+                        📸 لم يتم رفع أي صور بعد. (يمكنك رفع صورة واحدة أو أكثر لصفحات الواجب لمساعدة الطلاب).
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-6 border-t border-slate-100 flex justify-between">
+                    <Button variant="ghost" onClick={() => setCurrentStep('metadata')}>
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                      رجوع
+                    </Button>
+                    <Button onClick={() => nextStep('review')}>
+                      التالي: المراجعة
+                      <ArrowLeft className="w-4 h-4 mr-2" />
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                // Interactive Mode Form
+                <>
+                  <div className="space-y-6">
+                    {fields.map((field, index) => (
+                      <AssessmentQuestionEditor 
+                        key={field.id} 
+                        index={index} 
+                        onRemove={() => remove(index)} 
+                      />
+                    ))}
+                  </div>
+
+                  <div className="mt-8 flex justify-center">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      className="border-dashed border-2 bg-white hover:bg-slate-50"
+                      onClick={() => append({
+                        questionNumber: fields.length + 1,
+                        questionType: QuestionType.MULTIPLE_CHOICE,
+                        questionText: '',
+                        points: 5,
+                        displayOrder: fields.length + 1,
+                        optionsData: ['الخيار الأول', 'الخيار الثاني', 'الخيار الثالث', 'الخيار الرابع'],
+                        correctAnswer: '',
+                      })}
+                    >
+                      <Plus className="w-5 h-5 ml-2" />
+                      إضافة سؤال جديد
+                    </Button>
+                  </div>
+
+                  <div className="pt-8 mt-8 border-t border-slate-200 flex justify-between">
+                    <Button variant="ghost" onClick={() => setCurrentStep('metadata')}>
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                      رجوع
+                    </Button>
+                    <Button onClick={() => nextStep('review')}>
+                      التالي: المراجعة
+                      <ArrowLeft className="w-4 h-4 mr-2" />
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -434,7 +845,7 @@ export function AssessmentWizard() {
             <div className="p-6 sm:p-8 space-y-8">
               <div>
                 <h2 className="text-xl font-bold text-slate-800 mb-1">المراجعة والنشر</h2>
-                <p className="text-slate-500 text-sm">راجع تفاصيل الاختبار قبل حفظه أو نشره للطلاب.</p>
+                <p className="text-slate-500 text-sm">راجع تفاصيل {type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار'} قبل حفظه أو نشره للطلاب.</p>
               </div>
 
               {/* Summary Card */}
@@ -453,13 +864,35 @@ export function AssessmentWizard() {
                     <span className="text-slate-500 block mb-1">درجة النجاح</span>
                     <span className="font-bold text-slate-800 text-lg">{formData.passingScore}</span>
                   </div>
+                  {type === 'ASSIGNMENT' ? (
+                    <div className="bg-white p-3 rounded-lg border border-slate-100">
+                      <span className="text-slate-500 block mb-1">موعد التسليم</span>
+                      <span className="font-bold text-slate-800 text-sm">
+                        {formData.dueDate 
+                          ? new Date(formData.dueDate).toLocaleDateString('ar-EG', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: 'numeric',
+                              minute: '2-digit',
+                            })
+                          : 'بدون موعد تسليم'}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="bg-white p-3 rounded-lg border border-slate-100">
+                      <span className="text-slate-500 block mb-1">المدة المحددة</span>
+                      <span className="font-bold text-slate-800 text-lg">
+                        {formData.durationMinutes ? `${formData.durationMinutes} دقيقة` : 'بدون وقت'}
+                      </span>
+                    </div>
+                  )}
                   <div className="bg-white p-3 rounded-lg border border-slate-100">
-                    <span className="text-slate-500 block mb-1">المدة المحددة</span>
-                    <span className="font-bold text-slate-800 text-lg">{formData.durationMinutes ? `${formData.durationMinutes} دقيقة` : 'بدون وقت'}</span>
-                  </div>
-                  <div className="bg-white p-3 rounded-lg border border-slate-100">
-                    <span className="text-slate-500 block mb-1">عدد الأسئلة</span>
-                    <span className="font-bold text-slate-800 text-lg">{fields.length}</span>
+                    <span className="text-slate-500 block mb-1">
+                      {type === 'ASSIGNMENT' && homeworkMode === 'BOOKLET' ? 'طريقة الحل' : 'عدد الأسئلة'}
+                    </span>
+                    <span className="font-bold text-slate-800 text-lg">
+                      {type === 'ASSIGNMENT' && homeworkMode === 'BOOKLET' ? 'واجب ملزمة' : `${fields.length} أسئلة`}
+                    </span>
                   </div>
                 </div>
 
@@ -471,26 +904,57 @@ export function AssessmentWizard() {
                 )}
               </div>
 
-              {/* Questions Preview */}
-              <div>
-                <h4 className="font-bold text-slate-800 mb-4 border-b pb-2">نظرة عامة على الأسئلة</h4>
-                <div className="space-y-3">
-                  {formData.questions?.map((q, i) => (
-                    <div key={i} className="flex justify-between items-start py-2 border-b border-slate-50 last:border-0">
-                      <div>
-                        <span className="font-medium text-slate-700 block line-clamp-1">{i + 1}. {q.questionText}</span>
-                        <span className="text-xs text-slate-500">
-                          {q.questionType === QuestionType.MULTIPLE_CHOICE ? 'اختيار من متعدد' : 
-                           q.questionType === QuestionType.TRUE_FALSE ? 'صح أم خطأ' : 'مقال'}
-                        </span>
-                      </div>
-                      <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold shrink-0">
-                        {q.points} درجات
+              {/* Questions / Booklet Preview */}
+              {type === 'ASSIGNMENT' && homeworkMode === 'BOOKLET' ? (
+                <div>
+                  <h4 className="font-bold text-slate-800 mb-4 border-b pb-2">تفاصيل واجب الملزمة</h4>
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 font-medium">Pages required / الصفحات المطلوبة:</span>
+                      <span className="font-bold text-slate-800 bg-white border px-3 py-1 rounded-lg">
+                        من صفحة {startPage} إلى صفحة {endPage}
                       </span>
                     </div>
-                  ))}
+                    {bookletImages.length > 0 ? (
+                      <div>
+                        <span className="text-slate-600 font-medium block mb-2">الصور المرفوعة للصفحات:</span>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                          {bookletImages.map((url, idx) => (
+                            <div key={idx} className="aspect-[3/4] rounded-lg border border-slate-200 overflow-hidden relative shadow-xs">
+                              <img src={url} alt={`Booklet page ${idx + 1}`} className="w-full h-full object-cover" />
+                              <span className="absolute bottom-1 right-1 bg-slate-955/60 text-white text-[10px] px-1.5 py-0.5 rounded">
+                                صفحة {idx + 1}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-slate-400 italic text-sm">لم يتم إرفاق صور للصفحات.</div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div>
+                  <h4 className="font-bold text-slate-800 mb-4 border-b pb-2">نظرة عامة على الأسئلة</h4>
+                  <div className="space-y-3">
+                    {formData.questions?.map((q, i) => (
+                      <div key={i} className="flex justify-between items-start py-2 border-b border-slate-50 last:border-0">
+                        <div>
+                          <span className="font-medium text-slate-700 block line-clamp-1">{i + 1}. {q.questionText}</span>
+                          <span className="text-xs text-slate-500">
+                            {q.questionType === QuestionType.MULTIPLE_CHOICE ? 'اختيار من متعدد' : 
+                             q.questionType === QuestionType.TRUE_FALSE ? 'صح أم خطأ' : 'مقال'}
+                          </span>
+                        </div>
+                        <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold shrink-0">
+                          {q.points} درجات
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="pt-6 border-t border-slate-200 flex flex-col sm:flex-row justify-between gap-4">
                 <Button variant="ghost" onClick={() => setCurrentStep('questions')}>
@@ -511,7 +975,7 @@ export function AssessmentWizard() {
                     disabled={isPending}
                   >
                     <CheckCircle2 className="w-4 h-4 ml-2" />
-                    نشر الاختبار
+                    نشر {type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار'}
                   </Button>
                 </div>
               </div>

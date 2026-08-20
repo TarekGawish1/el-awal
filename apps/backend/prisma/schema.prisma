@@ -336,8 +336,11 @@ model LessonSession {
   scheduleId  String?  @map("schedule_id") @db.Uuid
   sessionDate DateTime @map("session_date") @db.Date
   startTime   String?  @map("start_time") @db.VarChar(10)
-  topic       String?  @map("topic") @db.VarChar(255)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  endTime     String?  @map("end_time") @db.VarChar(10)
+  topic              String?  @map("topic") @db.VarChar(255)
+  isCancelled        Boolean  @default(false) @map("is_cancelled")
+  cancellationReason String?  @map("cancellation_reason") @db.Text
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   group    AcademicGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
   schedule LessonSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
@@ -345,7 +348,7 @@ model LessonSession {
   attendanceRecords   AttendanceRecord[]
   educationalContents EducationalContent[]
 
-  @@unique([groupId, sessionDate, startTime], map: "uq_group_session_datetime")
+  @@index([groupId, sessionDate, startTime], map: "idx_group_session_datetime")
   @@index([groupId, sessionDate], map: "idx_sessions_group_date")
   @@index([scheduleId], map: "idx_sessions_schedule")
   @@map("lesson_sessions")

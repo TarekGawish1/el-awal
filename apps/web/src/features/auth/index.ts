@@ -1,8 +1,12 @@
 export { LoginForm } from './components/LoginForm';
 export { LoginContainer } from './components/LoginContainer';
+export { ParentAccessForm } from './components/ParentAccessForm';
+export { StudentRegistrationForm } from './components/StudentRegistrationForm';
 export { useAuth, normalizeAuthErrorMessage } from './hooks/useAuth';
+export { useParentAccess, normalizeParentAccessError } from './hooks/useParentAccess';
+export { useStudentRegistration, normalizeStudentRegistrationError } from './hooks/useStudentRegistration';
 export { useAuthStore } from './store/auth.store';
-export { loginUser, logoutUser, fetchCurrentUser } from './api/auth.api';
+export { loginUser, parentAccessUser, logoutUser, fetchCurrentUser, registerStudent } from './api/auth.api';
 export {
   setStoredTokens,
   getStoredAccessToken,
@@ -15,6 +19,11 @@ export type {
   UserRole,
   AuthUser,
   LoginCredentials,
+  ParentAccessCredentials,
+  AcademicStage,
+  StudentRegistrationPayload,
+  StudentRegistrationCredentials,
+  StudentRegistrationResult,
   AuthTokensResponse,
   AuthState,
 } from './types/auth.types';

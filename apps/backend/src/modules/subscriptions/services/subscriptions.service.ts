@@ -138,9 +138,18 @@ export class SubscriptionsService {
    * Scans student QR code and automatically records the student tuition payment.
    */
   async scanPaymentQr(user: AuthenticatedUser, dto: ScanPaymentQrDto) {
-    // 1. Resolve student by QR token
-    const student = await this.prisma.studentProfile.findUnique({
-      where: { qrCodeToken: dto.qrCodeToken },
+    // 1. Resolve student by QR token, studentCode or UUID
+    const trimmedToken = dto.qrCodeToken?.trim();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmedToken);
+
+    const student = await this.prisma.studentProfile.findFirst({
+      where: {
+        OR: [
+          { qrCodeToken: trimmedToken },
+          { studentCode: trimmedToken },
+          ...(isUuid ? [{ id: trimmedToken }] : []),
+        ],
+      },
       include: {
         user: { select: { fullName: true, phone: true, isActive: true } },
         groupEnrollments: {
@@ -151,7 +160,7 @@ export class SubscriptionsService {
     });
 
     if (!student || !student.user.isActive) {
-      throw new BadRequestException('رمز QR غير صالح أو حساب الطالب غير نشط');
+      throw new BadRequestException('رمز الـ QR غير صالح أو أن حساب الطالب غير مفعّل.');
     }
 
     // 2. Resolve target group

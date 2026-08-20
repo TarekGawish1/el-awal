@@ -14,6 +14,7 @@ import { GroupSessionAttachments } from './GroupSessionAttachments';
 import { AddStudentModal } from './AddStudentModal';
 import { DeleteGroupModal } from './DeleteGroupModal';
 import { EditGroupModal } from './EditGroupModal';
+import toast from 'react-hot-toast';
 
 interface GroupDetailsProps {
   id: string;
@@ -31,9 +32,10 @@ export function GroupDetails({ id }: GroupDetailsProps) {
   const handleConfirmDelete = async () => {
     try {
       await deleteGroup.mutateAsync(id);
+      toast.success('تم حذف المجموعة بنجاح');
       router.push('/teacher/groups');
     } catch (err) {
-      alert('حدث خطأ أثناء الحذف، يرجى المحاولة مرة أخرى.');
+      toast.error('حدث خطأ أثناء الحذف، يرجى المحاولة مرة أخرى.');
     }
   };
 

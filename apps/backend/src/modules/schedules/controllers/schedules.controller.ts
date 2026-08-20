@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Delete,
   Body,
   Param,
@@ -13,11 +14,13 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { SchedulesService } from '../services/schedules.service';
 import { CreateScheduleDto } from '../dto/create-schedule.dto';
 import { GenerateSessionsDto } from '../dto/generate-sessions.dto';
+import { CreateSessionDto } from '../dto/create-session.dto';
+import { UpdateSessionDto } from '../dto/update-session.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { UserRole } from '@prisma/client';
 
-@ApiTags('Lesson Schedules')
+@ApiTags('Lesson Schedules & Teacher Calendar')
 @ApiBearerAuth()
 @Controller('schedules')
 export class SchedulesController {
@@ -77,6 +80,76 @@ export class SchedulesController {
     return this.schedulesService.getGroupSessions(groupId, user);
   }
 
+  @Get('teacher/calendar')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Get all sessions for the teacher (calendar timeline with past, today, and upcoming)' })
+  async getTeacherCalendar(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('groupId') groupId?: string,
+    @Query('gradeLevel') gradeLevel?: string,
+    @Query('academicYear') academicYear?: string,
+    @Query('academicTerm') academicTerm?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('timeframe') timeframe?: 'PAST' | 'TODAY' | 'UPCOMING' | 'ALL',
+    @Query('search') search?: string,
+  ) {
+    return this.schedulesService.getTeacherSessions(user, {
+      groupId,
+      gradeLevel,
+      academicYear,
+      academicTerm,
+      startDate,
+      endDate,
+      timeframe,
+      search,
+    });
+  }
+
+  @Post('session')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Create a single lesson session with custom date, time, and topic' })
+  @ApiResponse({ status: 201, description: 'Session created' })
+  async createSession(
+    @Body() dto: CreateSessionDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.schedulesService.createSingleSession(dto, user);
+  }
+
+  @Put('session/:id')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Update a lesson session date, start time, or topic name' })
+  async updateSession(
+    @Param('id') id: string,
+    @Body() dto: UpdateSessionDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.schedulesService.updateSession(id, dto, user);
+  }
+
+  @Delete('session/:id')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Delete a physical lesson session' })
+  async deleteSession(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.schedulesService.deleteSession(id, user);
+  }
+
+  @Get('topics')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Get all distinct session topics/titles saved by the teacher in the database' })
+  async getTopics(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('gradeLevel') gradeLevel?: string,
+    @Query('groupId') groupId?: string,
+  ) {
+    return this.schedulesService.getTeacherSessionTopics(user, gradeLevel, groupId);
+  }
+
   @Get('today-sessions')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Get all sessions for today across all groups, auto-generating if needed' })
@@ -96,4 +169,3 @@ export class SchedulesController {
     );
   }
 }
-

@@ -26,7 +26,12 @@ export class AttendanceService {
   /**
    * 7-Tier Verification Pipeline for QR Code Roll-call Check-in.
    */
-  async processQrScan(sessionId: string, qrCodeToken: string, user: AuthenticatedUser) {
+  async processQrScan(
+    sessionId: string,
+    qrCodeToken: string,
+    user: AuthenticatedUser,
+    allowCrossGroup = false,
+  ) {
     // 1. Session Verification
     const session = await this.prisma.lessonSession.findUnique({
       where: { id: sessionId },
@@ -53,29 +58,42 @@ export class AttendanceService {
       }
     }
 
-    // 2. Token Resolution
-    const student = await this.prisma.studentProfile.findUnique({
-      where: { qrCodeToken },
-      include: { user: { select: { fullName: true, isActive: true } } },
-    });
+    // 2. Token Resolution (supports QR token, studentCode, or UUID)
+    const trimmedToken = qrCodeToken?.trim();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmedToken);
 
-    if (!student || !student.user.isActive) {
-      throw new BadRequestException('Invalid QR credential or inactive student account');
-    }
-
-    // 3. Cohort Enrollment Check
-    const enrollment = await this.prisma.groupEnrollment.findUnique({
+    const student = await this.prisma.studentProfile.findFirst({
       where: {
-        groupId_studentId: {
-          groupId: session.groupId,
-          studentId: student.id,
+        OR: [
+          { qrCodeToken: trimmedToken },
+          { studentCode: trimmedToken },
+          ...(isUuid ? [{ id: trimmedToken }] : []),
+        ],
+      },
+      include: {
+        user: { select: { fullName: true, isActive: true, phone: true } },
+        groupEnrollments: {
+          where: { status: GroupEnrollmentStatus.ACTIVE },
+          include: { group: true },
         },
       },
     });
 
-    if (!enrollment || enrollment.status !== GroupEnrollmentStatus.ACTIVE) {
+    if (!student || !student.user.isActive) {
+      throw new BadRequestException('رمز الـ QR غير صالح أو أن حساب الطالب غير مفعّل.');
+    }
+
+    // 3. Cohort Enrollment Check (Strict to selected session group)
+    const directEnrollment = student.groupEnrollments.find(
+      (e) => e.groupId === session.groupId,
+    );
+
+    if (!directEnrollment) {
+      const registeredGroup = student.groupEnrollments[0]?.group?.name;
+      const extraInfo = registeredGroup ? ` (مسجل في: ${registeredGroup})` : '';
+
       throw new BadRequestException(
-        `Student [${student.user.fullName}] is not actively enrolled in group [${session.group.name}]`,
+        `عذراً، الطالب [${student.user.fullName}] غير مسجل في هذه المجموعة (${session.group.name})${extraInfo}. الماسح يقبل فقط طلاب المجموعة المحددة.`,
       );
     }
 
@@ -100,18 +118,29 @@ export class AttendanceService {
       where: { sessionId, status: AttendanceStatus.PRESENT },
     });
 
+    const recordedTimeStr = result.record.recordedAt
+      ? new Date(result.record.recordedAt).toLocaleTimeString('ar-EG', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : '';
+
     return {
       isDuplicate: result.isDuplicate,
       student: {
         id: student.id,
         fullName: student.user.fullName,
         studentCode: student.studentCode,
+        gradeLevel: student.gradeLevel,
       },
       attendance: result.record,
       sessionStats: {
         totalPresent,
         totalEnrolled: session.group._count.enrollments,
       },
+      message: result.isDuplicate
+        ? `⚠️ تم تسجيل حضور الطالب [${student.user.fullName}] لهذه الحصة مسبقاً ${recordedTimeStr ? `في تمام الساعة ${recordedTimeStr}` : ''}`
+        : `تم تسجيل حضور الطالب [${student.user.fullName}] بنجاح`,
     };
   }
 

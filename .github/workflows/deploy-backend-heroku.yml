@@ -31,5 +31,7 @@ jobs:
           # 1. Configure Heroku Git Remote
           git remote add heroku https://heroku:${HEROKU_API_KEY}@git.heroku.com/${HEROKU_APP_NAME}.git
 
-          # 2. Extract and push only the backend folder (apps/backend) to Heroku main branch
-          git subtree push --prefix apps/backend heroku main
+          # 2. Generate a fresh subtree commit. Reusing a local branch can leave
+          # Heroku pointed at the monorepo root, which has no start script or Procfile.
+          BACKEND_COMMIT=$(git subtree split --prefix=apps/backend HEAD)
+          git push --force heroku "${BACKEND_COMMIT}:main"

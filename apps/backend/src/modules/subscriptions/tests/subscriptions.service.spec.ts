@@ -18,6 +18,7 @@ describe('SubscriptionsService', () => {
   const mockPrismaService = {
     studentProfile: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
     },
     academicGroup: {
       findUnique: jest.fn(),
@@ -162,7 +163,7 @@ describe('SubscriptionsService', () => {
       const studentId = 'stu-1';
       const groupId = 'group-1';
 
-      mockPrismaService.studentProfile.findUnique.mockResolvedValue({
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue({
         id: studentId,
         qrCodeToken,
         user: { fullName: 'طالب ماسح', phone: '01012345678', isActive: true },
@@ -214,11 +215,11 @@ describe('SubscriptionsService', () => {
     });
 
     it('should throw BadRequestException for invalid or inactive student QR code', async () => {
-      mockPrismaService.studentProfile.findUnique.mockResolvedValue(null);
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue(null);
 
       await expect(
         service.scanPaymentQr(mockUser, { qrCodeToken: 'invalid_token' }),
-      ).rejects.toThrow('رمز QR غير صالح أو حساب الطالب غير نشط');
+      ).rejects.toThrow('رمز الـ QR غير صالح أو أن حساب الطالب غير مفعّل.');
     });
   });
 });

@@ -5,6 +5,33 @@ export interface LoginCredentials {
   password: string;
 }
 
+export interface ParentAccessCredentials {
+  studentPhone: string;
+}
+
+export type AcademicStage = 'PRIMARY' | 'MIDDLE' | 'SECONDARY';
+
+export interface StudentRegistrationPayload {
+  fullName: string;
+  studentPhone: string;
+  parentPhone: string;
+  academicStage: AcademicStage;
+  gradeLevel: string;
+}
+
+export interface StudentRegistrationCredentials {
+  studentCode: string;
+  studentPhone: string;
+  studentPassword: string;
+  parentPhone: string;
+  parentPassword: string | null;
+  parentIsNew: boolean;
+}
+
+export interface StudentRegistrationResult extends AuthTokensResponse {
+  credentials: StudentRegistrationCredentials;
+}
+
 export interface AuthUser {
   id: string;
   fullName: string;

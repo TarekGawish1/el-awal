@@ -7,7 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { CreateStudentDto } from '../dto/create-student.dto';
 import { StudentQueryDto } from '../dto/student-query.dto';
@@ -15,6 +15,7 @@ import { StudentQrCodeResponseDto } from '../dto/qr-code-response.dto';
 import { UserRole, GroupEnrollmentStatus } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
+import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
 
 @Injectable()
 export class StudentsService {
@@ -24,7 +25,8 @@ export class StudentsService {
 
   /**
    * Atomic Registration Workflow for Student + Parent + Initial Group Enrollment.
-   * Executed inside a Prisma $transaction.
+   * Executed inside a Prisma $transaction. This is the administration/secretariat
+   * path; students can also self-register via the auth student-registration flow.
    */
   async createStudent(dto: CreateStudentDto) {
     return this.prisma.$transaction(async (tx) => {
@@ -58,11 +60,8 @@ export class StudentsService {
         },
       });
 
-      // 4. Generate sequential studentCode and cryptographic QR token
-      const currentYear = new Date().getFullYear();
-      const totalStudentsCount = await tx.studentProfile.count();
-      const sequenceNumber = String(totalStudentsCount + 1).padStart(4, '0');
-      const studentCode = `STU-${currentYear}-${sequenceNumber}`;
+      // 4. Generate unique studentCode and cryptographic QR token
+      const studentCode = await generateUniqueStudentCode(tx);
       const qrCodeToken = `qr_tok_${randomUUID().replace(/-/g, '')}`;
 
       // 5. Create StudentProfile
@@ -251,7 +250,7 @@ export class StudentsService {
         parentLinks: {
           include: {
             parent: {
-              include: { user: { select: { id: true, fullName: true, phone: true } } },
+              include: { user: { select: { id: true, fullName: true, phone: true, isActive: true } } },
             },
           },
         },
@@ -357,6 +356,13 @@ export class StudentsService {
         groupEnrollments: {
           where: { status: GroupEnrollmentStatus.ACTIVE },
           include: { group: { select: { id: true, name: true } } },
+        },
+        parentLinks: {
+          include: {
+            parent: {
+              include: { user: { select: { id: true, fullName: true, phone: true, isActive: true } } },
+            },
+          },
         },
       },
     });

@@ -11,7 +11,8 @@ import { useStudents } from '../hooks/use-students';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
 import { AcademicStatus } from '../types/students.types';
-import { Search, RotateCcw, Users, Calendar, BookOpen } from 'lucide-react';
+import { Search, RotateCcw, Users, Calendar, BookOpen, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Pagination } from '@/components/ui/Pagination';
 
 const STAGE_GRADES_MAP: Record<string, string[]> = {
   'المرحلة الابتدائية': [
@@ -272,6 +273,15 @@ export function StudentList() {
     });
   }, [data, searchTerm, selectedStages, selectedGrades, selectedGroups, selectedYears, selectedTerms, groupMap]);
 
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const PAGE_SIZE = 10;
+  const totalPages = Math.ceil(filteredStudents.length / PAGE_SIZE);
+
+  const paginatedStudents = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredStudents.slice(start, start + PAGE_SIZE);
+  }, [filteredStudents, currentPage]);
+
   const hasActiveFilters =
     searchTerm !== '' ||
     selectedStages.length > 0 ||
@@ -287,6 +297,7 @@ export function StudentList() {
     setSelectedGroups([]);
     setSelectedYears([]);
     setSelectedTerms([]);
+    setCurrentPage(1);
   };
 
   const getStatusColor = (status: AcademicStatus) => {
@@ -319,27 +330,14 @@ export function StudentList() {
     }
   };
 
-  const handleNextPage = () => {
-    if (data?.meta.hasMore && data?.meta.nextCursor) {
-      setCursor(data.meta.nextCursor);
-    }
-  };
-
-  const handlePrevPage = () => {
-    if (data?.meta.prevCursor) {
-      setCursor(data.meta.prevCursor);
-    } else {
-      setCursor(undefined);
-    }
-  };
-
   return (
     <div className="space-y-6">
       {/* Filters Toolbar */}
-      <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 items-center">
+      <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 space-y-4">
+        {/* Row 1: Search, Academic Year, Term */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
           {/* Search Input */}
-          <div className="sm:col-span-2 lg:col-span-3 xl:col-span-2 relative">
+          <div className="md:col-span-6 relative">
             <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-slate-400" />
             </div>
@@ -348,12 +346,46 @@ export function StudentList() {
               placeholder="ابحث بالاسم، رقم الهاتف أو الكود..."
               className="pr-10 h-10 text-xs sm:text-sm bg-slate-50/50 border border-slate-200 focus:border-primary-500 rounded-lg transition-all"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
             />
           </div>
 
+          {/* Academic Year MultiSelect Checkboxes Dropdown */}
+          <div className="md:col-span-3">
+            <MultiSelectDropdown
+              placeholder="العام الدراسي"
+              allSelectedLabel="جميع الأعوام الدراسية"
+              options={availableYears}
+              selectedValues={selectedYears}
+              onChange={(vals) => {
+                setSelectedYears(vals);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
+
+          {/* Academic Term MultiSelect Checkboxes Dropdown */}
+          <div className="md:col-span-3">
+            <MultiSelectDropdown
+              placeholder="الفصل الدراسي"
+              allSelectedLabel="جميع الفصول الدراسية"
+              options={availableTerms}
+              selectedValues={selectedTerms}
+              onChange={(vals) => {
+                setSelectedTerms(vals);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Row 2: Stage, Grade, Groups */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
           {/* Stage MultiSelect Checkboxes Dropdown */}
-          <div>
+          <div className="md:col-span-3">
             <MultiSelectDropdown
               placeholder="المرحلة التعليمية"
               allSelectedLabel="جميع المراحل التعليمية"
@@ -363,53 +395,40 @@ export function StudentList() {
                 { label: 'المرحلة الثانوية', value: 'المرحلة الثانوية' },
               ]}
               selectedValues={selectedStages}
-              onChange={handleStagesChange}
+              onChange={(vals) => {
+                handleStagesChange(vals);
+                setCurrentPage(1);
+              }}
             />
           </div>
 
           {/* Grade Level MultiSelect Checkboxes Dropdown */}
-          <div>
+          <div className="md:col-span-3">
             <MultiSelectDropdown
               placeholder="الصف الدراسي"
               allSelectedLabel="جميع الصفوف الدراسية"
               withSearch={availableGradeOptions.length > 5}
               options={availableGradeOptions}
               selectedValues={selectedGrades}
-              onChange={handleGradesChange}
+              onChange={(vals) => {
+                handleGradesChange(vals);
+                setCurrentPage(1);
+              }}
             />
           </div>
 
           {/* Group MultiSelect Checkboxes Dropdown */}
-          <div>
+          <div className="md:col-span-6">
             <MultiSelectDropdown
               placeholder="المجموعة الدراسية"
               allSelectedLabel="جميع المجموعات"
               withSearch={true}
               options={availableGroupOptions}
               selectedValues={selectedGroups}
-              onChange={setSelectedGroups}
-            />
-          </div>
-
-          {/* Academic Year MultiSelect Checkboxes Dropdown */}
-          <div>
-            <MultiSelectDropdown
-              placeholder="العام الدراسي"
-              allSelectedLabel="جميع الأعوام الدراسية"
-              options={availableYears}
-              selectedValues={selectedYears}
-              onChange={setSelectedYears}
-            />
-          </div>
-
-          {/* Academic Term MultiSelect Checkboxes Dropdown */}
-          <div>
-            <MultiSelectDropdown
-              placeholder="الفصل الدراسي"
-              allSelectedLabel="جميع الفصول الدراسية"
-              options={availableTerms}
-              selectedValues={selectedTerms}
-              onChange={setSelectedTerms}
+              onChange={(vals) => {
+                setSelectedGroups(vals);
+                setCurrentPage(1);
+              }}
             />
           </div>
         </div>
@@ -431,9 +450,10 @@ export function StudentList() {
         )}
       </div>
 
-      {/* Table Section */}
+      {/* Table & Mobile Cards Section */}
       <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm text-start">
             <thead className="bg-slate-50/80 border-b border-slate-100 backdrop-blur-sm">
               <tr>
@@ -441,6 +461,7 @@ export function StudentList() {
                 <th className="px-6 py-5 font-bold text-slate-700 text-start whitespace-nowrap">كود الطالب</th>
                 <th className="px-6 py-5 font-bold text-slate-700 text-start whitespace-nowrap">المرحلة الدراسية</th>
                 <th className="px-6 py-5 font-bold text-slate-700 text-start whitespace-nowrap">المجموعة</th>
+                <th className="px-6 py-5 font-bold text-slate-700 text-start whitespace-nowrap">ولي الأمر</th>
                 <th className="px-6 py-5 font-bold text-slate-700 text-start whitespace-nowrap">الحالة</th>
                 <th className="px-6 py-5 font-bold text-slate-700 text-end whitespace-nowrap">الإجراءات</th>
               </tr>
@@ -448,7 +469,7 @@ export function StudentList() {
             <tbody className="divide-y divide-slate-50">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-16 text-center text-slate-500">
+                  <td colSpan={7} className="px-6 py-16 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center space-y-3">
                       <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
                       <p className="font-medium">جاري تحميل الطلاب...</p>
@@ -457,13 +478,13 @@ export function StudentList() {
                 </tr>
               ) : isError ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-red-500 bg-red-50/50">
+                  <td colSpan={7} className="px-6 py-12 text-center text-red-500 bg-red-50/50">
                     فشل تحميل الطلاب. يرجى المحاولة مرة أخرى.
                   </td>
                 </tr>
               ) : filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-20 text-center text-slate-500">
+                  <td colSpan={7} className="px-6 py-20 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center space-y-3">
                       <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-2">
                         <svg className="w-8 h-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -483,15 +504,22 @@ export function StudentList() {
                   </td>
                 </tr>
               ) : (
-                filteredStudents.map((student) => (
+                paginatedStudents.map((student) => (
                   <tr key={student.id} className="hover:bg-slate-50/80 transition-colors duration-200">
                     <td className="px-6 py-4">
                       <Link href={`/teacher/students/${student.id}`} className="flex items-center gap-3 w-fit">
                         <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center font-bold text-sm border border-primary-100/50 shadow-sm">
                           {student.user.fullName.charAt(0)}
                         </div>
-                        <span className="font-bold text-slate-700 hover:text-primary-600 transition-colors">
-                          {student.user.fullName}
+                        <span className="flex flex-col">
+                          <span className="font-bold text-slate-700 hover:text-primary-600 transition-colors">
+                            {student.user.fullName}
+                          </span>
+                          {student.user.phone && (
+                            <span className="text-xs text-slate-400 font-mono" dir="ltr">
+                              {student.user.phone}
+                            </span>
+                          )}
                         </span>
                       </Link>
                     </td>
@@ -505,6 +533,27 @@ export function StudentList() {
                     </td>
                     <td className="px-6 py-4 font-medium text-slate-600">
                       {student.groupEnrollments[0]?.group.name || <span className="text-slate-400 italic">غير معين</span>}
+                    </td>
+                    <td className="px-6 py-4">
+                      {student.parentLinks?.[0]?.parent.user ? (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-mono text-slate-600" dir="ltr">
+                            {student.parentLinks[0].parent.user.phone || '—'}
+                          </span>
+                          <span className="inline-flex w-fit items-center gap-1">
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${
+                                student.parentLinks[0].parent.user.isActive ? 'bg-success-500' : 'bg-neutral-300'
+                              }`}
+                            />
+                            <span className="text-[11px] text-slate-500">
+                              {student.parentLinks[0].parent.user.isActive ? 'حساب نشط' : 'حساب غير نشط'}
+                            </span>
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 italic">—</span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <Badge variant={getStatusColor(student.academicStatus)} className="px-3 py-1.5 text-xs font-bold rounded-lg shadow-sm">
@@ -525,28 +574,95 @@ export function StudentList() {
           </table>
         </div>
 
+        {/* Mobile Cards View (Optimized for Phone Screens) */}
+        <div className="block md:hidden">
+          {isLoading ? (
+            <div className="p-8 text-center text-slate-500">
+              <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+              <p className="font-medium text-sm">جاري تحميل الطلاب...</p>
+            </div>
+          ) : isError ? (
+            <div className="p-6 text-center text-red-500 bg-red-50/50 text-sm">
+              فشل تحميل الطلاب. يرجى المحاولة مرة أخرى.
+            </div>
+          ) : filteredStudents.length === 0 ? (
+            <div className="p-8 text-center text-slate-500">
+              <p className="text-sm font-medium text-slate-600">
+                {hasActiveFilters ? 'لا يوجد طلاب مطابقين لخيارات الفلترة.' : 'لم يتم العثور على طلاب.'}
+              </p>
+              {hasActiveFilters && (
+                <Button variant="outline" size="sm" onClick={resetFilters} className="mt-3 text-xs">
+                  <RotateCcw className="w-3.5 h-3.5 ml-1.5" />
+                  إعادة تعيين الفلاتر
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {paginatedStudents.map((student) => (
+                <div key={student.id} className="p-4 space-y-3 hover:bg-slate-50/50 transition-colors">
+                  <div className="flex items-start justify-between gap-3">
+                    <Link href={`/teacher/students/${student.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="w-11 h-11 rounded-2xl bg-primary-50 text-primary-700 flex items-center justify-center font-extrabold text-base border border-primary-100 shrink-0 shadow-2xs">
+                        {student.user.fullName.charAt(0)}
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-sm text-slate-900 truncate">
+                          {student.user.fullName}
+                        </h4>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[11px] font-mono text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded">
+                            {student.studentCode}
+                          </span>
+                          <span className="text-[11px] text-slate-500 truncate">
+                            {student.gradeLevel || '—'}
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+
+                    <Badge variant={getStatusColor(student.academicStatus)} className="text-[10px] font-bold shrink-0">
+                      {getStatusText(student.academicStatus)}
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">المجموعة:</span>
+                      <span className="font-bold text-slate-700 truncate block">
+                        {student.groupEnrollments[0]?.group.name || 'غير معين'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">ولي الأمر:</span>
+                      <span className="font-mono text-slate-700 block text-[11px]" dir="ltr">
+                        {student.parentLinks?.[0]?.parent.user?.phone || '—'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <Link href={`/teacher/students/${student.id}`} className="block">
+                    <Button variant="outline" size="sm" className="w-full text-xs font-bold rounded-xl py-2 bg-white">
+                      عرض الملف الكامل والتفاصيل
+                    </Button>
+                  </Link>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Pagination Controls */}
-        {data && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/50">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handlePrevPage}
-              disabled={!cursor}
-              className="rounded-xl"
-            >
-              السابق
-            </Button>
-            <span className="text-sm text-slate-500">نتائج الصفحة</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleNextPage}
-              disabled={!data.meta.hasMore}
-              className="rounded-xl"
-            >
-              التالي
-            </Button>
+        {totalPages > 1 && (
+          <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredStudents.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setCurrentPage}
+              itemLabel="طالب"
+            />
           </div>
         )}
       </div>

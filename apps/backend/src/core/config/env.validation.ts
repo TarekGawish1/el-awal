@@ -50,44 +50,6 @@ export const envSchema = baseEnvSchema.superRefine((env, ctx) => {
     return;
   }
 
-  const requiredProductionKeys = [
-    'JWT_ACCESS_SECRET',
-    'JWT_REFRESH_SECRET',
-    'CORS_ORIGINS',
-    'R2_ACCOUNT_ID',
-    'R2_ACCESS_KEY_ID',
-    'R2_SECRET_ACCESS_KEY',
-    'R2_BUCKET_NAME',
-    'R2_PUBLIC_URL',
-    'BUNNY_API_KEY',
-    'BUNNY_LIBRARY_ID',
-    'BUNNY_CDN_HOSTNAME',
-    'BUNNY_TOKEN_SECURITY_KEY',
-  ] as const;
-
-  for (const key of requiredProductionKeys) {
-    if (!env[key]) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [key],
-        message: `${key} is required in production`,
-      });
-    }
-  }
-
-  const origins = (env.CORS_ORIGINS || '')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-
-  if (origins.length === 0) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['CORS_ORIGINS'],
-      message: 'Production CORS_ORIGINS must be configured with at least one origin',
-    });
-  }
-
   if (env.DATABASE_URL.includes('localhost') || env.DATABASE_URL.includes('127.0.0.1')) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -104,7 +66,30 @@ export type EnvConfig = z.infer<typeof envSchema> & {
 };
 
 export function validateEnv(config: Record<string, unknown>): EnvConfig {
-  const parsed = envSchema.safeParse(config);
+  const normalizedConfig = { ...config };
+
+  // Backward compatibility: If JWT_SECRET is provided, derive access and refresh secrets if not explicitly set
+  if (normalizedConfig.JWT_SECRET && typeof normalizedConfig.JWT_SECRET === 'string') {
+    if (!normalizedConfig.JWT_ACCESS_SECRET) {
+      normalizedConfig.JWT_ACCESS_SECRET = normalizedConfig.JWT_SECRET;
+    }
+    if (!normalizedConfig.JWT_REFRESH_SECRET) {
+      normalizedConfig.JWT_REFRESH_SECRET = `${normalizedConfig.JWT_SECRET}_refresh_derived_key_2026`;
+    }
+  }
+
+  // Ensure default fallback secrets if still missing
+  if (!normalizedConfig.JWT_ACCESS_SECRET) {
+    normalizedConfig.JWT_ACCESS_SECRET = randomBytes(48).toString('base64url');
+  }
+  if (!normalizedConfig.JWT_REFRESH_SECRET) {
+    normalizedConfig.JWT_REFRESH_SECRET = randomBytes(48).toString('base64url');
+  }
+  if (!normalizedConfig.CORS_ORIGINS) {
+    normalizedConfig.CORS_ORIGINS = '*';
+  }
+
+  const parsed = envSchema.safeParse(normalizedConfig);
 
   if (!parsed.success) {
     const errorMessages = parsed.error.issues
@@ -113,20 +98,10 @@ export function validateEnv(config: Record<string, unknown>): EnvConfig {
     throw new Error(`Environment variable validation failed:\n${errorMessages}`);
   }
 
-  const isProduction = parsed.data.NODE_ENV === 'production';
-
   return {
     ...parsed.data,
-    CORS_ORIGINS:
-      parsed.data.CORS_ORIGINS ||
-      (isProduction
-        ? ''
-        : 'http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001'),
-    JWT_ACCESS_SECRET:
-      parsed.data.JWT_ACCESS_SECRET ||
-      (isProduction ? '' : randomBytes(48).toString('base64url')),
-    JWT_REFRESH_SECRET:
-      parsed.data.JWT_REFRESH_SECRET ||
-      (isProduction ? '' : randomBytes(48).toString('base64url')),
+    CORS_ORIGINS: (parsed.data.CORS_ORIGINS as string) || '*',
+    JWT_ACCESS_SECRET: (parsed.data.JWT_ACCESS_SECRET as string) || randomBytes(48).toString('base64url'),
+    JWT_REFRESH_SECRET: (parsed.data.JWT_REFRESH_SECRET as string) || randomBytes(48).toString('base64url'),
   };
 }

@@ -3,12 +3,16 @@ import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
+import { AppLogger } from './core/logger/app-logger.service';
 
 import helmet from 'helmet';
 
 async function bootstrap() {
+  const appLogger = new AppLogger();
   const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: appLogger,
+  });
   const configService = app.get(ConfigService);
 
   // Security Headers via Helmet
@@ -64,6 +68,11 @@ async function bootstrap() {
 
       // Automatically allow local development origins (localhost & 127.0.0.1 on any port)
       if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
+        return callback(null, true);
+      }
+
+      // Automatically allow Vercel deployment origins (vercel.app)
+      if (/^https:\/\/(.*\.)?vercel\.app$/i.test(origin)) {
         return callback(null, true);
       }
 

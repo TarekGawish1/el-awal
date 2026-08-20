@@ -8,21 +8,47 @@ import {
   addStudentToGroup,
   removeStudentFromGroup,
   searchStudents,
-  deleteGroup
+  deleteGroup,
 } from '../api/groups.api';
 import { CreateGroupPayload, EnrollStudentPayload } from '../types/groups.types';
+import { offlineDb } from '@/lib/offline/db';
 
 export function useGroups() {
   return useQuery({
     queryKey: ['groups'],
-    queryFn: fetchGroups,
+    queryFn: async () => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        return offlineDb.getGroupsOffline();
+      }
+
+      try {
+        const groups = await fetchGroups();
+        if (groups && groups.length > 0) {
+          offlineDb.bulkPutGroups(groups);
+        }
+        return groups;
+      } catch {
+        return offlineDb.getGroupsOffline();
+      }
+    },
   });
 }
 
 export function useGroup(id: string) {
   return useQuery({
     queryKey: ['groups', id],
-    queryFn: () => fetchGroup(id),
+    queryFn: async () => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        return offlineDb.getGroupByIdOffline(id);
+      }
+      try {
+        return await fetchGroup(id);
+      } catch {
+        return offlineDb.getGroupByIdOffline(id);
+      }
+    },
     enabled: !!id,
   });
 }
@@ -30,7 +56,17 @@ export function useGroup(id: string) {
 export function useGroupStudents(id: string) {
   return useQuery({
     queryKey: ['groups', id, 'students'],
-    queryFn: () => fetchGroupStudents(id),
+    queryFn: async () => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        return offlineDb.getStudentsOffline({ groupId: id });
+      }
+      try {
+        return await fetchGroupStudents(id);
+      } catch {
+        return offlineDb.getStudentsOffline({ groupId: id });
+      }
+    },
     enabled: !!id,
   });
 }
@@ -98,8 +134,18 @@ export function useRemoveStudent() {
 export function useSearchStudents(query: string) {
   return useQuery({
     queryKey: ['students', 'search', query],
-    queryFn: () => searchStudents(query),
+    queryFn: async () => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        return offlineDb.getStudentsOffline({ search: query });
+      }
+      try {
+        return await searchStudents(query);
+      } catch {
+        return offlineDb.getStudentsOffline({ search: query });
+      }
+    },
     enabled: query.length >= 2,
-    staleTime: 60 * 1000, // 1 minute
+    staleTime: 60 * 1000,
   });
 }

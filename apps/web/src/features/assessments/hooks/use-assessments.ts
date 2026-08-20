@@ -7,12 +7,14 @@ import {
   fetchAssessmentSubmissions,
   fetchSubmissionDetail,
   gradeSubmission,
+  submitAssessment,
 } from '../api/assessments.api';
 import {
   CreateAssessmentPayload,
   UpdateAssessmentPayload,
   GradeSubmissionPayload,
 } from '../types/assessments.types';
+import { offlineDb } from '@/lib/offline/db';
 
 export const assessmentKeys = {
   all: ['assessments'] as const,
@@ -27,14 +29,49 @@ export const assessmentKeys = {
 export function useAssessments(query?: Record<string, string>) {
   return useQuery({
     queryKey: assessmentKeys.list(JSON.stringify(query)),
-    queryFn: () => fetchAssessments(query),
+    queryFn: async () => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        const offlineList = await offlineDb.getAssessmentsOffline();
+        return {
+          data: offlineList,
+          meta: { total: offlineList.length },
+        };
+      }
+
+      try {
+        const res = await fetchAssessments(query);
+        if (res?.data && res.data.length > 0) {
+          offlineDb.bulkPutAssessments(res.data);
+        }
+        return res;
+      } catch {
+        const offlineList = await offlineDb.getAssessmentsOffline();
+        return {
+          data: offlineList,
+          meta: { total: offlineList.length },
+        };
+      }
+    },
   });
 }
 
 export function useAssessment(id: string) {
   return useQuery({
     queryKey: assessmentKeys.detail(id),
-    queryFn: () => fetchAssessmentById(id),
+    queryFn: async () => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        const assessments = await offlineDb.getAssessmentsOffline();
+        return assessments.find((a) => a.id === id) || null;
+      }
+      try {
+        return await fetchAssessmentById(id);
+      } catch {
+        const assessments = await offlineDb.getAssessmentsOffline();
+        return assessments.find((a) => a.id === id) || null;
+      }
+    },
     enabled: !!id,
   });
 }
@@ -57,8 +94,8 @@ export function useUpdateAssessment() {
     mutationFn: ({ id, payload }: { id: string; payload: UpdateAssessmentPayload }) =>
       updateAssessment(id, payload),
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: assessmentKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: assessmentKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: assessmentKeys.detail(variables.id) });
     },
   });
 }
@@ -83,11 +120,27 @@ export function useGradeSubmission() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ submissionId, payload }: { submissionId: string; payload: GradeSubmissionPayload }) =>
-      gradeSubmission(submissionId, payload),
+    mutationFn: ({
+      submissionId,
+      payload,
+    }: {
+      submissionId: string;
+      payload: GradeSubmissionPayload;
+    }) => gradeSubmission(submissionId, payload),
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: assessmentKeys.submissionDetail(variables.submissionId) });
-      queryClient.invalidateQueries({ queryKey: assessmentKeys.submissions(data.assessmentId) });
+      queryClient.invalidateQueries({ queryKey: assessmentKeys.details() });
+    },
+  });
+}
+
+export function useSubmitAssessment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: any }) => submitAssessment(id, payload),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: assessmentKeys.detail(variables.id) });
     },
   });
 }

@@ -7,9 +7,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as useAssessments from '../hooks/use-assessments';
 import { QuestionType } from '../types/assessments.types';
 
-// Mock routing
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => '/',
 }));
 
 // Mock hooks

@@ -16,7 +16,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { ContentService } from '../services/content.service';
-import { PresignedUploadDto } from '../dto/presigned-upload.dto';
+import { PresignedUploadDto, PresignedVideoUploadDto } from '../dto/presigned-upload.dto';
 import { CreateContentDto } from '../dto/create-content.dto';
 import { UpdateContentDto } from '../dto/update-content.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
@@ -71,6 +71,15 @@ export class ContentController {
   @ApiResponse({ status: 200, description: 'Presigned upload URL generated' })
   async getUploadUrl(@Body() dto: PresignedUploadDto) {
     return this.contentService.generatePresignedUpload(dto);
+  }
+
+  @Post('presigned-video-upload')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Generate direct client-to-Bunny Stream video upload credentials' })
+  @ApiResponse({ status: 200, description: 'Bunny Stream direct upload credentials generated' })
+  async getPresignedVideoUrl(@Body() dto: PresignedVideoUploadDto) {
+    return this.contentService.generatePresignedVideoUpload(dto.title);
   }
 
   @Post()

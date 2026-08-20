@@ -17,10 +17,14 @@ import {
   Bell,
   GraduationCap,
   DollarSign,
+  Download,
 } from 'lucide-react';
 import { useAuth } from '@/features/auth';
 import { DashboardBreadcrumbs } from '@/features/dashboard/components/DashboardBreadcrumbs';
 import { AcademicPeriodSwitcher } from '@/features/groups/components/AcademicPeriodSwitcher';
+import { PwaInstallButton } from '@/components/pwa';
+import { BootstrapProgressIndicator } from '@/components/pwa/BootstrapProgressIndicator';
+import { MobileBottomNav } from '@/components/navigation';
 
 export default function DashboardLayout({
   children,
@@ -57,9 +61,10 @@ export default function DashboardLayout({
 
   const teacherNavigationItems = [
     { label: 'لوحة التحكم', href: '/teacher/dashboard', icon: LayoutDashboard },
-    { label: 'المجموعات الدراسية', href: '/teacher/groups', icon: Calendar },
+    { label: 'المجموعات الدراسية', href: '/teacher/groups', icon: Users },
+    { label: 'جدول وحصص المعلم', href: '/teacher/schedules', icon: Calendar },
     { label: 'رصد الحضور والـ QR', href: '/teacher/attendance', icon: QrCode },
-    { label: 'سجل الطلاب', href: '/teacher/students', icon: Users },
+    { label: 'سجل الطلاب', href: '/teacher/students', icon: GraduationCap },
     { label: 'الواجبات والاختبارات', href: '/teacher/assessments', icon: FileText },
     { label: 'المحتوى والدروس', href: '/teacher/content', icon: BookOpen },
     { label: 'الماليات والمصروفات', href: '/teacher/finance', icon: DollarSign },
@@ -73,7 +78,15 @@ export default function DashboardLayout({
     { label: 'المدفوعات', href: '/student/payments', icon: DollarSign },
   ];
 
-  const navigationItems = user?.role === 'STUDENT' ? studentNavigationItems : teacherNavigationItems;
+  const parentNavigationItems = [
+    { label: 'أبنائي', href: '/parent/dashboard', icon: LayoutDashboard },
+  ];
+
+  const navigationItems = user?.role === 'STUDENT'
+    ? studentNavigationItems
+    : user?.role === 'PARENT'
+      ? parentNavigationItems
+      : teacherNavigationItems;
 
   // Hydration-safe initial loading screen before auth initialization
   if (!isInitialized) {
@@ -106,7 +119,7 @@ export default function DashboardLayout({
           {/* Brand Logo Header */}
           <div className="p-5 border-b border-neutral-100 flex items-center justify-between">
             <Link
-              href={user?.role === 'STUDENT' ? '/student/dashboard' : '/teacher/dashboard'}
+              href={user?.role === 'STUDENT' ? '/student/dashboard' : user?.role === 'PARENT' ? '/parent/dashboard' : '/teacher/dashboard'}
               className="flex items-center gap-2.5 group cursor-pointer"
               title="الذهاب للرئيسية"
             >
@@ -157,7 +170,10 @@ export default function DashboardLayout({
           </nav>
         </div>
 
-        {/* User Profile & Logout Footer is moved to Global Header */}
+        {/* Sidebar PWA Install & Info Footer */}
+        <div className="p-3 border-t border-neutral-100">
+          <PwaInstallButton className="w-full justify-center" />
+        </div>
       </aside>
 
       {/* Backdrop for mobile drawer */}
@@ -182,7 +198,7 @@ export default function DashboardLayout({
               {isMobileSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
             <Link
-              href={user?.role === 'STUDENT' ? '/student/dashboard' : '/teacher/dashboard'}
+              href={user?.role === 'STUDENT' ? '/student/dashboard' : user?.role === 'PARENT' ? '/parent/dashboard' : '/teacher/dashboard'}
               className="lg:hidden flex items-center gap-2 group cursor-pointer"
               title="الذهاب للرئيسية"
             >
@@ -200,7 +216,7 @@ export default function DashboardLayout({
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
-            {user?.role !== 'STUDENT' && (
+            {user?.role !== 'STUDENT' && user?.role !== 'PARENT' && (
               <AcademicPeriodSwitcher />
             )}
 
@@ -245,11 +261,20 @@ export default function DashboardLayout({
         </header>
 
         {/* Main Content Area */}
-        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto w-full">
-          <div className="max-w-7xl mx-auto w-full h-full">
+        <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 pb-28 lg:pb-8 overflow-y-auto w-full">
+          <div className="max-w-7xl mx-auto w-full min-h-full">
             {children}
           </div>
         </main>
+
+        {/* Mobile Bottom Navigation Bar */}
+        <MobileBottomNav
+          userRole={user?.role}
+          onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
+        />
+
+        {/* Floating Offline Bootstrap Hydration Indicator */}
+        <BootstrapProgressIndicator />
       </div>
     </div>
   );

@@ -11,7 +11,7 @@ import { Request, Response } from 'express';
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
-  private readonly logger = new Logger('HTTP_TRAFFIC');
+  private readonly logger = new Logger('HTTP');
 
   private readonly SENSITIVE_KEYS = new Set([
     'password',
@@ -40,7 +40,7 @@ export class LoggingInterceptor implements NestInterceptor {
     }
 
     if (Array.isArray(data)) {
-      return data.map((item) => this.sanitizeData(item));
+      return data.slice(0, 5).map((item) => this.sanitizeData(item));
     }
 
     const sanitized: Record<string, any> = {};
@@ -56,40 +56,52 @@ export class LoggingInterceptor implements NestInterceptor {
     return sanitized;
   }
 
+  /**
+   * Formats a concise summary of the request body for mutation requests.
+   */
+  private formatBodySummary(body: any): string {
+    if (!body || typeof body !== 'object' || Object.keys(body).length === 0) {
+      return '';
+    }
+    try {
+      const sanitized = this.sanitizeData(body);
+      const str = JSON.stringify(sanitized);
+      // Truncate long bodies to keep logs clean
+      const truncated = str.length > 120 ? `${str.slice(0, 117)}...}` : str;
+      return ` | Body: ${truncated}`;
+    } catch {
+      return '';
+    }
+  }
+
+  /**
+   * Formats a clean, readable user context string.
+   */
+  private formatUserContext(user: any): string {
+    if (!user) return '[Anon]';
+    const identifier = user.fullName || user.email || (user.id ? `${user.id.slice(0, 8)}...` : 'User');
+    const role = user.role ? ` (${user.role})` : '';
+    return `[${identifier}${role}]`;
+  }
+
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const ctx = context.switchToHttp();
     const req = ctx.getRequest<Request>();
     const res = ctx.getResponse<Response>();
 
-    const { method, originalUrl, query, body } = req;
-    const correlationId = (req.headers['x-correlation-id'] as string) || 'N/A';
-    const clientIp =
-      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-      req.socket.remoteAddress ||
-      'unknown';
-    const userAgent = req.headers['user-agent'] || 'unknown';
-    const user = (req as any).user;
-    const userContext = user
-      ? `[User: ${user.fullName || user.id} (${user.role})]`
-      : '[Public / Anonymous]';
+    const { method, originalUrl, body } = req;
+
+    // Skip noisy OPTIONS preflight requests in application logs
+    if (method === 'OPTIONS') {
+      return next.handle();
+    }
 
     const startTime = Date.now();
-
-    // 1. Log Incoming Request
-    const sanitizedBody =
-      body && Object.keys(body).length > 0
-        ? JSON.stringify(this.sanitizeData(body))
-        : null;
-    const sanitizedQuery =
-      query && Object.keys(query).length > 0
-        ? JSON.stringify(this.sanitizeData(query))
-        : null;
-    const queryStr = sanitizedQuery ? ` | Query: ${sanitizedQuery}` : '';
-    const bodyStr = sanitizedBody ? ` | Body: ${sanitizedBody}` : '';
-
-    this.logger.log(
-      `--> [REQ] [${correlationId}] ${method} ${originalUrl}${queryStr}${bodyStr} | IP: ${clientIp} | ${userContext} | UA: ${userAgent}`,
-    );
+    const user = (req as any).user;
+    const userContext = this.formatUserContext(user);
+    const bodySummary = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)
+      ? this.formatBodySummary(body)
+      : '';
 
     return next.handle().pipe(
       tap({
@@ -97,18 +109,13 @@ export class LoggingInterceptor implements NestInterceptor {
           const duration = Date.now() - startTime;
           const statusCode = res.statusCode;
 
-          // Estimate response payload length
-          let payloadSummary = '';
-          if (responseBody) {
-            if (responseBody.data && Array.isArray(responseBody.data)) {
-              payloadSummary = ` | Items: ${responseBody.data.length}`;
-            } else if (typeof responseBody === 'object') {
-              payloadSummary = ` | Response: OK`;
-            }
+          let payloadHint = '';
+          if (responseBody?.data && Array.isArray(responseBody.data)) {
+            payloadHint = ` (${responseBody.data.length} items)`;
           }
 
           this.logger.log(
-            `<-- [RES] [${correlationId}] ${method} ${originalUrl} ${statusCode} +${duration}ms${payloadSummary} | ${userContext}`,
+            `${method} ${originalUrl} ${statusCode} (${duration}ms)${payloadHint} ${userContext}${bodySummary}`,
           );
         },
         error: (err) => {
@@ -118,12 +125,12 @@ export class LoggingInterceptor implements NestInterceptor {
 
           if (status >= 500) {
             this.logger.error(
-              `<-- [ERR] [${correlationId}] ${method} ${originalUrl} ${status} +${duration}ms | ${userContext} | Error: ${errMessage}`,
+              `${method} ${originalUrl} ${status} (${duration}ms) ${userContext} | 💥 Error: ${errMessage}`,
               err?.stack,
             );
           } else {
             this.logger.warn(
-              `<-- [WARN] [${correlationId}] ${method} ${originalUrl} ${status} +${duration}ms | ${userContext} | Reason: ${errMessage}`,
+              `${method} ${originalUrl} ${status} (${duration}ms) ${userContext} | ⚠️ Reason: ${errMessage}`,
             );
           }
         },

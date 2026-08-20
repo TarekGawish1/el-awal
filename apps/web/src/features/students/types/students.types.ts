@@ -21,6 +21,16 @@ export interface StudentListItem {
       name: string;
     };
   }>;
+  parentLinks?: Array<{
+    parent: {
+      user: {
+        id: string;
+        fullName: string;
+        phone?: string;
+        isActive: boolean;
+      };
+    };
+  }>;
 }
 
 export interface StudentDetail extends StudentListItem {
@@ -32,6 +42,7 @@ export interface StudentDetail extends StudentListItem {
         id: string;
         fullName: string;
         phone?: string;
+        isActive: boolean;
       };
     };
   }>;

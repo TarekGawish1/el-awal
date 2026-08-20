@@ -18,6 +18,8 @@ export const ALLOWED_MIME_TYPES = [
   'audio/mp3',
   'audio/wav',
   'video/mp4',
+  'video/webm',
+  'video/quicktime',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/msword',
 ] as const;
@@ -44,7 +46,7 @@ export class PresignedUploadDto {
   contentType: string;
 
   @ApiPropertyOptional({
-    description: 'File size in bytes (max 100MB)',
+    description: 'File size in bytes (max 100MB for R2)',
     example: 10485760,
   })
   @IsOptional()
@@ -62,4 +64,14 @@ export class PresignedUploadDto {
   @IsOptional()
   @IsIn(['courses', 'assignments', 'summaries', 'avatars', 'assessments'])
   folder?: string;
+}
+
+export class PresignedVideoUploadDto {
+  @ApiProperty({
+    description: 'Video title or lesson topic for Bunny Stream',
+    example: 'شرح الوحدة الأولى - النحو',
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'Video title is required' })
+  title: string;
 }
