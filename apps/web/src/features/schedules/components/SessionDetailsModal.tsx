@@ -304,7 +304,67 @@ export function SessionDetailsModal({
                 </div>
               </div>
             ) : null}
-            {/* Quick Metrics Bar */}
+            {/* Top Quick Actions: Attendance QR & Payments QR (Immediate 1-Click Access at very top) */}
+            {(() => {
+              const sessionDateOnly = session.sessionDate.includes('T')
+                ? session.sessionDate.split('T')[0]
+                : session.sessionDate;
+              const sessionDateObj = new Date(sessionDateOnly);
+              const sessionYear = !isNaN(sessionDateObj.getFullYear())
+                ? sessionDateObj.getFullYear()
+                : new Date().getFullYear();
+              const sessionMonth = !isNaN(sessionDateObj.getMonth())
+                ? sessionDateObj.getMonth() + 1
+                : new Date().getMonth() + 1;
+
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Attendance QR Action */}
+                  <div className="p-4 bg-emerald-50/80 rounded-2xl border border-emerald-200 flex flex-col justify-between gap-3 transition-all hover:bg-emerald-50 shadow-2xs">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-emerald-900 font-extrabold text-xs">
+                        <QrCode className="w-4 h-4 text-emerald-600" />
+                        <span>رصد الحضور والـ QR</span>
+                      </div>
+                      <p className="text-[11px] text-emerald-700 font-medium">
+                        {session._count?.attendanceRecords || 0} طالب تم تسجيل حضورهم لهذه الحصة
+                      </p>
+                    </div>
+
+                    <Link
+                      href={`/teacher/attendance?sessionId=${session.id}&groupId=${session.groupId}&date=${sessionDateOnly}`}
+                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <QrCode className="w-3.5 h-3.5" />
+                      <span>رصد الحضور بالـ QR</span>
+                    </Link>
+                  </div>
+
+                  {/* Payments / Finance QR Action */}
+                  <div className="p-4 bg-indigo-50/80 rounded-2xl border border-indigo-200 flex flex-col justify-between gap-3 transition-all hover:bg-indigo-50 shadow-2xs">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-indigo-900 font-extrabold text-xs">
+                        <Wallet className="w-4 h-4 text-indigo-600" />
+                        <span>رصد المدفوعات والـ QR</span>
+                      </div>
+                      <p className="text-[11px] text-indigo-700 font-medium">
+                        تسجيل سداد المصروفات والاشتراكات الشهرية للمجموعة
+                      </p>
+                    </div>
+
+                    <Link
+                      href={`/teacher/finance?groupId=${session.groupId}&year=${sessionYear}&month=${sessionMonth}`}
+                      className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Wallet className="w-3.5 h-3.5" />
+                      <span>رصد المدفوعات بالـ QR</span>
+                    </Link>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Quick Metrics Bar (المرفقات، التقييمات، الحضور) */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5">
               <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold shrink-0">
@@ -344,7 +404,7 @@ export function SessionDetailsModal({
             </div>
 
             {/* Attachments Section */}
-            <div className="space-y-3">
+            <div className="space-y-3 pt-1">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                   <BookOpen className="w-4 h-4 text-primary-600" />
@@ -549,66 +609,6 @@ export function SessionDetailsModal({
                 </div>
               )}
             </div>
-
-            {/* Dual Quick Actions: Attendance QR & Payments QR */}
-            {(() => {
-              const sessionDateOnly = session.sessionDate.includes('T')
-                ? session.sessionDate.split('T')[0]
-                : session.sessionDate;
-              const sessionDateObj = new Date(sessionDateOnly);
-              const sessionYear = !isNaN(sessionDateObj.getFullYear())
-                ? sessionDateObj.getFullYear()
-                : new Date().getFullYear();
-              const sessionMonth = !isNaN(sessionDateObj.getMonth())
-                ? sessionDateObj.getMonth() + 1
-                : new Date().getMonth() + 1;
-
-              return (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  {/* Attendance QR Action */}
-                  <div className="p-4 bg-emerald-50/70 rounded-2xl border border-emerald-200/80 flex flex-col justify-between gap-3 transition-all hover:bg-emerald-50/90 shadow-2xs">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1.5 text-emerald-900 font-extrabold text-xs">
-                        <QrCode className="w-4 h-4 text-emerald-600" />
-                        <span>رصد الحضور والـ QR</span>
-                      </div>
-                      <p className="text-[11px] text-emerald-700 font-medium">
-                        {session._count?.attendanceRecords || 0} طالب تم تسجيل حضورهم لهذه الحصة
-                      </p>
-                    </div>
-
-                    <Link
-                      href={`/teacher/attendance?sessionId=${session.id}&groupId=${session.groupId}&date=${sessionDateOnly}`}
-                      className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <QrCode className="w-3.5 h-3.5" />
-                      <span>رصد الحضور بالـ QR</span>
-                    </Link>
-                  </div>
-
-                  {/* Payments / Finance QR Action */}
-                  <div className="p-4 bg-indigo-50/70 rounded-2xl border border-indigo-200/80 flex flex-col justify-between gap-3 transition-all hover:bg-indigo-50/90 shadow-2xs">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1.5 text-indigo-900 font-extrabold text-xs">
-                        <Wallet className="w-4 h-4 text-indigo-600" />
-                        <span>رصد المدفوعات والـ QR</span>
-                      </div>
-                      <p className="text-[11px] text-indigo-700 font-medium">
-                        تسجيل سداد المصروفات والاشتراكات الشهرية للمجموعة
-                      </p>
-                    </div>
-
-                    <Link
-                      href={`/teacher/finance?groupId=${session.groupId}&year=${sessionYear}&month=${sessionMonth}`}
-                      className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <Wallet className="w-3.5 h-3.5" />
-                      <span>رصد المدفوعات بالـ QR</span>
-                    </Link>
-                  </div>
-                </div>
-              );
-            })()}
           </div>
 
           {/* Footer Actions */}
