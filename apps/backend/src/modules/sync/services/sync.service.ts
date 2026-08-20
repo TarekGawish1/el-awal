@@ -184,7 +184,6 @@ export class SyncService {
     const schedules = await this.prisma.lessonSchedule.findMany({
       where: {
         ...(groupIds.length > 0 ? { groupId: { in: groupIds } } : {}),
-        ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
       },
     });
 
@@ -192,7 +191,7 @@ export class SyncService {
     const sessions = await this.prisma.lessonSession.findMany({
       where: {
         ...(groupIds.length > 0 ? { groupId: { in: groupIds } } : {}),
-        ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
+        ...(sinceDate ? { createdAt: { gte: sinceDate } } : {}),
       },
       include: {
         _count: { select: { attendanceRecords: true } },
@@ -309,7 +308,7 @@ export class SyncService {
     const sessions = await this.prisma.lessonSession.findMany({
       where: {
         groupId: { in: groupIds },
-        ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
+        ...(sinceDate ? { createdAt: { gte: sinceDate } } : {}),
       },
       orderBy: { sessionDate: 'asc' },
     });

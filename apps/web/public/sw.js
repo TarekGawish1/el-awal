@@ -169,7 +169,12 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Strategy C: Other GET requests (API endpoints) -> Network First with dynamic cache
+  // Skip cross-origin API calls (handled directly by React Query & Offline Sync Engine)
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  // Strategy C: Other GET requests (Same-origin assets/data) -> Network First with dynamic cache
   event.respondWith(
     fetch(request)
       .then((response) => {
@@ -179,8 +184,14 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() => {
-        return caches.match(request);
+      .catch(async () => {
+        const cached = await caches.match(request);
+        if (cached) return cached;
+        return new Response(JSON.stringify({ error: 'Network error or resource unavailable offline' }), {
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: { 'Content-Type': 'application/json' },
+        });
       }),
   );
 });

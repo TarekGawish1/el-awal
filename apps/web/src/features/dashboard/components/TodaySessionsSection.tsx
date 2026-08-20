@@ -150,20 +150,20 @@ export function TodaySessionsSection({ sessions = [], isLoading = false }: Today
 
                     <div>
                       {isLive ? (
-                        <Link href={`/teacher/attendance/${session.id}/scan`} className="block">
+                        <Link href={`/teacher/attendance?sessionId=${session.id}&groupId=${session.groupId}`} className="block">
                           <Button size="sm" variant="primary" className="w-full sm:w-auto text-xs gap-1.5 px-3">
                             <QrCode className="w-3.5 h-3.5" />
                             <span>رصد الحضور</span>
                           </Button>
                         </Link>
                       ) : isCompleted ? (
-                        <Link href={`/teacher/attendance`} className="block">
+                        <Link href={`/teacher/attendance?sessionId=${session.id}&groupId=${session.groupId}`} className="block">
                           <Button size="sm" variant="outline" className="w-full sm:w-auto text-xs px-2.5 text-neutral-600">
                             تقرير الحصة
                           </Button>
                         </Link>
                       ) : (
-                        <Link href={`/teacher/attendance/${session.id}/scan`} className="block">
+                        <Link href={`/teacher/attendance?sessionId=${session.id}&groupId=${session.groupId}`} className="block">
                           <Button size="sm" variant="outline" className="w-full sm:w-auto text-xs px-2.5 text-primary-700">
                             فتح الحصة
                           </Button>
