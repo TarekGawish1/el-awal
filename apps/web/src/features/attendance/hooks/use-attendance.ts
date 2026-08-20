@@ -40,8 +40,15 @@ export function useScanQrAttendance() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ sessionId, qrCodeToken }: { sessionId: string; qrCodeToken: string }) =>
-      scanQrAttendance(sessionId, qrCodeToken),
+    mutationFn: ({
+      sessionId,
+      qrCodeToken,
+      allowCrossGroup,
+    }: {
+      sessionId: string;
+      qrCodeToken: string;
+      allowCrossGroup?: boolean;
+    }) => scanQrAttendance(sessionId, qrCodeToken, allowCrossGroup),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['sessions', variables.sessionId, 'report'] });
       // Invalidate group sessions to update attendance records counts

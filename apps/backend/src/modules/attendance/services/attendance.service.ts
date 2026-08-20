@@ -26,7 +26,12 @@ export class AttendanceService {
   /**
    * 7-Tier Verification Pipeline for QR Code Roll-call Check-in.
    */
-  async processQrScan(sessionId: string, qrCodeToken: string, user: AuthenticatedUser) {
+  async processQrScan(
+    sessionId: string,
+    qrCodeToken: string,
+    user: AuthenticatedUser,
+    allowCrossGroup = false,
+  ) {
     // 1. Session Verification
     const session = await this.prisma.lessonSession.findUnique({
       where: { id: sessionId },
@@ -53,30 +58,88 @@ export class AttendanceService {
       }
     }
 
-    // 2. Token Resolution
-    const student = await this.prisma.studentProfile.findUnique({
-      where: { qrCodeToken },
-      include: { user: { select: { fullName: true, isActive: true } } },
-    });
+    // 2. Token Resolution (supports QR token, studentCode, or UUID)
+    const trimmedToken = qrCodeToken?.trim();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmedToken);
 
-    if (!student || !student.user.isActive) {
-      throw new BadRequestException('Invalid QR credential or inactive student account');
-    }
-
-    // 3. Cohort Enrollment Check
-    const enrollment = await this.prisma.groupEnrollment.findUnique({
+    const student = await this.prisma.studentProfile.findFirst({
       where: {
-        groupId_studentId: {
-          groupId: session.groupId,
-          studentId: student.id,
+        OR: [
+          { qrCodeToken: trimmedToken },
+          { studentCode: trimmedToken },
+          ...(isUuid ? [{ id: trimmedToken }] : []),
+        ],
+      },
+      include: {
+        user: { select: { fullName: true, isActive: true, phone: true } },
+        groupEnrollments: {
+          where: { status: GroupEnrollmentStatus.ACTIVE },
+          include: { group: true },
         },
       },
     });
 
-    if (!enrollment || enrollment.status !== GroupEnrollmentStatus.ACTIVE) {
-      throw new BadRequestException(
-        `Student [${student.user.fullName}] is not actively enrolled in group [${session.group.name}]`,
-      );
+    if (!student || !student.user.isActive) {
+      throw new BadRequestException('رمز الـ QR غير صالح أو أن حساب الطالب غير مفعّل.');
+    }
+
+    // 3. Cohort Enrollment & Grade Level Check
+    const directEnrollment = student.groupEnrollments.find(
+      (e) => e.groupId === session.groupId,
+    );
+
+    const sessionGrade = session.group.gradeLevel?.trim();
+    const studentGrade = student.gradeLevel?.trim();
+
+    // Check primary group
+    const primaryEnrollment = student.groupEnrollments[0];
+    const primaryGroup = primaryEnrollment?.group;
+    const studentGroupGrade = primaryGroup?.gradeLevel?.trim() || studentGrade;
+
+    let crossGroupNote: string | undefined = undefined;
+
+    if (!directEnrollment) {
+      // Check if student belongs to the same grade level (الصف الدراسي)
+      const isSameGrade =
+        (sessionGrade && studentGrade && sessionGrade === studentGrade) ||
+        (sessionGrade && studentGroupGrade && sessionGrade === studentGroupGrade);
+
+      if (!isSameGrade) {
+        throw new BadRequestException(
+          `عذراً، الطالب [${student.user.fullName}] مسجل في [${studentGrade || studentGroupGrade || 'صف دراسي آخر'}] ولا يمكنه حضور حصة مخصصة لـ [${sessionGrade}].`,
+        );
+      }
+
+      // Same grade level but different group!
+      const sourceGroupName = primaryGroup?.name || 'مجموعة أخرى';
+
+      if (!allowCrossGroup) {
+        // Return a prompt object so the frontend can offer cross-group attendance confirmation
+        return {
+          isCrossGroupPrompt: true,
+          isDuplicate: false,
+          student: {
+            id: student.id,
+            fullName: student.user.fullName,
+            studentCode: student.studentCode,
+            gradeLevel: studentGrade || studentGroupGrade,
+            phone: student.user.phone,
+          },
+          studentGroup: {
+            id: primaryGroup?.id,
+            name: sourceGroupName,
+            gradeLevel: studentGroupGrade,
+          },
+          sessionGroup: {
+            id: session.group.id,
+            name: session.group.name,
+            gradeLevel: sessionGrade,
+          },
+          message: `الطالب [${student.user.fullName}] غير مسجل في هذه المجموعة (${session.group.name})، بل في [${sourceGroupName}] بنفس الصف الدراسي (${sessionGrade}).`,
+        };
+      }
+
+      crossGroupNote = `حضور استثنائي (تبديل ميعاد من ${sourceGroupName})`;
     }
 
     // 4. Atomic Record Creation (Handles race condition & idempotency)
@@ -84,6 +147,7 @@ export class AttendanceService {
       session.id,
       student.id,
       user.id,
+      crossGroupNote,
     );
 
     // 5. Emit domain event if this was the first successful scan
@@ -100,18 +164,32 @@ export class AttendanceService {
       where: { sessionId, status: AttendanceStatus.PRESENT },
     });
 
+    const recordedTimeStr = result.record.recordedAt
+      ? new Date(result.record.recordedAt).toLocaleTimeString('ar-EG', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : '';
+
     return {
       isDuplicate: result.isDuplicate,
+      isCrossGroupSuccess: !directEnrollment,
       student: {
         id: student.id,
         fullName: student.user.fullName,
         studentCode: student.studentCode,
+        gradeLevel: studentGrade,
       },
       attendance: result.record,
       sessionStats: {
         totalPresent,
         totalEnrolled: session.group._count.enrollments,
       },
+      message: result.isDuplicate
+        ? `⚠️ تم تسجيل حضور الطالب [${student.user.fullName}] لهذه الحصة مسبقاً ${recordedTimeStr ? `في تمام الساعة ${recordedTimeStr}` : ''}`
+        : !directEnrollment
+        ? `تم تسجيل حضور الطالب [${student.user.fullName}] كحضور استثنائي بنجاح (تبديل ميعاد)!`
+        : `تم تسجيل حضور الطالب [${student.user.fullName}] بنجاح`,
     };
   }
 

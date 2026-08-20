@@ -45,14 +45,29 @@ export interface SessionReport {
 }
 
 export interface ScanQrResponse {
-  isDuplicate: boolean;
-  student: {
+  isDuplicate?: boolean;
+  isCrossGroupPrompt?: boolean;
+  isCrossGroupSuccess?: boolean;
+  message?: string;
+  student?: {
     id: string;
     fullName: string;
-    studentCode: string;
+    studentCode?: string;
+    gradeLevel?: string;
+    phone?: string;
   };
-  attendance: any;
-  sessionStats: {
+  studentGroup?: {
+    id?: string;
+    name?: string;
+    gradeLevel?: string;
+  };
+  sessionGroup?: {
+    id?: string;
+    name?: string;
+    gradeLevel?: string;
+  };
+  attendance?: any;
+  sessionStats?: {
     totalPresent: number;
     totalEnrolled: number;
   };

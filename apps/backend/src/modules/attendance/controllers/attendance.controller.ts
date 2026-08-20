@@ -34,7 +34,12 @@ export class AttendanceController {
     @Body() dto: ScanQrDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.attendanceService.processQrScan(sessionId, dto.qrCodeToken, user);
+    return this.attendanceService.processQrScan(
+      sessionId,
+      dto.qrCodeToken,
+      user,
+      dto.allowCrossGroup,
+    );
   }
 
   @Post('sessions/:sessionId/manual')
