@@ -234,7 +234,7 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
             </span>
           </div>
           <p className="text-slate-500 text-sm">
-            إدارة ورفع الملازم، ملخصات الدروس، ومرفقات الحصص للصفوف والمجموعات الدراسية مع دعم تشغيل الفيديو عبر Bunny Stream
+            إدارة ورفع الملازم، ملخصات الدروس، ومرفقات الحصص للصفوف والمجموعات الدراسية مع دعم تشغيل الفيديو بجودة عالية.
           </p>
         </div>
 

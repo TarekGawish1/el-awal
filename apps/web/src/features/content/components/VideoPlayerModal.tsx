@@ -47,9 +47,6 @@ export function VideoPlayerModal({ isOpen, content, onClose }: VideoPlayerModalP
                     </span>
                   </>
                 )}
-                <span className="bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded-md text-[10px] font-bold border border-rose-500/30">
-                  Bunny Stream
-                </span>
               </div>
             </div>
           </div>
