@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { LessonSessionItem } from '../types/schedules.types';
-import { findSessionConflict, formatArabicTimeRange12H } from '../utils/time.utils';
+import { findSessionConflict, formatArabicTimeRange12H, toLocalDateStr } from '../utils/time.utils';
 import { ArabicTimeSelect } from './ArabicTimeSelect';
 import toast from 'react-hot-toast';
 
@@ -90,17 +90,29 @@ export function CreateSessionModal({
 
   useEffect(() => {
     if (isOpen) {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const startT = initialTime || '16:00';
+      const todayStr = toLocalDateStr(new Date());
+      const targetDate = initialDate || todayStr;
+      let startT = initialTime;
+
+      // If no explicit time was passed (e.g. clicked top header button), pick first non-conflicting candidate hour
+      if (!startT) {
+        const CANDIDATE_HOURS = ['16:00', '18:00', '14:00', '19:30', '12:00', '10:00', '08:00', '20:00'];
+        const availableHour = CANDIDATE_HOURS.find((candidate) => {
+          const endC = calculateDefaultEndTime(candidate);
+          return !findSessionConflict(sessions, targetDate, candidate, endC);
+        });
+        startT = availableHour || '16:00';
+      }
+
       reset({
         groupId: initialGroupId || (groups[0]?.id ?? ''),
-        sessionDate: initialDate || todayStr,
+        sessionDate: targetDate,
         startTime: startT,
         endTime: calculateDefaultEndTime(startT),
         topic: '',
       });
     }
-  }, [isOpen, initialGroupId, initialDate, initialTime, groups, reset]);
+  }, [isOpen, initialGroupId, initialDate, initialTime, groups, sessions, reset]);
 
   if (!isOpen) return null;
 
