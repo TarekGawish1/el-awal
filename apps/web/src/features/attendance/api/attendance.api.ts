@@ -31,10 +31,14 @@ export async function fetchSessionReport(sessionId: string): Promise<SessionRepo
   return await apiClient<SessionReport>(API_ENDPOINTS.ATTENDANCE.REPORTS(sessionId));
 }
 
-export async function scanQrAttendance(sessionId: string, qrCodeToken: string): Promise<ScanQrResponse> {
+export async function scanQrAttendance(
+  sessionId: string,
+  qrCodeToken: string,
+  allowCrossGroup = false,
+): Promise<ScanQrResponse> {
   return await apiClient<ScanQrResponse>(API_ENDPOINTS.ATTENDANCE.SCAN_QR(sessionId), {
     method: 'POST',
-    body: JSON.stringify({ qrCodeToken }),
+    body: JSON.stringify({ qrCodeToken, allowCrossGroup }),
   });
 }
 
