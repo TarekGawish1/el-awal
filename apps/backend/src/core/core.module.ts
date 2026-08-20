@@ -13,6 +13,7 @@ import { PrismaClientExceptionFilter } from './filters/prisma-client-exception.f
 import { TransformResponseInterceptor } from './interceptors/transform-response.interceptor';
 import { LoggingInterceptor } from './interceptors/logging.interceptor';
 import { CorrelationIdMiddleware } from './middleware/correlation-id.middleware';
+import { AppLogger } from './logger/app-logger.service';
 
 @Module({
   imports: [
@@ -71,8 +72,9 @@ import { CorrelationIdMiddleware } from './middleware/correlation-id.middleware'
       provide: APP_GUARD,
       useClass: ResourceOwnershipGuard,
     },
+    AppLogger,
   ],
-  exports: [DatabaseModule, SecurityModule, ThrottlerModule],
+  exports: [DatabaseModule, SecurityModule, ThrottlerModule, AppLogger],
 })
 export class CoreModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
