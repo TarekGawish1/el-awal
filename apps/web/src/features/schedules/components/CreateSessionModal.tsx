@@ -142,7 +142,12 @@ export function CreateSessionModal({
           handleClose();
         },
         onError: (err: any) => {
-          toast.error(err.message || 'حدث خطأ أثناء إنشاء الحصة');
+          console.error('Failed to create session:', err);
+          const errorMsg =
+            err?.response?.data?.message ||
+            err?.message ||
+            'حدث خطأ أثناء حفظ الحصة، يرجى المحاولة مرة أخرى';
+          toast.error(typeof errorMsg === 'string' ? errorMsg : 'حدث خطأ غير متوقع أثناء الحفظ');
         },
       },
     );
