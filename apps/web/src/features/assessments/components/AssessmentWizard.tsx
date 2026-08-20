@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm, FormProvider, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowLeft, ArrowRight, Check, Plus, AlertTriangle, FileText, CheckCircle2, Trash2 } from 'lucide-react';
@@ -94,8 +94,13 @@ function getNextSessionDate(groups: Group[], targetGroupIds: string[]): Date | n
 
 export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMENT' }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const paramGroupId = searchParams.get('groupId');
+  const paramTopic = searchParams.get('topic');
+  const paramDueDate = searchParams.get('dueDate');
+
   const [currentStep, setCurrentStep] = useState<Step>('metadata');
-  const [dueDateOption, setDueDateOption] = useState<'NEXT_SESSION' | 'CUSTOM'>('NEXT_SESSION');
+  const [dueDateOption, setDueDateOption] = useState<'NEXT_SESSION' | 'CUSTOM'>(paramDueDate ? 'CUSTOM' : 'NEXT_SESSION');
   const [homeworkMode, setHomeworkMode] = useState<'INTERACTIVE' | 'BOOKLET'>('INTERACTIVE');
   const [startPage, setStartPage] = useState<number | ''>('');
   const [endPage, setEndPage] = useState<number | ''>('');
@@ -145,6 +150,32 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
   const { activeYear, activeTerm } = useStoredAcademicPeriod(allGroups);
   
   const watchedTargetGroupIds = formDataValues.targetGroupIds;
+
+  // Prefill group & topic from search params if provided (e.g. from session calendar modal)
+  useEffect(() => {
+    if (paramGroupId && allGroups && allGroups.length > 0) {
+      const g = allGroups.find(group => group.id === paramGroupId);
+      if (g) {
+        let stage = 'SECONDARY';
+        if (g.gradeLevel?.includes('الابتدائي')) stage = 'PRIMARY';
+        else if (g.gradeLevel?.includes('الإعدادي')) stage = 'MIDDLE';
+
+        methods.setValue('academicStage', stage, { shouldValidate: true });
+        methods.setValue('gradeLevel', g.gradeLevel, { shouldValidate: true });
+        methods.setValue('targetGroupIds', [g.id], { shouldValidate: true });
+
+        if (paramTopic && !methods.getValues('title')) {
+          const prefix = type === 'ASSIGNMENT' ? 'واجب' : 'اختبار';
+          methods.setValue('title', `${prefix}: ${paramTopic}`, { shouldValidate: true });
+        }
+
+        if (paramDueDate) {
+          setDueDateOption('CUSTOM');
+          methods.setValue('dueDate', new Date(paramDueDate).toISOString(), { shouldValidate: true });
+        }
+      }
+    }
+  }, [paramGroupId, paramTopic, paramDueDate, allGroups, type, methods]);
 
   useEffect(() => {
     if (type === 'ASSIGNMENT' && dueDateOption === 'NEXT_SESSION') {

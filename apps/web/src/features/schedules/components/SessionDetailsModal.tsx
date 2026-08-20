@@ -23,9 +23,13 @@ import {
   Music,
   Wallet,
   DollarSign,
+  GraduationCap,
+  FileSpreadsheet,
+  Plus,
 } from 'lucide-react';
 import { LessonSessionItem } from '../types/schedules.types';
 import { useDeleteSession, useUpdateSession } from '../hooks/useSchedules';
+import { useAssessments } from '@/features/assessments/hooks/use-assessments';
 import { formatArabicTime12H } from '../utils/time.utils';
 import { VideoPlayerModal } from '@/features/content/components/VideoPlayerModal';
 import { Button } from '@/components/ui/Button';
@@ -52,6 +56,11 @@ export function SessionDetailsModal({
   const [cancellationReasonInput, setCancellationReasonInput] = useState('');
   const { mutate: deleteSessionMutate, isPending: isDeleting } = useDeleteSession();
   const { mutate: updateSessionMutate, isPending: isUpdating } = useUpdateSession();
+
+  const { data: assessmentsData = [] } = useAssessments(
+    session?.groupId ? { groupId: session.groupId } : undefined
+  );
+  const groupAssessments = Array.isArray(assessmentsData) ? assessmentsData : [];
 
   if (!isOpen || !session) return null;
 
@@ -295,26 +304,38 @@ export function SessionDetailsModal({
               </div>
             ) : null}
             {/* Quick Metrics Bar */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
-                  <FileText className="w-5 h-5" />
+            <div className="grid grid-cols-3 gap-2.5">
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold shrink-0">
+                  <FileText className="w-4 h-4" />
                 </div>
-                <div>
-                  <p className="text-[11px] font-bold text-slate-400">المرفقات والمذكرات</p>
-                  <p className="text-base font-black text-slate-800">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold text-slate-400 truncate">المرفقات</p>
+                  <p className="text-sm font-black text-slate-800">
                     {session.educationalContents?.length || session._count?.educationalContents || 0} ملفات
                   </p>
                 </div>
               </div>
 
-              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold">
-                  <QrCode className="w-5 h-5" />
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold shrink-0">
+                  <GraduationCap className="w-4 h-4" />
                 </div>
-                <div>
-                  <p className="text-[11px] font-bold text-slate-400">سجل الحضور</p>
-                  <p className="text-base font-black text-slate-800">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold text-slate-400 truncate">التقييمات</p>
+                  <p className="text-sm font-black text-slate-800">
+                    {groupAssessments.length} تقييم
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold shrink-0">
+                  <QrCode className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold text-slate-400 truncate">الحضور</p>
+                  <p className="text-sm font-black text-slate-800">
                     {session._count?.attendanceRecords || 0} حاضرين
                   </p>
                 </div>
@@ -390,7 +411,7 @@ export function SessionDetailsModal({
                   ))}
                 </div>
               ) : (
-                <div className="p-6 rounded-2xl border border-dashed border-slate-200 text-center bg-slate-50/50 space-y-2">
+                <div className="p-5 rounded-2xl border border-dashed border-slate-200 text-center bg-slate-50/50 space-y-1.5">
                   <p className="text-xs font-bold text-slate-600">لا توجد مذكرات أو ملفات مرفوعة لهذه الحصة بعد</p>
                   <p className="text-[11px] text-slate-400">
                     يمكنك رفع مذكرة الشرح، الواجب المنزلي، أو تسجيل فيديو الحصة مباشرة
@@ -402,11 +423,128 @@ export function SessionDetailsModal({
                       onClose();
                       onUploadAttachment(session);
                     }}
-                    className="mt-2 text-xs"
+                    className="mt-1 text-xs"
                   >
                     <UploadCloud className="w-3.5 h-3.5 ml-1.5" />
                     رفع ملزمة أو فيديو للحصة
                   </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Homework & Assessments Section */}
+            <div className="space-y-3 pt-1">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <GraduationCap className="w-4 h-4 text-primary-600" />
+                  الواجبات والاختبارات المرتبطة بالحصة
+                </h3>
+
+                <div className="flex items-center gap-1.5">
+                  <Link
+                    href={`/teacher/assessments/new?type=ASSIGNMENT&groupId=${session.groupId}&topic=${encodeURIComponent(session.topic || '')}&dueDate=${cleanSessionDate}`}
+                    className="text-[11px] text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2 py-1 rounded-lg font-bold inline-flex items-center gap-1 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    واجب جديد
+                  </Link>
+                  <Link
+                    href={`/teacher/assessments/new?type=EXAM&groupId=${session.groupId}&topic=${encodeURIComponent(session.topic || '')}&dueDate=${cleanSessionDate}`}
+                    className="text-[11px] text-purple-800 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200/80 px-2 py-1 rounded-lg font-bold inline-flex items-center gap-1 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    اختبار جديد
+                  </Link>
+                </div>
+              </div>
+
+              {groupAssessments && groupAssessments.length > 0 ? (
+                <div className="space-y-2">
+                  {groupAssessments.slice(0, 4).map((item: any) => (
+                    <div
+                      key={item.id}
+                      className="p-3.5 bg-white rounded-2xl border border-slate-200/80 shadow-2xs hover:border-primary-200 transition-all flex items-center justify-between gap-3 group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 font-bold ${
+                            item.type === 'ASSIGNMENT'
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-purple-100 text-purple-700'
+                          }`}
+                        >
+                          {item.type === 'ASSIGNMENT' ? (
+                            <FileSpreadsheet className="w-4 h-4" />
+                          ) : (
+                            <GraduationCap className="w-4 h-4" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`text-[9px] font-black px-1.5 py-0.5 rounded-md ${
+                                item.type === 'ASSIGNMENT'
+                                  ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                                  : 'bg-purple-50 text-purple-800 border border-purple-200'
+                              }`}
+                            >
+                              {item.type === 'ASSIGNMENT' ? 'واجب' : 'اختبار'}
+                            </span>
+                            <p className="text-xs font-bold text-slate-800 truncate group-hover:text-primary-700 transition-colors">
+                              {item.title}
+                            </p>
+                          </div>
+                          <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                            الدرجة: {item.totalScore} • {item._count?.questions || 0} أسئلة • {item._count?.submissions || 0} تسليمات
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Link
+                          href={`/teacher/assessments/${item.id}/submissions`}
+                          className="px-2.5 py-1.5 bg-slate-100 hover:bg-primary-50 text-slate-700 hover:text-primary-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
+                        >
+                          <Users className="w-3.5 h-3.5" />
+                          التسليمات ({item._count?.submissions || 0})
+                        </Link>
+                        <Link
+                          href={`/teacher/assessments/${item.id}`}
+                          className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
+                        >
+                          عرض
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3.5 bg-slate-50/70 rounded-2xl border border-dashed border-slate-200">
+                  <Link
+                    href={`/teacher/assessments/new?type=ASSIGNMENT&groupId=${session.groupId}&topic=${encodeURIComponent(session.topic || '')}&dueDate=${cleanSessionDate}`}
+                    className="p-3 bg-white rounded-xl border border-slate-200 hover:border-amber-300 hover:shadow-xs transition-all flex items-center gap-2.5 text-right group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 group-hover:bg-amber-100 transition-colors">
+                      <FileSpreadsheet className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-800 group-hover:text-amber-700">إضافة واجب للحصة</p>
+                      <p className="text-[10px] text-slate-400">أسئلة تفاعلية أو من المذكرة</p>
+                    </div>
+                  </Link>
+
+                  <Link
+                    href={`/teacher/assessments/new?type=EXAM&groupId=${session.groupId}&topic=${encodeURIComponent(session.topic || '')}&dueDate=${cleanSessionDate}`}
+                    className="p-3 bg-white rounded-xl border border-slate-200 hover:border-purple-300 hover:shadow-xs transition-all flex items-center gap-2.5 text-right group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 group-hover:bg-purple-100 transition-colors">
+                      <GraduationCap className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-800 group-hover:text-purple-700">إضافة اختبار للحصة</p>
+                      <p className="text-[10px] text-slate-400">امتحان إلكتروني ورصد فوري</p>
+                    </div>
+                  </Link>
                 </div>
               )}
             </div>
