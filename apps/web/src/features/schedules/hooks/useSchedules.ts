@@ -13,6 +13,7 @@ import {
   UpdateSessionPayload,
   GenerateSessionsPayload,
   TeacherCalendarQuery,
+  LessonSessionItem,
 } from '../types/schedules.types';
 
 export const scheduleKeys = {
@@ -22,17 +23,51 @@ export const scheduleKeys = {
   topics: (gradeLevel?: string, groupId?: string) => [...scheduleKeys.all, 'topics', { gradeLevel, groupId }] as const,
 };
 
+import { offlineDb } from '@/lib/offline/db';
+
 export function useTeacherSessions(query?: TeacherCalendarQuery) {
-  return useQuery({
+  return useQuery<LessonSessionItem[]>({
     queryKey: scheduleKeys.teacherCalendar(query),
-    queryFn: () => fetchTeacherSessions(query),
+    queryFn: async (): Promise<LessonSessionItem[]> => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        const sessions = await offlineDb.getSessionsOffline(query?.groupId);
+        return sessions as unknown as LessonSessionItem[];
+      }
+      try {
+        const sessions = await fetchTeacherSessions(query);
+        if (sessions && sessions.length > 0) {
+          offlineDb.bulkPutSessions(sessions as any);
+        }
+        return sessions;
+      } catch {
+        const sessions = await offlineDb.getSessionsOffline(query?.groupId);
+        return sessions as unknown as LessonSessionItem[];
+      }
+    },
   });
 }
 
 export function useGroupSessions(groupId?: string) {
-  return useQuery({
+  return useQuery<LessonSessionItem[]>({
     queryKey: scheduleKeys.groupSessions(groupId || ''),
-    queryFn: () => fetchGroupSessions(groupId || ''),
+    queryFn: async (): Promise<LessonSessionItem[]> => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        const sessions = await offlineDb.getSessionsOffline(groupId);
+        return sessions as unknown as LessonSessionItem[];
+      }
+      try {
+        const sessions = await fetchGroupSessions(groupId || '');
+        if (sessions && sessions.length > 0) {
+          offlineDb.bulkPutSessions(sessions as any);
+        }
+        return sessions;
+      } catch {
+        const sessions = await offlineDb.getSessionsOffline(groupId);
+        return sessions as unknown as LessonSessionItem[];
+      }
+    },
     enabled: !!groupId && groupId !== 'ALL',
     staleTime: 2 * 60 * 1000,
   });
@@ -41,7 +76,17 @@ export function useGroupSessions(groupId?: string) {
 export function useSessionTopics(gradeLevel?: string, groupId?: string) {
   return useQuery({
     queryKey: scheduleKeys.topics(gradeLevel, groupId),
-    queryFn: () => fetchSessionTopics(gradeLevel, groupId),
+    queryFn: async () => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        return [];
+      }
+      try {
+        return await fetchSessionTopics(gradeLevel, groupId);
+      } catch {
+        return [];
+      }
+    },
     staleTime: 5 * 60 * 1000,
   });
 }

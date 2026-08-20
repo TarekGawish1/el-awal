@@ -10,6 +10,8 @@ import {
   submitAssessment,
 } from '../api/assessments.api';
 import {
+  AssessmentListItem,
+  AssessmentDetail,
   CreateAssessmentPayload,
   UpdateAssessmentPayload,
   GradeSubmissionPayload,
@@ -34,7 +36,7 @@ export function useAssessments(query?: Record<string, string>) {
       if (!isOnline) {
         const offlineList = await offlineDb.getAssessmentsOffline();
         return {
-          data: offlineList,
+          data: offlineList as unknown as AssessmentListItem[],
           meta: { total: offlineList.length },
         };
       }
@@ -42,13 +44,13 @@ export function useAssessments(query?: Record<string, string>) {
       try {
         const res = await fetchAssessments(query);
         if (res?.data && res.data.length > 0) {
-          offlineDb.bulkPutAssessments(res.data);
+          offlineDb.bulkPutAssessments(res.data as any);
         }
         return res;
       } catch {
         const offlineList = await offlineDb.getAssessmentsOffline();
         return {
-          data: offlineList,
+          data: offlineList as unknown as AssessmentListItem[],
           meta: { total: offlineList.length },
         };
       }
@@ -57,19 +59,21 @@ export function useAssessments(query?: Record<string, string>) {
 }
 
 export function useAssessment(id: string) {
-  return useQuery({
+  return useQuery<AssessmentDetail | null>({
     queryKey: assessmentKeys.detail(id),
-    queryFn: async () => {
+    queryFn: async (): Promise<AssessmentDetail | null> => {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       if (!isOnline) {
         const assessments = await offlineDb.getAssessmentsOffline();
-        return assessments.find((a) => a.id === id) || null;
+        const found = assessments.find((a) => a.id === id) || null;
+        return found as unknown as AssessmentDetail | null;
       }
       try {
         return await fetchAssessmentById(id);
       } catch {
         const assessments = await offlineDb.getAssessmentsOffline();
-        return assessments.find((a) => a.id === id) || null;
+        const found = assessments.find((a) => a.id === id) || null;
+        return found as unknown as AssessmentDetail | null;
       }
     },
     enabled: !!id,

@@ -37,7 +37,7 @@ export function StudentHistoryModal({ isOpen, onClose, studentId }: Props) {
     });
   };
 
-  const studentName = history && history.length > 0 ? history[0].student?.user.fullName : 'سجل السداد';
+  const studentName = history && history.length > 0 ? (history[0].student?.user?.fullName || 'سجل السداد') : 'سجل السداد';
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">

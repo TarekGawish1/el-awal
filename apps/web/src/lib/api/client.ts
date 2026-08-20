@@ -24,6 +24,11 @@ async function executeRefreshToken(): Promise<string | null> {
     return null;
   }
 
+  // Do not attempt token refresh if device is offline
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return null;
+  }
+
   try {
     const refreshUrl = `${API_BASE_URL}${API_ENDPOINTS.AUTH.REFRESH}`;
     const response = await fetch(refreshUrl, {
@@ -59,7 +64,7 @@ async function executeRefreshToken(): Promise<string | null> {
 
     return null;
   } catch (error) {
-    console.error('Silent token refresh failed:', error);
+    console.warn('Silent token refresh network error:', error);
     return null;
   }
 }
@@ -74,6 +79,11 @@ async function getRefreshedAccessToken(): Promise<string | null> {
 }
 
 function handleAuthFailure(): void {
+  // Prevent logging user out if device is offline
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return;
+  }
+
   clearStoredTokens();
   useAuthStore.getState().clearSession();
 

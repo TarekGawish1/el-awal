@@ -6,7 +6,7 @@ import {
   scanQrAttendance,
   recordManualBatch,
 } from '../api/attendance.api';
-import { BatchAttendanceDto } from '../types/attendance.types';
+import { BatchAttendanceDto, ScanQrResponse } from '../types/attendance.types';
 import { offlineDb } from '@/lib/offline/db';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
@@ -14,7 +14,21 @@ import { API_ENDPOINTS } from '@/lib/api/endpoints';
 export function useGroupSessions(groupId: string | null) {
   return useQuery({
     queryKey: ['groups', groupId, 'sessions'],
-    queryFn: () => fetchGroupSessions(groupId!),
+    queryFn: async () => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        return offlineDb.getSessionsOffline(groupId || undefined);
+      }
+      try {
+        const sessions = await fetchGroupSessions(groupId!);
+        if (sessions && sessions.length > 0) {
+          offlineDb.bulkPutSessions(sessions);
+        }
+        return sessions;
+      } catch {
+        return offlineDb.getSessionsOffline(groupId || undefined);
+      }
+    },
     enabled: !!groupId,
   });
 }
@@ -27,31 +41,108 @@ export function useTodaySessions(
 ) {
   return useQuery({
     queryKey: ['sessions', 'today', academicStage, gradeLevel, academicYear, academicTerm],
-    queryFn: () => fetchTodaySessions(academicStage, gradeLevel, academicYear, academicTerm),
+    queryFn: async () => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        return offlineDb.getSessionsOffline();
+      }
+      try {
+        const sessions = await fetchTodaySessions(academicStage, gradeLevel, academicYear, academicTerm);
+        if (sessions && sessions.length > 0) {
+          offlineDb.bulkPutSessions(sessions);
+        }
+        return sessions;
+      } catch {
+        return offlineDb.getSessionsOffline();
+      }
+    },
   });
 }
 
 export function useSessionReport(sessionId: string | null) {
-  return useQuery({
+  return useQuery<any>({
     queryKey: ['sessions', sessionId, 'report'],
     queryFn: async () => {
-      const data = await fetchSessionReport(sessionId!);
-      // Auto-cache session roster to IndexedDB when loaded
-      if (data?.group && data?.roster) {
-        offlineDb.cacheRoster({
-          groupId: data.group.id,
-          groupName: data.group.name,
-          gradeLevel: data.group.gradeLevel,
-          students: data.roster.map((r: any) => ({
-            id: r.studentId,
-            fullName: r.studentName,
-            studentCode: r.studentCode,
-            qrCodeToken: r.qrCodeToken || r.studentCode || r.studentId,
-          })),
-          updatedAt: Date.now(),
-        });
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        // Build report offline from cached roster and session
+        const allSessions = await offlineDb.getSessionsOffline();
+        const session = allSessions.find((s) => s.id === sessionId);
+        const roster = session ? await offlineDb.getRoster(session.groupId) : null;
+        return {
+          sessionId: sessionId || '',
+          sessionDate: session?.sessionDate || new Date().toISOString(),
+          topic: session?.topic || 'رصد الحضور',
+          groupId: session?.groupId || roster?.groupId || '',
+          groupName: roster?.groupName || session?.group?.name || 'المجموعة الدراسية',
+          metrics: {
+            totalEnrolled: roster?.students?.length || 0,
+            presentCount: 0,
+            absentCount: roster?.students?.length || 0,
+            excusedCount: 0,
+            attendanceRatePercentage: 0,
+          },
+          session,
+          group: roster ? { id: roster.groupId, name: roster.groupName, gradeLevel: roster.gradeLevel } : null,
+          roster: roster?.students?.map((s) => ({
+            studentId: s.id,
+            studentName: s.fullName,
+            studentCode: s.studentCode,
+            qrCodeToken: s.qrCodeToken,
+            attendanceStatus: 'ABSENT',
+          })) || [],
+          records: [],
+          stats: { totalEnrolled: roster?.students?.length || 0, presentCount: 0, absentCount: roster?.students?.length || 0 },
+        };
       }
-      return data;
+
+      try {
+        const data = await fetchSessionReport(sessionId!);
+        // Auto-cache session roster to IndexedDB when loaded
+        if (data && data.groupId && data.records) {
+          offlineDb.cacheRoster({
+            groupId: data.groupId,
+            groupName: data.groupName || 'المجموعة الدراسية',
+            students: data.records.map((r: any) => ({
+              id: r.studentId || r.id,
+              fullName: r.fullName || r.studentName || '',
+              studentCode: r.studentCode,
+              qrCodeToken: r.qrCodeToken || r.studentCode || r.studentId || r.id,
+            })),
+            updatedAt: Date.now(),
+          });
+        }
+        return data;
+      } catch {
+        const allSessions = await offlineDb.getSessionsOffline();
+        const session = allSessions.find((s) => s.id === sessionId);
+        const roster = session ? await offlineDb.getRoster(session.groupId) : null;
+        return {
+          sessionId: sessionId || '',
+          sessionDate: session?.sessionDate || new Date().toISOString(),
+          topic: session?.topic || 'رصد الحضور',
+          groupId: session?.groupId || roster?.groupId || '',
+          groupName: roster?.groupName || session?.group?.name || 'المجموعة الدراسية',
+          metrics: {
+            totalEnrolled: roster?.students?.length || 0,
+            presentCount: 0,
+            absentCount: roster?.students?.length || 0,
+            excusedCount: 0,
+            attendanceRatePercentage: 0,
+          },
+          session,
+          group: roster ? { id: roster.groupId, name: roster.groupName, gradeLevel: roster.gradeLevel } : null,
+          roster: roster?.students?.map((s) => ({
+            studentId: s.id,
+            studentName: s.fullName,
+            studentCode: s.studentCode,
+            qrCodeToken: s.qrCodeToken,
+            attendanceStatus: 'ABSENT',
+          })) || [],
+          records: [],
+          stats: { totalEnrolled: roster?.students?.length || 0, presentCount: 0, absentCount: roster?.students?.length || 0 },
+        };
+      }
     },
     enabled: !!sessionId,
   });
@@ -69,7 +160,7 @@ export function useScanQrAttendance() {
       sessionId: string;
       qrCodeToken: string;
       allowCrossGroup?: boolean;
-    }) => {
+    }): Promise<ScanQrResponse & { isOfflineSaved?: boolean }> => {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
       if (!isOnline) {
@@ -104,8 +195,9 @@ export function useScanQrAttendance() {
         if (existingRecord) {
           return {
             isDuplicate: true,
+            isCrossGroupPrompt: false,
             message: 'الطالب مسجل حضور بالفعل في هذه الحصة مسبقاً (محفوظ محلياً)',
-            student: { fullName: resolvedStudentName },
+            student: { id: studentId || '', fullName: resolvedStudentName },
             sessionStats: reportData?.stats,
           };
         }
@@ -153,9 +245,10 @@ export function useScanQrAttendance() {
 
         return {
           isDuplicate: false,
+          isCrossGroupPrompt: false,
           isOfflineSaved: true,
           message: 'تم تسجيل الحضور محلياً بنجاح ووضعه في قائمة الانتظار للمزامنة 💾',
-          student: { fullName: resolvedStudentName },
+          student: { id: studentId || '', fullName: resolvedStudentName },
           sessionStats: reportData?.stats,
         };
       }
@@ -184,9 +277,10 @@ export function useScanQrAttendance() {
 
           return {
             isDuplicate: false,
+            isCrossGroupPrompt: false,
             isOfflineSaved: true,
             message: 'تم حفظ الحضور محلياً بنجاح في انتظار الاتصال 💾',
-            student: { fullName: localMatch?.student?.fullName || 'طالب' },
+            student: { id: studentId || '', fullName: localMatch?.student?.fullName || 'طالب' },
           };
         }
         throw error;

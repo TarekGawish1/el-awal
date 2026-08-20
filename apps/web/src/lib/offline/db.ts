@@ -27,11 +27,21 @@ export interface StudentEntity {
   studentCode: string;
   qrCodeToken: string;
   gradeLevel?: string;
+  academicStage?: string;
   emergencyPhone?: string;
   parentPhone?: string;
   academicStatus?: string;
   groupId?: string;
   updatedAt?: number;
+  user?: {
+    id?: string;
+    fullName: string;
+    phone?: string;
+    email?: string;
+    isActive?: boolean;
+  };
+  groupEnrollments?: any[];
+  parentLinks?: any[];
 }
 
 export interface GroupEntity {
@@ -56,7 +66,13 @@ export interface SessionEntity {
   topic?: string;
   status?: string;
   isCancelled?: boolean;
-  group?: { name: string };
+  group?: {
+    id?: string;
+    name: string;
+    gradeLevel?: string;
+    academicYear?: string;
+    academicTerm?: string;
+  };
   _count?: { attendanceRecords?: number };
 }
 
@@ -72,7 +88,7 @@ export interface ScheduleEntity {
 export interface PaymentEntity {
   id: string;
   studentId: string;
-  groupId?: string;
+  groupId?: string | null;
   periodYear: number;
   periodMonth: number;
   amountPaid: number;
@@ -80,8 +96,8 @@ export interface PaymentEntity {
   paymentStatus: string;
   paymentMethod: string;
   currency?: string;
-  receiptNumber?: string;
-  notes?: string;
+  receiptNumber?: string | null;
+  notes?: string | null;
   createdAt: string | number;
   student?: { user?: { fullName?: string } };
   group?: { name?: string };
@@ -90,6 +106,7 @@ export interface PaymentEntity {
 export interface AssessmentEntity {
   id: string;
   title: string;
+  type?: 'EXAM' | 'ASSIGNMENT' | string;
   description?: string;
   assessmentType?: string;
   totalScore: number;
@@ -97,6 +114,7 @@ export interface AssessmentEntity {
   durationMinutes?: number;
   dueDate?: string;
   isPublished: boolean;
+  mySubmission?: any;
   questions: Array<{
     id: string;
     questionNumber: number;

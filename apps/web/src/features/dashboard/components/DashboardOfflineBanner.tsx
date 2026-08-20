@@ -41,7 +41,7 @@ export function DashboardOfflineBanner({
   return (
     <>
       <Alert
-        variant={isOffline ? 'warning' : conflicts.length > 0 ? 'destructive' : 'info'}
+        variant={isOffline ? 'warning' : conflicts.length > 0 ? 'error' : 'info'}
         className={`shadow-xs transition-all ${
           isOffline
             ? 'bg-amber-50 border-amber-300 text-amber-900'

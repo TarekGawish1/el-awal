@@ -47,6 +47,8 @@ export function normalizeAuthErrorMessage(error: unknown): string {
   return 'تعذر الاتصال بالخادم، يرجى التحقق من اتصالك بالإنترنت';
 }
 
+import { bootstrapManager } from '@/lib/offline/bootstrap-manager';
+
 /**
  * Primary Authentication Hook
  */
@@ -69,13 +71,20 @@ export function useAuth() {
       // 2. Clear query cache to prevent stale user state
       queryClient.clear();
 
-      // 3. Determine redirect path (query param or role-based landing)
+      // 3. Trigger background zero-cold-start bootstrap hydration if online
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        bootstrapManager.performBootstrap({ queryClient }).catch((err) => {
+          console.warn('Background bootstrap sync error:', err);
+        });
+      }
+
+      // 4. Determine redirect path (query param or role-based landing)
       const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
       const requestedRedirect = searchParams?.get('redirect');
       const safeRedirect = sanitizeRedirectUrl(requestedRedirect);
       const destination = safeRedirect || getRoleLandingRoute(data.user.role);
 
-      // 4. Navigate to destination
+      // 5. Navigate to destination
       router.push(destination);
     },
   });

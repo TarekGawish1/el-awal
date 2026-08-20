@@ -83,11 +83,18 @@ class BootstrapManager {
         method: 'GET',
       });
 
-      if (!response || !response.data) {
+      if (!response) {
         throw new Error('استجابة غير صالحة من خادم المزامنة');
       }
 
-      const payload = response.data;
+      // Robust payload extraction whether wrapped or unwrapped
+      const payload =
+        response.data && (response.data.students || response.data.groups || response.data.sessions || response.data.academicPeriod)
+          ? response.data
+          : response.students || response.groups
+            ? response
+            : response.data || response;
+
       const qc = options?.queryClient;
 
       // 1. Ingest Students
@@ -147,13 +154,20 @@ class BootstrapManager {
       }
 
       // 7. Ingest Academic Period
-      if (payload.academicPeriod && qc) {
-        qc.setQueryData(['teachers', 'academic-period'], payload.academicPeriod);
+      if (payload.academicPeriod) {
+        await offlineDb.setMetadata('academicPeriod', payload.academicPeriod);
+        if (qc) {
+          qc.setQueryData(['teachers', 'academic-period'], payload.academicPeriod);
+        }
       }
 
+      const syncTimestamp = response.timestamp || payload.timestamp || Date.now();
+      const syncVersion = response.snapshotVersion || payload.snapshotVersion || 'v1';
+      const isDelta = response.isDelta ?? payload.isDelta ?? false;
+
       // Record sync timestamp
-      await offlineDb.setMetadata('lastBootstrapTimestamp', response.timestamp || Date.now());
-      await offlineDb.setMetadata('syncVersion', response.snapshotVersion || 'v1');
+      await offlineDb.setMetadata('lastBootstrapTimestamp', syncTimestamp);
+      await offlineDb.setMetadata('syncVersion', syncVersion);
 
       const counts = {
         students: payload.students?.length || 0,
@@ -165,12 +179,12 @@ class BootstrapManager {
 
       this.notify('SUCCESS', 100, 'تم تجهيز مساحة العمل بنجاح والجاهزية للعمل بدون إنترنت 🚀', {
         counts,
-        isDelta: response.isDelta,
+        isDelta,
       });
 
       return {
         success: true,
-        isDelta: response.isDelta,
+        isDelta,
         counts,
       };
     } catch (err: any) {

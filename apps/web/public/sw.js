@@ -3,12 +3,13 @@
  * Platform: Next.js 14 Web App
  */
 
-const CACHE_NAME = 'el-awal-core-v1';
-const RUNTIME_CACHE = 'el-awal-runtime-v1';
+const CACHE_NAME = 'el-awal-core-v2';
+const RUNTIME_CACHE = 'el-awal-runtime-v2';
 
-// Critical assets to pre-cache on install
+// Critical App Shell assets to pre-cache on install
 const PRECACHE_URLS = [
   '/',
+  '/login',
   '/offline.html',
   '/manifest.json',
   '/icons/icon-192x192.png',
@@ -17,6 +18,7 @@ const PRECACHE_URLS = [
   '/icons/apple-touch-icon.png',
   '/icons/icon.svg',
   '/favicon.ico',
+  '/favicon.svg',
 ];
 
 // 1. Install Event: Pre-cache core shell & offline page
@@ -24,17 +26,24 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => {
-        return cache.addAll(PRECACHE_URLS);
+      .then(async (cache) => {
+        // Cache assets gracefully even if some individual routes fail in dev
+        for (const url of PRECACHE_URLS) {
+          try {
+            await cache.add(url);
+          } catch (err) {
+            console.warn('[SW] Failed to precache:', url, err);
+          }
+        }
       })
       .then(() => self.skipWaiting())
       .catch((err) => {
         console.warn('[SW] Pre-cache error on install:', err);
-      })
+      }),
   );
 });
 
-// 2. Activate Event: Clean up outdated caches and take control
+// 2. Activate Event: Clean up outdated caches and take control immediately
 self.addEventListener('activate', (event) => {
   const currentCaches = [CACHE_NAME, RUNTIME_CACHE];
   event.waitUntil(
@@ -45,14 +54,14 @@ self.addEventListener('activate', (event) => {
       })
       .then((cachesToDelete) => {
         return Promise.all(
-          cachesToDelete.map((cacheToDelete) => caches.delete(cacheToDelete))
+          cachesToDelete.map((cacheToDelete) => caches.delete(cacheToDelete)),
         );
       })
-      .then(() => self.clients.claim())
+      .then(() => self.clients.claim()),
   );
 });
 
-// 3. Fetch Event: Intelligent multi-strategy caching
+// 3. Fetch Event: Intelligent multi-strategy caching with App Shell fallback
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -62,22 +71,21 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Skip chrome-extension, sockjs / HMR, browser-sync
+  // Skip chrome-extension, non-http protocols
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     return;
   }
 
-  // Bypass service worker completely in local development (localhost / 127.0.0.1)
-  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+  // Skip Next.js hot module reloading & development webpack internals
+  if (
+    url.pathname.includes('/_next/webpack-hmr') ||
+    url.pathname.includes('/_next/static/webpack/') ||
+    url.pathname.includes('/api/auth/session')
+  ) {
     return;
   }
 
-  // Skip Next.js hot module reloading & development endpoints
-  if (url.pathname.includes('/_next/webpack-hmr') || url.pathname.includes('/api/auth/session')) {
-    return;
-  }
-
-  // Strategy A: HTML Navigation Requests (Network First, Cache Fallback, Offline Page Fallback)
+  // Strategy A: HTML Navigation Requests (Network First -> Cache -> App Shell Fallback -> offline.html)
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
@@ -89,26 +97,36 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(async () => {
+          // 1. Try exact requested route from runtime or core cache
           const cachedResponse = await caches.match(request);
           if (cachedResponse) {
             return cachedResponse;
           }
-          // Return the offline page only if device is genuinely offline
-          if (!navigator.onLine) {
-            const offlinePage = await caches.match('/offline.html');
-            if (offlinePage) return offlinePage;
+
+          // 2. Fall back to cached App Shell document so Next.js client router mounts offline
+          const appShell = (await caches.match('/')) || (await caches.match('/login'));
+          if (appShell) {
+            return appShell;
           }
+
+          // 3. Final fallback: standalone offline page
+          const offlinePage = await caches.match('/offline.html');
+          if (offlinePage) {
+            return offlinePage;
+          }
+
           return new Response('Offline', { status: 503, statusText: 'Offline' });
-        })
+        }),
     );
     return;
   }
 
-  // Strategy B: Static Assets (_next/static, fonts, icons, images) -> Stale-While-Revalidate / Cache-First
+  // Strategy B: Static Assets (_next/static, fonts, icons, images) -> Cache-First / Stale-While-Revalidate
   const isStaticAsset =
     url.pathname.startsWith('/_next/static/') ||
     url.pathname.startsWith('/icons/') ||
     url.pathname.startsWith('/images/') ||
+    url.pathname.startsWith('/favicon') ||
     url.hostname.includes('fonts.googleapis.com') ||
     url.hostname.includes('fonts.gstatic.com') ||
     request.destination === 'image' ||
@@ -120,16 +138,18 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       caches.match(request).then((cachedResponse) => {
         if (cachedResponse) {
-          // Revalidate in background
-          fetch(request)
-            .then((networkResponse) => {
-              if (networkResponse && networkResponse.status === 200) {
-                caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, networkResponse));
-              }
-            })
-            .catch(() => {
-              // Ignore background fetch error
-            });
+          // Revalidate in background if online
+          if (navigator.onLine) {
+            fetch(request)
+              .then((networkResponse) => {
+                if (networkResponse && networkResponse.status === 200) {
+                  caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, networkResponse));
+                }
+              })
+              .catch(() => {
+                // Ignore background fetch error
+              });
+          }
           return cachedResponse;
         }
 
@@ -142,15 +162,14 @@ self.addEventListener('fetch', (event) => {
             return networkResponse;
           })
           .catch(() => {
-            // Return fallback or nothing
             return new Response('', { status: 408, statusText: 'Request timed out' });
           });
-      })
+      }),
     );
     return;
   }
 
-  // Strategy C: Other GET requests (e.g. API data) -> Network First with dynamic cache
+  // Strategy C: Other GET requests (API endpoints) -> Network First with dynamic cache
   event.respondWith(
     fetch(request)
       .then((response) => {
@@ -162,7 +181,7 @@ self.addEventListener('fetch', (event) => {
       })
       .catch(() => {
         return caches.match(request);
-      })
+      }),
   );
 });
 

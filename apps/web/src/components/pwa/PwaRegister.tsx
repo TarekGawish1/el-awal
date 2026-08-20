@@ -9,17 +9,22 @@ export function PwaRegister() {
       return;
     }
 
-    // In local development, unregister any active service worker so it never intercepts Next.js dev server or HMR
-    if (
-      process.env.NODE_ENV === 'development' ||
-      window.location.hostname === 'localhost' ||
-      window.location.hostname === '127.0.0.1'
-    ) {
-      navigator.serviceWorker.getRegistrations().then((registrations) => {
-        for (const reg of registrations) {
-          reg.unregister();
+    // Request persistent storage to protect IndexedDB data from eviction
+    if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.persist) {
+      navigator.storage.persist().then((isPersisted) => {
+        if (isPersisted) {
+          console.debug('[Storage] Persistent storage granted');
         }
+      }).catch((e) => {
+        console.debug('[Storage] Storage persist request ignored:', e);
       });
+    }
+
+    // In Next.js dev server, avoid registering SW unless explicitly enabled
+    const isDev = process.env.NODE_ENV === 'development';
+    const enableDevSw = process.env.NEXT_PUBLIC_ENABLE_DEV_SW === 'true';
+
+    if (isDev && !enableDevSw) {
       return;
     }
 

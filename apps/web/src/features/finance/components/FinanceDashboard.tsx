@@ -369,7 +369,7 @@ export function FinanceDashboard() {
                   {payments.map((payment) => (
                     <div key={payment.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50 hover:bg-slate-100 transition-colors">
                       <div>
-                        <p className="font-bold text-sm text-slate-800">{payment.student?.user.fullName}</p>
+                        <p className="font-bold text-sm text-slate-800">{payment.student?.user?.fullName || 'طالب'}</p>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge variant="success" className="text-[10px] h-5">تم الدفع {payment.amountPaid} ج.م</Badge>
                           {payment.group?.name && (
@@ -392,7 +392,7 @@ export function FinanceDashboard() {
                         </button>
                         <button 
                           className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                          onClick={() => handleDelete(payment.id, payment.student?.user.fullName || '')}
+                          onClick={() => handleDelete(payment.id, payment.student?.user?.fullName || '')}
                           disabled={isDeleting}
                           title="حذف الدفعة"
                         >

@@ -3,17 +3,40 @@ import { API_ENDPOINTS } from '@/lib/api/endpoints';
 import { AuthTokensResponse, AuthUser, LoginCredentials, ParentAccessCredentials, RefreshTokenResponse, StudentRegistrationPayload, StudentRegistrationResult } from '../types/auth.types';
 import { getStoredRefreshToken } from '../utils/auth-tokens';
 
+import { saveOfflineCredentials, verifyOfflineLogin } from '../utils/offline-auth';
+
 /**
- * Authenticates user credentials via POST /api/v1/auth/login
+ * Authenticates user credentials via POST /api/v1/auth/login or offline resolver
  */
 export async function loginUser(credentials: LoginCredentials): Promise<AuthTokensResponse> {
-  return apiClient<AuthTokensResponse>(API_ENDPOINTS.AUTH.LOGIN, {
-    method: 'POST',
-    body: JSON.stringify({
-      identifier: credentials.identifier.trim(),
-      password: credentials.password,
-    }),
-  });
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+  if (!isOnline) {
+    return verifyOfflineLogin(credentials);
+  }
+
+  try {
+    const session = await apiClient<AuthTokensResponse>(API_ENDPOINTS.AUTH.LOGIN, {
+      method: 'POST',
+      body: JSON.stringify({
+        identifier: credentials.identifier.trim(),
+        password: credentials.password,
+      }),
+    });
+
+    // Cache offline credentials upon successful online authentication
+    if (session?.user && session?.accessToken) {
+      await saveOfflineCredentials(credentials.identifier, credentials.password, session);
+    }
+
+    return session;
+  } catch (error) {
+    // If request failed because of network disconnection or offline status, try offline verification
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      return verifyOfflineLogin(credentials);
+    }
+    throw error;
+  }
 }
 
 /**

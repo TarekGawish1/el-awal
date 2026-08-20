@@ -25,17 +25,45 @@ export function useStudentQrCode() {
   });
 }
 
+import { offlineDb } from '@/lib/offline/db';
+
 export function useStudentCourses() {
   return useQuery({
     queryKey: ['student-courses'],
-    queryFn: () => apiClient<any>('/courses/my-courses'),
+    queryFn: async () => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        return offlineDb.getCoursesOffline();
+      }
+      try {
+        const courses = await apiClient<any>('/courses/my-courses');
+        if (courses && Array.isArray(courses) && courses.length > 0) {
+          offlineDb.bulkPutCourses(courses);
+        }
+        return courses;
+      } catch {
+        return offlineDb.getCoursesOffline();
+      }
+    },
   });
 }
 
 export function useCourseDetails(courseId: string) {
   return useQuery({
     queryKey: ['student-course-details', courseId],
-    queryFn: () => apiClient<any>(`/courses/${courseId}`),
+    queryFn: async () => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        const allCourses = await offlineDb.getCoursesOffline();
+        return allCourses.find((c) => c.id === courseId) || null;
+      }
+      try {
+        return await apiClient<any>(`/courses/${courseId}`);
+      } catch {
+        const allCourses = await offlineDb.getCoursesOffline();
+        return allCourses.find((c) => c.id === courseId) || null;
+      }
+    },
     enabled: !!courseId,
   });
 }
@@ -67,7 +95,21 @@ export function useUpdateProgress() {
 export function useStudentAssessments() {
   return useQuery({
     queryKey: ['student-assessments'],
-    queryFn: () => apiClient<any>('/assessments'),
+    queryFn: async () => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        return offlineDb.getAssessmentsOffline();
+      }
+      try {
+        const assessments = await apiClient<any>('/assessments');
+        if (assessments && Array.isArray(assessments) && assessments.length > 0) {
+          offlineDb.bulkPutAssessments(assessments);
+        }
+        return assessments;
+      } catch {
+        return offlineDb.getAssessmentsOffline();
+      }
+    },
   });
 }
 
@@ -77,7 +119,17 @@ export function useStudentPayments() {
 
   return useQuery({
     queryKey: ['student-payments', studentId],
-    queryFn: () => apiClient<any>(`/subscriptions/student/${studentId}`),
+    queryFn: async () => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        return offlineDb.getPaymentsOffline({ studentId });
+      }
+      try {
+        return await apiClient<any>(`/subscriptions/student/${studentId}`);
+      } catch {
+        return offlineDb.getPaymentsOffline({ studentId });
+      }
+    },
     enabled: !!studentId,
   });
 }
@@ -88,7 +140,17 @@ export function useStudentAttendance() {
 
   return useQuery({
     queryKey: ['student-attendance', studentId],
-    queryFn: () => apiClient<any>(`/attendance/student/${studentId}`),
+    queryFn: async () => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        return [];
+      }
+      try {
+        return await apiClient<any>(`/attendance/student/${studentId}`);
+      } catch {
+        return [];
+      }
+    },
     enabled: !!studentId,
   });
 }
@@ -96,7 +158,17 @@ export function useStudentAttendance() {
 export function useGroupSessions(groupId: string) {
   return useQuery({
     queryKey: ['group-sessions', groupId],
-    queryFn: () => apiClient<any>(`/schedules/group/${groupId}/sessions`),
+    queryFn: async () => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        return offlineDb.getSessionsOffline(groupId);
+      }
+      try {
+        return await apiClient<any>(`/schedules/group/${groupId}/sessions`);
+      } catch {
+        return offlineDb.getSessionsOffline(groupId);
+      }
+    },
     enabled: !!groupId,
   });
 }
