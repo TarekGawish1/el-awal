@@ -45,6 +45,68 @@ export function QrScanner({ sessionId }: QrScannerProps) {
   const [locked, setLocked] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [flashType, setFlashType] = useState<'success' | 'duplicate' | 'error' | null>(null);
+
+  // Web Audio API Synthesizer (Crystal Clear Audio Feedback)
+  const playBeep = (type: 'success' | 'duplicate' | 'error') => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+
+      if (type === 'success') {
+        // High pleasant double chime (880Hz -> 1320Hz)
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.22);
+      } else if (type === 'duplicate') {
+        // Warning dual pulse tone (587Hz pulse)
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.type = 'triangle';
+        osc1.frequency.setValueAtTime(587.33, ctx.currentTime);
+        gain1.gain.setValueAtTime(0.35, ctx.currentTime);
+        gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+        osc1.start(ctx.currentTime);
+        osc1.stop(ctx.currentTime + 0.12);
+
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.type = 'triangle';
+        osc2.frequency.setValueAtTime(587.33, ctx.currentTime + 0.14);
+        gain2.gain.setValueAtTime(0.35, ctx.currentTime + 0.14);
+        gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.26);
+        osc2.start(ctx.currentTime + 0.14);
+        osc2.stop(ctx.currentTime + 0.26);
+      } else {
+        // Error low buzz (220Hz saw)
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(220, ctx.currentTime);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.28);
+      }
+    } catch (e) {
+      console.warn('Audio Context sound play failed:', e);
+    }
+  };
 
   const handleScan = (detectedCodes: any[]) => {
     if (locked || isPending || crossGroupPrompt || !detectedCodes || detectedCodes.length === 0) {
@@ -60,7 +122,8 @@ export function QrScanner({ sessionId }: QrScannerProps) {
       {
         onSuccess: (data) => {
           if (data.isCrossGroupPrompt) {
-            // Student is in another group of the same grade level -> show cross-group prompt
+            playBeep('duplicate');
+            setFlashType('duplicate');
             setCrossGroupPrompt({
               token,
               student: data.student,
@@ -73,6 +136,8 @@ export function QrScanner({ sessionId }: QrScannerProps) {
           }
 
           if (data.isDuplicate) {
+            playBeep('duplicate');
+            setFlashType('duplicate');
             setLastScanResult({
               success: false,
               duplicate: true,
@@ -81,6 +146,8 @@ export function QrScanner({ sessionId }: QrScannerProps) {
             });
             toast('تم رصد هذا الطالب مسبقاً', { icon: '⚠️' });
           } else {
+            playBeep('success');
+            setFlashType('success');
             setLastScanResult({
               success: true,
               message: data.message || 'تم تسجيل الحضور بنجاح.',
@@ -89,10 +156,15 @@ export function QrScanner({ sessionId }: QrScannerProps) {
             toast.success(`تم حضور: ${data.student?.fullName}`);
           }
 
-          // Unlock after 1.5s to allow subsequent scans
-          setTimeout(() => setLocked(false), 1500);
+          // Unlock after 1.2s and clear flash to allow subsequent scans of same or new codes
+          setTimeout(() => {
+            setLocked(false);
+            setFlashType(null);
+          }, 1200);
         },
         onError: (error: any) => {
+          playBeep('error');
+          setFlashType('error');
           const message =
             error?.message ||
             error?.response?.data?.message ||
@@ -106,8 +178,11 @@ export function QrScanner({ sessionId }: QrScannerProps) {
           });
           toast.error(errorMsg);
 
-          // Unlock after 1.5s to allow retry
-          setTimeout(() => setLocked(false), 1500);
+          // Unlock after 1.2s to allow retry
+          setTimeout(() => {
+            setLocked(false);
+            setFlashType(null);
+          }, 1200);
         },
       },
     );
@@ -120,17 +195,24 @@ export function QrScanner({ sessionId }: QrScannerProps) {
       { sessionId, qrCodeToken: crossGroupPrompt.token, allowCrossGroup: true },
       {
         onSuccess: (data) => {
+          playBeep('success');
+          setFlashType('success');
           const studentName = data.student?.fullName || crossGroupPrompt.student?.fullName || 'الطالب';
           setCrossGroupPrompt(null);
           setLastScanResult({
             success: true,
-            message: `تم تسجيل حضور الطالب [${studentName}] كحضور استثنائي بنجاح!`,
+            message: `تم تسجيل حضور الطالب [${studentName}] كحضور استثنائي بنجاح (وتم توثيق حضوره في مجموعته الأصلية أيضاً)!`,
             studentName,
           });
           toast.success(`تم تسجيل حضور استثنائي: ${studentName}`);
-          setTimeout(() => setLocked(false), 1500);
+          setTimeout(() => {
+            setLocked(false);
+            setFlashType(null);
+          }, 1200);
         },
         onError: (error: any) => {
+          playBeep('error');
+          setFlashType('error');
           const message =
             error?.message ||
             error?.response?.data?.message ||
@@ -139,6 +221,7 @@ export function QrScanner({ sessionId }: QrScannerProps) {
           toast.error(errorMsg);
           setCrossGroupPrompt(null);
           setLocked(false);
+          setFlashType(null);
         },
       },
     );
@@ -162,10 +245,22 @@ export function QrScanner({ sessionId }: QrScannerProps) {
 
   return (
     <div className="flex flex-col items-center py-4">
-      <div className="w-full max-w-sm aspect-square bg-slate-900 rounded-3xl overflow-hidden border border-slate-100 shadow-sm relative ring-4 ring-primary-50">
+      <div
+        className={`w-full max-w-sm aspect-square bg-slate-900 rounded-3xl overflow-hidden border border-slate-100 shadow-sm relative transition-all duration-300 ring-4 ${
+          flashType === 'success'
+            ? 'ring-emerald-500 shadow-lg shadow-emerald-500/20'
+            : flashType === 'duplicate'
+            ? 'ring-amber-500 shadow-lg shadow-amber-500/20'
+            : flashType === 'error'
+            ? 'ring-rose-500 shadow-lg shadow-rose-500/20'
+            : 'ring-primary-50'
+        }`}
+      >
         <Scanner
           onScan={handleScan}
           onError={handleError}
+          paused={locked || isPending || !!crossGroupPrompt}
+          scanDelay={400}
           formats={['qr_code']}
           constraints={{ facingMode }}
           styles={{ video: { transform: facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)' } }}

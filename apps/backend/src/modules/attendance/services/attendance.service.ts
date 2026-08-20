@@ -150,6 +150,75 @@ export class AttendanceService {
       crossGroupNote,
     );
 
+    // If cross-group attendance, also automatically mark the equivalent session in student's own group
+    if (!directEnrollment && primaryGroup?.id) {
+      try {
+        let equivalentSession: any = null;
+
+        // 1. Match by exact or normalized topic title
+        if (session.topic && session.topic.trim()) {
+          equivalentSession = await this.prisma.lessonSession.findFirst({
+            where: {
+              groupId: primaryGroup.id,
+              topic: {
+                equals: session.topic.trim(),
+                mode: 'insensitive',
+              },
+              isCancelled: false,
+            },
+            orderBy: {
+              sessionDate: 'desc',
+            },
+          });
+        }
+
+        // 2. Fallback: match by closest session date within +/- 6 days in student's group
+        if (!equivalentSession) {
+          const sessionDate = new Date(session.sessionDate);
+          const minDate = new Date(sessionDate);
+          minDate.setDate(minDate.getDate() - 5);
+          const maxDate = new Date(sessionDate);
+          maxDate.setDate(maxDate.getDate() + 5);
+
+          equivalentSession = await this.prisma.lessonSession.findFirst({
+            where: {
+              groupId: primaryGroup.id,
+              sessionDate: {
+                gte: minDate,
+                lte: maxDate,
+              },
+              isCancelled: false,
+            },
+            orderBy: {
+              sessionDate: 'asc',
+            },
+          });
+        }
+
+        if (equivalentSession && equivalentSession.id !== session.id) {
+          const sessionDateFormatted = new Date(session.sessionDate).toLocaleDateString('ar-EG', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'numeric',
+          });
+          const originalGroupNote = `حضور بديل بمجموعة (${session.group.name}) - ${sessionDateFormatted}`;
+
+          await this.attendanceRepository.recordQrScan(
+            equivalentSession.id,
+            student.id,
+            user.id,
+            originalGroupNote,
+          );
+
+          this.logger.log(
+            `[Cross-Group Attendance] Auto-marked equivalent session [${equivalentSession.id}] for student ${student.user.fullName} in original group [${primaryGroup.name}]`,
+          );
+        }
+      } catch (equivErr) {
+        this.logger.error('Failed to auto-mark equivalent group session:', equivErr);
+      }
+    }
+
     // 5. Emit domain event if this was the first successful scan
     if (!result.isDuplicate) {
       this.eventEmitter.emit('attendance.recorded', {
