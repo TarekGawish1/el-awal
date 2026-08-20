@@ -169,7 +169,7 @@ export function DailyCalendarView({
               </div>
 
               {/* Session Cards Column */}
-              <div className="flex-1 space-y-3">
+              <div className={`flex-1 ${hourSessions.length > 1 ? 'grid grid-cols-1 lg:grid-cols-2 gap-3' : 'space-y-3'}`}>
                 {hourSessions.length > 0 ? (
                   hourSessions.map((session) => {
                     const isCancelled = !!session.isCancelled;

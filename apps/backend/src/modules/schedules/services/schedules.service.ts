@@ -620,6 +620,7 @@ export class SchedulesService {
         groupId: dto.groupId,
         sessionDate: sessionDateOnly,
         startTime: dto.startTime || null,
+        isCancelled: false,
       },
     });
 
