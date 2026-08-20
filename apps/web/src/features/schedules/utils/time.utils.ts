@@ -134,8 +134,19 @@ export interface MinimalSessionLike {
   } | null;
 }
 
+export function isSessionCancelled(session: any): boolean {
+  if (!session) return false;
+  return (
+    session.isCancelled === true ||
+    session.is_cancelled === true ||
+    String(session.isCancelled) === 'true' ||
+    String(session.is_cancelled) === 'true'
+  );
+}
+
 /**
  * Finds any existing active (non-cancelled) session on targetDate that overlaps with target time range.
+ * Canceled sessions are completely ignored and do not cause any conflict.
  */
 export function findSessionConflict<T extends MinimalSessionLike>(
   sessions: T[],
@@ -148,7 +159,7 @@ export function findSessionConflict<T extends MinimalSessionLike>(
 
   for (const session of sessions) {
     if (excludeSessionId && session.id === excludeSessionId) continue;
-    if (session.isCancelled) continue;
+    if (isSessionCancelled(session)) continue;
 
     const sDateStr = toLocalDateStr(session.sessionDate);
     if (sDateStr !== targetDateStr) continue;
@@ -187,7 +198,7 @@ export function calculateOverlappingColumns<T extends MinimalSessionLike>(
       id: s.id || `idx_${idx}`,
       start: sMin,
       end: eMin,
-      isCancelled: !!s.isCancelled,
+      isCancelled: isSessionCancelled(s),
     };
   });
 

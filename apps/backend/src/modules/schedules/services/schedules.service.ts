@@ -669,9 +669,9 @@ export class SchedulesService {
           topic: dto.topic,
           endTime: dto.endTime !== undefined ? dto.endTime : existing.endTime,
           scheduleId: dto.scheduleId || existing.scheduleId,
-          isCancelled: dto.isCancelled !== undefined ? dto.isCancelled : existing.isCancelled,
+          isCancelled: dto.isCancelled !== undefined ? dto.isCancelled : false,
           cancellationReason:
-            dto.cancellationReason !== undefined ? dto.cancellationReason : existing.cancellationReason,
+            dto.isCancelled ? (dto.cancellationReason || existing.cancellationReason) : null,
         },
         include: {
           group: { select: { id: true, name: true, gradeLevel: true, academicYear: true, academicTerm: true } },
