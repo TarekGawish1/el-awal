@@ -118,24 +118,33 @@ export function FinanceDashboard() {
 
       {/* Filters Toolbar */}
       <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-wrap gap-4 items-end">
-        <div className="flex-1 min-w-[250px]">
-          <label className="block text-xs font-semibold text-neutral-700 mb-1.5 flex items-center gap-1.5">
-            <Users className="w-4 h-4 text-primary-600" />
-            المجموعة الدراسية (اختياري)
-          </label>
-          <select
-            className="w-full h-11 rounded-xl border border-slate-200 px-3 text-sm font-semibold focus:ring-2 focus:ring-primary/20 bg-white"
-            value={selectedGroupId}
-            onChange={(e) => setSelectedGroupId(e.target.value)}
-          >
-            <option value="">جميع المجموعات (تحديد تلقائي عند مسح الـ QR)</option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name} - {g.gradeLevel} ({g.monthlyFee} ج.م)
-              </option>
-            ))}
-          </select>
-        </div>
+        {activeTab === 'MANUAL' ? (
+          <div className="flex-1 min-w-[250px] animate-in fade-in duration-200">
+            <label className="block text-xs font-semibold text-neutral-700 mb-1.5 flex items-center gap-1.5">
+              <Users className="w-4 h-4 text-primary-600" />
+              المجموعة الدراسية (مطلوبة للرصد اليدوي)
+            </label>
+            <select
+              className="w-full h-11 rounded-xl border border-slate-200 px-3 text-sm font-semibold focus:ring-2 focus:ring-primary/20 bg-white"
+              value={selectedGroupId}
+              onChange={(e) => setSelectedGroupId(e.target.value)}
+            >
+              <option value="">اختر المجموعة لعرض الطلاب المتأخرين...</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name} - {g.gradeLevel} ({g.monthlyFee} ج.م)
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div className="flex-1 min-w-[250px] py-2 text-slate-500 text-xs flex items-center gap-2 bg-slate-50/70 px-4 rounded-xl border border-slate-100">
+            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></div>
+            <span className="font-medium text-slate-600">
+              الماسح الذكي يتعرف تلقائياً على مجموعة الطالب وقيمة اشتراكه فور قراءة الرمز.
+            </span>
+          </div>
+        )}
 
         <div className="w-36">
           <label className="block text-xs font-semibold text-neutral-700 mb-1.5 flex items-center gap-1.5">
