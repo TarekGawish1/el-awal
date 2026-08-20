@@ -13,7 +13,7 @@ import {
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
-export class SyncOperationItemDto {
+export class SyncProgressItemDto {
   @ApiProperty({ description: 'Client-generated UUIDv4 for idempotency deduplication' })
   @IsUUID()
   @IsNotEmpty()
@@ -40,12 +40,14 @@ export class SyncOperationItemDto {
   isCompleted: boolean;
 }
 
+export { SyncProgressItemDto as SyncOperationItemDto };
+
 export class BatchProgressSyncDto {
-  @ApiProperty({ type: [SyncOperationItemDto], description: 'Array of staged offline progress operations (Max 50)' })
+  @ApiProperty({ type: [SyncProgressItemDto], description: 'Array of staged offline progress operations (Max 50)' })
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(50)
   @ValidateNested({ each: true })
-  @Type(() => SyncOperationItemDto)
-  operations: SyncOperationItemDto[];
+  @Type(() => SyncProgressItemDto)
+  operations: SyncProgressItemDto[];
 }
