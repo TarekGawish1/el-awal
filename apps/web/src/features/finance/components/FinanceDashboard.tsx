@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useGroupDefaulters, usePayments, useDeletePayment } from '../hooks/useFinance';
 import { RecordPaymentModal } from './RecordPaymentModal';
@@ -28,12 +29,33 @@ import {
 import toast from 'react-hot-toast';
 
 export function FinanceDashboard() {
-  const [selectedGroupId, setSelectedGroupId] = useState<string>('');
-  const [periodYear, setPeriodYear] = useState<number>(new Date().getFullYear());
-  const [periodMonth, setPeriodMonth] = useState<number>(new Date().getMonth() + 1);
+  const searchParams = useSearchParams();
+  const paramGroupId = searchParams.get('groupId');
+  const paramYear = searchParams.get('year');
+  const paramMonth = searchParams.get('month');
+
+  const [selectedGroupId, setSelectedGroupId] = useState<string>(paramGroupId || '');
+  const [periodYear, setPeriodYear] = useState<number>(
+    paramYear && !isNaN(Number(paramYear)) ? Number(paramYear) : new Date().getFullYear()
+  );
+  const [periodMonth, setPeriodMonth] = useState<number>(
+    paramMonth && !isNaN(Number(paramMonth)) ? Number(paramMonth) : new Date().getMonth() + 1
+  );
   const [activeTab, setActiveTab] = useState<'QR' | 'MANUAL'>('QR');
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const [historyStudentId, setHistoryStudentId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (paramGroupId) {
+      setSelectedGroupId(paramGroupId);
+    }
+    if (paramYear && !isNaN(Number(paramYear))) {
+      setPeriodYear(Number(paramYear));
+    }
+    if (paramMonth && !isNaN(Number(paramMonth))) {
+      setPeriodMonth(Number(paramMonth));
+    }
+  }, [paramGroupId, paramYear, paramMonth]);
 
   const { data: groups = [], isLoading: isGroupsLoading } = useGroups();
   

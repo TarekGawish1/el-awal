@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
@@ -51,11 +52,15 @@ function formatTime12h(time24?: string) {
   return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
 }
 
-export default function TeacherAttendancePage() {
+function TeacherAttendanceContent() {
+  const searchParams = useSearchParams();
+  const paramSessionId = searchParams.get('sessionId');
+  const paramGroupId = searchParams.get('groupId');
+
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
-  const [selectedSessionId, setSelectedSessionId] = useState<string>('');
+  const [selectedSessionId, setSelectedSessionId] = useState<string>(paramSessionId || '');
   const [activeTab, setActiveTab] = useState<'QR' | 'MANUAL'>('QR');
 
   const { data: groups } = useGroups();
@@ -170,8 +175,13 @@ export default function TeacherAttendancePage() {
     });
   }, [sessions, groupMap, selectedStages, selectedGrades, selectedLocations, activeYear, activeTerm]);
 
-  // Auto-select nearest session on mount
+  // Auto-select nearest session on mount only if no paramSessionId is provided
   useEffect(() => {
+    if (paramSessionId) {
+      setSelectedSessionId(paramSessionId);
+      return;
+    }
+
     if (filteredSessions.length > 0 && !selectedSessionId) {
       const now = new Date();
       const nowMins = now.getHours() * 60 + now.getMinutes();
@@ -196,14 +206,14 @@ export default function TeacherAttendancePage() {
       if (activeSession) {
         setSelectedSessionId(activeSession.id);
       }
-    } else if (filteredSessions.length > 0 && selectedSessionId) {
+    } else if (filteredSessions.length > 0 && selectedSessionId && !paramSessionId) {
       // If currently selected session is no longer in filtered list, reset selection
       const exists = filteredSessions.some((s: any) => s.id === selectedSessionId);
       if (!exists) {
         setSelectedSessionId('');
       }
     }
-  }, [filteredSessions, selectedSessionId]);
+  }, [filteredSessions, selectedSessionId, paramSessionId]);
 
   const { data: report, isLoading: isLoadingReport, isError: isErrorReport } = useSessionReport(selectedSessionId);
 
@@ -215,6 +225,44 @@ export default function TeacherAttendancePage() {
     setSelectedGrades([]);
     setSelectedLocations([]);
   };
+
+  const selectOptions = useMemo(() => {
+    const optionsList = filteredSessions.map((s: any) => {
+      const g = groupMap.get(s.groupId) || s.group;
+      const groupName = g?.name || 'مجموعة';
+      const formattedTime = s.startTime ? formatTime12h(s.startTime) : '';
+      let timeLabel = formattedTime ? ` (الساعة ${formattedTime})` : '';
+
+      if (
+        formattedTime &&
+        (groupName.includes(`(الساعة ${formattedTime})`) || groupName.includes(formattedTime))
+      ) {
+        timeLabel = '';
+      }
+
+      const loc = g?.schedules?.[0]?.location ? ` - 📍 ${g.schedules[0].location}` : '';
+
+      return {
+        label: `${groupName}${timeLabel}${loc}`,
+        value: s.id,
+      };
+    });
+
+    if (selectedSessionId && !optionsList.some((o) => o.value === selectedSessionId)) {
+      const customLabel = report?.groupName
+        ? `📌 ${report.groupName} - ${report.topic || 'حصة محددة'}`
+        : '📌 الحصة المحددة من جدول الحصص';
+      optionsList.unshift({
+        label: customLabel,
+        value: selectedSessionId,
+      });
+    }
+
+    return [
+      { label: '-- اختر الحصة لبدء الرصد --', value: '' },
+      ...optionsList,
+    ];
+  }, [filteredSessions, groupMap, selectedSessionId, report]);
 
   return (
     <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
@@ -325,7 +373,7 @@ export default function TeacherAttendancePage() {
             <div className="animate-pulse h-10 bg-slate-100 rounded-xl w-full"></div>
           ) : isErrorSessions ? (
             <p className="text-red-500 text-sm">فشل تحميل حصص اليوم.</p>
-          ) : filteredSessions.length === 0 ? (
+          ) : filteredSessions.length === 0 && !selectedSessionId ? (
             <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-500 text-center">
               لا توجد حصص مجدولة تطابق خيارات الفلترة المحددة لليوم.
             </div>
@@ -334,29 +382,7 @@ export default function TeacherAttendancePage() {
               value={selectedSessionId}
               onChange={(e) => setSelectedSessionId(e.target.value)}
               className="w-full rounded-xl border-primary-200 focus:border-primary-500 font-semibold"
-              options={[
-                { label: '-- اختر الحصة لبدء الرصد --', value: '' },
-                ...filteredSessions.map((s: any) => {
-                  const g = groupMap.get(s.groupId) || s.group;
-                  const groupName = g?.name || 'مجموعة';
-                  const formattedTime = s.startTime ? formatTime12h(s.startTime) : '';
-                  let timeLabel = formattedTime ? ` (الساعة ${formattedTime})` : '';
-
-                  if (
-                    formattedTime &&
-                    (groupName.includes(`(الساعة ${formattedTime})`) || groupName.includes(formattedTime))
-                  ) {
-                    timeLabel = '';
-                  }
-
-                  const loc = g?.schedules?.[0]?.location ? ` - 📍 ${g.schedules[0].location}` : '';
-
-                  return {
-                    label: `${groupName}${timeLabel}${loc}`,
-                    value: s.id,
-                  };
-                }),
-              ]}
+              options={selectOptions}
             />
           )}
         </div>
@@ -409,3 +435,12 @@ export default function TeacherAttendancePage() {
     </div>
   );
 }
+
+export default function TeacherAttendancePage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-500 font-bold">جاري تحميل لوحة رصد الحضور...</div>}>
+      <TeacherAttendanceContent />
+    </Suspense>
+  );
+}
+
