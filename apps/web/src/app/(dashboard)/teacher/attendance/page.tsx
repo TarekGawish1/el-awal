@@ -12,6 +12,7 @@ import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeri
 import { AttendanceReportCard } from '@/features/attendance/components/AttendanceReportCard';
 import { QrScanner } from '@/features/attendance/components/QrScanner';
 import { ManualAttendanceRoster } from '@/features/attendance/components/ManualAttendanceRoster';
+import { useTeacherSessions } from '@/features/schedules/hooks/useSchedules';
 import { RotateCcw, MapPin, Calendar, Users, QrCode, ClipboardList, BookOpen, Sparkles } from 'lucide-react';
 
 const STAGE_GRADES_MAP: Record<string, string[]> = {
@@ -76,6 +77,12 @@ function TeacherAttendanceContent() {
     activeTerm,
   );
 
+  const { data: allTeacherSessions = [], isLoading: isLoadingAllSessions } = useTeacherSessions({
+    academicYear: activeYear,
+    academicTerm: activeTerm,
+    timeframe: 'ALL',
+  });
+
   // Create a fast lookup map from groupId to group (with schedules and locations)
   const groupMap = useMemo(() => {
     if (!groups || !Array.isArray(groups)) return new Map();
@@ -111,9 +118,10 @@ function TeacherAttendanceContent() {
       });
     }
 
-    if (sessions && Array.isArray(sessions)) {
-      sessions.forEach((s: any) => {
-        const gGrade = s.group?.gradeLevel;
+    if (allTeacherSessions && Array.isArray(allTeacherSessions)) {
+      allTeacherSessions.forEach((s: any) => {
+        const g = groupMap.get(s.groupId) || s.group;
+        const gGrade = g?.gradeLevel;
         if (gGrade && !gradesList.includes(gGrade)) {
           const sStage = getStageName(gGrade);
           if (selectedStages.length === 0 || selectedStages.includes(sStage)) {
@@ -127,7 +135,7 @@ function TeacherAttendanceContent() {
       label: grade,
       value: grade,
     }));
-  }, [selectedStages, sessions]);
+  }, [selectedStages, allTeacherSessions, groupMap]);
 
   // Handle stage change & prune non-matching grades
   const handleStagesChange = useCallback((newStages: string[]) => {
@@ -165,7 +173,7 @@ function TeacherAttendanceContent() {
       const matchesGrade = selectedGrades.length === 0 || selectedGrades.includes(gGrade);
 
       // Location filter
-      const fullGroup = groupMap.get(s.groupId);
+      const fullGroup = groupMap.get(s.groupId) || g;
       const groupLocations = fullGroup?.schedules?.map((sch: any) => sch.location).filter(Boolean) || [];
       const matchesLocation =
         selectedLocations.length === 0 ||
@@ -174,6 +182,34 @@ function TeacherAttendanceContent() {
       return matchesStage && matchesGrade && matchesLocation;
     });
   }, [sessions, groupMap, selectedStages, selectedGrades, selectedLocations, activeYear, activeTerm]);
+
+  // Filter all semester sessions strictly based on stages, grades, locations, and active academic period
+  const filteredAllSessions = useMemo(() => {
+    if (!allTeacherSessions || !Array.isArray(allTeacherSessions)) return [];
+    return allTeacherSessions.filter((s: any) => {
+      const g = groupMap.get(s.groupId) || s.group;
+      const gGrade = g?.gradeLevel || '';
+      const stage = getStageName(gGrade);
+
+      if (activeYear && g?.academicYear && g.academicYear !== activeYear) {
+        return false;
+      }
+      if (activeTerm && g?.academicTerm && g.academicTerm !== activeTerm) {
+        return false;
+      }
+
+      const matchesStage = selectedStages.length === 0 || selectedStages.includes(stage);
+      const matchesGrade = selectedGrades.length === 0 || selectedGrades.includes(gGrade);
+
+      const fullGroup = groupMap.get(s.groupId) || g;
+      const groupLocations = fullGroup?.schedules?.map((sch: any) => sch.location).filter(Boolean) || [];
+      const matchesLocation =
+        selectedLocations.length === 0 ||
+        groupLocations.some((loc: string) => selectedLocations.includes(loc));
+
+      return matchesStage && matchesGrade && matchesLocation;
+    });
+  }, [allTeacherSessions, groupMap, selectedStages, selectedGrades, selectedLocations, activeYear, activeTerm]);
 
   // Auto-select nearest session on mount only if no paramSessionId is provided
   useEffect(() => {
@@ -206,12 +242,6 @@ function TeacherAttendanceContent() {
       if (activeSession) {
         setSelectedSessionId(activeSession.id);
       }
-    } else if (filteredSessions.length > 0 && selectedSessionId && !paramSessionId) {
-      // If currently selected session is no longer in filtered list, reset selection
-      const exists = filteredSessions.some((s: any) => s.id === selectedSessionId);
-      if (!exists) {
-        setSelectedSessionId('');
-      }
     }
   }, [filteredSessions, selectedSessionId, paramSessionId]);
 
@@ -226,7 +256,7 @@ function TeacherAttendanceContent() {
     setSelectedLocations([]);
   };
 
-  const selectOptions = useMemo(() => {
+  const todaySelectOptions = useMemo(() => {
     const optionsList = filteredSessions.map((s: any) => {
       const g = groupMap.get(s.groupId) || s.group;
       const groupName = g?.name || 'مجموعة';
@@ -241,28 +271,53 @@ function TeacherAttendanceContent() {
       }
 
       const loc = g?.schedules?.[0]?.location ? ` - 📍 ${g.schedules[0].location}` : '';
+      const topic = s.topic ? ` - 📖 ${s.topic}` : '';
 
       return {
-        label: `${groupName}${timeLabel}${loc}`,
+        label: `${groupName}${timeLabel}${topic}${loc}`,
         value: s.id,
       };
     });
 
-    if (selectedSessionId && !optionsList.some((o) => o.value === selectedSessionId)) {
-      const customLabel = report?.groupName
-        ? `📌 ${report.groupName} - ${report.topic || 'حصة محددة'}`
-        : '📌 الحصة المحددة من جدول الحصص';
-      optionsList.unshift({
-        label: customLabel,
-        value: selectedSessionId,
-      });
-    }
-
     return [
-      { label: '-- اختر الحصة لبدء الرصد --', value: '' },
+      { label: `-- اختر من حصص اليوم (${filteredSessions.length} حصة) --`, value: '' },
       ...optionsList,
     ];
-  }, [filteredSessions, groupMap, selectedSessionId, report]);
+  }, [filteredSessions, groupMap]);
+
+  const allSessionsSelectOptions = useMemo(() => {
+    const optionsList = filteredAllSessions.map((s: any) => {
+      const g = groupMap.get(s.groupId) || s.group;
+      const groupName = g?.name || 'مجموعة';
+      const formattedTime = s.startTime ? formatTime12h(s.startTime) : '';
+
+      let dateLabel = '';
+      if (s.sessionDate) {
+        const d = new Date(s.sessionDate);
+        if (!isNaN(d.getTime())) {
+          dateLabel = d.toLocaleDateString('ar-EG', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'numeric',
+          });
+        }
+      }
+
+      const timePart = formattedTime ? ` (${formattedTime})` : '';
+      const topic = s.topic ? ` - ${s.topic}` : '';
+      const loc = g?.schedules?.[0]?.location ? ` - 📍 ${g.schedules[0].location}` : '';
+
+      return {
+        label: `📅 ${dateLabel} | ${groupName}${timePart}${topic}${loc}`,
+        value: s.id,
+      };
+    });
+
+    return [
+      { label: `-- اختر من جميع حصص الترم (${filteredAllSessions.length} حصة) --`, value: '' },
+      ...optionsList,
+    ];
+  }, [filteredAllSessions, groupMap]);
 
   return (
     <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
@@ -409,34 +464,61 @@ function TeacherAttendanceContent() {
             </div>
           </div>
 
-          {/* Session Picker Dropdown */}
-          <div className="pt-2 border-t border-slate-100">
-            <label className="block text-xs font-semibold text-neutral-700 mb-1.5 flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-primary-700">
-                <Users className="w-4 h-4 text-primary-600" />
-                الحصة / المجموعة المراد رصدها *
-              </span>
-              <span className="text-slate-400 font-normal">
-                {filteredSessions.length} حصص متاحة لليوم
-              </span>
-            </label>
+          {/* Dual Session Pickers: حصص اليوم & جميع حصص الترم */}
+          <div className="pt-3 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* 1. حصص اليوم */}
+            <div>
+              <label className="block text-xs font-bold text-neutral-700 mb-1.5 flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-emerald-700 font-bold">
+                  <Calendar className="w-4 h-4 text-emerald-600" />
+                  حصص اليوم
+                </span>
+                <span className="text-slate-400 font-medium text-[11px]">
+                  {filteredSessions.length} حصص متاحة لليوم
+                </span>
+              </label>
 
-            {isLoadingSessions ? (
-              <div className="animate-pulse h-10 bg-slate-100 rounded-xl w-full"></div>
-            ) : isErrorSessions ? (
-              <p className="text-red-500 text-sm">فشل تحميل حصص اليوم.</p>
-            ) : filteredSessions.length === 0 && !selectedSessionId ? (
-              <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-500 text-center">
-                لا توجد حصص مجدولة تطابق خيارات الفلترة المحددة لليوم.
-              </div>
-            ) : (
-              <Select
-                value={selectedSessionId}
-                onChange={(e) => setSelectedSessionId(e.target.value)}
-                className="w-full rounded-xl border-primary-200 focus:border-primary-500 font-semibold"
-                options={selectOptions}
-              />
-            )}
+              {isLoadingSessions ? (
+                <div className="animate-pulse h-10 bg-slate-100 rounded-xl w-full"></div>
+              ) : isErrorSessions ? (
+                <p className="text-red-500 text-xs">فشل تحميل حصص اليوم.</p>
+              ) : (
+                <Select
+                  value={filteredSessions.some((s: any) => s.id === selectedSessionId) ? selectedSessionId : ''}
+                  onChange={(e) => {
+                    if (e.target.value) setSelectedSessionId(e.target.value);
+                  }}
+                  className="w-full rounded-xl border-emerald-200 focus:border-emerald-500 font-semibold bg-emerald-50/20"
+                  options={todaySelectOptions}
+                />
+              )}
+            </div>
+
+            {/* 2. جميع حصص الترم (السابقة والقادمة) */}
+            <div>
+              <label className="block text-xs font-bold text-neutral-700 mb-1.5 flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-primary-700 font-bold">
+                  <BookOpen className="w-4 h-4 text-primary-600" />
+                  جميع حصص الترم (السابقة والمستقبلية)
+                </span>
+                <span className="text-slate-400 font-medium text-[11px]">
+                  {filteredAllSessions.length} حصة مجدولة
+                </span>
+              </label>
+
+              {isLoadingAllSessions ? (
+                <div className="animate-pulse h-10 bg-slate-100 rounded-xl w-full"></div>
+              ) : (
+                <Select
+                  value={filteredAllSessions.some((s: any) => s.id === selectedSessionId) ? selectedSessionId : ''}
+                  onChange={(e) => {
+                    if (e.target.value) setSelectedSessionId(e.target.value);
+                  }}
+                  className="w-full rounded-xl border-primary-200 focus:border-primary-500 font-semibold bg-primary-50/20"
+                  options={allSessionsSelectOptions}
+                />
+              )}
+            </div>
           </div>
         </div>
       )}
