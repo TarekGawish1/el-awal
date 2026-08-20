@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
+import { Pagination } from '@/components/ui/Pagination';
 import { 
   BookOpen, Video, FileText, ChevronLeft, ChevronRight, Play, 
   CheckCircle2, AlertTriangle, ArrowRight, Download, Award, Clock, User
@@ -19,9 +20,14 @@ import {
 import toast from 'react-hot-toast';
 
 export default function StudentCoursesPage() {
-  const { data: courses, isLoading, isError } = useStudentCourses();
+  const { data: courses = [], isLoading, isError } = useStudentCourses();
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const PAGE_SIZE = 6;
+  const totalPages = Math.ceil(courses.length / PAGE_SIZE);
+  const paginatedCourses = courses.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   if (isLoading) {
     return (
@@ -84,72 +90,86 @@ export default function StudentCoursesPage() {
           <p className="text-xs text-slate-400 mt-1">عند اشتراكك في إحدى الدورات الرقمية للمركز، ستظهر هنا تلقائياً.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {courses?.map((c: any) => (
-            <Card key={c.courseId} className="border-none shadow-sm shadow-slate-200/50 hover:shadow-md transition-all flex flex-col overflow-hidden group">
-              {/* Course cover image or placeholder */}
-              <div className="h-44 w-full bg-slate-100 relative overflow-hidden shrink-0">
-                {c.coverImageUrl ? (
-                  <img 
-                    src={c.coverImageUrl} 
-                    alt={c.title} 
-                    className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-500"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-tr from-primary-600 to-primary-700 flex items-center justify-center text-white">
-                    <BookOpen className="w-12 h-12 opacity-40" />
-                  </div>
-                )}
-                <Badge variant="default" className="absolute top-3 right-3 bg-white/95 text-slate-800 border-none shadow-xs font-semibold">
-                  {c.subject || 'عام'}
-                </Badge>
-              </div>
-
-              <CardContent className="p-6 flex-1 flex flex-col justify-between space-y-4">
-                <div className="space-y-2">
-                  <h3 className="text-lg font-bold text-slate-800 line-clamp-1 group-hover:text-primary-600 transition-colors leading-tight">
-                    {c.title}
-                  </h3>
-                  <p className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
-                    <User className="w-3.5 h-3.5 text-slate-400" />
-                    المعلم: {c.teacherName}
-                  </p>
-                  <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed pt-1">
-                    {c.description || 'لا يوجد وصف تفصيلي متاح لهذه الدورة.'}
-                  </p>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {paginatedCourses.map((c: any) => (
+              <Card key={c.courseId} className="border-none shadow-sm shadow-slate-200/50 hover:shadow-md transition-all flex flex-col overflow-hidden group">
+                {/* Course cover image or placeholder */}
+                <div className="h-44 w-full bg-slate-100 relative overflow-hidden shrink-0">
+                  {c.coverImageUrl ? (
+                    <img 
+                      src={c.coverImageUrl} 
+                      alt={c.title} 
+                      className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-500"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-tr from-primary-600 to-primary-700 flex items-center justify-center text-white">
+                      <BookOpen className="w-12 h-12 opacity-40" />
+                    </div>
+                  )}
+                  <Badge variant="default" className="absolute top-3 right-3 bg-white/95 text-slate-800 border-none shadow-xs font-semibold">
+                    {c.subject || 'عام'}
+                  </Badge>
                 </div>
 
-                <div className="space-y-3 pt-3 border-t border-slate-100">
-                  {/* Progress tracker */}
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs font-bold">
-                      <span className="text-slate-500">نسبة الإنجاز</span>
-                      <span className="text-primary-600">{c.progressPercentage || 0}%</span>
-                    </div>
-                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                      <div 
-                        className="bg-primary-600 h-full rounded-full transition-all duration-300"
-                        style={{ width: `${c.progressPercentage || 0}%` }}
-                      />
-                    </div>
+                <CardContent className="p-6 flex-1 flex flex-col justify-between space-y-4">
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-bold text-slate-800 line-clamp-1 group-hover:text-primary-600 transition-colors leading-tight">
+                      {c.title}
+                    </h3>
+                    <p className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-slate-400" />
+                      المعلم: {c.teacherName}
+                    </p>
+                    <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed pt-1">
+                      {c.description || 'لا يوجد وصف تفصيلي متاح لهذه الدورة.'}
+                    </p>
                   </div>
 
-                  <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
-                    <span>{c.totalModules} فصول</span>
-                    <span>{c.totalLessons} دروس رقمية</span>
-                  </div>
+                  <div className="space-y-3 pt-3 border-t border-slate-100">
+                    {/* Progress tracker */}
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs font-bold">
+                        <span className="text-slate-500">نسبة الإنجاز</span>
+                        <span className="text-primary-600">{c.progressPercentage || 0}%</span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                        <div 
+                          className="bg-primary-600 h-full rounded-full transition-all duration-300"
+                          style={{ width: `${c.progressPercentage || 0}%` }}
+                        />
+                      </div>
+                    </div>
 
-                  <Button
-                    onClick={() => setSelectedCourseId(c.courseId)}
-                    className="w-full rounded-xl py-5 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer mt-2"
-                  >
-                    <Play className="w-3 h-3" />
-                    {c.progressPercentage > 0 ? 'استئناف التعلم' : 'دخول الدورة وبدء الدراسة'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
+                      <span>{c.totalModules} فصول</span>
+                      <span>{c.totalLessons} دروس رقمية</span>
+                    </div>
+
+                    <Button
+                      onClick={() => setSelectedCourseId(c.courseId)}
+                      className="w-full rounded-xl py-5 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer mt-2"
+                    >
+                      <Play className="w-3 h-3" />
+                      {c.progressPercentage > 0 ? 'استئناف التعلم' : 'دخول الدورة وبدء الدراسة'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={courses.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setCurrentPage}
+              itemLabel="دورة"
+            />
+          )}
         </div>
       )}
     </div>

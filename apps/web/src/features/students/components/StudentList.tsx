@@ -11,7 +11,7 @@ import { useStudents } from '../hooks/use-students';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
 import { AcademicStatus } from '../types/students.types';
-import { Search, RotateCcw, Users, Calendar, BookOpen } from 'lucide-react';
+import { Search, RotateCcw, Users, Calendar, BookOpen, ChevronRight, ChevronLeft } from 'lucide-react';
 
 const STAGE_GRADES_MAP: Record<string, string[]> = {
   'المرحلة الابتدائية': [
@@ -638,27 +638,39 @@ export function StudentList() {
         </div>
 
         {/* Pagination Controls */}
-        {data && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/50">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handlePrevPage}
-              disabled={!cursor}
-              className="rounded-xl"
-            >
-              السابق
-            </Button>
-            <span className="text-sm text-slate-500">نتائج الصفحة</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleNextPage}
-              disabled={!data.meta.hasMore}
-              className="rounded-xl"
-            >
-              التالي
-            </Button>
+        {data && (data.meta.hasMore || cursor || filteredStudents.length > 0) && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50" dir="rtl">
+            <div className="text-xs text-slate-500 font-medium">
+              <span>
+                عرض <strong className="text-slate-800 font-bold">{filteredStudents.length}</strong> طالب في هذه الصفحة
+                {data.meta.total ? ` من إجمالي ${data.meta.total} طالب` : ''}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePrevPage}
+                disabled={!cursor}
+                className="rounded-xl gap-1 text-xs font-bold bg-white"
+                title="الصفحة السابقة"
+              >
+                <ChevronRight className="w-4 h-4" />
+                <span>السابق</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleNextPage}
+                disabled={!data.meta.hasMore}
+                className="rounded-xl gap-1 text-xs font-bold bg-white"
+                title="الصفحة التالية"
+              >
+                <span>التالي</span>
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         )}
       </div>

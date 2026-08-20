@@ -35,6 +35,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { Pagination } from '@/components/ui/Pagination';
 import toast from 'react-hot-toast';
 
 const BASE_YEARS = ['2026-2027', '2025-2026', '2024-2025', '2027-2028', '2028-2029', '2023-2024'];
@@ -91,8 +92,11 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
   const [selectedStage, setSelectedStage] = useState<string>('ALL');
   const [selectedGrade, setSelectedGrade] = useState<string>('ALL');
   const [selectedType, setSelectedType] = useState<string>('ALL');
+  const [currentPage, setCurrentPage] = useState<number>(1);
   const [editingContent, setEditingContent] = useState<EducationalContent | null>(null);
   const [playingVideo, setPlayingVideo] = useState<EducationalContent | null>(null);
+
+  const PAGE_SIZE = 12;
 
   const { data: groups = [] } = useGroups();
   const { activeYear } = useStoredAcademicPeriod(groups as any);
@@ -159,6 +163,13 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
       return matchesSearch && matchesStage;
     });
   }, [contents, searchQuery, selectedStage]);
+
+  const totalPages = Math.ceil(filteredContents.length / PAGE_SIZE);
+
+  const paginatedContents = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredContents.slice(start, start + PAGE_SIZE);
+  }, [filteredContents, currentPage]);
 
   const isFiltered =
     searchQuery !== '' ||
@@ -405,128 +416,142 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredContents.map((content) => {
-            const isVideo =
-              content.contentType === ContentType.LECTURE_RECORDING ||
-              content.fileKey?.startsWith('bunny:') ||
-              content.mimeType?.startsWith('video/') ||
-              content.fileUrl?.includes('mediadelivery.net') ||
-              content.fileUrl?.includes('bunny');
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {paginatedContents.map((content) => {
+              const isVideo =
+                content.contentType === ContentType.LECTURE_RECORDING ||
+                content.fileKey?.startsWith('bunny:') ||
+                content.mimeType?.startsWith('video/') ||
+                content.fileUrl?.includes('mediadelivery.net') ||
+                content.fileUrl?.includes('bunny');
 
-            return (
-              <div
-                key={content.id}
-                className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between"
-              >
-                <div>
-                  {/* Header & Icon */}
-                  <div className="flex items-start gap-3.5 mb-3">
-                    <div
-                      onClick={() => isVideo && setPlayingVideo(content)}
-                      className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border group-hover:scale-105 transition-transform ${
-                        isVideo
-                          ? 'bg-rose-50 border-rose-100 text-rose-500 cursor-pointer'
-                          : 'bg-slate-50 border-slate-100 text-slate-500'
-                      }`}
-                    >
-                      {getIcon(content.contentType)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-bold text-slate-800 text-base line-clamp-1 mb-1" title={content.title}>
-                        {content.title}
-                      </h3>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[11px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">
-                          {getTypeLabel(content.contentType)}
-                        </span>
-                        <span className="text-xs text-slate-400 font-medium">{formatFileSize(content.fileSize)}</span>
+              return (
+                <div
+                  key={content.id}
+                  className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between"
+                >
+                  <div>
+                    {/* Header & Icon */}
+                    <div className="flex items-start gap-3.5 mb-3">
+                      <div
+                        onClick={() => isVideo && setPlayingVideo(content)}
+                        className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border group-hover:scale-105 transition-transform ${
+                          isVideo
+                            ? 'bg-rose-50 border-rose-100 text-rose-500 cursor-pointer'
+                            : 'bg-slate-50 border-slate-100 text-slate-500'
+                        }`}
+                      >
+                        {getIcon(content.contentType)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-slate-800 text-base line-clamp-1 mb-1" title={content.title}>
+                          {content.title}
+                        </h3>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[11px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">
+                            {getTypeLabel(content.contentType)}
+                          </span>
+                          <span className="text-xs text-slate-400 font-medium">{formatFileSize(content.fileSize)}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Session Topic / Badge */}
-                  {content.sessionTopic && (
-                    <div className="mb-3 bg-amber-50/80 border border-amber-200/60 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs font-bold text-amber-800">
-                      <BookOpen className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                      <span className="truncate">{content.sessionTopic}</span>
+                    {/* Session Topic / Badge */}
+                    {content.sessionTopic && (
+                      <div className="mb-3 bg-amber-50/80 border border-amber-200/60 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs font-bold text-amber-800">
+                        <BookOpen className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span className="truncate">{content.sessionTopic}</span>
+                      </div>
+                    )}
+
+                    {/* Description */}
+                    {content.description && (
+                      <p className="text-xs text-slate-500 line-clamp-2 mb-3 leading-relaxed">{content.description}</p>
+                    )}
+
+                    {/* Badges: Grade Level & Target Groups */}
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                      {content.gradeLevel && (
+                        <span className="text-[11px] font-bold bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-md border border-blue-100 flex items-center gap-1">
+                          <Layers className="w-3 h-3 text-blue-500" />
+                          {content.gradeLevel}
+                        </span>
+                      )}
+
+                      {content.group ? (
+                        <span className="text-[11px] font-medium bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-md border border-emerald-100 flex items-center gap-1">
+                          <Users className="w-3 h-3 text-emerald-500" />
+                          {content.group.name}
+                        </span>
+                      ) : content.gradeLevel ? (
+                        <span className="text-[11px] font-medium bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-md border border-indigo-100 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-indigo-500" />
+                          كل مجموعات الصف
+                        </span>
+                      ) : null}
+
+                      {content.academicYear && (
+                        <span className="text-[10px] text-slate-400 font-medium px-2 py-0.5 bg-slate-50 rounded-md border border-slate-100">
+                          {content.academicYear} • {content.academicTerm === 'SECOND_TERM' ? 'ترم 2' : 'ترم 1'}
+                        </span>
+                      )}
                     </div>
-                  )}
+                  </div>
 
-                  {/* Description */}
-                  {content.description && (
-                    <p className="text-xs text-slate-500 line-clamp-2 mb-3 leading-relaxed">{content.description}</p>
-                  )}
-
-                  {/* Badges: Grade Level & Target Groups */}
-                  <div className="flex flex-wrap gap-1.5 mb-4">
-                    {content.gradeLevel && (
-                      <span className="text-[11px] font-bold bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-md border border-blue-100 flex items-center gap-1">
-                        <Layers className="w-3 h-3 text-blue-500" />
-                        {content.gradeLevel}
-                      </span>
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-2 pt-3 border-t border-slate-100 mt-2">
+                    {isVideo ? (
+                      <button
+                        onClick={() => setPlayingVideo(content)}
+                        className="flex-1 flex items-center justify-center h-9 bg-rose-50 text-rose-700 hover:bg-rose-100 font-bold rounded-xl transition-colors text-xs gap-1.5 border border-rose-100 cursor-pointer"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        تشغيل ومشاهدة الحصة
+                      </button>
+                    ) : (
+                      <a
+                        href={content.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex-1 flex items-center justify-center h-9 bg-primary-50 text-primary-700 hover:bg-primary-100 font-bold rounded-xl transition-colors text-xs gap-1.5"
+                      >
+                        <FileDown className="w-3.5 h-3.5" />
+                        فتح وتحميل المرفق
+                      </a>
                     )}
-
-                    {content.group ? (
-                      <span className="text-[11px] font-medium bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-md border border-emerald-100 flex items-center gap-1">
-                        <Users className="w-3 h-3 text-emerald-500" />
-                        {content.group.name}
-                      </span>
-                    ) : content.gradeLevel ? (
-                      <span className="text-[11px] font-medium bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-md border border-indigo-100 flex items-center gap-1">
-                        <Sparkles className="w-3 h-3 text-indigo-500" />
-                        كل مجموعات الصف
-                      </span>
-                    ) : null}
-
-                    {content.academicYear && (
-                      <span className="text-[10px] text-slate-400 font-medium px-2 py-0.5 bg-slate-50 rounded-md border border-slate-100">
-                        {content.academicYear} • {content.academicTerm === 'SECOND_TERM' ? 'ترم 2' : 'ترم 1'}
-                      </span>
-                    )}
+                    <button
+                      onClick={() => setEditingContent(content)}
+                      className="w-9 h-9 flex items-center justify-center text-slate-500 hover:text-primary-600 hover:bg-primary-50 rounded-xl transition-colors border border-slate-200/80 cursor-pointer"
+                      title="تعديل المرفق"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(content.id, content.title)}
+                      disabled={isDeleting}
+                      className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                      title="حذف الملف"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
+              );
+            })}
+          </div>
 
-                {/* Action Buttons */}
-                <div className="flex items-center gap-2 pt-3 border-t border-slate-100 mt-2">
-                  {isVideo ? (
-                    <button
-                      onClick={() => setPlayingVideo(content)}
-                      className="flex-1 flex items-center justify-center h-9 bg-rose-50 text-rose-700 hover:bg-rose-100 font-bold rounded-xl transition-colors text-xs gap-1.5 border border-rose-100 cursor-pointer"
-                    >
-                      <Play className="w-3.5 h-3.5 fill-current" />
-                      تشغيل ومشاهدة الحصة
-                    </button>
-                  ) : (
-                    <a
-                      href={content.fileUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex-1 flex items-center justify-center h-9 bg-primary-50 text-primary-700 hover:bg-primary-100 font-bold rounded-xl transition-colors text-xs gap-1.5"
-                    >
-                      <FileDown className="w-3.5 h-3.5" />
-                      فتح وتحميل المرفق
-                    </a>
-                  )}
-                  <button
-                    onClick={() => setEditingContent(content)}
-                    className="w-9 h-9 flex items-center justify-center text-slate-500 hover:text-primary-600 hover:bg-primary-50 rounded-xl transition-colors border border-slate-200/80 cursor-pointer"
-                    title="تعديل المرفق"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(content.id, content.title)}
-                    disabled={isDeleting}
-                    className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-                    title="حذف الملف"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredContents.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setCurrentPage}
+              itemLabel="مرفق/ملف"
+            />
+          )}
         </div>
       )}
 

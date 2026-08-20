@@ -7,3 +7,4 @@ export { Select } from './Select';
 export { Skeleton } from './Skeleton';
 export { ProgressBar } from './ProgressBar';
 export { ConfirmModal } from './ConfirmModal';
+export { Pagination } from './Pagination';

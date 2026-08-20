@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
+import { Pagination } from '@/components/ui/Pagination';
 import { 
   FileText, Calendar, Clock, CheckCircle2, XCircle, AlertCircle, 
   ChevronLeft, Award, Play, HelpCircle, Send, Check, AlertTriangle 
@@ -16,9 +17,12 @@ import toast from 'react-hot-toast';
 
 export default function StudentAssessmentsPage() {
   const [filterType, setFilterType] = useState<'ALL' | 'EXAM' | 'ASSIGNMENT'>('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
   const { data: assessmentsData, isLoading, isError } = useAssessments();
   const [activeAssessmentId, setActiveAssessmentId] = useState<string | null>(null);
   const [activeMode, setActiveMode] = useState<'NONE' | 'SOLVE' | 'REVIEW'>('NONE');
+
+  const PAGE_SIZE = 6;
 
   const assessments = assessmentsData?.data || [];
 
@@ -26,6 +30,9 @@ export default function StudentAssessmentsPage() {
     if (filterType === 'ALL') return true;
     return item.type === filterType;
   });
+
+  const totalPages = Math.ceil(filteredAssessments.length / PAGE_SIZE);
+  const paginatedAssessments = filteredAssessments.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const getStatus = (item: any) => {
     // In nextjs api, we can fetch the detailed assessment to check user submission.
@@ -75,7 +82,10 @@ export default function StudentAssessmentsPage() {
           {/* Filters */}
           <div className="flex bg-slate-100 p-1 rounded-xl max-w-sm">
             <button
-              onClick={() => setFilterType('ALL')}
+              onClick={() => {
+                setFilterType('ALL');
+                setCurrentPage(1);
+              }}
               className={`flex-1 text-center py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
                 filterType === 'ALL' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-700'
               }`}
@@ -83,7 +93,10 @@ export default function StudentAssessmentsPage() {
               الكل
             </button>
             <button
-              onClick={() => setFilterType('EXAM')}
+              onClick={() => {
+                setFilterType('EXAM');
+                setCurrentPage(1);
+              }}
               className={`flex-1 text-center py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
                 filterType === 'EXAM' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-700'
               }`}
@@ -91,7 +104,10 @@ export default function StudentAssessmentsPage() {
               الاختبارات
             </button>
             <button
-              onClick={() => setFilterType('ASSIGNMENT')}
+              onClick={() => {
+                setFilterType('ASSIGNMENT');
+                setCurrentPage(1);
+              }}
               className={`flex-1 text-center py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
                 filterType === 'ASSIGNMENT' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-700'
               }`}
@@ -107,68 +123,82 @@ export default function StudentAssessmentsPage() {
               <p className="text-slate-500 font-medium">لا توجد واجبات أو اختبارات مضافة حالياً.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {filteredAssessments.map((item: any) => {
-                const { isPastDue } = getStatus(item);
-                const isExam = item.type === 'EXAM';
-                return (
-                  <Card key={item.id} className="border-none shadow-sm shadow-slate-200/50 hover:shadow-md transition-shadow relative overflow-hidden flex flex-col justify-between">
-                    <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-primary-500 to-primary-600"></div>
-                    <CardContent className="p-6 flex-1 flex flex-col justify-between">
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-start gap-2">
-                          <Badge variant={isExam ? 'error' : 'default'} className={isExam ? 'bg-error-50 text-error-800' : 'bg-primary-50 text-primary-700'}>
-                            {isExam ? 'اختبار' : 'واجب'}
-                          </Badge>
-                          <Badge variant="outline" className="font-semibold">
-                            {item.totalScore} درجة
-                          </Badge>
-                        </div>
-                        
-                        <h3 className="text-lg font-bold text-slate-800 leading-snug line-clamp-1">{item.title}</h3>
-                        <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{item.description || 'لا يوجد وصف متاح.'}</p>
-                        
-                        <div className="pt-2 flex flex-col gap-1.5 text-xs text-slate-500">
-                          <div className="flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5 text-slate-400" />
-                            <span>المدة: {item.durationMinutes ? `${item.durationMinutes} دقيقة` : 'غير محدد'}</span>
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {paginatedAssessments.map((item: any) => {
+                  const { isPastDue } = getStatus(item);
+                  const isExam = item.type === 'EXAM';
+                  return (
+                    <Card key={item.id} className="border-none shadow-sm shadow-slate-200/50 hover:shadow-md transition-shadow relative overflow-hidden flex flex-col justify-between">
+                      <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-primary-500 to-primary-600"></div>
+                      <CardContent className="p-6 flex-1 flex flex-col justify-between">
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-start gap-2">
+                            <Badge variant={isExam ? 'error' : 'default'} className={isExam ? 'bg-error-50 text-error-800' : 'bg-primary-50 text-primary-700'}>
+                              {isExam ? 'اختبار' : 'واجب'}
+                            </Badge>
+                            <Badge variant="outline" className="font-semibold">
+                              {item.totalScore} درجة
+                            </Badge>
                           </div>
-                          {item.dueDate && (
-                            <div className={`flex items-center gap-1.5 ${isPastDue ? 'text-rose-600' : ''}`}>
-                              <Calendar className="w-3.5 h-3.5" />
-                              <span>تاريخ التسليم: {formatArabicDate(item.dueDate)} - {formatArabicTime(item.dueDate)}</span>
+                          
+                          <h3 className="text-lg font-bold text-slate-800 leading-snug line-clamp-1">{item.title}</h3>
+                          <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{item.description || 'لا يوجد وصف متاح.'}</p>
+                          
+                          <div className="pt-2 flex flex-col gap-1.5 text-xs text-slate-500">
+                            <div className="flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-slate-400" />
+                              <span>المدة: {item.durationMinutes ? `${item.durationMinutes} دقيقة` : 'غير محدد'}</span>
                             </div>
-                          )}
-                          <div className="flex items-center gap-1.5 text-primary-600 font-semibold mt-1">
-                            <HelpCircle className="w-3.5 h-3.5" />
-                            <span>المجموعة: {item.group?.name || item.course?.title || 'عام'}</span>
+                            {item.dueDate && (
+                              <div className={`flex items-center gap-1.5 ${isPastDue ? 'text-rose-600' : ''}`}>
+                                <Calendar className="w-3.5 h-3.5" />
+                                <span>تاريخ التسليم: {formatArabicDate(item.dueDate)} - {formatArabicTime(item.dueDate)}</span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-1.5 text-primary-600 font-semibold mt-1">
+                              <HelpCircle className="w-3.5 h-3.5" />
+                              <span>المجموعة: {item.group?.name || item.course?.title || 'عام'}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="pt-5 border-t border-slate-100 mt-4 flex items-center justify-between gap-3">
-                        <span className="text-xs text-slate-400 font-medium">
-                          {item._count?.questions || 0} أسئلة
-                        </span>
-                        
-                        <Button
-                          onClick={() => {
-                            setActiveAssessmentId(item.id);
-                            // Open solver or review based on detailed fetch.
-                            // We will load the details in components which handle review/solve.
-                            setActiveMode('SOLVE'); 
-                          }}
-                          size="sm"
-                          className="rounded-xl px-4 text-xs font-semibold cursor-pointer"
-                        >
-                          <Play className="w-3 h-3 ml-1.5" />
-                          عرض وتفاصيل
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+                        <div className="pt-5 border-t border-slate-100 mt-4 flex items-center justify-between gap-3">
+                          <span className="text-xs text-slate-400 font-medium">
+                            {item._count?.questions || 0} أسئلة
+                          </span>
+                          
+                          <Button
+                            onClick={() => {
+                              setActiveAssessmentId(item.id);
+                              // Open solver or review based on detailed fetch.
+                              // We will load the details in components which handle review/solve.
+                              setActiveMode('SOLVE'); 
+                            }}
+                            size="sm"
+                            className="rounded-xl px-4 text-xs font-semibold cursor-pointer"
+                          >
+                            <Play className="w-3 h-3 ml-1.5" />
+                            عرض وتفاصيل
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={filteredAssessments.length}
+                  pageSize={PAGE_SIZE}
+                  onPageChange={setCurrentPage}
+                  itemLabel="اختبار/واجب"
+                />
+              )}
             </div>
           )}
         </>

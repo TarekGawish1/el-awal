@@ -1,10 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useStudentProfile, useStudentPayments } from '@/features/student-portal/hooks/useStudentPortal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { Pagination } from '@/components/ui/Pagination';
 import { DollarSign, Receipt, CreditCard, AlertCircle, CheckCircle2, RefreshCw, Landmark } from 'lucide-react';
 import { formatArabicDate, formatNumber } from '@/lib/utils/formatters';
 
@@ -16,6 +17,9 @@ const ARABIC_MONTHS = [
 export default function StudentPaymentsPage() {
   const { data: profile, isLoading: isProfileLoading } = useStudentProfile();
   const { data: paymentsData, isLoading: isPaymentsLoading } = useStudentPayments();
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const PAGE_SIZE = 8;
 
   const payments = paymentsData || [];
   const totalPaid = payments
@@ -27,6 +31,9 @@ export default function StudentPaymentsPage() {
     .reduce((sum: number, p: any) => sum + Math.max(0, (p.amountExpected || 0) - (p.amountPaid || 0)), 0);
 
   const overdueCount = payments.filter((p: any) => p.paymentStatus === 'OVERDUE').length;
+
+  const totalPages = Math.ceil(payments.length / PAGE_SIZE);
+  const paginatedPayments = payments.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -167,7 +174,7 @@ export default function StudentPaymentsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-700">
-                    {payments.map((p: any) => {
+                    {paginatedPayments.map((p: any) => {
                       const monthName = p.periodMonth >= 1 && p.periodMonth <= 12 
                         ? ARABIC_MONTHS[p.periodMonth - 1] 
                         : `شهر ${p.periodMonth}`;
@@ -209,7 +216,7 @@ export default function StudentPaymentsPage() {
 
               {/* Mobile Cards View */}
               <div className="block md:hidden divide-y divide-slate-100">
-                {payments.map((p: any) => {
+                {paginatedPayments.map((p: any) => {
                   const monthName = p.periodMonth >= 1 && p.periodMonth <= 12 
                     ? ARABIC_MONTHS[p.periodMonth - 1] 
                     : `شهر ${p.periodMonth}`;
@@ -257,6 +264,20 @@ export default function StudentPaymentsPage() {
                   );
                 })}
               </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="p-4 border-t border-slate-100">
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={payments.length}
+                    pageSize={PAGE_SIZE}
+                    onPageChange={setCurrentPage}
+                    itemLabel="إيصال"
+                  />
+                </div>
+              )}
             </>
           )}
         </CardContent>

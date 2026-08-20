@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { Plus, Search, FileText, AlertCircle } from 'lucide-react';
 import { useAssessments } from '../hooks/use-assessments';
@@ -9,19 +9,42 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
+import { Pagination } from '@/components/ui/Pagination';
+
+const PAGE_SIZE = 9;
 
 export function AssessmentList() {
   const { data, isLoading, isError, error, refetch } = useAssessments();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'ALL' | 'EXAM' | 'ASSIGNMENT'>('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const assessments = data?.data || [];
-  
-  const filteredAssessments = assessments.filter(assessment => {
-    const matchesSearch = assessment.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = filterType === 'ALL' || assessment.type === filterType;
-    return matchesSearch && matchesType;
-  });
+
+  const filteredAssessments = useMemo(() => {
+    return assessments.filter((assessment) => {
+      const matchesSearch = assessment.title.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesType = filterType === 'ALL' || assessment.type === filterType;
+      return matchesSearch && matchesType;
+    });
+  }, [assessments, searchQuery, filterType]);
+
+  const totalPages = Math.ceil(filteredAssessments.length / PAGE_SIZE);
+
+  const paginatedAssessments = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredAssessments.slice(start, start + PAGE_SIZE);
+  }, [filteredAssessments, currentPage]);
+
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    setCurrentPage(1);
+  };
+
+  const handleFilterTypeChange = (type: 'ALL' | 'EXAM' | 'ASSIGNMENT') => {
+    setFilterType(type);
+    setCurrentPage(1);
+  };
 
   return (
     <div className="space-y-6">
@@ -55,7 +78,7 @@ export function AssessmentList() {
             className="pr-10"
             placeholder="ابحث عن اختبار أو واجب..."
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
           />
         </div>
 
@@ -64,12 +87,12 @@ export function AssessmentList() {
           {[
             { id: 'ALL', label: 'الكل' },
             { id: 'EXAM', label: 'الامتحانات' },
-            { id: 'ASSIGNMENT', label: 'الواجبات' }
-          ].map(tab => (
+            { id: 'ASSIGNMENT', label: 'الواجبات' },
+          ].map((tab) => (
             <button
               key={tab.id}
               type="button"
-              onClick={() => setFilterType(tab.id as 'ALL' | 'EXAM' | 'ASSIGNMENT')}
+              onClick={() => handleFilterTypeChange(tab.id as 'ALL' | 'EXAM' | 'ASSIGNMENT')}
               className={`flex-1 md:flex-initial py-1.5 px-5 rounded-lg font-bold text-xs transition-all ${
                 filterType === tab.id
                   ? 'bg-white text-slate-800 shadow-sm'
@@ -95,7 +118,7 @@ export function AssessmentList() {
         </Alert>
       ) : isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3, 4, 5, 6].map(i => (
+          {[1, 2, 3, 4, 5, 6].map((i) => (
             <div key={i} className="bg-white rounded-xl border border-slate-100 p-5 h-48 flex flex-col">
               <Skeleton className="h-6 w-3/4 mb-4" />
               <Skeleton className="h-4 w-1/2 mb-2" />
@@ -138,10 +161,24 @@ export function AssessmentList() {
           <p className="text-slate-500">لم يتم العثور على نتائج تطابق خيارات البحث الحالية.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredAssessments.map(assessment => (
-            <AssessmentCard key={assessment.id} assessment={assessment} />
-          ))}
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {paginatedAssessments.map((assessment) => (
+              <AssessmentCard key={assessment.id} assessment={assessment} />
+            ))}
+          </div>
+
+          {/* Pagination Component */}
+          {totalPages > 1 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredAssessments.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setCurrentPage}
+              itemLabel="اختبار/واجب"
+            />
+          )}
         </div>
       )}
     </div>

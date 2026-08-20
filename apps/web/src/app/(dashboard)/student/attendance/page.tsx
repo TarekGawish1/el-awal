@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { Pagination } from '@/components/ui/Pagination';
 import QRCode from 'react-qr-code';
 import { QrCode, Calendar, TrendingUp, CheckCircle2, XCircle, Clock, Download, X } from 'lucide-react';
 import { formatArabicDate, formatArabicTime } from '@/lib/utils/formatters';
@@ -17,7 +18,10 @@ export default function StudentAttendancePage() {
   const { data: attendanceData, isLoading: isAttendanceLoading } = useStudentAttendance();
   const [isDownloading, setIsDownloading] = useState(false);
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const badgeRef = useRef<HTMLDivElement>(null);
+
+  const PAGE_SIZE = 8;
 
   const studentName = profile?.user?.fullName || 'الطالب';
   const studentCode = profile?.studentCode || 'N/A';
@@ -33,6 +37,9 @@ export default function StudentAttendancePage() {
   const attendanceRate = totalSessions > 0 
     ? Math.round((presentCount / totalSessions) * 100) 
     : 100;
+
+  const totalPages = Math.ceil(records.length / PAGE_SIZE);
+  const paginatedRecords = records.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const generateQrImageBlob = async (): Promise<Blob | null> => {
     if (!badgeRef.current || !qrData) return null;
@@ -305,7 +312,7 @@ export default function StudentAttendancePage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700">
-                        {records.map((record: any) => (
+                        {paginatedRecords.map((record: any) => (
                           <tr key={record.id} className="hover:bg-slate-50/40 transition-colors">
                             <td className="py-4 px-6 font-medium text-slate-800">
                               {formatArabicDate(record.session?.sessionDate)}
@@ -337,7 +344,7 @@ export default function StudentAttendancePage() {
 
                   {/* Mobile Cards View */}
                   <div className="block md:hidden divide-y divide-slate-100">
-                    {records.map((record: any) => (
+                    {paginatedRecords.map((record: any) => (
                       <div key={record.id} className="p-4 space-y-2.5 hover:bg-slate-50/50 transition-colors">
                         <div className="flex items-start justify-between gap-2">
                           <div>
@@ -365,6 +372,20 @@ export default function StudentAttendancePage() {
                       </div>
                     ))}
                   </div>
+
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="p-4 border-t border-slate-100">
+                      <Pagination
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        totalItems={records.length}
+                        pageSize={PAGE_SIZE}
+                        onPageChange={setCurrentPage}
+                        itemLabel="سجل حضور"
+                      />
+                    </div>
+                  )}
                 </>
               )}
             </CardContent>
