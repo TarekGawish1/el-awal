@@ -20,9 +20,9 @@ interface WeeklyCalendarViewProps {
   onAddSessionForDate?: (dateStr: string, timeStr?: string) => void;
 }
 
-const START_HOUR = 8; // 08:00 AM
-const END_HOUR = 23; // 11:00 PM
-const TOTAL_HOURS = END_HOUR - START_HOUR; // 15 hours
+const START_HOUR = 6; // 06:00 AM
+const END_HOUR = 24; // 11:00 PM (hour24: 23 is 11:00 PM)
+const TOTAL_HOURS = END_HOUR - START_HOUR; // 18 hours
 const HOUR_HEIGHT = 88; // pixels per hour
 
 const HOURS = Array.from({ length: TOTAL_HOURS }, (_, i) => {
@@ -40,6 +40,39 @@ export function WeeklyCalendarView({
   onSelectSession,
   onAddSessionForDate,
 }: WeeklyCalendarViewProps) {
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to earliest session of the week or daytime default
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      if (scrollContainerRef.current) {
+        let earliestMinutes = 24 * 60;
+        sessions.forEach((s) => {
+          const m = parseTimeToMinutes(s.startTime);
+          if (m !== null && m < earliestMinutes) earliestMinutes = m;
+        });
+
+        if (earliestMinutes < 24 * 60) {
+          const startMinutes = START_HOUR * 60;
+          const targetPx = ((earliestMinutes - startMinutes) / 60) * HOUR_HEIGHT;
+          const scrollOffset = Math.max(0, targetPx - 60);
+          scrollContainerRef.current.scrollTo({
+            top: scrollOffset,
+            behavior: 'smooth',
+          });
+        } else {
+          const defaultPx = (12 - START_HOUR) * HOUR_HEIGHT;
+          scrollContainerRef.current.scrollTo({
+            top: Math.max(0, defaultPx),
+            behavior: 'smooth',
+          });
+        }
+      }
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [sessions, currentDate]);
+
   // Calculate 7 days for the current week starting Saturday
   const weekDays = useMemo(() => {
     const days: Array<{
@@ -155,7 +188,7 @@ export function WeeklyCalendarView({
       </div>
 
       {/* Main Continuous Calendar Body */}
-      <div className="overflow-x-auto overflow-y-auto max-h-[720px]">
+      <div ref={scrollContainerRef} className="overflow-x-auto overflow-y-auto max-h-[720px]">
         <div className="flex min-w-[860px] relative">
           {/* Time Labels Column */}
           <div className="w-16 sm:w-20 shrink-0 border-l border-slate-100 bg-slate-50/30 select-none">

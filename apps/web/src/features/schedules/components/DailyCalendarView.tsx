@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useRef, useEffect } from 'react';
 import { Clock, Users, FileText, QrCode, Sparkles, BookOpen, UploadCloud, AlertTriangle } from 'lucide-react';
 import { LessonSessionItem } from '../types/schedules.types';
 import {
@@ -20,6 +20,8 @@ interface DailyCalendarViewProps {
 }
 
 const HOURS = [
+  { hour24: 6, label: '06:00 ص' },
+  { hour24: 7, label: '07:00 ص' },
   { hour24: 8, label: '08:00 ص' },
   { hour24: 9, label: '09:00 ص' },
   { hour24: 10, label: '10:00 ص' },
@@ -35,6 +37,7 @@ const HOURS = [
   { hour24: 20, label: '08:00 م' },
   { hour24: 21, label: '09:00 م' },
   { hour24: 22, label: '10:00 م' },
+  { hour24: 23, label: '11:00 م' },
 ];
 
 export function DailyCalendarView({
@@ -44,6 +47,8 @@ export function DailyCalendarView({
   onAddSessionForDate,
 }: DailyCalendarViewProps) {
   const dateStr = toLocalDateStr(currentDate);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const firstSessionRef = useRef<HTMLDivElement>(null);
 
   const daySessions = useMemo(() => {
     return sessions.filter((s) => {
@@ -55,6 +60,41 @@ export function DailyCalendarView({
   const layoutMap = useMemo(() => {
     return calculateOverlappingColumns(daySessions);
   }, [daySessions]);
+
+  // Find the earliest hour of scheduled sessions today
+  const earliestHour = useMemo(() => {
+    if (daySessions.length === 0) return null;
+    let minH = 24;
+    daySessions.forEach((s) => {
+      if (s.startTime) {
+        const [parsed] = s.startTime.split(':').map(Number);
+        if (!isNaN(parsed) && parsed < minH) minH = parsed;
+      }
+    });
+    return minH < 24 ? minH : null;
+  }, [daySessions]);
+
+  // Auto-scroll to the first lesson of the day on mount/date change
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (firstSessionRef.current) {
+        firstSessionRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      } else if (scrollContainerRef.current) {
+        // If no sessions, scroll smoothly to current daytime hour or 12:00 PM
+        const nowH = new Date().getHours();
+        const targetH = Math.max(6, Math.min(23, nowH >= 6 && nowH <= 23 ? nowH : 12));
+        const targetEl = document.getElementById(`daily-hour-${targetH}`);
+        if (targetEl) {
+          targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [daySessions, dateStr]);
 
   const sessionsByHour = useMemo(() => {
     const map = new Map<number, LessonSessionItem[]>();
@@ -105,13 +145,16 @@ export function DailyCalendarView({
       </div>
 
       {/* Hourly Timeline */}
-      <div className="overflow-y-auto max-h-[640px] divide-y divide-slate-100">
+      <div ref={scrollContainerRef} className="overflow-y-auto max-h-[640px] divide-y divide-slate-100">
         {HOURS.map((hour) => {
           const hourSessions = sessionsByHour.get(hour.hour24) || [];
+          const isEarliestHour = hour.hour24 === earliestHour;
 
           return (
             <div
               key={hour.hour24}
+              id={`daily-hour-${hour.hour24}`}
+              ref={isEarliestHour ? firstSessionRef : undefined}
               onClick={() => {
                 if (hourSessions.length === 0 && onAddSessionForDate) {
                   const timePad = hour.hour24 < 10 ? `0${hour.hour24}:00` : `${hour.hour24}:00`;
