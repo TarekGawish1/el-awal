@@ -83,63 +83,18 @@ export class AttendanceService {
       throw new BadRequestException('رمز الـ QR غير صالح أو أن حساب الطالب غير مفعّل.');
     }
 
-    // 3. Cohort Enrollment & Grade Level Check
+    // 3. Cohort Enrollment Check (Strict to selected session group)
     const directEnrollment = student.groupEnrollments.find(
       (e) => e.groupId === session.groupId,
     );
 
-    const sessionGrade = session.group.gradeLevel?.trim();
-    const studentGrade = student.gradeLevel?.trim();
-
-    // Check primary group
-    const primaryEnrollment = student.groupEnrollments[0];
-    const primaryGroup = primaryEnrollment?.group;
-    const studentGroupGrade = primaryGroup?.gradeLevel?.trim() || studentGrade;
-
-    let crossGroupNote: string | undefined = undefined;
-
     if (!directEnrollment) {
-      // Check if student belongs to the same grade level (الصف الدراسي)
-      const isSameGrade =
-        (sessionGrade && studentGrade && sessionGrade === studentGrade) ||
-        (sessionGrade && studentGroupGrade && sessionGrade === studentGroupGrade);
+      const registeredGroup = student.groupEnrollments[0]?.group?.name;
+      const extraInfo = registeredGroup ? ` (مسجل في: ${registeredGroup})` : '';
 
-      if (!isSameGrade) {
-        throw new BadRequestException(
-          `عذراً، الطالب [${student.user.fullName}] مسجل في [${studentGrade || studentGroupGrade || 'صف دراسي آخر'}] ولا يمكنه حضور حصة مخصصة لـ [${sessionGrade}].`,
-        );
-      }
-
-      // Same grade level but different group!
-      const sourceGroupName = primaryGroup?.name || 'مجموعة أخرى';
-
-      if (!allowCrossGroup) {
-        // Return a prompt object so the frontend can offer cross-group attendance confirmation
-        return {
-          isCrossGroupPrompt: true,
-          isDuplicate: false,
-          student: {
-            id: student.id,
-            fullName: student.user.fullName,
-            studentCode: student.studentCode,
-            gradeLevel: studentGrade || studentGroupGrade,
-            phone: student.user.phone,
-          },
-          studentGroup: {
-            id: primaryGroup?.id,
-            name: sourceGroupName,
-            gradeLevel: studentGroupGrade,
-          },
-          sessionGroup: {
-            id: session.group.id,
-            name: session.group.name,
-            gradeLevel: sessionGrade,
-          },
-          message: `الطالب [${student.user.fullName}] غير مسجل في هذه المجموعة (${session.group.name})، بل في [${sourceGroupName}] بنفس الصف الدراسي (${sessionGrade}).`,
-        };
-      }
-
-      crossGroupNote = `حضور استثنائي (تبديل ميعاد من ${sourceGroupName})`;
+      throw new BadRequestException(
+        `عذراً، الطالب [${student.user.fullName}] غير مسجل في هذه المجموعة (${session.group.name})${extraInfo}. الماسح يقبل فقط طلاب المجموعة المحددة.`,
+      );
     }
 
     // 4. Atomic Record Creation (Handles race condition & idempotency)
@@ -147,77 +102,7 @@ export class AttendanceService {
       session.id,
       student.id,
       user.id,
-      crossGroupNote,
     );
-
-    // If cross-group attendance, also automatically mark the equivalent session in student's own group
-    if (!directEnrollment && primaryGroup?.id) {
-      try {
-        let equivalentSession: any = null;
-
-        // 1. Match by exact or normalized topic title
-        if (session.topic && session.topic.trim()) {
-          equivalentSession = await this.prisma.lessonSession.findFirst({
-            where: {
-              groupId: primaryGroup.id,
-              topic: {
-                equals: session.topic.trim(),
-                mode: 'insensitive',
-              },
-              isCancelled: false,
-            },
-            orderBy: {
-              sessionDate: 'desc',
-            },
-          });
-        }
-
-        // 2. Fallback: match by closest session date within +/- 6 days in student's group
-        if (!equivalentSession) {
-          const sessionDate = new Date(session.sessionDate);
-          const minDate = new Date(sessionDate);
-          minDate.setDate(minDate.getDate() - 5);
-          const maxDate = new Date(sessionDate);
-          maxDate.setDate(maxDate.getDate() + 5);
-
-          equivalentSession = await this.prisma.lessonSession.findFirst({
-            where: {
-              groupId: primaryGroup.id,
-              sessionDate: {
-                gte: minDate,
-                lte: maxDate,
-              },
-              isCancelled: false,
-            },
-            orderBy: {
-              sessionDate: 'asc',
-            },
-          });
-        }
-
-        if (equivalentSession && equivalentSession.id !== session.id) {
-          const sessionDateFormatted = new Date(session.sessionDate).toLocaleDateString('ar-EG', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'numeric',
-          });
-          const originalGroupNote = `حضور بديل بمجموعة (${session.group.name}) - ${sessionDateFormatted}`;
-
-          await this.attendanceRepository.recordQrScan(
-            equivalentSession.id,
-            student.id,
-            user.id,
-            originalGroupNote,
-          );
-
-          this.logger.log(
-            `[Cross-Group Attendance] Auto-marked equivalent session [${equivalentSession.id}] for student ${student.user.fullName} in original group [${primaryGroup.name}]`,
-          );
-        }
-      } catch (equivErr) {
-        this.logger.error('Failed to auto-mark equivalent group session:', equivErr);
-      }
-    }
 
     // 5. Emit domain event if this was the first successful scan
     if (!result.isDuplicate) {
@@ -242,12 +127,11 @@ export class AttendanceService {
 
     return {
       isDuplicate: result.isDuplicate,
-      isCrossGroupSuccess: !directEnrollment,
       student: {
         id: student.id,
         fullName: student.user.fullName,
         studentCode: student.studentCode,
-        gradeLevel: studentGrade,
+        gradeLevel: student.gradeLevel,
       },
       attendance: result.record,
       sessionStats: {
@@ -256,8 +140,6 @@ export class AttendanceService {
       },
       message: result.isDuplicate
         ? `⚠️ تم تسجيل حضور الطالب [${student.user.fullName}] لهذه الحصة مسبقاً ${recordedTimeStr ? `في تمام الساعة ${recordedTimeStr}` : ''}`
-        : !directEnrollment
-        ? `تم تسجيل حضور الطالب [${student.user.fullName}] كحضور استثنائي بنجاح (تبديل ميعاد)!`
         : `تم تسجيل حضور الطالب [${student.user.fullName}] بنجاح`,
     };
   }
