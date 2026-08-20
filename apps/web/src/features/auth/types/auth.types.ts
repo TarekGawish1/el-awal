@@ -9,23 +9,27 @@ export interface ParentAccessCredentials {
   studentPhone: string;
 }
 
-export interface StudentRegistrationVerification {
-  studentCode: string;
-  registrationCode: string;
-}
+export type AcademicStage = 'PRIMARY' | 'MIDDLE' | 'SECONDARY';
 
-export interface StudentVerificationResponse {
-  registrationToken: string;
-  studentCode: string;
+export interface StudentRegistrationPayload {
   fullName: string;
+  studentPhone: string;
+  parentPhone: string;
+  academicStage: AcademicStage;
   gradeLevel: string;
 }
 
-export interface StudentAccountCredentials {
-  registrationToken: string;
-  phone?: string;
-  email?: string;
-  password: string;
+export interface StudentRegistrationCredentials {
+  studentCode: string;
+  studentPhone: string;
+  studentPassword: string;
+  parentPhone: string;
+  parentPassword: string | null;
+  parentIsNew: boolean;
+}
+
+export interface StudentRegistrationResult extends AuthTokensResponse {
+  credentials: StudentRegistrationCredentials;
 }
 
 export interface AuthUser {

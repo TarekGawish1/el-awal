@@ -445,6 +445,7 @@ export function StudentList() {
                 <th className="px-6 py-5 font-bold text-slate-700 text-start whitespace-nowrap">كود الطالب</th>
                 <th className="px-6 py-5 font-bold text-slate-700 text-start whitespace-nowrap">المرحلة الدراسية</th>
                 <th className="px-6 py-5 font-bold text-slate-700 text-start whitespace-nowrap">المجموعة</th>
+                <th className="px-6 py-5 font-bold text-slate-700 text-start whitespace-nowrap">ولي الأمر</th>
                 <th className="px-6 py-5 font-bold text-slate-700 text-start whitespace-nowrap">الحالة</th>
                 <th className="px-6 py-5 font-bold text-slate-700 text-end whitespace-nowrap">الإجراءات</th>
               </tr>
@@ -452,7 +453,7 @@ export function StudentList() {
             <tbody className="divide-y divide-slate-50">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-16 text-center text-slate-500">
+                  <td colSpan={7} className="px-6 py-16 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center space-y-3">
                       <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
                       <p className="font-medium">جاري تحميل الطلاب...</p>
@@ -461,13 +462,13 @@ export function StudentList() {
                 </tr>
               ) : isError ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-red-500 bg-red-50/50">
+                  <td colSpan={7} className="px-6 py-12 text-center text-red-500 bg-red-50/50">
                     فشل تحميل الطلاب. يرجى المحاولة مرة أخرى.
                   </td>
                 </tr>
               ) : filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-20 text-center text-slate-500">
+                  <td colSpan={7} className="px-6 py-20 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center space-y-3">
                       <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-2">
                         <svg className="w-8 h-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -494,8 +495,15 @@ export function StudentList() {
                         <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center font-bold text-sm border border-primary-100/50 shadow-sm">
                           {student.user.fullName.charAt(0)}
                         </div>
-                        <span className="font-bold text-slate-700 hover:text-primary-600 transition-colors">
-                          {student.user.fullName}
+                        <span className="flex flex-col">
+                          <span className="font-bold text-slate-700 hover:text-primary-600 transition-colors">
+                            {student.user.fullName}
+                          </span>
+                          {student.user.phone && (
+                            <span className="text-xs text-slate-400 font-mono" dir="ltr">
+                              {student.user.phone}
+                            </span>
+                          )}
                         </span>
                       </Link>
                     </td>
@@ -509,6 +517,27 @@ export function StudentList() {
                     </td>
                     <td className="px-6 py-4 font-medium text-slate-600">
                       {student.groupEnrollments[0]?.group.name || <span className="text-slate-400 italic">غير معين</span>}
+                    </td>
+                    <td className="px-6 py-4">
+                      {student.parentLinks?.[0]?.parent.user ? (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-mono text-slate-600" dir="ltr">
+                            {student.parentLinks[0].parent.user.phone || '—'}
+                          </span>
+                          <span className="inline-flex w-fit items-center gap-1">
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${
+                                student.parentLinks[0].parent.user.isActive ? 'bg-success-500' : 'bg-neutral-300'
+                              }`}
+                            />
+                            <span className="text-[11px] text-slate-500">
+                              {student.parentLinks[0].parent.user.isActive ? 'حساب نشط' : 'حساب غير نشط'}
+                            </span>
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 italic">—</span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <Badge variant={getStatusColor(student.academicStatus)} className="px-3 py-1.5 text-xs font-bold rounded-lg shadow-sm">

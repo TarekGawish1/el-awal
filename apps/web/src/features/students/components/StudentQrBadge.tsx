@@ -12,7 +12,6 @@ interface StudentQrBadgeProps {
   loginEmail?: string | null;
   loginPhone?: string | null;
   loginPassword?: string | null;
-  registrationCode?: string | null;
 }
 
 export function StudentQrBadge({
@@ -21,7 +20,6 @@ export function StudentQrBadge({
   loginEmail,
   loginPhone,
   loginPassword,
-  registrationCode,
 }: StudentQrBadgeProps) {
   const { data, isLoading, isError } = useStudentQrCode(studentId);
   const { mutate: regenerate, isPending: isRegenerating } = useRegenerateStudentQr();
@@ -121,9 +119,7 @@ export function StudentQrBadge({
     try {
       setIsSharing(true);
       let shareText = `مرحباً ${data.fullName}، كود الطالب الخاص بك هو: ${data.studentCode}`;
-      if (registrationCode) {
-        shareText += `\n\nلإنشاء حسابك على المنصة بنفسك:\nكود التفعيل: ${registrationCode}\nمن صفحة تسجيل الدخول اختر «إنشاء حساب طالب»`;
-      } else if (loginEmail || loginPhone || loginPassword) {
+      if (loginEmail || loginPhone || loginPassword) {
         shareText += `\n\nبيانات الدخول للمنصة:\n`;
         if (loginEmail) shareText += `البريد الإلكتروني: ${loginEmail}\n`;
         else if (loginPhone) shareText += `رقم الهاتف: ${loginPhone}\n`;

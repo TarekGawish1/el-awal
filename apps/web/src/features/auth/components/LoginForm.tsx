@@ -28,20 +28,10 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       errors.identifier = 'يرجى إدخال البريد الإلكتروني أو رقم الهاتف المسجل';
     }
 
-    // Check if the identifier is a phone number (e.g., digits, spaces, dashes, optional +)
-    const isPhoneNumber = /^[+]?[0-9\s-]{8,}$/.test(trimmedIdentifier);
-
-    if (!isPhoneNumber) {
-      if (!password) {
-        errors.password = 'يرجى إدخال كلمة المرور';
-      } else if (password.length < 6) {
-        errors.password = 'يجب أن تتكون كلمة المرور من 6 أحرف على الأقل';
-      }
-    } else {
-      // If it's a phone number, password is optional (for parents), but if provided, it must be >= 6 characters
-      if (password && password.length < 6) {
-        errors.password = 'يجب أن تتكون كلمة المرور من 6 أحرف على الأقل';
-      }
+    if (!password) {
+      errors.password = 'يرجى إدخال كلمة المرور';
+    } else if (password.length < 6) {
+      errors.password = 'يجب أن تتكون كلمة المرور من 6 أحرف على الأقل';
     }
 
     setFieldErrors(errors);

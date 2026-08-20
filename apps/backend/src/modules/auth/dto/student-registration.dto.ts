@@ -1,64 +1,56 @@
-import {
-  IsNotEmpty,
-  IsString,
-  MinLength,
-  MaxLength,
-  IsOptional,
-  IsEmail,
-  Matches,
-} from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsIn, IsNotEmpty, IsString, MinLength, MaxLength } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 import { IsEgyptianPhone } from '../../../common/decorators/is-egyptian-phone.decorator';
 
-export class VerifyStudentRegistrationDto {
-  @ApiProperty({ example: 'STU-2026-0001', description: 'School-issued student code' })
+export const ACADEMIC_STAGES = ['PRIMARY', 'MIDDLE', 'SECONDARY'];
+
+export class RegisterStudentDto {
+  @ApiProperty({ example: 'محمود أحمد علي', minLength: 3, maxLength: 200 })
   @IsString()
-  @IsNotEmpty({ message: 'Student code is required' })
-  @Matches(/^[A-Za-z0-9-]{3,50}$/, { message: 'Student code format is invalid' })
-  studentCode: string;
-
-  @ApiProperty({ example: 'A7K2-9M4P-QX', description: 'One-time activation code issued by the school' })
-  @IsString()
-  @IsNotEmpty({ message: 'Registration code is required' })
-  @Matches(/^[A-Za-z0-9\s-]{6,20}$/, { message: 'Registration code format is invalid' })
-  registrationCode: string;
-}
-
-export class RegisterStudentAccountDto {
-  @ApiProperty({ description: 'Short-lived signed token returned by the verification step' })
-  @IsString()
-  @IsNotEmpty({ message: 'Registration token is required' })
-  registrationToken: string;
-
-  @ApiPropertyOptional({ example: '01012345678' })
-  @IsOptional()
-  @IsEgyptianPhone()
-  phone?: string;
-
-  @ApiPropertyOptional({ example: 'student@elawal.com' })
-  @IsOptional()
-  @IsEmail({}, { message: 'Email format is invalid' })
-  @MaxLength(255)
-  email?: string;
-
-  @ApiProperty({ example: 'Password123!', minLength: 6, maxLength: 72 })
-  @IsString()
-  @IsNotEmpty({ message: 'Password is required' })
-  @MinLength(6, { message: 'Password must be at least 6 characters' })
-  @MaxLength(72, { message: 'Password must not exceed 72 characters' })
-  password: string;
-}
-
-export class StudentVerificationResponseDto {
-  @ApiProperty({ description: 'Short-lived JWT authorizing the account creation step' })
-  registrationToken: string;
-
-  @ApiProperty({ example: 'STU-2026-0001' })
-  studentCode: string;
-
-  @ApiProperty({ example: 'محمود أحمد علي' })
+  @IsNotEmpty({ message: 'Full name is required' })
+  @MinLength(3, { message: 'Full name must be at least 3 characters' })
+  @MaxLength(200, { message: 'Full name must not exceed 200 characters' })
   fullName: string;
 
+  @ApiProperty({ example: '01012345678', description: 'Student mobile number (verified as unique)' })
+  @IsString()
+  @IsNotEmpty({ message: 'Student phone is required' })
+  @IsEgyptianPhone({ message: 'Student phone must be a valid Egyptian mobile number' })
+  studentPhone: string;
+
+  @ApiProperty({ example: '01098765432', description: 'Parent/guardian mobile number' })
+  @IsString()
+  @IsNotEmpty({ message: 'Parent phone is required' })
+  @IsEgyptianPhone({ message: 'Parent phone must be a valid Egyptian mobile number' })
+  parentPhone: string;
+
+  @ApiProperty({ example: 'SECONDARY', enum: ACADEMIC_STAGES })
+  @IsIn(ACADEMIC_STAGES, { message: 'Academic stage must be one of PRIMARY, MIDDLE, SECONDARY' })
+  academicStage: string;
+
   @ApiProperty({ example: 'الصف الثالث الثانوي' })
+  @IsString()
+  @IsNotEmpty({ message: 'Grade level is required' })
+  @MaxLength(50, { message: 'Grade level must not exceed 50 characters' })
   gradeLevel: string;
+}
+
+export class StudentRegistrationCredentialsDto {
+  @ApiProperty({ example: 'STU-2026-00482' })
+  studentCode: string;
+
+  @ApiProperty({ example: '01012345678' })
+  studentPhone: string;
+
+  @ApiProperty({ description: 'Temporary student password, shown only once' })
+  studentPassword: string;
+
+  @ApiProperty({ example: '01098765432' })
+  parentPhone: string;
+
+  @ApiProperty({ description: 'Temporary parent password, shown only once (null if parent reused an existing account)' })
+  parentPassword: string | null;
+
+  @ApiProperty({ description: 'True when a brand-new parent account was created' })
+  parentIsNew: boolean;
 }

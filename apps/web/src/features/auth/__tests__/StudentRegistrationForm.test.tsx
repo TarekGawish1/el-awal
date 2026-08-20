@@ -6,17 +6,13 @@ import * as useStudentRegistrationModule from '../hooks/useStudentRegistration';
 
 function mockHook(overrides: Partial<ReturnType<typeof useStudentRegistrationModule.useStudentRegistration>> = {}) {
   const base: ReturnType<typeof useStudentRegistrationModule.useStudentRegistration> = {
-    verifiedStudent: null,
-    isVerifying: false,
-    verifyError: null,
-    verifyStudent: vi.fn(),
-    resetVerifyError: vi.fn(),
+    credentials: null,
     isRegistering: false,
     isRegistered: false,
     registerError: null,
     registerStudent: vi.fn(),
+    resetError: vi.fn(),
     redirectToDashboard: vi.fn(),
-    resetFlow: vi.fn(),
   };
 
   vi.spyOn(useStudentRegistrationModule, 'useStudentRegistration').mockReturnValue({
@@ -27,235 +23,177 @@ function mockHook(overrides: Partial<ReturnType<typeof useStudentRegistrationMod
   return base;
 }
 
-const verifiedStudent = {
-  registrationToken: 'reg-token',
-  studentCode: 'STU-2026-0001',
-  fullName: 'محمود أحمد علي',
-  gradeLevel: 'الصف الثالث الثانوي',
+const credentials = {
+  studentCode: 'STU-2026-00482',
+  studentPhone: '01012345678',
+  studentPassword: 'Ab3$kL9mQwZx',
+  parentPhone: '01098765432',
+  parentPassword: 'Xy7@nR2pVcTq',
+  parentIsNew: true,
 };
+
+function fillValidInfo() {
+  fireEvent.change(screen.getByLabelText(/الاسم بالكامل/i), { target: { value: 'محمود أحمد علي' } });
+  fireEvent.change(screen.getByLabelText(/رقم هاتف الطالب/i), { target: { value: '01012345678' } });
+  fireEvent.change(screen.getByLabelText(/رقم هاتف ولي الأمر/i), { target: { value: '01098765432' } });
+  fireEvent.change(screen.getByLabelText(/المرحلة الدراسية/i), { target: { value: 'SECONDARY' } });
+  fireEvent.change(screen.getByLabelText(/الصف الدراسي/i), { target: { value: 'الصف الثالث الثانوي' } });
+}
 
 describe('StudentRegistrationForm Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('renders the identification step with student code and activation code fields', () => {
+  it('renders the student information step with all required fields', () => {
     mockHook();
 
     render(<StudentRegistrationForm />);
 
-    expect(screen.getByLabelText(/كود الطالب/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/كود التفعيل/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /التحقق من الحساب/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/الاسم بالكامل/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/رقم هاتف الطالب/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/رقم هاتف ولي الأمر/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/المرحلة الدراسية/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/الصف الدراسي/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /متابعة/i })).toBeInTheDocument();
     expect(screen.getByText(/العودة إلى تسجيل الدخول/i)).toBeInTheDocument();
   });
 
-  it('validates empty inputs and shows client-side errors without calling the API', async () => {
+  it('validates empty fields and shows client-side errors without submitting', async () => {
     const base = mockHook();
 
     render(<StudentRegistrationForm />);
 
-    fireEvent.click(screen.getByRole('button', { name: /التحقق من الحساب/i }));
+    fireEvent.click(screen.getByRole('button', { name: /متابعة/i }));
 
-    expect(await screen.findByText('يرجى إدخال كود الطالب')).toBeInTheDocument();
-    expect(await screen.findByText('يرجى إدخال كود التفعيل')).toBeInTheDocument();
-    expect(base.verifyStudent).not.toHaveBeenCalled();
+    expect(await screen.findByText('يرجى إدخال الاسم بالكامل (3 أحرف على الأقل)')).toBeInTheDocument();
+    expect(await screen.findByText('يرجى إدخال رقم هاتف الطالب')).toBeInTheDocument();
+    expect(await screen.findByText('يرجى إدخال رقم هاتف ولي الأمر')).toBeInTheDocument();
+    expect(await screen.findByText('يرجى اختيار المرحلة الدراسية')).toBeInTheDocument();
+    expect(await screen.findByText('يرجى اختيار الصف الدراسي')).toBeInTheDocument();
+    expect(base.registerStudent).not.toHaveBeenCalled();
   });
 
-  it('rejects malformed student codes on the client', async () => {
+  it('rejects an invalid student phone number', async () => {
     const base = mockHook();
 
     render(<StudentRegistrationForm />);
 
-    fireEvent.change(screen.getByLabelText(/كود الطالب/i), { target: { value: 'كود غير صحيح $$$' } });
-    fireEvent.change(screen.getByLabelText(/كود التفعيل/i), { target: { value: 'A7K2-9M4P-QX' } });
-    fireEvent.click(screen.getByRole('button', { name: /التحقق من الحساب/i }));
+    fillValidInfo();
+    fireEvent.change(screen.getByLabelText(/رقم هاتف الطالب/i), { target: { value: '12345' } });
+    fireEvent.click(screen.getByRole('button', { name: /متابعة/i }));
 
-    expect(await screen.findByText('كود الطالب غير صحيح')).toBeInTheDocument();
-    expect(base.verifyStudent).not.toHaveBeenCalled();
+    expect(await screen.findByText('رقم الهاتف غير صحيح')).toBeInTheDocument();
+    expect(base.registerStudent).not.toHaveBeenCalled();
   });
 
-  it('submits trimmed identification data to the verification mutation', async () => {
+  it('rejects when parent and student phones are identical', async () => {
     const base = mockHook();
 
     render(<StudentRegistrationForm />);
 
-    fireEvent.change(screen.getByLabelText(/كود الطالب/i), { target: { value: '  STU-2026-0001  ' } });
-    fireEvent.change(screen.getByLabelText(/كود التفعيل/i), { target: { value: '  A7K2-9M4P-QX ' } });
-    fireEvent.click(screen.getByRole('button', { name: /التحقق من الحساب/i }));
+    fillValidInfo();
+    fireEvent.change(screen.getByLabelText(/رقم هاتف ولي الأمر/i), { target: { value: '01012345678' } });
+    fireEvent.click(screen.getByRole('button', { name: /متابعة/i }));
 
-    await waitFor(() => {
-      expect(base.verifyStudent).toHaveBeenCalledWith({
-        studentCode: 'STU-2026-0001',
-        registrationCode: 'A7K2-9M4P-QX',
-      });
-    });
-  });
-
-  it('shows a generic verification failure banner without a login path (anti-enumeration)', () => {
-    mockHook({
-      verifyError: { message: 'بيانات التحقق غير صحيحة، يرجى مراجعة كود الطالب وكود التفعيل' },
-    });
-
-    render(<StudentRegistrationForm />);
-
-    expect(screen.getByText('تعذر التحقق من البيانات')).toBeInTheDocument();
     expect(
-      screen.getByText('بيانات التحقق غير صحيحة، يرجى مراجعة كود الطالب وكود التفعيل'),
+      await screen.findByText('رقم هاتف ولي الأمر يجب أن يختلف عن رقم هاتف الطالب'),
     ).toBeInTheDocument();
-    // Only the standard footer link (always present), no extra recovery link inside the alert
-    expect(screen.queryByText('تم إنشاء حساب لهذا الطالب مسبقاً')).not.toBeInTheDocument();
+    expect(base.registerStudent).not.toHaveBeenCalled();
   });
 
-  it('offers a login path when the student is already registered', () => {
-    mockHook({
-      verifyError: {
-        message: 'تم إنشاء حساب لهذا الطالب مسبقاً، يمكنك تسجيل الدخول مباشرة',
-        code: 'STUDENT_ALREADY_REGISTERED',
-      },
-    });
+  it('advances to the review step after valid input', async () => {
+    mockHook();
 
     render(<StudentRegistrationForm />);
 
-    expect(screen.getByText('تم إنشاء حساب لهذا الطالب مسبقاً، يمكنك تسجيل الدخول مباشرة')).toBeInTheDocument();
-    expect(screen.getAllByText(/العودة إلى تسجيل الدخول/i).length).toBeGreaterThanOrEqual(2);
-  });
+    fillValidInfo();
+    fireEvent.click(screen.getByRole('button', { name: /متابعة/i }));
 
-  it('renders the credentials step after successful verification', () => {
-    mockHook({ verifiedStudent });
-
-    render(<StudentRegistrationForm />);
-
-    expect(screen.getByText('محمود أحمد علي')).toBeInTheDocument();
-    expect(screen.getByText(/STU-2026-0001 • الصف الثالث الثانوي/)).toBeInTheDocument();
-    expect(screen.getByLabelText(/رقم الهاتف/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/البريد الإلكتروني/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/^كلمة المرور/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/تأكيد كلمة المرور/i)).toBeInTheDocument();
+    expect(await screen.findByText('تأكد من صحة البيانات قبل إنشاء الحساب')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /إنشاء الحساب/i })).toBeInTheDocument();
   });
 
-  it('validates password mismatch before submitting registration', async () => {
-    const base = mockHook({ verifiedStudent });
+  it('submits the registration payload from the review step', async () => {
+    const base = mockHook();
 
     render(<StudentRegistrationForm />);
 
-    fireEvent.change(screen.getByLabelText(/رقم الهاتف/i), { target: { value: '01012345678' } });
-    fireEvent.change(screen.getByLabelText(/^كلمة المرور/i), { target: { value: 'Password123!' } });
-    fireEvent.change(screen.getByLabelText(/تأكيد كلمة المرور/i), { target: { value: 'Different123!' } });
-    fireEvent.click(screen.getByRole('button', { name: /إنشاء الحساب/i }));
+    fillValidInfo();
+    fireEvent.click(screen.getByRole('button', { name: /متابعة/i }));
 
-    expect(await screen.findByText('كلمتا المرور غير متطابقتين')).toBeInTheDocument();
-    expect(base.registerStudent).not.toHaveBeenCalled();
-  });
-
-  it('validates short passwords before submitting registration', async () => {
-    const base = mockHook({ verifiedStudent });
-
-    render(<StudentRegistrationForm />);
-
-    fireEvent.change(screen.getByLabelText(/رقم الهاتف/i), { target: { value: '01012345678' } });
-    fireEvent.change(screen.getByLabelText(/^كلمة المرور/i), { target: { value: '123' } });
-    fireEvent.change(screen.getByLabelText(/تأكيد كلمة المرور/i), { target: { value: '123' } });
-    fireEvent.click(screen.getByRole('button', { name: /إنشاء الحساب/i }));
-
-    expect(await screen.findByText('يجب أن تتكون كلمة المرور من 6 أحرف على الأقل')).toBeInTheDocument();
-    expect(base.registerStudent).not.toHaveBeenCalled();
-  });
-
-  it('requires at least one login identifier (phone or email)', async () => {
-    const base = mockHook({ verifiedStudent });
-
-    render(<StudentRegistrationForm />);
-
-    fireEvent.change(screen.getByLabelText(/^كلمة المرور/i), { target: { value: 'Password123!' } });
-    fireEvent.change(screen.getByLabelText(/تأكيد كلمة المرور/i), { target: { value: 'Password123!' } });
-    fireEvent.click(screen.getByRole('button', { name: /إنشاء الحساب/i }));
-
-    expect(
-      await screen.findByText('يجب إدخال رقم هاتف أو بريد إلكتروني ليكون وسيلة تسجيل الدخول'),
-    ).toBeInTheDocument();
-    expect(base.registerStudent).not.toHaveBeenCalled();
-  });
-
-  it('rejects invalid phone formats on the client', async () => {
-    const base = mockHook({ verifiedStudent });
-
-    render(<StudentRegistrationForm />);
-
-    fireEvent.change(screen.getByLabelText(/رقم الهاتف/i), { target: { value: '12345' } });
-    fireEvent.change(screen.getByLabelText(/^كلمة المرور/i), { target: { value: 'Password123!' } });
-    fireEvent.change(screen.getByLabelText(/تأكيد كلمة المرور/i), { target: { value: 'Password123!' } });
-    fireEvent.click(screen.getByRole('button', { name: /إنشاء الحساب/i }));
-
-    expect(await screen.findByText('يرجى إدخال رقم هاتف مصري صحيح مثل 01012345678')).toBeInTheDocument();
-    expect(base.registerStudent).not.toHaveBeenCalled();
-  });
-
-  it('submits credentials with the registration token on valid input', async () => {
-    const base = mockHook({ verifiedStudent });
-
-    render(<StudentRegistrationForm />);
-
-    fireEvent.change(screen.getByLabelText(/رقم الهاتف/i), { target: { value: ' 01012345678 ' } });
-    fireEvent.change(screen.getByLabelText(/البريد الإلكتروني/i), { target: { value: 'mahmoud@student.elawal.com' } });
-    fireEvent.change(screen.getByLabelText(/^كلمة المرور/i), { target: { value: 'Password123!' } });
-    fireEvent.change(screen.getByLabelText(/تأكيد كلمة المرور/i), { target: { value: 'Password123!' } });
-    fireEvent.click(screen.getByRole('button', { name: /إنشاء الحساب/i }));
+    const createBtn = await screen.findByRole('button', { name: /إنشاء الحساب/i });
+    fireEvent.click(createBtn);
 
     await waitFor(() => {
       expect(base.registerStudent).toHaveBeenCalledWith({
-        registrationToken: 'reg-token',
-        phone: '01012345678',
-        email: 'mahmoud@student.elawal.com',
-        password: 'Password123!',
+        fullName: 'محمود أحمد علي',
+        studentPhone: '01012345678',
+        parentPhone: '01098765432',
+        academicStage: 'SECONDARY',
+        gradeLevel: 'الصف الثالث الثانوي',
       });
     });
   });
 
-  it('shows registration errors from the backend (duplicate identifier)', () => {
+  it('shows the registration error and a login path when the phone is already registered', async () => {
     mockHook({
-      verifiedStudent,
-      registerError: {
-        message: 'وسيلة تسجيل الدخول المدخلة مستخدمة بالفعل في حساب آخر',
-        code: 'PHONE_ALREADY_IN_USE',
-      },
+      registerError: { message: 'رقم هاتف الطالب مسجل بالفعل، يمكنك تسجيل الدخول مباشرة', code: 'PHONE_ALREADY_REGISTERED' },
     });
 
     render(<StudentRegistrationForm />);
 
-    expect(screen.getByText('تعذر إنشاء الحساب')).toBeInTheDocument();
-    expect(screen.getByText('وسيلة تسجيل الدخول المدخلة مستخدمة بالفعل في حساب آخر')).toBeInTheDocument();
+    fillValidInfo();
+    fireEvent.click(screen.getByRole('button', { name: /متابعة/i }));
+
+    expect(await screen.findByText('تعذر إنشاء الحساب')).toBeInTheDocument();
+    expect(screen.getByText('رقم هاتف الطالب مسجل بالفعل، يمكنك تسجيل الدخول مباشرة')).toBeInTheDocument();
+    expect(screen.getAllByText(/العودة إلى تسجيل الدخول/i).length).toBeGreaterThanOrEqual(1);
   });
 
-  it('shows the success state and redirects after account creation', () => {
-    const base = mockHook({ isRegistered: true });
+  it('shows the one-time credentials success screen with copy actions', () => {
+    mockHook({ isRegistered: true, credentials });
 
     render(<StudentRegistrationForm />);
 
-    expect(screen.getByText('تم إنشاء حسابك بنجاح')).toBeInTheDocument();
+    expect(screen.getByText('تم إنشاء الحساب بنجاح')).toBeInTheDocument();
+    expect(screen.getByText('STU-2026-00482')).toBeInTheDocument();
+    expect(screen.getByText('Ab3$kL9mQwZx')).toBeInTheDocument();
+    expect(screen.getByText('Xy7@nR2pVcTq')).toBeInTheDocument();
+    expect(screen.getByText(/لن تظهر كلمات المرور مرة أخرى/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /نسخ بيانات الطالب/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /نسخ بيانات ولي الأمر/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /الانتقال إلى لوحة التحكم/i })).toBeInTheDocument();
+  });
+
+  it('does not show a parent password when the parent account already existed', () => {
+    mockHook({
+      isRegistered: true,
+      credentials: { ...credentials, parentIsNew: false, parentPassword: null },
+    });
+
+    render(<StudentRegistrationForm />);
+
+    expect(screen.getByText('تم إنشاء الحساب بنجاح')).toBeInTheDocument();
+    // Parent password is not shown for an existing parent account
+    expect(screen.queryByText('Xy7@nR2pVcTq')).not.toBeInTheDocument();
+  });
+
+  it('redirects to the dashboard from the success screen', () => {
+    const base = mockHook({ isRegistered: true, credentials });
+
+    render(<StudentRegistrationForm />);
 
     fireEvent.click(screen.getByRole('button', { name: /الانتقال إلى لوحة التحكم/i }));
     expect(base.redirectToDashboard).toHaveBeenCalled();
   });
 
-  it('disables the verify button while verification is in progress', () => {
-    mockHook({ isVerifying: true });
+  it('disables the primary action while registration is in progress (prevents duplicate submission)', () => {
+    mockHook({ isRegistering: true });
 
     render(<StudentRegistrationForm />);
 
-    const submitBtn = screen.getByRole('button', { name: /التحقق من الحساب/i });
+    const submitBtn = screen.getByRole('button', { name: /متابعة/i });
     expect(submitBtn).toBeDisabled();
-    expect(screen.getByText('جاري التحميل...')).toBeInTheDocument();
-  });
-
-  it('allows returning to the verification step from the credentials step', () => {
-    const base = mockHook({ verifiedStudent });
-
-    render(<StudentRegistrationForm />);
-
-    fireEvent.click(screen.getByRole('button', { name: /العودة إلى خطوة التحقق/i }));
-    expect(base.resetFlow).toHaveBeenCalled();
   });
 });

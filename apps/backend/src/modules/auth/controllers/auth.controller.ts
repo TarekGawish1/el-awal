@@ -7,7 +7,7 @@ import { LoginDto } from '../dto/login.dto';
 import { ParentAccessDto } from '../dto/parent-access.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { AuthTokensResponseDto } from '../dto/auth-response.dto';
-import { VerifyStudentRegistrationDto, RegisterStudentAccountDto } from '../dto/student-registration.dto';
+import { RegisterStudentDto } from '../dto/student-registration.dto';
 import { Public } from '../../../core/security/decorators/public.decorator';
 
 @ApiTags('Authentication')
@@ -42,26 +42,13 @@ export class AuthController {
 
   @Public()
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  @Post('student-registration/verify')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Verify an existing student record using the student code and the one-time school-issued activation code' })
-  @ApiResponse({ status: 200, description: 'Verification successful, returns a short-lived registration token' })
-  @ApiResponse({ status: 401, description: 'Verification data does not match a pending student record' })
-  @ApiResponse({ status: 409, description: 'Student account is already registered' })
-  async verifyStudentRegistration(@Body() dto: VerifyStudentRegistrationDto) {
-    return this.studentRegistrationService.verifyStudent(dto);
-  }
-
-  @Public()
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('student-registration/register')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Claim a verified pending student account by setting login credentials (role is always STUDENT)' })
-  @ApiResponse({ status: 201, description: 'Account created and linked to the existing student record, returns tokens', type: AuthTokensResponseDto })
-  @ApiResponse({ status: 401, description: 'Invalid or expired registration token' })
-  @ApiResponse({ status: 409, description: 'Student already registered or identifier already in use' })
-  async registerStudentAccount(@Body() dto: RegisterStudentAccountDto): Promise<AuthTokensResponseDto> {
-    return this.studentRegistrationService.registerStudentAccount(dto);
+  @ApiOperation({ summary: 'Self-service student registration: creates the student account, the parent account, the parent-student link, and returns one-time credentials' })
+  @ApiResponse({ status: 201, description: 'Student and parent accounts created; student auto-authenticated', type: AuthTokensResponseDto })
+  @ApiResponse({ status: 409, description: 'Phone number already registered, or student/parent phones conflict' })
+  async registerStudent(@Body() dto: RegisterStudentDto) {
+    return this.studentRegistrationService.registerStudent(dto);
   }
 
   @Public()

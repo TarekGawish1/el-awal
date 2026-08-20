@@ -111,6 +111,51 @@ describe('AuthService', () => {
         service.login({ identifier: 'teacher@elawal.com', password: 'WrongPassword!' }),
       ).rejects.toThrow(UnauthorizedException);
     });
+
+    it('requires and verifies the generated password for normal parent login', async () => {
+      const plainPassword = 'ParentGenerated9!';
+      const passwordHash = await bcrypt.hash(plainPassword, 10);
+      mockPrismaService.user.findFirst.mockResolvedValue({
+        id: 'parent-user-1',
+        fullName: 'أحمد علي إبراهيم',
+        email: null,
+        phone: '+201099999991',
+        passwordHash,
+        role: UserRole.PARENT,
+        isActive: true,
+        deletedAt: null,
+        parentProfile: { id: 'parent-user-1' },
+      });
+      mockJwtService.signAsync
+        .mockResolvedValueOnce('parent-access-token')
+        .mockResolvedValueOnce('parent-refresh-token');
+
+      const result = await service.login({
+        identifier: '+201099999991',
+        password: plainPassword,
+      });
+
+      expect(result.user.role).toBe(UserRole.PARENT);
+      expect(result.user.parentProfileId).toBe('parent-user-1');
+    });
+
+    it('rejects a normal parent login without a password', async () => {
+      mockPrismaService.user.findFirst.mockResolvedValue({
+        id: 'parent-user-1',
+        fullName: 'أحمد علي إبراهيم',
+        email: null,
+        phone: '+201099999991',
+        passwordHash: '$2b$10$placeholder',
+        role: UserRole.PARENT,
+        isActive: true,
+        deletedAt: null,
+        parentProfile: { id: 'parent-user-1' },
+      });
+
+      await expect(
+        service.login({ identifier: '+201099999991', password: '' }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
   });
 
   describe('refreshToken', () => {

@@ -1,29 +1,36 @@
-import {
-  Injectable,
-  UnauthorizedException,
-  ConflictException,
-  BadRequestException,
-  Logger,
-} from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, ConflictException, Logger } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
+import { UserRole } from '@prisma/client';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AuthService } from './auth.service';
-import { AuthTokensResponseDto } from '../dto/auth-response.dto';
-import {
-  VerifyStudentRegistrationDto,
-  RegisterStudentAccountDto,
-} from '../dto/student-registration.dto';
-import {
-  hashStudentRegistrationCode,
-  registrationCodeHashesMatch,
-} from '../../../common/utils/student-registration-code.util';
+import { RegisterStudentDto } from '../dto/student-registration.dto';
+import { normalizeEgyptianPhone, getPhoneVariants } from '../../../common/utils/phone.util';
+import { generateSecurePassword } from '../../../common/utils/password.util';
+import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
 
-export interface StudentRegistrationTokenPayload {
-  sub: string;
-  typ: 'student_registration';
+export interface StudentRegistrationResult {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  expiresIn: number;
+  user: {
+    id: string;
+    fullName: string;
+    email?: string;
+    phone?: string;
+    role: UserRole;
+    studentProfileId?: string;
+  };
+  credentials: {
+    studentCode: string;
+    studentPhone: string;
+    studentPassword: string;
+    parentPhone: string;
+    parentPassword: string | null;
+    parentIsNew: boolean;
+  };
 }
 
 @Injectable()
@@ -32,212 +39,174 @@ export class StudentRegistrationService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
     private readonly authService: AuthService,
   ) {}
 
   /**
-   * STEP 1 — Verifies that the student exists, is pending self-registration,
-   * and holds the correct one-time activation code.
+   * Self-service student registration.
    *
-   * Anti-enumeration: unknown student, missing/expired code and code mismatch
-   * all return the same generic error. The "already registered" outcome is only
-   * revealed after a successful code match (the caller provably holds the code).
+   * Creates, atomically, the Student User + StudentProfile, the Parent User +
+   * ParentProfile (or links an existing parent by phone), and the
+   * ParentStudentLink. Server-side generated credentials (student code and
+   * random passwords) are returned exactly once; only bcrypt hashes are
+   * persisted. The student is auto-authenticated with the STUDENT role — the
+   * role is never accepted from the client.
+   *
+   * Identity/duplicate strategy: `users.phone` is the unique identifier (names
+   * are never treated as unique). Both student and parent phones are
+   * normalized to a canonical form before uniqueness checks so that the same
+   * number submitted in different formats cannot slip through.
    */
-  async verifyStudent(dto: VerifyStudentRegistrationDto) {
-    const student = await this.prisma.studentProfile.findFirst({
-      where: {
-        studentCode: dto.studentCode.trim().toUpperCase(),
-        user: { deletedAt: null },
-      },
-      select: {
-        id: true,
-        studentCode: true,
-        gradeLevel: true,
-        registrationCodeHash: true,
-        accountClaimedAt: true,
-        user: { select: { id: true, fullName: true } },
-      },
-    });
+  async registerStudent(dto: RegisterStudentDto): Promise<StudentRegistrationResult> {
+    const studentPhone = normalizeEgyptianPhone(dto.studentPhone);
+    const parentPhone = normalizeEgyptianPhone(dto.parentPhone);
+    const fullName = dto.fullName.trim();
 
-    const genericFailure = new UnauthorizedException({
-      code: 'STUDENT_VERIFICATION_FAILED',
-      message: 'بيانات التحقق غير صحيحة، يرجى مراجعة كود الطالب وكود التفعيل',
-    });
-
-    if (!student || !student.registrationCodeHash) {
-      this.logger.warn(`Student registration verification failed: student not found or no pending code`);
-      throw genericFailure;
-    }
-
-    const submittedHash = hashStudentRegistrationCode(dto.registrationCode);
-    if (!registrationCodeHashesMatch(submittedHash, student.registrationCodeHash)) {
-      this.logger.warn(`Student registration verification failed: activation code mismatch`);
-      throw genericFailure;
-    }
-
-    if (student.accountClaimedAt) {
+    if (studentPhone === parentPhone) {
       throw new ConflictException({
-        code: 'STUDENT_ALREADY_REGISTERED',
-        message: 'تم إنشاء حساب لهذا الطالب مسبقاً، يمكنك تسجيل الدخول مباشرة',
+        code: 'PHONES_MUST_DIFFER',
+        message: 'رقم هاتف ولي الأمر يجب أن يختلف عن رقم هاتف الطالب',
       });
     }
 
-    const registrationToken = await this.jwtService.signAsync(
-      { sub: student.id, typ: 'student_registration' } satisfies StudentRegistrationTokenPayload,
-      {
-        secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
-        expiresIn: this.configService.get<string>('STUDENT_REGISTRATION_TOKEN_EXPIRES_IN', '10m'),
-      },
-    );
+    const studentPassword = generateSecurePassword();
+    const studentPasswordHash = await bcrypt.hash(studentPassword, 10);
 
-    return {
-      registrationToken,
-      studentCode: student.studentCode || '',
-      fullName: student.user.fullName,
-      gradeLevel: student.gradeLevel,
-    };
-  }
+    let parentPassword: string | null = null;
+    let parentIsNew = false;
+    let studentCode = '';
+    let studentUser;
 
-  /**
-   * STEP 2 — Claims the student account atomically and sets the credentials.
-   *
-   * Concurrency safety: the claim is a single conditional UPDATE
-   * (`account_claimed_at IS NULL AND registration_code_hash IS NOT NULL`).
-   * Two simultaneous registration attempts for the same student cannot both
-   * match — the loser receives a conflict. Unique constraints on
-   * `users.phone` / `users.email` are the final defense against identifier
-   * duplication (P2002).
-   *
-   * Role is never accepted from the client: the account keeps its
-   * server-assigned STUDENT role.
-   */
-  async registerStudentAccount(dto: RegisterStudentAccountDto): Promise<AuthTokensResponseDto> {
-    const payload = await this.verifyRegistrationToken(dto.registrationToken);
-
-    let user;
     try {
-      user = await this.prisma.$transaction(async (tx) => {
-        // 1. Atomic one-time claim of the pending student record
-        const claim = await tx.studentProfile.updateMany({
-          where: {
-            id: payload.sub,
-            accountClaimedAt: null,
-            registrationCodeHash: { not: null },
-          },
+      const txResult = await this.prisma.$transaction(async (tx) => {
+        // 1. Student phone must not already belong to any account (anti-duplicate)
+        const existingStudent = await tx.user.findFirst({
+          where: { phone: { in: getPhoneVariants(studentPhone) } },
+          select: { id: true, role: true },
+        });
+        if (existingStudent) {
+          throw new ConflictException({
+            code: 'PHONE_ALREADY_REGISTERED',
+            message: 'رقم هاتف الطالب مسجل بالفعل، يمكنك تسجيل الدخول مباشرة',
+          });
+        }
+
+        // 2. Generate unique student code and QR credential
+        studentCode = await generateUniqueStudentCode(tx);
+        const qrCodeToken = `qr_tok_${randomUUID().replace(/-/g, '')}`;
+
+        // 3. Create Student User + StudentProfile (shared primary key)
+        const createdStudentUser = await tx.user.create({
           data: {
-            accountClaimedAt: new Date(),
-            registrationCodeHash: null,
+            fullName,
+            phone: studentPhone,
+            passwordHash: studentPasswordHash,
+            role: UserRole.STUDENT,
+            isActive: true,
+            studentProfile: {
+              create: {
+                studentCode,
+                qrCodeToken,
+                gradeLevel: dto.gradeLevel,
+                academicStage: dto.academicStage,
+                emergencyPhone: parentPhone,
+              },
+            },
           },
+          include: { studentProfile: true },
         });
 
-        if (claim.count === 0) {
-          throw new ConflictException({
-            code: 'STUDENT_ALREADY_REGISTERED',
-            message: 'تم إنشاء حساب لهذا الطالب مسبقاً، يمكنك تسجيل الدخول مباشرة',
-          });
-        }
-
-        // 2. Load the claimed record (shared PK between users & student_profiles)
-        const student = await tx.studentProfile.findUnique({
-          where: { id: payload.sub },
-          select: { user: { select: { id: true, phone: true, email: true, role: true } } },
+        // 4. Resolve parent: reuse an existing parent by phone or create one
+        let parentUserId: string;
+        const existingParent = await tx.user.findFirst({
+          where: { phone: { in: getPhoneVariants(parentPhone) } },
+          select: { id: true, role: true, deletedAt: true },
         });
 
-        if (!student) {
-          throw new ConflictException({
-            code: 'STUDENT_ALREADY_REGISTERED',
-            message: 'تم إنشاء حساب لهذا الطالب مسبقاً، يمكنك تسجيل الدخول مباشرة',
-          });
-        }
-
-        const phone = dto.phone?.trim() || undefined;
-        const email = dto.email?.trim().toLowerCase() || undefined;
-
-        // 3. The account must end up with at least one login identifier
-        if (!phone && !email && !student.user.phone && !student.user.email) {
-          throw new BadRequestException({
-            code: 'IDENTIFIER_REQUIRED',
-            message: 'يجب إدخال رقم هاتف أو بريد إلكتروني ليكون وسيلة تسجيل الدخول',
-          });
-        }
-
-        // 4. Friendly pre-checks for identifier collisions (P2002 remains the safety net)
-        if (phone && phone !== student.user.phone) {
-          const existing = await tx.user.findUnique({ where: { phone } });
-          if (existing) {
+        if (existingParent) {
+          if (existingParent.role !== UserRole.PARENT || existingParent.deletedAt) {
             throw new ConflictException({
-              code: 'PHONE_ALREADY_IN_USE',
-              message: 'رقم الهاتف مستخدم بالفعل في حساب آخر',
+              code: 'PARENT_PHONE_CONFLICT',
+              message: 'رقم هاتف ولي الأمر مسجل بحساب آخر، يرجى استخدام رقم مختلف',
             });
           }
-        }
+          parentUserId = existingParent.id;
 
-        if (email && email !== student.user.email) {
-          const existing = await tx.user.findUnique({ where: { email } });
-          if (existing) {
-            throw new ConflictException({
-              code: 'EMAIL_ALREADY_IN_USE',
-              message: 'البريد الإلكتروني مستخدم بالفعل في حساب آخر',
+          const parentProfile = await tx.parentProfile.findUnique({
+            where: { id: existingParent.id },
+            select: { id: true },
+          });
+          if (!parentProfile) {
+            await tx.parentProfile.create({
+              data: { id: existingParent.id, relationshipType: 'ولي أمر' },
             });
           }
+        } else {
+          parentPassword = generateSecurePassword();
+          const parentPasswordHash = await bcrypt.hash(parentPassword, 10);
+          const newParentUser = await tx.user.create({
+            data: {
+              fullName: `ولي أمر ${fullName}`,
+              phone: parentPhone,
+              passwordHash: parentPasswordHash,
+              role: UserRole.PARENT,
+              isActive: true,
+              parentProfile: {
+                create: { relationshipType: 'ولي أمر' },
+              },
+            },
+          });
+          parentUserId = newParentUser.id;
+          parentIsNew = true;
         }
 
-        // 5. Set credentials. Role/academic data are NOT client-controllable.
-        return tx.user.update({
-          where: { id: student.user.id },
+        // 5. Link parent ↔ student
+        await tx.parentStudentLink.create({
           data: {
-            ...(phone !== undefined ? { phone } : {}),
-            ...(email !== undefined ? { email } : {}),
-            passwordHash: await bcrypt.hash(dto.password, 10),
-          },
-          include: {
-            teacherProfile: { select: { id: true } },
-            studentProfile: { select: { id: true } },
-            parentProfile: { select: { id: true } },
-            secretariatProfile: { select: { id: true } },
+            parentId: parentUserId,
+            studentId: createdStudentUser.id,
           },
         });
+
+        return { studentUser: createdStudentUser };
       });
+
+      studentUser = txResult.studentUser;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        this.logger.warn('Student registration collided on a unique constraint');
         throw new ConflictException({
           code: 'IDENTIFIER_ALREADY_IN_USE',
-          message: 'وسيلة تسجيل الدخول المدخلة مستخدمة بالفعل في حساب آخر',
+          message: 'رقم الهاتف أو الكود مستخدم بالفعل، يرجى المحاولة مرة أخرى',
         });
       }
       throw error;
     }
 
-    this.logger.log(`Student self-registration completed for user [${user.id}]`);
+    this.logger.log(
+      `Student self-registration completed: [${studentCode}] ${fullName} (parent ${parentIsNew ? 'created' : 'linked'})`,
+    );
 
-    // 6. Auto-authenticate: issue the standard access/refresh token pair
-    return this.authService.issueTokens(user);
-  }
+    // 6. Auto-authenticate the student (role STUDENT, server-determined)
+    const tokens = await this.authService.issueTokens({
+      id: studentUser.id,
+      fullName: studentUser.fullName,
+      email: null,
+      phone: studentUser.phone,
+      role: UserRole.STUDENT,
+      studentProfile: { id: studentUser.id },
+    });
 
-  private async verifyRegistrationToken(token: string): Promise<StudentRegistrationTokenPayload> {
-    try {
-      const decoded = await this.jwtService.verifyAsync<StudentRegistrationTokenPayload>(token, {
-        secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
-      });
-
-      if (decoded.typ !== 'student_registration' || !decoded.sub) {
-        throw new UnauthorizedException({
-          code: 'REGISTRATION_TOKEN_INVALID',
-          message: 'انتهت صلاحية جلسة التحقق، يرجى إعادة المحاولة',
-        });
-      }
-
-      return decoded;
-    } catch (error) {
-      if (error instanceof UnauthorizedException) {
-        throw error;
-      }
-      throw new UnauthorizedException({
-        code: 'REGISTRATION_TOKEN_INVALID',
-        message: 'انتهت صلاحية جلسة التحقق، يرجى إعادة المحاولة',
-      });
-    }
+    return {
+      ...tokens,
+      credentials: {
+        studentCode,
+        studentPhone,
+        studentPassword,
+        parentPhone,
+        parentPassword: parentIsNew ? parentPassword : null,
+        parentIsNew,
+      },
+    };
   }
 }

@@ -1,185 +1,156 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import {
   AlertCircle,
   ArrowRight,
-  BadgeCheck,
+  Check,
   CheckCircle2,
-  Eye,
-  EyeOff,
+  Copy,
+  GraduationCap,
   Hash,
   KeyRound,
-  Lock,
-  Mail,
   Phone,
+  ShieldCheck,
+  User,
   UserPlus,
+  UserRound,
 } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle, Button, Input } from '@/components/ui';
+import { Alert, AlertDescription, AlertTitle, Button, Input, Select } from '@/components/ui';
 import { useStudentRegistration } from '../hooks/useStudentRegistration';
+import { AcademicStage, StudentRegistrationCredentials } from '../types/auth.types';
+import {
+  ACADEMIC_STAGES,
+  GRADE_LEVELS,
+  isAcademicStageKey,
+  AcademicStageKey,
+} from '@/lib/constants/academic-levels';
 
 const EGYPTIAN_PHONE_REGEX = /^(?:\+20|0020|0)?1[0125]\d{8}$/;
 
-interface StepErrors {
-  studentCode?: string;
-  registrationCode?: string;
-  phone?: string;
-  email?: string;
-  password?: string;
-  confirmPassword?: string;
+type Step = 'info' | 'review';
+
+interface FieldErrors {
+  fullName?: string;
+  studentPhone?: string;
+  parentPhone?: string;
+  academicStage?: string;
+  gradeLevel?: string;
+}
+
+function normalizePhone(value: string): string {
+  return value.replace(/[\s-]/g, '').trim();
 }
 
 export function StudentRegistrationForm() {
   const {
-    verifiedStudent,
-    isVerifying,
-    verifyError,
-    verifyStudent,
-    resetVerifyError,
+    credentials,
     isRegistering,
     isRegistered,
     registerError,
     registerStudent,
     redirectToDashboard,
-    resetFlow,
   } = useStudentRegistration();
 
-  const [studentCode, setStudentCode] = useState('');
-  const [registrationCode, setRegistrationCode] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [stepErrors, setStepErrors] = useState<StepErrors>({});
+  const [step, setStep] = useState<Step>('info');
+  const [fullName, setFullName] = useState('');
+  const [studentPhone, setStudentPhone] = useState('');
+  const [parentPhone, setParentPhone] = useState('');
+  const [academicStage, setAcademicStage] = useState<AcademicStage | ''>('');
+  const [gradeLevel, setGradeLevel] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [copied, setCopied] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!isRegistered) return;
-    const timer = window.setTimeout(() => {
-      redirectToDashboard();
-    }, 1500);
-    return () => window.clearTimeout(timer);
-  }, [isRegistered, redirectToDashboard]);
+  const validateInfoStep = (): boolean => {
+    const errors: FieldErrors = {};
 
-  // ==================== STEP 1 — Verification ====================
-  const validateVerificationStep = (): boolean => {
-    const errors: StepErrors = {};
-    const trimmedCode = studentCode.trim();
-
-    if (!trimmedCode) {
-      errors.studentCode = 'يرجى إدخال كود الطالب';
-    } else if (!/^[A-Za-z0-9-]{3,50}$/.test(trimmedCode)) {
-      errors.studentCode = 'كود الطالب غير صحيح';
+    if (fullName.trim().length < 3) {
+      errors.fullName = 'يرجى إدخال الاسم بالكامل (3 أحرف على الأقل)';
     }
 
-    const trimmedActivation = registrationCode.trim();
-    if (!trimmedActivation) {
-      errors.registrationCode = 'يرجى إدخال كود التفعيل';
-    } else if (!/^[A-Za-z0-9\s-]{6,20}$/.test(trimmedActivation)) {
-      errors.registrationCode = 'كود التفعيل غير صحيح';
+    const sPhone = normalizePhone(studentPhone);
+    if (!sPhone) {
+      errors.studentPhone = 'يرجى إدخال رقم هاتف الطالب';
+    } else if (!EGYPTIAN_PHONE_REGEX.test(sPhone)) {
+      errors.studentPhone = 'رقم الهاتف غير صحيح';
     }
 
-    setStepErrors(errors);
+    const pPhone = normalizePhone(parentPhone);
+    if (!pPhone) {
+      errors.parentPhone = 'يرجى إدخال رقم هاتف ولي الأمر';
+    } else if (!EGYPTIAN_PHONE_REGEX.test(pPhone)) {
+      errors.parentPhone = 'رقم الهاتف غير صحيح';
+    } else if (sPhone && pPhone && sPhone === pPhone) {
+      errors.parentPhone = 'رقم هاتف ولي الأمر يجب أن يختلف عن رقم هاتف الطالب';
+    }
+
+    if (!academicStage) {
+      errors.academicStage = 'يرجى اختيار المرحلة الدراسية';
+    }
+
+    if (!gradeLevel) {
+      errors.gradeLevel = 'يرجى اختيار الصف الدراسي';
+    }
+
+    setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  const handleVerifySubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleInfoSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (verifyError) resetVerifyError();
-
-    if (!validateVerificationStep()) return;
-
-    verifyStudent({
-      studentCode: studentCode.trim(),
-      registrationCode: registrationCode.trim(),
-    });
+    if (!validateInfoStep()) return;
+    setStep('review');
   };
 
-  // ==================== STEP 2 — Account Creation ====================
-  const validateAccountStep = (): boolean => {
-    const errors: StepErrors = {};
-    const trimmedPhone = phone.trim();
-    const trimmedEmail = email.trim();
-
-    if (trimmedPhone && !EGYPTIAN_PHONE_REGEX.test(trimmedPhone)) {
-      errors.phone = 'يرجى إدخال رقم هاتف مصري صحيح مثل 01012345678';
-    }
-
-    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      errors.email = 'يرجى إدخال بريد إلكتروني صحيح';
-    }
-
-    if (!trimmedPhone && !trimmedEmail) {
-      errors.phone = 'يجب إدخال رقم هاتف أو بريد إلكتروني ليكون وسيلة تسجيل الدخول';
-    }
-
-    if (!password) {
-      errors.password = 'يرجى إدخال كلمة المرور';
-    } else if (password.length < 6) {
-      errors.password = 'يجب أن تتكون كلمة المرور من 6 أحرف على الأقل';
-    }
-
-    if (!confirmPassword) {
-      errors.confirmPassword = 'يرجى تأكيد كلمة المرور';
-    } else if (password !== confirmPassword) {
-      errors.confirmPassword = 'كلمتا المرور غير متطابقتين';
-    }
-
-    setStepErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handleRegisterSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    if (!validateAccountStep() || !verifiedStudent) return;
-
+  const handleRegister = () => {
+    if (!isAcademicStageKey(academicStage)) return;
     registerStudent({
-      registrationToken: verifiedStudent.registrationToken,
-      phone: phone.trim() || undefined,
-      email: email.trim() || undefined,
-      password,
+      fullName,
+      studentPhone: normalizePhone(studentPhone),
+      parentPhone: normalizePhone(parentPhone),
+      academicStage,
+      gradeLevel,
     });
   };
 
-  // ==================== SUCCESS STATE ====================
-  if (isRegistered) {
+  const copyText = async (text: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(key);
+      window.setTimeout(() => setCopied(null), 2000);
+    } catch {
+      // Clipboard unavailable — credentials remain visible for manual copy
+    }
+  };
+
+  // ==================== STEP 3 — Success / Credentials ====================
+  if (isRegistered && credentials) {
     return (
-      <div className="space-y-6 text-center animate-in fade-in-50 duration-200" aria-live="polite">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-success-100">
-          <CheckCircle2 className="h-9 w-9 text-success-600" />
-        </div>
-        <div className="space-y-1.5">
-          <h3 className="text-lg font-bold text-neutral-900">تم إنشاء حسابك بنجاح</h3>
-          <p className="text-sm text-neutral-500">جاري تحويلك إلى لوحة التحكم الخاصة بك...</p>
-        </div>
-        <Button type="button" variant="primary" size="lg" className="w-full font-bold shadow-sm" onClick={redirectToDashboard}>
-          <span>الانتقال إلى لوحة التحكم</span>
-        </Button>
-        <Link
-          href="/login"
-          className="block text-xs font-semibold text-neutral-500 transition-colors hover:text-primary-700"
-        >
-          تسجيل الدخول
-        </Link>
-      </div>
+      <CredentialsScreen
+        credentials={credentials}
+        copied={copied}
+        onCopy={copyText}
+        onContinue={redirectToDashboard}
+      />
     );
   }
 
-  // ==================== STEP 2 — Credentials Form ====================
-  if (verifiedStudent) {
-    const alreadyRegistered = registerError?.code === 'STUDENT_ALREADY_REGISTERED';
+  // ==================== STEP 2 — Review & Confirm ====================
+  if (step === 'review') {
+    const stageLabel = ACADEMIC_STAGES.find((s) => s.id === academicStage)?.label ?? '';
 
     return (
-      <form onSubmit={handleRegisterSubmit} className="space-y-5 w-full" noValidate aria-label="نموذج إنشاء حساب الطالب">
+      <div className="space-y-5" aria-label="خطوة مراجعة وتأكيد البيانات">
+        <StepIndicator current={2} />
+
         {registerError && (
-          <Alert variant={alreadyRegistered ? 'warning' : 'error'} className="animate-in fade-in-50 duration-200">
+          <Alert variant="error" className="animate-in fade-in-50 duration-200">
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-error-600" />
             <div className="flex-1">
               <AlertTitle className="text-sm font-bold text-error-800">تعذر إنشاء الحساب</AlertTitle>
               <AlertDescription className="text-xs text-error-700">{registerError.message}</AlertDescription>
-              {alreadyRegistered && (
+              {registerError.code === 'PHONE_ALREADY_REGISTERED' && (
                 <Link
                   href="/login"
                   className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-primary-700 transition-colors hover:text-primary-800"
@@ -192,210 +163,151 @@ export function StudentRegistrationForm() {
           </Alert>
         )}
 
-        {/* Verified student confirmation banner */}
-        <div className="rounded-lg border border-success-200 bg-success-50 p-4 flex items-start gap-3" aria-live="polite">
-          <BadgeCheck className="mt-0.5 h-5 w-5 shrink-0 text-success-600" />
-          <div className="flex-1">
-            <p className="text-sm font-bold text-success-800">{verifiedStudent.fullName}</p>
-            <p className="text-xs text-success-700 mt-0.5">
-              {verifiedStudent.studentCode} • {verifiedStudent.gradeLevel}
-            </p>
-            <p className="text-xs text-success-700 mt-1">
-              تم التحقق من بيانات الطالب بنجاح، أنشئ الآن بيانات الدخول الخاصة بك
-            </p>
-          </div>
+        <div className="space-y-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+          <p className="text-xs font-semibold text-neutral-500">تأكد من صحة البيانات قبل إنشاء الحساب</p>
+          <dl className="space-y-2 text-sm">
+            <Row label="الاسم بالكامل" value={fullName.trim()} />
+            <Row label="رقم هاتف الطالب" value={normalizePhone(studentPhone)} ltr />
+            <Row label="رقم هاتف ولي الأمر" value={normalizePhone(parentPhone)} ltr />
+            <Row label="المرحلة الدراسية" value={stageLabel} />
+            <Row label="الصف الدراسي" value={gradeLevel} />
+          </dl>
         </div>
 
-        <Input
-          id="student-phone"
-          name="phone"
-          type="tel"
-          label="رقم الهاتف (وسيلة تسجيل الدخول)"
-          placeholder="01012345678"
-          value={phone}
-          onChange={(e) => {
-            setPhone(e.target.value);
-            if (stepErrors.phone) setStepErrors((prev) => ({ ...prev, phone: undefined }));
-          }}
-          error={stepErrors.phone}
-          helperText="أدخل رقم هاتفك ليكون وسيلة تسجيل الدخول"
-          disabled={isRegistering}
-          autoComplete="tel"
-          inputMode="tel"
-          dir="ltr"
-          startIcon={<Phone className="h-4 w-4" />}
-        />
-
-        <Input
-          id="student-email"
-          name="email"
-          type="email"
-          label="البريد الإلكتروني (اختياري)"
-          placeholder="student@elawal.com"
-          value={email}
-          onChange={(e) => {
-            setEmail(e.target.value);
-            if (stepErrors.email) setStepErrors((prev) => ({ ...prev, email: undefined }));
-          }}
-          error={stepErrors.email}
-          helperText="يمكنك استخدام البريد الإلكتروني بدلاً من رقم الهاتف"
-          disabled={isRegistering}
-          autoComplete="email"
-          dir="ltr"
-          startIcon={<Mail className="h-4 w-4" />}
-        />
-
-        <Input
-          id="student-password"
-          name="password"
-          type={showPassword ? 'text' : 'password'}
-          label="كلمة المرور"
-          placeholder="••••••••"
-          value={password}
-          onChange={(e) => {
-            setPassword(e.target.value);
-            if (stepErrors.password) setStepErrors((prev) => ({ ...prev, password: undefined }));
-          }}
-          error={stepErrors.password}
-          helperText="6 أحرف على الأقل"
-          disabled={isRegistering}
-          required
-          autoComplete="new-password"
-          startIcon={<Lock className="h-4 w-4" />}
-          endIcon={
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              tabIndex={0}
-              disabled={isRegistering}
-              className="p-1 rounded text-neutral-400 hover:text-neutral-700 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors"
-              aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
-            >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          }
-        />
-
-        <Input
-          id="student-confirm-password"
-          name="confirmPassword"
-          type={showPassword ? 'text' : 'password'}
-          label="تأكيد كلمة المرور"
-          placeholder="••••••••"
-          value={confirmPassword}
-          onChange={(e) => {
-            setConfirmPassword(e.target.value);
-            if (stepErrors.confirmPassword) setStepErrors((prev) => ({ ...prev, confirmPassword: undefined }));
-          }}
-          error={stepErrors.confirmPassword}
-          disabled={isRegistering}
-          required
-          autoComplete="new-password"
-          startIcon={<Lock className="h-4 w-4" />}
-        />
-
         <Button
-          type="submit"
+          type="button"
           variant="primary"
           size="lg"
           isLoading={isRegistering}
           disabled={isRegistering}
-          className="w-full font-bold shadow-sm mt-2"
+          className="w-full font-bold shadow-sm"
+          onClick={handleRegister}
           aria-label="إنشاء الحساب"
         >
-          <UserPlus className="w-4 h-4 me-2" />
+          <UserPlus className="h-4 w-4 me-2" />
           <span>إنشاء الحساب</span>
         </Button>
 
         <button
           type="button"
-          onClick={resetFlow}
+          onClick={() => setStep('info')}
           disabled={isRegistering}
           className="flex w-full items-center justify-center gap-1.5 text-xs font-semibold text-neutral-500 transition-colors hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
         >
           <ArrowRight className="h-3.5 w-3.5" />
-          <span>العودة إلى خطوة التحقق</span>
+          <span>تعديل البيانات</span>
         </button>
-      </form>
+      </div>
     );
   }
 
-  // ==================== STEP 1 — Identification Form ====================
-  const alreadyRegistered = verifyError?.code === 'STUDENT_ALREADY_REGISTERED';
-
+  // ==================== STEP 1 — Student Information ====================
   return (
-    <form onSubmit={handleVerifySubmit} className="space-y-5 w-full" noValidate aria-label="نموذج التحقق من الطالب">
-      {verifyError && (
-        <Alert variant={alreadyRegistered ? 'warning' : 'error'} className="animate-in fade-in-50 duration-200">
-          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-error-600" />
-          <div className="flex-1">
-            <AlertTitle className="text-sm font-bold text-error-800">تعذر التحقق من البيانات</AlertTitle>
-            <AlertDescription className="text-xs text-error-700">{verifyError.message}</AlertDescription>
-            {alreadyRegistered && (
-              <Link
-                href="/login"
-                className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-primary-700 transition-colors hover:text-primary-800"
-              >
-                <ArrowRight className="h-3.5 w-3.5" />
-                <span>العودة إلى تسجيل الدخول</span>
-              </Link>
-            )}
-          </div>
-        </Alert>
-      )}
+    <form onSubmit={handleInfoSubmit} className="space-y-5" noValidate aria-label="نموذج إنشاء حساب الطالب">
+      <StepIndicator current={1} />
 
       <Input
-        id="student-code"
-        name="studentCode"
+        id="reg-full-name"
+        name="fullName"
         type="text"
-        label="كود الطالب"
-        placeholder="STU-2026-0001"
-        value={studentCode}
+        label="الاسم بالكامل"
+        placeholder="مثال: محمود أحمد علي"
+        value={fullName}
         onChange={(e) => {
-          setStudentCode(e.target.value);
-          if (stepErrors.studentCode) setStepErrors((prev) => ({ ...prev, studentCode: undefined }));
-          if (verifyError) resetVerifyError();
+          setFullName(e.target.value);
+          if (fieldErrors.fullName) setFieldErrors((prev) => ({ ...prev, fullName: undefined }));
         }}
-        error={stepErrors.studentCode}
-        helperText="الكود المدرسي الصادر من الإدارة والموجود في بطاقة الطالب"
-        disabled={isVerifying}
+        error={fieldErrors.fullName}
+        disabled={isRegistering}
         required
         autoFocus
-        dir="ltr"
-        startIcon={<Hash className="h-4 w-4" />}
+        startIcon={<User className="h-4 w-4" />}
       />
 
       <Input
-        id="registration-code"
-        name="registrationCode"
-        type="text"
-        label="كود التفعيل"
-        placeholder="A7K2-9M4P-QX"
-        value={registrationCode}
+        id="reg-student-phone"
+        name="studentPhone"
+        type="tel"
+        label="رقم هاتف الطالب"
+        placeholder="01012345678"
+        value={studentPhone}
         onChange={(e) => {
-          setRegistrationCode(e.target.value);
-          if (stepErrors.registrationCode) setStepErrors((prev) => ({ ...prev, registrationCode: undefined }));
-          if (verifyError) resetVerifyError();
+          setStudentPhone(e.target.value);
+          if (fieldErrors.studentPhone) setFieldErrors((prev) => ({ ...prev, studentPhone: undefined }));
         }}
-        error={stepErrors.registrationCode}
-        helperText="كود التفعيل الخاص بك والمُسلّم إليك من إدارة المدرسة"
-        disabled={isVerifying}
+        error={fieldErrors.studentPhone}
+        disabled={isRegistering}
         required
+        autoComplete="tel"
+        inputMode="tel"
         dir="ltr"
-        startIcon={<KeyRound className="h-4 w-4" />}
+        startIcon={<Phone className="h-4 w-4" />}
+      />
+
+      <Input
+        id="reg-parent-phone"
+        name="parentPhone"
+        type="tel"
+        label="رقم هاتف ولي الأمر"
+        placeholder="01098765432"
+        value={parentPhone}
+        onChange={(e) => {
+          setParentPhone(e.target.value);
+          if (fieldErrors.parentPhone) setFieldErrors((prev) => ({ ...prev, parentPhone: undefined }));
+        }}
+        error={fieldErrors.parentPhone}
+        helperText="سيتم إنشاء حساب لولي الأمر بهذا الرقم"
+        disabled={isRegistering}
+        required
+        autoComplete="tel"
+        inputMode="tel"
+        dir="ltr"
+        startIcon={<UserRound className="h-4 w-4" />}
+      />
+
+      <Select
+        id="reg-stage"
+        label="المرحلة الدراسية"
+        value={academicStage}
+        onChange={(e) => {
+          const value = e.target.value;
+          setAcademicStage(value === '' ? '' : (value as AcademicStage));
+          setGradeLevel('');
+          if (fieldErrors.academicStage) setFieldErrors((prev) => ({ ...prev, academicStage: undefined }));
+        }}
+        error={fieldErrors.academicStage}
+        disabled={isRegistering}
+        options={[
+          { label: '-- اختر المرحلة الدراسية --', value: '' },
+          ...ACADEMIC_STAGES.map((s) => ({ label: s.label, value: s.id })),
+        ]}
+      />
+
+      <Select
+        id="reg-grade"
+        label="الصف الدراسي"
+        value={gradeLevel}
+        onChange={(e) => {
+          setGradeLevel(e.target.value);
+          if (fieldErrors.gradeLevel) setFieldErrors((prev) => ({ ...prev, gradeLevel: undefined }));
+        }}
+        error={fieldErrors.gradeLevel}
+        disabled={!academicStage || isRegistering}
+        options={[
+          { label: '-- اختر الصف الدراسي --', value: '' },
+          ...(isAcademicStageKey(academicStage) ? GRADE_LEVELS[academicStage] : []),
+        ]}
       />
 
       <Button
         type="submit"
         variant="primary"
         size="lg"
-        isLoading={isVerifying}
-        disabled={isVerifying}
+        disabled={isRegistering}
         className="w-full font-bold shadow-sm mt-2"
-        aria-label="التحقق من الحساب"
+        aria-label="متابعة"
       >
-        <BadgeCheck className="w-4 h-4 me-2" />
-        <span>التحقق من الحساب</span>
+        <span>متابعة</span>
       </Button>
 
       <Link
@@ -406,5 +318,173 @@ export function StudentRegistrationForm() {
         <span>العودة إلى تسجيل الدخول</span>
       </Link>
     </form>
+  );
+}
+
+function StepIndicator({ current }: { current: number }) {
+  const steps = ['بيانات الطالب', 'التأكيد', 'بيانات الدخول'];
+  return (
+    <div className="flex items-center justify-center gap-2" aria-label={`الخطوة ${current} من ${steps.length}`}>
+      {steps.map((label, index) => {
+        const stepNumber = index + 1;
+        const isActive = stepNumber === current;
+        const isDone = stepNumber < current;
+        return (
+          <React.Fragment key={label}>
+            <div className="flex items-center gap-1.5">
+              <span
+                className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                  isDone
+                    ? 'bg-success-500 text-white'
+                    : isActive
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-neutral-200 text-neutral-500'
+                }`}
+              >
+                {isDone ? <Check className="h-3.5 w-3.5" /> : stepNumber}
+              </span>
+              <span className={`text-[11px] font-semibold ${isActive ? 'text-neutral-800' : 'text-neutral-400'}`}>
+                {label}
+              </span>
+            </div>
+            {index < steps.length - 1 && <span className="h-px w-6 bg-neutral-200" />}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+function Row({ label, value, ltr }: { label: string; value: string; ltr?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <dt className="text-neutral-500">{label}</dt>
+      <dd className={`font-bold text-neutral-900 ${ltr ? 'text-left' : ''}`} dir={ltr ? 'ltr' : 'auto'}>
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+function CredentialsScreen({
+  credentials,
+  copied,
+  onCopy,
+  onContinue,
+}: {
+  credentials: StudentRegistrationCredentials;
+  copied: string | null;
+  onCopy: (text: string, key: string) => void;
+  onContinue: () => void;
+}) {
+  const studentBlock = `كود الطالب: ${credentials.studentCode}\nكلمة المرور: ${credentials.studentPassword}\nرقم الهاتف: ${credentials.studentPhone}`;
+  const parentBlock = credentials.parentIsNew
+    ? `رقم هاتف ولي الأمر: ${credentials.parentPhone}\nكلمة المرور: ${credentials.parentPassword}`
+    : `رقم هاتف ولي الأمر: ${credentials.parentPhone}\n(حساب ولي الأمر موجود مسبقاً)`;
+
+  return (
+    <div className="space-y-5 animate-in fade-in-50 duration-200" aria-live="polite">
+      <div className="space-y-2 text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-success-100">
+          <CheckCircle2 className="h-9 w-9 text-success-600" />
+        </div>
+        <div>
+          <h3 className="text-lg font-bold text-neutral-900">تم إنشاء الحساب بنجاح</h3>
+          <p className="mt-1 text-sm text-neutral-500">تم إنشاء حساب الطالب وحساب ولي الأمر</p>
+        </div>
+      </div>
+
+      <div className="flex items-start gap-2 rounded-lg border border-warning-200 bg-warning-50 p-3">
+        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-warning-600" />
+        <p className="text-xs leading-relaxed text-warning-800">
+          احتفظ بهذه البيانات في مكان آمن — لن تظهر كلمات المرور مرة أخرى بعد مغادرة هذه الصفحة.
+        </p>
+      </div>
+
+      <CredentialCard
+        title="بيانات دخول الطالب"
+        icon={<GraduationCap className="h-4 w-4 text-primary-600" />}
+        rows={[
+          { label: 'كود الطالب', value: credentials.studentCode, mono: true },
+          { label: 'كلمة المرور', value: credentials.studentPassword, mono: true },
+          { label: 'رقم الهاتف', value: credentials.studentPhone, mono: true },
+        ]}
+        copyLabel="نسخ بيانات الطالب"
+        copied={copied === 'student'}
+        onCopy={() => onCopy(studentBlock, 'student')}
+      />
+
+      <CredentialCard
+        title="بيانات دخول ولي الأمر"
+        icon={<UserRound className="h-4 w-4 text-secondary-600" />}
+        rows={
+          credentials.parentIsNew
+            ? [
+                { label: 'رقم الهاتف', value: credentials.parentPhone, mono: true },
+                { label: 'كلمة المرور', value: credentials.parentPassword ?? '', mono: true },
+              ]
+            : [{ label: 'رقم الهاتف', value: credentials.parentPhone, mono: true }]
+        }
+        copyLabel={credentials.parentIsNew ? 'نسخ بيانات ولي الأمر' : 'نسخ رقم ولي الأمر'}
+        copied={copied === 'parent'}
+        onCopy={() => onCopy(parentBlock, 'parent')}
+      />
+
+      <Button
+        type="button"
+        variant="primary"
+        size="lg"
+        className="w-full font-bold shadow-sm"
+        onClick={onContinue}
+        aria-label="الانتقال إلى لوحة التحكم"
+      >
+        <span>الانتقال إلى لوحة التحكم</span>
+      </Button>
+    </div>
+  );
+}
+
+function CredentialCard({
+  title,
+  icon,
+  rows,
+  copyLabel,
+  copied,
+  onCopy,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  rows: { label: string; value: string; mono?: boolean }[];
+  copyLabel: string;
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-neutral-200 bg-white p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {icon}
+          <span className="text-sm font-bold text-neutral-900">{title}</span>
+        </div>
+        <button
+          type="button"
+          onClick={onCopy}
+          className="inline-flex items-center gap-1.5 rounded-md border border-neutral-200 px-2.5 py-1.5 text-xs font-semibold text-neutral-600 transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+        >
+          {copied ? <Check className="h-3.5 w-3.5 text-success-600" /> : <Copy className="h-3.5 w-3.5" />}
+          <span>{copied ? 'تم النسخ' : copyLabel}</span>
+        </button>
+      </div>
+      <dl className="space-y-2">
+        {rows.map((row) => (
+          <div key={row.label} className="flex items-center justify-between gap-3">
+            <dt className="text-xs text-neutral-500">{row.label}</dt>
+            <dd className={`text-sm font-bold text-neutral-900 ${row.mono ? 'font-mono' : ''}`} dir="ltr">
+              {row.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }

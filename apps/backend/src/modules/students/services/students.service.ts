@@ -6,7 +6,7 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
-import { randomBytes, randomUUID } from 'crypto';
+import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { CreateStudentDto } from '../dto/create-student.dto';
@@ -15,10 +15,7 @@ import { StudentQrCodeResponseDto } from '../dto/qr-code-response.dto';
 import { UserRole, GroupEnrollmentStatus } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
-import {
-  generateStudentRegistrationCode,
-  hashStudentRegistrationCode,
-} from '../../../common/utils/student-registration-code.util';
+import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
 
 @Injectable()
 export class StudentsService {
@@ -28,12 +25,8 @@ export class StudentsService {
 
   /**
    * Atomic Registration Workflow for Student + Parent + Initial Group Enrollment.
-   * Executed inside a Prisma $transaction.
-   *
-   * When `password` is omitted, the student record is created in a
-   * "pending self-registration" state: the user row receives an unguessable
-   * random password hash (login is impossible) and a one-time activation code
-   * is issued so the student can claim the account themselves.
+   * Executed inside a Prisma $transaction. This is the administration/secretariat
+   * path; students can also self-register via the auth student-registration flow.
    */
   async createStudent(dto: CreateStudentDto) {
     return this.prisma.$transaction(async (tx) => {
@@ -52,20 +45,8 @@ export class StudentsService {
         }
       }
 
-      // 2. Resolve credentials: administration-provided password OR pending self-registration
-      const selfRegistrationPending = !dto.password;
-      let passwordHash: string;
-      let registrationCode: string | undefined;
-      let registrationCodeHash: string | null = null;
-
-      if (selfRegistrationPending) {
-        // Unguessable placeholder: login via this hash is computationally impossible
-        passwordHash = await bcrypt.hash(randomBytes(32).toString('hex'), 10);
-        registrationCode = generateStudentRegistrationCode();
-        registrationCodeHash = hashStudentRegistrationCode(registrationCode);
-      } else {
-        passwordHash = await bcrypt.hash(dto.password, 10);
-      }
+      // 2. Hash student password
+      const passwordHash = await bcrypt.hash(dto.password, 10);
 
       // 3. Create Student User Record
       const user = await tx.user.create({
@@ -79,11 +60,8 @@ export class StudentsService {
         },
       });
 
-      // 4. Generate sequential studentCode and cryptographic QR token
-      const currentYear = new Date().getFullYear();
-      const totalStudentsCount = await tx.studentProfile.count();
-      const sequenceNumber = String(totalStudentsCount + 1).padStart(4, '0');
-      const studentCode = `STU-${currentYear}-${sequenceNumber}`;
+      // 4. Generate unique studentCode and cryptographic QR token
+      const studentCode = await generateUniqueStudentCode(tx);
       const qrCodeToken = `qr_tok_${randomUUID().replace(/-/g, '')}`;
 
       // 5. Create StudentProfile
@@ -96,8 +74,6 @@ export class StudentsService {
           academicStage: dto.academicStage,
           dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
           emergencyPhone: dto.emergencyPhone,
-          registrationCodeHash,
-          accountClaimedAt: selfRegistrationPending ? null : new Date(),
         },
       });
 
@@ -168,11 +144,7 @@ export class StudentsService {
         });
       }
 
-      this.logger.log(
-        selfRegistrationPending
-          ? `Student created (pending self-registration): [${studentCode}] ${dto.fullName}`
-          : `Student created successfully: [${studentCode}] ${dto.fullName}`,
-      );
+      this.logger.log(`Student created successfully: [${studentCode}] ${dto.fullName}`);
 
       return {
         id: studentProfile.id,
@@ -187,54 +159,8 @@ export class StudentsService {
         createdAt: studentProfile.createdAt,
         hasParentLinked: !!parentLink,
         enrolledGroupId: initialEnrollment?.groupId || null,
-        selfRegistrationPending,
-        registrationCode: registrationCode ?? null,
       };
     });
-  }
-
-  /**
-   * (Re)issues a one-time self-registration activation code for a student whose
-   * account has not been claimed yet. Rotating the code invalidates any
-   * previously issued one. The plaintext code is returned exactly once.
-   */
-  async issueRegistrationCode(studentId: string) {
-    const registrationCode = generateStudentRegistrationCode();
-    const registrationCodeHash = hashStudentRegistrationCode(registrationCode);
-
-    const result = await this.prisma.studentProfile.updateMany({
-      where: { id: studentId, accountClaimedAt: null },
-      data: { registrationCodeHash },
-    });
-
-    if (result.count === 0) {
-      const student = await this.prisma.studentProfile.findUnique({
-        where: { id: studentId },
-        select: { accountClaimedAt: true },
-      });
-
-      if (!student) {
-        throw new NotFoundException(`Student [${studentId}] not found`);
-      }
-
-      throw new ConflictException({
-        code: 'STUDENT_ALREADY_REGISTERED',
-        message: 'تم إنشاء حساب لهذا الطالب مسبقاً ولا يمكن إصدار كود تفعيل جديد',
-      });
-    }
-
-    const student = await this.prisma.studentProfile.findUnique({
-      where: { id: studentId },
-      select: { studentCode: true },
-    });
-
-    this.logger.log(`Issued new self-registration activation code for student [${studentId}]`);
-
-    return {
-      studentId,
-      studentCode: student?.studentCode || '',
-      registrationCode,
-    };
   }
 
   private async assertStudentAccess(
@@ -318,14 +244,13 @@ export class StudentsService {
         academicStatus: true,
         dateOfBirth: true,
         emergencyPhone: true,
-        accountClaimedAt: true,
         createdAt: true,
         updatedAt: true,
         user: { select: { id: true, fullName: true, phone: true, email: true, isActive: true } },
         parentLinks: {
           include: {
             parent: {
-              include: { user: { select: { id: true, fullName: true, phone: true } } },
+              include: { user: { select: { id: true, fullName: true, phone: true, isActive: true } } },
             },
           },
         },
@@ -431,6 +356,13 @@ export class StudentsService {
         groupEnrollments: {
           where: { status: GroupEnrollmentStatus.ACTIVE },
           include: { group: { select: { id: true, name: true } } },
+        },
+        parentLinks: {
+          include: {
+            parent: {
+              include: { user: { select: { id: true, fullName: true, phone: true, isActive: true } } },
+            },
+          },
         },
       },
     });

@@ -6,7 +6,7 @@ export { useAuth, normalizeAuthErrorMessage } from './hooks/useAuth';
 export { useParentAccess, normalizeParentAccessError } from './hooks/useParentAccess';
 export { useStudentRegistration, normalizeStudentRegistrationError } from './hooks/useStudentRegistration';
 export { useAuthStore } from './store/auth.store';
-export { loginUser, parentAccessUser, logoutUser, fetchCurrentUser, verifyStudentRegistration, registerStudentAccount } from './api/auth.api';
+export { loginUser, parentAccessUser, logoutUser, fetchCurrentUser, registerStudent } from './api/auth.api';
 export {
   setStoredTokens,
   getStoredAccessToken,
@@ -20,9 +20,10 @@ export type {
   AuthUser,
   LoginCredentials,
   ParentAccessCredentials,
-  StudentRegistrationVerification,
-  StudentVerificationResponse,
-  StudentAccountCredentials,
+  AcademicStage,
+  StudentRegistrationPayload,
+  StudentRegistrationCredentials,
+  StudentRegistrationResult,
   AuthTokensResponse,
   AuthState,
 } from './types/auth.types';

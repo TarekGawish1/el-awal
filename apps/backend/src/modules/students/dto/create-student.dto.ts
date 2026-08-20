@@ -26,15 +26,11 @@ export class CreateStudentDto {
   @IsString()
   email?: string;
 
-  @ApiPropertyOptional({
-    example: 'Password123!',
-    minLength: 6,
-    description: 'Omit to leave the student pending self-registration (an activation code is issued instead)',
-  })
-  @IsOptional()
+  @ApiProperty({ example: 'Password123!', minLength: 6 })
   @IsString()
+  @IsNotEmpty({ message: 'Password is required' })
   @MinLength(6, { message: 'Password must be at least 6 characters' })
-  password?: string;
+  password: string;
 
   @ApiProperty({ example: 'الصف الثالث الثانوي' })
   @IsString()

@@ -1,26 +1,19 @@
 'use client';
 
-import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { ApiError } from '@/lib/api/errors';
-import {
-  verifyStudentRegistration,
-  registerStudentAccount,
-} from '../api/auth.api';
+import { registerStudent } from '../api/auth.api';
 import { useAuthStore } from '../store/auth.store';
 import { getRoleLandingRoute } from '../utils/role-routing';
 import {
-  AuthTokensResponse,
-  StudentAccountCredentials,
-  StudentRegistrationVerification,
-  StudentVerificationResponse,
+  StudentRegistrationCredentials,
+  StudentRegistrationPayload,
+  StudentRegistrationResult,
 } from '../types/auth.types';
 
 /**
  * Normalizes student self-registration errors into localized Arabic messages.
- * Distinguishes the "already registered" outcome so the UI can offer the
- * login path without leaking it to callers that failed verification.
  */
 export function normalizeStudentRegistrationError(error: unknown): { message: string; code?: string } {
   if (error instanceof ApiError) {
@@ -28,27 +21,27 @@ export function normalizeStudentRegistrationError(error: unknown): { message: st
       return { message: error.details.map((detail) => detail.issue).join('، '), code: error.code };
     }
 
-    if (error.code === 'STUDENT_ALREADY_REGISTERED') {
+    if (error.code === 'PHONES_MUST_DIFFER') {
+      return { message: 'رقم هاتف ولي الأمر يجب أن يختلف عن رقم هاتف الطالب', code: error.code };
+    }
+
+    if (error.code === 'PHONE_ALREADY_REGISTERED') {
       return {
-        message: 'تم إنشاء حساب لهذا الطالب مسبقاً، يمكنك تسجيل الدخول مباشرة',
-        code: 'STUDENT_ALREADY_REGISTERED',
+        message: 'رقم هاتف الطالب مسجل بالفعل، يمكنك تسجيل الدخول مباشرة',
+        code: 'PHONE_ALREADY_REGISTERED',
       };
     }
 
-    if (error.statusCode === 401) {
-      return { message: 'بيانات التحقق غير صحيحة، يرجى مراجعة كود الطالب وكود التفعيل' };
+    if (error.code === 'PARENT_PHONE_CONFLICT') {
+      return { message: 'رقم هاتف ولي الأمر مسجل بحساب آخر، يرجى استخدام رقم مختلف', code: error.code };
     }
 
-    if (
-      error.code === 'PHONE_ALREADY_IN_USE' ||
-      error.code === 'EMAIL_ALREADY_IN_USE' ||
-      error.code === 'IDENTIFIER_ALREADY_IN_USE'
-    ) {
-      return { message: 'وسيلة تسجيل الدخول المدخلة مستخدمة بالفعل في حساب آخر', code: error.code };
+    if (error.code === 'IDENTIFIER_ALREADY_IN_USE') {
+      return { message: 'رقم الهاتف أو الكود مستخدم بالفعل، يرجى المحاولة مرة أخرى', code: error.code };
     }
 
-    if (error.code === 'IDENTIFIER_REQUIRED') {
-      return { message: 'يجب إدخال رقم هاتف أو بريد إلكتروني ليكون وسيلة تسجيل الدخول', code: error.code };
+    if (error.statusCode === 409) {
+      return { message: error.message || 'تعذر إنشاء الحساب، يرجى المحاولة مرة أخرى', code: error.code };
     }
 
     if (error.statusCode === 429) {
@@ -68,45 +61,41 @@ export function normalizeStudentRegistrationError(error: unknown): { message: st
 /**
  * Student Self-Registration Flow
  *
- * Step 1 (verify) confirms the existing student record against the one-time
- * activation code. Step 2 (register) claims the account; on success the
- * student is automatically authenticated and routed to their dashboard.
+ * A single registration call creates the student account, the parent account
+ * and the parent-student link server-side. On success the student is
+ * automatically authenticated (role STUDENT) and the one-time credentials are
+ * held in memory for display on the success screen.
  */
 export function useStudentRegistration() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const setSession = useAuthStore((state) => state.setSession);
 
-  const [verifiedStudent, setVerifiedStudent] = useState<StudentVerificationResponse | null>(null);
-
-  const verifyMutation = useMutation({
-    mutationFn: (credentials: StudentRegistrationVerification) => verifyStudentRegistration(credentials),
-    onSuccess: (data: StudentVerificationResponse) => {
-      setVerifiedStudent(data);
-    },
-  });
-
   const registerMutation = useMutation({
-    mutationFn: (credentials: StudentAccountCredentials) => registerStudentAccount(credentials),
-    onSuccess: (data: AuthTokensResponse) => {
-      setSession(data);
+    mutationFn: (payload: StudentRegistrationPayload) => registerStudent(payload),
+    onSuccess: (data: StudentRegistrationResult) => {
+      setSession({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        tokenType: data.tokenType,
+        expiresIn: data.expiresIn,
+        user: data.user,
+      });
       queryClient.clear();
     },
   });
 
-  const verifyError = verifyMutation.error ? normalizeStudentRegistrationError(verifyMutation.error) : null;
-  const registerError = registerMutation.error ? normalizeStudentRegistrationError(registerMutation.error) : null;
+  const error = registerMutation.error ? normalizeStudentRegistrationError(registerMutation.error) : null;
 
   return {
-    verifiedStudent,
-    isVerifying: verifyMutation.isPending,
-    verifyError,
-    verifyStudent: verifyMutation.mutate,
-    resetVerifyError: verifyMutation.reset,
+    credentials: registerMutation.isSuccess
+      ? (registerMutation.data as StudentRegistrationResult).credentials
+      : null,
     isRegistering: registerMutation.isPending,
     isRegistered: registerMutation.isSuccess,
-    registerError,
+    registerError: error,
     registerStudent: registerMutation.mutate,
+    resetError: registerMutation.reset,
     redirectToDashboard: () => {
       const session = useAuthStore.getState();
       if (session.isAuthenticated && session.user) {
@@ -114,11 +103,6 @@ export function useStudentRegistration() {
       } else {
         router.push('/login');
       }
-    },
-    resetFlow: () => {
-      verifyMutation.reset();
-      registerMutation.reset();
-      setVerifiedStudent(null);
     },
   };
 }
