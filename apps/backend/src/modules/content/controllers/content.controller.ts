@@ -30,7 +30,7 @@ import { UserRole, ContentType } from '@prisma/client';
 @ApiBearerAuth()
 @Controller('content')
 export class ContentController {
-  constructor(private readonly contentService: ContentService) {}
+  constructor(private readonly contentService: ContentService) { }
 
   @Post('upload-direct')
   @UseInterceptors(FileInterceptor('file'))

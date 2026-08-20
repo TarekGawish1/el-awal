@@ -24,7 +24,7 @@ export interface EducationalContent {
   mimeType?: string | null;
   createdAt: string;
   updatedAt: string;
-  
+
   group?: { id: string; name: string; gradeLevel?: string; academicYear?: string; academicTerm?: string } | null;
   session?: { id: string; topic?: string | null; sessionDate?: string; startTime?: string | null } | null;
   lesson?: { id: string; title: string } | null;

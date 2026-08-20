@@ -14,7 +14,7 @@ export class ContentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
-  ) {}
+  ) { }
 
   /**
    * Generates a presigned Cloudflare R2 / S3 direct upload URL with secure isolated file keys.
