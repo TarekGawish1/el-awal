@@ -55,7 +55,7 @@ const GRADE_COLOR_MAP: Record<string, { dot: string; text: string; bg: string }>
 
 export function TeacherSessionsCalendar() {
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
-  const [viewMode, setViewMode] = useState<CalendarViewMode>('weekly');
+  const [viewMode, setViewMode] = useState<CalendarViewMode>('daily');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>('ALL');
