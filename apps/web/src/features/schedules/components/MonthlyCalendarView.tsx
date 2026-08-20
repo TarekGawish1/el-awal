@@ -165,7 +165,7 @@ export function MonthlyCalendarView({
               </div>
 
               {/* Day Sessions Pills */}
-              <div className="space-y-1 overflow-y-auto max-h-[85px]">
+              <div className="space-y-1 overflow-y-auto overflow-x-hidden no-scrollbar max-h-[85px] w-full">
                 {daySessions.map((session) => {
                   const isCancelled = !!session.isCancelled;
                   const gradeTheme = getGradeLevelTheme(session.group?.gradeLevel, session.group?.name);
@@ -183,23 +183,23 @@ export function MonthlyCalendarView({
                         e.stopPropagation();
                         onSelectSession(session);
                       }}
-                      className={`px-2 py-1 rounded-lg border text-[10px] font-extrabold truncate cursor-pointer transition-all hover:scale-[1.02] shadow-2xs ${theme} ${
+                      className={`w-full max-w-full px-2 py-1 rounded-lg border text-[10px] font-extrabold truncate cursor-pointer transition-all hover:scale-[1.02] shadow-2xs overflow-hidden ${theme} ${
                         layoutInfo?.hasConflict ? 'ring-1 ring-amber-400' : ''
                       }`}
                       title={`${session.topic} (${session.startTime || ''})${
                         isCancelled ? ' - ملغاة' : layoutInfo?.hasConflict ? ' - تعارض في الموعد' : ''
                       }`}
                     >
-                      <span className="opacity-75 mr-1 font-semibold">
+                      <span className="opacity-75 mr-1 font-semibold whitespace-nowrap">
                         {formatArabicTime12H(session.startTime)}
                       </span>
-                      <span>{session.topic || 'حصة'}</span>
+                      <span className="truncate">{session.topic || 'حصة'}</span>
                       {isCancelled ? (
-                        <span className="mr-1 text-[9px] text-rose-700 font-black no-underline">
+                        <span className="mr-1 text-[9px] text-rose-700 font-black no-underline whitespace-nowrap">
                           (ملغاة)
                         </span>
                       ) : layoutInfo?.hasConflict ? (
-                        <span className="mr-1 text-[9px] text-amber-800 font-black">
+                        <span className="mr-1 text-[9px] text-amber-800 font-black whitespace-nowrap">
                           ⚠️
                         </span>
                       ) : null}
