@@ -12,6 +12,7 @@ import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
 import { AcademicStatus } from '../types/students.types';
 import { Search, RotateCcw, Users, Calendar, BookOpen, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Pagination } from '@/components/ui/Pagination';
 
 const STAGE_GRADES_MAP: Record<string, string[]> = {
   'المرحلة الابتدائية': [
@@ -272,6 +273,15 @@ export function StudentList() {
     });
   }, [data, searchTerm, selectedStages, selectedGrades, selectedGroups, selectedYears, selectedTerms, groupMap]);
 
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const PAGE_SIZE = 10;
+  const totalPages = Math.ceil(filteredStudents.length / PAGE_SIZE);
+
+  const paginatedStudents = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredStudents.slice(start, start + PAGE_SIZE);
+  }, [filteredStudents, currentPage]);
+
   const hasActiveFilters =
     searchTerm !== '' ||
     selectedStages.length > 0 ||
@@ -287,6 +297,7 @@ export function StudentList() {
     setSelectedGroups([]);
     setSelectedYears([]);
     setSelectedTerms([]);
+    setCurrentPage(1);
   };
 
   const getStatusColor = (status: AcademicStatus) => {
@@ -319,20 +330,6 @@ export function StudentList() {
     }
   };
 
-  const handleNextPage = () => {
-    if (data?.meta.hasMore && data?.meta.nextCursor) {
-      setCursor(data.meta.nextCursor);
-    }
-  };
-
-  const handlePrevPage = () => {
-    if (data?.meta.prevCursor) {
-      setCursor(data.meta.prevCursor);
-    } else {
-      setCursor(undefined);
-    }
-  };
-
   return (
     <div className="space-y-6">
       {/* Filters Toolbar */}
@@ -349,7 +346,10 @@ export function StudentList() {
               placeholder="ابحث بالاسم، رقم الهاتف أو الكود..."
               className="pr-10 h-10 text-xs sm:text-sm bg-slate-50/50 border border-slate-200 focus:border-primary-500 rounded-lg transition-all"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
             />
           </div>
 
@@ -360,7 +360,10 @@ export function StudentList() {
               allSelectedLabel="جميع الأعوام الدراسية"
               options={availableYears}
               selectedValues={selectedYears}
-              onChange={setSelectedYears}
+              onChange={(vals) => {
+                setSelectedYears(vals);
+                setCurrentPage(1);
+              }}
             />
           </div>
 
@@ -371,7 +374,10 @@ export function StudentList() {
               allSelectedLabel="جميع الفصول الدراسية"
               options={availableTerms}
               selectedValues={selectedTerms}
-              onChange={setSelectedTerms}
+              onChange={(vals) => {
+                setSelectedTerms(vals);
+                setCurrentPage(1);
+              }}
             />
           </div>
         </div>
@@ -389,7 +395,10 @@ export function StudentList() {
                 { label: 'المرحلة الثانوية', value: 'المرحلة الثانوية' },
               ]}
               selectedValues={selectedStages}
-              onChange={handleStagesChange}
+              onChange={(vals) => {
+                handleStagesChange(vals);
+                setCurrentPage(1);
+              }}
             />
           </div>
 
@@ -401,7 +410,10 @@ export function StudentList() {
               withSearch={availableGradeOptions.length > 5}
               options={availableGradeOptions}
               selectedValues={selectedGrades}
-              onChange={handleGradesChange}
+              onChange={(vals) => {
+                handleGradesChange(vals);
+                setCurrentPage(1);
+              }}
             />
           </div>
 
@@ -413,7 +425,10 @@ export function StudentList() {
               withSearch={true}
               options={availableGroupOptions}
               selectedValues={selectedGroups}
-              onChange={setSelectedGroups}
+              onChange={(vals) => {
+                setSelectedGroups(vals);
+                setCurrentPage(1);
+              }}
             />
           </div>
         </div>
@@ -489,7 +504,7 @@ export function StudentList() {
                   </td>
                 </tr>
               ) : (
-                filteredStudents.map((student) => (
+                paginatedStudents.map((student) => (
                   <tr key={student.id} className="hover:bg-slate-50/80 transition-colors duration-200">
                     <td className="px-6 py-4">
                       <Link href={`/teacher/students/${student.id}`} className="flex items-center gap-3 w-fit">
@@ -584,7 +599,7 @@ export function StudentList() {
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {filteredStudents.map((student) => (
+              {paginatedStudents.map((student) => (
                 <div key={student.id} className="p-4 space-y-3 hover:bg-slate-50/50 transition-colors">
                   <div className="flex items-start justify-between gap-3">
                     <Link href={`/teacher/students/${student.id}`} className="flex items-center gap-3 flex-1 min-w-0">
@@ -638,39 +653,16 @@ export function StudentList() {
         </div>
 
         {/* Pagination Controls */}
-        {data && (data.meta.hasMore || cursor || filteredStudents.length > 0) && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50" dir="rtl">
-            <div className="text-xs text-slate-500 font-medium">
-              <span>
-                عرض <strong className="text-slate-800 font-bold">{filteredStudents.length}</strong> طالب في هذه الصفحة
-                {data.meta.total ? ` من إجمالي ${data.meta.total} طالب` : ''}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePrevPage}
-                disabled={!cursor}
-                className="rounded-xl gap-1 text-xs font-bold bg-white"
-                title="الصفحة السابقة"
-              >
-                <ChevronRight className="w-4 h-4" />
-                <span>السابق</span>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleNextPage}
-                disabled={!data.meta.hasMore}
-                className="rounded-xl gap-1 text-xs font-bold bg-white"
-                title="الصفحة التالية"
-              >
-                <span>التالي</span>
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-            </div>
+        {totalPages > 1 && (
+          <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredStudents.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setCurrentPage}
+              itemLabel="طالب"
+            />
           </div>
         )}
       </div>

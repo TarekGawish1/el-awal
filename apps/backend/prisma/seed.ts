@@ -35,15 +35,28 @@ const prisma = new PrismaClient({
     : undefined,
 });
 
-async function main() {
-  console.log('🌱 Starting Comprehensive El Awal Database Seeding...');
+/**
+ * Returns a normalized Date object for a specific dayOfWeek and weeks offset.
+ * dayOfWeek: 0 = Sunday, 1 = Monday, 2 = Tuesday, 3 = Wednesday, 4 = Thursday, 5 = Friday, 6 = Saturday
+ */
+function getSpecificDayDate(targetDayOfWeek: number, weeksOffset: number = 0): Date {
+  const now = new Date();
+  const currentDayOfWeek = now.getDay();
+  const diff = targetDayOfWeek - currentDayOfWeek + weeksOffset * 7;
+  const date = new Date(now);
+  date.setDate(now.getDate() + diff);
+  date.setHours(12, 0, 0, 0); // normalize
+  return date;
+}
 
-  // 1. Password Hash for demo accounts (Default: Password123!)
+async function main() {
+  console.log('🌱 Starting Comprehensive Non-Conflicting Database Seeding for El-Awal Platform...');
+
   const rawPassword = process.env.SEED_DEMO_PASSWORD || 'Password123!';
   const passwordHash = await bcrypt.hash(rawPassword, 10);
 
-  // 2. Clean slate for idempotency: Remove existing test/seed data safely in topological order
-  console.log('🧹 Cleaning existing data for clean re-seeding...');
+  // 1. Clean slate: Delete all tables in topological order
+  console.log('🧹 Clearing all existing data from database...');
   await prisma.studentAnswer.deleteMany({});
   await prisma.assessmentSubmission.deleteMany({});
   await prisma.assessmentQuestion.deleteMany({});
@@ -72,10 +85,10 @@ async function main() {
   await prisma.teacherProfile.deleteMany({});
   await prisma.user.deleteMany({});
 
-  console.log('✨ Database cleared.');
+  console.log('✨ All database tables cleared.');
 
   // ==============================================================================
-  // 3. SEED TEACHER ACCOUNT
+  // 2. SEED TEACHER & STAFF
   // ==============================================================================
   const teacherUser = await prisma.user.create({
     data: {
@@ -88,7 +101,7 @@ async function main() {
       teacherProfile: {
         create: {
           specialty: 'اللغة العربية والبلاغة للثانوية العامة',
-          bio: 'معلم أول اللغة العربية للثانوية العامة بخبرة أكثر من 15 عاماً ومعد كبرى سلاسل كتب المراجعات النهائية.',
+          bio: 'معلم أول ومعد سلسلة الأوائل في اللغة العربية بخبرة تتجاوز 15 عاماً في تدريس الثانوية العامة والشهادات الإعدادية.',
           activeAcademicYear: '2026-2027',
           activeAcademicTerm: 'FIRST_TERM',
         },
@@ -96,11 +109,7 @@ async function main() {
     },
     include: { teacherProfile: true },
   });
-  console.log(`✅ Teacher created: ${teacherUser.fullName} (${teacherUser.email})`);
 
-  // ==============================================================================
-  // 4. SEED SECRETARIAT / ADMIN STAFF ACCOUNT
-  // ==============================================================================
   const staffUser = await prisma.user.create({
     data: {
       fullName: 'سارة إبراهيم',
@@ -115,179 +124,201 @@ async function main() {
         },
       },
     },
-    include: { secretariatProfile: true },
   });
-  console.log(`✅ Secretariat staff created: ${staffUser.fullName} (${staffUser.email})`);
+
+  console.log(`✅ Teacher (${teacherUser.email}) and Staff (${staffUser.email}) created.`);
 
   // ==============================================================================
-  // 5. SEED ACADEMIC GROUPS & WEEKLY SCHEDULES
+  // 3. SEED ACADEMIC GROUPS (100% NON-CONFLICTING WEEKLY SCHEDULES)
   // ==============================================================================
-  const group1 = await prisma.academicGroup.create({
-    data: {
-      name: 'الصف الثالث الثانوي - مجموعة أ (الأحد والأربعاء)',
+  const groupsData = [
+    {
+      name: 'الصف الثالث الثانوي - مجموعة العباقرة',
       gradeLevel: 'الصف الثالث الثانوي',
       academicYear: '2026-2027',
       academicTerm: 'FIRST_TERM',
-      description: 'مجموعة المراجعة المكثفة وتدريبات النحو المتقدم وشواهد البلاغة',
+      description: 'مجموعة المراجعة المكثفة وتدريبات النحو المتقدم وشواهد البلاغة والنصوص المتحررة',
+      maxCapacity: 50,
+      monthlyFee: 500.0,
+      schedules: [
+        { dayOfWeek: 6, startTime: '17:00', endTime: '19:00', location: 'قاعة النخبة 1' }, // Sat 17:00
+        { dayOfWeek: 2, startTime: '17:00', endTime: '19:00', location: 'قاعة النخبة 1' }, // Tue 17:00
+      ],
+    },
+    {
+      name: 'الصف الثالث الثانوي - مجموعة التفوق',
+      gradeLevel: 'الصف الثالث الثانوي',
+      academicYear: '2026-2027',
+      academicTerm: 'FIRST_TERM',
+      description: 'مجموعة الشرح التفاعلي لقواعد النحو وفنون الأدب وتطبيقات القراءة المتحررة',
       maxCapacity: 45,
-      monthlyFee: 500.00,
-      teacherId: teacherUser.id,
-      isActive: true,
-      schedules: {
-        create: [
-          { dayOfWeek: 0, startTime: '17:00', endTime: '19:00', location: 'قاعة النخبة 1' },
-          { dayOfWeek: 3, startTime: '17:00', endTime: '19:00', location: 'قاعة النخبة 1' },
-        ],
-      },
+      monthlyFee: 500.0,
+      schedules: [
+        { dayOfWeek: 0, startTime: '17:00', endTime: '19:00', location: 'قاعة الأمل 2' }, // Sun 17:00
+        { dayOfWeek: 3, startTime: '17:00', endTime: '19:00', location: 'قاعة الأمل 2' }, // Wed 17:00
+      ],
     },
-  });
-
-  const group2 = await prisma.academicGroup.create({
-    data: {
-      name: 'الصف الثالث الثانوي - مجموعة ب (السبت والثلاثاء)',
-      gradeLevel: 'الصف الثالث الثانوي',
+    {
+      name: 'الصف الثاني الثانوي - مجموعة الإبداع',
+      gradeLevel: 'الصف الثاني الثانوي',
       academicYear: '2026-2027',
       academicTerm: 'FIRST_TERM',
-      description: 'مجموعة التأسيس والشرح التفاعلي لقواعد النحو وفنون الأدب',
+      description: 'مجموعة شرح المنهج وبناء التفكير النقدي وتطبيقات البلاغة التأسيسية',
       maxCapacity: 40,
-      monthlyFee: 500.00,
-      teacherId: teacherUser.id,
-      isActive: true,
-      schedules: {
-        create: [
-          { dayOfWeek: 6, startTime: '15:00', endTime: '17:00', location: 'قاعة الأمل 2' },
-          { dayOfWeek: 2, startTime: '15:00', endTime: '17:00', location: 'قاعة الأمل 2' },
-        ],
-      },
+      monthlyFee: 400.0,
+      schedules: [
+        { dayOfWeek: 1, startTime: '17:00', endTime: '19:00', location: 'قاعة 3' }, // Mon 17:00
+        { dayOfWeek: 4, startTime: '17:00', endTime: '19:00', location: 'قاعة 3' }, // Thu 17:00
+      ],
     },
-  });
-
-  const group3 = await prisma.academicGroup.create({
-    data: {
-      name: 'الصف الثاني الثانوي - مجموعة التفوق (الإثنين والخميس)',
-      gradeLevel: 'الصف الثاني الثانوي',
+    {
+      name: 'الصف الأول الثانوي - مجموعة التأسيس',
+      gradeLevel: 'الصف الأول الثانوي',
       academicYear: '2026-2027',
       academicTerm: 'FIRST_TERM',
-      description: 'مجموعة شرح المنهج وبناء التفكير النقدي وتطبيقات القراءة المتحررة',
+      description: 'تأسيس شامل في قواعد الإعراب والصور البيانية والانتقال للمرحلة الثانوية',
       maxCapacity: 35,
-      monthlyFee: 400.00,
-      teacherId: teacherUser.id,
-      isActive: true,
-      schedules: {
-        create: [
-          { dayOfWeek: 1, startTime: '16:00', endTime: '18:00', location: 'قاعة 3' },
-          { dayOfWeek: 4, startTime: '16:00', endTime: '18:00', location: 'قاعة 3' },
-        ],
-      },
-    },
-  });
-
-  console.log(`✅ 3 Academic Groups created: [${group1.name}], [${group2.name}], [${group3.name}]`);
-
-  // ==============================================================================
-  // 6. SEED DEMO STUDENTS & PARENTS
-  // ==============================================================================
-  const studentsData = [
-    {
-      fullName: 'محمود أحمد علي',
-      phone: '+201011111111',
-      email: 'mahmoud@student.elawal.com',
-      studentCode: 'STU-2026-0001',
-      qrCodeToken: 'qr_tok_demo_student_0001',
-      gradeLevel: 'الصف الثالث الثانوي',
-      academicStage: 'المرحلة الثانوية',
-      groupId: group1.id,
-      parentName: 'أحمد علي إبراهيم',
-      parentPhone: '+201099999991',
-      parentEmail: 'parent1@elawal.com',
+      monthlyFee: 350.0,
+      schedules: [
+        { dayOfWeek: 6, startTime: '14:00', endTime: '16:00', location: 'قاعة 1' }, // Sat 14:00
+        { dayOfWeek: 2, startTime: '14:00', endTime: '16:00', location: 'قاعة 1' }, // Tue 14:00
+      ],
     },
     {
-      fullName: 'عمر خالد محمود',
-      phone: '+201011111112',
-      email: 'omar@student.elawal.com',
-      studentCode: 'STU-2026-0002',
-      qrCodeToken: 'qr_tok_demo_student_0002',
-      gradeLevel: 'الصف الثالث الثانوي',
-      academicStage: 'المرحلة الثانوية',
-      groupId: group1.id,
-      parentName: 'خالد محمود حسن',
-      parentPhone: '+201099999992',
-      parentEmail: 'parent2@elawal.com',
+      name: 'الصف الثالث الإعدادي - مجموعة الأوائل',
+      gradeLevel: 'الصف الثالث الإعدادي',
+      academicYear: '2026-2027',
+      academicTerm: 'FIRST_TERM',
+      description: 'كورس الشهادة الإعدادية لضمان الدرجة النهائية في اللغة العربية',
+      maxCapacity: 40,
+      monthlyFee: 300.0,
+      schedules: [
+        { dayOfWeek: 0, startTime: '14:00', endTime: '16:00', location: 'قاعة الفرسان' }, // Sun 14:00
+        { dayOfWeek: 3, startTime: '14:00', endTime: '16:00', location: 'قاعة الفرسان' }, // Wed 14:00
+      ],
     },
     {
-      fullName: 'فاطمة محمد السيد',
-      phone: '+201011111113',
-      email: 'fatma@student.elawal.com',
-      studentCode: 'STU-2026-0003',
-      qrCodeToken: 'qr_tok_demo_student_0003',
-      gradeLevel: 'الصف الثالث الثانوي',
-      academicStage: 'المرحلة الثانوية',
-      groupId: group1.id,
-      parentName: 'محمد السيد عبد العزيز',
-      parentPhone: '+201099999993',
-      parentEmail: 'parent3@elawal.com',
+      name: 'الصف الثاني الإعدادي - مجموعة الرواد',
+      gradeLevel: 'الصف الثاني الإعدادي',
+      academicYear: '2026-2027',
+      academicTerm: 'FIRST_TERM',
+      description: 'شرح النحو والنصوص وقصة كفاح شعب مصر وحل بنوك الأسئلة',
+      maxCapacity: 30,
+      monthlyFee: 280.0,
+      schedules: [
+        { dayOfWeek: 1, startTime: '14:00', endTime: '16:00', location: 'قاعة 4' }, // Mon 14:00
+        { dayOfWeek: 4, startTime: '14:00', endTime: '16:00', location: 'قاعة 4' }, // Thu 14:00
+      ],
     },
     {
-      fullName: 'يوسف حسن مصطفى',
-      phone: '+201011111114',
-      email: 'youssef@student.elawal.com',
-      studentCode: 'STU-2026-0004',
-      qrCodeToken: 'qr_tok_demo_student_0004',
-      gradeLevel: 'الصف الثاني الثانوي',
-      academicStage: 'المرحلة الثانوية',
-      groupId: group3.id,
-      parentName: 'حسن مصطفى كامل',
-      parentPhone: '+201099999994',
-      parentEmail: 'parent4@elawal.com',
+      name: 'الصف الأول الإعدادي - مجموعة البراعم',
+      gradeLevel: 'الصف الأول الإعدادي',
+      academicYear: '2026-2027',
+      academicTerm: 'FIRST_TERM',
+      description: 'شرح مبسط لقواعد النحو وهمزات الوصل والقطع وتدريبات القراءة',
+      maxCapacity: 30,
+      monthlyFee: 250.0,
+      schedules: [
+        { dayOfWeek: 0, startTime: '11:00', endTime: '13:00', location: 'قاعة 2' }, // Sun 11:00
+        { dayOfWeek: 5, startTime: '14:00', endTime: '16:00', location: 'قاعة 2' }, // Fri 14:00
+      ],
     },
     {
-      fullName: 'مريم إبراهيم عبد الله',
-      phone: '+201011111115',
-      email: 'mariam@student.elawal.com',
-      studentCode: 'STU-2026-0005',
-      qrCodeToken: 'qr_tok_demo_student_0005',
-      gradeLevel: 'الصف الثاني الثانوي',
-      academicStage: 'المرحلة الثانوية',
-      groupId: group3.id,
-      parentName: 'إبراهيم عبد الله خليل',
-      parentPhone: '+201099999995',
-      parentEmail: 'parent5@elawal.com',
-    },
-    {
-      fullName: 'زياد طارق محمد',
-      phone: '+201011111116',
-      email: 'ziad@student.elawal.com',
-      studentCode: 'STU-2026-0006',
-      qrCodeToken: 'qr_tok_demo_student_0006',
-      gradeLevel: 'الصف الثالث الثانوي',
-      academicStage: 'المرحلة الثانوية',
-      groupId: group2.id,
-      parentName: 'طارق محمد نصر',
-      parentPhone: '+201099999996',
-      parentEmail: 'parent6@elawal.com',
+      name: 'الصف السادس الابتدائي - مجموعة التميز',
+      gradeLevel: 'الصف السادس الابتدائي',
+      academicYear: '2026-2027',
+      academicTerm: 'FIRST_TERM',
+      description: 'المنهج المطور الجديد وتأسيس النحو والإملاء والتعبير الكتابي',
+      maxCapacity: 30,
+      monthlyFee: 220.0,
+      schedules: [
+        { dayOfWeek: 6, startTime: '11:00', endTime: '13:00', location: 'قاعة النور' }, // Sat 11:00
+        { dayOfWeek: 5, startTime: '10:00', endTime: '12:00', location: 'قاعة النور' }, // Fri 10:00
+      ],
     },
   ];
 
-  const createdStudents = [];
+  const createdGroups = [];
+  for (const g of groupsData) {
+    const group = await prisma.academicGroup.create({
+      data: {
+        name: g.name,
+        gradeLevel: g.gradeLevel,
+        academicYear: g.academicYear,
+        academicTerm: g.academicTerm,
+        description: g.description,
+        maxCapacity: g.maxCapacity,
+        monthlyFee: g.monthlyFee,
+        teacherId: teacherUser.id,
+        isActive: true,
+        schedules: {
+          create: g.schedules,
+        },
+      },
+      include: {
+        schedules: true,
+      },
+    });
+    createdGroups.push(group);
+  }
+  console.log(`✅ Created ${createdGroups.length} Academic Groups with zero overlapping weekly schedules.`);
 
-  for (const s of studentsData) {
+  // ==============================================================================
+  // 4. SEED 50 REALISTIC ARABIC STUDENTS & PARENTS
+  // ==============================================================================
+  const arabicFirstNames = [
+    'محمود', 'عمر', 'فاطمة', 'يوسف', 'مريم', 'زياد', 'أحمد', 'سارة', 'كريم', 'نور',
+    'علي', 'خديجة', 'إبراهيم', 'سلمى', 'حسن', 'آية', 'مصطفى', 'هنا', 'حمزة', 'ملك',
+    'طارق', 'ياسمين', 'خالد', 'رنا', 'عبد الرحمن', 'شهد', 'يحيى', 'حبيبة', 'محمد', 'جنى',
+    'آدم', 'فريدة', 'بلال', 'بسملة', 'حازم', 'ندى', 'سيف', 'روان', 'عصام', 'إسراء',
+    'عمرو', 'منة الله', 'سامح', 'ريتاج', 'مازن', 'أروى', 'أنس', 'هاجر', 'وائل', 'ليلى'
+  ];
+
+  const arabicFamilyNames = [
+    'أحمد علي', 'خالد محمود', 'محمد السيد', 'حسن مصطفى', 'إبراهيم عبد الله', 'طارق نصر',
+    'سعيد عبد العزيز', 'فاروق إمام', 'رضا الشافعي', 'عثمان البدري', 'جمال عبد الناصر',
+    'فتحي الصاوي', 'صلاح الدين', 'عادل هلال', 'شريف القاضي', 'حسين التهامي', 'ياسر رضوان',
+    'شوقي عبد الفتاح', 'عفيفي النجار', 'المهدي غانم', 'مختار سويلم', 'زكريا القوصي'
+  ];
+
+  const createdStudents: any[] = [];
+
+  for (let i = 0; i < 50; i++) {
+    const firstName = arabicFirstNames[i % arabicFirstNames.length];
+    const familyName = arabicFamilyNames[i % arabicFamilyNames.length];
+    const fullName = `${firstName} ${familyName}`;
+    const studentCode = `STU-2026-${String(i + 1).padStart(4, '0')}`;
+    const qrCodeToken = `qr_tok_student_${String(i + 1).padStart(4, '0')}`;
+    
+    // Distribute students evenly across the 8 groups
+    const group = createdGroups[i % createdGroups.length];
+    const email = i === 0 ? 'mahmoud@student.elawal.com' : i === 1 ? 'omar@student.elawal.com' : `student${i + 1}@elawal.com`;
+    const phone = `+2010${String(10000000 + i).slice(0, 8)}`;
+    const parentPhone = `+2012${String(20000000 + i).slice(0, 8)}`;
+    const parentEmail = `parent${i + 1}@elawal.com`;
+    const parentName = `ولي أمر ${firstName}`;
+
     // 1. Create Student User & Profile
     const studentUser = await prisma.user.create({
       data: {
-        fullName: s.fullName,
-        phone: s.phone,
-        email: s.email,
+        fullName,
+        phone,
+        email,
         passwordHash,
         role: UserRole.STUDENT,
         isActive: true,
         studentProfile: {
           create: {
-            studentCode: s.studentCode,
-            qrCodeToken: s.qrCodeToken,
-            gradeLevel: s.gradeLevel,
-            academicStage: s.academicStage,
+            studentCode,
+            qrCodeToken,
+            gradeLevel: group.gradeLevel,
+            academicStage: group.gradeLevel.includes('الثانوي')
+              ? 'المرحلة الثانوية'
+              : group.gradeLevel.includes('الإعدادي')
+              ? 'المرحلة الإعدادية'
+              : 'المرحلة الابتدائية',
             academicStatus: StudentAcademicStatus.ACTIVE,
-            emergencyPhone: s.parentPhone,
+            emergencyPhone: parentPhone,
           },
         },
       },
@@ -297,19 +328,18 @@ async function main() {
     // 2. Create Parent User & Profile
     const parentUser = await prisma.user.create({
       data: {
-        fullName: s.parentName,
-        phone: s.parentPhone,
-        email: s.parentEmail,
+        fullName: parentName,
+        phone: parentPhone,
+        email: parentEmail,
         passwordHash,
         role: UserRole.PARENT,
         isActive: true,
         parentProfile: {
           create: {
-            relationshipType: 'ولي أمر (أب)',
+            relationshipType: i % 3 === 0 ? 'ولي أمر (أم)' : 'ولي أمر (أب)',
           },
         },
       },
-      include: { parentProfile: true },
     });
 
     // 3. Link Parent to Student
@@ -323,531 +353,447 @@ async function main() {
     // 4. Enroll Student in Group
     await prisma.groupEnrollment.create({
       data: {
-        groupId: s.groupId,
+        groupId: group.id,
         studentId: studentUser.id,
         status: GroupEnrollmentStatus.ACTIVE,
       },
     });
 
-    createdStudents.push({ user: studentUser, profile: studentUser.studentProfile!, groupId: s.groupId });
-    console.log(`✅ Onboarded Student: [${s.studentCode}] ${s.fullName} with Linked Parent (${s.parentName})`);
+    createdStudents.push({ user: studentUser, profile: studentUser.studentProfile!, groupId: group.id, group });
   }
+  console.log(`✅ Onboarded ${createdStudents.length} Students with linked Parents and Group Enrollments.`);
 
   // ==============================================================================
-  // 7. SEED PHYSICAL LESSON SESSIONS & ATTENDANCE RECORDS
+  // 5. SEED 32 CLEAN LESSON SESSIONS (EXACT SCHEDULE DAYS & START TIMES)
   // ==============================================================================
-  const pastDate1 = new Date();
-  pastDate1.setDate(pastDate1.getDate() - 7);
+  const sessionTopics = [
+    'همزة القطع وألف الوصل والمصادر الخماسية والسداسية',
+    'فنون التشبيه: المفرد، التمثيلي، والضمني مع الشواهد الشعرية',
+    'الاستعارة المكنية والتصريحية وأسرار الجمال البلاغي',
+    'المشتقات العاملة: اسم الفاعل، صيغ المبالغة، واسم المفعول',
+    'المصادر الصريحة والمؤول واسم المرة واسم الهيئة',
+    'المحسنات البديعية: الطباق، الجناس، السجع، وحسن التقسيم',
+    'الأدب: مدرسة الإحياء والبعث وجيل التطوير وتطبيقاتها',
+    'قواعد إعراب الأفعال الخمسة والمضارع المجزوم في جواب الطلب',
+    'النصوص المتحررة واستراتيجيات استنباط الفكرة الرئيسة والمغزى الضمني',
+    'تدريبات بنك المعرفة ونماذج الامتحانات الشاملة'
+  ];
 
-  const session1 = await prisma.lessonSession.create({
-    data: {
-      groupId: group1.id,
-      sessionDate: pastDate1,
-      startTime: '17:00',
-      topic: 'الوحدة الأولى: همزة القطع وألف الوصل والمصادر الخماسية والسداسية',
-      attendanceRecords: {
-        create: [
-          {
-            studentId: createdStudents[0].user.id,
-            status: AttendanceStatus.PRESENT,
-            recordingMethod: RecordingMethod.QR_SCAN,
-            recordedById: teacherUser.id,
-          },
-          {
-            studentId: createdStudents[1].user.id,
-            status: AttendanceStatus.PRESENT,
-            recordingMethod: RecordingMethod.QR_SCAN,
-            recordedById: teacherUser.id,
-          },
-          {
-            studentId: createdStudents[2].user.id,
-            status: AttendanceStatus.EXCUSED,
-            recordingMethod: RecordingMethod.MANUAL,
-            recordedById: staffUser.id,
-            notes: 'إذن مسبق بسبب ظرف طارئ',
-          },
-        ],
-      },
-    },
-  });
+  const createdSessions: any[] = [];
 
-  const pastDate2 = new Date();
-  pastDate2.setDate(pastDate2.getDate() - 3);
+  for (let gIndex = 0; gIndex < createdGroups.length; gIndex++) {
+    const group = createdGroups[gIndex];
+    const groupStudents = createdStudents.filter((s) => s.groupId === group.id);
+    const schedules = group.schedules; // 2 weekly schedules per group
 
-  const session2 = await prisma.lessonSession.create({
-    data: {
-      groupId: group1.id,
-      sessionDate: pastDate2,
-      startTime: '17:00',
-      topic: 'البلاغة: علم البيان - التشبيه المفرد والتمثيلي والضمني',
-      attendanceRecords: {
-        create: [
-          {
-            studentId: createdStudents[0].user.id,
-            status: AttendanceStatus.PRESENT,
-            recordingMethod: RecordingMethod.QR_SCAN,
-            recordedById: teacherUser.id,
-          },
-          {
-            studentId: createdStudents[1].user.id,
-            status: AttendanceStatus.PRESENT,
-            recordingMethod: RecordingMethod.QR_SCAN,
-            recordedById: teacherUser.id,
-          },
-          {
-            studentId: createdStudents[2].user.id,
-            status: AttendanceStatus.PRESENT,
-            recordingMethod: RecordingMethod.QR_SCAN,
-            recordedById: teacherUser.id,
-          },
-        ],
-      },
-    },
-  });
+    // We will generate 4 sessions per group matching its exact schedule days and times:
+    // Session 1: Schedule 0, 2 weeks ago
+    // Session 2: Schedule 1, 1 week ago
+    // Session 3: Schedule 0, Current week
+    // Session 4: Schedule 1, Current/Upcoming week
+    const sessionPlan = [
+      { sched: schedules[0], weeksOffset: -2, topicIdx: (gIndex * 4) % sessionTopics.length },
+      { sched: schedules[1], weeksOffset: -1, topicIdx: (gIndex * 4 + 1) % sessionTopics.length },
+      { sched: schedules[0], weeksOffset: 0, topicIdx: (gIndex * 4 + 2) % sessionTopics.length },
+      { sched: schedules[1], weeksOffset: 0, topicIdx: (gIndex * 4 + 3) % sessionTopics.length },
+    ];
 
-  const todaySession = await prisma.lessonSession.create({
-    data: {
-      groupId: group1.id,
-      sessionDate: new Date(),
-      startTime: '17:00',
-      topic: 'تطبيقات النحو الشاملة والتدريب على نماذج الامتحانات الوزارية',
-      attendanceRecords: {
-        create: [
-          {
-            studentId: createdStudents[0].user.id,
-            status: AttendanceStatus.PRESENT,
-            recordingMethod: RecordingMethod.QR_SCAN,
-            recordedById: teacherUser.id,
-          },
-        ],
-      },
-    },
-  });
+    for (const plan of sessionPlan) {
+      const sessionDate = getSpecificDayDate(plan.sched.dayOfWeek, plan.weeksOffset);
+      const topic = `${sessionTopics[plan.topicIdx]} - ${group.name.split(' - ')[0]}`;
 
-  console.log(`✅ Lesson Sessions & Attendance generated (Past & Today: [${todaySession.id}])`);
+      const session = await prisma.lessonSession.create({
+        data: {
+          groupId: group.id,
+          sessionDate,
+          startTime: plan.sched.startTime,
+          topic,
+        },
+      });
+
+      createdSessions.push(session);
+
+      // Create attendance records for each student in the group
+      for (const student of groupStudents) {
+        const rand = Math.random();
+        const status =
+          rand > 0.15
+            ? AttendanceStatus.PRESENT
+            : rand > 0.07
+            ? AttendanceStatus.ABSENT
+            : AttendanceStatus.EXCUSED;
+
+        await prisma.attendanceRecord.create({
+          data: {
+            sessionId: session.id,
+            studentId: student.user.id,
+            status,
+            recordingMethod: rand > 0.5 ? RecordingMethod.QR_SCAN : RecordingMethod.MANUAL,
+            recordedById: teacherUser.id,
+            notes: status === AttendanceStatus.EXCUSED ? 'إذن مسبق من ولي الأمر' : undefined,
+          },
+        });
+      }
+    }
+  }
+  console.log(`✅ Seeded ${createdSessions.length} Non-Conflicting Lesson Sessions with complete Attendance Logs.`);
 
   // ==============================================================================
-  // 8. SEED TUITION PAYMENT RECORDS (FINANCE)
+  // 6. SEED 100 TUITION PAYMENT & FINANCE RECORDS
   // ==============================================================================
   const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth() + 1; // 1-12
+  const currentMonth = new Date().getMonth() + 1;
+  const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+  const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
 
-  // Paid tuition
-  await prisma.studentPaymentRecord.create({
-    data: {
-      studentId: createdStudents[0].user.id,
-      groupId: group1.id,
-      periodYear: currentYear,
-      periodMonth: currentMonth,
-      amountExpected: 500.00,
-      amountPaid: 500.00,
-      paymentStatus: PaymentStatus.PAID,
-      paymentMethod: 'CASH',
-      receiptNumber: `REC-${currentYear}${currentMonth}-001`,
-      recordedById: staffUser.id,
-      notes: 'تم سداد المصروفات بالكامل نقداً في السنتر واستلام الإيصال',
-    },
-  });
-
-  await prisma.studentPaymentRecord.create({
-    data: {
-      studentId: createdStudents[1].user.id,
-      groupId: group1.id,
-      periodYear: currentYear,
-      periodMonth: currentMonth,
-      amountExpected: 500.00,
-      amountPaid: 500.00,
-      paymentStatus: PaymentStatus.PAID,
-      paymentMethod: 'CASH',
-      receiptNumber: `REC-${currentYear}${currentMonth}-002`,
-      recordedById: staffUser.id,
-      notes: 'تم السداد بواسطة ولي الأمر',
-    },
-  });
-
-  // Pending / Unpaid tuition
-  await prisma.studentPaymentRecord.create({
-    data: {
-      studentId: createdStudents[2].user.id,
-      groupId: group1.id,
-      periodYear: currentYear,
-      periodMonth: currentMonth,
-      amountExpected: 500.00,
-      amountPaid: 0.00,
-      paymentStatus: PaymentStatus.PENDING,
-      paymentMethod: 'CASH',
-      recordedById: staffUser.id,
-      notes: 'مستحق السداد خلال الأسبوع الأول من الشهر',
-    },
-  });
-
-  console.log(`✅ Student Tuition Fee Records created (Paid & Pending).`);
-
-  // ==============================================================================
-  // 9. SEED EDUCATIONAL CONTENT (PDFs & Summaries)
-  // ==============================================================================
-  const content1 = await prisma.educationalContent.create({
-    data: {
-      teacherId: teacherUser.id,
-      groupId: group1.id,
-      title: 'مذكرة القواعد النحوية - الوحدة الأولى (همزتا الوصل والقطع)',
-      description: 'ملخص شامل لقواعد الوحدة الأولى مع شواهد إعرابية وتدريبات تطبيقية مجابة.',
-      contentType: ContentType.SUMMARY,
-      fileKey: 'materials/arabic-unit1-summary.pdf',
-      fileUrl: 'https://assets.elawal.com/materials/arabic-unit1-summary.pdf',
-      fileSize: BigInt(2450000),
-      mimeType: 'application/pdf',
-      gradeLevel: 'الصف الثالث الثانوي',
-      academicYear: '2026-2027',
-      academicTerm: 'FIRST_TERM',
-      sessionId: session1.id,
-      sessionTopic: session1.topic,
-    },
-  });
-
-  const content2 = await prisma.educationalContent.create({
-    data: {
-      teacherId: teacherUser.id,
-      groupId: group1.id,
-      title: 'شيت واجب البلاغة - فنون التشبيه والاستعارة',
-      description: 'أسئلة بنك المعرفة وتدريبات تفاعلية على الصورة البيانية الممتدة والمركبة.',
-      contentType: ContentType.FILE,
-      fileKey: 'materials/rhetoric-assignment-sheet.pdf',
-      fileUrl: 'https://assets.elawal.com/materials/rhetoric-assignment-sheet.pdf',
-      fileSize: BigInt(1890000),
-      mimeType: 'application/pdf',
-      gradeLevel: 'الصف الثالث الثانوي',
-      academicYear: '2026-2027',
-      academicTerm: 'FIRST_TERM',
-      sessionId: session2.id,
-      sessionTopic: session2.topic,
-    },
-  });
-
-  console.log(`✅ Educational Content Library materials seeded: [${content1.title}], [${content2.title}]`);
-
-  // ==============================================================================
-  // 10. SEED ONLINE COURSE WITH MODULES & LESSONS (E-LEARNING)
-  // ==============================================================================
-  const course = await prisma.course.create({
-    data: {
-      teacherId: teacherUser.id,
-      title: 'دورة البلاغة والتذوق الأدبي للثانوية العامة 2027',
-      description: 'كورس إلكتروني مكثف يغطي علم البيان والبديع والمعاني مع حل مئات النماذج الوزارية.',
-      subject: 'اللغة العربية',
-      gradeLevel: 'الصف الثالث الثانوي',
-      academicStage: 'المرحلة الثانوية',
-      price: 350.00,
-      coverImageUrl: 'https://assets.elawal.com/covers/rhetoric-course.jpg',
-      status: CourseStatus.PUBLISHED,
-      orderIndex: 1,
-      modules: {
-        create: [
-          {
-            title: 'الفصل الأول: مدخل إلى علم البيان والتصوير الفني',
-            orderIndex: 1,
-            description: 'دراسة مفصلة للتشبيه وأنواعه والاستعارة التصريحية والمكنية',
-            lessons: {
-              create: [
-                {
-                  title: 'الدرس الأول: أركان التشبيه وسر جماله',
-                  orderIndex: 1,
-                  lessonType: 'VIDEO',
-                  bunnyVideoId: 'bunny-vid-001',
-                  videoDurationSeconds: 1850,
-                  isPreview: true,
-                },
-                {
-                  title: 'الدرس الثاني: الاستعارة المكنية والتصريحية وأمثلة من القرآن الكريم',
-                  orderIndex: 2,
-                  lessonType: 'VIDEO',
-                  bunnyVideoId: 'bunny-vid-002',
-                  videoDurationSeconds: 2400,
-                  isPreview: false,
-                },
-              ],
-            },
-          },
-          {
-            title: 'الفصل الثاني: علم البديع والمحسنات اللفظية والمعنوية',
-            orderIndex: 2,
-            description: 'الطباق والمقابلة والجناس وحسن التقسيم والسجع والتورية',
-            lessons: {
-              create: [
-                {
-                  title: 'الدرس الأول: المحسنات المعنوية (الطباق والمقابلة والتورية)',
-                  orderIndex: 1,
-                  lessonType: 'VIDEO',
-                  bunnyVideoId: 'bunny-vid-003',
-                  videoDurationSeconds: 1980,
-                  isPreview: false,
-                },
-              ],
-            },
-          },
-        ],
+  let paymentCount = 0;
+  for (const student of createdStudents) {
+    // 1. Previous month payment (Most paid)
+    await prisma.studentPaymentRecord.create({
+      data: {
+        studentId: student.user.id,
+        groupId: student.groupId,
+        periodYear: prevYear,
+        periodMonth: prevMonth,
+        amountExpected: student.group.monthlyFee,
+        amountPaid: student.group.monthlyFee,
+        paymentStatus: PaymentStatus.PAID,
+        paymentMethod: paymentCount % 3 === 0 ? 'INSTAPAY' : paymentCount % 3 === 1 ? 'VODAFONE_CASH' : 'CASH',
+        receiptNumber: `REC-${prevYear}${String(prevMonth).padStart(2, '0')}-${String(paymentCount + 100).padStart(3, '0')}`,
+        recordedById: staffUser.id,
+        notes: 'تم السداد بالكامل وإصدار الإيصال الرقمي',
       },
-    },
-    include: {
-      modules: {
-        include: { lessons: true },
-      },
-    },
-  });
+    });
+    paymentCount++;
 
-  // Enroll student 0 and 1 in course
-  const enrollment1 = await prisma.courseEnrollment.create({
-    data: {
-      courseId: course.id,
-      studentId: createdStudents[0].user.id,
-      status: CourseEnrollmentStatus.ACTIVE,
-      access: {
-        create: {
-          studentId: createdStudents[0].user.id,
-          courseId: course.id,
-          accessStatus: CourseAccessStatus.ACTIVE,
-          grantedById: teacherUser.id,
+    // 2. Current month payment (Varied statuses)
+    const isCurrentPaid = paymentCount % 3 !== 0;
+    const isOverdue = paymentCount % 6 === 0;
+
+    await prisma.studentPaymentRecord.create({
+      data: {
+        studentId: student.user.id,
+        groupId: student.groupId,
+        periodYear: currentYear,
+        periodMonth: currentMonth,
+        amountExpected: student.group.monthlyFee,
+        amountPaid: isCurrentPaid ? student.group.monthlyFee : 0,
+        paymentStatus: isCurrentPaid ? PaymentStatus.PAID : isOverdue ? PaymentStatus.OVERDUE : PaymentStatus.PENDING,
+        paymentMethod: isCurrentPaid ? (paymentCount % 2 === 0 ? 'CASH' : 'INSTAPAY') : 'CASH',
+        receiptNumber: isCurrentPaid
+          ? `REC-${currentYear}${String(currentMonth).padStart(2, '0')}-${String(paymentCount + 200).padStart(3, '0')}`
+          : undefined,
+        recordedById: staffUser.id,
+        notes: isCurrentPaid ? 'سداد الاشتراك الشهري' : 'بانتظار السداد من الطالب أو ولي الأمر',
+      },
+    });
+    paymentCount++;
+  }
+  console.log(`✅ Seeded ${paymentCount} Student Tuition Payment Records.`);
+
+  // ==============================================================================
+  // 7. SEED 24 EDUCATIONAL CONTENT ITEMS (PDFs, Videos, Summaries)
+  // ==============================================================================
+  const educationalTitles = [
+    { title: 'مذكرة النحو الشاملة - الوحدة الأولى (همزتا الوصل والقطع)', type: ContentType.SUMMARY, ext: 'pdf' },
+    { title: 'شيت واجب البلاغة - فنون التشبيه والاستعارة وتطبيقاتها', type: ContentType.FILE, ext: 'pdf' },
+    { title: 'تسجيل محاضرة: علم البيان وأسرار التذوق البلاغي', type: ContentType.LECTURE_RECORDING, ext: 'mp4' },
+    { title: 'ملخص مدرسة الإحياء والبعث وجيل التطوير في الأدب العربي', type: ContentType.SUMMARY, ext: 'pdf' },
+    { title: 'كراسة التدريبات التفاعلية وإعراب الشواهد القرآنية', type: ContentType.FILE, ext: 'pdf' },
+    { title: 'تسجيل محاضرة: المشتقات العاملة وأسرار إعمال المصدر', type: ContentType.LECTURE_RECORDING, ext: 'mp4' },
+    { title: 'المراجعة الذهبية لفرع القراءة المتحررة والقطع التفسيرية', type: ContentType.REFERENCE, ext: 'pdf' },
+    { title: 'نماذج الوزارة الاسترشادية مجابة ومحللة بالتفصيل', type: ContentType.FILE, ext: 'pdf' },
+    { title: 'تسجيل ورشة تدريبية: حل مائة بيت شعر في البلاغة', type: ContentType.LECTURE_RECORDING, ext: 'mp4' },
+    { title: 'خرائط ذهنية في قواعد النحو والإملاء والصرف', type: ContentType.SUMMARY, ext: 'pdf' },
+    { title: 'تسجيل محاضرة: إعراب الجمل التي لا محل لها من الإعراب', type: ContentType.LECTURE_RECORDING, ext: 'mp4' },
+    { title: 'ملحق تدريبات النحو للشهادة الإعدادية والثانوية', type: ContentType.FILE, ext: 'pdf' },
+  ];
+
+  for (let cIdx = 0; cIdx < educationalTitles.length * 2; cIdx++) {
+    const item = educationalTitles[cIdx % educationalTitles.length];
+    const group = createdGroups[cIdx % createdGroups.length];
+    const isVideo = item.type === ContentType.LECTURE_RECORDING;
+
+    await prisma.educationalContent.create({
+      data: {
+        teacherId: teacherUser.id,
+        groupId: group.id,
+        title: `${item.title} - ${group.gradeLevel} (جزء ${Math.floor(cIdx / 4) + 1})`,
+        description: 'ملف تعليمي عالي الجودة معد بعناية لمساعدة الطلاب على التفوق والمراجعة المستمرة.',
+        contentType: item.type,
+        fileKey: isVideo ? `bunny:video-${cIdx + 1}` : `materials/doc-${cIdx + 1}.${item.ext}`,
+        fileUrl: isVideo
+          ? `https://iframe.mediadelivery.net/play/demo-video-${cIdx + 1}`
+          : `https://assets.elawal.com/materials/doc-${cIdx + 1}.${item.ext}`,
+        fileSize: BigInt(isVideo ? 85000000 : 2500000),
+        mimeType: isVideo ? 'video/mp4' : 'application/pdf',
+        gradeLevel: group.gradeLevel,
+        academicYear: '2026-2027',
+        academicTerm: 'FIRST_TERM',
+        sessionTopic: sessionTopics[cIdx % sessionTopics.length],
+      },
+    });
+  }
+  console.log(`✅ Seeded 24+ Educational Content Items with video streams and PDFs.`);
+
+  // ==============================================================================
+  // 8. SEED 18 ASSESSMENTS (EXAMS & ASSIGNMENTS) WITH QUESTIONS & SUBMISSIONS
+  // ==============================================================================
+  const assessmentTemplates = [
+    { title: 'امتحان البلاغة والنحو الأسبوعي الأول', type: AssessmentType.EXAM, score: 20 },
+    { title: 'واجب الوحدة الأولى: المشتقات وإعمالها', type: AssessmentType.ASSIGNMENT, score: 10 },
+    { title: 'امتحان شامل في الأدب ومدرسة الإحياء والبعث', type: AssessmentType.EXAM, score: 30 },
+    { title: 'واجب البلاغة: أسرار التشبيه والتمثيل', type: AssessmentType.ASSIGNMENT, score: 10 },
+    { title: 'اختبار تجريبي نصف شهري في النصوص المتحررة', type: AssessmentType.EXAM, score: 25 },
+    { title: 'واجب القواعد النحوية: إعراب الأفعال الخمسة والمضارع', type: AssessmentType.ASSIGNMENT, score: 10 },
+  ];
+
+  for (let aIdx = 0; aIdx < assessmentTemplates.length * 3; aIdx++) {
+    const tpl = assessmentTemplates[aIdx % assessmentTemplates.length];
+    const group = createdGroups[aIdx % createdGroups.length];
+    const groupStudents = createdStudents.filter((s) => s.groupId === group.id);
+
+    const assessment = await prisma.assessment.create({
+      data: {
+        teacherId: teacherUser.id,
+        groupId: group.id,
+        title: `${tpl.title} - ${group.name.split(' - ')[0]} [نموذج ${aIdx + 1}]`,
+        description: 'اختبار تفاعلي يقيس الفهم العميق وقدرة الطالب على التطبيق المباشر.',
+        type: tpl.type,
+        totalScore: tpl.score,
+        passingScore: tpl.score * 0.6,
+        durationMinutes: tpl.type === AssessmentType.EXAM ? 45 : 30,
+        isAutoGraded: true,
+        isPublished: true,
+        gradeLevel: group.gradeLevel,
+        academicStage: group.gradeLevel.includes('الثانوي') ? 'المرحلة الثانوية' : 'المرحلة الإعدادية',
+        startDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+        dueDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
+        targetGroups: {
+          connect: [{ id: group.id }],
+        },
+        questions: {
+          create: [
+            {
+              questionNumber: 1,
+              questionText: 'ما نوع الصورة البيانية في قول الشاعر: "والبدرُ في كَبِدِ السَّماءِ كَدِرهَمٍ مُلقىً على دِيباجةٍ زَرقاءِ"؟',
+              questionType: QuestionType.MULTIPLE_CHOICE,
+              optionsData: ['تشبيه بليغ', 'تشبيه تمثيلي', 'تشبيه ضمني', 'استعارة مكنية'],
+              correctAnswer: 'تشبيه تمثيلي',
+              explanation: 'تشبيه هيئة مركبة بهيئة مركبة مع وجود أداة التشبيه.',
+              points: tpl.score / 4,
+            },
+            {
+              questionNumber: 2,
+              questionText: 'الهمزة في كلمة "استعانة" هي همزة وصل لأنها مصدر لفعل سداسي.',
+              questionType: QuestionType.TRUE_FALSE,
+              optionsData: ['صواب', 'خطأ'],
+              correctAnswer: 'صواب',
+              explanation: 'الفعل الماضي منها ستة أحرف.',
+              points: tpl.score / 4,
+            },
+            {
+              questionNumber: 3,
+              questionText: 'ما إعراب كلمة "ابن" في جملة: "عمرُ بنُ الخطابِ خليفةٌ عادل"؟',
+              questionType: QuestionType.MULTIPLE_CHOICE,
+              optionsData: ['نعت مرفوع', 'بدل مطابق', 'خبر المبتدأ', 'مضاف إليه'],
+              correctAnswer: 'نعت مرفوع',
+              explanation: 'وقعت بين علمين الثاني أب للأول تعرب نعتاً.',
+              points: tpl.score / 4,
+            },
+            {
+              questionNumber: 4,
+              questionText: 'سر الجمال عند تشبيه غير العاقل بالعاقل هو التشخيص.',
+              questionType: QuestionType.TRUE_FALSE,
+              optionsData: ['صواب', 'خطأ'],
+              correctAnswer: 'صواب',
+              explanation: 'إعطاء الصفة الإنسانية لغير العاقل يسمى تشخيصاً.',
+              points: tpl.score / 4,
+            },
+          ],
         },
       },
-    },
-  });
+      include: { questions: true },
+    });
 
-  // Record lesson video progress
-  const firstLesson = course.modules[0].lessons[0];
-  await prisma.courseProgress.create({
-    data: {
-      lessonId: firstLesson.id,
-      studentId: createdStudents[0].user.id,
-      courseId: course.id,
-      lastPositionSeconds: 1200,
-      isCompleted: false,
-    },
-  });
+    // Seed student submissions for the first 3 students in this group
+    for (let sIdx = 0; sIdx < Math.min(3, groupStudents.length); sIdx++) {
+      const student = groupStudents[sIdx];
+      const isFullScore = sIdx === 0;
+      const score = isFullScore ? tpl.score : Math.round(tpl.score * 0.75);
 
-  console.log(`✅ Online Course created with Modules & Lessons: [${course.title}]`);
+      await prisma.assessmentSubmission.create({
+        data: {
+          assessmentId: assessment.id,
+          studentId: student.user.id,
+          status: SubmissionStatus.GRADED,
+          scoreObtained: score,
+          isAutoGraded: true,
+          submittedAt: new Date(Date.now() - (sIdx + 1) * 3600 * 1000 * 24),
+          gradedAt: new Date(),
+          teacherFeedback: isFullScore ? 'ممتاز جداً، إجابات نموذجية!' : 'أحسنت، راجع قواعد حذف الهمزة بدقة.',
+          answers: {
+            create: assessment.questions.map((q, qIndex) => ({
+              questionId: q.id,
+              selectedAnswer: qIndex === 2 && !isFullScore ? 'بدل مطابق' : q.correctAnswer,
+              isCorrect: qIndex === 2 && !isFullScore ? false : true,
+              pointsEarned: qIndex === 2 && !isFullScore ? 0 : q.points,
+              maxPointsSnapshot: q.points,
+            })),
+          },
+        },
+      });
+    }
+  }
+  console.log(`✅ Seeded 18 Assessments with Questions and Multi-Student Submissions.`);
 
   // ==============================================================================
-  // 11. SEED ASSESSMENTS, QUESTIONS, AUTO-GRADING & SUBMISSIONS
+  // 9. SEED 4 ONLINE DIGITAL COURSES & MODULES
   // ==============================================================================
-  const assessment = await prisma.assessment.create({
-    data: {
-      teacherId: teacherUser.id,
-      groupId: group1.id,
-      title: 'امتحان البلاغة والنحو الأسبوعي الأول',
-      description: 'امتحان يقيس مهارات استخراج الصور البيانية، التمييز بين أنواع التشبيه، وإعراب الكلمات الشاذة.',
-      type: AssessmentType.EXAM,
-      totalScore: 20.00,
-      passingScore: 12.00,
-      durationMinutes: 45,
-      isAutoGraded: true,
-      isPublished: true,
-      gradeLevel: 'الصف الثالث الثانوي',
-      academicStage: 'المرحلة الثانوية',
-      startDate: new Date(Date.now() - 24 * 60 * 60 * 1000),
-      dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
-      targetGroups: {
-        connect: [{ id: group1.id }],
+  const courseTitles = [
+    { title: 'دورة البلاغة والتذوق الأدبي للثانوية العامة 2027', grade: 'الصف الثالث الثانوي', price: 350 },
+    { title: 'كورس النحو الشامل والإعراب التطبيقي من الصفر للاحتراف', grade: 'الصف الثالث الثانوي', price: 400 },
+    { title: 'دورة المراجعة النهائية للشهادة الإعدادية', grade: 'الصف الثالث الإعدادي', price: 250 },
+    { title: 'كورس التأسيس البلاغي والنقدي للصف الثاني الثانوي', grade: 'الصف الثاني الثانوي', price: 300 },
+  ];
+
+  for (let cIdx = 0; cIdx < courseTitles.length; cIdx++) {
+    const cInfo = courseTitles[cIdx];
+    const course = await prisma.course.create({
+      data: {
+        teacherId: teacherUser.id,
+        title: cInfo.title,
+        description: 'شرح تفصيلي صوت وصورة مع حل آلاف الأسئلة وتطبيقات تفاعلية واختبارات بنك المعرفة.',
+        subject: 'اللغة العربية',
+        gradeLevel: cInfo.grade,
+        academicStage: cInfo.grade.includes('الثانوي') ? 'المرحلة الثانوية' : 'المرحلة الإعدادية',
+        price: cInfo.price,
+        coverImageUrl: 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=800&auto=format&fit=crop&q=80',
+        status: CourseStatus.PUBLISHED,
+        orderIndex: cIdx + 1,
+        modules: {
+          create: [
+            {
+              title: 'الفصل الأول: القواعد التأسيسية وأسرار البلاغة',
+              orderIndex: 1,
+              description: 'شرح مفصل وممتع مع أمثلة من القرآن الكريم والشعر العربي',
+              lessons: {
+                create: [
+                  {
+                    title: 'الدرس 1: مدخل وفهم الصور البيانية',
+                    orderIndex: 1,
+                    lessonType: 'VIDEO',
+                    bunnyVideoId: `bunny-video-${cIdx}-1`,
+                    videoDurationSeconds: 1800,
+                    isPreview: true,
+                  },
+                  {
+                    title: 'الدرس 2: تطبيقات متقدمة ونماذج امتحانات سابقة',
+                    orderIndex: 2,
+                    lessonType: 'VIDEO',
+                    bunnyVideoId: `bunny-video-${cIdx}-2`,
+                    videoDurationSeconds: 2400,
+                    isPreview: false,
+                  },
+                ],
+              },
+            },
+            {
+              title: 'الفصل الثاني: فنون الإعراب والتدريب العملي',
+              orderIndex: 2,
+              description: 'تدريبات مكثفة على نماذج الامتحانات الوزارية',
+              lessons: {
+                create: [
+                  {
+                    title: 'الدرس 1: أسرار إعراب الشواهد الصعبة',
+                    orderIndex: 1,
+                    lessonType: 'VIDEO',
+                    bunnyVideoId: `bunny-video-${cIdx}-3`,
+                    videoDurationSeconds: 2100,
+                    isPreview: false,
+                  },
+                ],
+              },
+            },
+          ],
+        },
       },
-      questions: {
-        create: [
-          {
-            questionNumber: 1,
-            questionText: 'قال الشاعر: "والبدرُ في كَبِدِ السَّماءِ كَدِرهَمٍ مُلقىً على دِيباجةٍ زَرقاءِ". ما نوع التشبيه في البيت السابق؟',
-            questionType: QuestionType.MULTIPLE_CHOICE,
-            optionsData: [
-              'تشبيه بليغ',
-              'تشبيه تمثيلي',
-              'تشبيه ضمني',
-              'تشبيه مفصل',
-            ],
-            correctAnswer: 'تشبيه تمثيلي',
-            explanation: 'شبه الشاعر هيئة البدر المستدير اللامع وسط السماء الزرقاء الصافية بهيئة درهم فضي لامع ملقى على قماش حريري أزرق، فهو تشبيه هيئة مركبة بهيئة مركبة.',
-            points: 5.00,
-          },
-          {
-            questionNumber: 2,
-            questionText: 'الهمزة في كلمة "استعانة" هي همزة وصل لأنها مصدر لفعل سداسي.',
-            questionType: QuestionType.TRUE_FALSE,
-            optionsData: ['صواب', 'خطأ'],
-            correctAnswer: 'صواب',
-            explanation: 'الفعل الماضي منها (استعان) مكون من 6 أحرف، ومصادر وأفعال السداسي همزتها وصل دائماً.',
-            points: 5.00,
-          },
-          {
-            questionNumber: 3,
-            questionText: 'ما إعراب كلمة "ابن" في جملة: "عمرُ بنُ الخطابِ خليفةٌ عادل"؟',
-            questionType: QuestionType.MULTIPLE_CHOICE,
-            optionsData: [
-              'نعت مرفوع وعلامة رفعه الضمة',
-              'بدل مطابق مرفوع',
-              'خبر المبتدأ مرفوع',
-              'مضاف إليه مجرور',
-            ],
-            correctAnswer: 'نعت مرفوع وعلامة رفعه الضمة',
-            explanation: 'كلمة (ابن) إذا وقعت بين علمين الثاني أب للأول ولم تقع في أول السطر تعرب نعتاً للعلم الأول وتحذف همزتها.',
-            points: 5.00,
-          },
-          {
-            questionNumber: 4,
-            questionText: 'سر الجمال في التشبيه عند تشبيه غير العاقل بالعاقل هو:',
-            questionType: QuestionType.MULTIPLE_CHOICE,
-            optionsData: [
-              'التشخيص',
-              'التجسيم',
-              'التوضيح',
-              'التأكيد',
-            ],
-            correctAnswer: 'التشخيص',
-            explanation: 'منح الصفة الإنسانية أو العاقلة لما ليس بإنسان يسمى تشخيصاً.',
-            points: 5.00,
-          },
-        ],
+      include: {
+        modules: { include: { lessons: true } },
       },
-    },
-    include: {
-      questions: true,
-    },
-  });
+    });
 
-  // Create Graded Student Submission for Student 0 (Mahmoud)
-  const submission1 = await prisma.assessmentSubmission.create({
-    data: {
-      assessmentId: assessment.id,
-      studentId: createdStudents[0].user.id,
-      status: SubmissionStatus.GRADED,
-      scoreObtained: 20.00,
-      isAutoGraded: true,
-      gradedAt: new Date(),
-      teacherFeedback: 'ممتاز يا محمود! إجابات نموذجية وفهم عميق لفنون البلاغة.',
-      answers: {
-        create: [
-          {
-            questionId: assessment.questions[0].id,
-            selectedAnswer: 'تشبيه تمثيلي',
-            isCorrect: true,
-            pointsEarned: 5.00,
-            maxPointsSnapshot: 5.00,
+    // Enroll students in this course
+    for (let sIdx = 0; sIdx < 5; sIdx++) {
+      const student = createdStudents[sIdx];
+      await prisma.courseEnrollment.create({
+        data: {
+          courseId: course.id,
+          studentId: student.user.id,
+          status: CourseEnrollmentStatus.ACTIVE,
+          access: {
+            create: {
+              studentId: student.user.id,
+              courseId: course.id,
+              accessStatus: CourseAccessStatus.ACTIVE,
+              grantedById: teacherUser.id,
+            },
           },
-          {
-            questionId: assessment.questions[1].id,
-            selectedAnswer: 'صواب',
-            isCorrect: true,
-            pointsEarned: 5.00,
-            maxPointsSnapshot: 5.00,
+        },
+      });
+
+      // Progress
+      const firstLesson = course.modules[0]?.lessons[0];
+      if (firstLesson) {
+        await prisma.courseProgress.create({
+          data: {
+            lessonId: firstLesson.id,
+            studentId: student.user.id,
+            courseId: course.id,
+            lastPositionSeconds: 900,
+            isCompleted: sIdx % 2 === 0,
           },
-          {
-            questionId: assessment.questions[2].id,
-            selectedAnswer: 'نعت مرفوع وعلامة رفعه الضمة',
-            isCorrect: true,
-            pointsEarned: 5.00,
-            maxPointsSnapshot: 5.00,
-          },
-          {
-            questionId: assessment.questions[3].id,
-            selectedAnswer: 'التشخيص',
-            isCorrect: true,
-            pointsEarned: 5.00,
-            maxPointsSnapshot: 5.00,
-          },
-        ],
+        });
+      }
+    }
+  }
+  console.log(`✅ Seeded 4 Online Digital Courses with Video Modules and Student Enrollments.`);
+
+  // ==============================================================================
+  // 10. SEED EVALUATIONS & NOTIFICATIONS
+  // ==============================================================================
+  for (let sIdx = 0; sIdx < 15; sIdx++) {
+    const student = createdStudents[sIdx];
+    await prisma.studentEvaluation.create({
+      data: {
+        studentId: student.user.id,
+        teacherId: teacherUser.id,
+        groupId: student.groupId,
+        studentLevel: sIdx % 3 === 0 ? 'متميز (A+)' : sIdx % 3 === 1 ? 'جيد جداً (B+)' : 'ممتاز (A)',
+        teacherNotes: 'طالب ملتزم بالحضور والمشاركة الإيجابية وحل الواجبات والتطبيقات الأسبوعية.',
       },
-    },
-  });
+    });
 
-  // Create Student Submission for Student 1 (Omar) - 15/20
-  const submission2 = await prisma.assessmentSubmission.create({
-    data: {
-      assessmentId: assessment.id,
-      studentId: createdStudents[1].user.id,
-      status: SubmissionStatus.GRADED,
-      scoreObtained: 15.00,
-      isAutoGraded: true,
-      gradedAt: new Date(),
-      teacherFeedback: 'أحسنت يا عمر، راجع قاعدة حذف همزة ابن وإعرابها بدقة.',
-      answers: {
-        create: [
-          {
-            questionId: assessment.questions[0].id,
-            selectedAnswer: 'تشبيه تمثيلي',
-            isCorrect: true,
-            pointsEarned: 5.00,
-            maxPointsSnapshot: 5.00,
-          },
-          {
-            questionId: assessment.questions[1].id,
-            selectedAnswer: 'صواب',
-            isCorrect: true,
-            pointsEarned: 5.00,
-            maxPointsSnapshot: 5.00,
-          },
-          {
-            questionId: assessment.questions[2].id,
-            selectedAnswer: 'خبر المبتدأ مرفوع',
-            isCorrect: false,
-            pointsEarned: 0.00,
-            maxPointsSnapshot: 5.00,
-          },
-          {
-            questionId: assessment.questions[3].id,
-            selectedAnswer: 'التشخيص',
-            isCorrect: true,
-            pointsEarned: 5.00,
-            maxPointsSnapshot: 5.00,
-          },
-        ],
+    await prisma.notification.create({
+      data: {
+        recipientId: student.user.id,
+        type: 'GRADE_RELEASED',
+        title: 'تم رصد وتصحيح الواجب الأسبوعي',
+        message: 'تم تصحيح اختبارك الأسبوعي بنجاح، يمكنك الآن مراجعة الإجابات والدرجة بالتفصيل.',
       },
-    },
-  });
+    });
+  }
 
-  console.log(`✅ Assessment Exam and Auto-Graded Student Submissions created: [${assessment.title}]`);
-
-  // ==============================================================================
-  // 12. SEED STUDENT ACADEMIC EVALUATIONS
-  // ==============================================================================
-  await prisma.studentEvaluation.create({
-    data: {
-      studentId: createdStudents[0].user.id,
-      teacherId: teacherUser.id,
-      groupId: group1.id,
-      studentLevel: 'متميز (A+)',
-      teacherNotes: 'طالب مجتهد، ملتزم بالحضور والمشاركة الإيجابية وحل الواجبات الأسبوعية.',
-    },
-  });
-
-  // ==============================================================================
-  // 13. SEED SYSTEM IN-APP NOTIFICATIONS
-  // ==============================================================================
-  await prisma.notification.create({
-    data: {
-      recipientId: teacherUser.id,
-      type: 'SUBMISSION_RECEIVED',
-      title: 'تسليم امتحان جديد',
-      message: 'قام الطالب محمود أحمد علي بتسليم "امتحان البلاغة والنحو الأسبوعي الأول" وحصل على 20/20.',
-      referenceEntityId: submission1.id,
-    },
-  });
-
-  await prisma.notification.create({
-    data: {
-      recipientId: createdStudents[0].user.id,
-      type: 'GRADE_RELEASED',
-      title: 'تم تصحيح الامتحان',
-      message: 'حصلت على 20/20 في "امتحان البلاغة والنحو الأسبوعي الأول". اضغط للاطلاع على نموذج الإجابة.',
-      referenceEntityId: assessment.id,
-    },
-  });
-
-  console.log('🎉 ==============================================================');
-  console.log('🎉 Comprehensive Database Seeding Completed Successfully!');
-  console.log('🎉 ==============================================================');
+  console.log('🎉 ==============================================================================');
+  console.log('🎉 Non-Conflicting Database Seeding Completed Successfully!');
+  console.log('🎉 ==============================================================================');
   console.log('📌 DEMO LOGIN CREDENTIALS:');
-  console.log('--------------------------------------------------------------');
-  console.log('👨‍🏫 Teacher:     teacher@elawal.com     | Password: Password123!');
-  console.log('👩‍💼 Secretariat: staff@elawal.com       | Password: Password123!');
-  console.log('👨‍🎓 Student 1:   mahmoud@student.elawal.com | Password: Password123!');
-  console.log('👨‍🎓 Student 2:   omar@student.elawal.com    | Password: Password123!');
-  console.log('👨‍👩‍👧 Parent 1:    parent1@elawal.com     | Password: Password123!');
-  console.log('--------------------------------------------------------------');
+  console.log('👨‍🏫 المعلم (Teacher):      teacher@elawal.com     | Password: Password123!');
+  console.log('👩‍💼 السكرتارية (Staff):    staff@elawal.com       | Password: Password123!');
+  console.log('👨‍🎓 الطالب 1 (Student 1):  mahmoud@student.elawal.com | Password: Password123!');
+  console.log('👨‍🎓 الطالب 2 (Student 2):  omar@student.elawal.com    | Password: Password123!');
+  console.log('👨‍👩‍👧 ولي الأمر (Parent):    parent1@elawal.com     | Password: Password123!');
+  console.log('------------------------------------------------------------------------------');
 }
 
 main()
