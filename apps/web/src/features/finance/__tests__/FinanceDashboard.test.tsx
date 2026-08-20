@@ -1,8 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { FinanceDashboard } from '../components/FinanceDashboard';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { usePayments, useGroupDefaulters, useScanPaymentQr } from '../hooks/useFinance';
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => '/teacher/finance',
+}));
 
 // Mock dependencies
 vi.mock('@/features/groups/hooks/useGroups', () => ({
@@ -61,11 +67,11 @@ describe('FinanceDashboard', () => {
   it('renders the QR scanner directly on initial load without requiring group selection', () => {
     render(<FinanceDashboard />);
     
-    // Group select label should be there
-    expect(screen.getByText(/المجموعة الدراسية/i)).toBeInTheDocument();
+    // Header title and description
+    expect(screen.getByText('إدارة المصروفات وسداد الطلاب')).toBeInTheDocument();
     
     // Tabs should be visible directly
-    expect(screen.getByRole('button', { name: /مسح QR/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /مسح بالـ QR/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /رصد يدوي/i })).toBeInTheDocument();
 
     // QR scanner is ready immediately
@@ -75,11 +81,15 @@ describe('FinanceDashboard', () => {
   it('allows selecting a group and switching between tabs', () => {
     render(<FinanceDashboard />);
 
+    // Switch to manual tab
+    fireEvent.click(screen.getByRole('button', { name: /رصد يدوي/i }));
+
+    // Group select label should be visible in manual tab
+    expect(screen.getByText(/المجموعة الدراسية/i)).toBeInTheDocument();
+
     const selects = screen.getAllByRole('combobox');
     fireEvent.change(selects[0], { target: { value: 'group-1' } });
 
-    // Switch to manual tab
-    fireEvent.click(screen.getByRole('button', { name: /رصد يدوي/i }));
     expect(screen.getByText(/الطلاب المتأخرين - مجموعة الأوائل/i)).toBeInTheDocument();
     expect(screen.getAllByText('طالب متأخر').length).toBeGreaterThan(0);
   });

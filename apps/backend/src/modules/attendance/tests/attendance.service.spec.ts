@@ -18,6 +18,7 @@ describe('AttendanceService', () => {
     },
     studentProfile: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
     },
     groupEnrollment: {
       findUnique: jest.fn(),
@@ -76,11 +77,18 @@ describe('AttendanceService', () => {
         },
       });
 
-      mockPrismaService.studentProfile.findUnique.mockResolvedValue({
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue({
         id: 'student-1',
         studentCode: 'STU-2026-0001',
         qrCodeToken,
         user: { fullName: 'محمود أحمد', isActive: true },
+        groupEnrollments: [
+          {
+            groupId: 'group-1',
+            status: GroupEnrollmentStatus.ACTIVE,
+            group: { name: 'مجموعة أ' },
+          },
+        ],
       });
 
       mockPrismaService.groupEnrollment.findUnique.mockResolvedValue({
@@ -130,10 +138,17 @@ describe('AttendanceService', () => {
         group: { id: 'group-1', teacherId: 'teacher-user-1', name: 'مجموعة أ', _count: { enrollments: 30 } },
       });
 
-      mockPrismaService.studentProfile.findUnique.mockResolvedValue({
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue({
         id: 'student-1',
         qrCodeToken,
         user: { fullName: 'محمود أحمد', isActive: true },
+        groupEnrollments: [
+          {
+            groupId: 'group-other',
+            status: GroupEnrollmentStatus.ACTIVE,
+            group: { name: 'مجموعة أخرى' },
+          },
+        ],
       });
 
       mockPrismaService.groupEnrollment.findUnique.mockResolvedValue(null); // Not enrolled

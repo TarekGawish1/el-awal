@@ -20,10 +20,10 @@ export function PwaInstallPrompt() {
 
     // Check if app is already running in standalone mode (installed PWA)
     const isStandaloneMode =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+      (typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)')?.matches) ||
+      (typeof window.navigator !== 'undefined' && (window.navigator as unknown as { standalone?: boolean })?.standalone === true);
 
-    setIsStandalone(isStandaloneMode);
+    setIsStandalone(Boolean(isStandaloneMode));
     if (isStandaloneMode) {
       return;
     }
@@ -235,9 +235,9 @@ export function PwaInstallButton({ className = '' }: { className?: string }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const isStandaloneMode =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
-    setIsStandalone(isStandaloneMode);
+      (typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)')?.matches) ||
+      (typeof window.navigator !== 'undefined' && (window.navigator as unknown as { standalone?: boolean })?.standalone === true);
+    setIsStandalone(Boolean(isStandaloneMode));
   }, []);
 
   if (isStandalone) return null;

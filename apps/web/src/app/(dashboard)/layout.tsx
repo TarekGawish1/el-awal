@@ -23,6 +23,7 @@ import { useAuth } from '@/features/auth';
 import { DashboardBreadcrumbs } from '@/features/dashboard/components/DashboardBreadcrumbs';
 import { AcademicPeriodSwitcher } from '@/features/groups/components/AcademicPeriodSwitcher';
 import { PwaInstallButton } from '@/components/pwa';
+import { BootstrapProgressIndicator } from '@/components/pwa/BootstrapProgressIndicator';
 import { MobileBottomNav } from '@/components/navigation';
 
 export default function DashboardLayout({
@@ -271,6 +272,9 @@ export default function DashboardLayout({
           userRole={user?.role}
           onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
         />
+
+        {/* Floating Offline Bootstrap Hydration Indicator */}
+        <BootstrapProgressIndicator />
       </div>
     </div>
   );

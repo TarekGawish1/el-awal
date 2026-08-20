@@ -5,6 +5,12 @@ import TeacherAttendancePage from '@/app/(dashboard)/teacher/attendance/page';
 import * as useGroupsModule from '@/features/groups/hooks/useGroups';
 import * as useAttendanceModule from '@/features/attendance/hooks/use-attendance';
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => '/teacher/attendance',
+}));
+
 // Mock child components
 vi.mock('@/features/attendance/components/QrScanner', () => ({
   QrScanner: () => <div data-testid="qr-scanner">QR Scanner Mock</div>,

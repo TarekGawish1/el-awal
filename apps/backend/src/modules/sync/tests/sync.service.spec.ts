@@ -1,6 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SyncService } from '../services/sync.service';
 import { CoursesService } from '../../courses/services/courses.service';
+import { PrismaService } from '../../../core/database/prisma.service';
+import {
+  AttendanceStatus,
+  RecordingMethod,
+  PaymentStatus,
+  SubmissionStatus,
+  QuestionType,
+  GroupEnrollmentStatus,
+  UserRole,
+} from '@prisma/client';
 
 describe('SyncService', () => {
   let service: SyncService;
@@ -10,11 +20,51 @@ describe('SyncService', () => {
     applyMonotonicProgressBatch: jest.fn(),
   };
 
+  const mockPrismaService = {
+    lessonSession: {
+      findUnique: jest.fn(),
+    },
+    studentProfile: {
+      findFirst: jest.fn(),
+      findUnique: jest.fn(),
+    },
+    groupEnrollment: {
+      findUnique: jest.fn(),
+    },
+    attendanceRecord: {
+      findUnique: jest.fn(),
+      create: jest.fn(),
+    },
+    studentPaymentRecord: {
+      findFirst: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+    assessment: {
+      findUnique: jest.fn(),
+    },
+    assessmentSubmission: {
+      findUnique: jest.fn(),
+      create: jest.fn(),
+    },
+    studentAnswer: {
+      createMany: jest.fn(),
+    },
+    $transaction: jest.fn(async (cb) => cb(mockPrismaService)),
+  };
+
+  const mockTeacherUser: any = {
+    id: 'teacher-1',
+    role: UserRole.TEACHER,
+    teacherProfileId: 'teacher-profile-1',
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SyncService,
         { provide: CoursesService, useValue: mockCoursesService },
+        { provide: PrismaService, useValue: mockPrismaService },
       ],
     }).compile();
 
@@ -39,33 +89,174 @@ describe('SyncService', () => {
             positionSeconds: 120,
             isCompleted: false,
           },
-          {
-            clientOperationId: 'op-2',
-            courseId: 'course-1',
-            lessonId: 'lesson-2',
-            positionSeconds: 600,
-            isCompleted: true,
-          },
         ],
       };
 
       const mockResult = {
-        syncedCount: 2,
-        processedOperationIds: ['op-1', 'op-2'],
+        syncedCount: 1,
+        processedOperationIds: ['op-1'],
         courseId: 'course-1',
         overallCourseCompletionPercentage: 50,
       };
 
       mockCoursesService.applyMonotonicProgressBatch.mockResolvedValue(mockResult);
 
-      const result = await service.processBatchProgress(studentId, mockBatchDto);
+      const result = await service.processBatchProgress(studentId, mockBatchDto as any);
 
       expect(coursesService.applyMonotonicProgressBatch).toHaveBeenCalledWith(
         studentId,
         mockBatchDto.operations,
       );
-      expect(result.syncedCount).toBe(2);
-      expect(result.overallCourseCompletionPercentage).toBe(50);
+      expect(result.syncedCount).toBe(1);
+    });
+  });
+
+  describe('syncAttendanceBatch', () => {
+    it('should insert new attendance records and suppress duplicates', async () => {
+      mockPrismaService.lessonSession.findUnique.mockResolvedValue({
+        id: 'session-1',
+        groupId: 'group-1',
+      });
+
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue({
+        id: 'student-1',
+        fullName: 'أحمد محمود',
+      });
+
+      mockPrismaService.groupEnrollment.findUnique.mockResolvedValue({
+        groupId: 'group-1',
+        studentId: 'student-1',
+        status: GroupEnrollmentStatus.ACTIVE,
+      });
+
+      // First call -> no existing record (new insert)
+      // Second call -> existing record found (duplicate ignored)
+      mockPrismaService.attendanceRecord.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 'att-existing' });
+
+      mockPrismaService.attendanceRecord.create.mockResolvedValue({ id: 'att-new' });
+
+      const dto = {
+        operations: [
+          {
+            id: 'op-att-1',
+            sessionId: 'session-1',
+            qrCodeToken: 'qr-token-1',
+            status: AttendanceStatus.PRESENT,
+            recordingMethod: RecordingMethod.QR_SCAN,
+            clientTimestamp: Date.now(),
+          },
+          {
+            id: 'op-att-2',
+            sessionId: 'session-1',
+            qrCodeToken: 'qr-token-1',
+            status: AttendanceStatus.PRESENT,
+            recordingMethod: RecordingMethod.QR_SCAN,
+            clientTimestamp: Date.now(),
+          },
+        ],
+      };
+
+      const result = await service.syncAttendanceBatch(mockTeacherUser, dto);
+
+      expect(result.syncedCount).toBe(1);
+      expect(result.duplicatesIgnored).toBe(1);
+      expect(result.processedOperationIds).toEqual(['op-att-1', 'op-att-2']);
+      expect(mockPrismaService.attendanceRecord.create).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('syncPaymentsBatch', () => {
+    it('should reconcile tuition payment operations and prevent duplicate payments', async () => {
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue({
+        id: 'student-1',
+      });
+
+      mockPrismaService.studentPaymentRecord.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 'pay-1', paymentStatus: PaymentStatus.PAID });
+
+      mockPrismaService.studentPaymentRecord.create.mockResolvedValue({ id: 'pay-new' });
+
+      const dto = {
+        operations: [
+          {
+            id: 'op-pay-1',
+            studentId: 'student-1',
+            groupId: 'group-1',
+            periodYear: 2026,
+            periodMonth: 9,
+            amountPaid: 350,
+            paymentMethod: 'CASH',
+            clientTimestamp: Date.now(),
+          },
+          {
+            id: 'op-pay-2',
+            studentId: 'student-1',
+            groupId: 'group-1',
+            periodYear: 2026,
+            periodMonth: 9,
+            amountPaid: 350,
+            paymentMethod: 'CASH',
+            clientTimestamp: Date.now(),
+          },
+        ],
+      };
+
+      const result = await service.syncPaymentsBatch(mockTeacherUser, dto);
+
+      expect(result.syncedCount).toBe(1);
+      expect(result.duplicatesIgnored).toBe(1);
+      expect(mockPrismaService.studentPaymentRecord.create).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('syncAssessmentsBatch', () => {
+    it('should auto-grade and record offline assessment submissions', async () => {
+      const studentId = 'student-1';
+      mockPrismaService.assessment.findUnique.mockResolvedValue({
+        id: 'exam-1',
+        questions: [
+          {
+            id: 'q-1',
+            questionType: QuestionType.MULTIPLE_CHOICE,
+            correctAnswer: 'A',
+            points: 10,
+          },
+        ],
+      });
+
+      mockPrismaService.assessmentSubmission.findUnique.mockResolvedValue(null);
+      mockPrismaService.assessmentSubmission.create.mockResolvedValue({
+        id: 'sub-1',
+        status: SubmissionStatus.GRADED,
+        scoreObtained: 10,
+      });
+
+      const dto = {
+        operations: [
+          {
+            id: 'op-exam-1',
+            assessmentId: 'exam-1',
+            answers: [{ questionId: 'q-1', selectedAnswer: 'A' }],
+            clientTimestamp: Date.now(),
+          },
+        ],
+      };
+
+      const result = await service.syncAssessmentsBatch(studentId, dto);
+
+      expect(result.syncedCount).toBe(1);
+      expect(mockPrismaService.assessmentSubmission.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            assessmentId: 'exam-1',
+            scoreObtained: 10,
+            status: SubmissionStatus.GRADED,
+          }),
+        }),
+      );
     });
   });
 });

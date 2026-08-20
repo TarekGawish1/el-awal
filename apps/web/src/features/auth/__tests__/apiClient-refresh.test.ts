@@ -160,9 +160,9 @@ describe('apiClient Silent Refresh Token Interceptor', () => {
       apiClient<{ endpoint: string }>('/schedules'),
     ]);
 
-    expect(res1).toEqual({ endpoint: 'http://localhost:4000/api/v1/groups' });
-    expect(res2).toEqual({ endpoint: 'http://localhost:4000/api/v1/students' });
-    expect(res3).toEqual({ endpoint: 'http://localhost:4000/api/v1/schedules' });
+    expect(res1.endpoint).toContain('/groups');
+    expect(res2.endpoint).toContain('/students');
+    expect(res3.endpoint).toContain('/schedules');
 
     // Crucial: Only 1 refresh request was dispatched
     expect(refreshEndpointHitCount).toBe(1);

@@ -3,7 +3,7 @@
  * Aligned with docs/03-Architecture/api-design.md
  */
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
 
 export const API_ENDPOINTS = {
   AUTH: {
@@ -61,6 +61,7 @@ export const API_ENDPOINTS = {
     LESSON_PROGRESS: (lessonId: string) => `/courses/lessons/${lessonId}/progress`,
   },
   SUBSCRIPTIONS: {
+    RECORD_PAYMENT: '/subscriptions/record',
     STUDENT_HISTORY: (studentId: string) => `/subscriptions/student/${studentId}`,
     SCAN_QR: '/subscriptions/scan-qr',
   },
@@ -71,7 +72,12 @@ export const API_ENDPOINTS = {
     MARK_ALL_READ: '/notifications/read-all',
   },
   SYNC: {
+    BOOTSTRAP: '/sync/bootstrap',
+    ATTENDANCE: '/sync/attendance',
+    PAYMENTS: '/sync/payments',
     PROGRESS: '/sync/progress',
+    ASSESSMENTS: '/sync/assessments',
+    BATCH: '/sync/batch',
   },
   PARENT_PORTAL: {
     LINKED_STUDENTS: '/parent-portal/students',

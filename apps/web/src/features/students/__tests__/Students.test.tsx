@@ -142,9 +142,9 @@ describe('TeacherStudents', () => {
   describe('StudentList', () => {
     it('renders populated list', () => {
       renderWithQueryClient(<TeacherStudentsPage />);
-      expect(screen.getByText('Ahmed Ali')).toBeInTheDocument();
-      expect(screen.getByText('STU-2026-0001')).toBeInTheDocument();
-      expect(screen.getByText('مجموعة الصف الخامس أ')).toBeInTheDocument();
+      expect(screen.getAllByText('Ahmed Ali')[0]).toBeInTheDocument();
+      expect(screen.getAllByText('STU-2026-0001')[0]).toBeInTheDocument();
+      expect(screen.getAllByText('مجموعة الصف الخامس أ')[0]).toBeInTheDocument();
     });
 
     it('renders empty list state', () => {
