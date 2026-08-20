@@ -348,7 +348,7 @@ model LessonSession {
   attendanceRecords   AttendanceRecord[]
   educationalContents EducationalContent[]
 
-  @@unique([groupId, sessionDate, startTime], map: "uq_group_session_datetime")
+  @@index([groupId, sessionDate, startTime], map: "idx_group_session_datetime")
   @@index([groupId, sessionDate], map: "idx_sessions_group_date")
   @@index([scheduleId], map: "idx_sessions_schedule")
   @@map("lesson_sessions")

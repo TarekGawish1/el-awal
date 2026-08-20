@@ -614,15 +614,18 @@ export function SessionDetailsModal({
           {/* Footer Actions */}
           <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsDeleteConfirmOpen(true)}
-                disabled={isDeleting}
-                className="text-red-600 hover:bg-red-50 px-3 py-2 rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-              >
-                <Trash2 className="w-4 h-4" />
-                حذف الحصة
-              </button>
+              {/* Only sessions added manually from the calendar can be deleted. Group scheduled sessions cannot be deleted, only cancelled. */}
+              {!session.scheduleId && (
+                <button
+                  type="button"
+                  onClick={() => setIsDeleteConfirmOpen(true)}
+                  disabled={isDeleting}
+                  className="text-red-600 hover:bg-red-50 px-3 py-2 rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  حذف الحصة
+                </button>
+              )}
 
               {!session.isCancelled && !isCancellingMode && (
                 <button

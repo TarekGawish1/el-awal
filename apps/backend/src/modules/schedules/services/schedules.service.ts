@@ -615,11 +615,14 @@ export class SchedulesService {
       dto.sessionDate.includes('T') ? dto.sessionDate.split('T')[0] : dto.sessionDate,
     );
 
+    // Find if there is an active (non-cancelled) session for this group at this exact date and time.
+    // If an existing session is cancelled, we do NOT overwrite it, so the cancelled session remains visible beside the new replacement session.
     const existing = await this.prisma.lessonSession.findFirst({
       where: {
         groupId: dto.groupId,
         sessionDate: sessionDateOnly,
         startTime: dto.startTime || null,
+        isCancelled: false,
       },
     });
 
@@ -668,7 +671,7 @@ export class SchedulesService {
         data: {
           topic: dto.topic,
           endTime: dto.endTime !== undefined ? dto.endTime : existing.endTime,
-          scheduleId: dto.scheduleId || existing.scheduleId,
+          scheduleId: dto.scheduleId !== undefined ? dto.scheduleId : existing.scheduleId,
           isCancelled: dto.isCancelled !== undefined ? dto.isCancelled : false,
           cancellationReason:
             dto.isCancelled ? (dto.cancellationReason || existing.cancellationReason) : null,
@@ -725,7 +728,7 @@ export class SchedulesService {
     const targetEndTime = dto.endTime !== undefined ? dto.endTime : session.endTime;
     const targetIsCancelled = dto.isCancelled !== undefined ? dto.isCancelled : session.isCancelled;
 
-    // Check for collisions with other sessions for the teacher
+    // Check for collisions if active and moving or updating times
     if (targetStartTime && !targetIsCancelled) {
       const teacherId = user.teacherProfileId || user.id;
       const daySessions = await this.prisma.lessonSession.findMany({
@@ -789,6 +792,8 @@ export class SchedulesService {
 
   /**
    * Deletes a physical lesson session.
+   * Only allows deleting ad-hoc sessions added from the calendar (scheduleId === null).
+   * Group regular schedule sessions cannot be deleted, only cancelled.
    */
   async deleteSession(sessionId: string, user: AuthenticatedUser) {
     const session = await this.prisma.lessonSession.findUnique({
@@ -801,6 +806,13 @@ export class SchedulesService {
     }
 
     await this.assertGroupAccess(session.groupId, user, true);
+
+    // Group regular scheduled sessions cannot be deleted, only cancelled for the day
+    if (session.scheduleId) {
+      throw new BadRequestException(
+        'لا يمكن حذف الحصص الأساسية المجدولة للمجموعة، يمكنك فقط إلغاء الحصة لهذا اليوم بدلاً من حذفها',
+      );
+    }
 
     return this.prisma.lessonSession.delete({
       where: { id: sessionId },

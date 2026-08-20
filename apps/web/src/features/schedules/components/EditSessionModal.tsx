@@ -298,15 +298,19 @@ export function EditSessionModal({ isOpen, session, onClose, sessions = [] }: Ed
 
           {/* Footer Actions */}
           <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={() => setIsDeleteConfirmOpen(true)}
-              disabled={isPending || isDeleting}
-              className="text-red-600 hover:bg-red-50 px-3 py-2 rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-            >
-              <Trash2 className="w-4 h-4" />
-              حذف الحصة
-            </button>
+            {!session?.scheduleId ? (
+              <button
+                type="button"
+                onClick={() => setIsDeleteConfirmOpen(true)}
+                disabled={isPending || isDeleting}
+                className="text-red-600 hover:bg-red-50 px-3 py-2 rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                حذف الحصة
+              </button>
+            ) : (
+              <div />
+            )}
 
             <div className="flex items-center gap-2">
               <Button type="button" variant="outline" onClick={handleClose} disabled={isPending || isDeleting}>
