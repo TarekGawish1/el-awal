@@ -17,10 +17,12 @@ import {
   Bell,
   GraduationCap,
   DollarSign,
+  Download,
 } from 'lucide-react';
 import { useAuth } from '@/features/auth';
 import { DashboardBreadcrumbs } from '@/features/dashboard/components/DashboardBreadcrumbs';
 import { AcademicPeriodSwitcher } from '@/features/groups/components/AcademicPeriodSwitcher';
+import { PwaInstallButton } from '@/components/pwa';
 
 export default function DashboardLayout({
   children,
@@ -166,7 +168,10 @@ export default function DashboardLayout({
           </nav>
         </div>
 
-        {/* User Profile & Logout Footer is moved to Global Header */}
+        {/* Sidebar PWA Install & Info Footer */}
+        <div className="p-3 border-t border-neutral-100">
+          <PwaInstallButton className="w-full justify-center" />
+        </div>
       </aside>
 
       {/* Backdrop for mobile drawer */}
