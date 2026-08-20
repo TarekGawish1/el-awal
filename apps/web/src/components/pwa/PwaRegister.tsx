@@ -9,6 +9,20 @@ export function PwaRegister() {
       return;
     }
 
+    // In local development, unregister any active service worker so it never intercepts Next.js dev server or HMR
+    if (
+      process.env.NODE_ENV === 'development' ||
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1'
+    ) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const reg of registrations) {
+          reg.unregister();
+        }
+      });
+      return;
+    }
+
     const registerSw = async () => {
       try {
         const registration = await navigator.serviceWorker.register('/sw.js', {

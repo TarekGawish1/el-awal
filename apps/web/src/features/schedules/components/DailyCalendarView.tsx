@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useEffect } from 'react';
-import { Clock, Users, FileText, QrCode, Sparkles, BookOpen, UploadCloud, AlertTriangle } from 'lucide-react';
+import { Clock, Users, FileText, QrCode, Sparkles, BookOpen, AlertTriangle } from 'lucide-react';
 import { LessonSessionItem } from '../types/schedules.types';
 import {
   formatArabicTime12H,
@@ -83,7 +83,6 @@ export function DailyCalendarView({
           block: 'center',
         });
       } else if (scrollContainerRef.current) {
-        // If no sessions, scroll smoothly to current daytime hour or 12:00 PM
         const nowH = new Date().getHours();
         const targetH = Math.max(6, Math.min(23, nowH >= 6 && nowH <= 23 ? nowH : 12));
         const targetEl = document.getElementById(`daily-hour-${targetH}`);
@@ -123,13 +122,13 @@ export function DailyCalendarView({
     <div className="bg-white rounded-3xl border border-slate-100 shadow-xs overflow-hidden flex flex-col">
       {/* Day Banner */}
       <div className="p-4 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-primary-50 text-primary-700 flex items-center justify-center font-black text-lg border border-primary-100">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-11 h-11 rounded-2xl bg-primary-50 text-primary-700 flex items-center justify-center font-black text-lg border border-primary-100 shrink-0">
             {currentDate.getDate()}
           </div>
-          <div>
-            <h3 className="font-extrabold text-slate-800 text-base">{fullDateFormatted}</h3>
-            <p className="text-xs text-slate-500 font-medium">
+          <div className="min-w-0">
+            <h3 className="font-extrabold text-slate-800 text-sm sm:text-base truncate">{fullDateFormatted}</h3>
+            <p className="text-xs text-slate-500 font-medium truncate">
               {daySessions.length > 0 ? `${daySessions.length} حصص مجدولة لهذا اليوم` : 'لا توجد حصص مجدولة'}
             </p>
           </div>
@@ -138,7 +137,7 @@ export function DailyCalendarView({
         <Button
           size="sm"
           onClick={() => onAddSessionForDate?.(dateStr, '16:00')}
-          className="shadow-xs text-xs"
+          className="shadow-xs text-xs shrink-0"
         >
           + إضافة حصة لهذا اليوم
         </Button>
@@ -161,15 +160,15 @@ export function DailyCalendarView({
                   onAddSessionForDate(dateStr, timePad);
                 }
               }}
-              className="flex items-start p-4 hover:bg-slate-50/50 transition-colors group cursor-pointer"
+              className="flex items-start p-3 sm:p-4 hover:bg-slate-50/50 transition-colors group cursor-pointer overflow-hidden"
             >
               {/* Hour Column */}
-              <div className="w-24 shrink-0 text-start pr-2">
+              <div className="w-16 sm:w-24 shrink-0 text-start pr-1 sm:pr-2">
                 <span className="text-xs font-bold text-slate-400">{hour.label}</span>
               </div>
 
               {/* Session Cards Column */}
-              <div className={`flex-1 ${hourSessions.length > 1 ? 'grid grid-cols-1 md:grid-cols-2 gap-3' : 'space-y-3'}`}>
+              <div className={`flex-1 min-w-0 ${hourSessions.length > 1 ? 'grid grid-cols-1 md:grid-cols-2 gap-3' : 'space-y-3'}`}>
                 {hourSessions.length > 0 ? (
                   hourSessions.map((session) => {
                     const isCancelled = !!session.isCancelled;
@@ -183,17 +182,17 @@ export function DailyCalendarView({
                           e.stopPropagation();
                           onSelectSession(session);
                         }}
-                        className={`py-2.5 px-3.5 rounded-xl border shadow-2xs hover:shadow-md transition-all flex flex-col justify-between gap-1.5 cursor-pointer ${
+                        className={`py-2 px-3 rounded-xl border shadow-2xs hover:shadow-md transition-all flex flex-col justify-between gap-1.5 cursor-pointer overflow-hidden max-w-full ${
                           isCancelled
                             ? 'bg-rose-50/80 border-rose-200 border-dashed hover:border-rose-300'
                             : `${gradeTheme.bg} ${layoutInfo?.hasConflict ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`
                         }`}
                       >
-                        {/* Top Row: Title + Status + Group Badge */}
-                        <div className="flex items-center justify-between gap-2 flex-wrap min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                        {/* Top Row: Title + Status + Group Badge (Fitted to card without overflow) */}
+                        <div className="flex items-center justify-between gap-2 min-w-0 overflow-hidden">
+                          <div className="flex items-center gap-1.5 min-w-0 overflow-hidden flex-1">
                             <h4
-                              className={`font-black text-xs sm:text-sm truncate max-w-[200px] ${
+                              className={`font-black text-xs sm:text-sm truncate min-w-0 ${
                                 isCancelled ? 'text-rose-900 line-through decoration-rose-400' : 'text-slate-900'
                               }`}
                               title={session.topic || 'حصة بدون عنوان'}
@@ -201,54 +200,57 @@ export function DailyCalendarView({
                               {session.topic || 'حصة بدون عنوان'}
                             </h4>
                             {isCancelled && (
-                              <span className="text-[9.5px] font-black px-2 py-0.5 bg-rose-600 text-white rounded-md shadow-2xs shrink-0 whitespace-nowrap">
-                                ملغاة لهذا اليوم
+                              <span className="text-[9px] font-black px-1.5 py-0.5 bg-rose-600 text-white rounded shadow-2xs shrink-0 whitespace-nowrap">
+                                ملغاة
                               </span>
                             )}
                             {layoutInfo?.hasConflict && !isCancelled && (
-                              <span className="text-[9.5px] font-black px-2 py-0.5 bg-amber-500 text-slate-950 rounded-md shadow-2xs flex items-center gap-1 shrink-0 whitespace-nowrap">
-                                <AlertTriangle className="w-3 h-3" />
+                              <span className="text-[9px] font-black px-1.5 py-0.5 bg-amber-500 text-slate-950 rounded shadow-2xs flex items-center gap-0.5 shrink-0 whitespace-nowrap">
+                                <AlertTriangle className="w-2.5 h-2.5" />
                                 تعارض
                               </span>
                             )}
                           </div>
 
                           {session.group && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 bg-white/95 text-primary-800 rounded-md border border-primary-100 shadow-2xs shrink-0 whitespace-nowrap">
-                              {session.group.name} {session.group.gradeLevel ? `(${session.group.gradeLevel})` : ''}
+                            <span
+                              className="text-[10px] font-bold px-2 py-0.5 bg-white/95 text-primary-800 rounded-md border border-primary-100 shadow-2xs shrink-0 truncate max-w-[120px] sm:max-w-[180px]"
+                              title={session.group.name}
+                            >
+                              {session.group.name}
                             </span>
                           )}
                         </div>
 
                         {/* Cancellation reason if applicable */}
                         {isCancelled && session.cancellationReason && (
-                          <p className="text-[10.5px] text-rose-700 font-semibold truncate leading-tight">
+                          <p className="text-[10px] text-rose-700 font-semibold truncate leading-tight overflow-hidden">
                             سبب الإلغاء: {session.cancellationReason}
                           </p>
                         )}
 
-                        {/* Bottom Row: Time, stats, and details link */}
-                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-black/5 text-[10.5px] text-slate-600 font-medium flex-wrap">
-                          <div className="flex items-center gap-3 flex-wrap">
-                            <span className="flex items-center gap-1 font-bold text-slate-700 whitespace-nowrap">
-                              <Clock className="w-3.5 h-3.5 text-primary-600 shrink-0" />
-                              <span>
+                        {/* Bottom Row: Time, stats, and details link (strictly truncated/fitted) */}
+                        <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-black/5 text-[10px] sm:text-[10.5px] text-slate-600 font-medium overflow-hidden min-w-0">
+                          <div className="flex items-center gap-2 min-w-0 overflow-hidden flex-1">
+                            <span className="flex items-center gap-1 font-bold text-slate-700 shrink-0">
+                              <Clock className="w-3 h-3 text-primary-600 shrink-0" />
+                              <span className="truncate">
                                 {formatArabicTimeRange12H(session.startTime, session.endTime) || hour.label}
                               </span>
                             </span>
 
-                            <span className="flex items-center gap-1 text-emerald-700 font-semibold whitespace-nowrap">
+                            <span className="flex items-center gap-0.5 text-emerald-700 font-semibold shrink-0">
                               <Users className="w-3 h-3 text-emerald-600 shrink-0" />
-                              {session._count?.attendanceRecords || 0} حاضرين
+                              <span>{session._count?.attendanceRecords || 0}</span>
                             </span>
 
-                            <span className="flex items-center gap-1 text-amber-700 font-semibold whitespace-nowrap">
+                            <span className="flex items-center gap-0.5 text-amber-700 font-semibold shrink-0">
                               <FileText className="w-3 h-3 text-amber-600 shrink-0" />
-                              {session.educationalContents?.length || session._count?.educationalContents || 0} مرفقات
+                              <span>{session.educationalContents?.length || session._count?.educationalContents || 0}</span>
                             </span>
                           </div>
 
-                          <span className="text-[10.5px] text-primary-600 font-extrabold hover:underline whitespace-nowrap mr-auto">
+                          <span className="text-[10px] text-primary-600 font-extrabold hover:underline shrink-0 whitespace-nowrap">
                             عرض التفاصيل ←
                           </span>
                         </div>
@@ -257,7 +259,7 @@ export function DailyCalendarView({
                   })
                 ) : (
                   <div className="h-6 border-b border-dashed border-slate-100 group-hover:border-slate-300 flex items-center">
-                    <span className="text-[10px] text-slate-300 group-hover:text-primary-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-[10px] text-slate-300 group-hover:text-primary-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity truncate">
                       + اضغط لإضافة حصة في هذا الموعد
                     </span>
                   </div>

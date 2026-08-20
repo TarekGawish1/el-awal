@@ -377,9 +377,9 @@ export function WeeklyCalendarView({
                             </div>
 
                             {session.group && (
-                              <div className="flex items-center gap-2 text-xs font-bold text-slate-600 pt-1 border-t border-slate-200/60">
+                              <div className="flex items-center gap-2 text-xs font-bold text-slate-600 pt-1 border-t border-slate-200/60 min-w-0 overflow-hidden">
                                 <Users className="w-3.5 h-3.5 text-primary-600 shrink-0" />
-                                <span>المجموعة: {session.group.name}</span>
+                                <span className="truncate min-w-0" title={session.group.name}>المجموعة: {session.group.name}</span>
                               </div>
                             )}
                           </div>

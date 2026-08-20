@@ -316,41 +316,43 @@ export function TeacherSessionsCalendar() {
         {/* Right Main Calendar Body (9 cols) */}
         <div className="lg:col-span-8 xl:col-span-9 space-y-4">
           {/* Main Top Header Controls */}
-          <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="bg-white p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl border border-slate-100 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             {/* Date Navigation */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleToday}
-                className="px-3.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition-colors cursor-pointer"
-              >
-                اليوم
-              </button>
+            <div className="flex items-center justify-between sm:justify-start gap-2 min-w-0">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <button
+                  onClick={handleToday}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition-colors shrink-0 cursor-pointer"
+                >
+                  اليوم
+                </button>
 
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={handlePrev}
-                  className="w-8 h-8 rounded-xl hover:bg-slate-100 text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
-                  title="السابق"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={handleNext}
-                  className="w-8 h-8 rounded-xl hover:bg-slate-100 text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
-                  title="التالي"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <button
+                    onClick={handlePrev}
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl hover:bg-slate-100 text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
+                    title="السابق"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={handleNext}
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl hover:bg-slate-100 text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
+                    title="التالي"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <h2 className="text-xs sm:text-base font-black text-slate-800 tracking-tight truncate min-w-0">
+                  {headerDateLabel}
+                </h2>
               </div>
-
-              <h2 className="text-sm sm:text-base font-black text-slate-800 tracking-tight mr-2 whitespace-nowrap">
-                {headerDateLabel}
-              </h2>
             </div>
 
             {/* View Mode Switcher */}
-            <div className="flex items-center gap-2">
-              {/* Search */}
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              {/* Search (Desktop only) */}
               <div className="relative hidden xl:block w-48">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -362,10 +364,10 @@ export function TeacherSessionsCalendar() {
                 />
               </div>
 
-              <div className="p-1 bg-slate-100/90 rounded-2xl flex items-center gap-1">
+              <div className="p-1 bg-slate-100/90 rounded-2xl flex items-center gap-1 w-full sm:w-auto grid grid-cols-3 sm:flex">
                 <button
                   onClick={() => setViewMode('daily')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all text-center cursor-pointer ${
                     viewMode === 'daily'
                       ? 'bg-white text-primary-700 shadow-sm'
                       : 'text-slate-600 hover:text-slate-900'
@@ -375,7 +377,7 @@ export function TeacherSessionsCalendar() {
                 </button>
                 <button
                   onClick={() => setViewMode('weekly')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all text-center cursor-pointer ${
                     viewMode === 'weekly'
                       ? 'bg-white text-primary-700 shadow-sm'
                       : 'text-slate-600 hover:text-slate-900'
@@ -385,7 +387,7 @@ export function TeacherSessionsCalendar() {
                 </button>
                 <button
                   onClick={() => setViewMode('monthly')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all text-center cursor-pointer ${
                     viewMode === 'monthly'
                       ? 'bg-white text-primary-700 shadow-sm'
                       : 'text-slate-600 hover:text-slate-900'

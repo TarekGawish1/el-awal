@@ -67,6 +67,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Bypass service worker completely in local development (localhost / 127.0.0.1)
+  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+    return;
+  }
+
   // Skip Next.js hot module reloading & development endpoints
   if (url.pathname.includes('/_next/webpack-hmr') || url.pathname.includes('/api/auth/session')) {
     return;
@@ -88,9 +93,12 @@ self.addEventListener('fetch', (event) => {
           if (cachedResponse) {
             return cachedResponse;
           }
-          // Return the offline page if nothing is cached
-          const offlinePage = await caches.match('/offline.html');
-          return offlinePage || new Response('Offline', { status: 503, statusText: 'Offline' });
+          // Return the offline page only if device is genuinely offline
+          if (!navigator.onLine) {
+            const offlinePage = await caches.match('/offline.html');
+            if (offlinePage) return offlinePage;
+          }
+          return new Response('Offline', { status: 503, statusText: 'Offline' });
         })
     );
     return;
