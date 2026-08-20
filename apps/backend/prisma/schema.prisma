@@ -196,16 +196,18 @@ model TeacherProfile {
 }
 
 model StudentProfile {
-  id             String                @id @map("id") @db.Uuid
-  studentCode    String?               @unique(map: "uq_students_code") @map("student_code") @db.VarChar(50)
-  qrCodeToken    String                @unique(map: "uq_student_qr_code") @map("qr_code_token") @db.VarChar(255)
-  gradeLevel     String                @map("grade_level") @db.VarChar(50)
-  academicStage  String?               @map("academic_stage") @db.VarChar(50)
-  academicStatus StudentAcademicStatus @default(ACTIVE) @map("academic_status")
-  dateOfBirth    DateTime?             @map("date_of_birth") @db.Date
-  emergencyPhone String?               @map("emergency_phone") @db.VarChar(30)
-  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                  String                @id @map("id") @db.Uuid
+  studentCode         String?               @unique(map: "uq_students_code") @map("student_code") @db.VarChar(50)
+  qrCodeToken         String                @unique(map: "uq_student_qr_code") @map("qr_code_token") @db.VarChar(255)
+  gradeLevel          String                @map("grade_level") @db.VarChar(50)
+  academicStage       String?               @map("academic_stage") @db.VarChar(50)
+  academicStatus      StudentAcademicStatus @default(ACTIVE) @map("academic_status")
+  dateOfBirth         DateTime?             @map("date_of_birth") @db.Date
+  emergencyPhone      String?               @map("emergency_phone") @db.VarChar(30)
+  registrationCodeHash String?              @map("registration_code_hash") @db.VarChar(128)
+  accountClaimedAt    DateTime?             @map("account_claimed_at") @db.Timestamptz(6)
+  createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user User @relation(fields: [id], references: [id], onDelete: Cascade)
 

@@ -3,7 +3,7 @@
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { GraduationCap, ShieldCheck, UserRound } from 'lucide-react';
+import { GraduationCap, ShieldCheck, UserPlus, UserRound } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui';
 import { LoginForm } from './LoginForm';
 import { useAuth } from '../hooks/useAuth';
@@ -65,13 +65,23 @@ export function LoginContainer() {
               </div>
             </div>
 
-            <Link
-              href="/parent-access"
-              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-primary-200 bg-primary-50 px-4 py-2.5 text-sm font-bold text-primary-700 transition-colors hover:border-primary-300 hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
-            >
-              <UserRound className="h-4 w-4" />
-              <span>دخول ولي الأمر</span>
-            </Link>
+            <div className="space-y-3">
+              <Link
+                href="/parent-access"
+                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-primary-200 bg-primary-50 px-4 py-2.5 text-sm font-bold text-primary-700 transition-colors hover:border-primary-300 hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+              >
+                <UserRound className="h-4 w-4" />
+                <span>دخول ولي الأمر</span>
+              </Link>
+
+              <Link
+                href="/register/student"
+                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-4 py-2.5 text-sm font-bold text-neutral-700 transition-colors hover:border-neutral-300 hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+              >
+                <UserPlus className="h-4 w-4" />
+                <span>إنشاء حساب طالب</span>
+              </Link>
+            </div>
           </CardContent>
         </Card>
 

@@ -9,6 +9,25 @@ export interface ParentAccessCredentials {
   studentPhone: string;
 }
 
+export interface StudentRegistrationVerification {
+  studentCode: string;
+  registrationCode: string;
+}
+
+export interface StudentVerificationResponse {
+  registrationToken: string;
+  studentCode: string;
+  fullName: string;
+  gradeLevel: string;
+}
+
+export interface StudentAccountCredentials {
+  registrationToken: string;
+  phone?: string;
+  email?: string;
+  password: string;
+}
+
 export interface AuthUser {
   id: string;
   fullName: string;

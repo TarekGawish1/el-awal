@@ -163,7 +163,12 @@ export class AuthService {
     return this.issueTokens(parentUser);
   }
 
-  private async issueTokens(user: AuthUserRecord): Promise<AuthTokensResponseDto> {
+  /**
+   * Issues a signed access/refresh token pair and persists the refresh session.
+   * Public so the student self-registration flow can auto-authenticate after
+   * a successful account claim.
+   */
+  async issueTokens(user: AuthUserRecord): Promise<AuthTokensResponseDto> {
     const accessSecret = this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
     const refreshSecret = this.configService.getOrThrow<string>('JWT_REFRESH_SECRET');
     const accessExpiry = this.configService.get<string>('JWT_ACCESS_EXPIRES_IN', '15m');

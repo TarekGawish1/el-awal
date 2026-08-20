@@ -31,6 +31,16 @@ export class StudentsController {
     return this.studentsService.createStudent(dto);
   }
 
+  @Post(':id/registration-code')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Issue (or rotate) a one-time self-registration activation code for a pending student' })
+  @ApiResponse({ status: 200, description: 'Activation code issued and returned exactly once' })
+  @ApiResponse({ status: 409, description: 'Student account is already claimed' })
+  async issueRegistrationCode(@Param('id') id: string) {
+    return this.studentsService.issueRegistrationCode(id);
+  }
+
   @Get()
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'List and search students with Keyset cursor pagination and stage filters' })

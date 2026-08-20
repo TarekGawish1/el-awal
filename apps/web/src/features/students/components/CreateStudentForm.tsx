@@ -10,11 +10,12 @@ import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Alert';
 
 interface CreateStudentFormProps {
-  onSuccess: (data?: any, password?: string, parentPhone?: string) => void;
+  onSuccess: (data?: any, password?: string, parentPhone?: string, registrationCode?: string) => void;
   onCancel: () => void;
 }
 
 export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProps) {
+  const [selfRegistration, setSelfRegistration] = useState(false);
   const [formData, setFormData] = useState({
     fullName: '',
     phone: '',
@@ -127,7 +128,7 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
     mutate(
       {
         fullName: formData.fullName,
-        password: formData.password,
+        password: selfRegistration ? undefined : formData.password,
         gradeLevel: formData.gradeLevel,
         academicStage: formData.educationalStage || undefined,
         phone: formData.phone || undefined,
@@ -138,7 +139,12 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
       },
       {
         onSuccess: (data) => {
-          onSuccess(data, formData.password, formData.parentPhone);
+          onSuccess(
+            data,
+            selfRegistration ? undefined : formData.password,
+            formData.parentPhone,
+            selfRegistration ? data?.registrationCode : undefined,
+          );
         },
         onError: (err: any) => {
           let msg = err.message || err.response?.data?.message || 'حدث خطأ أثناء التسجيل';
@@ -258,17 +264,34 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
         </div>
 
         <div className="grid grid-cols-1 gap-6 pt-2">
-          <Input
-            label="كلمة المرور"
-            name="password"
-            type="text"
-            required
-            readOnly
-            value={formData.password}
-            onChange={handleChange}
-            minLength={6}
-            className="text-left font-mono tracking-wider font-bold text-primary-700 bg-slate-50 cursor-not-allowed"
-          />
+          <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/50 p-4 cursor-pointer transition-colors hover:border-primary-200 hover:bg-primary-50/40">
+            <input
+              type="checkbox"
+              checked={selfRegistration}
+              onChange={(e) => setSelfRegistration(e.target.checked)}
+              className="mt-1 h-4 w-4 accent-primary-600"
+            />
+            <span className="text-sm">
+              <span className="block font-bold text-slate-800">التسجيل الذاتي للطالب</span>
+              <span className="block text-xs text-slate-500 mt-0.5 leading-relaxed">
+                يتم إنشاء ملف الطالب بدون بيانات دخول، وسيحصل الطالب على كود تفعيل لإنشاء حسابه بنفسه من صفحة تسجيل الدخول
+              </span>
+            </span>
+          </label>
+
+          {!selfRegistration && (
+            <Input
+              label="كلمة المرور"
+              name="password"
+              type="text"
+              required
+              readOnly
+              value={formData.password}
+              onChange={handleChange}
+              minLength={6}
+              className="text-left font-mono tracking-wider font-bold text-primary-700 bg-slate-50 cursor-not-allowed"
+            />
+          )}
         </div>
       </div>
 

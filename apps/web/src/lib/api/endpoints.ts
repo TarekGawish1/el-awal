@@ -9,6 +9,8 @@ export const API_ENDPOINTS = {
   AUTH: {
     LOGIN: '/auth/login',
     PARENT_ACCESS: '/auth/parent-access',
+    STUDENT_REGISTRATION_VERIFY: '/auth/student-registration/verify',
+    STUDENT_REGISTRATION_REGISTER: '/auth/student-registration/register',
     LOGOUT: '/auth/logout',
     REFRESH: '/auth/refresh',
     ME: '/users/me',
@@ -35,6 +37,7 @@ export const API_ENDPOINTS = {
     DETAIL: (id: string) => `/students/${id}`,
     QR_CODE: (id: string) => `/students/${id}/qr-code`,
     REGENERATE_QR: (id: string) => `/students/${id}/regenerate-qr-token`,
+    ISSUE_REGISTRATION_CODE: (id: string) => `/students/${id}/registration-code`,
   },
   ATTENDANCE: {
     MANUAL: (sessionId: string) => `/attendance/sessions/${sessionId}/manual`,

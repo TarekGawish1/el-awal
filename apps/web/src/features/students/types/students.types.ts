@@ -23,9 +23,27 @@ export interface StudentListItem {
   }>;
 }
 
+export interface CreateStudentResponse {
+  id: string;
+  studentCode: string;
+  fullName: string;
+  phone?: string | null;
+  email?: string | null;
+  gradeLevel: string;
+  academicStage?: string | null;
+  academicStatus: AcademicStatus;
+  qrCodeToken: string;
+  createdAt: string;
+  hasParentLinked: boolean;
+  enrolledGroupId?: string | null;
+  selfRegistrationPending?: boolean;
+  registrationCode?: string | null;
+}
+
 export interface StudentDetail extends StudentListItem {
   dateOfBirth?: string;
   emergencyPhone?: string;
+  accountClaimedAt?: string | null;
   parentLinks: Array<{
     parent: {
       user: {

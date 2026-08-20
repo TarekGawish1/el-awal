@@ -110,6 +110,8 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
   const isAuthEndpoint =
     endpoint.includes(API_ENDPOINTS.AUTH.LOGIN) ||
     endpoint.includes(API_ENDPOINTS.AUTH.PARENT_ACCESS) ||
+    endpoint.includes(API_ENDPOINTS.AUTH.STUDENT_REGISTRATION_VERIFY) ||
+    endpoint.includes(API_ENDPOINTS.AUTH.STUDENT_REGISTRATION_REGISTER) ||
     endpoint.includes(API_ENDPOINTS.AUTH.REFRESH) ||
     endpoint.includes(API_ENDPOINTS.AUTH.LOGOUT);
 

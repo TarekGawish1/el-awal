@@ -2,16 +2,21 @@ import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from '../services/auth.service';
+import { StudentRegistrationService } from '../services/student-registration.service';
 import { LoginDto } from '../dto/login.dto';
 import { ParentAccessDto } from '../dto/parent-access.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { AuthTokensResponseDto } from '../dto/auth-response.dto';
+import { VerifyStudentRegistrationDto, RegisterStudentAccountDto } from '../dto/student-registration.dto';
 import { Public } from '../../../core/security/decorators/public.decorator';
 
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly studentRegistrationService: StudentRegistrationService,
+  ) {}
 
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60000 } })
@@ -33,6 +38,30 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Student phone is not registered or has no active linked parent' })
   async parentAccess(@Body() dto: ParentAccessDto): Promise<AuthTokensResponseDto> {
     return this.authService.parentAccess(dto);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Post('student-registration/verify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify an existing student record using the student code and the one-time school-issued activation code' })
+  @ApiResponse({ status: 200, description: 'Verification successful, returns a short-lived registration token' })
+  @ApiResponse({ status: 401, description: 'Verification data does not match a pending student record' })
+  @ApiResponse({ status: 409, description: 'Student account is already registered' })
+  async verifyStudentRegistration(@Body() dto: VerifyStudentRegistrationDto) {
+    return this.studentRegistrationService.verifyStudent(dto);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Post('student-registration/register')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Claim a verified pending student account by setting login credentials (role is always STUDENT)' })
+  @ApiResponse({ status: 201, description: 'Account created and linked to the existing student record, returns tokens', type: AuthTokensResponseDto })
+  @ApiResponse({ status: 401, description: 'Invalid or expired registration token' })
+  @ApiResponse({ status: 409, description: 'Student already registered or identifier already in use' })
+  async registerStudentAccount(@Body() dto: RegisterStudentAccountDto): Promise<AuthTokensResponseDto> {
+    return this.studentRegistrationService.registerStudentAccount(dto);
   }
 
   @Public()

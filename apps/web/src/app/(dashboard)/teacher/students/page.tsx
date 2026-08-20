@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 
 export default function TeacherStudentsPage() {
   const [isCreating, setIsCreating] = useState(false);
-  const [createdStudent, setCreatedStudent] = useState<{ id: string; password?: string; email?: string; phone?: string } | null>(null);
+  const [createdStudent, setCreatedStudent] = useState<{ id: string; password?: string; email?: string; phone?: string; registrationCode?: string } | null>(null);
 
   return (
     <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -36,13 +36,14 @@ export default function TeacherStudentsPage() {
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 mb-8">
           <h2 className="text-xl font-bold text-slate-800 mb-6">تسجيل طالب جديد</h2>
           <CreateStudentForm
-            onSuccess={(data, password, parentPhone) => {
+            onSuccess={(data, password, parentPhone, registrationCode) => {
               if (data?.id) {
                 setCreatedStudent({
                   id: data.id,
                   password: password,
                   email: data.email,
-                  phone: data.phone || parentPhone
+                  phone: data.phone || parentPhone,
+                  registrationCode: registrationCode,
                 });
               }
               setIsCreating(false);
@@ -52,6 +53,17 @@ export default function TeacherStudentsPage() {
         </div>
       ) : createdStudent ? (
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 mb-8 flex flex-col items-center">
+          {createdStudent.registrationCode && (
+            <div className="w-full max-w-sm mb-6 rounded-2xl border border-primary-200 bg-primary-50 p-5 text-center">
+              <p className="text-sm font-bold text-primary-800">كود التفعيل للتسجيل الذاتي</p>
+              <p className="mt-2 font-mono text-2xl font-extrabold tracking-widest text-primary-700" dir="ltr">
+                {createdStudent.registrationCode}
+              </p>
+              <p className="mt-2 text-xs text-primary-700 leading-relaxed">
+                سلّم هذا الكود مع كود الطالب للطالب ليستخدمه في صفحة «إنشاء حساب طالب»
+              </p>
+            </div>
+          )}
           <div className="w-full max-w-sm mb-6">
             <StudentQrBadge
               studentId={createdStudent.id}
@@ -59,6 +71,7 @@ export default function TeacherStudentsPage() {
               loginPassword={createdStudent.password}
               loginEmail={createdStudent.email}
               loginPhone={createdStudent.phone}
+              registrationCode={createdStudent.registrationCode}
             />
           </div>
           <Button 
