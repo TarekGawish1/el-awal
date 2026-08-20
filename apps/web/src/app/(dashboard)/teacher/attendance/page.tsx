@@ -320,25 +320,25 @@ function TeacherAttendanceContent() {
   }, [filteredAllSessions, groupMap]);
 
   return (
-    <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
+    <div className="max-w-6xl mx-auto py-4 sm:py-8 px-2 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
       {/* Header */}
-      <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 relative overflow-hidden">
+      <div className="bg-white p-5 sm:p-8 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-full h-2 bg-gradient-to-r from-primary-400 to-primary-600"></div>
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-extrabold text-slate-900">رصد الحضور والغياب</h1>
-            <p className="mt-3 text-slate-500 text-lg">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">رصد الحضور والغياب</h1>
+            <p className="mt-1 sm:mt-3 text-slate-500 text-sm sm:text-lg">
               لوحة إدارة الحضور اليومية. اختر المرحلة والصف لعرض مجموعات اليوم، ثم ابدأ في مسح الـ QR.
             </p>
           </div>
           
           {/* Active Academic Period Badge */}
-          <div className="flex flex-wrap items-center gap-2 bg-slate-50 border border-slate-100 p-2.5 rounded-2xl">
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100">
+          <div className="flex flex-wrap items-center gap-2 bg-slate-50 border border-slate-100 p-2 sm:p-2.5 rounded-2xl">
+            <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100">
               <Calendar className="w-3.5 h-3.5" />
               العام: {activeYear || '2026-2027'}
             </div>
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
+            <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
               <BookOpen className="w-3.5 h-3.5" />
               {activeTerm === 'SECOND_TERM' ? 'الفصل الدراسي الثاني' : 'الفصل الدراسي الأول'}
             </div>

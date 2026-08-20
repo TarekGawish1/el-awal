@@ -165,14 +165,15 @@ export function AcademicPeriodSwitcher() {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary-50/80 hover:bg-primary-100/90 border border-primary-200/80 text-primary-900 transition-all shadow-2xs group cursor-pointer"
+        className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl bg-primary-50/80 hover:bg-primary-100/90 border border-primary-200/80 text-primary-900 transition-all shadow-2xs group cursor-pointer"
         title={canChangePeriod ? 'تغيير العام والفصل الدراسي الافتراضي للنظام' : 'العام والفصل الدراسي النشط (للعرض فقط)'}
       >
         <div className="flex items-center gap-1 text-primary-600">
           <Calendar className="w-3.5 h-3.5" />
         </div>
-        <div className="flex items-center gap-1.5 text-xs font-bold leading-none">
-          <span>العام {activeYear}</span>
+        <div className="flex items-center gap-1 text-xs font-bold leading-none">
+          <span className="hidden sm:inline">العام </span>
+          <span>{activeYear}</span>
           <span className="text-primary-300">•</span>
           <span className="text-primary-700 font-semibold">{termLabel}</span>
         </div>
@@ -188,7 +189,7 @@ export function AcademicPeriodSwitcher() {
 
       {/* Popover Switcher Dropdown */}
       {isOpen && (
-        <div className="absolute start-0 sm:start-auto end-0 sm:end-0 mt-2 w-80 sm:w-[410px] bg-white rounded-3xl p-5 shadow-2xl border border-slate-100 z-50 animate-in fade-in zoom-in-95 duration-150 text-start">
+        <div className="absolute start-auto end-0 mt-2 w-[calc(100vw-2rem)] sm:w-[410px] max-w-[410px] bg-white rounded-3xl p-4 sm:p-5 shadow-2xl border border-slate-100 z-50 animate-in fade-in zoom-in-95 duration-150 text-start">
           {/* Header */}
           <div className="flex items-start justify-between pb-3.5 border-b border-slate-100 mb-3">
             <div className="flex items-center gap-2.5">

@@ -111,17 +111,19 @@ export function MonthlyCalendarView({
 
   return (
     <div className="bg-white rounded-3xl border border-slate-100 shadow-xs overflow-hidden flex flex-col">
-      {/* Weekday Columns Header */}
-      <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/70 text-center">
-        {ARABIC_WEEKDAYS.map((wd) => (
-          <div key={wd} className="p-3 text-xs font-black text-slate-600 border-l border-slate-100 last:border-l-0">
-            {wd}
+      <div className="overflow-x-auto">
+        <div className="min-w-[600px] sm:min-w-[700px] flex flex-col">
+          {/* Weekday Columns Header */}
+          <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/70 text-center">
+            {ARABIC_WEEKDAYS.map((wd) => (
+              <div key={wd} className="p-3 text-xs font-black text-slate-600 border-l border-slate-100 last:border-l-0">
+                {wd}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {/* Days Grid */}
-      <div className="grid grid-cols-7 auto-rows-fr">
+          {/* Days Grid */}
+          <div className="grid grid-cols-7 auto-rows-fr">
         {monthGridDays.map((item) => {
           const daySessions = sessionsByDate.get(item.dateStr) || [];
 
@@ -210,6 +212,8 @@ export function MonthlyCalendarView({
             </div>
           );
         })}
+          </div>
+        </div>
       </div>
     </div>
   );

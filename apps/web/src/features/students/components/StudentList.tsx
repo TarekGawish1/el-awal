@@ -435,9 +435,10 @@ export function StudentList() {
         )}
       </div>
 
-      {/* Table Section */}
+      {/* Table & Mobile Cards Section */}
       <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm text-start">
             <thead className="bg-slate-50/80 border-b border-slate-100 backdrop-blur-sm">
               <tr>
@@ -556,6 +557,84 @@ export function StudentList() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Cards View (Optimized for Phone Screens) */}
+        <div className="block md:hidden">
+          {isLoading ? (
+            <div className="p-8 text-center text-slate-500">
+              <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+              <p className="font-medium text-sm">جاري تحميل الطلاب...</p>
+            </div>
+          ) : isError ? (
+            <div className="p-6 text-center text-red-500 bg-red-50/50 text-sm">
+              فشل تحميل الطلاب. يرجى المحاولة مرة أخرى.
+            </div>
+          ) : filteredStudents.length === 0 ? (
+            <div className="p-8 text-center text-slate-500">
+              <p className="text-sm font-medium text-slate-600">
+                {hasActiveFilters ? 'لا يوجد طلاب مطابقين لخيارات الفلترة.' : 'لم يتم العثور على طلاب.'}
+              </p>
+              {hasActiveFilters && (
+                <Button variant="outline" size="sm" onClick={resetFilters} className="mt-3 text-xs">
+                  <RotateCcw className="w-3.5 h-3.5 ml-1.5" />
+                  إعادة تعيين الفلاتر
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {filteredStudents.map((student) => (
+                <div key={student.id} className="p-4 space-y-3 hover:bg-slate-50/50 transition-colors">
+                  <div className="flex items-start justify-between gap-3">
+                    <Link href={`/teacher/students/${student.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="w-11 h-11 rounded-2xl bg-primary-50 text-primary-700 flex items-center justify-center font-extrabold text-base border border-primary-100 shrink-0 shadow-2xs">
+                        {student.user.fullName.charAt(0)}
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-sm text-slate-900 truncate">
+                          {student.user.fullName}
+                        </h4>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[11px] font-mono text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded">
+                            {student.studentCode}
+                          </span>
+                          <span className="text-[11px] text-slate-500 truncate">
+                            {student.gradeLevel || '—'}
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+
+                    <Badge variant={getStatusColor(student.academicStatus)} className="text-[10px] font-bold shrink-0">
+                      {getStatusText(student.academicStatus)}
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">المجموعة:</span>
+                      <span className="font-bold text-slate-700 truncate block">
+                        {student.groupEnrollments[0]?.group.name || 'غير معين'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">ولي الأمر:</span>
+                      <span className="font-mono text-slate-700 block text-[11px]" dir="ltr">
+                        {student.parentLinks?.[0]?.parent.user?.phone || '—'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <Link href={`/teacher/students/${student.id}`} className="block">
+                    <Button variant="outline" size="sm" className="w-full text-xs font-bold rounded-xl py-2 bg-white">
+                      عرض الملف الكامل والتفاصيل
+                    </Button>
+                  </Link>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Pagination Controls */}

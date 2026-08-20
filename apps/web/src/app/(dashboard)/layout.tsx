@@ -23,6 +23,7 @@ import { useAuth } from '@/features/auth';
 import { DashboardBreadcrumbs } from '@/features/dashboard/components/DashboardBreadcrumbs';
 import { AcademicPeriodSwitcher } from '@/features/groups/components/AcademicPeriodSwitcher';
 import { PwaInstallButton } from '@/components/pwa';
+import { MobileBottomNav } from '@/components/navigation';
 
 export default function DashboardLayout({
   children,
@@ -259,11 +260,17 @@ export default function DashboardLayout({
         </header>
 
         {/* Main Content Area */}
-        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto w-full">
+        <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 pb-28 lg:pb-8 overflow-y-auto w-full">
           <div className="max-w-7xl mx-auto w-full min-h-full">
             {children}
           </div>
         </main>
+
+        {/* Mobile Bottom Navigation Bar */}
+        <MobileBottomNav
+          userRole={user?.role}
+          onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
+        />
       </div>
     </div>
   );

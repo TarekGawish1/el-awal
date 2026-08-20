@@ -112,7 +112,8 @@ export function ManualAttendanceRoster({ sessionId, records }: ManualAttendanceR
         <Alert variant="error">فشل حفظ الحضور. يرجى المحاولة مرة أخرى.</Alert>
       )}
 
-      <div className="overflow-x-auto border border-slate-100 rounded-2xl shadow-sm">
+      {/* Desktop Table View */}
+      <div className="hidden md:block overflow-x-auto border border-slate-100 rounded-2xl shadow-sm">
         <table className="w-full text-sm text-start">
           <thead className="bg-slate-50/80 backdrop-blur-sm border-b border-slate-100">
             <tr>
@@ -213,6 +214,100 @@ export function ManualAttendanceRoster({ sessionId, records }: ManualAttendanceR
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile Card Roster View */}
+      <div className="block md:hidden space-y-3">
+        {records.length === 0 ? (
+          <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-100 text-slate-500 text-sm">
+            لا يوجد طلاب مسجلين في هذه المجموعة.
+          </div>
+        ) : (
+          records.map((record) => {
+            const currentStatus = localRecords[record.studentId] || record.status;
+            const currentNote = localNotes[record.studentId];
+
+            return (
+              <div
+                key={record.id}
+                className={`p-4 rounded-2xl border transition-all space-y-3 ${
+                  currentStatus === 'PRESENT'
+                    ? 'bg-emerald-50/40 border-emerald-200'
+                    : currentStatus === 'ABSENT'
+                    ? 'bg-rose-50/40 border-rose-200'
+                    : currentStatus === 'EXCUSED'
+                    ? 'bg-amber-50/40 border-amber-200'
+                    : 'bg-white border-slate-100'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-bold text-sm text-slate-900">{record.fullName}</h4>
+                    <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded mt-0.5 inline-block">
+                      {record.studentCode}
+                    </span>
+                  </div>
+
+                  {currentStatus === 'EXCUSED' && currentNote && (
+                    <button
+                      type="button"
+                      onClick={() => setExcuseModalStudent({
+                        studentId: record.studentId,
+                        fullName: record.fullName,
+                        studentCode: record.studentCode,
+                        currentNote: currentNote,
+                      })}
+                      className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-100/70 px-2 py-1 rounded-lg font-medium"
+                    >
+                      <FileText className="w-3 h-3 text-amber-600" />
+                      <span>تعديل العذر</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Full-width thumb-friendly buttons */}
+                <div className="grid grid-cols-3 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleStatusChange(record.studentId, 'PRESENT')}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center ${
+                      currentStatus === 'PRESENT'
+                        ? 'bg-emerald-600 text-white shadow-emerald-600/30'
+                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    حاضر ✓
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStatusChange(record.studentId, 'ABSENT')}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center ${
+                      currentStatus === 'ABSENT'
+                        ? 'bg-rose-600 text-white shadow-rose-600/30'
+                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    غائب ✗
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStatusChange(record.studentId, 'EXCUSED', {
+                      fullName: record.fullName,
+                      studentCode: record.studentCode,
+                    })}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center ${
+                      currentStatus === 'EXCUSED'
+                        ? 'bg-amber-500 text-white shadow-amber-500/30'
+                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    بعذر 📋
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* Pop up to add and edit excuses */}

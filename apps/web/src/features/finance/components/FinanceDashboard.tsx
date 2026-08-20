@@ -29,6 +29,11 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+const ARABIC_MONTHS = [
+  'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+  'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+];
+
 export function FinanceDashboard() {
   const searchParams = useSearchParams();
   const paramGroupId = searchParams.get('groupId');
@@ -101,21 +106,21 @@ export function FinanceDashboard() {
   const selectedGroup = groups.find((g) => g.id === selectedGroupId);
 
   return (
-    <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
+    <div className="max-w-6xl mx-auto py-4 sm:py-8 px-2 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
       {/* Header */}
-      <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 relative overflow-hidden">
+      <div className="bg-white p-5 sm:p-8 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-full h-2 bg-gradient-to-r from-primary-400 to-primary-600"></div>
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-extrabold text-slate-900">إدارة المصروفات وسداد الطلاب</h1>
-            <p className="mt-3 text-slate-500 text-lg">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">إدارة المصروفات وسداد الطلاب</h1>
+            <p className="mt-1 sm:mt-3 text-slate-500 text-sm sm:text-lg">
               امسح رمز الـ QR الخاص بأي طالب مباشرة لتسجيل سداد المصروفات فورياً وتحديد مجموعته تلقائياً.
             </p>
           </div>
           {selectedGroupId && (
             <Button 
               onClick={() => setIsRecordModalOpen(true)}
-              className="rounded-xl shadow-sm"
+              className="w-full sm:w-auto rounded-xl shadow-sm"
             >
               <DollarSign className="w-4 h-4 ml-1.5" />
               تسجيل سداد يدوي
@@ -125,7 +130,7 @@ export function FinanceDashboard() {
       </div>
 
       {/* Filters Toolbar */}
-      <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-wrap gap-4 items-end">
+      <div className="bg-white p-4 sm:p-5 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 flex flex-wrap gap-4 items-end">
         {activeTab === 'MANUAL' ? (
           <div className="flex-1 min-w-[250px] animate-in fade-in duration-200">
             <label className="block text-xs font-semibold text-neutral-700 mb-1.5 flex items-center gap-1.5">
@@ -154,53 +159,62 @@ export function FinanceDashboard() {
           </div>
         )}
 
-        <div className="w-36">
-          <label className="block text-xs font-semibold text-neutral-700 mb-1.5 flex items-center gap-1.5">
-            <Calendar className="w-4 h-4 text-primary-600" />
-            شهر الاستحقاق
-          </label>
-          <select
-            className="w-full h-11 rounded-xl border border-slate-200 px-3 text-sm font-semibold focus:ring-2 focus:ring-primary/20 bg-white"
-            value={periodMonth}
-            onChange={(e) => setPeriodMonth(Number(e.target.value))}
-          >
-            {months.map((m) => (
-              <option key={m} value={m}>شهر {m}</option>
-            ))}
-          </select>
-        </div>
+        {/* Period Selector */}
+        <div className="flex gap-2 w-full sm:w-auto">
+          <div className="w-1/2 sm:w-28">
+            <label className="block text-xs font-semibold text-neutral-700 mb-1.5 flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-primary-600" />
+              الشهر
+            </label>
+            <select
+              className="w-full h-11 rounded-xl border border-slate-200 px-3 text-sm font-semibold focus:ring-2 focus:ring-primary/20 bg-white"
+              value={periodMonth}
+              onChange={(e) => setPeriodMonth(Number(e.target.value))}
+            >
+              {months.map((m) => (
+                <option key={m} value={m}>
+                  {m} ({ARABIC_MONTHS[m - 1]})
+                </option>
+              ))}
+            </select>
+          </div>
 
-        <div className="w-32">
-          <label className="block text-xs font-semibold text-neutral-700 mb-1.5">السنة</label>
-          <select
-            className="w-full h-11 rounded-xl border border-slate-200 px-3 text-sm font-semibold focus:ring-2 focus:ring-primary/20 bg-white"
-            value={periodYear}
-            onChange={(e) => setPeriodYear(Number(e.target.value))}
-          >
-            {years.map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
+          <div className="w-1/2 sm:w-28">
+            <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+              السنة
+            </label>
+            <select
+              className="w-full h-11 rounded-xl border border-slate-200 px-3 text-sm font-semibold focus:ring-2 focus:ring-primary/20 bg-white"
+              value={periodYear}
+              onChange={(e) => setPeriodYear(Number(e.target.value))}
+            >
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
-      {/* Main Payment Workspace Card matching Attendance - ALWAYS ACTIVE DIRECTLY */}
-      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
-          <CardHeader className="border-b border-slate-100 px-6 py-5 bg-slate-50/30">
-            <div className="flex justify-center space-x-4 rtl:space-x-reverse">
+      {/* Main Mode View */}
+      <div className="space-y-6">
+        <Card className="rounded-2xl sm:rounded-3xl border-slate-100 overflow-hidden shadow-sm">
+          <CardHeader className="bg-slate-50/50 border-b border-slate-100 flex flex-row items-center justify-between p-4 sm:p-6">
+            <div className="flex gap-2 bg-slate-200/60 p-1 rounded-2xl w-full sm:w-auto">
               <Button
                 variant={activeTab === 'QR' ? 'primary' : 'outline'}
                 onClick={() => setActiveTab('QR')}
-                className={`w-40 rounded-xl ${activeTab === 'QR' ? 'shadow-md shadow-primary-500/20' : ''}`}
+                className={`flex-1 sm:w-40 rounded-xl ${activeTab === 'QR' ? 'shadow-md shadow-primary-500/20' : ''}`}
               >
                 <QrCode className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" />
-                مسح QR
+                مسح بالـ QR
               </Button>
               <Button
                 variant={activeTab === 'MANUAL' ? 'primary' : 'outline'}
                 onClick={() => setActiveTab('MANUAL')}
-                className={`w-40 rounded-xl ${activeTab === 'MANUAL' ? 'shadow-md shadow-primary-500/20' : ''}`}
+                className={`flex-1 sm:w-40 rounded-xl ${activeTab === 'MANUAL' ? 'shadow-md shadow-primary-500/20' : ''}`}
               >
                 <ClipboardList className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" />
                 رصد يدوي

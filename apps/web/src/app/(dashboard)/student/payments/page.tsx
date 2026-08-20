@@ -150,60 +150,114 @@ export default function StudentPaymentsPage() {
               <p className="text-xs text-slate-400 mt-1">عند تسجيل السكرتارية أو المدرس لأي دفعة مالية، ستظهر التفاصيل هنا.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto w-full">
-              <table className="w-full text-right text-sm">
-                <thead>
-                  <tr className="bg-slate-50/75 border-b border-slate-100 text-slate-500">
-                    <th className="py-3.5 px-6 font-semibold">الفترة (الشهر/العام)</th>
-                    <th className="py-3.5 px-6 font-semibold">المجموعة الدراسية / الدورة</th>
-                    <th className="py-3.5 px-6 font-semibold">المبلغ المطلوب</th>
-                    <th className="py-3.5 px-6 font-semibold">المبلغ المدفوع</th>
-                    <th className="py-3.5 px-6 font-semibold">حالة الدفع</th>
-                    <th className="py-3.5 px-6 font-semibold">طريقة السداد</th>
-                    <th className="py-3.5 px-6 font-semibold">رقم الإيصال</th>
-                    <th className="py-3.5 px-6 font-semibold">تاريخ التسجيل</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {payments.map((p: any) => {
-                    const monthName = p.periodMonth >= 1 && p.periodMonth <= 12 
-                      ? ARABIC_MONTHS[p.periodMonth - 1] 
-                      : `شهر ${p.periodMonth}`;
-                    
-                    return (
-                      <tr key={p.id} className="hover:bg-slate-50/40 transition-colors">
-                        <td className="py-4 px-6 font-bold text-slate-800">
-                          {monthName} {p.periodYear}
-                        </td>
-                        <td className="py-4 px-6">
-                          <span className="font-semibold text-slate-800 block">
-                            {p.group?.name || 'عام / اشتراك منصة'}
+            <>
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto w-full">
+                <table className="w-full text-right text-sm">
+                  <thead>
+                    <tr className="bg-slate-50/75 border-b border-slate-100 text-slate-500">
+                      <th className="py-3.5 px-6 font-semibold">الفترة (الشهر/العام)</th>
+                      <th className="py-3.5 px-6 font-semibold">المجموعة الدراسية / الدورة</th>
+                      <th className="py-3.5 px-6 font-semibold">المبلغ المطلوب</th>
+                      <th className="py-3.5 px-6 font-semibold">المبلغ المدفوع</th>
+                      <th className="py-3.5 px-6 font-semibold">حالة الدفع</th>
+                      <th className="py-3.5 px-6 font-semibold">طريقة السداد</th>
+                      <th className="py-3.5 px-6 font-semibold">رقم الإيصال</th>
+                      <th className="py-3.5 px-6 font-semibold">تاريخ التسجيل</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {payments.map((p: any) => {
+                      const monthName = p.periodMonth >= 1 && p.periodMonth <= 12 
+                        ? ARABIC_MONTHS[p.periodMonth - 1] 
+                        : `شهر ${p.periodMonth}`;
+                      
+                      return (
+                        <tr key={p.id} className="hover:bg-slate-50/40 transition-colors">
+                          <td className="py-4 px-6 font-bold text-slate-800">
+                            {monthName} {p.periodYear}
+                          </td>
+                          <td className="py-4 px-6">
+                            <span className="font-semibold text-slate-800 block">
+                              {p.group?.name || 'عام / اشتراك منصة'}
+                            </span>
+                          </td>
+                          <td className="py-4 px-6 font-semibold text-slate-600 font-mono">
+                            {formatNumber(p.amountExpected)} EGP
+                          </td>
+                          <td className="py-4 px-6 font-bold text-primary-600 font-mono">
+                            {formatNumber(p.amountPaid)} EGP
+                          </td>
+                          <td className="py-4 px-6">
+                            {getStatusBadge(p.paymentStatus)}
+                          </td>
+                          <td className="py-4 px-6 text-slate-500">
+                            {p.paymentStatus === 'PAID' ? getPaymentMethodLabel(p.paymentMethod) : '—'}
+                          </td>
+                          <td className="py-4 px-6 text-xs font-mono text-slate-500">
+                            {p.receiptNumber || '—'}
+                          </td>
+                          <td className="py-4 px-6 text-xs text-slate-500">
+                            {p.createdAt ? formatArabicDate(p.createdAt) : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Cards View */}
+              <div className="block md:hidden divide-y divide-slate-100">
+                {payments.map((p: any) => {
+                  const monthName = p.periodMonth >= 1 && p.periodMonth <= 12 
+                    ? ARABIC_MONTHS[p.periodMonth - 1] 
+                    : `شهر ${p.periodMonth}`;
+
+                  return (
+                    <div key={p.id} className="p-4 space-y-3 hover:bg-slate-50/50 transition-colors">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="text-xs font-bold text-slate-800 block">
+                            {p.group?.name || 'اشتراك المجموعة التعليمية'}
                           </span>
-                        </td>
-                        <td className="py-4 px-6 font-semibold text-slate-600 font-mono">
-                          {formatNumber(p.amountExpected)} EGP
-                        </td>
-                        <td className="py-4 px-6 font-bold text-primary-600 font-mono">
-                          {formatNumber(p.amountPaid)} EGP
-                        </td>
-                        <td className="py-4 px-6">
-                          {getStatusBadge(p.paymentStatus)}
-                        </td>
-                        <td className="py-4 px-6 text-slate-500">
-                          {p.paymentStatus === 'PAID' ? getPaymentMethodLabel(p.paymentMethod) : '—'}
-                        </td>
-                        <td className="py-4 px-6 text-xs font-mono text-slate-500">
-                          {p.receiptNumber || '—'}
-                        </td>
-                        <td className="py-4 px-6 text-xs text-slate-500">
-                          {p.createdAt ? formatArabicDate(p.createdAt) : '—'}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                          <span className="text-[11px] font-semibold text-primary-600 block mt-0.5">
+                            📅 {monthName} {p.periodYear}
+                          </span>
+                        </div>
+                        {getStatusBadge(p.paymentStatus)}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 bg-slate-50/70 p-3 rounded-xl border border-slate-100 text-xs">
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">المبلغ المطلوب:</span>
+                          <span className="font-bold text-slate-700 font-mono">
+                            {formatNumber(p.amountExpected)} EGP
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">المبلغ المدفوع:</span>
+                          <span className="font-bold text-primary-600 font-mono">
+                            {formatNumber(p.amountPaid)} EGP
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
+                        <span>
+                          طريقة الدفع: <span className="font-medium text-slate-700">{p.paymentStatus === 'PAID' ? getPaymentMethodLabel(p.paymentMethod) : '—'}</span>
+                        </span>
+                        {p.receiptNumber && (
+                          <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">
+                            #{p.receiptNumber}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

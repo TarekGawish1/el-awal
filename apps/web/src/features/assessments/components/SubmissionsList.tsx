@@ -80,7 +80,8 @@ export function SubmissionsList({ assessmentId }: { assessmentId: string }) {
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-right">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>

@@ -305,7 +305,7 @@ export function SessionDetailsModal({
               </div>
             ) : null}
             {/* Quick Metrics Bar */}
-            <div className="grid grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5">
               <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold shrink-0">
                   <FileText className="w-4 h-4" />
@@ -612,8 +612,8 @@ export function SessionDetailsModal({
           </div>
 
           {/* Footer Actions */}
-          <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2">
+          <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-t border-slate-100 bg-slate-50/80 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 justify-center sm:justify-start">
               {/* Only sessions added manually from the calendar can be deleted. Group scheduled sessions cannot be deleted, only cancelled. */}
               {!session.scheduleId && (
                 <button
@@ -641,7 +641,7 @@ export function SessionDetailsModal({
             </div>
 
             <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={onClose}>
+              <Button type="button" variant="outline" size="sm" onClick={onClose} className="flex-1 sm:flex-initial">
                 إغلاق
               </Button>
               <Button
@@ -651,7 +651,7 @@ export function SessionDetailsModal({
                   onClose();
                   onEdit(session);
                 }}
-                className="shadow-xs"
+                className="shadow-xs flex-1 sm:flex-initial"
               >
                 <Edit3 className="w-3.5 h-3.5 ml-1.5" />
                 تعديل الحصة

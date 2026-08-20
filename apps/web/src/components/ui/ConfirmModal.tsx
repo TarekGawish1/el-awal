@@ -101,14 +101,14 @@ export function ConfirmModal({
         </div>
 
         {/* Actions Footer */}
-        <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+        <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5">
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={onClose}
             disabled={isLoading}
-            className="rounded-xl px-4 text-xs font-bold"
+            className="rounded-xl px-4 text-xs font-bold w-full sm:w-auto"
           >
             {cancelText}
           </Button>
@@ -118,7 +118,7 @@ export function ConfirmModal({
             size="sm"
             onClick={onConfirm}
             disabled={isLoading}
-            className={`rounded-xl px-5 text-xs font-bold shadow-xs ${
+            className={`rounded-xl px-5 text-xs font-bold shadow-xs w-full sm:w-auto ${
               variant === 'danger'
                 ? 'bg-rose-600 hover:bg-rose-700 text-white focus:ring-rose-500'
                 : variant === 'warning'

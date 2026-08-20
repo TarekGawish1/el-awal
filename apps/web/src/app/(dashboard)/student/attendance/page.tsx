@@ -291,47 +291,81 @@ export default function StudentAttendancePage() {
                   <p className="text-xs text-slate-400 mt-1">عند حضورك الحصص وتأكيد الكود الخاص بك، ستظهر السجلات هنا.</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto w-full">
-                  <table className="w-full text-right text-sm">
-                    <thead>
-                      <tr className="bg-slate-50/75 border-b border-slate-100 text-slate-500">
-                        <th className="py-3.5 px-6 font-semibold">التاريخ</th>
-                        <th className="py-3.5 px-6 font-semibold">المجموعة الدراسية / الدرس</th>
-                        <th className="py-3.5 px-6 font-semibold">حالة الحضور</th>
-                        <th className="py-3.5 px-6 font-semibold">طريقة الرصد</th>
-                        <th className="py-3.5 px-6 font-semibold">وقت الرصد</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-700">
-                      {records.map((record: any) => (
-                        <tr key={record.id} className="hover:bg-slate-50/40 transition-colors">
-                          <td className="py-4 px-6 font-medium text-slate-800">
-                            {formatArabicDate(record.session?.sessionDate)}
-                          </td>
-                          <td className="py-4 px-6">
-                            <span className="font-semibold text-slate-800 block">
-                              {record.session?.group?.name}
+                <>
+                  {/* Desktop Table */}
+                  <div className="hidden md:block overflow-x-auto w-full">
+                    <table className="w-full text-right text-sm">
+                      <thead>
+                        <tr className="bg-slate-50/75 border-b border-slate-100 text-slate-500">
+                          <th className="py-3.5 px-6 font-semibold">التاريخ</th>
+                          <th className="py-3.5 px-6 font-semibold">المجموعة الدراسية / الدرس</th>
+                          <th className="py-3.5 px-6 font-semibold">حالة الحضور</th>
+                          <th className="py-3.5 px-6 font-semibold">طريقة الرصد</th>
+                          <th className="py-3.5 px-6 font-semibold">وقت الرصد</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700">
+                        {records.map((record: any) => (
+                          <tr key={record.id} className="hover:bg-slate-50/40 transition-colors">
+                            <td className="py-4 px-6 font-medium text-slate-800">
+                              {formatArabicDate(record.session?.sessionDate)}
+                            </td>
+                            <td className="py-4 px-6">
+                              <span className="font-semibold text-slate-800 block">
+                                {record.session?.group?.name}
+                              </span>
+                              {record.session?.topic && (
+                                <span className="text-xs text-slate-500 block mt-0.5">
+                                  {record.session.topic}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-4 px-6">
+                              {getStatusBadge(record.status)}
+                            </td>
+                            <td className="py-4 px-6 text-xs text-slate-500">
+                              {record.recordingMethod === 'QR_SCAN' ? 'مسح QR Code' : 'رصد يدوي'}
+                            </td>
+                            <td className="py-4 px-6 text-xs text-slate-500 font-mono">
+                              {record.recordedAt ? formatArabicTime(record.recordedAt) : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile Cards View */}
+                  <div className="block md:hidden divide-y divide-slate-100">
+                    {records.map((record: any) => (
+                      <div key={record.id} className="p-4 space-y-2.5 hover:bg-slate-50/50 transition-colors">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="text-xs font-bold text-slate-800 block">
+                              {record.session?.group?.name || 'مجموعة دراسية'}
                             </span>
                             {record.session?.topic && (
-                              <span className="text-xs text-slate-500 block mt-0.5">
-                                {record.session.topic}
+                              <span className="text-[11px] text-slate-500 block mt-0.5">
+                                📖 {record.session.topic}
                               </span>
                             )}
-                          </td>
-                          <td className="py-4 px-6">
-                            {getStatusBadge(record.status)}
-                          </td>
-                          <td className="py-4 px-6 text-xs text-slate-500">
-                            {record.recordingMethod === 'QR_SCAN' ? 'مسح QR Code' : 'رصد يدوي'}
-                          </td>
-                          <td className="py-4 px-6 text-xs text-slate-500 font-mono">
-                            {record.recordedAt ? formatArabicTime(record.recordedAt) : '—'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                          </div>
+                          {getStatusBadge(record.status)}
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs text-slate-500 bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
+                          <span className="font-medium text-slate-700">
+                            📅 {formatArabicDate(record.session?.sessionDate)}
+                          </span>
+                          <span className="text-[11px] font-mono text-slate-500">
+                            {record.recordingMethod === 'QR_SCAN' ? '📱 مسح QR' : '✍️ رصد يدوي'}
+                            {record.recordedAt && ` • ${formatArabicTime(record.recordedAt)}`}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>

@@ -25,9 +25,9 @@ export function LoginContainer() {
   }, [isInitialized, isAuthenticated, user, router]);
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-neutral-50 flex flex-col justify-center items-center py-6 sm:py-12 px-3.5 sm:px-6 lg:px-8">
       {/* Container Max Width */}
-      <div className="w-full max-w-md space-y-8">
+      <div className="w-full max-w-md space-y-6 sm:space-y-8">
         {/* Brand Header */}
         <div className="text-center space-y-3">
           <div className="inline-flex p-3 bg-primary-600 text-white rounded-2xl shadow-md ring-4 ring-primary-100 animate-in zoom-in-95 duration-200">
@@ -45,9 +45,9 @@ export function LoginContainer() {
         </div>
 
         {/* Login Form Card */}
-        <Card className="shadow-sm border-neutral-200/90 bg-white">
-          <CardContent className="p-6 sm:p-8">
-            <div className="mb-6 text-start">
+        <Card className="shadow-sm border-neutral-200/90 bg-white rounded-2xl sm:rounded-3xl">
+          <CardContent className="p-5 sm:p-8">
+            <div className="mb-5 sm:mb-6 text-start">
               <h2 className="text-base font-bold text-neutral-900">تسجيل الدخول</h2>
               <p className="text-xs text-neutral-500 mt-0.5">
                 أدخل بيانات حسابك المعتمدة للمتابعة إلى لوحة التحكم

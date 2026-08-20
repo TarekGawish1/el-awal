@@ -155,41 +155,43 @@ export function WeeklyCalendarView({
 
   return (
     <div className="bg-white rounded-3xl border border-slate-100 shadow-xs overflow-hidden flex flex-col min-w-0">
-      {/* Top Days Header Row */}
-      <div className="flex border-b border-slate-100 bg-slate-50/80 sticky top-0 z-20">
-        {/* Time corner header */}
-        <div className="w-16 sm:w-20 shrink-0 p-3 text-center border-l border-slate-100 flex flex-col items-center justify-center">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">الوقت</span>
-          <span className="text-[9px] text-slate-400 font-medium">GMT+3</span>
-        </div>
-
-        {/* 7 Day Column Headers */}
-        <div className="flex-1 grid grid-cols-7 divide-x divide-x-reverse divide-slate-100">
-          {weekDays.map((day) => (
-            <div
-              key={day.dateStr}
-              className={`p-3 text-center transition-all flex flex-col items-center justify-center gap-1 ${
-                day.isToday ? 'bg-sky-50/90 text-sky-900 border-b-2 border-sky-500' : 'hover:bg-slate-100/50'
-              }`}
-            >
-              <span className="text-xs font-bold text-slate-500 truncate max-w-full">{day.dayName}</span>
-              <div
-                className={`w-9 h-9 rounded-2xl flex items-center justify-center text-sm font-black transition-all ${
-                  day.isToday
-                    ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30'
-                    : 'text-slate-800'
-                }`}
-              >
-                {day.dayNumber}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Main Continuous Calendar Body */}
+      {/* Scrollable Container covering Header and Continuous Calendar Body */}
       <div ref={scrollContainerRef} className="overflow-x-auto overflow-y-auto max-h-[720px]">
-        <div className="flex min-w-[860px] relative">
+        <div className="min-w-[760px] sm:min-w-[860px] flex flex-col">
+          {/* Top Days Header Row */}
+          <div className="flex border-b border-slate-100 bg-slate-50/90 sticky top-0 z-20 backdrop-blur-sm">
+            {/* Time corner header */}
+            <div className="w-16 sm:w-20 shrink-0 p-3 text-center border-l border-slate-100 flex flex-col items-center justify-center">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">الوقت</span>
+              <span className="text-[9px] text-slate-400 font-medium">GMT+3</span>
+            </div>
+
+            {/* 7 Day Column Headers */}
+            <div className="flex-1 grid grid-cols-7 divide-x divide-x-reverse divide-slate-100">
+              {weekDays.map((day) => (
+                <div
+                  key={day.dateStr}
+                  className={`p-3 text-center transition-all flex flex-col items-center justify-center gap-1 ${
+                    day.isToday ? 'bg-sky-50/90 text-sky-900 border-b-2 border-sky-500' : 'hover:bg-slate-100/50'
+                  }`}
+                >
+                  <span className="text-xs font-bold text-slate-500 truncate max-w-full">{day.dayName}</span>
+                  <div
+                    className={`w-9 h-9 rounded-2xl flex items-center justify-center text-sm font-black transition-all ${
+                      day.isToday
+                        ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30'
+                        : 'text-slate-800'
+                    }`}
+                  >
+                    {day.dayNumber}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Main Continuous Calendar Body */}
+          <div className="flex relative">
           {/* Time Labels Column */}
           <div className="w-16 sm:w-20 shrink-0 border-l border-slate-100 bg-slate-50/30 select-none">
             {HOURS.map((hour) => (
@@ -416,6 +418,7 @@ export function WeeklyCalendarView({
         </div>
       </div>
     </div>
+  </div>
   );
 }
 
