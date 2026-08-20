@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { 
   Users, 
   Search, 
@@ -75,15 +76,22 @@ export function FinanceDashboard() {
     limit: 100
   });
 
+  const [paymentToDelete, setPaymentToDelete] = useState<{ id: string; studentName: string } | null>(null);
   const { mutate: deletePayment, isPending: isDeleting } = useDeletePayment();
 
   const handleDelete = (id: string, studentName: string) => {
-    if (window.confirm(`هل أنت متأكد من حذف دفعة الطالب ${studentName}؟`)) {
-      deletePayment(id, {
-        onSuccess: () => toast.success('تم حذف الدفعة بنجاح'),
-        onError: (err: any) => toast.error(err.message || 'حدث خطأ أثناء الحذف'),
-      });
-    }
+    setPaymentToDelete({ id, studentName });
+  };
+
+  const handleConfirmDelete = () => {
+    if (!paymentToDelete) return;
+    deletePayment(paymentToDelete.id, {
+      onSuccess: () => {
+        toast.success('تم حذف الدفعة بنجاح');
+        setPaymentToDelete(null);
+      },
+      onError: (err: any) => toast.error(err.message || 'حدث خطأ أثناء الحذف'),
+    });
   };
 
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -404,6 +412,18 @@ export function FinanceDashboard() {
           studentId={historyStudentId}
         />
       )}
+
+      <ConfirmModal
+        isOpen={!!paymentToDelete}
+        onClose={() => setPaymentToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="تأكيد حذف الدفعة"
+        message={`هل أنت متأكد من حذف دفعة الطالب "${paymentToDelete?.studentName}" نهائياً من السجلات المالية؟`}
+        confirmText="حذف الدفعة"
+        cancelText="تراجع"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

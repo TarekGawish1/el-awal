@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -12,6 +12,7 @@ import { ArabicTimeSelect } from './ArabicTimeSelect';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import toast from 'react-hot-toast';
 
 const editSessionSchema = z.object({
@@ -33,6 +34,7 @@ interface EditSessionModalProps {
 }
 
 export function EditSessionModal({ isOpen, session, onClose, sessions = [] }: EditSessionModalProps) {
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const { mutate: updateSessionMutate, isPending } = useUpdateSession();
   const { mutate: deleteSessionMutate, isPending: isDeleting } = useDeleteSession();
   const { data: existingTopics = [] } = useSessionTopics(session?.group?.gradeLevel, session?.groupId);
@@ -113,15 +115,14 @@ export function EditSessionModal({ isOpen, session, onClose, sessions = [] }: Ed
   };
 
   const handleDelete = () => {
-    if (window.confirm(`هل أنت متأكد من حذف هذه الحصة (${session.topic}) نهائياً من قاعدة البيانات؟`)) {
-      deleteSessionMutate(session.id, {
-        onSuccess: () => {
-          toast.success('تم حذف الحصة بنجاح');
-          handleClose();
-        },
-        onError: (err: any) => toast.error(err.message || 'فشل حذف الحصة'),
-      });
-    }
+    deleteSessionMutate(session.id, {
+      onSuccess: () => {
+        toast.success('تم حذف الحصة بنجاح');
+        setIsDeleteConfirmOpen(false);
+        handleClose();
+      },
+      onError: (err: any) => toast.error(err.message || 'فشل حذف الحصة'),
+    });
   };
 
   return (
@@ -299,9 +300,9 @@ export function EditSessionModal({ isOpen, session, onClose, sessions = [] }: Ed
           <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
             <button
               type="button"
-              onClick={handleDelete}
+              onClick={() => setIsDeleteConfirmOpen(true)}
               disabled={isPending || isDeleting}
-              className="text-red-600 hover:bg-red-50 px-3 py-2 rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5"
+              className="text-red-600 hover:bg-red-50 px-3 py-2 rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5 cursor-pointer"
             >
               <Trash2 className="w-4 h-4" />
               حذف الحصة
@@ -332,6 +333,18 @@ export function EditSessionModal({ isOpen, session, onClose, sessions = [] }: Ed
           </div>
         </form>
       </div>
+
+      <ConfirmModal
+        isOpen={isDeleteConfirmOpen}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+        onConfirm={handleDelete}
+        title="تأكيد حذف الحصة"
+        message={`هل أنت متأكد من حذف الحصة "${session?.topic || 'حصة'}" نهائياً من قاعدة البيانات؟`}
+        confirmText="حذف الحصة نهائياً"
+        cancelText="تراجع"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

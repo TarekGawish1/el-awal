@@ -34,6 +34,7 @@ import { formatArabicTime12H } from '../utils/time.utils';
 import { VideoPlayerModal } from '@/features/content/components/VideoPlayerModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import toast from 'react-hot-toast';
 
 interface SessionDetailsModalProps {
@@ -53,6 +54,7 @@ export function SessionDetailsModal({
 }: SessionDetailsModalProps) {
   const [activeVideo, setActiveVideo] = useState<any | null>(null);
   const [isCancellingMode, setIsCancellingMode] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [cancellationReasonInput, setCancellationReasonInput] = useState('');
   const { mutate: deleteSessionMutate, isPending: isDeleting } = useDeleteSession();
   const { mutate: updateSessionMutate, isPending: isUpdating } = useUpdateSession();
@@ -134,15 +136,14 @@ export function SessionDetailsModal({
   };
 
   const handleDelete = () => {
-    if (window.confirm(`هل أنت متأكد من حذف الحصة "${session.topic || 'حصة'}" نهائياً من قاعدة البيانات؟`)) {
-      deleteSessionMutate(session.id, {
-        onSuccess: () => {
-          toast.success('تم حذف الحصة بنجاح');
-          onClose();
-        },
-        onError: (err: any) => toast.error(err.message || 'فشل حذف الحصة'),
-      });
-    }
+    deleteSessionMutate(session.id, {
+      onSuccess: () => {
+        toast.success('تم حذف الحصة بنجاح');
+        setIsDeleteConfirmOpen(false);
+        onClose();
+      },
+      onError: (err: any) => toast.error(err.message || 'فشل حذف الحصة'),
+    });
   };
 
   const getContentTypeIcon = (type?: string, mime?: string | null) => {
@@ -615,7 +616,7 @@ export function SessionDetailsModal({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={handleDelete}
+                onClick={() => setIsDeleteConfirmOpen(true)}
                 disabled={isDeleting}
                 className="text-red-600 hover:bg-red-50 px-3 py-2 rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5 cursor-pointer"
               >
@@ -665,6 +666,19 @@ export function SessionDetailsModal({
           onClose={() => setActiveVideo(null)}
         />
       )}
+
+      {/* Custom Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isDeleteConfirmOpen}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+        onConfirm={handleDelete}
+        title="تأكيد حذف الحصة"
+        message={`هل أنت متأكد من حذف الحصة "${session.topic || 'حصة'}" نهائياً من جدول الحصص وقاعدة البيانات؟`}
+        confirmText="حذف الحصة نهائياً"
+        cancelText="تراجع"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </>
   );
 }

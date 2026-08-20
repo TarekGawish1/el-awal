@@ -247,17 +247,6 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
   };
 
   const handleSubmitAnswers = () => {
-    // Check if all questions are answered
-    const unansweredCount = (assessment?.questions || []).filter(
-      (q: any) => !answers[q.id]
-    ).length;
-
-    if (unansweredCount > 0) {
-      if (!confirm(`لديك ${unansweredCount} سؤالاً غير مجاب. هل تريد الاستمرار وتسليم الإجابات على أي حال؟`)) {
-        return;
-      }
-    }
-
     setIsConfirmOpen(true);
   };
 
@@ -643,38 +632,58 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
       )}
 
       {/* Confirmation modal */}
-      {isConfirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="w-full max-w-md bg-white p-6 rounded-2xl shadow-xl border border-slate-100 space-y-4">
-            <div className="flex items-center gap-3 text-amber-700">
-              <AlertTriangle className="w-6 h-6 shrink-0 text-amber-600" />
-              <h4 className="text-lg font-bold">تأكيد تسليم الحل؟</h4>
-            </div>
-            
-            <p className="text-sm text-slate-500 leading-relaxed">
-              بمجرد تأكيد التسليم، سيتم رصد الحل الخاص بك ولا يمكنك تعديله أو إعادة المحاولة مرة أخرى (تُطبق سياسة المحاولة الفردية).
-            </p>
+      {isConfirmOpen && (() => {
+        const unansweredCount = (assessment?.questions || []).filter(
+          (q: any) => !answers[q.id]
+        ).length;
 
-            <div className="flex gap-3 pt-2">
-              <Button
-                variant="outline"
-                className="flex-1 rounded-xl"
-                onClick={() => setIsConfirmOpen(false)}
-                disabled={isSubmitting}
-              >
-                تراجع
-              </Button>
-              <Button
-                className="flex-1 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-xs border-none"
-                onClick={confirmSubmit}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? 'جاري الإرسال...' : 'تأكيد التسليم'}
-              </Button>
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+            <div className="w-full max-w-md bg-white p-6 rounded-3xl shadow-2xl border border-slate-100 space-y-4 animate-in zoom-in-95 duration-200">
+              <div className="flex items-center gap-3 text-amber-700">
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center font-bold">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-base font-black text-slate-800">تأكيد تسليم الإجابات</h4>
+                  <p className="text-xs text-slate-500 font-medium">مراجعة نهائية قبل الاعتماد</p>
+                </div>
+              </div>
+
+              {unansweredCount > 0 && (
+                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 font-bold flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>تنبيه: لديك {unansweredCount} سؤالاً لم تجب عليها بعد.</span>
+                </div>
+              )}
+              
+              <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                بمجرد تأكيد التسليم، سيتم رصد النتيجة ولا يمكنك تعديل الإجابات أو إعادة المحاولة مرة أخرى.
+              </p>
+
+              <div className="flex gap-2.5 pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 rounded-xl text-xs font-bold"
+                  onClick={() => setIsConfirmOpen(false)}
+                  disabled={isSubmitting}
+                >
+                  العودة للأسئلة
+                </Button>
+                <Button
+                  size="sm"
+                  className="flex-1 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs shadow-xs"
+                  onClick={confirmSubmit}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'جاري الإرسال...' : 'تأكيد التسليم الآن'}
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

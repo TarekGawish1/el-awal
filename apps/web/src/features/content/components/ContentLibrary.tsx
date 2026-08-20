@@ -34,6 +34,7 @@ import { Select } from '@/components/ui/Select';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import toast from 'react-hot-toast';
 
 const BASE_YEARS = ['2026-2027', '2025-2026', '2024-2025', '2027-2028', '2028-2029', '2023-2024'];
@@ -176,13 +177,21 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
     setSelectedType('ALL');
   };
 
+  const [contentToDelete, setContentToDelete] = useState<{ id: string; title: string } | null>(null);
+
   const handleDelete = (id: string, title: string) => {
-    if (window.confirm(`هل أنت متأكد من حذف الملف "${title}"؟`)) {
-      deleteContent(id, {
-        onSuccess: () => toast.success('تم حذف الملف بنجاح'),
-        onError: (err: any) => toast.error(err.message || 'حدث خطأ أثناء الحذف'),
-      });
-    }
+    setContentToDelete({ id, title });
+  };
+
+  const handleConfirmDelete = () => {
+    if (!contentToDelete) return;
+    deleteContent(contentToDelete.id, {
+      onSuccess: () => {
+        toast.success('تم حذف الملف بنجاح');
+        setContentToDelete(null);
+      },
+      onError: (err: any) => toast.error(err.message || 'حدث خطأ أثناء الحذف'),
+    });
   };
 
   const getIcon = (type: ContentType) => {
@@ -533,6 +542,18 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
         isOpen={!!playingVideo}
         content={playingVideo}
         onClose={() => setPlayingVideo(null)}
+      />
+
+      <ConfirmModal
+        isOpen={!!contentToDelete}
+        onClose={() => setContentToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="تأكيد حذف الملف"
+        message={`هل أنت متأكد من حذف الملف "${contentToDelete?.title}" نهائياً من المكتبة التعليمية؟`}
+        confirmText="حذف الملف"
+        cancelText="تراجع"
+        variant="danger"
+        isLoading={isDeleting}
       />
     </div>
   );

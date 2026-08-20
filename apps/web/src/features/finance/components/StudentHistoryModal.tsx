@@ -1,10 +1,12 @@
 'use client';
 
+import { useState } from 'react';
 import { X, History, Trash2 } from 'lucide-react';
 import { useStudentPaymentHistory, useDeletePayment } from '../hooks/useFinance';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -14,18 +16,25 @@ interface Props {
 }
 
 export function StudentHistoryModal({ isOpen, onClose, studentId }: Props) {
+  const [recordToDelete, setRecordToDelete] = useState<string | null>(null);
   const { data: history, isLoading } = useStudentPaymentHistory(studentId);
   const { mutate: deletePayment, isPending: isDeleting } = useDeletePayment();
 
   if (!isOpen) return null;
 
   const handleDelete = (id: string) => {
-    if (window.confirm('هل أنت متأكد من حذف هذه الدفعة؟')) {
-      deletePayment(id, {
-        onSuccess: () => toast.success('تم حذف الدفعة بنجاح'),
-        onError: (err: any) => toast.error(err.message || 'حدث خطأ أثناء החذف'),
-      });
-    }
+    setRecordToDelete(id);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!recordToDelete) return;
+    deletePayment(recordToDelete, {
+      onSuccess: () => {
+        toast.success('تم حذف الدفعة بنجاح');
+        setRecordToDelete(null);
+      },
+      onError: (err: any) => toast.error(err.message || 'حدث خطأ أثناء الحذف'),
+    });
   };
 
   const studentName = history && history.length > 0 ? history[0].student?.user.fullName : 'سجل السداد';
@@ -101,6 +110,18 @@ export function StudentHistoryModal({ isOpen, onClose, studentId }: Props) {
           )}
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={!!recordToDelete}
+        onClose={() => setRecordToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="تأكيد حذف الدفعة"
+        message="هل أنت متأكد من حذف هذه الدفعة من سجل الطالب نهائياً؟"
+        confirmText="حذف الدفعة"
+        cancelText="تراجع"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

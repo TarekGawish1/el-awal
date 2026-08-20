@@ -5,6 +5,7 @@ import QRCode from 'react-qr-code';
 import { useStudentQrCode, useRegenerateStudentQr } from '../hooks/use-students';
 import { Button } from '@/components/ui/Button';
 import { formatWhatsAppNumber } from '@/lib/utils/formatters';
+import toast from 'react-hot-toast';
 
 interface StudentQrBadgeProps {
   studentId: string;
@@ -102,11 +103,11 @@ export function StudentQrBadge({
         link.click();
         window.URL.revokeObjectURL(downloadUrl);
       } else {
-        alert('حدث خطأ أثناء إنشاء الصورة.');
+        toast.error('حدث خطأ أثناء إنشاء الصورة.');
       }
     } catch (err) {
       console.error(err);
-      alert('حدث خطأ أثناء محاولة التنزيل.');
+      toast.error('حدث خطأ أثناء محاولة التنزيل.');
     } finally {
       setIsDownloading(false);
     }
@@ -145,11 +146,11 @@ export function StudentQrBadge({
         const waUrl = `https://wa.me/${formatWhatsAppNumber(studentPhone)}?text=${encodeURIComponent(shareText)}`;
         window.open(waUrl, '_blank');
       } else {
-        alert('رقم الطالب غير متوفر للمراسلة.');
+        toast.error('رقم الطالب غير متوفر للمراسلة.');
       }
     } catch (error) {
       console.error('Error sharing:', error);
-      alert('حدث خطأ أثناء محاولة المشاركة.');
+      toast.error('حدث خطأ أثناء محاولة المشاركة.');
     } finally {
       setIsSharing(false);
     }

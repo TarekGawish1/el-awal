@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import QRCode from 'react-qr-code';
 import { QrCode, Calendar, TrendingUp, CheckCircle2, XCircle, Clock, Download, X } from 'lucide-react';
 import { formatArabicDate, formatArabicTime } from '@/lib/utils/formatters';
+import toast from 'react-hot-toast';
 
 export default function StudentAttendancePage() {
   const { data: profile, isLoading: isProfileLoading } = useStudentProfile();
@@ -111,12 +112,13 @@ export default function StudentAttendancePage() {
         link.download = `student-card-${studentCode}.png`;
         link.click();
         window.URL.revokeObjectURL(downloadUrl);
+        toast.success('تم تنزيل البطاقة بنجاح');
       } else {
-        alert('حدث خطأ أثناء إنشاء الصورة.');
+        toast.error('حدث خطأ أثناء إنشاء الصورة.');
       }
     } catch (err) {
       console.error(err);
-      alert('حدث خطأ أثناء محاولة التنزيل.');
+      toast.error('حدث خطأ أثناء محاولة التنزيل.');
     } finally {
       setIsDownloading(false);
     }
