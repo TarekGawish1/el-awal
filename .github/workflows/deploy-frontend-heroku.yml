@@ -1,0 +1,65 @@
+name: Deploy Frontend to Heroku
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      # Only trigger when changes are made to the frontend or root dependencies
+      - 'apps/web/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-frontend-heroku.yml'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions UI
+
+jobs:
+  deploy:
+    name: Deploy Frontend Subtree to Heroku
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history needed for git subtree
+
+      - name: Deploy Frontend to Heroku via Git Subtree
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          HEROKU_APP_NAME: ${{ secrets.HEROKU_WEB_APP_NAME || 'al-awal-web' }}
+          HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
+        run: |
+          # 1. Validate required GitHub Secrets
+          if [ -z "$HEROKU_API_KEY" ]; then
+            echo "::error::HEROKU_API_KEY secret is missing! Please configure it in GitHub Repository Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+          if [ -z "$HEROKU_APP_NAME" ]; then
+            echo "::error::HEROKU_APP_NAME secret is missing! Please configure it in GitHub Repository Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+          # 2. Configure Heroku authentication via ~/.netrc
+          printf "machine api.heroku.com\n  login %s\n  password %s\nmachine git.heroku.com\n  login %s\n  password %s\n" "${HEROKU_EMAIL:-_}" "${HEROKU_API_KEY}" "${HEROKU_EMAIL:-_}" "${HEROKU_API_KEY}" > ~/.netrc
+          chmod 600 ~/.netrc
+
+          # 3. Configure Git credentials & remote with Heroku Basic Auth (username: _)
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git remote add heroku "https://_:${HEROKU_API_KEY}@git.heroku.com/${HEROKU_APP_NAME}.git"
+
+          # 4. Extract frontend subtree into a dedicated commit
+          echo "Extracting apps/web subtree commit..."
+          WEB_COMMIT=$(git subtree split --prefix=apps/web HEAD)
+
+          if [ -z "$WEB_COMMIT" ]; then
+            echo "::error::Failed to extract subtree commit for apps/web"
+            exit 1
+          fi
+
+          echo "Subtree commit SHA: ${WEB_COMMIT}"
+
+          # 5. Push to Heroku (supports both main and master default branches)
+          echo "Deploying to Heroku app '${HEROKU_APP_NAME}'..."
+          git push --force heroku "${WEB_COMMIT}:refs/heads/main" || git push --force heroku "${WEB_COMMIT}:refs/heads/master"
