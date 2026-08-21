@@ -2,52 +2,27 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { studentApi } from '../api/student.api';
 import { useAuth } from '@/features/auth';
 import { apiClient } from '@/lib/api/client';
-import { offlineDb } from '@/lib/offline/db';
+import { offlineDb, getStudentDetailsOffline } from '@/lib/offline/db';
 import { syncEngine } from '@/lib/offline/sync-engine';
+import { StudentDetail } from '@/features/students/types/students.types';
 import toast from 'react-hot-toast';
 
 export function useStudentProfile() {
   const { user } = useAuth();
   const studentId = user?.studentProfileId || user?.id;
 
-  return useQuery({
+  return useQuery<StudentDetail | null>({
     queryKey: ['student-profile', studentId],
-    queryFn: async () => {
+    queryFn: async (): Promise<StudentDetail | null> => {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       if (!isOnline && studentId) {
-        const student = await offlineDb.getStudentByIdOffline(studentId);
-        if (student) {
-          return {
-            id: student.id,
-            studentCode: student.studentCode,
-            qrCodeToken: student.qrCodeToken,
-            gradeLevel: student.gradeLevel,
-            user: {
-              fullName: student.fullName || student.user?.fullName || user?.fullName || 'طالب',
-              phone: student.phone || student.user?.phone,
-              email: student.email || student.user?.email,
-            },
-          };
-        }
+        return (await getStudentDetailsOffline(studentId)) as unknown as StudentDetail | null;
       }
       try {
         return await studentApi.getProfile(studentId!);
       } catch {
         if (studentId) {
-          const student = await offlineDb.getStudentByIdOffline(studentId);
-          if (student) {
-            return {
-              id: student.id,
-              studentCode: student.studentCode,
-              qrCodeToken: student.qrCodeToken,
-              gradeLevel: student.gradeLevel,
-              user: {
-                fullName: student.fullName || student.user?.fullName || user?.fullName || 'طالب',
-                phone: student.phone || student.user?.phone,
-                email: student.email || student.user?.email,
-              },
-            };
-          }
+          return (await getStudentDetailsOffline(studentId)) as unknown as StudentDetail | null;
         }
         return null;
       }

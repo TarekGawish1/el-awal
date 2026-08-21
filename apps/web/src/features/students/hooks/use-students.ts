@@ -6,7 +6,14 @@ import {
   createStudent,
   regenerateStudentQrToken,
 } from '../api/students.api';
-import { StudentQuery, StudentListItem, StudentDetail, CreateStudentPayload, CursorPaginatedResponse } from '../types/students.types';
+import {
+  StudentQuery,
+  StudentListItem,
+  StudentDetail,
+  StudentQrResponse,
+  CreateStudentPayload,
+  CursorPaginatedResponse,
+} from '../types/students.types';
 import { offlineDb, getStudentDetailsOffline, StudentEntity } from '@/lib/offline/db';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { generateUUIDv7 } from '@/lib/offline/uuid';
@@ -142,32 +149,30 @@ export function useStudent(id: string) {
 }
 
 export function useStudentQrCode(id: string) {
-  return useQuery({
+  return useQuery<StudentQrResponse | null>({
     queryKey: ['students', id, 'qr-code'],
-    queryFn: async () => {
+    queryFn: async (): Promise<StudentQrResponse | null> => {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       if (!isOnline) {
         const student = await offlineDb.getStudentByIdOffline(id);
-        const qrCodeToken = student?.qrCodeToken || id;
         return {
-          id,
           studentId: id,
-          qrCodeToken,
-          qrCodeSvg: null,
-          qrCodeDataUrl: null,
+          studentCode: student?.studentCode || `STU-${id.slice(0, 6)}`,
+          fullName: student?.fullName || student?.user?.fullName || 'طالب',
+          gradeLevel: student?.gradeLevel || 'الصف الدراسي',
+          qrCodeToken: student?.qrCodeToken || id,
         };
       }
       try {
         return await fetchStudentQrCode(id);
       } catch {
         const student = await offlineDb.getStudentByIdOffline(id);
-        const qrCodeToken = student?.qrCodeToken || id;
         return {
-          id,
           studentId: id,
-          qrCodeToken,
-          qrCodeSvg: null,
-          qrCodeDataUrl: null,
+          studentCode: student?.studentCode || `STU-${id.slice(0, 6)}`,
+          fullName: student?.fullName || student?.user?.fullName || 'طالب',
+          gradeLevel: student?.gradeLevel || 'الصف الدراسي',
+          qrCodeToken: student?.qrCodeToken || id,
         };
       }
     },

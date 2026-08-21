@@ -12,6 +12,8 @@ import {
 import {
   AssessmentListItem,
   AssessmentDetail,
+  AssessmentSubmissionListItem,
+  SubmissionStatus,
   CreateAssessmentPayload,
   UpdateAssessmentPayload,
   GradeSubmissionPayload,
@@ -182,20 +184,23 @@ export function useUpdateAssessment() {
 }
 
 export function useAssessmentSubmissions(id: string) {
-  return useQuery({
+  return useQuery<AssessmentSubmissionListItem[]>({
     queryKey: assessmentKeys.submissions(id),
-    queryFn: async () => {
+    queryFn: async (): Promise<AssessmentSubmissionListItem[]> => {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       if (!isOnline) {
         const draft = await offlineDb.getAssessmentDraft(id);
         if (draft && draft.isSubmitted) {
           return [{
             id: `offline-sub-${id}`,
-            assessmentId: id,
-            status: 'SUBMITTED',
+            studentId: 'current',
+            status: SubmissionStatus.SUBMITTED,
             submittedAt: new Date(draft.submittedAt || Date.now()).toISOString(),
+            gradedAt: null,
             scoreObtained: draft.localScore ?? null,
-            student: { id: 'current', fullName: 'الطالب' },
+            isPassed: (draft.localScore ?? 0) >= ((draft.totalScore || 100) * 0.5),
+            isAutoGraded: false,
+            student: { user: { fullName: 'الطالب' } },
           }];
         }
         return [];
@@ -207,11 +212,14 @@ export function useAssessmentSubmissions(id: string) {
         if (draft && draft.isSubmitted) {
           return [{
             id: `offline-sub-${id}`,
-            assessmentId: id,
-            status: 'SUBMITTED',
+            studentId: 'current',
+            status: SubmissionStatus.SUBMITTED,
             submittedAt: new Date(draft.submittedAt || Date.now()).toISOString(),
+            gradedAt: null,
             scoreObtained: draft.localScore ?? null,
-            student: { id: 'current', fullName: 'الطالب' },
+            isPassed: (draft.localScore ?? 0) >= ((draft.totalScore || 100) * 0.5),
+            isAutoGraded: false,
+            student: { user: { fullName: 'الطالب' } },
           }];
         }
         return [];

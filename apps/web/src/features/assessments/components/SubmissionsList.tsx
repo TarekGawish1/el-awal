@@ -27,7 +27,7 @@ export function SubmissionsList({ assessmentId }: { assessmentId: string }) {
     if (!searchQuery.trim()) return submissions;
     const q = searchQuery.toLowerCase().trim();
     return submissions.filter((s) => {
-      const name = s.student?.user?.fullName?.toLowerCase() || '';
+      const name = s.student?.user?.fullName?.toLowerCase() || (s.student as any)?.fullName?.toLowerCase() || '';
       return name.includes(q);
     });
   }, [submissions, searchQuery]);

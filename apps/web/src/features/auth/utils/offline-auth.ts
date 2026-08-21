@@ -26,15 +26,12 @@ const LAST_OFFLINE_USER_KEY = 'el_awal_last_offline_user';
 export function pureJsSha256(ascii: string): string {
   const rightRotate = (value: number, amount: number) => (value >>> amount) | (value << (32 - amount));
 
-  const mathPow = Math.pow;
-  const maxWord = mathPow(2, 32);
-  let lengthProperty = 'length';
   let i = 0;
   let j = 0;
   let result = '';
 
   const words: number[] = [];
-  const asciiBitLength = ascii[lengthProperty] * 8;
+  const asciiBitLength = ascii.length * 8;
 
   // Initial hash values: first 32 bits of fractional parts of square roots of first 8 primes
   const hash = [
@@ -54,8 +51,7 @@ export function pureJsSha256(ascii: string): string {
     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
   ];
 
-  let compositeHashCount = 0;
-  for (let index = 0; index < ascii[lengthProperty]; index++) {
+  for (let index = 0; index < ascii.length; index++) {
     const code = ascii.charCodeAt(index);
     words[index >> 2] |= (code & 0xff) << (24 - (index % 4) * 8);
   }

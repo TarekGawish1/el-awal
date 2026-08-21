@@ -78,6 +78,8 @@ export interface CreateAssessmentPayload {
 export interface UpdateAssessmentPayload {
   title?: string;
   description?: string;
+  totalScore?: number;
+  passingScore?: number;
   durationMinutes?: number;
   dueDate?: string;
   isPublished?: boolean;
