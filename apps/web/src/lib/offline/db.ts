@@ -540,19 +540,66 @@ class OfflineDatabase {
     });
   }
 
-  public async getStudentByIdOffline(id: string): Promise<StudentEntity | null> {
+  public async getStudentByIdOffline(id: string | number): Promise<StudentEntity | null> {
+    const cleanId = String(id);
     if (!this.isSupported()) {
-      return this.memoryStudents.get(id) || null;
+      const mem = this.memoryStudents.get(cleanId);
+      if (mem) return mem;
+      for (const roster of Array.from(this.memoryRosters.values())) {
+        const found = roster.students.find((s) => String(s.id) === cleanId);
+        if (found) {
+          return {
+            id: String(found.id),
+            fullName: found.fullName,
+            studentCode: found.studentCode || `STU-${cleanId.slice(0, 6)}`,
+            qrCodeToken: found.qrCodeToken || cleanId,
+            gradeLevel: found.gradeLevel || roster.gradeLevel,
+            groupId: roster.groupId,
+            user: {
+              id: String(found.id),
+              fullName: found.fullName,
+              phone: found.emergencyPhone || found.parentPhone || '',
+              isActive: true,
+            },
+          };
+        }
+      }
+      return null;
     }
     try {
       const { store } = await this.getStore('students', 'readonly');
-      return new Promise((resolve) => {
-        const req = store.get(id);
-        req.onsuccess = () => resolve(req.result || this.memoryStudents.get(id) || null);
-        req.onerror = () => resolve(this.memoryStudents.get(id) || null);
+      const student = await new Promise<StudentEntity | null>((resolve) => {
+        const req = store.get(cleanId);
+        req.onsuccess = () => resolve(req.result || this.memoryStudents.get(cleanId) || null);
+        req.onerror = () => resolve(this.memoryStudents.get(cleanId) || null);
       });
+
+      if (student) return student;
+
+      const rosters = await this.getAllCachedRosters();
+      for (const roster of rosters) {
+        const found = roster.students.find((s) => String(s.id) === cleanId);
+        if (found) {
+          return {
+            id: String(found.id),
+            fullName: found.fullName,
+            studentCode: found.studentCode || `STU-${cleanId.slice(0, 6)}`,
+            qrCodeToken: found.qrCodeToken || cleanId,
+            gradeLevel: found.gradeLevel || roster.gradeLevel,
+            groupId: roster.groupId,
+            user: {
+              id: String(found.id),
+              fullName: found.fullName,
+              phone: found.emergencyPhone || found.parentPhone || '',
+              isActive: true,
+            },
+          };
+        }
+      }
+
+      return null;
     } catch {
-      return this.memoryStudents.get(id) || null;
+      return this.memoryStudents.get(cleanId) || null;
     }
   }
 
@@ -560,19 +607,20 @@ class OfflineDatabase {
    * Unified resilient student details getter with relational joins.
    * Guarantees non-crashing fallbacks for missing nested properties.
    */
-  public async getStudentDetailsOffline(id: string): Promise<any | null> {
-    const student = await this.getStudentByIdOffline(id);
+  public async getStudentDetailsOffline(id: string | number): Promise<any | null> {
+    const cleanId = String(id);
+    const student = await this.getStudentByIdOffline(cleanId);
     if (!student) {
       return null;
     }
 
     const group = student.groupId ? await this.getGroupByIdOffline(student.groupId) : null;
-    const payments = await this.getPaymentsOffline({ studentId: id });
+    const payments = await this.getPaymentsOffline({ studentId: cleanId });
 
     return {
       id: student.id,
-      studentCode: student.studentCode || `STU-${student.id.slice(0, 6)}`,
-      qrCodeToken: student.qrCodeToken || student.id,
+      studentCode: student.studentCode || `STU-${cleanId.slice(0, 6)}`,
+      qrCodeToken: student.qrCodeToken || cleanId,
       gradeLevel: student.gradeLevel || group?.gradeLevel || 'الصف الدراسي',
       academicStage: student.academicStage || '',
       academicStatus: student.academicStatus || 'ACTIVE',
@@ -617,19 +665,49 @@ class OfflineDatabase {
     }
   }
 
-  public async getGroupByIdOffline(id: string): Promise<GroupEntity | null> {
+  public async getGroupByIdOffline(id: string | number): Promise<GroupEntity | null> {
+    const cleanId = String(id);
     if (!this.isSupported()) {
-      return this.memoryGroups.get(id) || null;
+      const mem = this.memoryGroups.get(cleanId);
+      if (mem) return mem;
+      const roster = this.memoryRosters.get(cleanId);
+      if (roster) {
+        return {
+          id: roster.groupId,
+          name: roster.groupName,
+          gradeLevel: roster.gradeLevel,
+          monthlyFee: roster.monthlyFee,
+          status: 'ACTIVE',
+          _count: { enrollments: roster.students?.length || 0, schedules: roster.sessions?.length || 0 },
+        };
+      }
+      return null;
     }
     try {
       const { store } = await this.getStore('groups', 'readonly');
-      return new Promise((resolve) => {
-        const req = store.get(id);
-        req.onsuccess = () => resolve(req.result || this.memoryGroups.get(id) || null);
-        req.onerror = () => resolve(this.memoryGroups.get(id) || null);
+      const group = await new Promise<GroupEntity | null>((resolve) => {
+        const req = store.get(cleanId);
+        req.onsuccess = () => resolve(req.result || this.memoryGroups.get(cleanId) || null);
+        req.onerror = () => resolve(this.memoryGroups.get(cleanId) || null);
       });
+
+      if (group) return group;
+
+      const roster = await this.getRoster(cleanId);
+      if (roster) {
+        return {
+          id: roster.groupId,
+          name: roster.groupName,
+          gradeLevel: roster.gradeLevel,
+          monthlyFee: roster.monthlyFee,
+          status: 'ACTIVE',
+          _count: { enrollments: roster.students?.length || 0, schedules: roster.sessions?.length || 0 },
+        };
+      }
+
+      return null;
     } catch {
-      return this.memoryGroups.get(id) || null;
+      return this.memoryGroups.get(cleanId) || null;
     }
   }
 

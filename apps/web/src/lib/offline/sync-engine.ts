@@ -7,6 +7,7 @@
 import { offlineDb, OutboxMutationRecord, MutationStatus } from './db';
 import { API_BASE_URL, API_ENDPOINTS } from '../api/endpoints';
 import { apiClient } from '../api/client';
+import { bootstrapManager } from './bootstrap-manager';
 import toast from 'react-hot-toast';
 
 export type SyncEngineEventListener = (event: {
@@ -32,6 +33,11 @@ class OfflineSyncEngine {
   private listeners: Set<SyncEngineEventListener> = new Set();
   private syncTimer: NodeJS.Timeout | null = null;
   private lastSyncedAt: number | null = null;
+  private queryClient: any = null;
+
+  public setQueryClient(client: any): void {
+    this.queryClient = client;
+  }
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -445,6 +451,13 @@ class OfflineSyncEngine {
         });
       }
       this.notify('SYNC_SUCCESS', { syncedCount, failedCount });
+
+      // 8. Downstream Pull: Fetch updated server snapshot and merge into IndexedDB + TanStack Query cache
+      try {
+        await bootstrapManager.performBootstrap({ queryClient: this.queryClient });
+      } catch (pullErr) {
+        console.warn('Downstream bootstrap sync error after outbox flush:', pullErr);
+      }
     } finally {
       this.isSyncingState = false;
     }

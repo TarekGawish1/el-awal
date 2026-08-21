@@ -198,6 +198,13 @@ export function useCreateGroup() {
 
         await offlineDb.bulkPutGroups([groupEntity]);
 
+        queryClient.setQueryData(['groups'], (old: Group[] | undefined) => {
+          const list = old || [];
+          const exists = list.some((g) => g.id === groupEntity.id);
+          return exists ? list : [groupEntity as unknown as Group, ...list];
+        });
+        queryClient.setQueryData(['groups', newId], groupEntity as unknown as Group);
+
         await syncEngine.enqueue(
           'groups',
           API_ENDPOINTS.GROUPS.CREATE,
@@ -212,7 +219,12 @@ export function useCreateGroup() {
       }
 
       try {
-        return await createGroup(payload);
+        const created = await createGroup(payload);
+        if (created) {
+          await offlineDb.bulkPutGroups([created as any]);
+          queryClient.setQueryData(['groups', created.id], created);
+        }
+        return created;
       } catch (error) {
         if (typeof navigator !== 'undefined' && !navigator.onLine) {
           const newId = generateUUIDv7();
@@ -231,6 +243,12 @@ export function useCreateGroup() {
             updatedAt: Date.now(),
           };
           await offlineDb.bulkPutGroups([groupEntity]);
+          queryClient.setQueryData(['groups'], (old: Group[] | undefined) => {
+            const list = old || [];
+            const exists = list.some((g) => g.id === groupEntity.id);
+            return exists ? list : [groupEntity as unknown as Group, ...list];
+          });
+          queryClient.setQueryData(['groups', newId], groupEntity as unknown as Group);
           await syncEngine.enqueue(
             'groups',
             API_ENDPOINTS.GROUPS.CREATE,
@@ -244,8 +262,16 @@ export function useCreateGroup() {
         throw error;
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['groups'] });
+    onSuccess: (data) => {
+      if (data?.id) {
+        queryClient.setQueryData(['groups'], (old: Group[] | undefined) => {
+          const list = old || [];
+          const exists = list.some((g) => g.id === data.id);
+          return exists ? list.map((g) => (g.id === data.id ? data : g)) : [data, ...list];
+        });
+        queryClient.setQueryData(['groups', data.id], data);
+      }
+      queryClient.invalidateQueries({ queryKey: ['groups'], exact: true });
     },
   });
 }

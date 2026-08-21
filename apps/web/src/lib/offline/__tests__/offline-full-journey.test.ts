@@ -16,6 +16,7 @@ import {
 } from '@/features/auth/utils/offline-auth';
 import * as clientModule from '../../api/client';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
+import { bootstrapManager } from '../bootstrap-manager';
 
 vi.mock('../../api/client', () => ({
   apiClient: vi.fn(),
@@ -214,10 +215,25 @@ describe('Comprehensive Offline Full User Journeys & Parity Suite', () => {
       expect(details.attendanceRecords).toEqual([]);
       expect(details.paymentRecords).toEqual([]);
     });
+
+    it('resolves group and student details cleanly regardless of string or numeric ID parameter types', async () => {
+      const strId = '998877';
+      await offlineDb.bulkPutGroups([{
+        id: strId,
+        name: 'مجموعة الأرقام',
+        gradeLevel: 'الصف الثاني الثانوي',
+      }]);
+
+      const groupFromNum = await offlineDb.getGroupByIdOffline(998877 as any);
+      expect(groupFromNum?.name).toBe('مجموعة الأرقام');
+
+      const groupDetails = await getGroupDetailsOffline(998877 as any);
+      expect(groupDetails?.name).toBe('مجموعة الأرقام');
+    });
   });
 
-  describe('4. Connectivity Restoration & Outbox Flush Suite', () => {
-    it('flushes queued outbox mutations in topological order and reconciles IDs', async () => {
+  describe('4. Connectivity Restoration & Bi-Directional Synchronization', () => {
+    it('flushes queued outbox mutations upstream then triggers downstream bootstrap pull', async () => {
       // Mock successful server sync responses
       vi.mocked(clientModule.apiClient).mockImplementation(async (endpoint: string, options?: any) => {
         if (endpoint.includes('/sync/attendance')) {
@@ -232,6 +248,17 @@ describe('Comprehensive Offline Full User Journeys & Parity Suite', () => {
           return {
             processedOperationIds: (body.operations || []).map((o: any) => o.id),
             conflicts: [],
+          } as any;
+        }
+        if (endpoint.includes('/sync/bootstrap')) {
+          return {
+            snapshotVersion: 'v1-2026',
+            timestamp: Date.now(),
+            isDelta: false,
+            data: {
+              groups: [{ id: 'server-group-1', name: 'المجموعة المحدثة من السيرفر' }],
+              students: [{ id: 'server-student-1', fullName: 'طالب السيرفر الجديد' }],
+            },
           } as any;
         }
         return { success: true, id: 'server-reconciled-id' } as any;
@@ -265,6 +292,10 @@ describe('Comprehensive Offline Full User Journeys & Parity Suite', () => {
 
       const finalPending = await offlineDb.getPendingCount();
       expect(finalPending).toBe(0);
+
+      // Verify downstream pull populated IndexedDB with remote server updates
+      const serverGroup = await offlineDb.getGroupByIdOffline('server-group-1');
+      expect(serverGroup?.name).toBe('المجموعة المحدثة من السيرفر');
     });
   });
 });

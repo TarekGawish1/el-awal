@@ -223,6 +223,39 @@ export function useCreateStudent() {
 
         await offlineDb.bulkPutStudents([studentEntity]);
 
+        const studentListItem: StudentListItem = {
+          id: newId,
+          studentCode,
+          gradeLevel: payload.gradeLevel,
+          academicStage: payload.academicStage || '',
+          academicStatus: 'ACTIVE',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          user: {
+            id: newId,
+            fullName: payload.fullName,
+            phone: payload.phone || '',
+            email: payload.email || '',
+            isActive: true,
+          },
+          groupEnrollments: payload.initialGroupId
+            ? [{ group: { id: payload.initialGroupId, name: 'المجموعة الدراسية' } }]
+            : [],
+          parentLinks: payload.parentPhone
+            ? [{ parent: { user: { id: `p-${newId}`, fullName: payload.parentName || 'ولي الأمر', phone: payload.parentPhone, isActive: true } } }]
+            : [],
+        };
+
+        queryClient.setQueryData(['students', newId], studentEntity as unknown as StudentDetail);
+        queryClient.setQueriesData({ queryKey: ['students'] }, (old: any) => {
+          if (!old) return old;
+          if (Array.isArray(old)) return [studentListItem, ...old];
+          if (old.data && Array.isArray(old.data)) {
+            return { ...old, data: [studentListItem, ...old.data], meta: { ...old.meta, total: (old.meta?.total || 0) + 1 } };
+          }
+          return old;
+        });
+
         await syncEngine.enqueue(
           'students',
           API_ENDPOINTS.STUDENTS.CREATE,
@@ -250,7 +283,11 @@ export function useCreateStudent() {
       }
 
       try {
-        return await createStudent(payload);
+        const created = await createStudent(payload);
+        if (created?.id) {
+          queryClient.setQueryData(['students', created.id], created);
+        }
+        return created;
       } catch (error) {
         if (typeof navigator !== 'undefined' && !navigator.onLine) {
           const newId = generateUUIDv7();
@@ -278,6 +315,7 @@ export function useCreateStudent() {
             updatedAt: Date.now(),
           };
           await offlineDb.bulkPutStudents([studentEntity]);
+          queryClient.setQueryData(['students', newId], studentEntity as unknown as StudentDetail);
           await syncEngine.enqueue(
             'students',
             API_ENDPOINTS.STUDENTS.CREATE,
@@ -291,7 +329,10 @@ export function useCreateStudent() {
         throw error;
       }
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      if (data?.id) {
+        queryClient.setQueryData(['students', data.id], (old: any) => old || data);
+      }
       queryClient.invalidateQueries({ queryKey: ['students'] });
       queryClient.invalidateQueries({ queryKey: ['groups'] });
     },
