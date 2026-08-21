@@ -685,6 +685,7 @@ export class SchedulesService {
 
     return this.prisma.lessonSession.create({
       data: {
+        id: dto.id || undefined,
         groupId: dto.groupId,
         sessionDate: sessionDateOnly,
         startTime: dto.startTime || null,

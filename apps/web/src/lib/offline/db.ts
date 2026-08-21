@@ -42,6 +42,8 @@ export interface StudentEntity {
   };
   groupEnrollments?: any[];
   parentLinks?: any[];
+  attendanceRecords?: any[];
+  paymentRecords?: any[];
 }
 
 export interface GroupEntity {
@@ -51,9 +53,12 @@ export interface GroupEntity {
   academicYear?: string;
   academicTerm?: string;
   monthlyFee?: number;
+  maxCapacity?: number;
   maxStudents?: number;
+  status?: string;
+  description?: string;
   schedules?: any[];
-  _count?: { enrollments?: number };
+  _count?: { enrollments?: number; schedules?: number };
   updatedAt?: number;
 }
 
@@ -371,7 +376,10 @@ class OfflineDatabase {
   // ==========================================
 
   public async bulkPutStudents(students: StudentEntity[]): Promise<void> {
-    students.forEach((s) => this.memoryStudents.set(s.id, s));
+    students.forEach((s) => {
+      const existing = this.memoryStudents.get(s.id) || {};
+      this.memoryStudents.set(s.id, { ...existing, ...s, updatedAt: Date.now() });
+    });
     if (!this.isSupported() || students.length === 0) return;
     try {
       const { store } = await this.getStore('students', 'readwrite');
@@ -383,14 +391,36 @@ class OfflineDatabase {
     }
   }
 
+  public async removeStudent(id: string): Promise<void> {
+    this.memoryStudents.delete(id);
+    if (!this.isSupported()) return;
+    try {
+      const { store } = await this.getStore('students', 'readwrite');
+      store.delete(id);
+    } catch {}
+  }
+
   public async bulkPutGroups(groups: GroupEntity[]): Promise<void> {
-    groups.forEach((g) => this.memoryGroups.set(g.id, g));
+    groups.forEach((g) => {
+      const existing = this.memoryGroups.get(g.id) || {};
+      this.memoryGroups.set(g.id, { ...existing, ...g, updatedAt: Date.now() });
+    });
     if (!this.isSupported() || groups.length === 0) return;
     try {
       const { store } = await this.getStore('groups', 'readwrite');
       for (const g of groups) {
         store.put(g);
       }
+    } catch {}
+  }
+
+  public async removeGroup(id: string): Promise<void> {
+    this.memoryGroups.delete(id);
+    this.memoryRosters.delete(id);
+    if (!this.isSupported()) return;
+    try {
+      const { store } = await this.getStore('groups', 'readwrite');
+      store.delete(id);
     } catch {}
   }
 
@@ -402,6 +432,15 @@ class OfflineDatabase {
       for (const s of sessions) {
         store.put(s);
       }
+    } catch {}
+  }
+
+  public async removeSession(id: string): Promise<void> {
+    this.memorySessions.delete(id);
+    if (!this.isSupported()) return;
+    try {
+      const { store } = await this.getStore('sessions', 'readwrite');
+      store.delete(id);
     } catch {}
   }
 
@@ -435,6 +474,15 @@ class OfflineDatabase {
       for (const a of assessments) {
         store.put(a);
       }
+    } catch {}
+  }
+
+  public async removeAssessment(id: string): Promise<void> {
+    this.memoryAssessments.delete(id);
+    if (!this.isSupported()) return;
+    try {
+      const { store } = await this.getStore('assessments', 'readwrite');
+      store.delete(id);
     } catch {}
   }
 
@@ -482,10 +530,10 @@ class OfflineDatabase {
       if (options.groupId && s.groupId !== options.groupId) return false;
       if (options.search) {
         const q = options.search.toLowerCase().trim();
-        const matchesName = s.fullName?.toLowerCase().includes(q);
-        const matchesCode = s.studentCode?.toLowerCase().includes(q);
-        const matchesPhone = s.phone?.includes(q) || s.parentPhone?.includes(q);
-        const matchesQr = s.qrCodeToken?.includes(q);
+        const matchesName = (s.fullName || s.user?.fullName || '').toLowerCase().includes(q);
+        const matchesCode = (s.studentCode || '').toLowerCase().includes(q);
+        const matchesPhone = s.phone?.includes(q) || s.user?.phone?.includes(q) || s.parentPhone?.includes(q);
+        const matchesQr = (s.qrCodeToken || '').includes(q);
         return matchesName || matchesCode || matchesPhone || matchesQr;
       }
       return true;
@@ -506,6 +554,51 @@ class OfflineDatabase {
     } catch {
       return this.memoryStudents.get(id) || null;
     }
+  }
+
+  /**
+   * Unified resilient student details getter with relational joins.
+   * Guarantees non-crashing fallbacks for missing nested properties.
+   */
+  public async getStudentDetailsOffline(id: string): Promise<any | null> {
+    const student = await this.getStudentByIdOffline(id);
+    if (!student) {
+      return null;
+    }
+
+    const group = student.groupId ? await this.getGroupByIdOffline(student.groupId) : null;
+    const payments = await this.getPaymentsOffline({ studentId: id });
+
+    return {
+      id: student.id,
+      studentCode: student.studentCode || `STU-${student.id.slice(0, 6)}`,
+      qrCodeToken: student.qrCodeToken || student.id,
+      gradeLevel: student.gradeLevel || group?.gradeLevel || 'الصف الدراسي',
+      academicStage: student.academicStage || '',
+      academicStatus: student.academicStatus || 'ACTIVE',
+      emergencyPhone: student.emergencyPhone || student.parentPhone || '',
+      createdAt: new Date(student.updatedAt || Date.now()).toISOString(),
+      updatedAt: new Date(student.updatedAt || Date.now()).toISOString(),
+      user: {
+        id: student.userId || student.id,
+        fullName: student.fullName || student.user?.fullName || 'طالب',
+        phone: student.phone || student.user?.phone || '',
+        email: student.email || student.user?.email || '',
+        isActive: student.user?.isActive ?? true,
+      },
+      groupEnrollments: student.groupEnrollments && student.groupEnrollments.length > 0
+        ? student.groupEnrollments
+        : group
+          ? [{ group: { id: group.id, name: group.name, gradeLevel: group.gradeLevel || student.gradeLevel || '' } }]
+          : [],
+      parentLinks: student.parentLinks && student.parentLinks.length > 0
+        ? student.parentLinks
+        : student.parentPhone
+          ? [{ parent: { user: { id: `p-${student.id}`, fullName: 'ولي الأمر', phone: student.parentPhone, isActive: true } } }]
+          : [],
+      attendanceRecords: student.attendanceRecords || [],
+      paymentRecords: payments || [],
+    };
   }
 
   public async getGroupsOffline(): Promise<GroupEntity[]> {
@@ -540,6 +633,57 @@ class OfflineDatabase {
     }
   }
 
+  /**
+   * Unified resilient group details getter with joined student rosters.
+   * Guarantees complete relational safety offline.
+   */
+  public async getGroupDetailsOffline(id: string): Promise<any | null> {
+    const group = await this.getGroupByIdOffline(id);
+    if (!group) return null;
+
+    const [roster, groupStudents, schedules] = await Promise.all([
+      this.getRoster(id),
+      this.getStudentsOffline({ groupId: id }),
+      this.getSchedulesOffline(id),
+    ]);
+
+    const enrolledStudents = roster?.students?.length ? roster.students : groupStudents;
+    const effectiveSchedules = group.schedules?.length ? group.schedules : schedules;
+
+    return {
+      ...group,
+      schedules: effectiveSchedules || [],
+      _count: {
+        enrollments: enrolledStudents.length || group._count?.enrollments || 0,
+        schedules: effectiveSchedules.length || 0,
+      },
+      students: enrolledStudents,
+    };
+  }
+
+  public async getSchedulesOffline(groupId?: string): Promise<ScheduleEntity[]> {
+    let list: ScheduleEntity[] = [];
+    if (!this.isSupported()) {
+      list = Array.from(this.memorySchedules.values());
+    } else {
+      try {
+        const { store } = await this.getStore('schedules', 'readonly');
+        list = await new Promise((resolve) => {
+          const req = store.getAll();
+          req.onsuccess = () => resolve(req.result || Array.from(this.memorySchedules.values()));
+          req.onerror = () => resolve(Array.from(this.memorySchedules.values()));
+        });
+      } catch {
+        list = Array.from(this.memorySchedules.values());
+      }
+    }
+
+    if (groupId) {
+      return list.filter((s) => s.groupId === groupId);
+    }
+    return list;
+  }
+
   public async getSessionsOffline(groupId?: string, dateStr?: string): Promise<SessionEntity[]> {
     let list: SessionEntity[] = [];
     if (!this.isSupported()) {
@@ -558,7 +702,7 @@ class OfflineDatabase {
     }
 
     return list.filter((s) => {
-      if (groupId && s.groupId !== groupId) return false;
+      if (groupId && groupId !== 'ALL' && s.groupId !== groupId) return false;
       if (dateStr && !s.sessionDate.startsWith(dateStr)) return false;
       return true;
     });
@@ -777,7 +921,7 @@ class OfflineDatabase {
 
     const allStudents = await this.getStudentsOffline();
     const foundDirect = allStudents.find(
-      (s) => s.qrCodeToken === cleanToken || s.studentCode === cleanToken,
+      (s) => s.qrCodeToken === cleanToken || s.studentCode === cleanToken || s.id === cleanToken,
     );
     if (foundDirect) {
       const group = foundDirect.groupId ? await this.getGroupByIdOffline(foundDirect.groupId) : null;
@@ -798,6 +942,7 @@ class OfflineDatabase {
         return { student: found, groupId: roster.groupId, groupName: roster.groupName };
       }
     }
+
     return null;
   }
 
@@ -890,3 +1035,11 @@ class OfflineDatabase {
 }
 
 export const offlineDb = new OfflineDatabase();
+
+export async function getGroupDetailsOffline(id: string) {
+  return offlineDb.getGroupDetailsOffline(id);
+}
+
+export async function getStudentDetailsOffline(id: string) {
+  return offlineDb.getStudentDetailsOffline(id);
+}

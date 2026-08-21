@@ -1,10 +1,14 @@
 /**
  * Service Worker for El-Awal PWA
  * Platform: Next.js 14 Web App
+ * Features:
+ * - App Shell caching for full offline SPA hydration
+ * - Offline navigation fallback to cached root / login / offline shell
+ * - Support for mobile network IP testing (e.g. 192.168.x.x)
  */
 
-const CACHE_NAME = 'el-awal-core-v2';
-const RUNTIME_CACHE = 'el-awal-runtime-v2';
+const CACHE_NAME = 'el-awal-core-v3';
+const RUNTIME_CACHE = 'el-awal-runtime-v3';
 
 // Critical App Shell assets to pre-cache on install
 const PRECACHE_URLS = [
@@ -27,7 +31,6 @@ self.addEventListener('install', (event) => {
     caches
       .open(CACHE_NAME)
       .then(async (cache) => {
-        // Cache assets gracefully even if some individual routes fail in dev
         for (const url of PRECACHE_URLS) {
           try {
             await cache.add(url);
@@ -43,7 +46,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// 2. Activate Event: Clean up outdated caches and take control immediately
+// 2. Activate Event: Clean up outdated caches and claim clients immediately
 self.addEventListener('activate', (event) => {
   const currentCaches = [CACHE_NAME, RUNTIME_CACHE];
   event.waitUntil(
@@ -66,7 +69,7 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET requests (e.g. POST, PUT, DELETE)
+  // Skip non-GET requests (e.g. POST, PUT, DELETE handled by TanStack Query & Outbox Engine)
   if (request.method !== 'GET') {
     return;
   }
@@ -85,7 +88,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Strategy A: HTML Navigation Requests (Network First -> Cache -> App Shell Fallback -> offline.html)
+  // Strategy A: HTML Navigation Requests (Network First -> Cache -> App Shell Fallback)
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
@@ -115,7 +118,11 @@ self.addEventListener('fetch', (event) => {
             return offlinePage;
           }
 
-          return new Response('Offline', { status: 503, statusText: 'Offline' });
+          return new Response('Offline - Platform El-Awal', {
+            status: 503,
+            statusText: 'Offline',
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+          });
         }),
     );
     return;
@@ -146,9 +153,7 @@ self.addEventListener('fetch', (event) => {
                   caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, networkResponse));
                 }
               })
-              .catch(() => {
-                // Ignore background fetch error
-              });
+              .catch(() => {});
           }
           return cachedResponse;
         }

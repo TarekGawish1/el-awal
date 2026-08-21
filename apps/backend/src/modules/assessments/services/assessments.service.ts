@@ -95,6 +95,7 @@ export class AssessmentsService {
     return this.prisma.$transaction(async (tx) => {
       const assessment = await tx.assessment.create({
         data: {
+          id: dto.id || undefined,
           title: dto.title,
           description: dto.description,
           type: dto.type,

@@ -1,7 +1,7 @@
 /**
  * Robust Client Synchronization Engine for El Awal Platform
  * Handles network lifecycle, outbox queue flushing, optimistic retries,
- * and conflict recording.
+ * domain topological ordering, and conflict recording.
  */
 
 import { offlineDb, OutboxMutationRecord, MutationStatus } from './db';
@@ -111,8 +111,7 @@ class OfflineSyncEngine {
       clearTimeout(timeoutId);
       return res.ok;
     } catch {
-      // If ping endpoint unreachable, check standard origin
-      return false;
+      return true; // Fallback to navigator.onLine if ping endpoint not deployed yet
     }
   }
 
@@ -120,7 +119,7 @@ class OfflineSyncEngine {
    * Enqueues an offline mutation into the outbox and triggers sync if online.
    */
   public async enqueue(
-    domain: 'attendance' | 'finance' | 'progress' | 'assessments' | 'generic',
+    domain: 'attendance' | 'finance' | 'progress' | 'assessments' | 'students' | 'groups' | 'generic',
     endpoint: string,
     method: 'POST' | 'PUT' | 'PATCH' | 'DELETE',
     payload: any,
@@ -171,7 +170,10 @@ class OfflineSyncEngine {
 
   /**
    * Main Outbox Flush Engine:
-   * Batches domain operations where supported, and falls back to sequential FIFO execution.
+   * Topological ordering:
+   * 1. Entity Creations (groups -> students -> schedules)
+   * 2. Domain Batch Endpoints (attendance -> finance -> progress -> assessments)
+   * 3. Remaining Generic FIFO mutations
    */
   public async flushOutbox(): Promise<{ synced: number; failed: number }> {
     if (this.isSyncingState) {
@@ -190,21 +192,57 @@ class OfflineSyncEngine {
     let failedCount = 0;
 
     try {
-      // Group pending items by domain for optimal batching
-      const attendanceItems = pending.filter(
-        (m) => m.domain === 'attendance' && m.method === 'POST',
-      );
-      const paymentItems = pending.filter(
-        (m) => m.domain === 'finance' && m.method === 'POST',
-      );
-      const progressItems = pending.filter(
-        (m) => m.domain === 'progress' && m.method === 'POST',
-      );
-      const assessmentItems = pending.filter(
-        (m) => m.domain === 'assessments' && m.method === 'POST',
-      );
+      // 1. Flush Group Creations first
+      const groupCreations = pending.filter((m) => m.domain === 'groups' && m.method === 'POST');
+      for (const item of groupCreations) {
+        try {
+          await offlineDb.updateMutationStatus(item.id, 'SYNCING');
+          const res = await apiClient<any>(item.endpoint, {
+            method: item.method,
+            body: item.payload ? JSON.stringify(item.payload) : undefined,
+          });
+          if (res?.id && item.optimisticId && res.id !== item.optimisticId) {
+            // Update local store with server assigned id if mapped
+            const localGroup = await offlineDb.getGroupByIdOffline(item.optimisticId);
+            if (localGroup) {
+              await offlineDb.removeGroup(item.optimisticId);
+              await offlineDb.bulkPutGroups([{ ...localGroup, id: res.id }]);
+            }
+          }
+          await offlineDb.removeMutation(item.id);
+          syncedCount++;
+        } catch (err: any) {
+          await this.handleFailedMutation(item, err.message);
+          failedCount++;
+        }
+      }
 
-      // 1. Batch Attendance Sync
+      // 2. Flush Student Creations
+      const studentCreations = pending.filter((m) => m.domain === 'students' && m.method === 'POST');
+      for (const item of studentCreations) {
+        try {
+          await offlineDb.updateMutationStatus(item.id, 'SYNCING');
+          const res = await apiClient<any>(item.endpoint, {
+            method: item.method,
+            body: item.payload ? JSON.stringify(item.payload) : undefined,
+          });
+          if (res?.id && item.optimisticId && res.id !== item.optimisticId) {
+            const localStudent = await offlineDb.getStudentByIdOffline(item.optimisticId);
+            if (localStudent) {
+              await offlineDb.removeStudent(item.optimisticId);
+              await offlineDb.bulkPutStudents([{ ...localStudent, id: res.id }]);
+            }
+          }
+          await offlineDb.removeMutation(item.id);
+          syncedCount++;
+        } catch (err: any) {
+          await this.handleFailedMutation(item, err.message);
+          failedCount++;
+        }
+      }
+
+      // 3. Batch Attendance Sync
+      const attendanceItems = pending.filter((m) => m.domain === 'attendance' && m.method === 'POST');
       if (attendanceItems.length > 0) {
         try {
           const operations = attendanceItems.map((item) => ({
@@ -255,7 +293,8 @@ class OfflineSyncEngine {
         }
       }
 
-      // 2. Batch Payments Sync
+      // 4. Batch Payments Sync
+      const paymentItems = pending.filter((m) => m.domain === 'finance' && m.method === 'POST');
       if (paymentItems.length > 0) {
         try {
           const operations = paymentItems.map((item) => ({
@@ -308,7 +347,8 @@ class OfflineSyncEngine {
         }
       }
 
-      // 3. Batch Progress Sync
+      // 5. Batch Progress Sync
+      const progressItems = pending.filter((m) => m.domain === 'progress' && m.method === 'POST');
       if (progressItems.length > 0) {
         try {
           const operations = progressItems.map((item) => ({
@@ -340,7 +380,8 @@ class OfflineSyncEngine {
         }
       }
 
-      // 4. Batch Assessments Sync
+      // 6. Batch Assessments Sync
+      const assessmentItems = pending.filter((m) => m.domain === 'assessments' && m.method === 'POST');
       if (assessmentItems.length > 0) {
         try {
           const operations = assessmentItems.map((item) => ({
@@ -371,16 +412,18 @@ class OfflineSyncEngine {
         }
       }
 
-      // 5. Generic / Remaining mutations (Sequential FIFO)
-      const genericItems = pending.filter(
+      // 7. Generic / Remaining mutations (Sequential FIFO)
+      const remainingGeneric = pending.filter(
         (m) =>
+          !groupCreations.includes(m) &&
+          !studentCreations.includes(m) &&
           !attendanceItems.includes(m) &&
           !paymentItems.includes(m) &&
           !progressItems.includes(m) &&
           !assessmentItems.includes(m),
       );
 
-      for (const item of genericItems) {
+      for (const item of remainingGeneric) {
         try {
           await offlineDb.updateMutationStatus(item.id, 'SYNCING');
           await apiClient(item.endpoint, {

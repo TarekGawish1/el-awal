@@ -51,6 +51,7 @@ export class GroupsService {
 
     return this.prisma.academicGroup.create({
       data: {
+        id: dto.id || undefined,
         name: dto.name,
         gradeLevel: dto.gradeLevel,
         academicYear: dto.academicYear || '2026-2027',

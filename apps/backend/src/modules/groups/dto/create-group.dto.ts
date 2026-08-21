@@ -7,6 +7,7 @@ import {
   Min,
   IsNumber,
   IsArray,
+  IsUUID,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -35,6 +36,11 @@ export class GroupScheduleDto {
 }
 
 export class CreateGroupDto {
+  @ApiPropertyOptional({ example: '018d39f4-6a8b-7000-8000-000000000000', description: 'Client-generated UUIDv7 for offline idempotency' })
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
   @ApiProperty({ example: 'مجموعة الأحد والأربعاء - الصف الثالث الثانوي', minLength: 3 })
   @IsString()
   @IsNotEmpty({ message: 'Group name is required' })

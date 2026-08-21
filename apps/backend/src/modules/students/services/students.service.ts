@@ -51,6 +51,7 @@ export class StudentsService {
       // 3. Create Student User Record
       const user = await tx.user.create({
         data: {
+          id: dto.id || undefined,
           fullName: dto.fullName,
           phone: dto.phone,
           email: dto.email,

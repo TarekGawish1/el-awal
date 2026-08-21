@@ -19,12 +19,14 @@ export function StudentList({ groupId }: StudentListProps) {
   const router = useRouter();
   const { data: enrollments, isLoading, isError, error, refetch } = useGroupStudents(groupId);
   const [searchQuery, setSearchQuery] = useState('');
-  const [studentToRemove, setStudentToRemove] = useState<{ id: string, name: string } | null>(null);
+  const [studentToRemove, setStudentToRemove] = useState<{ id: string; name: string } | null>(null);
 
-  const filteredEnrollments = enrollments?.filter(enrollment => 
-    enrollment.student.user.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    enrollment.student.code.toLowerCase().includes(searchQuery.toLowerCase())
-  ) || [];
+  const filteredEnrollments = (enrollments || []).filter((enrollment) => {
+    const name = (enrollment.student?.user?.name || (enrollment.student as any)?.fullName || '').toLowerCase();
+    const code = (enrollment.student?.code || (enrollment.student as any)?.studentCode || '').toLowerCase();
+    const q = searchQuery.toLowerCase().trim();
+    return name.includes(q) || code.includes(q);
+  });
 
   if (isError) {
     return (
@@ -44,7 +46,7 @@ export function StudentList({ groupId }: StudentListProps) {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        {[1, 2, 3, 4].map(i => (
+        {[1, 2, 3, 4].map((i) => (
           <div key={i} className="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-100">
             <div className="flex items-center gap-4">
               <Skeleton className="w-10 h-10 rounded-full" />
@@ -60,7 +62,7 @@ export function StudentList({ groupId }: StudentListProps) {
     );
   }
 
-  if (enrollments?.length === 0) {
+  if (!enrollments || enrollments.length === 0) {
     return (
       <div className="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-300">
         <div className="mx-auto w-12 h-12 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm">
@@ -82,7 +84,7 @@ export function StudentList({ groupId }: StudentListProps) {
           className="pr-10 bg-white"
           placeholder="ابحث عن طالب بالاسم أو الكود..."
           value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
+          onChange={(e) => setSearchQuery(e.target.value)}
         />
       </div>
 
@@ -104,48 +106,55 @@ export function StudentList({ groupId }: StudentListProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredEnrollments.map((enrollment) => (
-                  <tr 
-                    key={enrollment.id} 
-                    className="hover:bg-slate-50/50 transition-colors cursor-pointer"
-                    onClick={() => router.push(`/teacher/students/${enrollment.student.id}`)}
-                  >
-                    <td className="py-3 px-4">
-                      <div className="font-semibold text-slate-800">{enrollment.student.user.name}</div>
-                      <div className="text-xs text-slate-500 md:hidden">{enrollment.student.user.phone}</div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <code className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded">
-                        {enrollment.student.code}
-                      </code>
-                    </td>
-                    <td className="py-3 px-4 hidden md:table-cell text-slate-600 text-sm">
-                      <span dir="ltr">{enrollment.student.user.phone}</span>
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <Badge variant={enrollment.attendanceRate >= 80 ? 'success' : enrollment.attendanceRate >= 50 ? 'warning' : 'error'}>
-                        {Math.round(enrollment.attendanceRate || 0)}%
-                      </Badge>
-                    </td>
-                    <td className="py-3 px-4 text-left">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setStudentToRemove({ 
-                            id: enrollment.student.id, 
-                            name: enrollment.student.user.name 
-                          });
-                        }}
-                      >
-                        <UserMinus className="w-4 h-4 ml-1 md:ml-0 md:mr-1" />
-                        <span className="hidden md:inline">إزالة</span>
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredEnrollments.map((enrollment) => {
+                  const studentName = enrollment.student?.user?.name || (enrollment.student as any)?.fullName || 'طالب';
+                  const studentPhone = enrollment.student?.user?.phone || (enrollment.student as any)?.phone || '';
+                  const studentCode = enrollment.student?.code || (enrollment.student as any)?.studentCode || `STU-${enrollment.student?.id?.slice(0, 6)}`;
+                  const attendanceRate = enrollment.attendanceRate ?? 100;
+
+                  return (
+                    <tr 
+                      key={enrollment.id || enrollment.student?.id} 
+                      className="hover:bg-slate-50/50 transition-colors cursor-pointer"
+                      onClick={() => router.push(`/teacher/students/${enrollment.student?.id}`)}
+                    >
+                      <td className="py-3 px-4">
+                        <div className="font-semibold text-slate-800">{studentName}</div>
+                        {studentPhone && <div className="text-xs text-slate-500 md:hidden">{studentPhone}</div>}
+                      </td>
+                      <td className="py-3 px-4">
+                        <code className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded">
+                          {studentCode}
+                        </code>
+                      </td>
+                      <td className="py-3 px-4 hidden md:table-cell text-slate-600 text-sm">
+                        <span dir="ltr">{studentPhone || '—'}</span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <Badge variant={attendanceRate >= 80 ? 'success' : attendanceRate >= 50 ? 'warning' : 'error'}>
+                          {Math.round(attendanceRate)}%
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-4 text-left">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setStudentToRemove({ 
+                              id: enrollment.student?.id, 
+                              name: studentName,
+                            });
+                          }}
+                        >
+                          <UserMinus className="w-4 h-4 ml-1 md:ml-0 md:mr-1" />
+                          <span className="hidden md:inline">إزالة</span>
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

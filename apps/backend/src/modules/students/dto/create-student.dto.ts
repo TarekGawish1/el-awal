@@ -10,6 +10,11 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEgyptianPhone } from '../../../common/decorators/is-egyptian-phone.decorator';
 
 export class CreateStudentDto {
+  @ApiPropertyOptional({ example: '018d39f4-6a8b-7000-8000-000000000000', description: 'Client-generated UUIDv7 for offline idempotency' })
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
   @ApiProperty({ example: 'محمود أحمد علي', minLength: 3 })
   @IsString()
   @IsNotEmpty({ message: 'Full name is required' })

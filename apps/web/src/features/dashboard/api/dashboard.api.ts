@@ -1,20 +1,38 @@
 import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
 import { DashboardFilterState, TeacherDashboardData, GroupOption } from '../types/dashboard.types';
+import { offlineDb } from '@/lib/offline/db';
 
 /**
  * Fetches teacher groups for dashboard filter dropdown
  */
 export async function fetchTeacherGroups(): Promise<GroupOption[]> {
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  if (!isOnline) {
+    const offlineGroups = await offlineDb.getGroupsOffline();
+    return offlineGroups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      gradeLevel: g.gradeLevel || '',
+      academicYear: g.academicYear || '',
+      academicTerm: g.academicTerm || '',
+    }));
+  }
+
   try {
-    return await apiClient<GroupOption[]>(API_ENDPOINTS.GROUPS.LIST);
+    const groups = await apiClient<GroupOption[]>(API_ENDPOINTS.GROUPS.LIST);
+    return groups || [];
   } catch (e) {
-    // Return empty array on failure so UI degrades gracefully
-    return [];
+    const offlineGroups = await offlineDb.getGroupsOffline();
+    return offlineGroups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      gradeLevel: g.gradeLevel || '',
+      academicYear: g.academicYear || '',
+      academicTerm: g.academicTerm || '',
+    }));
   }
 }
-
-import { offlineDb } from '@/lib/offline/db';
 
 async function buildOfflineDashboardData(filters: DashboardFilterState): Promise<TeacherDashboardData> {
   const [students, groups, sessions, assessments] = await Promise.all([
@@ -86,7 +104,7 @@ async function buildOfflineDashboardData(filters: DashboardFilterState): Promise
  * Fetches primary teacher dashboard aggregated metrics & activities
  */
 export async function fetchTeacherDashboardOverview(
-  filters: DashboardFilterState
+  filters: DashboardFilterState,
 ): Promise<TeacherDashboardData> {
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
   if (!isOnline) {

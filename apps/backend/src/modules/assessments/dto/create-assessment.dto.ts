@@ -19,6 +19,14 @@ import { AssessmentType } from '@prisma/client';
 import { CreateQuestionDto } from './create-question.dto';
 
 export class CreateAssessmentDto {
+  @ApiPropertyOptional({
+    description: 'Client-generated UUIDv7 for offline idempotency',
+    example: '018d39f4-6a8b-7000-8000-000000000000',
+  })
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
   @ApiProperty({
     description: 'Assessment title',
     example: 'اختبار النحو والبلاغة الشامل - الوحدة الأولى',

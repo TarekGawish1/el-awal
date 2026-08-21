@@ -8,6 +8,11 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateSessionDto {
+  @ApiPropertyOptional({ description: 'Client-generated UUIDv7 for offline idempotency' })
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
   @ApiProperty({ description: 'Academic Group ID', example: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' })
   @IsUUID()
   @IsNotEmpty({ message: 'معرف المجموعة مطلوب' })

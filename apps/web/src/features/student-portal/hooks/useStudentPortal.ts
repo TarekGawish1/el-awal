@@ -2,6 +2,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { studentApi } from '../api/student.api';
 import { useAuth } from '@/features/auth';
 import { apiClient } from '@/lib/api/client';
+import { offlineDb } from '@/lib/offline/db';
+import { syncEngine } from '@/lib/offline/sync-engine';
+import toast from 'react-hot-toast';
 
 export function useStudentProfile() {
   const { user } = useAuth();
@@ -9,7 +12,46 @@ export function useStudentProfile() {
 
   return useQuery({
     queryKey: ['student-profile', studentId],
-    queryFn: () => studentApi.getProfile(studentId!),
+    queryFn: async () => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline && studentId) {
+        const student = await offlineDb.getStudentByIdOffline(studentId);
+        if (student) {
+          return {
+            id: student.id,
+            studentCode: student.studentCode,
+            qrCodeToken: student.qrCodeToken,
+            gradeLevel: student.gradeLevel,
+            user: {
+              fullName: student.fullName || student.user?.fullName || user?.fullName || 'طالب',
+              phone: student.phone || student.user?.phone,
+              email: student.email || student.user?.email,
+            },
+          };
+        }
+      }
+      try {
+        return await studentApi.getProfile(studentId!);
+      } catch {
+        if (studentId) {
+          const student = await offlineDb.getStudentByIdOffline(studentId);
+          if (student) {
+            return {
+              id: student.id,
+              studentCode: student.studentCode,
+              qrCodeToken: student.qrCodeToken,
+              gradeLevel: student.gradeLevel,
+              user: {
+                fullName: student.fullName || student.user?.fullName || user?.fullName || 'طالب',
+                phone: student.phone || student.user?.phone,
+                email: student.email || student.user?.email,
+              },
+            };
+          }
+        }
+        return null;
+      }
+    },
     enabled: !!studentId,
   });
 }
@@ -20,12 +62,34 @@ export function useStudentQrCode() {
 
   return useQuery({
     queryKey: ['student-qr-code', studentId],
-    queryFn: () => studentApi.getQrCode(studentId!),
+    queryFn: async () => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline && studentId) {
+        const student = await offlineDb.getStudentByIdOffline(studentId);
+        return {
+          id: studentId,
+          studentId,
+          qrCodeToken: student?.qrCodeToken || studentId,
+          qrCodeSvg: null,
+          qrCodeDataUrl: null,
+        };
+      }
+      try {
+        return await studentApi.getQrCode(studentId!);
+      } catch {
+        const student = studentId ? await offlineDb.getStudentByIdOffline(studentId) : null;
+        return {
+          id: studentId || '',
+          studentId: studentId || '',
+          qrCodeToken: student?.qrCodeToken || studentId || '',
+          qrCodeSvg: null,
+          qrCodeDataUrl: null,
+        };
+      }
+    },
     enabled: !!studentId,
   });
 }
-
-import { offlineDb } from '@/lib/offline/db';
 
 export function useStudentCourses() {
   return useQuery({
@@ -71,7 +135,31 @@ export function useCourseDetails(courseId: string) {
 export function useLessonDetails(lessonId: string) {
   return useQuery({
     queryKey: ['student-lesson-details', lessonId],
-    queryFn: () => apiClient<any>(`/courses/lessons/${lessonId}`),
+    queryFn: async () => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        const allCourses = await offlineDb.getCoursesOffline();
+        for (const c of allCourses) {
+          if (c.lessons) {
+            const l = c.lessons.find((les: any) => les.id === lessonId);
+            if (l) return l;
+          }
+        }
+        return null;
+      }
+      try {
+        return await apiClient<any>(`/courses/lessons/${lessonId}`);
+      } catch {
+        const allCourses = await offlineDb.getCoursesOffline();
+        for (const c of allCourses) {
+          if (c.lessons) {
+            const l = c.lessons.find((les: any) => les.id === lessonId);
+            if (l) return l;
+          }
+        }
+        return null;
+      }
+    },
     enabled: !!lessonId,
   });
 }
@@ -79,13 +167,42 @@ export function useLessonDetails(lessonId: string) {
 export function useUpdateProgress() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ lessonId, payload }: { lessonId: string; payload: { lastPositionSeconds: number; isCompleted: boolean } }) =>
-      apiClient<any>(`/courses/lessons/${lessonId}/progress`, {
+    mutationFn: async ({
+      lessonId,
+      courseId,
+      payload,
+    }: {
+      lessonId: string;
+      courseId?: string;
+      payload: { lastPositionSeconds: number; isCompleted: boolean };
+    }) => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+      if (!isOnline) {
+        await syncEngine.enqueue(
+          'progress',
+          `/courses/lessons/${lessonId}/progress`,
+          'POST',
+          {
+            lessonId,
+            courseId,
+            lastPositionSeconds: payload.lastPositionSeconds,
+            isCompleted: payload.isCompleted,
+          },
+          { conflictStrategy: 'MONOTONIC' },
+        );
+        return { success: true, isOfflineSaved: true };
+      }
+
+      return apiClient<any>(`/courses/lessons/${lessonId}/progress`, {
         method: 'POST',
         body: JSON.stringify(payload),
-      }),
+      });
+    },
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['student-course-details', data.courseId] });
+      if (variables.courseId) {
+        queryClient.invalidateQueries({ queryKey: ['student-course-details', variables.courseId] });
+      }
       queryClient.invalidateQueries({ queryKey: ['student-courses'] });
       queryClient.invalidateQueries({ queryKey: ['student-lesson-details', variables.lessonId] });
     },
@@ -121,13 +238,13 @@ export function useStudentPayments() {
     queryKey: ['student-payments', studentId],
     queryFn: async () => {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
-      if (!isOnline) {
+      if (!isOnline && studentId) {
         return offlineDb.getPaymentsOffline({ studentId });
       }
       try {
         return await apiClient<any>(`/subscriptions/student/${studentId}`);
       } catch {
-        return offlineDb.getPaymentsOffline({ studentId });
+        return studentId ? offlineDb.getPaymentsOffline({ studentId }) : [];
       }
     },
     enabled: !!studentId,
