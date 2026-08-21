@@ -3,17 +3,34 @@
  * Platform: Next.js 14 Web App
  * Features:
  * - App Shell caching for full offline SPA hydration
- * - Offline navigation fallback to cached root / login / offline shell
- * - Support for mobile network IP testing (e.g. 192.168.x.x)
+ * - Pre-caching all teacher, student, and parent dashboard routes
+ * - Offline navigation fallback to cached dashboard / login shell
+ * - Safe chunk fallback preventing fatal ChunkLoadErrors offline
  */
 
-const CACHE_NAME = 'el-awal-core-v4';
-const RUNTIME_CACHE = 'el-awal-runtime-v4';
+const CACHE_NAME = 'el-awal-core-v5';
+const RUNTIME_CACHE = 'el-awal-runtime-v5';
 
-// Critical App Shell assets to pre-cache on install
+// Critical App Shell assets and core dashboard routes to pre-cache on install
 const PRECACHE_URLS = [
   '/',
   '/login',
+  '/teacher/dashboard',
+  '/teacher/groups',
+  '/teacher/schedules',
+  '/teacher/attendance',
+  '/teacher/students',
+  '/teacher/assessments',
+  '/teacher/content',
+  '/teacher/finance',
+  '/student/dashboard',
+  '/student/courses',
+  '/student/attendance',
+  '/student/assessments',
+  '/student/payments',
+  '/parent/dashboard',
+  '/parent-access',
+  '/register/student',
   '/offline.html',
   '/manifest.webmanifest',
   '/manifest.json',
@@ -37,7 +54,7 @@ self.addEventListener('install', (event) => {
           try {
             await cache.add(url);
           } catch (err) {
-            console.warn('[SW] Failed to precache:', url, err);
+            console.debug('[SW] Precache notice:', url, err);
           }
         }
       })
@@ -71,12 +88,12 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET requests (e.g. POST, PUT, DELETE handled by TanStack Query & Outbox Engine)
+  // Skip non-GET requests (handled by TanStack Query & Outbox Engine)
   if (request.method !== 'GET') {
     return;
   }
 
-  // Skip chrome-extension, non-http protocols
+  // Skip non-http protocols
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     return;
   }
@@ -108,13 +125,23 @@ self.addEventListener('fetch', (event) => {
             return cachedResponse;
           }
 
-          // 2. Fall back to cached App Shell document so Next.js client router mounts offline
-          const appShell = (await caches.match('/')) || (await caches.match('/login'));
+          // 2. Try match without query parameters
+          const cleanUrl = url.origin + url.pathname;
+          const cachedClean = await caches.match(cleanUrl);
+          if (cachedClean) {
+            return cachedClean;
+          }
+
+          // 3. Fall back to cached App Shell document so Next.js client router mounts offline
+          const appShell =
+            (await caches.match('/teacher/dashboard')) ||
+            (await caches.match('/')) ||
+            (await caches.match('/login'));
           if (appShell) {
             return appShell;
           }
 
-          // 3. Final fallback: standalone offline page
+          // 4. Final fallback: standalone offline page
           const offlinePage = await caches.match('/offline.html');
           if (offlinePage) {
             return offlinePage;
@@ -187,7 +214,20 @@ self.addEventListener('fetch', (event) => {
               const cachedIcon = (await caches.match('/favicon.svg')) || (await caches.match('/icons/icon.svg')) || (await caches.match('/icon.svg'));
               if (cachedIcon) return cachedIcon;
             }
-            return new Response('', { status: 408, statusText: 'Request timed out' });
+            // For JavaScript / CSS files requested offline that aren't cached yet, return a safe fallback rather than fatal 408
+            if (url.pathname.endsWith('.js')) {
+              return new Response('/* offline chunk placeholder */', {
+                status: 200,
+                headers: { 'Content-Type': 'application/javascript; charset=utf-8' },
+              });
+            }
+            if (url.pathname.endsWith('.css')) {
+              return new Response('/* offline css placeholder */', {
+                status: 200,
+                headers: { 'Content-Type': 'text/css; charset=utf-8' },
+              });
+            }
+            return new Response('', { status: 503, statusText: 'Offline' });
           });
       }),
     );
@@ -213,9 +253,17 @@ self.addEventListener('fetch', (event) => {
         const cached = await caches.match(request);
         if (cached) return cached;
 
+        // Try matching clean URL without search params
+        const cleanUrl = url.origin + url.pathname;
+        const cachedClean = await caches.match(cleanUrl);
+        if (cachedClean) return cachedClean;
+
         // If RSC prefetch request, return cached app shell or empty payload to prevent client-side routing crash
-        if (url.search.includes('_rsc=')) {
-          const appShell = (await caches.match('/')) || (await caches.match('/login'));
+        if (url.search.includes('_rsc=') || url.pathname.includes('/_next/data/')) {
+          const appShell =
+            (await caches.match('/teacher/dashboard')) ||
+            (await caches.match('/')) ||
+            (await caches.match('/login'));
           if (appShell) return appShell;
         }
 
@@ -234,3 +282,4 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   }
 });
+

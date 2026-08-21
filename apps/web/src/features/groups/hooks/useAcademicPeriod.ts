@@ -15,11 +15,36 @@ export interface AcademicPeriodResponse {
   activeAcademicTerm: string;
 }
 
+import { offlineDb } from '@/lib/offline/db';
+
 /**
- * Fetch academic period directly from database
+ * Fetch academic period directly from database or offline IndexedDB store
  */
 export async function fetchAcademicPeriod(): Promise<AcademicPeriodResponse> {
-  return apiClient<AcademicPeriodResponse>(API_ENDPOINTS.TEACHER.ACADEMIC_PERIOD);
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  if (!isOnline) {
+    const cached = await offlineDb.getMetadata<AcademicPeriodResponse>('academicPeriod');
+    if (cached?.activeAcademicYear) {
+      return cached;
+    }
+  }
+
+  try {
+    const res = await apiClient<AcademicPeriodResponse>(API_ENDPOINTS.TEACHER.ACADEMIC_PERIOD);
+    if (res?.activeAcademicYear) {
+      await offlineDb.setMetadata('academicPeriod', res);
+    }
+    return res;
+  } catch {
+    const cached = await offlineDb.getMetadata<AcademicPeriodResponse>('academicPeriod');
+    if (cached?.activeAcademicYear) {
+      return cached;
+    }
+    return {
+      activeAcademicYear: DEFAULT_ACADEMIC_YEAR,
+      activeAcademicTerm: DEFAULT_ACADEMIC_TERM,
+    };
+  }
 }
 
 /**
@@ -29,10 +54,21 @@ export async function updateAcademicPeriodInDb(payload: {
   activeAcademicYear: string;
   activeAcademicTerm: string;
 }): Promise<AcademicPeriodResponse> {
-  return apiClient<AcademicPeriodResponse>(API_ENDPOINTS.TEACHER.ACADEMIC_PERIOD, {
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  if (!isOnline) {
+    await offlineDb.setMetadata('academicPeriod', payload);
+    return payload;
+  }
+
+  const res = await apiClient<AcademicPeriodResponse>(API_ENDPOINTS.TEACHER.ACADEMIC_PERIOD, {
     method: 'PUT',
     body: JSON.stringify(payload),
   });
+
+  if (res?.activeAcademicYear) {
+    await offlineDb.setMetadata('academicPeriod', res);
+  }
+  return res;
 }
 
 /**
@@ -60,10 +96,11 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
   const { data: dbPeriod, isLoading: isLoadingDb } = useQuery({
     queryKey: ['teacher', 'academic-period'],
     queryFn: fetchAcademicPeriod,
-    staleTime: 5000,
-    refetchInterval: 15000, // Background polling every 15s so all assistants & teachers stay automatically updated
-    refetchOnWindowFocus: true, // Immediately syncs whenever the user focuses the browser tab
+    staleTime: 10000,
+    refetchInterval: () => (typeof navigator !== 'undefined' && !navigator.onLine ? false : 30000),
+    refetchOnWindowFocus: typeof navigator !== 'undefined' ? navigator.onLine : true,
     retry: 1,
+    networkMode: 'offlineFirst',
   });
 
   // Local state initialized with cached / stored / default value

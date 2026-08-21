@@ -41,6 +41,10 @@ async function executeRefreshToken(): Promise<string | null> {
     });
 
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        // Genuine refresh token invalidation from server
+        handleAuthFailure(true);
+      }
       return null;
     }
 
@@ -78,9 +82,14 @@ async function getRefreshedAccessToken(): Promise<string | null> {
   return refreshPromise;
 }
 
-function handleAuthFailure(): void {
-  // Prevent logging user out if device is offline
+function handleAuthFailure(isExplicitRejection: boolean = false): void {
+  // Never log user out if device is offline or when network failure prevents verification
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return;
+  }
+
+  // If not explicitly rejected with 401/403 by server, don't clear offline-compatible session
+  if (!isExplicitRejection) {
     return;
   }
 

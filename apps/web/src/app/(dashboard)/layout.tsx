@@ -32,17 +32,27 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const { user, isAuthenticated, isInitialized, logout } = useAuth();
 
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   // Authentication Route Protection
   useEffect(() => {
-    if (isInitialized && !isAuthenticated) {
+    if (isMounted && isInitialized && !isAuthenticated) {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      // Do not redirect to login when offline if a stored user exists
+      if (!isOnline && user) {
+        return;
+      }
       const redirectParam = pathname ? `?redirect=${encodeURIComponent(pathname)}` : '';
       router.replace(`/login${redirectParam}`);
     }
-  }, [isInitialized, isAuthenticated, pathname, router]);
+  }, [isMounted, isInitialized, isAuthenticated, pathname, router, user]);
 
   const getRoleLabel = (role?: string) => {
     switch (role) {
@@ -88,8 +98,8 @@ export default function DashboardLayout({
       ? parentNavigationItems
       : teacherNavigationItems;
 
-  // Hydration-safe initial loading screen before auth initialization
-  if (!isInitialized) {
+  // Hydration-safe initial loading screen before auth initialization & client mount
+  if (!isMounted || !isInitialized) {
     return (
       <div className="min-h-screen bg-neutral-50 flex items-center justify-center text-sm text-neutral-500">
         جاري التحقق من بيانات الدخول...
@@ -98,7 +108,7 @@ export default function DashboardLayout({
   }
 
   // If not authenticated, keep showing redirecting state while router pushes to /login
-  if (!isAuthenticated) {
+  if (!isAuthenticated && (typeof navigator === 'undefined' || navigator.onLine || !user)) {
     return (
       <div className="min-h-screen bg-neutral-50 flex items-center justify-center text-sm text-neutral-500">
         جاري التوجيه إلى تسجيل الدخول...

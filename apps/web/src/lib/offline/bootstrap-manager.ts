@@ -173,6 +173,7 @@ class BootstrapManager {
       if (payload.academicPeriod) {
         await offlineDb.setMetadata('academicPeriod', payload.academicPeriod);
         if (qc) {
+          qc.setQueryData(['teacher', 'academic-period'], payload.academicPeriod);
           qc.setQueryData(['teachers', 'academic-period'], payload.academicPeriod);
         }
       }
