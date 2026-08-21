@@ -199,7 +199,9 @@ class OfflineSyncEngine {
 
     try {
       // 1. Flush Group Creations first
-      const groupCreations = pending.filter((m) => m.domain === 'groups' && m.method === 'POST');
+      const groupCreations = pending.filter(
+        (m) => m.domain === 'groups' && m.method === 'POST' && m.endpoint === API_ENDPOINTS.GROUPS.CREATE,
+      );
       for (const item of groupCreations) {
         try {
           await offlineDb.updateMutationStatus(item.id, 'SYNCING');
@@ -224,7 +226,9 @@ class OfflineSyncEngine {
       }
 
       // 2. Flush Student Creations
-      const studentCreations = pending.filter((m) => m.domain === 'students' && m.method === 'POST');
+      const studentCreations = pending.filter(
+        (m) => m.domain === 'students' && m.method === 'POST' && m.endpoint === API_ENDPOINTS.STUDENTS.CREATE,
+      );
       for (const item of studentCreations) {
         try {
           await offlineDb.updateMutationStatus(item.id, 'SYNCING');
@@ -247,7 +251,26 @@ class OfflineSyncEngine {
         }
       }
 
-      // 3. Batch Attendance Sync
+      // 3. Flush Group Enrollments (after groups and students exist)
+      const groupEnrollments = pending.filter(
+        (m) => m.domain === 'groups' && m.method === 'POST' && m.endpoint !== API_ENDPOINTS.GROUPS.CREATE,
+      );
+      for (const item of groupEnrollments) {
+        try {
+          await offlineDb.updateMutationStatus(item.id, 'SYNCING');
+          await apiClient<any>(item.endpoint, {
+            method: item.method,
+            body: item.payload ? JSON.stringify(item.payload) : undefined,
+          });
+          await offlineDb.removeMutation(item.id);
+          syncedCount++;
+        } catch (err: any) {
+          await this.handleFailedMutation(item, err.message);
+          failedCount++;
+        }
+      }
+
+      // 4. Batch Attendance Sync
       const attendanceItems = pending.filter((m) => m.domain === 'attendance' && m.method === 'POST');
       if (attendanceItems.length > 0) {
         try {
@@ -299,7 +322,7 @@ class OfflineSyncEngine {
         }
       }
 
-      // 4. Batch Payments Sync
+      // 5. Batch Payments Sync
       const paymentItems = pending.filter((m) => m.domain === 'finance' && m.method === 'POST');
       if (paymentItems.length > 0) {
         try {
@@ -353,7 +376,7 @@ class OfflineSyncEngine {
         }
       }
 
-      // 5. Batch Progress Sync
+      // 6. Batch Progress Sync
       const progressItems = pending.filter((m) => m.domain === 'progress' && m.method === 'POST');
       if (progressItems.length > 0) {
         try {
@@ -386,7 +409,7 @@ class OfflineSyncEngine {
         }
       }
 
-      // 6. Batch Assessments Sync
+      // 7. Batch Assessments Sync
       const assessmentItems = pending.filter((m) => m.domain === 'assessments' && m.method === 'POST');
       if (assessmentItems.length > 0) {
         try {
@@ -418,11 +441,12 @@ class OfflineSyncEngine {
         }
       }
 
-      // 7. Generic / Remaining mutations (Sequential FIFO)
+      // 8. Generic / Remaining mutations (Sequential FIFO)
       const remainingGeneric = pending.filter(
         (m) =>
           !groupCreations.includes(m) &&
           !studentCreations.includes(m) &&
+          !groupEnrollments.includes(m) &&
           !attendanceItems.includes(m) &&
           !paymentItems.includes(m) &&
           !progressItems.includes(m) &&

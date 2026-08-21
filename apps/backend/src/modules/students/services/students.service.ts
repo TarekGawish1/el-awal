@@ -30,6 +30,30 @@ export class StudentsService {
    */
   async createStudent(dto: CreateStudentDto) {
     return this.prisma.$transaction(async (tx) => {
+      // 0. Check if student already exists (Idempotent for offline sync retries)
+      if (dto.id) {
+        const existingStudent = await tx.studentProfile.findUnique({
+          where: { id: dto.id },
+          include: { user: true, parentLinks: true, groupEnrollments: true },
+        });
+        if (existingStudent) {
+          return {
+            id: existingStudent.id,
+            studentCode: existingStudent.studentCode,
+            fullName: existingStudent.user.fullName,
+            phone: existingStudent.user.phone,
+            email: existingStudent.user.email,
+            gradeLevel: existingStudent.gradeLevel,
+            academicStage: existingStudent.academicStage,
+            academicStatus: existingStudent.academicStatus,
+            qrCodeToken: existingStudent.qrCodeToken,
+            createdAt: existingStudent.createdAt,
+            hasParentLinked: existingStudent.parentLinks.length > 0,
+            enrolledGroupId: existingStudent.groupEnrollments[0]?.groupId || null,
+          };
+        }
+      }
+
       // 1. Check for phone or email collisions on user
       if (dto.phone) {
         const existingPhone = await tx.user.findUnique({ where: { phone: dto.phone } });

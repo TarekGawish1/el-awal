@@ -106,177 +106,228 @@ export class SyncService {
     snapshotVersion: string,
   ): Promise<BootstrapSnapshotResponse> {
     let teacherProfile: any = null;
-    if (user.teacherProfileId && typeof this.prisma.teacherProfile?.findUnique === 'function') {
-      teacherProfile = await this.prisma.teacherProfile.findUnique({
-        where: { id: user.teacherProfileId },
-        select: { id: true, activeAcademicYear: true, activeAcademicTerm: true },
-      });
-    }
+    try {
+      if (user.teacherProfileId && typeof this.prisma.teacherProfile?.findUnique === 'function') {
+        teacherProfile = await this.prisma.teacherProfile.findUnique({
+          where: { id: user.teacherProfileId },
+          select: { id: true, activeAcademicYear: true, activeAcademicTerm: true },
+        });
+      }
 
-    if (!teacherProfile && typeof this.prisma.teacherProfile?.findFirst === 'function') {
-      teacherProfile = await this.prisma.teacherProfile.findFirst({
-        where: { OR: [{ user: { id: user.id } }, { id: user.id }] },
-        select: { id: true, activeAcademicYear: true, activeAcademicTerm: true },
-      });
-    }
+      if (!teacherProfile && typeof this.prisma.teacherProfile?.findFirst === 'function') {
+        teacherProfile = await this.prisma.teacherProfile.findFirst({
+          where: { id: user.id },
+          select: { id: true, activeAcademicYear: true, activeAcademicTerm: true },
+        });
+      }
 
-    if (!teacherProfile && user.role === UserRole.TEACHER && typeof this.prisma.teacherProfile?.findFirst === 'function') {
-      teacherProfile = await this.prisma.teacherProfile.findFirst({
-        select: { id: true, activeAcademicYear: true, activeAcademicTerm: true },
-      });
+      if (!teacherProfile && user.role === UserRole.TEACHER && typeof this.prisma.teacherProfile?.findFirst === 'function') {
+        teacherProfile = await this.prisma.teacherProfile.findFirst({
+          select: { id: true, activeAcademicYear: true, activeAcademicTerm: true },
+        });
+      }
+    } catch (err) {
+      this.logger.warn('Failed to resolve teacher profile for bootstrap snapshot:', err);
     }
 
     const effectiveTeacherId = teacherProfile?.id || user.teacherProfileId || user.id;
 
     // 1. Academic Period
     const academicPeriod = {
+      academicYear: teacherProfile?.activeAcademicYear || '2026-2027',
+      academicTerm: teacherProfile?.activeAcademicTerm || 'FIRST_TERM',
       activeAcademicYear: teacherProfile?.activeAcademicYear || '2026-2027',
       activeAcademicTerm: teacherProfile?.activeAcademicTerm || 'FIRST_TERM',
     };
 
     // 2. Groups
-    const groupsWhere: any = {
-      ...(user.role === UserRole.TEACHER
-        ? {
-            OR: [
-              { teacherId: effectiveTeacherId },
-              { teacher: { userId: user.id } },
-              { teacher: { id: user.id } },
-            ],
-          }
-        : {}),
-      ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
-    };
+    let groups: any[] = [];
+    try {
+      const groupsWhere: any = {
+        ...(user.role === UserRole.TEACHER && effectiveTeacherId
+          ? { teacherId: effectiveTeacherId }
+          : {}),
+        ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
+      };
 
-    const groups = await this.prisma.academicGroup.findMany({
-      where: groupsWhere,
-      include: {
-        schedules: true,
-        _count: { select: { enrollments: true } },
-      },
-      orderBy: { name: 'asc' },
-    });
+      groups = await this.prisma.academicGroup.findMany({
+        where: groupsWhere,
+        include: {
+          schedules: true,
+          _count: { select: { enrollments: true } },
+        },
+        orderBy: { name: 'asc' },
+      });
+    } catch (err) {
+      this.logger.warn('Failed to fetch groups in bootstrap snapshot:', err);
+      groups = [];
+    }
 
-    const groupIds = groups.map((g) => g.id);
+    const groupIds = (groups || []).map((g) => g.id).filter(Boolean);
 
     // 3. Students
-    const enrollments = await this.prisma.groupEnrollment.findMany({
-      where: {
-        ...(groupIds.length > 0 ? { groupId: { in: groupIds } } : {}),
-        status: GroupEnrollmentStatus.ACTIVE,
-      },
-      include: {
-        student: {
+    let students: any[] = [];
+    try {
+      if (groupIds.length > 0) {
+        const enrollments = await this.prisma.groupEnrollment.findMany({
+          where: {
+            groupId: { in: groupIds },
+            status: GroupEnrollmentStatus.ACTIVE,
+          },
           include: {
-            user: {
-              select: {
-                id: true,
-                fullName: true,
-                phone: true,
-                email: true,
-                isActive: true,
+            student: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    fullName: true,
+                    phone: true,
+                    email: true,
+                    isActive: true,
+                  },
+                },
               },
             },
           },
-        },
-      },
-    });
-
-    const studentMap = new Map<string, any>();
-    for (const enrollment of enrollments) {
-      if (enrollment.student && !studentMap.has(enrollment.student.id)) {
-        const s = enrollment.student;
-        studentMap.set(s.id, {
-          id: s.id,
-          fullName: s.user?.fullName || '',
-          phone: s.user?.phone,
-          email: s.user?.email,
-          studentCode: s.studentCode || '',
-          qrCodeToken: s.qrCodeToken,
-          gradeLevel: s.gradeLevel,
-          emergencyPhone: s.emergencyPhone,
-          academicStatus: s.academicStatus,
-          groupId: enrollment.groupId,
-          updatedAt: s.updatedAt,
         });
+
+        const studentMap = new Map<string, any>();
+        for (const enrollment of enrollments) {
+          if (enrollment.student && !studentMap.has(enrollment.student.id)) {
+            const s = enrollment.student;
+            studentMap.set(s.id, {
+              id: s.id,
+              fullName: s.user?.fullName || '',
+              phone: s.user?.phone,
+              email: s.user?.email,
+              studentCode: s.studentCode || '',
+              qrCodeToken: s.qrCodeToken,
+              gradeLevel: s.gradeLevel,
+              emergencyPhone: s.emergencyPhone,
+              academicStatus: s.academicStatus,
+              groupId: enrollment.groupId,
+              updatedAt: s.updatedAt,
+            });
+          }
+        }
+        students = Array.from(studentMap.values());
       }
+    } catch (err) {
+      this.logger.warn('Failed to fetch students in bootstrap snapshot:', err);
+      students = [];
     }
 
-    const students = Array.from(studentMap.values());
-
     // 4. Schedules
-    const schedules = await this.prisma.lessonSchedule.findMany({
-      where: {
-        ...(groupIds.length > 0 ? { groupId: { in: groupIds } } : {}),
-      },
-    });
+    let schedules: any[] = [];
+    try {
+      if (groupIds.length > 0) {
+        schedules = await this.prisma.lessonSchedule.findMany({
+          where: {
+            groupId: { in: groupIds },
+          },
+        });
+      }
+    } catch (err) {
+      this.logger.warn('Failed to fetch schedules in bootstrap snapshot:', err);
+      schedules = [];
+    }
 
     // 5. Sessions
-    const sessions = await this.prisma.lessonSession.findMany({
-      where: {
-        ...(groupIds.length > 0 ? { groupId: { in: groupIds } } : {}),
-        ...(sinceDate ? { createdAt: { gte: sinceDate } } : {}),
-      },
-      include: {
-        _count: { select: { attendanceRecords: true } },
-      },
-      orderBy: { sessionDate: 'asc' },
-    });
+    let sessions: any[] = [];
+    try {
+      if (groupIds.length > 0) {
+        sessions = await this.prisma.lessonSession.findMany({
+          where: {
+            groupId: { in: groupIds },
+            ...(sinceDate ? { createdAt: { gte: sinceDate } } : {}),
+          },
+          include: {
+            _count: { select: { attendanceRecords: true } },
+          },
+          orderBy: { sessionDate: 'asc' },
+        });
+      }
+    } catch (err) {
+      this.logger.warn('Failed to fetch sessions in bootstrap snapshot:', err);
+      sessions = [];
+    }
 
     // 6. Payments
-    const studentIds = students.map((s) => s.id);
-    const payments = await this.prisma.studentPaymentRecord.findMany({
-      where: {
-        OR: [
-          ...(groupIds.length > 0 ? [{ groupId: { in: groupIds } }] : []),
-          ...(studentIds.length > 0 ? [{ studentId: { in: studentIds } }] : []),
-        ],
-        ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
-      },
-      include: {
-        student: {
-          include: {
-            user: { select: { fullName: true } },
+    let payments: any[] = [];
+    try {
+      const studentIds = students.map((s) => s.id).filter(Boolean);
+      const orConditions = [
+        ...(groupIds.length > 0 ? [{ groupId: { in: groupIds } }] : []),
+        ...(studentIds.length > 0 ? [{ studentId: { in: studentIds } }] : []),
+      ];
+
+      if (orConditions.length > 0) {
+        payments = await this.prisma.studentPaymentRecord.findMany({
+          where: {
+            OR: orConditions,
+            ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
           },
-        },
-        group: { select: { name: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 500,
-    });
+          include: {
+            student: {
+              include: {
+                user: { select: { fullName: true } },
+              },
+            },
+            group: { select: { name: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 500,
+        });
+      }
+    } catch (err) {
+      this.logger.warn('Failed to fetch payments in bootstrap snapshot:', err);
+      payments = [];
+    }
 
     // 7. Assessments (with answer keys included for Teacher/Secretariat)
-    const assessments = await this.prisma.assessment.findMany({
-      where: {
-        ...(user.role === UserRole.TEACHER ? { teacherId: effectiveTeacherId } : {}),
-        ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
-      },
-      include: {
-        questions: {
-          orderBy: { questionNumber: 'asc' },
+    let assessments: any[] = [];
+    try {
+      assessments = await this.prisma.assessment.findMany({
+        where: {
+          ...(user.role === UserRole.TEACHER && effectiveTeacherId ? { teacherId: effectiveTeacherId } : {}),
+          ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        include: {
+          questions: {
+            orderBy: { questionNumber: 'asc' },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    } catch (err) {
+      this.logger.warn('Failed to fetch assessments in bootstrap snapshot:', err);
+      assessments = [];
+    }
 
     // 8. Courses
-    const courses = await this.prisma.course.findMany({
-      where: {
-        ...(user.role === UserRole.TEACHER ? { teacherId: effectiveTeacherId } : {}),
-        ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
-      },
-      include: {
-        modules: {
-          include: {
-            lessons: {
-              orderBy: { orderIndex: 'asc' },
-            },
-          },
-          orderBy: { orderIndex: 'asc' },
+    let courses: any[] = [];
+    try {
+      courses = await this.prisma.course.findMany({
+        where: {
+          ...(user.role === UserRole.TEACHER && effectiveTeacherId ? { teacherId: effectiveTeacherId } : {}),
+          ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        include: {
+          modules: {
+            include: {
+              lessons: {
+                orderBy: { orderIndex: 'asc' },
+              },
+            },
+            orderBy: { orderIndex: 'asc' },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    } catch (err) {
+      this.logger.warn('Failed to fetch courses in bootstrap snapshot:', err);
+      courses = [];
+    }
 
     return {
       snapshotVersion,
@@ -285,13 +336,13 @@ export class SyncService {
       role: user.role,
       data: {
         academicPeriod,
-        groups,
-        students,
-        schedules,
-        sessions,
-        payments,
-        assessments,
-        courses,
+        groups: groups || [],
+        students: students || [],
+        schedules: schedules || [],
+        sessions: sessions || [],
+        payments: payments || [],
+        assessments: assessments || [],
+        courses: courses || [],
       },
     };
   }
@@ -306,112 +357,150 @@ export class SyncService {
     const studentProfileId = user.studentProfileId || user.id;
 
     // 1. Enrolled Groups
-    const enrollments = await this.prisma.groupEnrollment.findMany({
-      where: {
-        studentId: studentProfileId,
-        status: GroupEnrollmentStatus.ACTIVE,
-      },
-      include: {
-        group: {
-          include: {
-            schedules: true,
-            teacher: {
-              include: {
-                user: { select: { fullName: true } },
-              },
-            },
-          },
+    let groups: any[] = [];
+    try {
+      const enrollments = await this.prisma.groupEnrollment.findMany({
+        where: {
+          studentId: studentProfileId,
+          status: GroupEnrollmentStatus.ACTIVE,
         },
-      },
-    });
-
-    const groups = enrollments.map((e) => e.group);
-    const groupIds = groups.map((g) => g.id);
-
-    // 2. Upcoming Sessions
-    const sessions = await this.prisma.lessonSession.findMany({
-      where: {
-        groupId: { in: groupIds },
-        ...(sinceDate ? { createdAt: { gte: sinceDate } } : {}),
-      },
-      orderBy: { sessionDate: 'asc' },
-    });
-
-    // 3. Published Assessments (REDACTING correctAnswer for students!)
-    const rawAssessments = await this.prisma.assessment.findMany({
-      where: {
-        isPublished: true,
-        ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
-      },
-      include: {
-        questions: {
-          orderBy: { questionNumber: 'asc' },
-        },
-        submissions: {
-          where: { studentId: studentProfileId },
-        },
-      },
-      orderBy: { dueDate: 'asc' },
-    });
-
-    // Redact answers for student security
-    const assessments = rawAssessments.map((a) => ({
-      ...a,
-      questions: a.questions.map((q) => {
-        const { correctAnswer, ...safeQuestion } = q;
-        return safeQuestion;
-      }),
-    }));
-
-    // 4. Enrolled Courses with student progress
-    const courses = await this.prisma.course.findMany({
-      where: {
-        enrollments: {
-          some: { studentId: studentProfileId },
-        },
-      },
-      include: {
-        modules: {
-          include: {
-            lessons: {
-              include: {
-                progresses: {
-                  where: { studentId: studentProfileId },
+        include: {
+          group: {
+            include: {
+              schedules: true,
+              teacher: {
+                include: {
+                  user: { select: { fullName: true } },
                 },
               },
-              orderBy: { orderIndex: 'asc' },
             },
           },
-          orderBy: { orderIndex: 'asc' },
         },
-      },
-    });
+      });
+      groups = (enrollments || []).map((e) => e.group).filter(Boolean);
+    } catch (err) {
+      this.logger.warn('Failed to fetch student groups for bootstrap:', err);
+      groups = [];
+    }
+
+    const groupIds = groups.map((g) => g.id).filter(Boolean);
+
+    // 2. Upcoming Sessions
+    let sessions: any[] = [];
+    try {
+      if (groupIds.length > 0) {
+        sessions = await this.prisma.lessonSession.findMany({
+          where: {
+            groupId: { in: groupIds },
+            ...(sinceDate ? { createdAt: { gte: sinceDate } } : {}),
+          },
+          orderBy: { sessionDate: 'asc' },
+        });
+      }
+    } catch (err) {
+      this.logger.warn('Failed to fetch student sessions for bootstrap:', err);
+      sessions = [];
+    }
+
+    // 3. Published Assessments (REDACTING correctAnswer for students!)
+    let assessments: any[] = [];
+    try {
+      const rawAssessments = await this.prisma.assessment.findMany({
+        where: {
+          isPublished: true,
+          ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
+        },
+        include: {
+          questions: {
+            orderBy: { questionNumber: 'asc' },
+          },
+          submissions: {
+            where: { studentId: studentProfileId },
+          },
+        },
+        orderBy: { dueDate: 'asc' },
+      });
+
+      // Redact answers for student security
+      assessments = (rawAssessments || []).map((a) => ({
+        ...a,
+        questions: (a.questions || []).map((q) => {
+          const { correctAnswer, ...safeQuestion } = q;
+          return safeQuestion;
+        }),
+      }));
+    } catch (err) {
+      this.logger.warn('Failed to fetch student assessments for bootstrap:', err);
+      assessments = [];
+    }
+
+    // 4. Enrolled Courses with student progress
+    let courses: any[] = [];
+    try {
+      courses = await this.prisma.course.findMany({
+        where: {
+          enrollments: {
+            some: { studentId: studentProfileId },
+          },
+        },
+        include: {
+          modules: {
+            include: {
+              lessons: {
+                include: {
+                  progresses: {
+                    where: { studentId: studentProfileId },
+                  },
+                },
+                orderBy: { orderIndex: 'asc' },
+              },
+            },
+            orderBy: { orderIndex: 'asc' },
+          },
+        },
+      });
+    } catch (err) {
+      this.logger.warn('Failed to fetch student courses for bootstrap:', err);
+      courses = [];
+    }
 
     // 5. Personal Attendance History
-    const attendanceHistory = await this.prisma.attendanceRecord.findMany({
-      where: {
-        studentId: studentProfileId,
-        ...(sinceDate ? { recordedAt: { gte: sinceDate } } : {}),
-      },
-      include: {
-        session: {
-          include: { group: { select: { name: true } } },
+    let attendanceHistory: any[] = [];
+    try {
+      attendanceHistory = await this.prisma.attendanceRecord.findMany({
+        where: {
+          studentId: studentProfileId,
+          ...(sinceDate ? { recordedAt: { gte: sinceDate } } : {}),
         },
-      },
-      orderBy: { recordedAt: 'desc' },
-    });
+        include: {
+          session: {
+            include: { group: { select: { name: true } } },
+          },
+        },
+        orderBy: { recordedAt: 'desc' },
+      });
+    } catch (err) {
+      this.logger.warn('Failed to fetch student attendance history for bootstrap:', err);
+      attendanceHistory = [];
+    }
 
     // 6. Personal Payment History
-    const payments = await this.prisma.studentPaymentRecord.findMany({
-      where: {
-        studentId: studentProfileId,
-        ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
-      },
-      include: {
-        group: { select: { name: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    let payments: any[] = [];
+    try {
+      payments = await this.prisma.studentPaymentRecord.findMany({
+        where: {
+          studentId: studentProfileId,
+          ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
+        },
+        include: {
+          group: { select: { name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    } catch (err) {
+      this.logger.warn('Failed to fetch student payment history for bootstrap:', err);
+      payments = [];
+    }
 
     return {
       snapshotVersion,
@@ -419,12 +508,12 @@ export class SyncService {
       isDelta,
       role: user.role,
       data: {
-        groups,
-        sessions,
-        assessments,
-        courses,
-        attendanceHistory,
-        payments,
+        groups: groups || [],
+        sessions: sessions || [],
+        assessments: assessments || [],
+        courses: courses || [],
+        attendanceHistory: attendanceHistory || [],
+        payments: payments || [],
       },
     };
   }
@@ -436,38 +525,44 @@ export class SyncService {
     sinceDate: Date | null,
     snapshotVersion: string,
   ): Promise<BootstrapSnapshotResponse> {
-    const parent = await this.prisma.parentProfile.findUnique({
-      where: { id: user.id },
-      include: {
-        studentLinks: {
-          include: {
-            student: {
-              include: {
-                user: { select: { fullName: true, phone: true } },
-                groupEnrollments: {
-                  where: { status: GroupEnrollmentStatus.ACTIVE },
-                  include: { group: true },
-                },
-                attendanceRecords: {
-                  orderBy: { recordedAt: 'desc' },
-                  take: 50,
-                },
-                paymentRecords: {
-                  orderBy: { createdAt: 'desc' },
-                  take: 50,
-                },
-                assessmentSubmissions: {
-                  orderBy: { submittedAt: 'desc' },
-                  take: 50,
+    let children: any[] = [];
+    try {
+      const parent = await this.prisma.parentProfile.findUnique({
+        where: { id: user.id },
+        include: {
+          studentLinks: {
+            include: {
+              student: {
+                include: {
+                  user: { select: { fullName: true, phone: true } },
+                  groupEnrollments: {
+                    where: { status: GroupEnrollmentStatus.ACTIVE },
+                    include: { group: true },
+                  },
+                  attendanceRecords: {
+                    orderBy: { recordedAt: 'desc' },
+                    take: 50,
+                  },
+                  paymentRecords: {
+                    orderBy: { createdAt: 'desc' },
+                    take: 50,
+                  },
+                  assessmentSubmissions: {
+                    orderBy: { submittedAt: 'desc' },
+                    take: 50,
+                  },
                 },
               },
             },
           },
         },
-      },
-    });
+      });
 
-    const children = (parent?.studentLinks || []).map((link) => link.student);
+      children = (parent?.studentLinks || []).map((link) => link.student).filter(Boolean);
+    } catch (err) {
+      this.logger.warn('Failed to fetch parent children for bootstrap:', err);
+      children = [];
+    }
 
     return {
       snapshotVersion,
@@ -475,7 +570,7 @@ export class SyncService {
       isDelta,
       role: user.role,
       data: {
-        children,
+        children: children || [],
       },
     };
   }

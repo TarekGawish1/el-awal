@@ -217,13 +217,26 @@ export function useScanQrAttendance() {
             },
           ];
 
+          const totalEnrolled = Number(reportData.metrics?.totalEnrolled ?? reportData.stats?.totalEnrolled ?? updatedRecords.length);
+          const presentCount = Number((reportData.metrics?.presentCount ?? reportData.stats?.totalPresent ?? 0) + 1);
+          const absentCount = Math.max(0, totalEnrolled - presentCount);
+          const ratePercentage = totalEnrolled > 0 ? Math.round((presentCount / totalEnrolled) * 100) : 100;
+
           queryClient.setQueryData(['sessions', sessionId, 'report'], {
             ...reportData,
             records: updatedRecords,
+            metrics: {
+              ...reportData.metrics,
+              totalEnrolled,
+              presentCount,
+              absentCount,
+              attendanceRatePercentage: ratePercentage,
+            },
             stats: {
               ...reportData.stats,
-              totalPresent: (reportData.stats?.totalPresent || 0) + 1,
-              totalAbsent: Math.max(0, (reportData.stats?.totalAbsent || 0) - 1),
+              totalEnrolled,
+              totalPresent: presentCount,
+              totalAbsent: absentCount,
             },
           });
         }

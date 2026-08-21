@@ -66,7 +66,7 @@ class BootstrapManager {
 
     this.isBootstrappingState = true;
     this.lastError = null;
-    this.notify('START', 5, 'بدء تنزيل مساحة العمل للعمل بدون إنترنت...');
+    this.notify('START', 0, 'بدء تنزيل مساحة العمل للعمل بدون إنترنت...');
 
     try {
       const lastSyncTime = options?.forceFull
@@ -93,19 +93,30 @@ class BootstrapManager {
         throw new Error('استجابة غير صالحة من خادم المزامنة');
       }
 
-      // Robust payload extraction whether wrapped or unwrapped
-      const payload =
-        response.data && (response.data.students || response.data.groups || response.data.sessions || response.data.academicPeriod)
-          ? response.data
-          : response.students || response.groups
-            ? response
-            : response.data || response;
+      // Robust payload extraction handling any nesting envelope (e.g. response.data.data, response.data, or direct)
+      const rootData = response?.data?.data || response?.data || response || {};
+      const payload = {
+        students: Array.isArray(rootData.students) ? rootData.students : Array.isArray(response?.students) ? response.students : [],
+        groups: Array.isArray(rootData.groups) ? rootData.groups : Array.isArray(response?.groups) ? response.groups : [],
+        schedules: Array.isArray(rootData.schedules) ? rootData.schedules : Array.isArray(response?.schedules) ? response.schedules : [],
+        sessions: Array.isArray(rootData.sessions) ? rootData.sessions : Array.isArray(response?.sessions) ? response.sessions : [],
+        payments: Array.isArray(rootData.payments) ? rootData.payments : Array.isArray(response?.payments) ? response.payments : [],
+        assessments: Array.isArray(rootData.assessments) ? rootData.assessments : Array.isArray(response?.assessments) ? response.assessments : [],
+        courses: Array.isArray(rootData.courses) ? rootData.courses : Array.isArray(response?.courses) ? response.courses : [],
+        academicPeriod: rootData.academicPeriod || response?.academicPeriod || {
+          academicYear: '2026-2027',
+          academicTerm: 'FIRST_TERM',
+          activeAcademicYear: '2026-2027',
+          activeAcademicTerm: 'FIRST_TERM',
+        },
+      };
 
       const qc = options?.queryClient;
 
+      this.notify('PROGRESS', 50, 'حفظ سجلات الطلاب والمجموعات والحصص محلياً...');
+
       // 1. Ingest Students
-      this.notify('PROGRESS', 45, 'حفظ سجلات الطلاب وبطاقات الـ QR...');
-      if (payload.students && payload.students.length > 0) {
+      if (payload.students.length > 0) {
         await offlineDb.bulkPutStudents(payload.students);
         if (qc) {
           qc.setQueryData(['students'], {
@@ -116,32 +127,31 @@ class BootstrapManager {
       }
 
       // 2. Ingest Groups & Schedules
-      this.notify('PROGRESS', 65, 'حفظ المجموعات الدراسية والجداول...');
-      if (payload.groups && payload.groups.length > 0) {
+      if (payload.groups.length > 0) {
         await offlineDb.bulkPutGroups(payload.groups);
         if (qc) {
           qc.setQueryData(['groups'], payload.groups);
         }
       }
 
-      if (payload.schedules && payload.schedules.length > 0) {
+      if (payload.schedules.length > 0) {
         await offlineDb.bulkPutSchedules(payload.schedules);
       }
 
       // 3. Ingest Pre-generated Sessions
-      this.notify('PROGRESS', 80, 'حفظ الحصص وسجلات الحضور والغياب...');
-      if (payload.sessions && payload.sessions.length > 0) {
+      if (payload.sessions.length > 0) {
         await offlineDb.bulkPutSessions(payload.sessions);
       }
 
+      this.notify('PROGRESS', 75, 'حفظ السجلات المالية والاختبارات والمناهج الدراسية...');
+
       // 4. Ingest Payments & Tuition
-      if (payload.payments && payload.payments.length > 0) {
+      if (payload.payments.length > 0) {
         await offlineDb.bulkPutPayments(payload.payments);
       }
 
       // 5. Ingest Assessments & Questions
-      this.notify('PROGRESS', 90, 'حفظ بنوك الأسئلة والاختبارات...');
-      if (payload.assessments && payload.assessments.length > 0) {
+      if (payload.assessments.length > 0) {
         await offlineDb.bulkPutAssessments(payload.assessments);
         if (qc) {
           qc.setQueryData(['assessments'], {
@@ -152,7 +162,7 @@ class BootstrapManager {
       }
 
       // 6. Ingest Educational Courses
-      if (payload.courses && payload.courses.length > 0) {
+      if (payload.courses.length > 0) {
         await offlineDb.bulkPutCourses(payload.courses);
         if (qc) {
           qc.setQueryData(['courses', 'catalog'], payload.courses);
@@ -167,20 +177,20 @@ class BootstrapManager {
         }
       }
 
-      const syncTimestamp = response.timestamp || payload.timestamp || Date.now();
-      const syncVersion = response.snapshotVersion || payload.snapshotVersion || 'v1';
-      const isDelta = response.isDelta ?? payload.isDelta ?? false;
+      const syncTimestamp = response.timestamp || rootData.timestamp || Date.now();
+      const syncVersion = response.snapshotVersion || rootData.snapshotVersion || 'v1';
+      const isDelta = response.isDelta ?? rootData.isDelta ?? false;
 
       // Record sync timestamp
       await offlineDb.setMetadata('lastBootstrapTimestamp', syncTimestamp);
       await offlineDb.setMetadata('syncVersion', syncVersion);
 
       const counts = {
-        students: payload.students?.length || 0,
-        groups: payload.groups?.length || 0,
-        sessions: payload.sessions?.length || 0,
-        payments: payload.payments?.length || 0,
-        assessments: payload.assessments?.length || 0,
+        students: payload.students.length,
+        groups: payload.groups.length,
+        sessions: payload.sessions.length,
+        payments: payload.payments.length,
+        assessments: payload.assessments.length,
       };
 
       this.notify('SUCCESS', 100, 'تم تجهيز مساحة العمل بنجاح والجاهزية للعمل بدون إنترنت 🚀', {

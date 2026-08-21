@@ -31,8 +31,10 @@ export function DashboardKpiGrid({ kpis, isLoading = false }: DashboardKpiGridPr
     );
   }
 
-  // Attendance Status calculation
-  const attendanceRate = kpis.weeklyAttendanceRate;
+  // Attendance Status calculation with strict NaN/undefined fallback
+  const attendanceRate = typeof kpis.weeklyAttendanceRate === 'number' && !isNaN(kpis.weeklyAttendanceRate)
+    ? kpis.weeklyAttendanceRate
+    : 0;
   const isHealthyAttendance = attendanceRate >= 90;
   const isWarningAttendance = attendanceRate >= 75 && attendanceRate < 90;
 

@@ -46,6 +46,16 @@ export class GroupsService {
    * Creates a new physical academic group assigned to the authenticated teacher.
    */
   async createGroup(teacherId: string, dto: CreateGroupDto) {
+    if (dto.id) {
+      const existing = await this.prisma.academicGroup.findUnique({
+        where: { id: dto.id },
+        include: { schedules: true },
+      });
+      if (existing) {
+        return existing;
+      }
+    }
+
     const teacherProfile = await this.prisma.teacherProfile.findUnique({
       where: { id: teacherId },
     });
