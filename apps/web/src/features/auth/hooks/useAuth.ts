@@ -22,6 +22,9 @@ export function normalizeAuthErrorMessage(error: unknown): string {
     }
 
     if (error.statusCode === 401) {
+      if (error.code === 'OFFLINE_NO_PREVIOUS_SESSION' || error.code === 'OFFLINE_INVALID_CREDENTIALS') {
+        return error.message;
+      }
       return 'بيانات الدخول غير صحيحة أو الحساب غير مفعّل';
     }
 

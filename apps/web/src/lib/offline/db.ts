@@ -191,6 +191,20 @@ export interface OfflineAssessmentRecord {
   updatedAt: number;
 }
 
+export interface OfflineCredentialsRecord {
+  identifier: string; // Canonical identifier (lowercased email/phone)
+  salt: string;
+  hash: string;
+  user: any;
+  tokens: {
+    accessToken: string;
+    refreshToken: string;
+    tokenType?: string;
+    expiresIn?: number;
+  };
+  cachedAt: number;
+}
+
 export interface SyncConflictRecord {
   id: string;
   operationId: string;
@@ -203,7 +217,7 @@ export interface SyncConflictRecord {
 }
 
 const DB_NAME = 'el_awal_offline_db';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 class OfflineDatabase {
   private dbPromise: Promise<IDBDatabase> | null = null;
@@ -221,6 +235,7 @@ class OfflineDatabase {
   private memoryRosters: Map<string, OfflineRosterRecord> = new Map();
   private memoryDrafts: Map<string, OfflineAssessmentRecord> = new Map();
   private memoryConflicts: Map<string, SyncConflictRecord> = new Map();
+  private memoryCredentials: Map<string, OfflineCredentialsRecord> = new Map();
 
   private isSupported(): boolean {
     return typeof window !== 'undefined' && 'indexedDB' in window && typeof indexedDB?.open === 'function';
@@ -318,6 +333,12 @@ class OfflineDatabase {
             const store = db.createObjectStore('sync_conflicts', { keyPath: 'id' });
             store.createIndex('idx_timestamp', 'timestamp', { unique: false });
           }
+
+          if (!db.objectStoreNames.contains('offline_credentials')) {
+            const store = db.createObjectStore('offline_credentials', { keyPath: 'identifier' });
+            store.createIndex('idx_user_email', 'user.email', { unique: false });
+            store.createIndex('idx_user_phone', 'user.phone', { unique: false });
+          }
         };
 
         request.onsuccess = () => resolve(request.result);
@@ -368,6 +389,51 @@ class OfflineDatabase {
       });
     } catch {
       return this.memoryMetadata.get(key) ?? null;
+    }
+  }
+
+  // ==========================================
+  // Offline Credentials Operations
+  // ==========================================
+
+  public async saveOfflineCredentialsRecord(record: OfflineCredentialsRecord): Promise<void> {
+    this.memoryCredentials.set(record.identifier, record);
+    if (!this.isSupported()) return;
+    try {
+      const { store } = await this.getStore('offline_credentials', 'readwrite');
+      store.put(record);
+    } catch {}
+  }
+
+  public async getOfflineCredentialsRecord(identifier: string): Promise<OfflineCredentialsRecord | null> {
+    if (!this.isSupported()) {
+      return this.memoryCredentials.get(identifier) || null;
+    }
+    try {
+      const { store } = await this.getStore('offline_credentials', 'readonly');
+      return new Promise((resolve) => {
+        const req = store.get(identifier);
+        req.onsuccess = () => resolve(req.result || this.memoryCredentials.get(identifier) || null);
+        req.onerror = () => resolve(this.memoryCredentials.get(identifier) || null);
+      });
+    } catch {
+      return this.memoryCredentials.get(identifier) || null;
+    }
+  }
+
+  public async getAllOfflineCredentialsRecords(): Promise<OfflineCredentialsRecord[]> {
+    if (!this.isSupported()) {
+      return Array.from(this.memoryCredentials.values());
+    }
+    try {
+      const { store } = await this.getStore('offline_credentials', 'readonly');
+      return new Promise((resolve) => {
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || Array.from(this.memoryCredentials.values()));
+        req.onerror = () => resolve(Array.from(this.memoryCredentials.values()));
+      });
+    } catch {
+      return Array.from(this.memoryCredentials.values());
     }
   }
 

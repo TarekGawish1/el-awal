@@ -30,9 +30,17 @@ export async function loginUser(credentials: LoginCredentials): Promise<AuthToke
     }
 
     return session;
-  } catch (error) {
-    // If request failed because of network disconnection or offline status, try offline verification
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+  } catch (error: any) {
+    // If request failed because of network disconnection, offline state, or fetch error, try offline verification
+    const isNetworkDisconnected =
+      (typeof navigator !== 'undefined' && !navigator.onLine) ||
+      error?.statusCode === 0 ||
+      error?.message?.includes('Failed to fetch') ||
+      error?.message?.includes('NetworkError') ||
+      error?.message?.includes('تعذر الاتصال بالخادم') ||
+      error?.code === 'ERR_INTERNET_DISCONNECTED';
+
+    if (isNetworkDisconnected) {
       return verifyOfflineLogin(credentials);
     }
     throw error;

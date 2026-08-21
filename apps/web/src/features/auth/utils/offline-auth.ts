@@ -1,5 +1,6 @@
 import { AuthTokensResponse, AuthUser, LoginCredentials } from '../types/auth.types';
 import { ApiError } from '@/lib/api/errors';
+import { offlineDb } from '@/lib/offline/db';
 
 export interface StoredOfflineCredentials {
   identifier: string; // Canonical identifier (email or phone)
@@ -214,15 +215,13 @@ export function getIdentifierVariations(identifier: string): string[] {
 }
 
 /**
- * Saves user offline credentials upon successful online login
+ * Saves user offline credentials upon successful online login to both IndexedDB and localStorage
  */
 export async function saveOfflineCredentials(
   identifier: string,
   password: string,
   session: AuthTokensResponse,
 ): Promise<void> {
-  if (typeof window === 'undefined' || !localStorage) return;
-
   try {
     const normId = normalizeIdentifier(identifier);
     const salt = generateSalt();
@@ -242,74 +241,98 @@ export async function saveOfflineCredentials(
       cachedAt: Date.now(),
     };
 
-    const recordJson = JSON.stringify(record);
+    // 1. Persist to IndexedDB offline_credentials store
+    await offlineDb.saveOfflineCredentialsRecord(record as any);
+    await offlineDb.setMetadata('userProfile', session.user);
 
-    // Save under primary identifier variations
-    const idVariations = getIdentifierVariations(identifier);
-    for (const v of idVariations) {
-      localStorage.setItem(`${OFFLINE_CREDS_KEY_PREFIX}${v}`, recordJson);
-    }
+    // 2. Persist to localStorage for dual-storage durability
+    if (typeof window !== 'undefined' && localStorage) {
+      const recordJson = JSON.stringify(record);
 
-    // Also index by user's email and phone if present
-    if (session.user?.email) {
-      const emailVariations = getIdentifierVariations(session.user.email);
-      for (const v of emailVariations) {
+      // Save under primary identifier variations
+      const idVariations = getIdentifierVariations(identifier);
+      for (const v of idVariations) {
         localStorage.setItem(`${OFFLINE_CREDS_KEY_PREFIX}${v}`, recordJson);
       }
-    }
 
-    if (session.user?.phone) {
-      const phoneVariations = getIdentifierVariations(session.user.phone);
-      for (const v of phoneVariations) {
-        localStorage.setItem(`${OFFLINE_CREDS_KEY_PREFIX}${v}`, recordJson);
+      // Also index by user's email and phone if present
+      if (session.user?.email) {
+        const emailVariations = getIdentifierVariations(session.user.email);
+        for (const v of emailVariations) {
+          localStorage.setItem(`${OFFLINE_CREDS_KEY_PREFIX}${v}`, recordJson);
+        }
       }
-    }
 
-    localStorage.setItem(LAST_OFFLINE_USER_KEY, normId);
+      if (session.user?.phone) {
+        const phoneVariations = getIdentifierVariations(session.user.phone);
+        for (const v of phoneVariations) {
+          localStorage.setItem(`${OFFLINE_CREDS_KEY_PREFIX}${v}`, recordJson);
+        }
+      }
+
+      localStorage.setItem(LAST_OFFLINE_USER_KEY, normId);
+    }
   } catch (error) {
     console.warn('Failed to save offline credentials:', error);
   }
 }
 
 /**
- * Retrieves cached credentials by identifier
+ * Retrieves cached credentials by identifier asynchronously across IndexedDB and localStorage
  */
-export function getOfflineCredentials(identifier: string): StoredOfflineCredentials | null {
-  if (typeof window === 'undefined' || !localStorage) return null;
+export async function getOfflineCredentials(identifier: string): Promise<StoredOfflineCredentials | null> {
+  const normTarget = normalizeIdentifier(identifier);
 
+  // 1. Try IndexedDB offline_credentials store first
   try {
-    const variations = getIdentifierVariations(identifier);
-
-    // 1. Direct variation lookups
-    for (const v of variations) {
-      const json = localStorage.getItem(`${OFFLINE_CREDS_KEY_PREFIX}${v}`);
-      if (json) {
-        return JSON.parse(json) as StoredOfflineCredentials;
-      }
+    const idbRecord = await offlineDb.getOfflineCredentialsRecord(normTarget);
+    if (idbRecord) {
+      return idbRecord as StoredOfflineCredentials;
     }
 
-    // 2. Scan all stored offline credentials
-    const normTarget = normalizeIdentifier(identifier);
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith(OFFLINE_CREDS_KEY_PREFIX)) {
-        try {
-          const item = JSON.parse(localStorage.getItem(key) || '') as StoredOfflineCredentials;
-          if (
-            normalizeIdentifier(item.identifier) === normTarget ||
-            (item.user?.email && normalizeIdentifier(item.user.email) === normTarget) ||
-            (item.user?.phone && normalizeIdentifier(item.user.phone) === normTarget)
-          ) {
-            return item;
-          }
-        } catch {}
+    const allIdbRecords = await offlineDb.getAllOfflineCredentialsRecords();
+    for (const item of allIdbRecords) {
+      if (
+        normalizeIdentifier(item.identifier) === normTarget ||
+        (item.user?.email && normalizeIdentifier(item.user.email) === normTarget) ||
+        (item.user?.phone && normalizeIdentifier(item.user.phone) === normTarget)
+      ) {
+        return item as StoredOfflineCredentials;
       }
     }
+  } catch {}
 
-    return null;
-  } catch {
-    return null;
+  // 2. Fallback to localStorage
+  if (typeof window !== 'undefined' && localStorage) {
+    try {
+      const variations = getIdentifierVariations(identifier);
+
+      for (const v of variations) {
+        const json = localStorage.getItem(`${OFFLINE_CREDS_KEY_PREFIX}${v}`);
+        if (json) {
+          return JSON.parse(json) as StoredOfflineCredentials;
+        }
+      }
+
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(OFFLINE_CREDS_KEY_PREFIX)) {
+          try {
+            const item = JSON.parse(localStorage.getItem(key) || '') as StoredOfflineCredentials;
+            if (
+              normalizeIdentifier(item.identifier) === normTarget ||
+              (item.user?.email && normalizeIdentifier(item.user.email) === normTarget) ||
+              (item.user?.phone && normalizeIdentifier(item.user.phone) === normTarget)
+            ) {
+              return item;
+            }
+          } catch {}
+        }
+      }
+    } catch {}
   }
+
+  return null;
 }
 
 /**
@@ -317,13 +340,13 @@ export function getOfflineCredentials(identifier: string): StoredOfflineCredenti
  */
 export async function verifyOfflineLogin(credentials: LoginCredentials): Promise<AuthTokensResponse> {
   const normId = normalizeIdentifier(credentials.identifier);
-  const record = getOfflineCredentials(normId);
+  const record = await getOfflineCredentials(normId);
 
   if (!record) {
     throw new ApiError({
       statusCode: 401,
       message:
-        'تعذر تسجيل الدخول بدون إنترنت: لم يتم تسجيل الدخول من هذا الجهاز مسبقاً أثناء الاتصال بالإنترنت.',
+        'بيانات الدخول غير مسجلة للعمل بدون إنترنت على هذا الجهاز. يرجى تسجيل الدخول أول مرة أثناء الاتصال بالإنترنت.',
       code: 'OFFLINE_NO_PREVIOUS_SESSION',
     });
   }

@@ -7,20 +7,22 @@
  * - Support for mobile network IP testing (e.g. 192.168.x.x)
  */
 
-const CACHE_NAME = 'el-awal-core-v3';
-const RUNTIME_CACHE = 'el-awal-runtime-v3';
+const CACHE_NAME = 'el-awal-core-v4';
+const RUNTIME_CACHE = 'el-awal-runtime-v4';
 
 // Critical App Shell assets to pre-cache on install
 const PRECACHE_URLS = [
   '/',
   '/login',
   '/offline.html',
+  '/manifest.webmanifest',
   '/manifest.json',
+  '/icon.svg',
+  '/icons/icon.svg',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
   '/icons/icon-maskable-192x192.png',
   '/icons/apple-touch-icon.png',
-  '/icons/icon.svg',
   '/favicon.ico',
   '/favicon.svg',
 ];
@@ -128,18 +130,27 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Strategy B: Static Assets (_next/static, fonts, icons, images) -> Cache-First / Stale-While-Revalidate
+  // Strategy B: Static Assets (_next/static, fonts, icons, images, manifests) -> Cache-First / Stale-While-Revalidate
   const isStaticAsset =
     url.pathname.startsWith('/_next/static/') ||
     url.pathname.startsWith('/icons/') ||
     url.pathname.startsWith('/images/') ||
     url.pathname.startsWith('/favicon') ||
+    url.pathname.includes('manifest') ||
+    url.pathname.endsWith('.svg') ||
+    url.pathname.endsWith('.png') ||
+    url.pathname.endsWith('.jpg') ||
+    url.pathname.endsWith('.jpeg') ||
+    url.pathname.endsWith('.ico') ||
+    url.pathname.endsWith('.json') ||
+    url.pathname.endsWith('.webmanifest') ||
     url.hostname.includes('fonts.googleapis.com') ||
     url.hostname.includes('fonts.gstatic.com') ||
     request.destination === 'image' ||
     request.destination === 'font' ||
     request.destination === 'style' ||
-    request.destination === 'script';
+    request.destination === 'script' ||
+    request.destination === 'manifest';
 
   if (isStaticAsset) {
     event.respondWith(
@@ -166,7 +177,16 @@ self.addEventListener('fetch', (event) => {
             }
             return networkResponse;
           })
-          .catch(() => {
+          .catch(async () => {
+            // Fallback for icons/manifests
+            if (url.pathname.includes('manifest')) {
+              const cachedManifest = (await caches.match('/manifest.webmanifest')) || (await caches.match('/manifest.json'));
+              if (cachedManifest) return cachedManifest;
+            }
+            if (url.pathname.endsWith('.svg') || url.pathname.endsWith('.png')) {
+              const cachedIcon = (await caches.match('/favicon.svg')) || (await caches.match('/icons/icon.svg')) || (await caches.match('/icon.svg'));
+              if (cachedIcon) return cachedIcon;
+            }
             return new Response('', { status: 408, statusText: 'Request timed out' });
           });
       }),
@@ -179,7 +199,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Strategy C: Other GET requests (Same-origin assets/data) -> Network First with dynamic cache
+  // Strategy C: Other GET requests (Same-origin Next.js RSC prefetch / dynamic routes) -> Network First with dynamic cache & safe fallback
   event.respondWith(
     fetch(request)
       .then((response) => {
@@ -192,6 +212,13 @@ self.addEventListener('fetch', (event) => {
       .catch(async () => {
         const cached = await caches.match(request);
         if (cached) return cached;
+
+        // If RSC prefetch request, return cached app shell or empty payload to prevent client-side routing crash
+        if (url.search.includes('_rsc=')) {
+          const appShell = (await caches.match('/')) || (await caches.match('/login'));
+          if (appShell) return appShell;
+        }
+
         return new Response(JSON.stringify({ error: 'Network error or resource unavailable offline' }), {
           status: 503,
           statusText: 'Service Unavailable',
