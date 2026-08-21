@@ -68,6 +68,7 @@ export interface SessionEntity {
   sessionDate: string;
   startTime?: string;
   endTime?: string;
+  dayOfWeek?: number;
   topic?: string;
   status?: string;
   isCancelled?: boolean;

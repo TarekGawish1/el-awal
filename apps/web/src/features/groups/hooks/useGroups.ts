@@ -36,6 +36,8 @@ export function useGroups() {
         return (await offlineDb.getGroupsOffline()) as unknown as Group[];
       }
     },
+    networkMode: 'offlineFirst',
+    staleTime: 60 * 1000,
   });
 }
 
@@ -43,17 +45,24 @@ export function useGroup(id: string) {
   return useQuery<Group | null>({
     queryKey: ['groups', id],
     queryFn: async (): Promise<Group | null> => {
+      if (!id) return null;
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       if (!isOnline) {
         return (await getGroupDetailsOffline(id)) as unknown as Group | null;
       }
       try {
-        return await fetchGroup(id);
+        const group = await fetchGroup(id);
+        if (group?.id) {
+          offlineDb.bulkPutGroups([group as any]);
+        }
+        return group;
       } catch {
         return (await getGroupDetailsOffline(id)) as unknown as Group | null;
       }
     },
     enabled: !!id,
+    networkMode: 'offlineFirst',
+    staleTime: 60 * 1000,
   });
 }
 
@@ -170,6 +179,8 @@ export function useGroupStudents(id: string) {
       }
     },
     enabled: !!id,
+    networkMode: 'offlineFirst',
+    staleTime: 60 * 1000,
   });
 }
 

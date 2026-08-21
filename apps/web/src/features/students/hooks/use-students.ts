@@ -127,6 +127,9 @@ export function useStudents(query: StudentQuery) {
         };
       }
     },
+    enabled: query !== undefined,
+    networkMode: 'offlineFirst',
+    staleTime: 60 * 1000,
   });
 }
 
@@ -134,17 +137,24 @@ export function useStudent(id: string) {
   return useQuery<StudentDetail | null>({
     queryKey: ['students', id],
     queryFn: async (): Promise<StudentDetail | null> => {
+      if (!id) return null;
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       if (!isOnline) {
         return (await getStudentDetailsOffline(id)) as unknown as StudentDetail | null;
       }
       try {
-        return await fetchStudentById(id);
+        const student = await fetchStudentById(id);
+        if (student?.id) {
+          offlineDb.bulkPutStudents([student as any]);
+        }
+        return student;
       } catch {
         return (await getStudentDetailsOffline(id)) as unknown as StudentDetail | null;
       }
     },
     enabled: !!id,
+    networkMode: 'offlineFirst',
+    staleTime: 60 * 1000,
   });
 }
 
@@ -152,6 +162,7 @@ export function useStudentQrCode(id: string) {
   return useQuery<StudentQrResponse | null>({
     queryKey: ['students', id, 'qr-code'],
     queryFn: async (): Promise<StudentQrResponse | null> => {
+      if (!id) return null;
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       if (!isOnline) {
         const student = await offlineDb.getStudentByIdOffline(id);
@@ -177,6 +188,8 @@ export function useStudentQrCode(id: string) {
       }
     },
     enabled: !!id,
+    networkMode: 'offlineFirst',
+    staleTime: 60 * 1000,
   });
 }
 

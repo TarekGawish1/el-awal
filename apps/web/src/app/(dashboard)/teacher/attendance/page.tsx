@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
@@ -54,6 +54,7 @@ function formatTime12h(time24?: string) {
 }
 
 function TeacherAttendanceContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const paramSessionId = searchParams.get('sessionId');
   const paramGroupId = searchParams.get('groupId');
@@ -211,13 +212,39 @@ function TeacherAttendanceContent() {
     });
   }, [allTeacherSessions, groupMap, selectedStages, selectedGrades, selectedLocations, activeYear, activeTerm]);
 
-  // Auto-select nearest session on mount only if no paramSessionId is provided
+  // Auto-select session based on paramSessionId, paramGroupId, or nearest time
   useEffect(() => {
+    // 1. Explicit sessionId passed in URL
     if (paramSessionId) {
-      setSelectedSessionId(paramSessionId);
+      if (selectedSessionId !== paramSessionId) {
+        setSelectedSessionId(paramSessionId);
+      }
       return;
     }
 
+    // 2. Explicit groupId passed in URL
+    if (paramGroupId) {
+      const cleanGroupId = String(paramGroupId).toLowerCase();
+      // Look for today's session for this group
+      const todayGroupSession = filteredSessions.find(
+        (s: any) => String(s.groupId).toLowerCase() === cleanGroupId
+      );
+      if (todayGroupSession) {
+        setSelectedSessionId(todayGroupSession.id);
+        return;
+      }
+
+      // If no session found in today's list, find closest in all semester sessions for this group
+      const allGroupSession = filteredAllSessions.find(
+        (s: any) => String(s.groupId).toLowerCase() === cleanGroupId
+      );
+      if (allGroupSession) {
+        setSelectedSessionId(allGroupSession.id);
+        return;
+      }
+    }
+
+    // 3. General auto-selection from today's sessions
     if (filteredSessions.length > 0 && !selectedSessionId) {
       const now = new Date();
       const nowMins = now.getHours() * 60 + now.getMinutes();
@@ -241,9 +268,11 @@ function TeacherAttendanceContent() {
 
       if (activeSession) {
         setSelectedSessionId(activeSession.id);
+      } else if (filteredSessions[0]) {
+        setSelectedSessionId(filteredSessions[0].id);
       }
     }
-  }, [filteredSessions, selectedSessionId, paramSessionId]);
+  }, [filteredSessions, filteredAllSessions, selectedSessionId, paramSessionId, paramGroupId]);
 
   const { data: report, isLoading: isLoadingReport, isError: isErrorReport } = useSessionReport(selectedSessionId);
 
@@ -378,7 +407,7 @@ function TeacherAttendanceContent() {
               variant="outline"
               size="sm"
               onClick={() => {
-                window.location.href = '/teacher/attendance';
+                router.push('/teacher/attendance');
               }}
               className="text-xs rounded-xl bg-white hover:bg-slate-50 border-slate-200 shadow-xs"
             >
@@ -389,7 +418,7 @@ function TeacherAttendanceContent() {
               variant="outline"
               size="sm"
               onClick={() => {
-                window.location.href = '/teacher/schedules';
+                router.push('/teacher/schedules');
               }}
               className="text-xs rounded-xl bg-white hover:bg-slate-50 border-slate-200 shadow-xs"
             >
@@ -410,7 +439,7 @@ function TeacherAttendanceContent() {
                 onClick={resetFilters}
                 className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-primary-600 transition-colors font-medium cursor-pointer"
               >
-                <RotateCcw className="w-3 h-3" />
+                <RotateCcw className="w-3.5 h-3.5" />
                 إعادة تعيين الفلاتر
               </button>
             )}
@@ -484,7 +513,13 @@ function TeacherAttendanceContent() {
                 <p className="text-red-500 text-xs">فشل تحميل حصص اليوم.</p>
               ) : (
                 <Select
-                  value={filteredSessions.some((s: any) => s.id === selectedSessionId) ? selectedSessionId : ''}
+                  value={
+                    filteredSessions.some(
+                      (s: any) => String(s.id).toLowerCase() === String(selectedSessionId).toLowerCase()
+                    )
+                      ? selectedSessionId
+                      : ''
+                  }
                   onChange={(e) => {
                     if (e.target.value) setSelectedSessionId(e.target.value);
                   }}
@@ -510,7 +545,13 @@ function TeacherAttendanceContent() {
                 <div className="animate-pulse h-10 bg-slate-100 rounded-xl w-full"></div>
               ) : (
                 <Select
-                  value={filteredAllSessions.some((s: any) => s.id === selectedSessionId) ? selectedSessionId : ''}
+                  value={
+                    filteredAllSessions.some(
+                      (s: any) => String(s.id).toLowerCase() === String(selectedSessionId).toLowerCase()
+                    )
+                      ? selectedSessionId
+                      : ''
+                  }
                   onChange={(e) => {
                     if (e.target.value) setSelectedSessionId(e.target.value);
                   }}

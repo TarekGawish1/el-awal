@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { StudentQrBadge } from '@/features/students/components/StudentQrBadge';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { Phone } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowRight, AlertCircle, RefreshCw, Phone } from 'lucide-react';
 import { formatWhatsAppNumber } from '@/lib/utils/formatters';
 
 export default function StudentDetailPage() {
@@ -16,7 +17,7 @@ export default function StudentDetailPage() {
   const router = useRouter();
   const studentId = params?.id as string;
 
-  const { data: student, isLoading, isError } = useStudent(studentId);
+  const { data: student, isLoading, isError, error, refetch } = useStudent(studentId);
 
   if (isLoading) {
     return (
@@ -48,13 +49,31 @@ export default function StudentDetailPage() {
 
   if (isError || !student) {
     return (
-      <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="p-4 bg-red-50 text-red-600 rounded-lg">
-          تعذر تحميل بيانات الطالب أو لم يتم العثور على السجل.
+      <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6">
+        <Link href="/teacher/students" className="inline-flex items-center text-slate-500 hover:text-slate-800 transition-colors">
+          <ArrowRight className="w-4 h-4 ml-2" />
+          العودة لسجل الطلاب
+        </Link>
+        <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center space-y-4 shadow-sm">
+          <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-800">لم يتم العثور على سجل الطالب</h2>
+            <p className="text-sm text-slate-500 mt-1">تأكد من صحة الرابط أو تحقق من قائمة الطلاب المسجلين محلياً.</p>
+          </div>
+          <div className="flex justify-center gap-3 mt-2">
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="w-4 h-4 ml-1.5" />
+              إعادة المحاولة
+            </Button>
+            <Link href="/teacher/students">
+              <Button variant="primary" size="sm">
+                العودة لقائمة الطلاب
+              </Button>
+            </Link>
+          </div>
         </div>
-        <Button className="mt-4" onClick={() => router.back()}>
-          العودة للخلف
-        </Button>
       </div>
     );
   }

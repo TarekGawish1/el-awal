@@ -30,6 +30,8 @@ export function useGroupSessions(groupId: string | null) {
       }
     },
     enabled: !!groupId,
+    networkMode: 'offlineFirst',
+    staleTime: 30 * 1000,
   });
 }
 
@@ -44,7 +46,22 @@ export function useTodaySessions(
     queryFn: async () => {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       if (!isOnline) {
-        return offlineDb.getSessionsOffline();
+        const sessions = await offlineDb.getSessionsOffline();
+        const todayStr = new Date().toISOString().split('T')[0];
+        const todayDayOfWeek = new Date().getDay();
+
+        const todaySessions = sessions.filter((s) => {
+          if (s.sessionDate) {
+            return s.sessionDate.startsWith(todayStr);
+          }
+          if (s.dayOfWeek !== undefined) {
+            return s.dayOfWeek === todayDayOfWeek;
+          }
+          return true;
+        });
+
+        const resultList = todaySessions.length > 0 ? todaySessions : sessions;
+        return resultList.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
       }
       try {
         const sessions = await fetchTodaySessions(academicStage, gradeLevel, academicYear, academicTerm);
@@ -53,9 +70,26 @@ export function useTodaySessions(
         }
         return sessions;
       } catch {
-        return offlineDb.getSessionsOffline();
+        const sessions = await offlineDb.getSessionsOffline();
+        const todayStr = new Date().toISOString().split('T')[0];
+        const todayDayOfWeek = new Date().getDay();
+
+        const todaySessions = sessions.filter((s) => {
+          if (s.sessionDate) {
+            return s.sessionDate.startsWith(todayStr);
+          }
+          if (s.dayOfWeek !== undefined) {
+            return s.dayOfWeek === todayDayOfWeek;
+          }
+          return true;
+        });
+
+        const resultList = todaySessions.length > 0 ? todaySessions : sessions;
+        return resultList.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
       }
     },
+    networkMode: 'offlineFirst',
+    staleTime: 30 * 1000,
   });
 }
 
@@ -63,42 +97,81 @@ export function useSessionReport(sessionId: string | null) {
   return useQuery<any>({
     queryKey: ['sessions', sessionId, 'report'],
     queryFn: async () => {
+      if (!sessionId) return null;
+      const cleanSessionId = String(sessionId).trim().toLowerCase();
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
-      if (!isOnline) {
-        // Build report offline from cached roster and session
+
+      const buildOfflineReport = async () => {
         const allSessions = await offlineDb.getSessionsOffline();
-        const session = allSessions.find((s) => s.id === sessionId);
-        const roster = session ? await offlineDb.getRoster(session.groupId) : null;
+        const session = allSessions.find(
+          (s) => String(s.id).trim().toLowerCase() === cleanSessionId,
+        );
+        const targetGroupId = session?.groupId || '';
+        let roster = targetGroupId ? await offlineDb.getRoster(targetGroupId) : null;
+        const group = targetGroupId ? await offlineDb.getGroupByIdOffline(targetGroupId) : null;
+
+        if (!roster && targetGroupId) {
+          const groupStudents = await offlineDb.getStudentsOffline({ groupId: targetGroupId });
+          roster = {
+            groupId: targetGroupId,
+            groupName: group?.name || 'المجموعة الدراسية',
+            gradeLevel: group?.gradeLevel || '',
+            monthlyFee: group?.monthlyFee || 0,
+            students: groupStudents.map((st) => ({
+              id: st.id,
+              fullName: st.fullName || st.user?.fullName || 'طالب',
+              studentCode: st.studentCode || `STU-${st.id.slice(0, 6)}`,
+              qrCodeToken: st.qrCodeToken || st.id,
+              gradeLevel: st.gradeLevel || group?.gradeLevel || '',
+              academicStatus: st.academicStatus || 'ACTIVE',
+            })),
+            updatedAt: Date.now(),
+          };
+        }
+
+        const studentCount = roster?.students?.length || 0;
+
         return {
           sessionId: sessionId || '',
           sessionDate: session?.sessionDate || new Date().toISOString(),
           topic: session?.topic || 'رصد الحضور',
-          groupId: session?.groupId || roster?.groupId || '',
-          groupName: roster?.groupName || session?.group?.name || 'المجموعة الدراسية',
+          groupId: targetGroupId,
+          groupName: roster?.groupName || group?.name || session?.group?.name || 'المجموعة الدراسية',
           metrics: {
-            totalEnrolled: roster?.students?.length || 0,
+            totalEnrolled: studentCount,
             presentCount: 0,
-            absentCount: roster?.students?.length || 0,
+            absentCount: studentCount,
             excusedCount: 0,
             attendanceRatePercentage: 0,
           },
-          session,
-          group: roster ? { id: roster.groupId, name: roster.groupName, gradeLevel: roster.gradeLevel } : null,
-          roster: roster?.students?.map((s) => ({
-            studentId: s.id,
-            studentName: s.fullName,
-            studentCode: s.studentCode,
-            qrCodeToken: s.qrCodeToken,
-            attendanceStatus: 'ABSENT',
-          })) || [],
+          session: session || {
+            id: sessionId,
+            groupId: targetGroupId,
+            sessionDate: new Date().toISOString(),
+            topic: 'رصد الحضور',
+            startTime: '16:00',
+            endTime: '18:00',
+          },
+          group: group || (roster ? { id: roster.groupId, name: roster.groupName, gradeLevel: roster.gradeLevel } : null),
+          roster:
+            roster?.students?.map((s) => ({
+              studentId: s.id,
+              studentName: s.fullName,
+              studentCode: s.studentCode,
+              qrCodeToken: s.qrCodeToken,
+              attendanceStatus: 'ABSENT',
+            })) || [],
           records: [],
-          stats: { totalEnrolled: roster?.students?.length || 0, presentCount: 0, absentCount: roster?.students?.length || 0 },
+          stats: { totalEnrolled: studentCount, presentCount: 0, absentCount: studentCount },
         };
+      };
+
+      if (!isOnline) {
+        return buildOfflineReport();
       }
 
       try {
         const data = await fetchSessionReport(sessionId!);
-        // Auto-cache session roster to IndexedDB when loaded
         if (data && data.groupId && data.records) {
           offlineDb.cacheRoster({
             groupId: data.groupId,
@@ -114,37 +187,12 @@ export function useSessionReport(sessionId: string | null) {
         }
         return data;
       } catch {
-        const allSessions = await offlineDb.getSessionsOffline();
-        const session = allSessions.find((s) => s.id === sessionId);
-        const roster = session ? await offlineDb.getRoster(session.groupId) : null;
-        return {
-          sessionId: sessionId || '',
-          sessionDate: session?.sessionDate || new Date().toISOString(),
-          topic: session?.topic || 'رصد الحضور',
-          groupId: session?.groupId || roster?.groupId || '',
-          groupName: roster?.groupName || session?.group?.name || 'المجموعة الدراسية',
-          metrics: {
-            totalEnrolled: roster?.students?.length || 0,
-            presentCount: 0,
-            absentCount: roster?.students?.length || 0,
-            excusedCount: 0,
-            attendanceRatePercentage: 0,
-          },
-          session,
-          group: roster ? { id: roster.groupId, name: roster.groupName, gradeLevel: roster.gradeLevel } : null,
-          roster: roster?.students?.map((s) => ({
-            studentId: s.id,
-            studentName: s.fullName,
-            studentCode: s.studentCode,
-            qrCodeToken: s.qrCodeToken,
-            attendanceStatus: 'ABSENT',
-          })) || [],
-          records: [],
-          stats: { totalEnrolled: roster?.students?.length || 0, presentCount: 0, absentCount: roster?.students?.length || 0 },
-        };
+        return buildOfflineReport();
       }
     },
     enabled: !!sessionId,
+    networkMode: 'offlineFirst',
+    staleTime: 30 * 1000,
   });
 }
 
