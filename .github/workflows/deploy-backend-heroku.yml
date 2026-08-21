@@ -10,6 +10,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/deploy-backend-heroku.yml'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions UI
 
 jobs:
   deploy:
@@ -28,10 +29,38 @@ jobs:
           HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
           HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
         run: |
-          # 1. Configure Heroku Git Remote
-          git remote add heroku https://heroku:${HEROKU_API_KEY}@git.heroku.com/${HEROKU_APP_NAME}.git
+          # 1. Validate required GitHub Secrets
+          if [ -z "$HEROKU_API_KEY" ]; then
+            echo "::error::HEROKU_API_KEY secret is missing! Please configure it in GitHub Repository Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
 
-          # 2. Generate a fresh subtree commit. Reusing a local branch can leave
-          # Heroku pointed at the monorepo root, which has no start script or Procfile.
+          if [ -z "$HEROKU_APP_NAME" ]; then
+            echo "::error::HEROKU_APP_NAME secret is missing! Please configure it in GitHub Repository Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+          # 2. Configure Heroku authentication via ~/.netrc (official & secure method)
+          printf "machine api.heroku.com\n  login %s\n  password %s\nmachine git.heroku.com\n  login %s\n  password %s\n" "${HEROKU_EMAIL:-_}" "${HEROKU_API_KEY}" "${HEROKU_EMAIL:-_}" "${HEROKU_API_KEY}" > ~/.netrc
+          chmod 600 ~/.netrc
+
+          # 3. Configure Git credentials & remote
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git remote add heroku "https://git.heroku.com/${HEROKU_APP_NAME}.git"
+
+          # 4. Extract backend subtree into a dedicated commit
+          echo "Extracting apps/backend subtree commit..."
           BACKEND_COMMIT=$(git subtree split --prefix=apps/backend HEAD)
-          git push --force heroku "${BACKEND_COMMIT}:main"
+
+          if [ -z "$BACKEND_COMMIT" ]; then
+            echo "::error::Failed to extract subtree commit for apps/backend"
+            exit 1
+          fi
+
+          echo "Subtree commit SHA: ${BACKEND_COMMIT}"
+
+          # 5. Push to Heroku (supports both main and master default branches)
+          echo "Deploying to Heroku app '${HEROKU_APP_NAME}'..."
+          git push --force heroku "${BACKEND_COMMIT}:refs/heads/main" || git push --force heroku "${BACKEND_COMMIT}:refs/heads/master"
+
