@@ -193,6 +193,7 @@ class BootstrapManager {
         assessments: payload.assessments.length,
       };
 
+      this.isBootstrappingState = false;
       this.notify('SUCCESS', 100, 'تم تجهيز مساحة العمل بنجاح والجاهزية للعمل بدون إنترنت 🚀', {
         counts,
         isDelta,
@@ -204,6 +205,7 @@ class BootstrapManager {
         counts,
       };
     } catch (err: any) {
+      this.isBootstrappingState = false;
       this.lastError = err?.message || 'حدث خطأ أثناء تنزيل بيانات العمل بدون إنترنت';
       this.notify('ERROR', 0, this.lastError!);
       return { success: false, isDelta: false };

@@ -31,7 +31,8 @@ export function useBootstrapSync(autoTrigger: boolean = true): BootstrapSyncStat
 
   useEffect(() => {
     const unsubscribe = bootstrapManager.subscribe((event) => {
-      setIsBootstrapping(bootstrapManager.isBootstrapping());
+      const isCurrentlyBootstrapping = event.type === 'START' || event.type === 'PROGRESS';
+      setIsBootstrapping(isCurrentlyBootstrapping);
       setPercentage(event.percentage);
       setMessage(event.message);
       setLastEvent(event);
