@@ -105,14 +105,30 @@ export class SyncService {
     sinceDate: Date | null,
     snapshotVersion: string,
   ): Promise<BootstrapSnapshotResponse> {
-    const teacherId = user.id;
+    let teacherProfile: any = null;
+    if (user.teacherProfileId && typeof this.prisma.teacherProfile?.findUnique === 'function') {
+      teacherProfile = await this.prisma.teacherProfile.findUnique({
+        where: { id: user.teacherProfileId },
+        select: { id: true, activeAcademicYear: true, activeAcademicTerm: true },
+      });
+    }
+
+    if (!teacherProfile && typeof this.prisma.teacherProfile?.findFirst === 'function') {
+      teacherProfile = await this.prisma.teacherProfile.findFirst({
+        where: { OR: [{ user: { id: user.id } }, { id: user.id }] },
+        select: { id: true, activeAcademicYear: true, activeAcademicTerm: true },
+      });
+    }
+
+    if (!teacherProfile && user.role === UserRole.TEACHER && typeof this.prisma.teacherProfile?.findFirst === 'function') {
+      teacherProfile = await this.prisma.teacherProfile.findFirst({
+        select: { id: true, activeAcademicYear: true, activeAcademicTerm: true },
+      });
+    }
+
+    const effectiveTeacherId = teacherProfile?.id || user.teacherProfileId || user.id;
 
     // 1. Academic Period
-    const teacherProfile = await this.prisma.teacherProfile.findUnique({
-      where: { id: teacherId },
-      select: { activeAcademicYear: true, activeAcademicTerm: true },
-    });
-
     const academicPeriod = {
       activeAcademicYear: teacherProfile?.activeAcademicYear || '2026-2027',
       activeAcademicTerm: teacherProfile?.activeAcademicTerm || 'FIRST_TERM',
@@ -120,7 +136,15 @@ export class SyncService {
 
     // 2. Groups
     const groupsWhere: any = {
-      ...(user.role === UserRole.TEACHER ? { teacherId } : {}),
+      ...(user.role === UserRole.TEACHER
+        ? {
+            OR: [
+              { teacherId: effectiveTeacherId },
+              { teacher: { userId: user.id } },
+              { teacher: { id: user.id } },
+            ],
+          }
+        : {}),
       ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
     };
 
@@ -224,7 +248,7 @@ export class SyncService {
     // 7. Assessments (with answer keys included for Teacher/Secretariat)
     const assessments = await this.prisma.assessment.findMany({
       where: {
-        ...(user.role === UserRole.TEACHER ? { teacherId } : {}),
+        ...(user.role === UserRole.TEACHER ? { teacherId: effectiveTeacherId } : {}),
         ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
       },
       include: {
@@ -238,7 +262,7 @@ export class SyncService {
     // 8. Courses
     const courses = await this.prisma.course.findMany({
       where: {
-        ...(user.role === UserRole.TEACHER ? { teacherId } : {}),
+        ...(user.role === UserRole.TEACHER ? { teacherId: effectiveTeacherId } : {}),
         ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
       },
       include: {

@@ -79,9 +79,15 @@ class BootstrapManager {
 
       this.notify('PROGRESS', 25, 'جاري استقبال وتجهيز بيانات المجموعات والطلاب...');
 
-      const response = await apiClient<any>(queryUrl, {
-        method: 'GET',
-      });
+      // Abort after 12s to prevent indefinite hanging on flaky networks
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('انتهت مهلة الاتصال بخادم المزامنة')), 12000),
+      );
+
+      const response = await Promise.race([
+        apiClient<any>(queryUrl, { method: 'GET' }),
+        timeoutPromise,
+      ]) as any;
 
       if (!response) {
         throw new Error('استجابة غير صالحة من خادم المزامنة');

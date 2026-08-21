@@ -21,15 +21,24 @@ export class GroupsService {
   /**
    * Helper: Validates that a teacher owns the target group (Secretariat/Admin bypasses).
    */
-  private checkTeacherOwnership(group: { teacherId: string }, user?: AuthenticatedUser) {
+  private async checkTeacherOwnership(group: { teacherId: string }, user?: AuthenticatedUser) {
     if (!user) return;
     if (user.role === UserRole.TEACHER) {
       const teacherId = user.teacherProfileId || user.id;
-      if (group.teacherId !== teacherId) {
-        throw new ForbiddenException(
-          'You do not have permission to view or manage this academic group',
-        );
+      if (group.teacherId === teacherId || group.teacherId === user.id) {
+        return;
       }
+      if (typeof this.prisma.teacherProfile?.findFirst === 'function') {
+        const teacherProfile = await this.prisma.teacherProfile.findFirst({
+          where: { OR: [{ id: user.teacherProfileId }, { user: { id: user.id } }, { id: user.id }] },
+        });
+        if (teacherProfile && group.teacherId === teacherProfile.id) {
+          return;
+        }
+      }
+      throw new ForbiddenException(
+        'You do not have permission to view or manage this academic group',
+      );
     }
   }
 
@@ -129,7 +138,7 @@ export class GroupsService {
       throw new NotFoundException(`Academic group [${groupId}] not found`);
     }
 
-    this.checkTeacherOwnership(group, user);
+    await this.checkTeacherOwnership(group, user);
 
     return group;
   }
@@ -146,7 +155,7 @@ export class GroupsService {
       throw new NotFoundException(`Academic group [${groupId}] not found`);
     }
 
-    this.checkTeacherOwnership(group, user);
+    await this.checkTeacherOwnership(group, user);
 
     const { schedules, ...updateData } = dto;
 
@@ -189,7 +198,7 @@ export class GroupsService {
       throw new NotFoundException(`Academic group [${groupId}] not found`);
     }
 
-    this.checkTeacherOwnership(group, user);
+    await this.checkTeacherOwnership(group, user);
 
     await this.prisma.academicGroup.delete({
       where: { id: groupId },
@@ -216,7 +225,7 @@ export class GroupsService {
         throw new NotFoundException(`Academic group [${groupId}] not found or inactive`);
       }
 
-      this.checkTeacherOwnership(group, user);
+      await this.checkTeacherOwnership(group, user);
 
       if (group._count.enrollments >= group.maxCapacity) {
         throw new ConflictException(
@@ -269,7 +278,7 @@ export class GroupsService {
       throw new NotFoundException(`Academic group [${groupId}] not found`);
     }
 
-    this.checkTeacherOwnership(group, user);
+    await this.checkTeacherOwnership(group, user);
 
     const enrollment = await this.prisma.groupEnrollment.findUnique({
       where: {
@@ -329,7 +338,7 @@ export class GroupsService {
       throw new NotFoundException(`Academic group [${groupId}] not found`);
     }
 
-    this.checkTeacherOwnership(group, user);
+    await this.checkTeacherOwnership(group, user);
 
     // Compute total sessions for this group
     const totalSessions = await this.prisma.lessonSession.count({

@@ -114,19 +114,20 @@ export function useGroupStudents(id: string) {
             groupName: group?.name || 'المجموعة الدراسية',
             gradeLevel: group?.gradeLevel,
             monthlyFee: group?.monthlyFee,
-            students: students.map((enrollment) => ({
-              id: enrollment.student.id,
-              fullName: enrollment.student.user.name,
-              studentCode: enrollment.student.code,
-              qrCodeToken: enrollment.student.id,
-              gradeLevel: enrollment.student.gradeLevel,
-              academicStatus: enrollment.student.academicStatus,
+            students: students.map((enrollment: any) => ({
+              id: enrollment?.student?.id || enrollment?.id,
+              fullName: enrollment?.student?.user?.name || enrollment?.student?.fullName || enrollment?.student?.user?.fullName || 'طالب',
+              studentCode: enrollment?.student?.code || enrollment?.student?.studentCode || `STU-${(enrollment?.student?.id || enrollment?.id || '').slice(0, 6)}`,
+              qrCodeToken: enrollment?.student?.qrCodeToken || enrollment?.student?.id || enrollment?.id,
+              gradeLevel: enrollment?.student?.gradeLevel || group?.gradeLevel || '',
+              academicStatus: enrollment?.student?.academicStatus || 'ACTIVE',
             })),
             updatedAt: Date.now(),
           });
         }
-        return students;
-      } catch {
+        return students || [];
+      } catch (err) {
+        console.warn('Failed to fetch online group roster, checking offline database:', err);
         const roster = await offlineDb.getRoster(id);
         if (roster && roster.students?.length > 0) {
           return roster.students.map((s) => ({
