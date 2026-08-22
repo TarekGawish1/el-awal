@@ -1,13 +1,22 @@
-import { Metadata } from 'next';
+'use client';
+
+import React from 'react';
+import { useParams } from 'next/navigation';
 import { AssessmentDetails } from '@/features/assessments/components/AssessmentDetails';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 
-export const metadata: Metadata = {
-  title: 'تفاصيل الاختبار | منصة الأول',
-};
+interface PageProps {
+  params: {
+    id: string;
+  };
+  searchParams?: { [key: string]: string | string[] | undefined };
+}
 
-export default function AssessmentDetailsPage({ params }: { params: { id: string } }) {
+export default function AssessmentDetailsPage({ params }: PageProps) {
+  const routeParams = useParams();
+  const assessmentId = (params?.id || routeParams?.id) as string;
+
   return (
     <div className="space-y-4">
       <div className="mb-4">
@@ -20,7 +29,7 @@ export default function AssessmentDetailsPage({ params }: { params: { id: string
         </Link>
       </div>
       
-      <AssessmentDetails assessmentId={params.id} />
+      <AssessmentDetails assessmentId={assessmentId} />
     </div>
   );
 }

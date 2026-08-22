@@ -11,8 +11,9 @@ import { useStudents } from '../hooks/use-students';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
 import { AcademicStatus } from '../types/students.types';
-import { Search, RotateCcw, Users, Calendar, BookOpen, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Search, RotateCcw, Users, Calendar, BookOpen, ChevronRight, ChevronLeft, Eye } from 'lucide-react';
 import { Pagination } from '@/components/ui/Pagination';
+import { StudentDetailsModal } from './StudentDetailsModal';
 
 const STAGE_GRADES_MAP: Record<string, string[]> = {
   'المرحلة الابتدائية': [
@@ -48,6 +49,7 @@ export function StudentList() {
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
+  const [selectedStudentForModal, setSelectedStudentForModal] = useState<string | null>(null);
 
   // Fetch groups to populate group filter options
   const { data: groups } = useGroups();
@@ -561,11 +563,23 @@ export function StudentList() {
                       </Badge>
                     </td>
                     <td className="px-6 py-4 text-end">
-                      <Link href={`/teacher/students/${student.id}`}>
-                        <Button variant="outline" size="sm" className="rounded-xl font-bold bg-white hover:bg-primary-50 hover:text-primary-600 border-slate-200 hover:border-primary-200 transition-all shadow-sm">
-                          عرض التفاصيل
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedStudentForModal(student.id)}
+                          className="rounded-xl font-medium text-slate-500 hover:text-primary-600 hover:bg-primary-50 transition-all p-2"
+                          title="معاينة سريعة"
+                          aria-label="معاينة سريعة"
+                        >
+                          <Eye className="w-4 h-4" />
                         </Button>
-                      </Link>
+                        <Link href={`/teacher/students/${student.id}`}>
+                          <Button variant="outline" size="sm" className="rounded-xl font-bold bg-white hover:bg-primary-50 hover:text-primary-600 border-slate-200 hover:border-primary-200 transition-all shadow-sm">
+                            عرض التفاصيل
+                          </Button>
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -641,11 +655,22 @@ export function StudentList() {
                     </div>
                   </div>
 
-                  <Link href={`/teacher/students/${student.id}`} className="block">
-                    <Button variant="outline" size="sm" className="w-full text-xs font-bold rounded-xl py-2 bg-white">
-                      عرض الملف الكامل والتفاصيل
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedStudentForModal(student.id)}
+                      className="px-3 text-xs font-bold rounded-xl py-2 bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    >
+                      <Eye className="w-3.5 h-3.5 ml-1" />
+                      معاينة
                     </Button>
-                  </Link>
+                    <Link href={`/teacher/students/${student.id}`} className="flex-1">
+                      <Button variant="outline" size="sm" className="w-full text-xs font-bold rounded-xl py-2 bg-white">
+                        عرض التفاصيل
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
               ))}
             </div>
@@ -666,6 +691,13 @@ export function StudentList() {
           </div>
         )}
       </div>
+
+      {/* Quick View Student Modal */}
+      <StudentDetailsModal
+        studentId={selectedStudentForModal}
+        isOpen={!!selectedStudentForModal}
+        onClose={() => setSelectedStudentForModal(null)}
+      />
     </div>
   );
 }

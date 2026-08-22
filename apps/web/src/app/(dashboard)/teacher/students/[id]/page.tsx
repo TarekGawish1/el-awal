@@ -12,10 +12,17 @@ import Link from 'next/link';
 import { ArrowRight, AlertCircle, RefreshCw, Phone } from 'lucide-react';
 import { formatWhatsAppNumber } from '@/lib/utils/formatters';
 
-export default function StudentDetailPage() {
-  const params = useParams();
+interface PageProps {
+  params: {
+    id: string;
+  };
+  searchParams?: { [key: string]: string | string[] | undefined };
+}
+
+export default function StudentDetailPage({ params }: PageProps) {
+  const routeParams = useParams();
   const router = useRouter();
-  const studentId = params?.id as string;
+  const studentId = (params?.id || routeParams?.id) as string;
 
   const { data: student, isLoading, isError, error, refetch } = useStudent(studentId);
 

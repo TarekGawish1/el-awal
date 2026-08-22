@@ -1,15 +1,17 @@
 /**
  * Service Worker for El-Awal PWA
- * Platform: Next.js 14 Web App
+ * Platform: Next.js 14 Web App (App Router)
  * Features:
  * - App Shell caching for full offline SPA hydration
- * - Pre-caching all teacher, student, and parent dashboard routes
- * - Offline navigation fallback to cached dashboard / login shell
+ * - Dedicated Next.js App Router RSC (?_rsc= / RSC: 1) offline handling
+ * - Pre-caching all teacher, student, and parent dashboard routes & RSC flight payloads
  * - Safe chunk fallback preventing fatal ChunkLoadErrors offline
+ * - Zero-redirect offline subpage navigation
  */
 
-const CACHE_NAME = 'el-awal-core-v5';
-const RUNTIME_CACHE = 'el-awal-runtime-v5';
+const CACHE_NAME = 'el-awal-core-v6';
+const RUNTIME_CACHE = 'el-awal-runtime-v6';
+const RSC_CACHE = 'el-awal-rsc-v6';
 
 // Critical App Shell assets and core dashboard routes to pre-cache on install
 const PRECACHE_URLS = [
@@ -44,20 +46,54 @@ const PRECACHE_URLS = [
   '/favicon.svg',
 ];
 
-// 1. Install Event: Pre-cache core shell & offline page
+// Core routes whose RSC payloads should also be pre-cached for instant client-side routing
+const PRECACHE_RSC_ROUTES = [
+  '/teacher/dashboard',
+  '/teacher/students',
+  '/teacher/groups',
+  '/teacher/schedules',
+  '/teacher/attendance',
+  '/teacher/finance',
+  '/teacher/assessments',
+  '/teacher/content',
+  '/student/dashboard',
+  '/parent/dashboard',
+];
+
+// 1. Install Event: Pre-cache core shell, offline page, and RSC payloads
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then(async (cache) => {
-        for (const url of PRECACHE_URLS) {
-          try {
-            await cache.add(url);
-          } catch (err) {
-            console.debug('[SW] Precache notice:', url, err);
-          }
+    (async () => {
+      const coreCache = await caches.open(CACHE_NAME);
+      const rscCache = await caches.open(RSC_CACHE);
+
+      // Pre-cache static shell URLs
+      for (const url of PRECACHE_URLS) {
+        try {
+          await coreCache.add(url);
+        } catch (err) {
+          console.debug('[SW] Precache notice:', url, err);
         }
-      })
+      }
+
+      // Pre-cache RSC payloads for dashboard routes
+      for (const route of PRECACHE_RSC_ROUTES) {
+        try {
+          const rscRequest = new Request(`${route}?_rsc=init`, {
+            headers: { RSC: '1', 'Next-Router-Prefetch': '1' },
+          });
+          const response = await fetch(rscRequest);
+          if (response && response.ok) {
+            await rscCache.put(rscRequest, response.clone());
+            // Also store under normalized route key
+            const normalizedReq = new Request(route, { headers: { RSC: '1' } });
+            await rscCache.put(normalizedReq, response);
+          }
+        } catch (err) {
+          console.debug('[SW] RSC precache notice:', route, err);
+        }
+      }
+    })()
       .then(() => self.skipWaiting())
       .catch((err) => {
         console.warn('[SW] Pre-cache error on install:', err);
@@ -67,7 +103,7 @@ self.addEventListener('install', (event) => {
 
 // 2. Activate Event: Clean up outdated caches and claim clients immediately
 self.addEventListener('activate', (event) => {
-  const currentCaches = [CACHE_NAME, RUNTIME_CACHE];
+  const currentCaches = [CACHE_NAME, RUNTIME_CACHE, RSC_CACHE];
   event.waitUntil(
     caches
       .keys()
@@ -83,7 +119,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// 3. Fetch Event: Intelligent multi-strategy caching with App Shell fallback
+// 3. Fetch Event: Intelligent multi-strategy caching with App Shell & RSC safety
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -107,57 +143,172 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Strategy A: HTML Navigation Requests (Network First -> Cache -> App Shell Fallback)
-  if (request.mode === 'navigate') {
+  // Identify Next.js React Server Component (RSC) requests
+  const isRscRequest =
+    request.headers.get('RSC') === '1' ||
+    request.headers.get('Next-Router-Prefetch') === '1' ||
+    request.headers.get('Next-Router-State-Tree') !== null ||
+    url.searchParams.has('_rsc') ||
+    url.search.includes('_rsc=') ||
+    url.pathname.includes('/_next/data/');
+
+  // =========================================================================
+  // Strategy A: Next.js App Router RSC Fetch Requests
+  // =========================================================================
+  if (isRscRequest) {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (response && response.status === 200) {
-            const responseClone = response.clone();
-            caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, responseClone));
-          }
-          return response;
-        })
-        .catch(async () => {
-          // 1. Try exact requested route from runtime or core cache
-          const cachedResponse = await caches.match(request);
-          if (cachedResponse) {
-            return cachedResponse;
-          }
+      (async () => {
+        const rscCache = await caches.open(RSC_CACHE);
+        const runtimeCache = await caches.open(RUNTIME_CACHE);
 
-          // 2. Try match without query parameters
-          const cleanUrl = url.origin + url.pathname;
-          const cachedClean = await caches.match(cleanUrl);
-          if (cachedClean) {
-            return cachedClean;
+        // 1. If online, fetch from network and cache
+        if (navigator.onLine) {
+          try {
+            const networkResponse = await fetch(request);
+            if (networkResponse && networkResponse.status === 200) {
+              const contentType = networkResponse.headers.get('content-type') || '';
+              // Only cache actual RSC flight payloads, not unexpected HTML redirects
+              if (!contentType.includes('text/html')) {
+                rscCache.put(request, networkResponse.clone());
+                // Also cache by normalized pathname without query params
+                const normalizedReq = new Request(url.pathname, { headers: { RSC: '1' } });
+                rscCache.put(normalizedReq, networkResponse.clone());
+              }
+            }
+            return networkResponse;
+          } catch (fetchErr) {
+            console.debug('[SW] RSC network fetch failed, falling back to cache:', fetchErr);
           }
+        }
 
-          // 3. Fall back to cached App Shell document so Next.js client router mounts offline
-          const appShell =
-            (await caches.match('/teacher/dashboard')) ||
-            (await caches.match('/')) ||
-            (await caches.match('/login'));
-          if (appShell) {
-            return appShell;
+        // 2. Offline: Try exact request match in RSC and Runtime caches
+        const cachedExact = (await rscCache.match(request)) || (await runtimeCache.match(request));
+        if (cachedExact) {
+          const contentType = cachedExact.headers.get('content-type') || '';
+          if (!contentType.includes('text/html')) {
+            return cachedExact;
           }
+        }
 
-          // 4. Final fallback: standalone offline page
-          const offlinePage = await caches.match('/offline.html');
-          if (offlinePage) {
-            return offlinePage;
+        // 3. Offline: Try normalized pathname match with RSC header
+        const normalizedReq = new Request(url.pathname, { headers: { RSC: '1' } });
+        const cachedNormalized = await rscCache.match(normalizedReq);
+        if (cachedNormalized) {
+          const contentType = cachedNormalized.headers.get('content-type') || '';
+          if (!contentType.includes('text/html')) {
+            return cachedNormalized;
           }
+        }
 
-          return new Response('Offline - Platform El-Awal', {
-            status: 503,
-            statusText: 'Offline',
-            headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-          });
-        }),
+        // 4. Dynamic subpage fallback: If navigating to /teacher/students/[id] or /teacher/groups/[id],
+        // match parent list route RSC payload if available
+        if (url.pathname.startsWith('/teacher/students/')) {
+          const studentParentReq = new Request('/teacher/students', { headers: { RSC: '1' } });
+          const studentRsc = await rscCache.match(studentParentReq);
+          if (studentRsc) return studentRsc;
+        }
+
+        if (url.pathname.startsWith('/teacher/groups/')) {
+          const groupParentReq = new Request('/teacher/groups', { headers: { RSC: '1' } });
+          const groupRsc = await rscCache.match(groupParentReq);
+          if (groupRsc) return groupRsc;
+        }
+
+        if (url.pathname.startsWith('/teacher/assessments/')) {
+          const assessParentReq = new Request('/teacher/assessments', { headers: { RSC: '1' } });
+          const assessRsc = await rscCache.match(assessParentReq);
+          if (assessRsc) return assessRsc;
+        }
+
+        // 5. CRITICAL: Never return an HTML document for RSC requests!
+        // Returning text/html causes Next.js client router to perform a hard redirect to the root shell.
+        // Instead, return a synthetic empty RSC flight stream so the client-side component hydrates from local IndexedDB.
+        return new Response('0:[]\n', {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/x-component; charset=utf-8',
+            'Cache-Control': 'no-store',
+            'X-Nextjs-Offline-RSC': '1',
+          },
+        });
+      })(),
     );
     return;
   }
 
-  // Strategy B: Static Assets (_next/static, fonts, icons, images, manifests) -> Cache-First / Stale-While-Revalidate
+  // =========================================================================
+  // Strategy B: Full HTML Document Navigation Requests (request.mode === 'navigate')
+  // =========================================================================
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      (async () => {
+        const runtimeCache = await caches.open(RUNTIME_CACHE);
+        const coreCache = await caches.open(CACHE_NAME);
+
+        // 1. Try network first if online
+        if (navigator.onLine) {
+          try {
+            const networkResponse = await fetch(request);
+            if (networkResponse && networkResponse.status === 200) {
+              runtimeCache.put(request, networkResponse.clone());
+            }
+            return networkResponse;
+          } catch (err) {
+            console.debug('[SW] Navigation fetch failed, falling back to cache:', err);
+          }
+        }
+
+        // 2. Try exact requested route from runtime or core cache
+        const cachedResponse = (await runtimeCache.match(request)) || (await coreCache.match(request));
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+
+        // 3. Try match without query parameters
+        const cleanUrl = url.origin + url.pathname;
+        const cachedClean = (await runtimeCache.match(cleanUrl)) || (await coreCache.match(cleanUrl));
+        if (cachedClean) {
+          return cachedClean;
+        }
+
+        // 4. For subpages (e.g. /teacher/students/123), try parent route document before falling back to dashboard
+        if (url.pathname.startsWith('/teacher/students/')) {
+          const parentDoc = (await coreCache.match('/teacher/students')) || (await runtimeCache.match('/teacher/students'));
+          if (parentDoc) return parentDoc;
+        }
+        if (url.pathname.startsWith('/teacher/groups/')) {
+          const parentDoc = (await coreCache.match('/teacher/groups')) || (await runtimeCache.match('/teacher/groups'));
+          if (parentDoc) return parentDoc;
+        }
+
+        // 5. Fall back to cached App Shell document
+        const appShell =
+          (await coreCache.match('/teacher/dashboard')) ||
+          (await coreCache.match('/')) ||
+          (await coreCache.match('/login'));
+        if (appShell) {
+          return appShell;
+        }
+
+        // 6. Final fallback: standalone offline page
+        const offlinePage = await coreCache.match('/offline.html');
+        if (offlinePage) {
+          return offlinePage;
+        }
+
+        return new Response('Offline - Platform El-Awal', {
+          status: 503,
+          statusText: 'Offline',
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        });
+      })(),
+    );
+    return;
+  }
+
+  // =========================================================================
+  // Strategy C: Static Assets (_next/static, fonts, icons, images, manifests)
+  // =========================================================================
   const isStaticAsset =
     url.pathname.startsWith('/_next/static/') ||
     url.pathname.startsWith('/icons/') ||
@@ -181,14 +332,16 @@ self.addEventListener('fetch', (event) => {
 
   if (isStaticAsset) {
     event.respondWith(
-      caches.match(request).then((cachedResponse) => {
+      (async () => {
+        const cachedResponse = await caches.match(request);
         if (cachedResponse) {
           // Revalidate in background if online
           if (navigator.onLine) {
             fetch(request)
-              .then((networkResponse) => {
+              .then(async (networkResponse) => {
                 if (networkResponse && networkResponse.status === 200) {
-                  caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, networkResponse));
+                  const runtimeCache = await caches.open(RUNTIME_CACHE);
+                  runtimeCache.put(request, networkResponse);
                 }
               })
               .catch(() => {});
@@ -196,40 +349,39 @@ self.addEventListener('fetch', (event) => {
           return cachedResponse;
         }
 
-        return fetch(request)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              const responseClone = networkResponse.clone();
-              caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, responseClone));
-            }
-            return networkResponse;
-          })
-          .catch(async () => {
-            // Fallback for icons/manifests
-            if (url.pathname.includes('manifest')) {
-              const cachedManifest = (await caches.match('/manifest.webmanifest')) || (await caches.match('/manifest.json'));
-              if (cachedManifest) return cachedManifest;
-            }
-            if (url.pathname.endsWith('.svg') || url.pathname.endsWith('.png')) {
-              const cachedIcon = (await caches.match('/favicon.svg')) || (await caches.match('/icons/icon.svg')) || (await caches.match('/icon.svg'));
-              if (cachedIcon) return cachedIcon;
-            }
-            // For JavaScript / CSS files requested offline that aren't cached yet, return a safe fallback rather than fatal 408
-            if (url.pathname.endsWith('.js')) {
-              return new Response('/* offline chunk placeholder */', {
-                status: 200,
-                headers: { 'Content-Type': 'application/javascript; charset=utf-8' },
-              });
-            }
-            if (url.pathname.endsWith('.css')) {
-              return new Response('/* offline css placeholder */', {
-                status: 200,
-                headers: { 'Content-Type': 'text/css; charset=utf-8' },
-              });
-            }
-            return new Response('', { status: 503, statusText: 'Offline' });
-          });
-      }),
+        try {
+          const networkResponse = await fetch(request);
+          if (networkResponse && networkResponse.status === 200) {
+            const runtimeCache = await caches.open(RUNTIME_CACHE);
+            runtimeCache.put(request, networkResponse.clone());
+          }
+          return networkResponse;
+        } catch {
+          // Fallback for icons/manifests
+          if (url.pathname.includes('manifest')) {
+            const cachedManifest = (await caches.match('/manifest.webmanifest')) || (await caches.match('/manifest.json'));
+            if (cachedManifest) return cachedManifest;
+          }
+          if (url.pathname.endsWith('.svg') || url.pathname.endsWith('.png')) {
+            const cachedIcon = (await caches.match('/favicon.svg')) || (await caches.match('/icons/icon.svg')) || (await caches.match('/icon.svg'));
+            if (cachedIcon) return cachedIcon;
+          }
+          // For JavaScript / CSS files requested offline that aren't cached yet, return a safe fallback rather than fatal error
+          if (url.pathname.endsWith('.js')) {
+            return new Response('/* offline chunk placeholder */', {
+              status: 200,
+              headers: { 'Content-Type': 'application/javascript; charset=utf-8' },
+            });
+          }
+          if (url.pathname.endsWith('.css')) {
+            return new Response('/* offline css placeholder */', {
+              status: 200,
+              headers: { 'Content-Type': 'text/css; charset=utf-8' },
+            });
+          }
+          return new Response('', { status: 503, statusText: 'Offline' });
+        }
+      })(),
     );
     return;
   }
@@ -239,40 +391,33 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Strategy C: Other GET requests (Same-origin Next.js RSC prefetch / dynamic routes) -> Network First with dynamic cache & safe fallback
+  // =========================================================================
+  // Strategy D: Other Same-Origin Requests -> Network First with dynamic cache & safe JSON fallback
+  // =========================================================================
   event.respondWith(
-    fetch(request)
-      .then((response) => {
+    (async () => {
+      try {
+        const response = await fetch(request);
         if (response && response.status === 200) {
-          const responseClone = response.clone();
-          caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, responseClone));
+          const runtimeCache = await caches.open(RUNTIME_CACHE);
+          runtimeCache.put(request, response.clone());
         }
         return response;
-      })
-      .catch(async () => {
+      } catch {
         const cached = await caches.match(request);
         if (cached) return cached;
 
-        // Try matching clean URL without search params
         const cleanUrl = url.origin + url.pathname;
         const cachedClean = await caches.match(cleanUrl);
         if (cachedClean) return cachedClean;
-
-        // If RSC prefetch request, return cached app shell or empty payload to prevent client-side routing crash
-        if (url.search.includes('_rsc=') || url.pathname.includes('/_next/data/')) {
-          const appShell =
-            (await caches.match('/teacher/dashboard')) ||
-            (await caches.match('/')) ||
-            (await caches.match('/login'));
-          if (appShell) return appShell;
-        }
 
         return new Response(JSON.stringify({ error: 'Network error or resource unavailable offline' }), {
           status: 503,
           statusText: 'Service Unavailable',
           headers: { 'Content-Type': 'application/json' },
         });
-      }),
+      }
+    })(),
   );
 });
 
@@ -282,4 +427,3 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   }
 });
-

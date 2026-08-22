@@ -1,17 +1,19 @@
-import { Metadata } from 'next';
+'use client';
+
+import React from 'react';
+import { useParams } from 'next/navigation';
 import { GroupDetails } from '@/features/groups';
 
-export const metadata: Metadata = {
-  title: 'تفاصيل المجموعة | الأول',
-  description: 'إدارة تفاصيل المجموعة وقائمة الطلاب',
-};
-
-interface GroupDetailsPageProps {
+interface PageProps {
   params: {
     id: string;
   };
+  searchParams?: { [key: string]: string | string[] | undefined };
 }
 
-export default function GroupDetailsPage({ params }: GroupDetailsPageProps) {
-  return <GroupDetails id={params.id} />;
+export default function GroupDetailsPage({ params }: PageProps) {
+  const routeParams = useParams();
+  const id = (params?.id || routeParams?.id) as string;
+
+  return <GroupDetails id={id} />;
 }
