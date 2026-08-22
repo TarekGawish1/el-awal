@@ -35,6 +35,8 @@ export function useStudents(query: StudentQuery) {
           gradeLevel: query.gradeLevel,
           academicStage: query.academicStage,
           academicStatus: query.academicStatus,
+          academicYear: (query as any).academicYear,
+          academicTerm: (query as any).academicTerm,
         });
 
         const mappedList: StudentListItem[] = offlineList.map((s) => {
@@ -112,6 +114,8 @@ export function useStudents(query: StudentQuery) {
           gradeLevel: query.gradeLevel,
           academicStage: query.academicStage,
           academicStatus: query.academicStatus,
+          academicYear: (query as any).academicYear,
+          academicTerm: (query as any).academicTerm,
         });
 
         const mappedList: StudentListItem[] = offlineList.map((s) => {

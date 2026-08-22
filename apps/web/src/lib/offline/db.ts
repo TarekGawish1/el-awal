@@ -808,19 +808,95 @@ class OfflineDatabase {
     };
   }
 
-  public async getGroupsOffline(): Promise<GroupEntity[]> {
+  public async getGroupsOffline(options?: {
+    academicYear?: string;
+    academicTerm?: string;
+    gradeLevel?: string;
+    status?: string;
+  }): Promise<GroupEntity[]> {
+    let list: GroupEntity[] = [];
     if (!this.isSupported()) {
-      return Array.from(this.memoryGroups.values());
+      list = Array.from(this.memoryGroups.values());
+    } else {
+      try {
+        const { store } = await this.getStore('groups', 'readonly');
+        list = await new Promise((resolve) => {
+          const req = store.getAll();
+          req.onsuccess = () => resolve(req.result || Array.from(this.memoryGroups.values()));
+          req.onerror = () => resolve(Array.from(this.memoryGroups.values()));
+        });
+      } catch {
+        list = Array.from(this.memoryGroups.values());
+      }
     }
-    try {
-      const { store } = await this.getStore('groups', 'readonly');
-      return new Promise((resolve) => {
-        const req = store.getAll();
-        req.onsuccess = () => resolve(req.result || Array.from(this.memoryGroups.values()));
-        req.onerror = () => resolve(Array.from(this.memoryGroups.values()));
-      });
-    } catch {
-      return Array.from(this.memoryGroups.values());
+
+    return list.filter((g) => {
+      // 1. Status and active check
+      if (g.status && g.status === 'ARCHIVED') return false;
+      if ((g as any).isArchived === true) return false;
+      if ((g as any).isActive === false) return false;
+      if (options?.status && g.status && g.status !== options.status) return false;
+
+      // 2. Grade level
+      if (options?.gradeLevel && g.gradeLevel && g.gradeLevel !== options.gradeLevel) return false;
+
+      // 3. Academic Year & Term
+      if (options?.academicYear && g.academicYear && g.academicYear !== options.academicYear) return false;
+      if (options?.academicTerm && g.academicTerm && g.academicTerm !== options.academicTerm) return false;
+
+      return true;
+    });
+  }
+
+  /**
+   * Reconciles temporary client UUIDs with authoritative server IDs and codes
+   * across groups, students, and offline rosters.
+   */
+  public async reconcileEntityIds(mappings?: {
+    groups?: Record<string, string>;
+    students?: Record<string, { id: string; studentCode: string; qrCodeToken?: string }>;
+  }): Promise<void> {
+    if (!mappings) return;
+
+    // 1. Reconcile Groups
+    if (mappings.groups && Object.keys(mappings.groups).length > 0) {
+      for (const [tempId, serverId] of Object.entries(mappings.groups)) {
+        if (tempId === serverId) continue;
+        const localGroup = await this.getGroupByIdOffline(tempId);
+        if (localGroup) {
+          await this.removeGroup(tempId);
+          await this.bulkPutGroups([{ ...localGroup, id: serverId }]);
+        }
+        // Also update roster
+        const roster = await this.getRoster(tempId);
+        if (roster) {
+          await this.cacheRoster({
+            ...roster,
+            groupId: serverId,
+            updatedAt: Date.now(),
+          });
+        }
+      }
+    }
+
+    // 2. Reconcile Students
+    if (mappings.students && Object.keys(mappings.students).length > 0) {
+      for (const [tempId, serverData] of Object.entries(mappings.students)) {
+        const localStudent = await this.getStudentByIdOffline(tempId);
+        if (localStudent) {
+          const updated: StudentEntity = {
+            ...localStudent,
+            id: serverData.id,
+            studentCode: serverData.studentCode || localStudent.studentCode,
+            qrCodeToken: serverData.qrCodeToken || localStudent.qrCodeToken,
+            groupId: mappings.groups?.[localStudent.groupId || ''] || localStudent.groupId,
+          };
+          if (tempId !== serverData.id) {
+            await this.removeStudent(tempId);
+          }
+          await this.bulkPutStudents([updated]);
+        }
+      }
     }
   }
 

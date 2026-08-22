@@ -194,60 +194,117 @@ class OfflineSyncEngine {
     this.isSyncingState = true;
     this.notify('SYNC_START', { pendingCount: pending.length });
 
+    // STRICT TWO-PHASE STEP 1: Pause background queries from refetching stale server state
+    if (this.queryClient) {
+      this.queryClient.cancelQueries();
+    }
+
     let syncedCount = 0;
     let failedCount = 0;
 
     try {
-      // 1. Flush Group Creations first
+      // 1. Flush Group and Student Creations (using Unified Batch or Fallback)
       const groupCreations = pending.filter(
         (m) => m.domain === 'groups' && m.method === 'POST' && m.endpoint === API_ENDPOINTS.GROUPS.CREATE,
       );
-      for (const item of groupCreations) {
-        try {
-          await offlineDb.updateMutationStatus(item.id, 'SYNCING');
-          const res = await apiClient<any>(item.endpoint, {
-            method: item.method,
-            body: item.payload ? JSON.stringify(item.payload) : undefined,
-          });
-          if (res?.id && item.optimisticId && res.id !== item.optimisticId) {
-            // Update local store with server assigned id if mapped
-            const localGroup = await offlineDb.getGroupByIdOffline(item.optimisticId);
-            if (localGroup) {
-              await offlineDb.removeGroup(item.optimisticId);
-              await offlineDb.bulkPutGroups([{ ...localGroup, id: res.id }]);
-            }
-          }
-          await offlineDb.removeMutation(item.id);
-          syncedCount++;
-        } catch (err: any) {
-          await this.handleFailedMutation(item, err.message);
-          failedCount++;
-        }
-      }
-
-      // 2. Flush Student Creations
       const studentCreations = pending.filter(
         (m) => m.domain === 'students' && m.method === 'POST' && m.endpoint === API_ENDPOINTS.STUDENTS.CREATE,
       );
-      for (const item of studentCreations) {
+
+      if (groupCreations.length > 0 || studentCreations.length > 0) {
+        const batchDto = {
+          groups: groupCreations.map((g) => ({
+            clientTempId: g.optimisticId || g.id,
+            name: g.payload?.name,
+            gradeLevel: g.payload?.gradeLevel,
+            academicYear: g.payload?.academicYear || '2026-2027',
+            academicTerm: g.payload?.academicTerm || 'FIRST_TERM',
+            maxCapacity: g.payload?.maxCapacity,
+            monthlyFee: g.payload?.monthlyFee,
+            description: g.payload?.description,
+            schedules: g.payload?.schedules,
+          })),
+          students: studentCreations.map((s) => ({
+            clientTempId: s.optimisticId || s.id,
+            name: s.payload?.fullName || s.payload?.name,
+            fullName: s.payload?.fullName || s.payload?.name,
+            phone: s.payload?.phone,
+            email: s.payload?.email,
+            password: s.payload?.password,
+            gradeLevel: s.payload?.gradeLevel,
+            academicStage: s.payload?.academicStage,
+            academicYear: s.payload?.academicYear || '2026-2027',
+            academicTerm: s.payload?.academicTerm || 'FIRST_TERM',
+            parentName: s.payload?.parentName,
+            parentPhone: s.payload?.parentPhone,
+            parentRelationship: s.payload?.parentRelationship,
+            groupId: s.payload?.groupId,
+          })),
+        };
+
         try {
-          await offlineDb.updateMutationStatus(item.id, 'SYNCING');
-          const res = await apiClient<any>(item.endpoint, {
-            method: item.method,
-            body: item.payload ? JSON.stringify(item.payload) : undefined,
+          const res = await apiClient<any>(API_ENDPOINTS.SYNC.BATCH, {
+            method: 'POST',
+            body: JSON.stringify(batchDto),
           });
-          if (res?.id && item.optimisticId && res.id !== item.optimisticId) {
-            const localStudent = await offlineDb.getStudentByIdOffline(item.optimisticId);
-            if (localStudent) {
-              await offlineDb.removeStudent(item.optimisticId);
-              await offlineDb.bulkPutStudents([{ ...localStudent, id: res.id }]);
+
+          if (res?.idMappings) {
+            await offlineDb.reconcileEntityIds(res.idMappings);
+          }
+
+          for (const item of groupCreations) {
+            await offlineDb.removeMutation(item.id);
+            syncedCount++;
+          }
+          for (const item of studentCreations) {
+            await offlineDb.removeMutation(item.id);
+            syncedCount++;
+          }
+        } catch (batchErr: any) {
+          // Fallback to individual items if batch rejected or failed
+          for (const item of groupCreations) {
+            try {
+              await offlineDb.updateMutationStatus(item.id, 'SYNCING');
+              const res = await apiClient<any>(item.endpoint, {
+                method: item.method,
+                body: item.payload ? JSON.stringify(item.payload) : undefined,
+              });
+              if (res?.id && item.optimisticId && res.id !== item.optimisticId) {
+                const localGroup = await offlineDb.getGroupByIdOffline(item.optimisticId);
+                if (localGroup) {
+                  await offlineDb.removeGroup(item.optimisticId);
+                  await offlineDb.bulkPutGroups([{ ...localGroup, id: res.id }]);
+                }
+              }
+              await offlineDb.removeMutation(item.id);
+              syncedCount++;
+            } catch (err: any) {
+              await this.handleFailedMutation(item, err.message);
+              failedCount++;
             }
           }
-          await offlineDb.removeMutation(item.id);
-          syncedCount++;
-        } catch (err: any) {
-          await this.handleFailedMutation(item, err.message);
-          failedCount++;
+
+          for (const item of studentCreations) {
+            try {
+              await offlineDb.updateMutationStatus(item.id, 'SYNCING');
+              const res = await apiClient<any>(item.endpoint, {
+                method: item.method,
+                body: item.payload ? JSON.stringify(item.payload) : undefined,
+              });
+              if (res?.id && item.optimisticId && res.id !== item.optimisticId) {
+                const localStudent = await offlineDb.getStudentByIdOffline(item.optimisticId);
+                if (localStudent) {
+                  await offlineDb.removeStudent(item.optimisticId);
+                  await offlineDb.bulkPutStudents([{ ...localStudent, id: res.id }]);
+                }
+              }
+              await offlineDb.removeMutation(item.id);
+              syncedCount++;
+            } catch (err: any) {
+              await this.handleFailedMutation(item, err.message);
+              failedCount++;
+            }
+          }
         }
       }
 
@@ -475,6 +532,14 @@ class OfflineSyncEngine {
         });
       }
       this.notify('SYNC_SUCCESS', { syncedCount, failedCount });
+
+      if (this.queryClient) {
+        this.queryClient.invalidateQueries({ queryKey: ['groups'] });
+        this.queryClient.invalidateQueries({ queryKey: ['academic-groups'] });
+        this.queryClient.invalidateQueries({ queryKey: ['students'] });
+        this.queryClient.invalidateQueries({ queryKey: ['attendance'] });
+        this.queryClient.invalidateQueries({ queryKey: ['finance'] });
+      }
 
       // 8. Downstream Pull: Fetch updated server snapshot and merge into IndexedDB + TanStack Query cache
       try {

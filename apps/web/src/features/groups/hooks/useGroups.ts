@@ -17,23 +17,27 @@ import { generateUUIDv7 } from '@/lib/offline/uuid';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
 import toast from 'react-hot-toast';
 
-export function useGroups() {
+export function useGroups(filters?: {
+  academicYear?: string;
+  academicTerm?: string;
+  gradeLevel?: string;
+}) {
   return useQuery<Group[]>({
-    queryKey: ['groups'],
+    queryKey: ['groups', filters],
     queryFn: async (): Promise<Group[]> => {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       if (!isOnline) {
-        return (await offlineDb.getGroupsOffline()) as unknown as Group[];
+        return (await offlineDb.getGroupsOffline(filters)) as unknown as Group[];
       }
 
       try {
-        const groups = await fetchGroups();
+        const groups = await fetchGroups(filters);
         if (groups && groups.length > 0) {
           offlineDb.bulkPutGroups(groups as any);
         }
         return groups;
       } catch {
-        return (await offlineDb.getGroupsOffline()) as unknown as Group[];
+        return (await offlineDb.getGroupsOffline(filters)) as unknown as Group[];
       }
     },
     networkMode: 'offlineFirst',

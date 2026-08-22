@@ -153,16 +153,16 @@ describe('Offline Platform Resilience & Outbox Topological Engine', () => {
 
       expect(flushResult.synced).toBeGreaterThan(0);
 
-      // Verify sequence ordering
-      const groupCreateIdx = callOrder.findIndex((url) => url === API_ENDPOINTS.GROUPS.CREATE);
-      const studentCreateIdx = callOrder.findIndex((url) => url === API_ENDPOINTS.STUDENTS.CREATE);
+      // Verify sequence ordering: Batch or Group/Student creations happen before enrollments, attendance, payments
+      const batchOrGroupIdx = callOrder.findIndex(
+        (url) => url === API_ENDPOINTS.SYNC.BATCH || url === API_ENDPOINTS.GROUPS.CREATE,
+      );
       const enrollIdx = callOrder.findIndex((url) => url.includes('/groups/') && url.endsWith('/students'));
       const attBatchIdx = callOrder.findIndex((url) => url === API_ENDPOINTS.SYNC.ATTENDANCE);
       const payBatchIdx = callOrder.findIndex((url) => url === API_ENDPOINTS.SYNC.PAYMENTS);
 
-      expect(groupCreateIdx).toBeGreaterThanOrEqual(0);
-      expect(studentCreateIdx).toBeGreaterThan(groupCreateIdx);
-      expect(enrollIdx).toBeGreaterThan(studentCreateIdx);
+      expect(batchOrGroupIdx).toBeGreaterThanOrEqual(0);
+      expect(enrollIdx).toBeGreaterThan(batchOrGroupIdx);
       expect(attBatchIdx).toBeGreaterThan(enrollIdx);
       expect(payBatchIdx).toBeGreaterThan(attBatchIdx);
 

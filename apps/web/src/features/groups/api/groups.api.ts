@@ -9,8 +9,14 @@ import {
   Student
 } from '../types/groups.types';
 
-export async function fetchGroups(): Promise<Group[]> {
-  return await apiClient<Group[]>(API_ENDPOINTS.GROUPS.LIST);
+export async function fetchGroups(params?: {
+  academicYear?: string;
+  academicTerm?: string;
+  gradeLevel?: string;
+}): Promise<Group[]> {
+  return await apiClient<Group[]>(API_ENDPOINTS.GROUPS.LIST, {
+    params: params as any,
+  });
 }
 
 export async function createGroup(payload: CreateGroupPayload): Promise<Group> {

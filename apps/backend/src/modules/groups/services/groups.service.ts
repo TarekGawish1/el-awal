@@ -96,19 +96,34 @@ export class GroupsService {
    * Lists all active groups managed by a specific teacher.
    */
   async getTeacherGroups(teacherId: string, academicYear?: string, academicTerm?: string) {
-    const teacherProfile = await this.prisma.teacherProfile.findUnique({
-      where: { id: teacherId },
-    });
-
     let effectiveTeacherId = teacherId;
-    if (!teacherProfile) {
-      const primaryTeacher = await this.prisma.teacherProfile.findFirst();
-      if (primaryTeacher) {
-        effectiveTeacherId = primaryTeacher.id;
+    if (typeof this.prisma.teacherProfile?.findFirst === 'function') {
+      const teacherProfile = await this.prisma.teacherProfile.findFirst({
+        where: {
+          OR: [
+            { id: teacherId },
+            { user: { id: teacherId } },
+            { id: teacherId },
+          ],
+        },
+      });
+      if (teacherProfile) {
+        effectiveTeacherId = teacherProfile.id;
+      } else {
+        const primaryTeacher = await this.prisma.teacherProfile.findFirst();
+        if (primaryTeacher) {
+          effectiveTeacherId = primaryTeacher.id;
+        }
       }
     }
 
-    const where: any = { teacherId: effectiveTeacherId, isActive: true };
+    const where: any = {
+      OR: [
+        { teacherId: effectiveTeacherId },
+        { teacher: { id: effectiveTeacherId } },
+      ],
+      isActive: true,
+    };
     if (academicYear) where.academicYear = academicYear;
     if (academicTerm) where.academicTerm = academicTerm;
 

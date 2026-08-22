@@ -27,12 +27,31 @@ describe('SyncService', () => {
     studentProfile: {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
+      create: jest.fn(),
+      count: jest.fn().mockResolvedValue(47),
     },
     groupEnrollment: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      create: jest.fn(),
     },
     attendanceRecord: {
       findUnique: jest.fn(),
+      create: jest.fn(),
+    },
+    academicGroup: {
+      findFirst: jest.fn(),
+      create: jest.fn(),
+    },
+    user: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+    },
+    teacherProfile: {
+      findFirst: jest.fn(),
+      findUnique: jest.fn(),
+    },
+    parentStudentLink: {
       create: jest.fn(),
     },
     studentPaymentRecord: {
@@ -298,6 +317,89 @@ describe('SyncService', () => {
           }),
         }),
       );
+    });
+  });
+
+  describe('syncUnifiedBatch', () => {
+    it('should atomically process offline created groups and students, returning idMappings with generated student codes', async () => {
+      const clientTempGroupId = '018d39f4-6a8b-7000-8000-000000000001';
+      const clientTempStudent1Id = '018d39f4-6a8b-7000-8000-000000000002';
+      const clientTempStudent2Id = '018d39f4-6a8b-7000-8000-000000000003';
+
+      mockPrismaService.teacherProfile.findFirst.mockResolvedValue({
+        id: 'teacher-profile-1',
+      });
+      mockPrismaService.academicGroup.findFirst.mockResolvedValue(null);
+      mockPrismaService.academicGroup.create.mockImplementation(async ({ data }: any) => ({
+        id: data.id || 'server-group-id-1',
+        ...data,
+      }));
+
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue(null);
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue(null);
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      mockPrismaService.user.create.mockImplementation(async ({ data }: any) => ({
+        id: data.id || 'server-user-id-1',
+        ...data,
+      }));
+      mockPrismaService.studentProfile.create.mockImplementation(async ({ data }: any) => ({
+        ...data,
+      }));
+      mockPrismaService.groupEnrollment.findFirst.mockResolvedValue(null);
+      mockPrismaService.groupEnrollment.create.mockResolvedValue({
+        id: 'enr-1',
+        status: GroupEnrollmentStatus.ACTIVE,
+      });
+
+      const batchDto = {
+        groups: [
+          {
+            clientTempId: clientTempGroupId,
+            name: 'مجموعة الفيزياء الذرية',
+            gradeLevel: 'الصف الأول الثانوي',
+            academicYear: '2026-2027',
+            academicTerm: 'FIRST_TERM',
+            maxCapacity: 40,
+            monthlyFee: 350,
+          },
+        ],
+        students: [
+          {
+            clientTempId: clientTempStudent1Id,
+            fullName: 'أحمد محمود',
+            phone: '01011112222',
+            gradeLevel: 'الصف الأول الثانوي',
+            academicYear: '2026-2027',
+            academicTerm: 'FIRST_TERM',
+            parentPhone: '01211112222',
+            groupId: clientTempGroupId,
+          },
+          {
+            clientTempId: clientTempStudent2Id,
+            fullName: 'سارة يوسف',
+            phone: '01033334444',
+            gradeLevel: 'الصف الأول الثانوي',
+            academicYear: '2026-2027',
+            academicTerm: 'FIRST_TERM',
+            groupId: clientTempGroupId,
+          },
+        ],
+      };
+
+      const res = await service.syncUnifiedBatch(mockTeacherUser, batchDto);
+
+      expect(res.success).toBe(true);
+      expect(res.idMappings).toBeDefined();
+      expect(res.idMappings.groups[clientTempGroupId]).toBe(clientTempGroupId);
+      expect(res.idMappings.students[clientTempStudent1Id]).toBeDefined();
+      expect(res.idMappings.students[clientTempStudent1Id].studentCode).toMatch(/^STU-\d{4}-\d{5}/);
+      expect(res.idMappings.students[clientTempStudent2Id]).toBeDefined();
+      expect(res.idMappings.students[clientTempStudent2Id].studentCode).toMatch(/^STU-\d{4}-\d{5}/);
+
+      // Verify groups and students were created in transaction
+      expect(mockPrismaService.academicGroup.create).toHaveBeenCalledTimes(1);
+      expect(mockPrismaService.studentProfile.create).toHaveBeenCalledTimes(2);
+      expect(mockPrismaService.groupEnrollment.create).toHaveBeenCalledTimes(2);
     });
   });
 });
