@@ -27,20 +27,24 @@ describe('SyncService', () => {
     studentProfile: {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn(),
       count: jest.fn().mockResolvedValue(47),
     },
     groupEnrollment: {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn(),
     },
     attendanceRecord: {
       findUnique: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn(),
     },
     academicGroup: {
       findFirst: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn(),
     },
     user: {
@@ -56,6 +60,7 @@ describe('SyncService', () => {
     },
     studentPaymentRecord: {
       findFirst: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn(),
       update: jest.fn(),
     },
@@ -400,6 +405,65 @@ describe('SyncService', () => {
       expect(mockPrismaService.academicGroup.create).toHaveBeenCalledTimes(1);
       expect(mockPrismaService.studentProfile.create).toHaveBeenCalledTimes(2);
       expect(mockPrismaService.groupEnrollment.create).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('getSyncDiff', () => {
+    it('should return delta counts and summary items for remote changes', async () => {
+      mockPrismaService.academicGroup.findMany.mockResolvedValueOnce([
+        {
+          id: 'group-1',
+          name: 'مجموعة النخبة',
+          gradeLevel: 'الصف الأول الثانوي',
+          monthlyFee: 300,
+          academicYear: '2026-2027',
+          academicTerm: 'FIRST_TERM',
+          updatedAt: new Date(),
+        },
+      ]);
+
+      mockPrismaService.studentProfile.findMany.mockResolvedValueOnce([
+        {
+          id: 'student-1',
+          studentCode: 'STU-2026-00001',
+          user: { id: 'u-1', fullName: 'علي مصطفى', phone: '01012345678' },
+          groupEnrollments: [{ group: { id: 'group-1', name: 'مجموعة النخبة' } }],
+          updatedAt: new Date(),
+        },
+      ]);
+
+      mockPrismaService.attendanceRecord.findMany.mockResolvedValueOnce([
+        {
+          id: 'att-1',
+          status: AttendanceStatus.PRESENT,
+          sessionId: 'session-1',
+          studentId: 'student-1',
+          recordedAt: new Date(),
+        },
+      ]);
+
+      mockPrismaService.studentPaymentRecord.findMany.mockResolvedValueOnce([
+        {
+          id: 'pay-1',
+          amountPaid: 300,
+          paymentMethod: 'CASH',
+          paymentStatus: PaymentStatus.PAID,
+          studentId: 'student-1',
+          groupId: 'group-1',
+          updatedAt: new Date(),
+        },
+      ]);
+
+      const res = await service.getSyncDiff(mockTeacherUser, new Date(Date.now() - 3600000).toISOString());
+
+      expect(res).toBeDefined();
+      expect(res.groups.count).toBe(1);
+      expect(res.groups.items[0].name).toBe('مجموعة النخبة');
+      expect(res.students.count).toBe(1);
+      expect(res.students.items[0].fullName).toBe('علي مصطفى');
+      expect(res.attendance.count).toBe(1);
+      expect(res.payments.count).toBe(1);
+      expect(res.serverTime).toBeDefined();
     });
   });
 });

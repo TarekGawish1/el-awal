@@ -34,6 +34,20 @@ export class SyncController {
     return this.syncService.getBootstrapSnapshot(user, query.since);
   }
 
+  @Get('diff')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT, UserRole.PARENT)
+  @ApiOperation({
+    summary: 'Bi-directional sync diff summary endpoint returning remote delta changes since a given timestamp',
+  })
+  @ApiResponse({ status: 200, description: 'Lightweight summary of changes on the remote server' })
+  async getSyncDiff(
+    @Query('since') since: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.syncService.getSyncDiff(user, since);
+  }
+
   @Post('attendance')
   @HttpCode(HttpStatus.OK)
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)

@@ -84,6 +84,7 @@ export const API_ENDPOINTS = {
   },
   SYNC: {
     BOOTSTRAP: '/sync/bootstrap',
+    DIFF: '/sync/diff',
     ATTENDANCE: '/sync/attendance',
     PAYMENTS: '/sync/payments',
     PROGRESS: '/sync/progress',

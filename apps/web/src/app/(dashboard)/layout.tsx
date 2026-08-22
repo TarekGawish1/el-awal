@@ -25,8 +25,11 @@ import { AcademicPeriodSwitcher } from '@/features/groups/components/AcademicPer
 import { PwaInstallButton } from '@/components/pwa';
 import { BootstrapProgressIndicator } from '@/components/pwa/BootstrapProgressIndicator';
 import { MobileBottomNav } from '@/components/navigation';
+import { SyncReviewModal } from '@/components/sync';
 import { getNavigationItemsForRole } from '@/config/navigation';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
+import { syncEngine } from '@/lib/offline/sync-engine';
+import { RefreshCw } from 'lucide-react';
 
 export default function DashboardLayout({
   children,
@@ -34,6 +37,8 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isSyncReviewOpen, setIsSyncReviewOpen] = useState(false);
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -42,6 +47,13 @@ export default function DashboardLayout({
 
   useEffect(() => {
     setIsMounted(true);
+    const unsubscribe = syncEngine.subscribe((event) => {
+      setPendingSyncCount(event.pendingCount);
+      if (event.type === 'SYNC_REVIEW_REQUIRED') {
+        setIsSyncReviewOpen(true);
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
   // Authentication Route Protection
@@ -205,6 +217,26 @@ export default function DashboardLayout({
               <AcademicPeriodSwitcher />
             )}
 
+            {/* Sync Review Button (shows when online with pending items or on click) */}
+            <button
+              onClick={() => setIsSyncReviewOpen(true)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                pendingSyncCount > 0
+                  ? 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 shadow-xs animate-pulse'
+                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+              }`}
+              title="مراجعة المزامنة السحابية"
+              aria-label="مراجعة المزامنة السحابية"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">المزامنة</span>
+              {pendingSyncCount > 0 && (
+                <span className="bg-amber-600 text-white rounded-full px-1.5 py-0.2 text-[10px] font-mono font-black">
+                  {pendingSyncCount}
+                </span>
+              )}
+            </button>
+
             <div className="h-8 w-px bg-neutral-200 mx-1 hidden sm:block"></div>
 
             <div className="flex items-center gap-3">
@@ -260,6 +292,15 @@ export default function DashboardLayout({
 
         {/* Floating Offline Bootstrap Hydration Indicator */}
         <BootstrapProgressIndicator />
+
+        {/* Bi-Directional Sync Review Modal */}
+        <SyncReviewModal
+          isOpen={isSyncReviewOpen}
+          onClose={() => setIsSyncReviewOpen(false)}
+          onSuccess={() => {
+            setIsSyncReviewOpen(false);
+          }}
+        />
       </div>
     </div>
   );

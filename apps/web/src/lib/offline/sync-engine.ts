@@ -10,8 +10,49 @@ import { apiClient } from '../api/client';
 import { bootstrapManager } from './bootstrap-manager';
 import toast from 'react-hot-toast';
 
+export interface OutgoingStudentSummary {
+  id: string;
+  fullName: string;
+  phone?: string;
+  gradeLevel?: string;
+  groupName?: string;
+}
+
+export interface OutgoingGroupSummary {
+  id: string;
+  name: string;
+  gradeLevel?: string;
+  monthlyFee?: number;
+}
+
+export interface OutboxSummary {
+  students: OutgoingStudentSummary[];
+  groups: OutgoingGroupSummary[];
+  attendanceCount: number;
+  paymentsCount: number;
+  totalCount: number;
+}
+
+export interface IncomingDiffSummary {
+  groups: { count: number; items: any[] };
+  students: { count: number; items: any[] };
+  attendance: { count: number; items: any[] };
+  payments: { count: number; items: any[] };
+  serverTime: string;
+}
+
+export type SyncEngineEventType =
+  | 'ONLINE'
+  | 'OFFLINE'
+  | 'SYNC_START'
+  | 'SYNC_PROGRESS'
+  | 'SYNC_SUCCESS'
+  | 'SYNC_ERROR'
+  | 'MUTATION_ENQUEUED'
+  | 'SYNC_REVIEW_REQUIRED';
+
 export type SyncEngineEventListener = (event: {
-  type: 'ONLINE' | 'OFFLINE' | 'SYNC_START' | 'SYNC_SUCCESS' | 'SYNC_ERROR' | 'MUTATION_ENQUEUED';
+  type: SyncEngineEventType;
   pendingCount: number;
   data?: any;
 }) => void;
@@ -58,10 +99,7 @@ class OfflineSyncEngine {
     return () => this.listeners.delete(listener);
   }
 
-  private notify(
-    type: 'ONLINE' | 'OFFLINE' | 'SYNC_START' | 'SYNC_SUCCESS' | 'SYNC_ERROR' | 'MUTATION_ENQUEUED',
-    data?: any,
-  ) {
+  private notify(type: SyncEngineEventType, data?: any) {
     offlineDb.getPendingCount().then((pendingCount) => {
       this.listeners.forEach((listener) => {
         try {
@@ -85,6 +123,93 @@ class OfflineSyncEngine {
     return this.lastSyncedAt;
   }
 
+  public isAutoSyncEnabled(): boolean {
+    if (typeof window === 'undefined' || !window.localStorage) return true;
+    return localStorage.getItem('el_awal_auto_sync_enabled') !== 'false';
+  }
+
+  public setAutoSyncEnabled(enabled: boolean): void {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem('el_awal_auto_sync_enabled', enabled ? 'true' : 'false');
+    }
+  }
+
+  /**
+   * Fetches remote delta diff summary from GET /api/v1/sync/diff
+   */
+  public async getSyncDiff(since?: number): Promise<IncomingDiffSummary> {
+    const timestamp = since || this.lastSyncedAt || Date.now() - 24 * 60 * 60 * 1000;
+    const isoDate = new Date(timestamp).toISOString();
+    try {
+      const res = await apiClient<IncomingDiffSummary>(
+        `${API_ENDPOINTS.SYNC.DIFF}?since=${encodeURIComponent(isoDate)}`,
+      );
+      return res || {
+        groups: { count: 0, items: [] },
+        students: { count: 0, items: [] },
+        attendance: { count: 0, items: [] },
+        payments: { count: 0, items: [] },
+        serverTime: new Date().toISOString(),
+      };
+    } catch {
+      return {
+        groups: { count: 0, items: [] },
+        students: { count: 0, items: [] },
+        attendance: { count: 0, items: [] },
+        payments: { count: 0, items: [] },
+        serverTime: new Date().toISOString(),
+      };
+    }
+  }
+
+  /**
+   * Summarizes all local pending outbox mutations categorized into students, groups, attendance, and payments.
+   */
+  public async getPendingOutboxSummary(): Promise<OutboxSummary> {
+    const pending = await offlineDb.getPendingMutations();
+    const allGroups = await offlineDb.getGroupsOffline();
+    const groupMap = new Map(allGroups.map((g) => [g.id, g.name]));
+
+    const students: OutgoingStudentSummary[] = [];
+    const groups: OutgoingGroupSummary[] = [];
+    let attendanceCount = 0;
+    let paymentsCount = 0;
+
+    for (const m of pending) {
+      if (m.domain === 'students' && m.method === 'POST') {
+        const payload = m.payload || {};
+        const assignedGroupId = payload.groupId || payload.initialGroupId;
+        students.push({
+          id: m.optimisticId || m.id,
+          fullName: payload.fullName || payload.name || 'طالب جديد',
+          phone: payload.phone || payload.emergencyPhone || '',
+          gradeLevel: payload.gradeLevel || '',
+          groupName: assignedGroupId ? groupMap.get(assignedGroupId) || 'مجموعة محددة' : 'بدون مجموعة',
+        });
+      } else if (m.domain === 'groups' && m.method === 'POST') {
+        const payload = m.payload || {};
+        groups.push({
+          id: m.optimisticId || m.id,
+          name: payload.name || 'مجموعة جديدة',
+          gradeLevel: payload.gradeLevel || '',
+          monthlyFee: payload.monthlyFee || 0,
+        });
+      } else if (m.domain === 'attendance') {
+        attendanceCount++;
+      } else if (m.domain === 'finance') {
+        paymentsCount++;
+      }
+    }
+
+    return {
+      students,
+      groups,
+      attendanceCount,
+      paymentsCount,
+      totalCount: pending.length,
+    };
+  }
+
   private async handleNetworkChange(online: boolean) {
     if (online) {
       // Confirm genuine connectivity via fast ping
@@ -92,7 +217,12 @@ class OfflineSyncEngine {
       this.isOnlineState = verified;
       if (verified) {
         this.notify('ONLINE');
-        this.triggerSync();
+        const pendingCount = await offlineDb.getPendingCount();
+        if (!this.isAutoSyncEnabled() && pendingCount > 0) {
+          this.notify('SYNC_REVIEW_REQUIRED', { pendingCount });
+        } else {
+          this.triggerSync();
+        }
       } else {
         this.notify('OFFLINE');
       }
@@ -553,6 +683,37 @@ class OfflineSyncEngine {
     }
 
     return { synced: syncedCount, failed: failedCount };
+  }
+
+  /**
+   * High-level bi-directional sync coordinator with stepped progress reporting.
+   * Flushes outgoing mutations to PostgreSQL and pulls incoming snapshot updates.
+   */
+  public async executeBidirectionalSync(
+    onProgress?: (progress: number, step: string) => void,
+  ): Promise<{ synced: number; failed: number }> {
+    onProgress?.(10, 'فحص الاتصال وتجهيز البيانات...');
+    this.notify('SYNC_PROGRESS', { progress: 10, step: 'CONNECTING' });
+
+    onProgress?.(35, 'رفع العمليات والبيانات المحلية إلى السحابة...');
+    this.notify('SYNC_PROGRESS', { progress: 35, step: 'PUSHING_OUTBOX' });
+    const pushResult = await this.flushOutbox();
+
+    onProgress?.(70, 'تحديث المعرفات ومطابقة السجلات...');
+    this.notify('SYNC_PROGRESS', { progress: 70, step: 'RECONCILING' });
+
+    onProgress?.(85, 'تحميل التحديثات من الخادم وتحديث التخزين المحلي...');
+    this.notify('SYNC_PROGRESS', { progress: 85, step: 'PULLING_DIFF' });
+    try {
+      await bootstrapManager.performBootstrap({ queryClient: this.queryClient });
+    } catch (e) {
+      console.warn('Bootstrap refresh error during bidirectional sync:', e);
+    }
+
+    onProgress?.(100, 'اكتملت المزامنة بنجاح 🎉');
+    this.notify('SYNC_PROGRESS', { progress: 100, step: 'COMPLETE' });
+
+    return pushResult;
   }
 
   private async handleFailedMutation(mutation: OutboxMutationRecord, errorMessage: string) {
