@@ -34,8 +34,11 @@ export class StudentsController {
   @Get()
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'List and search students with Keyset cursor pagination and stage filters' })
-  async getStudents(@Query() query: StudentQueryDto) {
-    return this.studentsService.getStudents(query);
+  async getStudents(
+    @Query() query: StudentQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.studentsService.getStudents(query, user);
   }
 
   @Get(':id')

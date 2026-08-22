@@ -511,6 +511,29 @@ class OfflineSyncEngine {
         timestamp: Date.now(),
         resolved: false,
       });
+
+      // If this was an optimistic student creation that failed permanently, prune local entity
+      if (mutation.domain === 'students' && mutation.method === 'POST') {
+        const studentId = mutation.optimisticId || mutation.payload?.id;
+        if (studentId) {
+          await offlineDb.removeStudent(studentId);
+          if (this.queryClient) {
+            this.queryClient.setQueriesData({ queryKey: ['students'] }, (old: any) => {
+              if (!old) return old;
+              if (Array.isArray(old)) return old.filter((s: any) => s.id !== studentId);
+              if (old.data && Array.isArray(old.data)) {
+                return {
+                  ...old,
+                  data: old.data.filter((s: any) => s.id !== studentId),
+                  meta: { ...old.meta, total: Math.max(0, (old.meta?.total || 1) - 1) },
+                };
+              }
+              return old;
+            });
+          }
+        }
+      }
+
       await offlineDb.removeMutation(mutation.id);
     } else {
       await offlineDb.updateMutationStatus(mutation.id, 'FAILED', errorMessage);

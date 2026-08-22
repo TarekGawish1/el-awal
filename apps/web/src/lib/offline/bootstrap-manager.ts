@@ -115,9 +115,9 @@ class BootstrapManager {
 
       this.notify('PROGRESS', 50, 'حفظ سجلات الطلاب والمجموعات والحصص محلياً...');
 
-      // 1. Ingest Students
+      // 1. Ingest Students (Reconciles with server and prunes stale local orphans)
       if (payload.students.length > 0) {
-        await offlineDb.bulkPutStudents(payload.students);
+        await offlineDb.syncStudentsSnapshot(payload.students);
         if (qc) {
           qc.setQueryData(['students'], {
             data: payload.students,

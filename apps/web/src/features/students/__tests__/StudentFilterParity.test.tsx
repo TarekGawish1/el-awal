@@ -182,4 +182,34 @@ describe('Student Offline Filter Parity & Sync Conflict Surfacing', () => {
     expect(studentConflict?.reason).toContain('تعذر إتمام العملية على الخادم');
     expect(studentConflict?.reason).toContain('already registered');
   });
+
+  it('prunes stale orphaned students from IndexedDB when syncing with the 47-student server snapshot', async () => {
+    // Current store has 50 students. Prepare 47 server students snapshot:
+    const serverSnapshot = [];
+    for (let i = 1; i <= 47; i++) {
+      serverSnapshot.push({
+        id: `stu-${i}`,
+        fullName: `طالب نشط ${i}`,
+        studentCode: `STU-${1000 + i}`,
+        qrCodeToken: `qr-stu-${i}`,
+        gradeLevel: 'الصف الأول الثانوي',
+        academicStatus: 'ACTIVE',
+        groupId: 'grp-phys-2026',
+        user: { fullName: `طالب نشط ${i}`, isActive: true },
+        updatedAt: Date.now(),
+      });
+    }
+
+    // Sync snapshot
+    await offlineDb.syncStudentsSnapshot(serverSnapshot);
+
+    // Verify all 50 in memory/IDB became exactly 47
+    const allOffline = await offlineDb.getStudentsOffline();
+    expect(allOffline).toHaveLength(47);
+
+    // The 3 orphaned IDs are completely deleted
+    expect(await offlineDb.getStudentByIdOffline('stu-48')).toBeNull();
+    expect(await offlineDb.getStudentByIdOffline('stu-49')).toBeNull();
+    expect(await offlineDb.getStudentByIdOffline('stu-50')).toBeNull();
+  });
 });

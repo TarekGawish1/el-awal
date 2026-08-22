@@ -77,24 +77,29 @@ export function useStudents(query: StudentQuery) {
 
       try {
         const result = await fetchStudents(query);
-        if (result?.data && result.data.length > 0) {
-          offlineDb.bulkPutStudents(
-            result.data.map((s: any) => ({
-              id: s.id,
-              fullName: s.fullName || s.user?.fullName || '',
-              phone: s.phone || s.user?.phone,
-              email: s.email || s.user?.email,
-              studentCode: s.studentCode || '',
-              qrCodeToken: s.qrCodeToken || s.id,
-              gradeLevel: s.gradeLevel,
-              academicStage: s.academicStage,
-              emergencyPhone: s.emergencyPhone,
-              academicStatus: s.academicStatus,
-              groupId: s.groupEnrollments?.[0]?.groupId || query.groupId,
-              user: s.user || { fullName: s.fullName },
-              groupEnrollments: s.groupEnrollments || [],
-            })),
-          );
+        if (result?.data) {
+          const mappedEntities = result.data.map((s: any) => ({
+            id: s.id,
+            fullName: s.fullName || s.user?.fullName || '',
+            phone: s.phone || s.user?.phone,
+            email: s.email || s.user?.email,
+            studentCode: s.studentCode || '',
+            qrCodeToken: s.qrCodeToken || s.id,
+            gradeLevel: s.gradeLevel,
+            academicStage: s.academicStage,
+            emergencyPhone: s.emergencyPhone,
+            academicStatus: s.academicStatus,
+            groupId: s.groupEnrollments?.[0]?.groupId || query.groupId,
+            user: s.user || { fullName: s.fullName },
+            groupEnrollments: s.groupEnrollments || [],
+          }));
+
+          // When fetching general student list, synchronize snapshot and purge local orphans
+          if (!query.search && !query.groupId && !query.gradeLevel) {
+            await offlineDb.syncStudentsSnapshot(mappedEntities);
+          } else {
+            await offlineDb.bulkPutStudents(mappedEntities);
+          }
         }
         return result;
       } catch {

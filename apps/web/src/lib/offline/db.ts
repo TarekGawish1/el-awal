@@ -460,6 +460,61 @@ class OfflineDatabase {
     }
   }
 
+  /**
+   * Reconciles local IndexedDB students store with the server snapshot.
+   * Inserts/updates server records and prunes any stale orphaned local records
+   * that do not exist on the server and are NOT pending upload in outbox_mutations.
+   */
+  public async syncStudentsSnapshot(serverStudents: StudentEntity[]): Promise<void> {
+    // 1. Collect IDs of any local student creations currently pending in outbox
+    const pendingMutations = await this.getPendingMutations();
+    const pendingStudentIds = new Set<string>();
+    for (const m of pendingMutations) {
+      if (m.domain === 'students' && m.method === 'POST') {
+        if (m.optimisticId) pendingStudentIds.add(m.optimisticId);
+        if (m.payload?.id) pendingStudentIds.add(m.payload.id);
+      }
+    }
+
+    const serverStudentIds = new Set(serverStudents.map((s) => s.id));
+
+    // 2. Memory store reconciliation
+    const allMemoryIds = Array.from(this.memoryStudents.keys());
+    for (const memId of allMemoryIds) {
+      if (!serverStudentIds.has(memId) && !pendingStudentIds.has(memId)) {
+        this.memoryStudents.delete(memId);
+      }
+    }
+    for (const s of serverStudents) {
+      const existing = this.memoryStudents.get(s.id) || {};
+      this.memoryStudents.set(s.id, { ...existing, ...s, updatedAt: Date.now() });
+    }
+
+    if (!this.isSupported()) return;
+
+    // 3. IndexedDB store reconciliation
+    try {
+      const { store } = await this.getStore('students', 'readwrite');
+      const allLocalStudents: StudentEntity[] = await new Promise((resolve) => {
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => resolve([]);
+      });
+
+      for (const localStudent of allLocalStudents) {
+        if (!serverStudentIds.has(localStudent.id) && !pendingStudentIds.has(localStudent.id)) {
+          store.delete(localStudent.id);
+        }
+      }
+
+      for (const s of serverStudents) {
+        store.put(s);
+      }
+    } catch (e) {
+      console.warn('Error during syncStudentsSnapshot:', e);
+    }
+  }
+
   public async removeStudent(id: string): Promise<void> {
     this.memoryStudents.delete(id);
     if (!this.isSupported()) return;

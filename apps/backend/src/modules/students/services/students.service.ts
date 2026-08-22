@@ -347,17 +347,34 @@ export class StudentsService {
   /**
    * Keyset/Offset paginated listing with filters.
    */
-  async getStudents(query: StudentQueryDto) {
+  async getStudents(query: StudentQueryDto, user?: AuthenticatedUser) {
     const limit = CursorPaginationHelper.sanitizeLimit(query.limit);
     const decodedCursor = query.cursor ? CursorPaginationHelper.decodeCursor(query.cursor) : null;
     const cursorFilter = CursorPaginationHelper.buildPrismaWhereClause(decodedCursor, 'DESC');
+
+    const teacherId = user?.teacherProfileId || (user?.role === UserRole.TEACHER ? user?.id : undefined);
 
     const where: any = {
       ...(query.gradeLevel ? { gradeLevel: query.gradeLevel } : {}),
       ...(query.academicStage ? { academicStage: query.academicStage } : {}),
       academicStatus: query.academicStatus || 'ACTIVE',
       user: { isActive: true },
-      ...(query.groupId
+      ...(user?.role === UserRole.TEACHER && teacherId
+        ? {
+            groupEnrollments: {
+              some: {
+                ...(query.groupId ? { groupId: query.groupId } : {}),
+                status: GroupEnrollmentStatus.ACTIVE,
+                group: {
+                  OR: [
+                    { teacherId },
+                    { teacher: { id: teacherId } },
+                  ],
+                },
+              },
+            },
+          }
+        : query.groupId
         ? { groupEnrollments: { some: { groupId: query.groupId, status: GroupEnrollmentStatus.ACTIVE } } }
         : {}),
       ...(query.search
