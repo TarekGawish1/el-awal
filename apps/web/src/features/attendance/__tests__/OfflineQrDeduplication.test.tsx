@@ -180,4 +180,65 @@ describe('Offline QR Deduplication & Idempotency Engine', () => {
     const payMutations2 = pendingAfterSecond.filter((m) => m.domain === 'finance');
     expect(payMutations2).toHaveLength(1);
   });
+
+  it('triggers cross-group warning prompt and prevents recording when student is not enrolled in session group', async () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    // Seed session belonging to a different group (Group B: Chemistry)
+    queryClient.setQueryData(['sessions', 'session-chem-99', 'report'], {
+      sessionId: 'session-chem-99',
+      groupId: 'grp-chem-2',
+      groupName: 'مجموعة الكيمياء',
+      records: [],
+      stats: { totalEnrolled: 25, totalPresent: 0, totalAbsent: 25 },
+    });
+
+    const { result } = renderHook(() => useScanQrAttendance(), { wrapper });
+
+    // 1. Scan student 101 (who belongs to Group A: Physics) into session-chem-99 without allowCrossGroup
+    let crossScanResult: any;
+    await act(async () => {
+      crossScanResult = await result.current.mutateAsync({
+        sessionId: 'session-chem-99',
+        qrCodeToken: 'qr-student-101',
+        allowCrossGroup: false,
+      });
+    });
+
+    expect(crossScanResult.isCrossGroupPrompt).toBe(true);
+    expect(crossScanResult.isDuplicate).toBe(false);
+    expect(crossScanResult.message).toContain('طالب من خارج المجموعة');
+    expect(crossScanResult.student.fullName).toBe('عمر خالد المنشاوي');
+    expect(crossScanResult.studentGroup.name).toBe('مجموعة الفيزياء للثانوية');
+    expect(crossScanResult.sessionGroup.name).toBe('مجموعة الكيمياء');
+
+    // Verify NO mutation was enqueued
+    const pendingMutations = await offlineDb.getPendingMutations();
+    expect(pendingMutations.filter((m) => m.domain === 'attendance')).toHaveLength(0);
+
+    // 2. Now confirm scan with allowCrossGroup = true (Make-up / Guest session)
+    let confirmedResult: any;
+    await act(async () => {
+      confirmedResult = await result.current.mutateAsync({
+        sessionId: 'session-chem-99',
+        qrCodeToken: 'qr-student-101',
+        allowCrossGroup: true,
+      });
+    });
+
+    expect(confirmedResult.isCrossGroupPrompt).toBe(false);
+    expect(confirmedResult.isCrossGroupSuccess).toBe(true);
+    expect(confirmedResult.isOfflineSaved).toBe(true);
+    expect(confirmedResult.message).toContain('حضور استثنائي');
+
+    // Verify mutation WAS enqueued with guest metadata
+    const pendingAfterConfirm = await offlineDb.getPendingMutations();
+    const guestMutations = pendingAfterConfirm.filter((m) => m.domain === 'attendance');
+    expect(guestMutations).toHaveLength(1);
+    expect(guestMutations[0].payload.allowCrossGroup).toBe(true);
+    expect(guestMutations[0].payload.isGuest).toBe(true);
+    expect(guestMutations[0].payload.notes).toContain('حضور استثنائي');
+  });
 });

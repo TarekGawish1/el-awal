@@ -153,9 +153,66 @@ describe('AttendanceService', () => {
 
       mockPrismaService.groupEnrollment.findUnique.mockResolvedValue(null); // Not enrolled
 
-      await expect(
-        service.processQrScan(sessionId, qrCodeToken, mockTeacherUser as any),
-      ).rejects.toThrow(BadRequestException);
+      try {
+        await service.processQrScan(sessionId, qrCodeToken, mockTeacherUser as any);
+        fail('Should have thrown BadRequestException');
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(BadRequestException);
+        const res = err.getResponse();
+        expect(res.error).toBe('STUDENT_NOT_ENROLLED');
+        expect(res.studentName).toBe('محمود أحمد');
+        expect(res.enrolledGroups).toContain('مجموعة أخرى');
+      }
+    });
+
+    it('should successfully record guest/make-up attendance when allowCrossGroup is true', async () => {
+      mockPrismaService.lessonSession.findUnique.mockResolvedValue({
+        id: sessionId,
+        groupId: 'group-1',
+        group: { id: 'group-1', teacherId: 'teacher-user-1', name: 'مجموعة أ', _count: { enrollments: 30 } },
+      });
+
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue({
+        id: 'student-guest-1',
+        studentCode: 'STU-GUEST',
+        qrCodeToken,
+        user: { fullName: 'طارق الضيف', isActive: true },
+        groupEnrollments: [
+          {
+            groupId: 'group-other',
+            status: GroupEnrollmentStatus.ACTIVE,
+            group: { name: 'مجموعة ب' },
+          },
+        ],
+      });
+
+      mockRepository.recordQrScan.mockResolvedValue({
+        record: {
+          id: 'att-guest-1',
+          sessionId,
+          studentId: 'student-guest-1',
+          status: AttendanceStatus.PRESENT,
+          recordingMethod: RecordingMethod.QR_SCAN,
+          notes: 'حضور استثنائي / تعويض',
+          recordedById: 'teacher-user-1',
+          recordedAt: new Date(),
+        },
+        isDuplicate: false,
+      });
+
+      mockPrismaService.attendanceRecord.count.mockResolvedValue(16);
+
+      const result = await service.processQrScan(sessionId, qrCodeToken, mockTeacherUser as any, true);
+
+      expect(result.isDuplicate).toBe(false);
+      expect(result.isCrossGroupSuccess).toBe(true);
+      expect(result.student.fullName).toBe('طارق الضيف');
+      expect(mockRepository.recordQrScan).toHaveBeenCalledWith(
+        sessionId,
+        'student-guest-1',
+        'teacher-user-1',
+        expect.stringContaining('حضور استثنائي'),
+      );
     });
   });
 

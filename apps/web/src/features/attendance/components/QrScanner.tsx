@@ -4,8 +4,8 @@ import React, { useState } from 'react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { useScanQrAttendance } from '../hooks/use-attendance';
 import { Alert } from '@/components/ui/Alert';
-import { Button } from '@/components/ui/Button';
-import { RefreshCcw, UserCheck, AlertTriangle, CheckCircle2, UserPlus, XCircle } from 'lucide-react';
+import { RefreshCcw, AlertTriangle, CheckCircle2, XCircle, Users } from 'lucide-react';
+import { ExternalStudentModal } from './ExternalStudentModal';
 import toast from 'react-hot-toast';
 
 interface QrScannerProps {
@@ -16,6 +16,8 @@ export function QrScanner({ sessionId }: QrScannerProps) {
   const [lastScanResult, setLastScanResult] = useState<{
     success?: boolean;
     duplicate?: boolean;
+    isExternal?: boolean;
+    isUnknown?: boolean;
     message?: string;
     studentName?: string;
   } | null>(null);
@@ -45,10 +47,10 @@ export function QrScanner({ sessionId }: QrScannerProps) {
   const [locked, setLocked] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
-  const [flashType, setFlashType] = useState<'success' | 'duplicate' | 'error' | null>(null);
+  const [flashType, setFlashType] = useState<'success' | 'duplicate' | 'external' | 'unknown' | 'error' | null>(null);
 
   // Web Audio API Synthesizer (Crystal Clear Audio Feedback)
-  const playBeep = (type: 'success' | 'duplicate' | 'error') => {
+  const playBeep = (type: 'success' | 'duplicate' | 'external' | 'error') => {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return;
@@ -68,7 +70,7 @@ export function QrScanner({ sessionId }: QrScannerProps) {
         osc.start(ctx.currentTime);
         osc.stop(ctx.currentTime + 0.22);
       } else if (type === 'duplicate') {
-        // Warning dual pulse tone (587Hz pulse)
+        // Warning dual pulse tone (587.33Hz pulse)
         const osc1 = ctx.createOscillator();
         const gain1 = ctx.createGain();
         osc1.connect(gain1);
@@ -90,6 +92,19 @@ export function QrScanner({ sessionId }: QrScannerProps) {
         gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.26);
         osc2.start(ctx.currentTime + 0.14);
         osc2.stop(ctx.currentTime + 0.26);
+      } else if (type === 'external') {
+        // External student warning triple chime (700Hz -> 500Hz)
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(659.25, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.25);
+        gain.gain.setValueAtTime(0.25, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.3);
       } else {
         // Error low buzz (220Hz saw)
         const osc = ctx.createOscillator();
@@ -122,8 +137,8 @@ export function QrScanner({ sessionId }: QrScannerProps) {
       {
         onSuccess: (data) => {
           if (data.isCrossGroupPrompt) {
-            playBeep('duplicate');
-            setFlashType('duplicate');
+            playBeep('external');
+            setFlashType('external');
             setCrossGroupPrompt({
               token,
               student: data.student,
@@ -131,7 +146,12 @@ export function QrScanner({ sessionId }: QrScannerProps) {
               sessionGroup: data.sessionGroup,
               message: data.message,
             });
-            setLastScanResult(null);
+            setLastScanResult({
+              success: false,
+              isExternal: true,
+              message: 'طالب من خارج المجموعة',
+              studentName: data.student?.fullName,
+            });
             return;
           }
 
@@ -172,7 +192,7 @@ export function QrScanner({ sessionId }: QrScannerProps) {
         },
         onError: (error: any) => {
           playBeep('error');
-          setFlashType('error');
+          setFlashType('unknown');
           const message =
             error?.message ||
             error?.response?.data?.message ||
@@ -181,7 +201,7 @@ export function QrScanner({ sessionId }: QrScannerProps) {
 
           setLastScanResult({
             success: false,
-            duplicate: false,
+            isUnknown: true,
             message: errorMsg,
           });
           toast.error(errorMsg);
@@ -223,6 +243,7 @@ export function QrScanner({ sessionId }: QrScannerProps) {
           setFlashType('error');
           const msg = error?.response?.data?.message || error?.message || 'فشل تسجيل الحضور الاستثنائي';
           toast.error(Array.isArray(msg) ? msg[0] : msg);
+          setCrossGroupPrompt(null);
           setTimeout(() => {
             setLocked(false);
             setFlashType(null);
@@ -235,6 +256,8 @@ export function QrScanner({ sessionId }: QrScannerProps) {
   const handleCancelCrossGroup = () => {
     setCrossGroupPrompt(null);
     setLocked(false);
+    setFlashType(null);
+    setLastScanResult(null);
   };
 
   const handleError = (error: any) => {
@@ -256,6 +279,10 @@ export function QrScanner({ sessionId }: QrScannerProps) {
             ? 'ring-emerald-500 shadow-lg shadow-emerald-500/20'
             : flashType === 'duplicate'
             ? 'ring-amber-500 shadow-lg shadow-amber-500/20'
+            : flashType === 'external'
+            ? 'ring-rose-500 shadow-lg shadow-rose-500/20'
+            : flashType === 'unknown'
+            ? 'ring-slate-400 shadow-lg shadow-slate-400/20'
             : flashType === 'error'
             ? 'ring-rose-500 shadow-lg shadow-rose-500/20'
             : 'ring-primary-50'
@@ -286,52 +313,47 @@ export function QrScanner({ sessionId }: QrScannerProps) {
             <span className="text-xs font-bold text-slate-700">جاري معالجة الـ QR...</span>
           </div>
         )}
+
+        {/* Dynamic Color-Coded Overlay Status Banner */}
+        {flashType === 'success' && (
+          <div className="absolute bottom-3 inset-x-3 bg-emerald-600/95 text-white p-2.5 rounded-2xl flex items-center gap-2 text-xs font-bold shadow-lg backdrop-blur-xs animate-in slide-in-from-bottom-2 duration-150">
+            <CheckCircle2 className="w-4 h-4 text-emerald-200 shrink-0" />
+            <span className="truncate">🟢 تم تسجيل الحضور بنجاح</span>
+          </div>
+        )}
+
+        {flashType === 'duplicate' && (
+          <div className="absolute bottom-3 inset-x-3 bg-amber-500/95 text-slate-950 p-2.5 rounded-2xl flex items-center gap-2 text-xs font-black shadow-lg backdrop-blur-xs animate-in slide-in-from-bottom-2 duration-150">
+            <AlertTriangle className="w-4 h-4 text-amber-950 shrink-0" />
+            <span className="truncate">🟡 تم تسجيل الطالب مسبقاً (مكرر)</span>
+          </div>
+        )}
+
+        {flashType === 'external' && (
+          <div className="absolute bottom-3 inset-x-3 bg-rose-600/95 text-white p-2.5 rounded-2xl flex items-center gap-2 text-xs font-black shadow-lg backdrop-blur-xs animate-in slide-in-from-bottom-2 duration-150">
+            <Users className="w-4 h-4 text-rose-200 shrink-0" />
+            <span className="truncate">🔴 طالب من خارج المجموعة الدراسية</span>
+          </div>
+        )}
+
+        {flashType === 'unknown' && (
+          <div className="absolute bottom-3 inset-x-3 bg-slate-700/95 text-white p-2.5 rounded-2xl flex items-center gap-2 text-xs font-bold shadow-lg backdrop-blur-xs animate-in slide-in-from-bottom-2 duration-150">
+            <XCircle className="w-4 h-4 text-slate-300 shrink-0" />
+            <span className="truncate">⚪ رمز غير صالح أو غير مسجل</span>
+          </div>
+        )}
       </div>
 
-      {/* Cross-Group Attendance Prompt Modal / Card */}
-      {crossGroupPrompt && (
-        <div className="mt-5 w-full max-w-md bg-amber-50/90 border border-amber-200 rounded-3xl p-5 shadow-lg animate-in fade-in zoom-in-95 duration-200">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-              <UserPlus className="w-5 h-5" />
-            </div>
-            <div className="flex-1 space-y-1.5 text-right">
-              <h4 className="text-sm font-black text-amber-950">
-                الطالب مسجل في مجموعة أخرى (نفس الصف الدراسي)
-              </h4>
-              <p className="text-xs text-amber-800 leading-relaxed">
-                الطالب <strong className="font-extrabold text-slate-900">{crossGroupPrompt.student?.fullName}</strong> مسجل في{' '}
-                <strong className="font-bold text-slate-800">{crossGroupPrompt.studentGroup?.name}</strong>{' '}
-                ({crossGroupPrompt.student?.gradeLevel}).
-              </p>
-              <p className="text-[11px] text-amber-700 font-semibold pt-1">
-                هل ترغب في تسجيل حضوره في هذه الحصة كحضور استثنائي (تبديل ميعاد)؟
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-amber-200/80 flex items-center justify-end gap-2.5">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleCancelCrossGroup}
-              className="text-xs rounded-xl"
-            >
-              إلغاء وتخطي
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleConfirmCrossGroup}
-              disabled={isPending}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs"
-            >
-              {isPending ? 'جاري التسجيل...' : '✅ تسجيل حضور استثنائي'}
-            </Button>
-          </div>
-        </div>
-      )}
+      {/* External Student Cross-Group Modal */}
+      <ExternalStudentModal
+        isOpen={!!crossGroupPrompt}
+        onClose={handleCancelCrossGroup}
+        onConfirm={handleConfirmCrossGroup}
+        isPending={isPending}
+        student={crossGroupPrompt?.student}
+        studentGroup={crossGroupPrompt?.studentGroup}
+        sessionGroup={crossGroupPrompt?.sessionGroup}
+      />
 
       {/* Result Alert Box */}
       <div className="mt-6 w-full max-w-sm min-h-[80px]">
@@ -364,4 +386,3 @@ export function QrScanner({ sessionId }: QrScannerProps) {
     </div>
   );
 }
-

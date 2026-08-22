@@ -208,13 +208,22 @@ export function useScanQrAttendance() {
       sessionId: string;
       qrCodeToken: string;
       allowCrossGroup?: boolean;
-    }): Promise<ScanQrResponse & { isOfflineSaved?: boolean }> => {
+    }): Promise<ScanQrResponse & { isOfflineSaved?: boolean; isUnknown?: boolean }> => {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
       if (!isOnline) {
         // Resolve student offline
         const localMatch = await offlineDb.findStudentByQrToken(qrCodeToken);
         const reportData: any = queryClient.getQueryData(['sessions', sessionId, 'report']);
+        const allSessions = await offlineDb.getSessionsOffline();
+        const sessionObj = allSessions.find((s) => s.id === sessionId);
+        const sessionGroupId = reportData?.groupId || sessionObj?.groupId || '';
+        const sessionGroupObj = sessionGroupId ? await offlineDb.getGroupByIdOffline(sessionGroupId) : null;
+        const sessionGroupName = reportData?.groupName || sessionGroupObj?.name || 'المجموعة الحالية';
+
+        const studentGroupId = localMatch?.groupId || localMatch?.student?.groupId || '';
+        const studentGroupObj = studentGroupId ? await offlineDb.getGroupByIdOffline(studentGroupId) : null;
+        const studentGroupName = localMatch?.groupName || studentGroupObj?.name || 'مجموعة أخرى';
 
         const resolvedStudentName =
           localMatch?.student?.fullName ||
@@ -235,7 +244,31 @@ export function useScanQrAttendance() {
               r.studentId === qrCodeToken,
           )?.studentId;
 
-        // Check duplicate in memory report data OR offline outbox mutations / stores
+        // 1. Check Cohort Enrollment (External Student Detection)
+        if (!allowCrossGroup && sessionGroupId && studentGroupId && sessionGroupId !== studentGroupId) {
+          return {
+            isCrossGroupPrompt: true,
+            isDuplicate: false,
+            message: 'طالب من خارج المجموعة',
+            student: {
+              id: studentId || qrCodeToken,
+              fullName: resolvedStudentName,
+              studentCode: localMatch?.student?.studentCode || '',
+              gradeLevel: localMatch?.student?.gradeLevel || '',
+            },
+            studentGroup: {
+              id: studentGroupId,
+              name: studentGroupName,
+              gradeLevel: localMatch?.student?.gradeLevel,
+            },
+            sessionGroup: {
+              id: sessionGroupId,
+              name: sessionGroupName,
+            },
+          };
+        }
+
+        // 2. Check duplicate in memory report data OR offline outbox mutations / stores
         const existingRecord = reportData?.records?.find(
           (r: any) =>
             (studentId && r.studentId === studentId && (r.status === 'PRESENT' || r.attendanceStatus === 'PRESENT')) ||
@@ -256,7 +289,7 @@ export function useScanQrAttendance() {
           };
         }
 
-        // Optimistically update query data
+        // 3. Optimistically update query data
         if (reportData && studentId) {
           const updatedRecords = [
             ...(reportData.records || []),
@@ -268,6 +301,9 @@ export function useScanQrAttendance() {
               status: 'PRESENT',
               recordingMethod: 'QR_SCAN',
               recordedAt: new Date().toISOString(),
+              notes: allowCrossGroup && sessionGroupId !== studentGroupId
+                ? `حضور استثنائي - المجموعة الأصلية: ${studentGroupName}`
+                : undefined,
             },
           ];
 
@@ -295,7 +331,7 @@ export function useScanQrAttendance() {
           });
         }
 
-        // Enqueue mutation into IndexedDB outbox
+        // 4. Enqueue mutation into IndexedDB outbox
         await syncEngine.enqueue(
           'attendance',
           API_ENDPOINTS.ATTENDANCE.SCAN_QR(sessionId),
@@ -306,15 +342,23 @@ export function useScanQrAttendance() {
             studentId,
             status: 'PRESENT',
             recordingMethod: 'QR_SCAN',
-            allowCrossGroup,
+            allowCrossGroup: !!allowCrossGroup,
+            isGuest: !!allowCrossGroup && sessionGroupId !== studentGroupId,
+            originalGroupId: studentGroupId,
+            notes: allowCrossGroup && sessionGroupId !== studentGroupId
+              ? `حضور استثنائي / تعويض (المجموعة الأصلية: ${studentGroupName})`
+              : undefined,
           },
         );
 
         return {
           isDuplicate: false,
           isCrossGroupPrompt: false,
+          isCrossGroupSuccess: !!allowCrossGroup && sessionGroupId !== studentGroupId,
           isOfflineSaved: true,
-          message: 'تم تسجيل الحضور محلياً بنجاح ووضعه في قائمة الانتظار للمزامنة 💾',
+          message: allowCrossGroup && sessionGroupId !== studentGroupId
+            ? `تم تسجيل حضور استثنائي للطالب (${resolvedStudentName}) بنجاح 💾`
+            : 'تم تسجيل الحضور محلياً بنجاح ووضعه في قائمة الانتظار للمزامنة 💾',
           student: { id: studentId || '', fullName: resolvedStudentName },
           sessionStats: reportData?.stats,
         };
@@ -323,11 +367,65 @@ export function useScanQrAttendance() {
       try {
         return await scanQrAttendance(sessionId, qrCodeToken, allowCrossGroup);
       } catch (error: any) {
+        // Check if server rejected due to student not enrolled
+        if (
+          error?.response?.data?.error === 'STUDENT_NOT_ENROLLED' ||
+          (error?.response?.data?.statusCode === 400 && error?.response?.data?.enrolledGroups)
+        ) {
+          const errData = error.response.data;
+          return {
+            isCrossGroupPrompt: true,
+            isDuplicate: false,
+            message: errData.message || 'طالب من خارج المجموعة',
+            student: {
+              id: errData.studentId || '',
+              fullName: errData.studentName || 'الطالب',
+              studentCode: errData.studentCode,
+              gradeLevel: errData.gradeLevel,
+            },
+            studentGroup: {
+              id: errData.originalGroupId || '',
+              name: errData.originalGroupName || errData.enrolledGroups?.[0] || 'مجموعته الأصلية',
+            },
+            sessionGroup: {
+              id: sessionId,
+              name: 'المجموعة الحالية',
+            },
+          };
+        }
+
         // Fallback to offline queue if network connection drops mid-scan
         if (typeof navigator !== 'undefined' && !navigator.onLine) {
           const localMatch = await offlineDb.findStudentByQrToken(qrCodeToken);
           const studentId = localMatch?.student?.id || qrCodeToken;
           const resolvedStudentName = localMatch?.student?.fullName || 'طالب';
+
+          const allSessions = await offlineDb.getSessionsOffline();
+          const sessionObj = allSessions.find((s) => s.id === sessionId);
+          const sessionGroupId = sessionObj?.groupId || '';
+          const studentGroupId = localMatch?.groupId || localMatch?.student?.groupId || '';
+
+          if (!allowCrossGroup && sessionGroupId && studentGroupId && sessionGroupId !== studentGroupId) {
+            return {
+              isCrossGroupPrompt: true,
+              isDuplicate: false,
+              message: 'طالب من خارج المجموعة',
+              student: {
+                id: studentId,
+                fullName: resolvedStudentName,
+                studentCode: localMatch?.student?.studentCode || '',
+                gradeLevel: localMatch?.student?.gradeLevel || '',
+              },
+              studentGroup: {
+                id: studentGroupId,
+                name: localMatch?.groupName || 'مجموعته الأصلية',
+              },
+              sessionGroup: {
+                id: sessionGroupId,
+                name: 'المجموعة الحالية',
+              },
+            };
+          }
 
           const isQueued = await offlineDb.isAttendanceRecordedOffline(sessionId, studentId, qrCodeToken);
           if (isQueued) {
@@ -349,7 +447,12 @@ export function useScanQrAttendance() {
               studentId,
               status: 'PRESENT',
               recordingMethod: 'QR_SCAN',
-              allowCrossGroup,
+              allowCrossGroup: !!allowCrossGroup,
+              isGuest: !!allowCrossGroup && sessionGroupId !== studentGroupId,
+              originalGroupId: studentGroupId,
+              notes: allowCrossGroup && sessionGroupId !== studentGroupId
+                ? `حضور استثنائي / تعويض (المجموعة الأصلية: ${localMatch?.groupName || 'أخرى'})`
+                : undefined,
             },
           );
 
