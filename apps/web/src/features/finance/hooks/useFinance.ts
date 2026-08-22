@@ -46,7 +46,7 @@ export function usePayments(query: PaymentQuery) {
       try {
         const result = await fetchPayments({ ...query, cursor: pageParam });
         if (result?.data && result.data.length > 0) {
-          offlineDb.bulkPutPayments(result.data);
+          offlineDb.bulkPutPayments(result.data as any);
         }
         return result;
       } catch (err) {

@@ -9,7 +9,7 @@ export enum PaymentStatus {
 export interface StudentPaymentRecord {
   id: string;
   studentId: string;
-  groupId: string | null;
+  groupId?: string | null;
   paymentType?: 'TUITION' | 'BOOKLET' | 'OTHER' | string;
   bookletId?: string | null;
   booklet?: {
@@ -22,13 +22,13 @@ export interface StudentPaymentRecord {
   amountExpected: number;
   amountPaid: number;
   currency: string;
-  paymentStatus: PaymentStatus;
+  paymentStatus: PaymentStatus | string;
   paymentMethod: string;
-  receiptNumber: string | null;
-  recordedById: string;
-  notes: string | null;
+  receiptNumber?: string | null;
+  recordedById?: string | null;
+  notes?: string | null;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
   student?: {
     id: string;
     user: {

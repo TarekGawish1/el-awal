@@ -127,7 +127,7 @@ export interface PaymentEntity {
   currency?: string;
   receiptNumber?: string | null;
   notes?: string | null;
-  recordedById?: string;
+  recordedById?: string | null;
   createdAt: string | number;
   updatedAt?: string | number;
   student?: { user?: { fullName?: string } };
