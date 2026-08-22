@@ -10,6 +10,13 @@ export interface StudentPaymentRecord {
   id: string;
   studentId: string;
   groupId: string | null;
+  paymentType?: 'TUITION' | 'BOOKLET' | 'OTHER' | string;
+  bookletId?: string | null;
+  booklet?: {
+    id: string;
+    title: string;
+    price: number;
+  } | null;
   periodYear: number;
   periodMonth: number;
   amountExpected: number;
@@ -63,6 +70,8 @@ export interface DefaultersResponse {
 export interface RecordPaymentPayload {
   studentId: string;
   groupId?: string;
+  paymentType?: 'TUITION' | 'BOOKLET' | 'OTHER' | string;
+  bookletId?: string;
   periodYear: number;
   periodMonth: number;
   amountPaid: number;
@@ -76,6 +85,8 @@ export interface RecordPaymentPayload {
 export interface ScanPaymentQrPayload {
   qrCodeToken: string;
   groupId?: string;
+  paymentType?: 'TUITION' | 'BOOKLET' | 'OTHER' | string;
+  bookletId?: string;
   periodYear?: number;
   periodMonth?: number;
   amountPaid?: number;
@@ -89,6 +100,11 @@ export interface ScanPaymentQrResponse {
   isDuplicate: boolean;
   message: string;
   payment: StudentPaymentRecord;
+  booklet?: {
+    id: string;
+    title: string;
+    price: number;
+  } | null;
   student: {
     id: string;
     fullName: string;

@@ -104,8 +104,8 @@ export interface BookletEntity {
   academicTerm?: string;
   stockCount?: number | null;
   isActive: boolean;
-  createdAt?: string | Date;
-  updatedAt?: string | Date;
+  createdAt?: string | Date | number;
+  updatedAt?: string | Date | number;
   salesCount?: number;
   totalRevenue?: number;
   group?: { id: string; name: string; gradeLevel?: string } | null;
@@ -119,7 +119,7 @@ export interface PaymentEntity {
   periodMonth: number;
   amountPaid: number;
   amountExpected?: number;
-  paymentType?: 'TUITION' | 'BOOKLET' | 'OTHER';
+  paymentType?: 'TUITION' | 'BOOKLET' | 'OTHER' | string;
   bookletId?: string | null;
   booklet?: { id: string; title: string; price?: number } | null;
   paymentStatus: string;
