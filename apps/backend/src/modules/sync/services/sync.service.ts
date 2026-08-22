@@ -173,6 +173,10 @@ export class SyncService {
           where: {
             groupId: { in: groupIds },
             status: GroupEnrollmentStatus.ACTIVE,
+            student: {
+              academicStatus: 'ACTIVE',
+              user: { isActive: true },
+            },
           },
           include: {
             student: {
@@ -193,7 +197,12 @@ export class SyncService {
 
         const studentMap = new Map<string, any>();
         for (const enrollment of enrollments) {
-          if (enrollment.student && !studentMap.has(enrollment.student.id)) {
+          if (
+            enrollment.student &&
+            enrollment.student.user?.isActive !== false &&
+            (enrollment.student.academicStatus || 'ACTIVE') === 'ACTIVE' &&
+            !studentMap.has(enrollment.student.id)
+          ) {
             const s = enrollment.student;
             studentMap.set(s.id, {
               id: s.id,
@@ -204,7 +213,7 @@ export class SyncService {
               qrCodeToken: s.qrCodeToken,
               gradeLevel: s.gradeLevel,
               emergencyPhone: s.emergencyPhone,
-              academicStatus: s.academicStatus,
+              academicStatus: s.academicStatus || 'ACTIVE',
               groupId: enrollment.groupId,
               updatedAt: s.updatedAt,
             });

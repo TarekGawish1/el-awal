@@ -355,7 +355,8 @@ export class StudentsService {
     const where: any = {
       ...(query.gradeLevel ? { gradeLevel: query.gradeLevel } : {}),
       ...(query.academicStage ? { academicStage: query.academicStage } : {}),
-      ...(query.academicStatus ? { academicStatus: query.academicStatus } : {}),
+      academicStatus: query.academicStatus || 'ACTIVE',
+      user: { isActive: true },
       ...(query.groupId
         ? { groupEnrollments: { some: { groupId: query.groupId, status: GroupEnrollmentStatus.ACTIVE } } }
         : {}),

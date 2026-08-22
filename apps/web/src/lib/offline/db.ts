@@ -32,6 +32,8 @@ export interface StudentEntity {
   parentPhone?: string;
   academicStatus?: string;
   groupId?: string;
+  isActive?: boolean;
+  isArchived?: boolean;
   updatedAt?: number;
   user?: {
     id?: string;
@@ -572,6 +574,10 @@ class OfflineDatabase {
     search?: string;
     groupId?: string;
     gradeLevel?: string;
+    academicStage?: string;
+    academicStatus?: string;
+    academicYear?: string;
+    academicTerm?: string;
   }): Promise<StudentEntity[]> {
     let list: StudentEntity[] = [];
 
@@ -590,12 +596,42 @@ class OfflineDatabase {
       }
     }
 
-    if (!options) return list;
+    const groups = await this.getGroupsOffline();
+    const groupMap = new Map(groups.map((g) => [g.id, g]));
 
     return list.filter((s) => {
-      if (options.gradeLevel && s.gradeLevel !== options.gradeLevel) return false;
-      if (options.groupId && s.groupId !== options.groupId) return false;
-      if (options.search) {
+      // 1. Exclude soft-deleted / inactive / archived students
+      if (s.isArchived === true) return false;
+      if (s.user && s.user.isActive === false) return false;
+      if (s.isActive === false) return false;
+
+      // 2. Academic Status filter (default to ACTIVE if not explicitly specified)
+      const targetStatus = options?.academicStatus || 'ACTIVE';
+      const studentStatus = s.academicStatus || 'ACTIVE';
+      if (studentStatus !== targetStatus) return false;
+
+      // 3. Grade Level & Academic Stage filter
+      if (options?.gradeLevel && s.gradeLevel !== options.gradeLevel) return false;
+      if (options?.academicStage && s.academicStage && s.academicStage !== options.academicStage) return false;
+
+      // 4. Group filter
+      if (options?.groupId) {
+        const studentGroupId = s.groupId || s.groupEnrollments?.[0]?.groupId || s.groupEnrollments?.[0]?.group?.id;
+        if (studentGroupId !== options.groupId) return false;
+      }
+
+      // 5. Academic Year & Term filter
+      if (options?.academicYear || options?.academicTerm) {
+        const studentGroupId = s.groupId || s.groupEnrollments?.[0]?.groupId || s.groupEnrollments?.[0]?.group?.id;
+        const group = studentGroupId ? groupMap.get(studentGroupId) : null;
+        if (group) {
+          if (options.academicYear && group.academicYear && group.academicYear !== options.academicYear) return false;
+          if (options.academicTerm && group.academicTerm && group.academicTerm !== options.academicTerm) return false;
+        }
+      }
+
+      // 6. Search query
+      if (options?.search) {
         const q = options.search.toLowerCase().trim();
         const matchesName = (s.fullName || s.user?.fullName || '').toLowerCase().includes(q);
         const matchesCode = (s.studentCode || '').toLowerCase().includes(q);
@@ -603,6 +639,7 @@ class OfflineDatabase {
         const matchesQr = (s.qrCodeToken || '').includes(q);
         return matchesName || matchesCode || matchesPhone || matchesQr;
       }
+
       return true;
     });
   }
@@ -1206,6 +1243,10 @@ class OfflineDatabase {
       const { store } = await this.getStore('sync_conflicts', 'readwrite');
       store.put(conflict);
     } catch {}
+  }
+
+  public async getConflicts(): Promise<SyncConflictRecord[]> {
+    return this.getUnresolvedConflicts();
   }
 
   public async getUnresolvedConflicts(): Promise<SyncConflictRecord[]> {

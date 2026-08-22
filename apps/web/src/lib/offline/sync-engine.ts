@@ -490,12 +490,23 @@ class OfflineSyncEngine {
   }
 
   private async handleFailedMutation(mutation: OutboxMutationRecord, errorMessage: string) {
-    if (mutation.retryCount >= 5) {
+    const isValidationError =
+      errorMessage?.includes('already registered') ||
+      errorMessage?.includes('Collision') ||
+      errorMessage?.includes('400') ||
+      errorMessage?.includes('409') ||
+      errorMessage?.includes('422') ||
+      errorMessage?.includes('تكرار') ||
+      errorMessage?.includes('مسجل مسبقاً');
+
+    if (mutation.retryCount >= 3 || isValidationError) {
       await offlineDb.recordConflict({
         id: generateClientOperationId(),
         operationId: mutation.id,
         domain: mutation.domain,
-        reason: `Exceeded max retry attempts (5): ${errorMessage}`,
+        reason: isValidationError
+          ? `تعذر إتمام العملية على الخادم: ${errorMessage}`
+          : `تجاوز الحد الأقصى للمحاولات (3): ${errorMessage}`,
         payload: mutation.payload,
         timestamp: Date.now(),
         resolved: false,

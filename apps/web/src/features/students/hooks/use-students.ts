@@ -26,31 +26,41 @@ export function useStudents(query: StudentQuery) {
     queryFn: async (): Promise<CursorPaginatedResponse<StudentListItem>> => {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       if (!isOnline) {
+        const allGroups = await offlineDb.getGroupsOffline();
+        const groupMap = new Map(allGroups.map((g) => [g.id, g]));
+
         const offlineList = await offlineDb.getStudentsOffline({
           search: query.search,
           groupId: query.groupId,
           gradeLevel: query.gradeLevel,
+          academicStage: query.academicStage,
+          academicStatus: query.academicStatus,
         });
-        const mappedList: StudentListItem[] = offlineList.map((s) => ({
-          id: s.id,
-          studentCode: s.studentCode || `STU-${s.id.slice(0, 6)}`,
-          gradeLevel: s.gradeLevel || '',
-          academicStage: s.academicStage || '',
-          academicStatus: (s.academicStatus || 'ACTIVE') as any,
-          createdAt: new Date(s.updatedAt || Date.now()).toISOString(),
-          updatedAt: new Date(s.updatedAt || Date.now()).toISOString(),
-          user: {
-            id: s.userId || s.id,
-            fullName: s.fullName || s.user?.fullName || 'طالب',
-            phone: s.phone || s.user?.phone || '',
-            email: s.email || s.user?.email || '',
-            isActive: s.user?.isActive ?? true,
-          },
-          groupEnrollments: s.groupId
-            ? [{ group: { id: s.groupId, name: 'المجموعة', gradeLevel: s.gradeLevel || '' } }]
-            : (s.groupEnrollments || []),
-          parentLinks: s.parentLinks || [],
-        }));
+
+        const mappedList: StudentListItem[] = offlineList.map((s) => {
+          const matchedGroup = s.groupId ? groupMap.get(s.groupId) : null;
+          return {
+            id: s.id,
+            studentCode: s.studentCode || `STU-${s.id.slice(0, 6)}`,
+            gradeLevel: s.gradeLevel || matchedGroup?.gradeLevel || '',
+            academicStage: s.academicStage || '',
+            academicStatus: (s.academicStatus || 'ACTIVE') as any,
+            createdAt: new Date(s.updatedAt || Date.now()).toISOString(),
+            updatedAt: new Date(s.updatedAt || Date.now()).toISOString(),
+            user: {
+              id: s.userId || s.id,
+              fullName: s.fullName || s.user?.fullName || 'طالب',
+              phone: s.phone || s.user?.phone || '',
+              email: s.email || s.user?.email || '',
+              isActive: s.user?.isActive ?? s.isActive ?? true,
+            },
+            groupEnrollments: s.groupId
+              ? [{ group: { id: s.groupId, name: matchedGroup?.name || 'المجموعة', gradeLevel: matchedGroup?.gradeLevel || s.gradeLevel || '' } }]
+              : (s.groupEnrollments || []),
+            parentLinks: s.parentLinks || [],
+          };
+        });
+
         return {
           success: true,
           data: mappedList,
@@ -88,31 +98,41 @@ export function useStudents(query: StudentQuery) {
         }
         return result;
       } catch {
+        const allGroups = await offlineDb.getGroupsOffline();
+        const groupMap = new Map(allGroups.map((g) => [g.id, g]));
+
         const offlineList = await offlineDb.getStudentsOffline({
           search: query.search,
           groupId: query.groupId,
           gradeLevel: query.gradeLevel,
+          academicStage: query.academicStage,
+          academicStatus: query.academicStatus,
         });
-        const mappedList: StudentListItem[] = offlineList.map((s) => ({
-          id: s.id,
-          studentCode: s.studentCode || `STU-${s.id.slice(0, 6)}`,
-          gradeLevel: s.gradeLevel || '',
-          academicStage: s.academicStage || '',
-          academicStatus: (s.academicStatus || 'ACTIVE') as any,
-          createdAt: new Date(s.updatedAt || Date.now()).toISOString(),
-          updatedAt: new Date(s.updatedAt || Date.now()).toISOString(),
-          user: {
-            id: s.userId || s.id,
-            fullName: s.fullName || s.user?.fullName || 'طالب',
-            phone: s.phone || s.user?.phone || '',
-            email: s.email || s.user?.email || '',
-            isActive: s.user?.isActive ?? true,
-          },
-          groupEnrollments: s.groupId
-            ? [{ group: { id: s.groupId, name: 'المجموعة', gradeLevel: s.gradeLevel || '' } }]
-            : (s.groupEnrollments || []),
-          parentLinks: s.parentLinks || [],
-        }));
+
+        const mappedList: StudentListItem[] = offlineList.map((s) => {
+          const matchedGroup = s.groupId ? groupMap.get(s.groupId) : null;
+          return {
+            id: s.id,
+            studentCode: s.studentCode || `STU-${s.id.slice(0, 6)}`,
+            gradeLevel: s.gradeLevel || matchedGroup?.gradeLevel || '',
+            academicStage: s.academicStage || '',
+            academicStatus: (s.academicStatus || 'ACTIVE') as any,
+            createdAt: new Date(s.updatedAt || Date.now()).toISOString(),
+            updatedAt: new Date(s.updatedAt || Date.now()).toISOString(),
+            user: {
+              id: s.userId || s.id,
+              fullName: s.fullName || s.user?.fullName || 'طالب',
+              phone: s.phone || s.user?.phone || '',
+              email: s.email || s.user?.email || '',
+              isActive: s.user?.isActive ?? s.isActive ?? true,
+            },
+            groupEnrollments: s.groupId
+              ? [{ group: { id: s.groupId, name: matchedGroup?.name || 'المجموعة', gradeLevel: matchedGroup?.gradeLevel || s.gradeLevel || '' } }]
+              : (s.groupEnrollments || []),
+            parentLinks: s.parentLinks || [],
+          };
+        });
+
         return {
           success: true,
           data: mappedList,

@@ -68,7 +68,13 @@ export function SyncConflictsModal({
                           ? 'حضور وغياب'
                           : c.domain === 'finance'
                             ? 'سداد اشتراكات'
-                            : c.domain}
+                            : c.domain === 'students'
+                              ? 'تسجيل الطلاب'
+                              : c.domain === 'groups'
+                                ? 'المجموعات الدراسية'
+                                : c.domain === 'assessments'
+                                  ? 'الاختبارات والواجبات'
+                                  : c.domain}
                       </span>
                       <span className="text-xs text-slate-400">
                         {formatArabicTime(new Date(c.timestamp).toISOString())}
