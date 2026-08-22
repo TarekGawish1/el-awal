@@ -30,7 +30,7 @@ export function useGroupSessions(groupId: string | null) {
       }
     },
     enabled: !!groupId,
-    networkMode: 'offlineFirst',
+    networkMode: 'always',
     staleTime: 30 * 1000,
   });
 }
@@ -88,7 +88,7 @@ export function useTodaySessions(
         return resultList.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
       }
     },
-    networkMode: 'offlineFirst',
+    networkMode: 'always',
     staleTime: 30 * 1000,
   });
 }
@@ -102,19 +102,25 @@ export function useSessionReport(sessionId: string | null) {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
       const buildOfflineReport = async () => {
+        // 1. Check if we already have a cached report in memory / IndexedDB
+        const cachedReport = await offlineDb.getSessionReport(cleanSessionId);
+
+        // 2. Fetch session, group, and student roster offline
         const allSessions = await offlineDb.getSessionsOffline();
         const session = allSessions.find(
           (s) => String(s.id).trim().toLowerCase() === cleanSessionId,
         );
-        const targetGroupId = session?.groupId || '';
+        const targetGroupId = session?.groupId || cachedReport?.groupId || '';
         let roster = targetGroupId ? await offlineDb.getRoster(targetGroupId) : null;
         const group = targetGroupId ? await offlineDb.getGroupByIdOffline(targetGroupId) : null;
+        const groupStudents = targetGroupId
+          ? await offlineDb.getStudentsOffline({ groupId: targetGroupId })
+          : await offlineDb.getStudentsOffline();
 
         if (!roster && targetGroupId) {
-          const groupStudents = await offlineDb.getStudentsOffline({ groupId: targetGroupId });
           roster = {
             groupId: targetGroupId,
-            groupName: group?.name || 'المجموعة الدراسية',
+            groupName: group?.name || session?.group?.name || 'المجموعة الدراسية',
             gradeLevel: group?.gradeLevel || '',
             monthlyFee: group?.monthlyFee || 0,
             students: groupStudents.map((st) => ({
@@ -129,22 +135,116 @@ export function useSessionReport(sessionId: string | null) {
           };
         }
 
-        const studentCount = roster?.students?.length || 0;
+        // 3. Collect all enrolled students
+        const allRosterStudents = roster?.students?.length
+          ? roster.students
+          : groupStudents.map((st) => ({
+              id: st.id,
+              fullName: st.fullName || st.user?.fullName || 'طالب',
+              studentCode: st.studentCode || `STU-${st.id.slice(0, 6)}`,
+              qrCodeToken: st.qrCodeToken || st.id,
+              gradeLevel: st.gradeLevel || group?.gradeLevel || '',
+              academicStatus: st.academicStatus || 'ACTIVE',
+            }));
 
-        return {
+        // 4. Collect pending attendance mutations for this session
+        const pendingMutations = await offlineDb.getPendingMutations();
+        const sessionMutations = pendingMutations.filter(
+          (m) =>
+            m.domain === 'attendance' &&
+            m.payload &&
+            String(m.payload.sessionId || '').trim().toLowerCase() === cleanSessionId,
+        );
+
+        // Map of studentId -> attendance record from pending mutations or cached records
+        const recordsMap = new Map<string, any>();
+
+        // (a) First seed with existing records from cached report
+        if (cachedReport?.records && Array.isArray(cachedReport.records)) {
+          for (const r of cachedReport.records) {
+            if (r.studentId) {
+              recordsMap.set(String(r.studentId).trim(), r);
+            }
+          }
+        }
+
+        // (b) Overlay with pending mutations
+        for (const mut of sessionMutations) {
+          const p = mut.payload;
+          if (p.studentId) {
+            recordsMap.set(String(p.studentId).trim(), {
+              id: mut.id,
+              studentId: p.studentId,
+              status: p.status || 'PRESENT',
+              recordingMethod: p.recordingMethod || 'QR_SCAN',
+              recordedAt: new Date(mut.clientTimestamp).toISOString(),
+              notes: p.notes,
+            });
+          }
+        }
+
+        // 5. Build full records list for every enrolled student
+        const fullRecords = allRosterStudents.map((st) => {
+          const cleanStId = String(st.id).trim();
+          const rec = recordsMap.get(cleanStId);
+          return {
+            id: rec?.id || `unrecorded-${st.id}`,
+            studentId: st.id,
+            studentCode: st.studentCode || '',
+            fullName: st.fullName || 'طالب',
+            phone: (st as any).phone || (st as any).user?.phone || null,
+            status: rec?.status || null,
+            recordingMethod: rec?.recordingMethod || null,
+            recordedAt: rec?.recordedAt || null,
+            notes: rec?.notes || null,
+          };
+        });
+
+        // Also add any guest / cross-group students that attended
+        recordsMap.forEach((rec, stId) => {
+          if (!fullRecords.some((r) => String(r.studentId).trim() === stId)) {
+            fullRecords.push({
+              id: rec.id,
+              studentId: stId,
+              studentCode: rec.studentCode || '',
+              fullName: rec.fullName || rec.studentName || 'طالب ضيف',
+              phone: null,
+              status: rec.status || 'PRESENT',
+              recordingMethod: rec.recordingMethod || 'QR_SCAN',
+              recordedAt: rec.recordedAt || new Date().toISOString(),
+              notes: rec.notes || 'حضور استثنائي',
+            });
+          }
+        });
+
+        const totalEnrolled = Math.max(allRosterStudents.length, cachedReport?.metrics?.totalEnrolled || 0);
+        const presentCount = fullRecords.filter((r) => r.status === 'PRESENT').length;
+        const excusedCount = fullRecords.filter((r) => r.status === 'EXCUSED').length;
+        const absentCount = fullRecords.filter((r) => r.status === 'ABSENT').length;
+        const remainingUnrecorded = Math.max(0, totalEnrolled - presentCount - excusedCount - absentCount);
+        const calculatedAbsent = absentCount + remainingUnrecorded;
+        const attendanceRatePercentage =
+          totalEnrolled > 0 ? Math.round((presentCount / totalEnrolled) * 100) : 0;
+
+        const builtReport = {
           sessionId: sessionId || '',
-          sessionDate: session?.sessionDate || new Date().toISOString(),
-          topic: session?.topic || 'رصد الحضور',
+          sessionDate: session?.sessionDate || cachedReport?.sessionDate || new Date().toISOString(),
+          topic: session?.topic || cachedReport?.topic || 'رصد الحضور',
           groupId: targetGroupId,
-          groupName: roster?.groupName || group?.name || session?.group?.name || 'المجموعة الدراسية',
+          groupName:
+            roster?.groupName ||
+            group?.name ||
+            session?.group?.name ||
+            cachedReport?.groupName ||
+            'المجموعة الدراسية',
           metrics: {
-            totalEnrolled: studentCount,
-            presentCount: 0,
-            absentCount: studentCount,
-            excusedCount: 0,
-            attendanceRatePercentage: 0,
+            totalEnrolled,
+            presentCount,
+            absentCount: calculatedAbsent,
+            excusedCount,
+            attendanceRatePercentage,
           },
-          session: session || {
+          session: session || cachedReport?.session || {
             id: sessionId,
             groupId: targetGroupId,
             sessionDate: new Date().toISOString(),
@@ -152,18 +252,24 @@ export function useSessionReport(sessionId: string | null) {
             startTime: '16:00',
             endTime: '18:00',
           },
-          group: group || (roster ? { id: roster.groupId, name: roster.groupName, gradeLevel: roster.gradeLevel } : null),
-          roster:
-            roster?.students?.map((s) => ({
-              studentId: s.id,
-              studentName: s.fullName,
-              studentCode: s.studentCode,
-              qrCodeToken: s.qrCodeToken,
-              attendanceStatus: 'ABSENT',
-            })) || [],
-          records: [],
-          stats: { totalEnrolled: studentCount, presentCount: 0, absentCount: studentCount },
+          group: group || cachedReport?.group || (roster ? { id: roster.groupId, name: roster.groupName, gradeLevel: roster.gradeLevel } : null),
+          roster: allRosterStudents.map((s) => ({
+            studentId: s.id,
+            studentName: s.fullName,
+            studentCode: s.studentCode,
+            qrCodeToken: s.qrCodeToken,
+            attendanceStatus: recordsMap.get(String(s.id).trim())?.status || 'ABSENT',
+          })),
+          records: fullRecords,
+          stats: {
+            totalEnrolled,
+            totalPresent: presentCount,
+            totalAbsent: calculatedAbsent,
+          },
         };
+
+        await offlineDb.cacheSessionReport(cleanSessionId, builtReport);
+        return builtReport;
       };
 
       if (!isOnline) {
@@ -172,18 +278,21 @@ export function useSessionReport(sessionId: string | null) {
 
       try {
         const data = await fetchSessionReport(sessionId!);
-        if (data && data.groupId && data.records) {
-          offlineDb.cacheRoster({
-            groupId: data.groupId,
-            groupName: data.groupName || 'المجموعة الدراسية',
-            students: data.records.map((r: any) => ({
-              id: r.studentId || r.id,
-              fullName: r.fullName || r.studentName || '',
-              studentCode: r.studentCode,
-              qrCodeToken: r.qrCodeToken || r.studentCode || r.studentId || r.id,
-            })),
-            updatedAt: Date.now(),
-          });
+        if (data) {
+          if (data.groupId && data.records) {
+            offlineDb.cacheRoster({
+              groupId: data.groupId,
+              groupName: data.groupName || 'المجموعة الدراسية',
+              students: data.records.map((r: any) => ({
+                id: r.studentId || r.id,
+                fullName: r.fullName || r.studentName || '',
+                studentCode: r.studentCode,
+                qrCodeToken: r.qrCodeToken || r.studentCode || r.studentId || r.id,
+              })),
+              updatedAt: Date.now(),
+            });
+          }
+          await offlineDb.cacheSessionReport(cleanSessionId, data);
         }
         return data;
       } catch {
@@ -191,7 +300,7 @@ export function useSessionReport(sessionId: string | null) {
       }
     },
     enabled: !!sessionId,
-    networkMode: 'offlineFirst',
+    networkMode: 'always',
     staleTime: 30 * 1000,
   });
 }
@@ -289,46 +398,23 @@ export function useScanQrAttendance() {
           };
         }
 
-        // 3. Optimistically update query data
-        if (reportData && studentId) {
-          const updatedRecords = [
-            ...(reportData.records || []),
-            {
-              id: `offline-${Date.now()}`,
-              sessionId,
-              studentId,
-              studentName: resolvedStudentName,
-              status: 'PRESENT',
-              recordingMethod: 'QR_SCAN',
-              recordedAt: new Date().toISOString(),
-              notes: allowCrossGroup && sessionGroupId !== studentGroupId
-                ? `حضور استثنائي - المجموعة الأصلية: ${studentGroupName}`
-                : undefined,
-            },
-          ];
-
-          const totalEnrolled = Number(reportData.metrics?.totalEnrolled ?? reportData.stats?.totalEnrolled ?? updatedRecords.length);
-          const presentCount = Number((reportData.metrics?.presentCount ?? reportData.stats?.totalPresent ?? 0) + 1);
-          const absentCount = Math.max(0, totalEnrolled - presentCount);
-          const ratePercentage = totalEnrolled > 0 ? Math.round((presentCount / totalEnrolled) * 100) : 100;
-
-          queryClient.setQueryData(['sessions', sessionId, 'report'], {
-            ...reportData,
-            records: updatedRecords,
-            metrics: {
-              ...reportData.metrics,
-              totalEnrolled,
-              presentCount,
-              absentCount,
-              attendanceRatePercentage: ratePercentage,
-            },
-            stats: {
-              ...reportData.stats,
-              totalEnrolled,
-              totalPresent: presentCount,
-              totalAbsent: absentCount,
-            },
+        // 3. Record attendance in offline database
+        if (studentId) {
+          const updatedReport = await offlineDb.recordAttendanceOffline(sessionId, {
+            studentId,
+            studentName: resolvedStudentName,
+            studentCode: localMatch?.student?.studentCode || '',
+            status: 'PRESENT',
+            recordingMethod: 'QR_SCAN',
+            recordedAt: new Date().toISOString(),
+            notes: allowCrossGroup && sessionGroupId !== studentGroupId
+              ? `حضور استثنائي - المجموعة الأصلية: ${studentGroupName}`
+              : undefined,
           });
+
+          if (updatedReport) {
+            queryClient.setQueryData(['sessions', sessionId, 'report'], updatedReport);
+          }
         }
 
         // 4. Enqueue mutation into IndexedDB outbox
@@ -358,9 +444,8 @@ export function useScanQrAttendance() {
           isOfflineSaved: true,
           message: allowCrossGroup && sessionGroupId !== studentGroupId
             ? `تم تسجيل حضور استثنائي للطالب (${resolvedStudentName}) بنجاح 💾`
-            : 'تم تسجيل الحضور محلياً بنجاح ووضعه في قائمة الانتظار للمزامنة 💾',
+            : `تم رصد حضور الطالب (${resolvedStudentName}) بنجاح محلياً 💾`,
           student: { id: studentId || '', fullName: resolvedStudentName },
-          sessionStats: reportData?.stats,
         };
       }
 
@@ -437,6 +522,19 @@ export function useScanQrAttendance() {
             };
           }
 
+          const updatedReport = await offlineDb.recordAttendanceOffline(sessionId, {
+            studentId,
+            studentName: resolvedStudentName,
+            studentCode: localMatch?.student?.studentCode || '',
+            status: 'PRESENT',
+            recordingMethod: 'QR_SCAN',
+            recordedAt: new Date().toISOString(),
+          });
+
+          if (updatedReport) {
+            queryClient.setQueryData(['sessions', sessionId, 'report'], updatedReport);
+          }
+
           await syncEngine.enqueue(
             'attendance',
             API_ENDPOINTS.ATTENDANCE.SCAN_QR(sessionId),
@@ -467,11 +565,9 @@ export function useScanQrAttendance() {
         throw error;
       }
     },
-    onSuccess: (data, variables) => {
-      if (!data?.isOfflineSaved) {
-        queryClient.invalidateQueries({ queryKey: ['sessions', variables.sessionId, 'report'] });
-        queryClient.invalidateQueries({ queryKey: ['groups'] });
-      }
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['sessions', variables.sessionId, 'report'] });
+      queryClient.invalidateQueries({ queryKey: ['groups'] });
     },
   });
 }
@@ -490,8 +586,17 @@ export function useManualAttendance() {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
       if (!isOnline) {
-        // Enqueue batch manual attendance into outbox
+        // Enqueue batch manual attendance into outbox and record offline
+        let updatedReport: any = null;
         for (const item of payload.records) {
+          updatedReport = await offlineDb.recordAttendanceOffline(sessionId, {
+            studentId: item.studentId,
+            status: item.status,
+            notes: item.notes,
+            recordingMethod: 'MANUAL',
+            recordedAt: new Date().toISOString(),
+          });
+
           await syncEngine.enqueue(
             'attendance',
             API_ENDPOINTS.ATTENDANCE.MANUAL(sessionId),
@@ -504,6 +609,10 @@ export function useManualAttendance() {
               recordingMethod: 'MANUAL',
             },
           );
+        }
+
+        if (updatedReport) {
+          queryClient.setQueryData(['sessions', sessionId, 'report'], updatedReport);
         }
 
         return {

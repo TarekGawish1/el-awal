@@ -50,6 +50,7 @@ export interface BootstrapSnapshotResponse {
     payments?: any[];
     assessments?: any[];
     courses?: any[];
+    attendance?: any[];
     attendanceHistory?: any[];
     children?: any[];
   };
@@ -526,6 +527,36 @@ export class SyncService {
       courses = [];
     }
 
+    // 9. Attendance Records
+    let attendanceRecords: any[] = [];
+    try {
+      if (groupIds.length > 0) {
+        attendanceRecords = await this.prisma.attendanceRecord.findMany({
+          where: {
+            session: {
+              groupId: { in: groupIds },
+            },
+            ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
+          },
+          include: {
+            student: {
+              include: {
+                user: { select: { fullName: true, phone: true } },
+              },
+            },
+            session: {
+              select: { id: true, groupId: true, sessionDate: true, topic: true },
+            },
+          },
+          orderBy: { recordedAt: 'desc' },
+          take: 1000,
+        });
+      }
+    } catch (err) {
+      this.logger.warn('Failed to fetch attendance records in bootstrap snapshot:', err);
+      attendanceRecords = [];
+    }
+
     return {
       snapshotVersion,
       timestamp,
@@ -538,6 +569,7 @@ export class SyncService {
         schedules: schedules || [],
         sessions: sessions || [],
         payments: payments || [],
+        attendance: attendanceRecords || [],
         assessments: assessments || [],
         courses: courses || [],
       },

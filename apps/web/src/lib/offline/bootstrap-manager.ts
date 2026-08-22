@@ -103,6 +103,7 @@ class BootstrapManager {
         payments: Array.isArray(rootData.payments) ? rootData.payments : Array.isArray(response?.payments) ? response.payments : [],
         assessments: Array.isArray(rootData.assessments) ? rootData.assessments : Array.isArray(response?.assessments) ? response.assessments : [],
         courses: Array.isArray(rootData.courses) ? rootData.courses : Array.isArray(response?.courses) ? response.courses : [],
+        attendance: Array.isArray(rootData.attendance) ? rootData.attendance : Array.isArray(response?.attendance) ? response.attendance : [],
         academicPeriod: rootData.academicPeriod || response?.academicPeriod || {
           academicYear: '2026-2027',
           academicTerm: 'FIRST_TERM',
@@ -150,7 +151,22 @@ class BootstrapManager {
         await offlineDb.bulkPutPayments(payload.payments);
       }
 
-      // 5. Ingest Assessments & Questions
+      // 5. Ingest Attendance Records
+      if (payload.attendance.length > 0) {
+        for (const att of payload.attendance) {
+          if (att.sessionId) {
+            await offlineDb.recordAttendanceOffline(att.sessionId, {
+              studentId: att.studentId,
+              status: att.status || 'PRESENT',
+              recordingMethod: att.recordingMethod || 'QR_SCAN',
+              recordedAt: att.recordedAt,
+              studentName: att.student?.user?.fullName,
+            });
+          }
+        }
+      }
+
+      // 6. Ingest Assessments & Questions
       if (payload.assessments.length > 0) {
         await offlineDb.bulkPutAssessments(payload.assessments);
         if (qc) {
@@ -161,7 +177,7 @@ class BootstrapManager {
         }
       }
 
-      // 6. Ingest Educational Courses
+      // 7. Ingest Educational Courses
       if (payload.courses.length > 0) {
         await offlineDb.bulkPutCourses(payload.courses);
         if (qc) {
@@ -169,7 +185,7 @@ class BootstrapManager {
         }
       }
 
-      // 7. Ingest Academic Period
+      // 8. Ingest Academic Period
       if (payload.academicPeriod) {
         await offlineDb.setMetadata('academicPeriod', payload.academicPeriod);
         if (qc) {

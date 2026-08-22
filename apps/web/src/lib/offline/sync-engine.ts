@@ -281,7 +281,8 @@ class OfflineSyncEngine {
     await offlineDb.enqueueMutation(mutation);
     this.notify('MUTATION_ENQUEUED', mutation);
 
-    if (this.isOnlineState && !this.isSyncingState) {
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : this.isOnlineState;
+    if (isOnline && !this.isSyncingState) {
       this.triggerSync();
     }
 
@@ -289,6 +290,9 @@ class OfflineSyncEngine {
   }
 
   public triggerSync(): void {
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : this.isOnlineState;
+    if (!isOnline) return;
+
     if (this.syncTimer) {
       clearTimeout(this.syncTimer);
     }
@@ -298,21 +302,24 @@ class OfflineSyncEngine {
   }
 
   private async checkAndSync() {
-    const pendingCount = await offlineDb.getPendingCount();
-    if (pendingCount > 0) {
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : this.isOnlineState;
+    if (!isOnline) return;
+
+    const verified = await this.verifyConnection();
+    if (verified) {
       this.flushOutbox();
     }
   }
 
   /**
-   * Main Outbox Flush Engine:
-   * Topological ordering:
+   * Topological Flush Protocol:
    * 1. Entity Creations (groups -> students -> schedules)
    * 2. Domain Batch Endpoints (attendance -> finance -> progress -> assessments)
    * 3. Remaining Generic FIFO mutations
    */
   public async flushOutbox(): Promise<{ synced: number; failed: number }> {
-    if (this.isSyncingState) {
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : this.isOnlineState;
+    if (!isOnline || this.isSyncingState) {
       return { synced: 0, failed: 0 };
     }
 

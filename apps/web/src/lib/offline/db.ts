@@ -239,6 +239,7 @@ class OfflineDatabase {
   private memoryDrafts: Map<string, OfflineAssessmentRecord> = new Map();
   private memoryConflicts: Map<string, SyncConflictRecord> = new Map();
   private memoryCredentials: Map<string, OfflineCredentialsRecord> = new Map();
+  private memoryReports: Map<string, any> = new Map();
 
   private isSupported(): boolean {
     return typeof window !== 'undefined' && 'indexedDB' in window && typeof indexedDB?.open === 'function';
@@ -1449,6 +1450,141 @@ class OfflineDatabase {
     } catch (e) {
       console.warn('Failed to markStudentPaidOffline in IndexedDB:', e);
     }
+  }
+
+  // ==========================================
+  // Session Reports & Attendance Operations
+  // ==========================================
+
+  public async cacheSessionReport(sessionId: string, report: any): Promise<void> {
+    const cleanId = String(sessionId).trim().toLowerCase();
+    this.memoryReports.set(cleanId, { ...report });
+    if (!this.isSupported()) return;
+    try {
+      const { store } = await this.getStore('cached_queries', 'readwrite');
+      store.put({
+        cacheKey: `session_report_${cleanId}`,
+        queryKey: `session_report_${cleanId}`,
+        data: report,
+        updatedAt: Date.now(),
+      });
+    } catch {}
+  }
+
+  public async getSessionReport(sessionId: string): Promise<any | null> {
+    const cleanId = String(sessionId).trim().toLowerCase();
+    if (!this.isSupported()) {
+      return this.memoryReports.get(cleanId) || null;
+    }
+    try {
+      const { store } = await this.getStore('cached_queries', 'readonly');
+      return new Promise((resolve) => {
+        const req = store.get(`session_report_${cleanId}`);
+        req.onsuccess = () => resolve(req.result?.data || this.memoryReports.get(cleanId) || null);
+        req.onerror = () => resolve(this.memoryReports.get(cleanId) || null);
+      });
+    } catch {
+      return this.memoryReports.get(cleanId) || null;
+    }
+  }
+
+  public async recordAttendanceOffline(
+    sessionId: string,
+    record: {
+      studentId: string;
+      status: 'PRESENT' | 'ABSENT' | 'EXCUSED' | string;
+      recordingMethod?: string;
+      notes?: string;
+      recordedAt?: string;
+      studentName?: string;
+      studentCode?: string;
+    },
+  ): Promise<any> {
+    const cleanSessionId = String(sessionId).trim().toLowerCase();
+    let currentReport = await this.getSessionReport(cleanSessionId);
+
+    if (!currentReport) {
+      const allSessions = await this.getSessionsOffline();
+      const session = allSessions.find((s) => String(s.id).trim().toLowerCase() === cleanSessionId);
+      const targetGroupId = session?.groupId || '';
+      const roster = targetGroupId ? await this.getRoster(targetGroupId) : null;
+      const group = targetGroupId ? await this.getGroupByIdOffline(targetGroupId) : null;
+      const groupStudents = targetGroupId ? await this.getStudentsOffline({ groupId: targetGroupId }) : [];
+
+      const initialStudents = roster?.students?.length ? roster.students : groupStudents;
+      const studentCount = initialStudents.length;
+
+      currentReport = {
+        sessionId,
+        sessionDate: session?.sessionDate || new Date().toISOString(),
+        topic: session?.topic || 'رصد الحضور',
+        groupId: targetGroupId,
+        groupName: roster?.groupName || group?.name || session?.group?.name || 'المجموعة الدراسية',
+        metrics: {
+          totalEnrolled: studentCount,
+          presentCount: 0,
+          absentCount: studentCount,
+          excusedCount: 0,
+          attendanceRatePercentage: 0,
+        },
+        records: initialStudents.map((s: any) => ({
+          id: `unrecorded-${s.id}`,
+          studentId: s.id,
+          studentCode: s.studentCode || '',
+          fullName: s.fullName || s.user?.fullName || 'طالب',
+          status: null,
+          recordingMethod: null,
+          recordedAt: null,
+          notes: null,
+        })),
+      };
+    }
+
+    const records = Array.isArray(currentReport.records) ? [...currentReport.records] : [];
+    const studentIdx = records.findIndex((r: any) => String(r.studentId).trim() === String(record.studentId).trim());
+
+    const updatedRecord = {
+      id: `offline-${Date.now()}-${record.studentId}`,
+      studentId: record.studentId,
+      studentCode: record.studentCode || records[studentIdx]?.studentCode || '',
+      fullName: record.studentName || records[studentIdx]?.fullName || 'طالب',
+      status: record.status,
+      recordingMethod: record.recordingMethod || 'QR_SCAN',
+      recordedAt: record.recordedAt || new Date().toISOString(),
+      notes: record.notes || records[studentIdx]?.notes || null,
+    };
+
+    if (studentIdx >= 0) {
+      records[studentIdx] = { ...records[studentIdx], ...updatedRecord };
+    } else {
+      records.push(updatedRecord);
+    }
+
+    const totalEnrolled = Math.max(records.length, currentReport.metrics?.totalEnrolled || 0);
+    const presentCount = records.filter((r: any) => r.status === 'PRESENT').length;
+    const excusedCount = records.filter((r: any) => r.status === 'EXCUSED').length;
+    const absentCount = records.filter((r: any) => r.status === 'ABSENT' || !r.status).length;
+    const attendanceRatePercentage = totalEnrolled > 0 ? Math.round((presentCount / totalEnrolled) * 100) : 0;
+
+    const updatedReport = {
+      ...currentReport,
+      metrics: {
+        totalEnrolled,
+        presentCount,
+        absentCount,
+        excusedCount,
+        attendanceRatePercentage,
+      },
+      records,
+      stats: {
+        totalEnrolled,
+        totalPresent: presentCount,
+        totalAbsent: absentCount,
+      },
+    };
+
+    await this.cacheSessionReport(cleanSessionId, updatedReport);
+    return updatedReport;
   }
 
   // ==========================================
