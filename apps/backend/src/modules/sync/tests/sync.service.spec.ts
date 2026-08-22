@@ -165,6 +165,47 @@ describe('SyncService', () => {
       expect(result.processedOperationIds).toEqual(['op-att-1', 'op-att-2']);
       expect(mockPrismaService.attendanceRecord.create).toHaveBeenCalledTimes(1);
     });
+
+    it('should process a batch of 10 attendance records containing 3 intentional duplicates and succeed with 7 unique records', async () => {
+      mockPrismaService.lessonSession.findUnique.mockResolvedValue({
+        id: 'session-100',
+        groupId: 'group-100',
+      });
+
+      mockPrismaService.groupEnrollment.findUnique.mockResolvedValue({
+        groupId: 'group-100',
+        studentId: 'student-x',
+        status: GroupEnrollmentStatus.ACTIVE,
+      });
+
+      // 10 operations: indices 0..6 unique (null), indices 7..9 duplicate (existing)
+      for (let i = 0; i < 7; i++) {
+        mockPrismaService.attendanceRecord.findUnique.mockResolvedValueOnce(null);
+      }
+      for (let i = 0; i < 3; i++) {
+        mockPrismaService.attendanceRecord.findUnique.mockResolvedValueOnce({ id: `att-dup-${i}` });
+      }
+
+      mockPrismaService.attendanceRecord.create.mockResolvedValue({ id: 'att-created' });
+
+      const operations = Array.from({ length: 10 }, (_, i) => ({
+        id: `op-batch-${i + 1}`,
+        sessionId: 'session-100',
+        studentId: `student-${i < 7 ? i + 1 : (i % 3) + 1}`,
+        status: AttendanceStatus.PRESENT,
+        recordingMethod: RecordingMethod.QR_SCAN,
+        allowCrossGroup: true,
+        clientTimestamp: Date.now(),
+      }));
+
+      const result = await service.syncAttendanceBatch(mockTeacherUser, { operations });
+
+      expect(result.syncedCount).toBe(7);
+      expect(result.duplicatesIgnored).toBe(3);
+      expect(result.failedCount).toBe(0);
+      expect(result.processedOperationIds).toHaveLength(10);
+      expect(mockPrismaService.attendanceRecord.create).toHaveBeenCalledTimes(7);
+    });
   });
 
   describe('syncPaymentsBatch', () => {

@@ -235,16 +235,22 @@ export function useScanQrAttendance() {
               r.studentId === qrCodeToken,
           )?.studentId;
 
-        // Check duplicate
+        // Check duplicate in memory report data OR offline outbox mutations / stores
         const existingRecord = reportData?.records?.find(
-          (r: any) => r.studentId === studentId && r.status === 'PRESENT',
+          (r: any) =>
+            (studentId && r.studentId === studentId && (r.status === 'PRESENT' || r.attendanceStatus === 'PRESENT')) ||
+            (qrCodeToken && r.qrCodeToken === qrCodeToken && (r.status === 'PRESENT' || r.attendanceStatus === 'PRESENT')),
         );
 
-        if (existingRecord) {
+        const isQueued = studentId
+          ? await offlineDb.isAttendanceRecordedOffline(sessionId, studentId, qrCodeToken)
+          : false;
+
+        if (existingRecord || isQueued) {
           return {
             isDuplicate: true,
             isCrossGroupPrompt: false,
-            message: 'الطالب مسجل حضور بالفعل في هذه الحصة مسبقاً (محفوظ محلياً)',
+            message: 'تم تسجيل حضور الطالب مسبقاً في هذه الحصة',
             student: { id: studentId || '', fullName: resolvedStudentName },
             sessionStats: reportData?.stats,
           };
@@ -320,7 +326,18 @@ export function useScanQrAttendance() {
         // Fallback to offline queue if network connection drops mid-scan
         if (typeof navigator !== 'undefined' && !navigator.onLine) {
           const localMatch = await offlineDb.findStudentByQrToken(qrCodeToken);
-          const studentId = localMatch?.student?.id;
+          const studentId = localMatch?.student?.id || qrCodeToken;
+          const resolvedStudentName = localMatch?.student?.fullName || 'طالب';
+
+          const isQueued = await offlineDb.isAttendanceRecordedOffline(sessionId, studentId, qrCodeToken);
+          if (isQueued) {
+            return {
+              isDuplicate: true,
+              isCrossGroupPrompt: false,
+              message: 'تم تسجيل حضور الطالب مسبقاً في هذه الحصة',
+              student: { id: studentId || '', fullName: resolvedStudentName },
+            };
+          }
 
           await syncEngine.enqueue(
             'attendance',
@@ -341,7 +358,7 @@ export function useScanQrAttendance() {
             isCrossGroupPrompt: false,
             isOfflineSaved: true,
             message: 'تم حفظ الحضور محلياً بنجاح في انتظار الاتصال 💾',
-            student: { id: studentId || '', fullName: localMatch?.student?.fullName || 'طالب' },
+            student: { id: studentId || '', fullName: resolvedStudentName },
           };
         }
         throw error;

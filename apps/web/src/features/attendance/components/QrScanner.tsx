@@ -141,10 +141,18 @@ export function QrScanner({ sessionId }: QrScannerProps) {
             setLastScanResult({
               success: false,
               duplicate: true,
-              message: data.message || 'تم تسجيل حضور هذا الطالب لهذه الحصة مسبقاً.',
+              message: data.message || 'تم تسجيل حضور الطالب مسبقاً في هذه الحصة',
               studentName: data.student?.fullName,
             });
-            toast('تم رصد هذا الطالب مسبقاً', { icon: '⚠️' });
+            toast('تم تسجيل حضور الطالب مسبقاً في هذه الحصة', {
+              icon: '⚠️',
+              style: {
+                borderRadius: '12px',
+                background: '#fffbeb',
+                color: '#92400e',
+                border: '1px solid #fde68a',
+              },
+            });
           } else {
             playBeep('success');
             setFlashType('success');
@@ -156,11 +164,11 @@ export function QrScanner({ sessionId }: QrScannerProps) {
             toast.success(`تم حضور: ${data.student?.fullName}`);
           }
 
-          // Unlock after 1.2s and clear flash to allow subsequent scans of same or new codes
+          // 2.5-second debounce lock on the QR scanner hardware camera stream
           setTimeout(() => {
             setLocked(false);
             setFlashType(null);
-          }, 1200);
+          }, 2500);
         },
         onError: (error: any) => {
           playBeep('error');
@@ -178,11 +186,11 @@ export function QrScanner({ sessionId }: QrScannerProps) {
           });
           toast.error(errorMsg);
 
-          // Unlock after 1.2s to allow retry
+          // Unlock after 2.5s to allow retry
           setTimeout(() => {
             setLocked(false);
             setFlashType(null);
-          }, 1200);
+          }, 2500);
         },
       },
     );
@@ -198,30 +206,27 @@ export function QrScanner({ sessionId }: QrScannerProps) {
           playBeep('success');
           setFlashType('success');
           const studentName = data.student?.fullName || crossGroupPrompt.student?.fullName || 'الطالب';
-          setCrossGroupPrompt(null);
           setLastScanResult({
             success: true,
-            message: `تم تسجيل حضور الطالب [${studentName}] كحضور استثنائي بنجاح (وتم توثيق حضوره في مجموعته الأصلية أيضاً)!`,
+            message: `تم تسجيل حضور استثنائي للطالب (${studentName}) بنجاح.`,
             studentName,
           });
           toast.success(`تم تسجيل حضور استثنائي: ${studentName}`);
+          setCrossGroupPrompt(null);
           setTimeout(() => {
             setLocked(false);
             setFlashType(null);
-          }, 1200);
+          }, 2500);
         },
         onError: (error: any) => {
           playBeep('error');
           setFlashType('error');
-          const message =
-            error?.message ||
-            error?.response?.data?.message ||
-            'فشل تسجيل الحضور الاستثنائي.';
-          const errorMsg = Array.isArray(message) ? message[0] : message;
-          toast.error(errorMsg);
-          setCrossGroupPrompt(null);
-          setLocked(false);
-          setFlashType(null);
+          const msg = error?.response?.data?.message || error?.message || 'فشل تسجيل الحضور الاستثنائي';
+          toast.error(Array.isArray(msg) ? msg[0] : msg);
+          setTimeout(() => {
+            setLocked(false);
+            setFlashType(null);
+          }, 2500);
         },
       },
     );

@@ -704,12 +704,18 @@ export class SyncService {
           result.processedOperationIds.push(op.id);
         });
       } catch (err: any) {
-        this.logger.error(`Failed to sync attendance op [${op.id}]:`, err);
-        result.failedCount++;
-        result.conflicts.push({
-          operationId: op.id,
-          reason: err?.message || 'Database transaction failure',
-        });
+        if (err?.code === 'P2002') {
+          // Prisma unique constraint violation (e.g. uq_session_student) -> Treat gracefully as duplicate ignored
+          result.duplicatesIgnored++;
+          result.processedOperationIds.push(op.id);
+        } else {
+          this.logger.error(`Failed to sync attendance op [${op.id}]:`, err);
+          result.failedCount++;
+          result.conflicts.push({
+            operationId: op.id,
+            reason: err?.message || 'Database transaction failure',
+          });
+        }
       }
     }
 
@@ -816,12 +822,18 @@ export class SyncService {
           result.processedOperationIds.push(op.id);
         });
       } catch (err: any) {
-        this.logger.error(`Failed to sync payment op [${op.id}]:`, err);
-        result.failedCount++;
-        result.conflicts.push({
-          operationId: op.id,
-          reason: err?.message || 'Payment sync transaction error',
-        });
+        if (err?.code === 'P2002') {
+          // Prisma unique constraint violation (e.g. uq_student_group_billing_period) -> Treat gracefully as duplicate ignored
+          result.duplicatesIgnored++;
+          result.processedOperationIds.push(op.id);
+        } else {
+          this.logger.error(`Failed to sync payment op [${op.id}]:`, err);
+          result.failedCount++;
+          result.conflicts.push({
+            operationId: op.id,
+            reason: err?.message || 'Payment sync transaction error',
+          });
+        }
       }
     }
 

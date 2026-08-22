@@ -131,20 +131,63 @@ export function useRecordPayment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload: RecordPaymentPayload): Promise<StudentPaymentRecord | { success: boolean; isOfflineSaved: boolean; message: string }> => {
+    mutationFn: async (payload: RecordPaymentPayload): Promise<StudentPaymentRecord | { success: boolean; isDuplicate?: boolean; isOfflineSaved: boolean; message: string; payment?: any }> => {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
       if (!isOnline) {
+        const periodYear = Number(payload.periodYear || new Date().getFullYear());
+        const periodMonth = Number(payload.periodMonth || (new Date().getMonth() + 1));
+
+        const check = await offlineDb.isPaymentRecordedOffline(
+          payload.studentId,
+          payload.groupId,
+          periodYear,
+          periodMonth,
+        );
+
+        if (check.isRecorded) {
+          return {
+            success: false,
+            isDuplicate: true,
+            isOfflineSaved: true,
+            message: `تم تسجيل سداد شهر ${periodMonth} - ${periodYear} لهذا الطالب مسبقاً`,
+            payment: check.existingPayment,
+          };
+        }
+
+        const paymentRecord: any = {
+          id: `offline-pay-${Date.now()}`,
+          studentId: payload.studentId,
+          groupId: payload.groupId || null,
+          periodYear,
+          periodMonth,
+          amountExpected: payload.amountPaid,
+          amountPaid: payload.amountPaid,
+          currency: 'EGP',
+          paymentStatus: 'PAID' as any,
+          paymentMethod: payload.paymentMethod || 'CASH',
+          receiptNumber: payload.receiptNumber || null,
+          recordedById: 'offline-teacher',
+          notes: payload.notes || null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        await offlineDb.bulkPutPayments([paymentRecord]);
+
         await syncEngine.enqueue(
           'finance',
           API_ENDPOINTS.SUBSCRIPTIONS.RECORD_PAYMENT,
           'POST',
           payload,
         );
+
         return {
           success: true,
+          isDuplicate: false,
           isOfflineSaved: true,
           message: 'تم تسجيل دفعة الاشتراك محلياً بنجاح ووضعها في انتظار المزامنة 💾',
+          payment: paymentRecord,
         };
       }
 
@@ -176,24 +219,42 @@ export function useScanPaymentQr() {
         const resolvedStudentName = localMatch?.student?.fullName || 'طالب';
         const studentId = localMatch?.student?.id || payload.qrCodeToken;
         const groupId = payload.groupId || localMatch?.groupId;
+        const periodYear = Number(payload.periodYear || new Date().getFullYear());
+        const periodMonth = Number(payload.periodMonth || (new Date().getMonth() + 1));
 
-        await syncEngine.enqueue(
-          'finance',
-          API_ENDPOINTS.SUBSCRIPTIONS.SCAN_QR,
-          'POST',
-          {
-            ...payload,
-            studentId,
-            groupId,
-          },
+        // Check if payment already exists or queued for this billing period
+        const paymentCheck = await offlineDb.isPaymentRecordedOffline(
+          studentId,
+          groupId,
+          periodYear,
+          periodMonth,
         );
+
+        if (paymentCheck.isRecorded) {
+          return {
+            success: false,
+            isDuplicate: true,
+            isOfflineSaved: true,
+            message: `تم سداد اشتراك شهر ${periodMonth} - ${periodYear} للطالب مسبقاً`,
+            payment: paymentCheck.existingPayment,
+            student: {
+              id: studentId,
+              fullName: resolvedStudentName,
+              phone: localMatch?.student?.phone || null,
+            },
+            group: groupId ? {
+              id: groupId,
+              name: localMatch?.groupName || 'المجموعة',
+            } : null,
+          };
+        }
 
         const paymentRecord: any = {
           id: `offline-pay-${Date.now()}`,
           studentId,
           groupId: groupId || null,
-          periodYear: payload.periodYear || new Date().getFullYear(),
-          periodMonth: payload.periodMonth || (new Date().getMonth() + 1),
+          periodYear,
+          periodMonth,
           amountExpected: payload.amountPaid || 350,
           amountPaid: payload.amountPaid || 350,
           currency: 'EGP',
@@ -205,6 +266,21 @@ export function useScanPaymentQr() {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
+
+        await offlineDb.bulkPutPayments([paymentRecord]);
+
+        await syncEngine.enqueue(
+          'finance',
+          API_ENDPOINTS.SUBSCRIPTIONS.SCAN_QR,
+          'POST',
+          {
+            ...payload,
+            studentId,
+            groupId,
+            periodYear,
+            periodMonth,
+          },
+        );
 
         return {
           success: true,
@@ -230,36 +306,65 @@ export function useScanPaymentQr() {
         if (typeof navigator !== 'undefined' && !navigator.onLine) {
           const localMatch = await offlineDb.findStudentByQrToken(payload.qrCodeToken);
           const studentId = localMatch?.student?.id || payload.qrCodeToken;
+          const groupId = payload.groupId || localMatch?.groupId;
+          const periodYear = Number(payload.periodYear || new Date().getFullYear());
+          const periodMonth = Number(payload.periodMonth || (new Date().getMonth() + 1));
+          const resolvedStudentName = localMatch?.student?.fullName || 'طالب';
+
+          const paymentCheck = await offlineDb.isPaymentRecordedOffline(
+            studentId,
+            groupId,
+            periodYear,
+            periodMonth,
+          );
+
+          if (paymentCheck.isRecorded) {
+            return {
+              success: false,
+              isDuplicate: true,
+              isOfflineSaved: true,
+              message: `تم سداد اشتراك شهر ${periodMonth} - ${periodYear} للطالب مسبقاً`,
+              payment: paymentCheck.existingPayment,
+              student: { id: studentId, fullName: resolvedStudentName, phone: localMatch?.student?.phone || null },
+              group: groupId ? { id: groupId, name: localMatch?.groupName || 'المجموعة' } : null,
+            };
+          }
+
+          const paymentRecord: any = {
+            id: `offline-pay-${Date.now()}`,
+            studentId,
+            groupId: groupId || null,
+            periodYear,
+            periodMonth,
+            amountExpected: payload.amountPaid || 350,
+            amountPaid: payload.amountPaid || 350,
+            currency: 'EGP',
+            paymentStatus: 'PAID' as any,
+            paymentMethod: payload.paymentMethod || 'CASH',
+            receiptNumber: payload.receiptNumber || null,
+            recordedById: 'offline-teacher',
+            notes: payload.notes || null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+
+          await offlineDb.bulkPutPayments([paymentRecord]);
+
           await syncEngine.enqueue(
             'finance',
             API_ENDPOINTS.SUBSCRIPTIONS.SCAN_QR,
             'POST',
             payload,
           );
+
           return {
             success: true,
             isDuplicate: false,
             isOfflineSaved: true,
             message: 'تم حفظ السداد محلياً بنجاح في انتظار الاتصال 💾',
-            payment: {
-              id: `offline-pay-${Date.now()}`,
-              studentId,
-              groupId: payload.groupId || null,
-              periodYear: payload.periodYear || new Date().getFullYear(),
-              periodMonth: payload.periodMonth || (new Date().getMonth() + 1),
-              amountExpected: payload.amountPaid || 350,
-              amountPaid: payload.amountPaid || 350,
-              currency: 'EGP',
-              paymentStatus: 'PAID' as any,
-              paymentMethod: payload.paymentMethod || 'CASH',
-              receiptNumber: payload.receiptNumber || null,
-              recordedById: 'offline-teacher',
-              notes: payload.notes || null,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            },
-            student: { id: studentId, fullName: localMatch?.student?.fullName || 'طالب' },
-            group: null,
+            payment: paymentRecord,
+            student: { id: studentId, fullName: resolvedStudentName, phone: localMatch?.student?.phone || null },
+            group: groupId ? { id: groupId, name: localMatch?.groupName || 'المجموعة' } : null,
           };
         }
         throw error;

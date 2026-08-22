@@ -1091,6 +1091,81 @@ class OfflineDatabase {
     return null;
   }
 
+  /**
+   * Idempotency Check: Checks if attendance is already recorded or queued in outbox for (sessionId, studentId/token)
+   */
+  public async isAttendanceRecordedOffline(
+    sessionId: string,
+    studentId: string,
+    qrCodeToken?: string,
+  ): Promise<boolean> {
+    const cleanSessionId = String(sessionId).trim();
+    const cleanStudentId = String(studentId).trim();
+    const cleanToken = qrCodeToken ? String(qrCodeToken).trim() : '';
+
+    const pending = await this.getPendingMutations();
+    const isQueued = pending.some((m) => {
+      if (m.domain !== 'attendance') return false;
+      const p = m.payload || {};
+      const matchesSession = String(p.sessionId || '').trim() === cleanSessionId;
+      if (!matchesSession) return false;
+
+      const matchesStudent =
+        (p.studentId && String(p.studentId).trim() === cleanStudentId) ||
+        (cleanToken && p.qrCodeToken && String(p.qrCodeToken).trim() === cleanToken);
+
+      return matchesStudent;
+    });
+
+    return isQueued;
+  }
+
+  /**
+   * Idempotency Check: Checks if a payment is already recorded in IndexedDB or queued in outbox
+   */
+  public async isPaymentRecordedOffline(
+    studentId: string,
+    groupId: string | null | undefined,
+    year: number,
+    month: number,
+  ): Promise<{ isRecorded: boolean; existingPayment?: any }> {
+    const cleanStudentId = String(studentId).trim();
+    const cleanGroupId = groupId ? String(groupId).trim() : null;
+
+    // 1. Check local payments store
+    const localPayments = await this.getPaymentsOffline({
+      studentId: cleanStudentId,
+      year,
+      month,
+    });
+
+    const matchingLocal = localPayments.find((p) => {
+      if (cleanGroupId && p.groupId && p.groupId !== cleanGroupId) return false;
+      return p.paymentStatus === 'PAID' || Number(p.amountPaid) > 0;
+    });
+
+    if (matchingLocal) {
+      return { isRecorded: true, existingPayment: matchingLocal };
+    }
+
+    // 2. Check pending outbox mutations
+    const pending = await this.getPendingMutations();
+    const matchingMutation = pending.find((m) => {
+      if (m.domain !== 'finance') return false;
+      const p = m.payload || {};
+      if (String(p.studentId || '').trim() !== cleanStudentId) return false;
+      if (Number(p.periodYear) !== Number(year) || Number(p.periodMonth) !== Number(month)) return false;
+      if (cleanGroupId && p.groupId && String(p.groupId).trim() !== cleanGroupId) return false;
+      return true;
+    });
+
+    if (matchingMutation) {
+      return { isRecorded: true, existingPayment: matchingMutation.payload };
+    }
+
+    return { isRecorded: false };
+  }
+
   // ==========================================
   // Assessment Drafts Operations
   // ==========================================

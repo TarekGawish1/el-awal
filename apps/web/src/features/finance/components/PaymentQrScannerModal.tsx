@@ -128,17 +128,30 @@ export function PaymentQrScannerModal({
 
     scanPayment(payload, {
       onSuccess: (data) => {
-        playBeep(true);
-        setScannedCount((prev) => prev + 1);
-        setLastScanResult({
-          success: true,
-          isDuplicate: data.isDuplicate,
-          message: data.message,
-          studentName: data.student?.fullName,
-          groupName: data.group?.name || 'عام',
-          amount: Number(data.payment?.amountPaid ?? 0),
-          period: `شهر ${periodMonth} - ${periodYear}`,
-        });
+        if (data.isDuplicate) {
+          playBeep(false);
+          setLastScanResult({
+            success: false,
+            isDuplicate: true,
+            message: data.message || `تم سداد اشتراك شهر ${periodMonth} - ${periodYear} للطالب مسبقاً`,
+            studentName: data.student?.fullName,
+            groupName: data.group?.name || 'عام',
+            amount: Number(data.payment?.amountPaid ?? 0),
+            period: `شهر ${periodMonth} - ${periodYear}`,
+          });
+        } else {
+          playBeep(true);
+          setScannedCount((prev) => prev + 1);
+          setLastScanResult({
+            success: true,
+            isDuplicate: false,
+            message: data.message,
+            studentName: data.student?.fullName,
+            groupName: data.group?.name || 'عام',
+            amount: Number(data.payment?.amountPaid ?? 0),
+            period: `شهر ${periodMonth} - ${periodYear}`,
+          });
+        }
 
         // Resume scanner after 2.5 seconds
         setTimeout(() => {
@@ -153,10 +166,10 @@ export function PaymentQrScannerModal({
           message: Array.isArray(msg) ? msg[0] : msg,
         });
 
-        // Resume scanner after 2 seconds
+        // Resume scanner after 2.5 seconds
         setTimeout(() => {
           setLocked(false);
-        }, 2000);
+        }, 2500);
       },
     });
   };
