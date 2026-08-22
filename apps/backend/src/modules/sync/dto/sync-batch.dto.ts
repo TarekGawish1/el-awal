@@ -118,6 +118,11 @@ export class SyncBatchStudentItemDto {
   @IsString()
   @IsOptional()
   groupId?: string;
+
+  @ApiPropertyOptional({ example: '018d39f4-6a8b-7000-8000-000000000001' })
+  @IsString()
+  @IsOptional()
+  initialGroupId?: string;
 }
 
 export class UnifiedSyncBatchDto {

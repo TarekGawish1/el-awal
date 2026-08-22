@@ -177,6 +177,7 @@ export class SyncService {
     const groupIds = (groups || []).map((g) => g.id).filter(Boolean);
 
     // 3. Students
+    // 3. Students
     let students: any[] = [];
     try {
       if (groupIds.length > 0) {
@@ -207,9 +208,9 @@ export class SyncService {
         });
 
         const studentMap = new Map<string, any>();
-        for (const enrollment of enrollments) {
+        for (const enrollment of (enrollments || [])) {
           if (
-            enrollment.student &&
+            enrollment?.student &&
             enrollment.student.user?.isActive !== false &&
             (enrollment.student.academicStatus || 'ACTIVE') === 'ACTIVE' &&
             !studentMap.has(enrollment.student.id)
@@ -1086,17 +1087,24 @@ export class SyncService {
         if (dto.students && dto.students.length > 0) {
           for (const s of dto.students) {
             const studentFullName = s.fullName || s.name || 'طالب';
+            const isTempIdUuid =
+              typeof s.clientTempId === 'string' &&
+              /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+                s.clientTempId,
+              );
+            const studentIdForDb = isTempIdUuid ? s.clientTempId : randomUUID();
+
             const existingStudent = await tx.studentProfile.findFirst({
               where: {
                 OR: [
-                  { id: s.clientTempId },
+                  ...(isTempIdUuid ? [{ id: s.clientTempId }] : []),
                   ...(s.phone ? [{ user: { phone: s.phone } }] : []),
                 ],
               },
               include: { user: true },
             });
 
-            let finalStudentId = s.clientTempId;
+            let finalStudentId = studentIdForDb;
             let finalStudentCode = '';
             let finalQrToken = '';
 
@@ -1108,7 +1116,7 @@ export class SyncService {
               const passwordHash = await bcrypt.hash(s.password || 'Password123!', 10);
               const userRecord = await tx.user.create({
                 data: {
-                  id: s.clientTempId,
+                  id: studentIdForDb,
                   fullName: studentFullName,
                   phone: s.phone,
                   email: s.email,
@@ -1173,23 +1181,39 @@ export class SyncService {
             }
 
             // Step C: Enroll in group if provided
-            if (s.groupId) {
-              const resolvedGroupId = idMappings.groups[s.groupId] || s.groupId;
-              const existingEnrollment = await tx.groupEnrollment.findFirst({
-                where: {
-                  groupId: resolvedGroupId,
-                  studentId: finalStudentId,
-                },
-              });
+            const targetGroupId = s.groupId || s.initialGroupId;
+            if (targetGroupId) {
+              const resolvedGroupId = idMappings.groups[targetGroupId] || targetGroupId;
+              const isCreatedInThisBatch = Boolean(idMappings.groups[targetGroupId]);
 
-              if (!existingEnrollment) {
-                await tx.groupEnrollment.create({
-                  data: {
-                    groupId: resolvedGroupId,
-                    studentId: finalStudentId,
-                    status: GroupEnrollmentStatus.ACTIVE,
-                  },
-                });
+              const groupExists =
+                isCreatedInThisBatch ||
+                (typeof tx.academicGroup?.findFirst === 'function'
+                  ? await tx.academicGroup.findFirst({ where: { id: resolvedGroupId } })
+                  : typeof tx.academicGroup?.findUnique === 'function'
+                  ? await tx.academicGroup.findUnique({ where: { id: resolvedGroupId } })
+                  : true);
+
+              if (groupExists) {
+                const existingEnrollment =
+                  typeof tx.groupEnrollment?.findFirst === 'function'
+                    ? await tx.groupEnrollment.findFirst({
+                        where: {
+                          groupId: resolvedGroupId,
+                          studentId: finalStudentId,
+                        },
+                      })
+                    : null;
+
+                if (!existingEnrollment && typeof tx.groupEnrollment?.create === 'function') {
+                  await tx.groupEnrollment.create({
+                    data: {
+                      groupId: resolvedGroupId,
+                      studentId: finalStudentId,
+                      status: GroupEnrollmentStatus.ACTIVE,
+                    },
+                  });
+                }
               }
             }
 

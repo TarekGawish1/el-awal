@@ -212,4 +212,53 @@ describe('Student Offline Filter Parity & Sync Conflict Surfacing', () => {
     expect(await offlineDb.getStudentByIdOffline('stu-49')).toBeNull();
     expect(await offlineDb.getStudentByIdOffline('stu-50')).toBeNull();
   });
+
+  it('preserves offline-created student when querying online and does not reset count from 51 back to 50', async () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    // 1. Create a 48th student offline
+    const newStudentId = 'stu-new-offline-48';
+    const newStudentEntity = {
+      id: newStudentId,
+      fullName: 'طالب مضاف أوفلاين',
+      studentCode: 'STU-1048-OFFLINE',
+      qrCodeToken: 'qr-new-48',
+      gradeLevel: 'الصف الأول الثانوي',
+      academicStatus: 'ACTIVE',
+      groupId: 'grp-phys-2026',
+      user: { fullName: 'طالب مضاف أوفلاين', isActive: true },
+      updatedAt: Date.now(),
+    };
+    await offlineDb.bulkPutStudents([newStudentEntity]);
+    await syncEngine.enqueue(
+      'students',
+      '/students',
+      'POST',
+      {
+        fullName: 'طالب مضاف أوفلاين',
+        gradeLevel: 'الصف الأول الثانوي',
+        initialGroupId: 'grp-phys-2026',
+      },
+      { optimisticId: newStudentId },
+    );
+
+    // 2. Go Online and render useStudents
+    Object.defineProperty(navigator, 'onLine', {
+      value: true,
+      configurable: true,
+    });
+
+    const { result } = renderHook(() => useStudents({ groupId: 'grp-phys-2026' }), { wrapper });
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    // Count should be 48 (47 existing + 1 offline-created)
+    expect(result.current.data?.data).toBeDefined();
+    expect(result.current.data?.data.some((s) => s.id === newStudentId)).toBe(true);
+    expect(result.current.data?.meta.total).toBe(48);
+  });
 });

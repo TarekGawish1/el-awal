@@ -238,7 +238,8 @@ class OfflineSyncEngine {
             parentName: s.payload?.parentName,
             parentPhone: s.payload?.parentPhone,
             parentRelationship: s.payload?.parentRelationship,
-            groupId: s.payload?.groupId,
+            groupId: s.payload?.groupId || s.payload?.initialGroupId,
+            initialGroupId: s.payload?.groupId || s.payload?.initialGroupId,
           })),
         };
 

@@ -79,6 +79,59 @@ export function useStudents(query: StudentQuery) {
 
       try {
         const result = await fetchStudents(query);
+        const pending = await offlineDb.getPendingMutations();
+        const pendingStudentMutations = pending.filter(
+          (m) => m.domain === 'students' && m.method === 'POST',
+        );
+
+        let combinedData: StudentListItem[] = (result?.data as StudentListItem[]) || [];
+
+        if (pendingStudentMutations.length > 0) {
+          const existingIds = new Set(combinedData.map((s) => s.id));
+          const allGroups = await offlineDb.getGroupsOffline();
+          const groupMap = new Map(allGroups.map((g) => [g.id, g]));
+
+          for (const m of pendingStudentMutations) {
+            const tempId = m.optimisticId || m.id;
+            if (!existingIds.has(tempId)) {
+              const localStudent = await offlineDb.getStudentByIdOffline(tempId);
+              if (localStudent) {
+                const matchedGroup = localStudent.groupId ? groupMap.get(localStudent.groupId) : null;
+                const studentItem: StudentListItem = {
+                  id: localStudent.id,
+                  studentCode: localStudent.studentCode || `STU-${localStudent.id.slice(0, 6)}`,
+                  gradeLevel: localStudent.gradeLevel || matchedGroup?.gradeLevel || '',
+                  academicStage: localStudent.academicStage || '',
+                  academicStatus: (localStudent.academicStatus || 'ACTIVE') as any,
+                  createdAt: new Date(localStudent.updatedAt || Date.now()).toISOString(),
+                  updatedAt: new Date(localStudent.updatedAt || Date.now()).toISOString(),
+                  user: {
+                    id: localStudent.userId || localStudent.id,
+                    fullName: localStudent.fullName || localStudent.user?.fullName || 'طالب',
+                    phone: localStudent.phone || localStudent.user?.phone || '',
+                    email: localStudent.email || localStudent.user?.email || '',
+                    isActive: localStudent.user?.isActive ?? localStudent.isActive ?? true,
+                  },
+                  groupEnrollments: localStudent.groupId
+                    ? [
+                        {
+                          group: {
+                            id: localStudent.groupId,
+                            name: matchedGroup?.name || 'المجموعة',
+                            gradeLevel: matchedGroup?.gradeLevel || localStudent.gradeLevel || '',
+                          },
+                        },
+                      ]
+                    : (localStudent.groupEnrollments || []),
+                  parentLinks: localStudent.parentLinks || [],
+                };
+                combinedData = [studentItem, ...combinedData];
+                existingIds.add(tempId);
+              }
+            }
+          }
+        }
+
         if (result?.data) {
           const mappedEntities = result.data.map((s: any) => ({
             id: s.id,
@@ -103,7 +156,15 @@ export function useStudents(query: StudentQuery) {
             await offlineDb.bulkPutStudents(mappedEntities);
           }
         }
-        return result;
+
+        return {
+          ...result,
+          data: combinedData,
+          meta: {
+            ...result?.meta,
+            total: combinedData.length,
+          },
+        };
       } catch {
         const allGroups = await offlineDb.getGroupsOffline();
         const groupMap = new Map(allGroups.map((g) => [g.id, g]));
