@@ -870,11 +870,12 @@ class OfflineDatabase {
 
   /**
    * Reconciles temporary client UUIDs with authoritative server IDs and codes
-   * across groups, students, and offline rosters.
+   * across groups, students, payments, and offline rosters.
    */
   public async reconcileEntityIds(mappings?: {
     groups?: Record<string, string>;
-    students?: Record<string, { id: string; studentCode: string; qrCodeToken?: string }>;
+    students?: Record<string, { id: string; studentCode?: string; qrCodeToken?: string }>;
+    payments?: Record<string, string>;
   }): Promise<void> {
     if (!mappings) return;
 
@@ -886,6 +887,12 @@ class OfflineDatabase {
         if (localGroup) {
           await this.removeGroup(tempId);
           await this.bulkPutGroups([{ ...localGroup, id: serverId }]);
+        }
+        const memGrp = this.memoryGroups.get(tempId);
+        if (memGrp) {
+          this.memoryGroups.delete(tempId);
+          memGrp.id = serverId;
+          this.memoryGroups.set(serverId, memGrp);
         }
         // Also update roster
         const roster = await this.getRoster(tempId);
@@ -915,6 +922,45 @@ class OfflineDatabase {
             await this.removeStudent(tempId);
           }
           await this.bulkPutStudents([updated]);
+        }
+        const memStu = this.memoryStudents.get(tempId);
+        if (memStu) {
+          this.memoryStudents.delete(tempId);
+          memStu.id = serverData.id;
+          if (serverData.studentCode) memStu.studentCode = serverData.studentCode;
+          if (serverData.qrCodeToken) memStu.qrCodeToken = serverData.qrCodeToken;
+          this.memoryStudents.set(serverData.id, memStu);
+        }
+      }
+    }
+
+    // 3. Reconcile Payments
+    if (mappings.payments && Object.keys(mappings.payments).length > 0) {
+      for (const [tempId, serverId] of Object.entries(mappings.payments)) {
+        const memPay = this.memoryPayments.get(tempId);
+        if (memPay) {
+          this.memoryPayments.delete(tempId);
+          memPay.id = serverId;
+          this.memoryPayments.set(serverId, memPay);
+        }
+      }
+
+      if (this.isSupported()) {
+        try {
+          const { store } = await this.getStore('payments', 'readwrite');
+          for (const [tempId, serverId] of Object.entries(mappings.payments)) {
+            const getReq = store.get(tempId);
+            getReq.onsuccess = () => {
+              const val = getReq.result;
+              if (val) {
+                store.delete(tempId);
+                val.id = serverId;
+                store.put(val);
+              }
+            };
+          }
+        } catch (e) {
+          console.warn('Failed to reconcile payments in IndexedDB:', e);
         }
       }
     }
@@ -1402,106 +1448,6 @@ class OfflineDatabase {
       };
     } catch (e) {
       console.warn('Failed to markStudentPaidOffline in IndexedDB:', e);
-    }
-  }
-
-  /**
-   * Reconciles temporary offline entity IDs with server assigned IDs across groups, students, and payments.
-   */
-  public async reconcileEntityIds(mappings: {
-    groups?: Record<string, string>;
-    students?: Record<string, { id: string; studentCode?: string; qrCodeToken?: string }>;
-    payments?: Record<string, string>;
-  }): Promise<void> {
-    // 1. Reconcile Groups
-    if (mappings.groups) {
-      for (const [tempId, serverId] of Object.entries(mappings.groups)) {
-        const grp = this.memoryGroups.get(tempId);
-        if (grp) {
-          this.memoryGroups.delete(tempId);
-          grp.id = serverId;
-          this.memoryGroups.set(serverId, grp);
-        }
-      }
-    }
-
-    // 2. Reconcile Students
-    if (mappings.students) {
-      for (const [tempId, serverData] of Object.entries(mappings.students)) {
-        const stu = this.memoryStudents.get(tempId);
-        if (stu) {
-          this.memoryStudents.delete(tempId);
-          stu.id = serverData.id;
-          if (serverData.studentCode) stu.studentCode = serverData.studentCode;
-          if (serverData.qrCodeToken) stu.qrCodeToken = serverData.qrCodeToken;
-          this.memoryStudents.set(serverData.id, stu);
-        }
-      }
-    }
-
-    // 3. Reconcile Payments
-    if (mappings.payments) {
-      for (const [tempId, serverId] of Object.entries(mappings.payments)) {
-        const pay = this.memoryPayments.get(tempId);
-        if (pay) {
-          this.memoryPayments.delete(tempId);
-          pay.id = serverId;
-          this.memoryPayments.set(serverId, pay);
-        }
-      }
-    }
-
-    if (!this.isSupported()) return;
-
-    try {
-      if (mappings.groups) {
-        const { store } = await this.getStore('groups', 'readwrite');
-        for (const [tempId, serverId] of Object.entries(mappings.groups)) {
-          const getReq = store.get(tempId);
-          getReq.onsuccess = () => {
-            const val = getReq.result;
-            if (val) {
-              store.delete(tempId);
-              val.id = serverId;
-              store.put(val);
-            }
-          };
-        }
-      }
-
-      if (mappings.students) {
-        const { store } = await this.getStore('students', 'readwrite');
-        for (const [tempId, serverData] of Object.entries(mappings.students)) {
-          const getReq = store.get(tempId);
-          getReq.onsuccess = () => {
-            const val = getReq.result;
-            if (val) {
-              store.delete(tempId);
-              val.id = serverData.id;
-              if (serverData.studentCode) val.studentCode = serverData.studentCode;
-              if (serverData.qrCodeToken) val.qrCodeToken = serverData.qrCodeToken;
-              store.put(val);
-            }
-          };
-        }
-      }
-
-      if (mappings.payments) {
-        const { store } = await this.getStore('payments', 'readwrite');
-        for (const [tempId, serverId] of Object.entries(mappings.payments)) {
-          const getReq = store.get(tempId);
-          getReq.onsuccess = () => {
-            const val = getReq.result;
-            if (val) {
-              store.delete(tempId);
-              val.id = serverId;
-              store.put(val);
-            }
-          };
-        }
-      }
-    } catch (e) {
-      console.warn('Error during reconcileEntityIds:', e);
     }
   }
 
