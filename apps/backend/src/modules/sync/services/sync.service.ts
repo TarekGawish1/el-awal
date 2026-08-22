@@ -1104,6 +1104,20 @@ export class SyncService {
 
           if (isBookletOp && op.bookletId) {
             // Flow A: Ingest Booklet Payment
+            const booklet = await tx.booklet.findUnique({
+              where: { id: op.bookletId },
+            });
+
+            if (booklet && student.gradeLevel && booklet.gradeLevel && student.gradeLevel !== booklet.gradeLevel) {
+              result.conflicts.push({
+                operationId: opId,
+                reason: `لا يمكن سداد المذكرة (${booklet.title}) لصف دراسي مختلف (${booklet.gradeLevel}) عن صف الطالب (${student.gradeLevel})`,
+                entityId: op.bookletId,
+              });
+              result.failedCount++;
+              return;
+            }
+
             const existingBookletPayment = await tx.studentPaymentRecord.findFirst({
               where: {
                 studentId: op.studentId,

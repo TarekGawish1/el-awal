@@ -1329,6 +1329,14 @@ class OfflineDatabase {
     const paymentId = `pay-bkt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
     const booklet = await this.getBookletByIdOffline(params.bookletId);
+    const student = await this.getStudentByIdOffline(params.studentId);
+
+    if (student?.gradeLevel && booklet?.gradeLevel && student.gradeLevel !== booklet.gradeLevel) {
+      throw new Error(
+        `لا يمكن سداد المذكرة (${booklet.title}) المخصصة لـ (${booklet.gradeLevel}) للطالب المقيد بالصف (${student.gradeLevel})`,
+      );
+    }
+
     const expected = params.amountExpected ?? (booklet ? Number(booklet.price) : params.amountPaid);
 
     const paymentRecord: PaymentEntity = {

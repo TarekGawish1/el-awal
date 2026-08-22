@@ -163,6 +163,35 @@ describe('SubscriptionsService', () => {
         }),
       );
     });
+
+    it('should throw BadRequestException when booklet gradeLevel does not match student gradeLevel', async () => {
+      const studentId = 'stu-1';
+      const bookletId = 'booklet-diff-grade';
+
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue({
+        id: studentId,
+        gradeLevel: 'الصف الأول الثانوي',
+        user: { fullName: 'محمود أحمد' },
+      });
+
+      mockPrismaService.booklet.findUnique.mockResolvedValue({
+        id: bookletId,
+        title: 'مذكرة كيمياء تالتة ثانوي',
+        gradeLevel: 'الصف الثالث الثانوي',
+        price: 90.0,
+        stockCount: 10,
+        groupId: null,
+      });
+
+      await expect(
+        service.recordStudentPayment(mockUser, {
+          studentId,
+          paymentType: 'BOOKLET',
+          bookletId,
+          amountPaid: 90.0,
+        }),
+      ).rejects.toThrow('لا يمكن سداد المذكرة');
+    });
   });
 
   describe('getGroupDefaulters', () => {
@@ -267,6 +296,37 @@ describe('SubscriptionsService', () => {
           periodMonth: 8,
         }),
       );
+    });
+
+    it('should throw BadRequestException when booklet gradeLevel does not match student in scanPaymentQr', async () => {
+      const qrCodeToken = 'qr_tok_student_grade_1';
+      const studentId = 'stu-grade-1';
+      const bookletId = 'booklet-grade-2';
+
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue({
+        id: studentId,
+        qrCodeToken,
+        gradeLevel: 'الصف الأول الثانوي',
+        user: { fullName: 'طالب أولى ثانوي', phone: '01012345678', isActive: true },
+        groupEnrollments: [],
+      });
+
+      mockPrismaService.booklet.findUnique.mockResolvedValue({
+        id: bookletId,
+        title: 'مذكرة تانية ثانوي',
+        gradeLevel: 'الصف الثاني الثانوي',
+        price: 70.0,
+        stockCount: 5,
+        groupId: null,
+      });
+
+      await expect(
+        service.scanPaymentQr(mockUser, {
+          qrCodeToken,
+          paymentType: 'BOOKLET',
+          bookletId,
+        }),
+      ).rejects.toThrow('لا يمكن سداد المذكرة');
     });
 
     it('should throw BadRequestException for invalid or inactive student QR code', async () => {

@@ -130,6 +130,20 @@ export function RecordPaymentModal({
 
     const student = defaulters.find((d) => d.studentId === data.studentId);
     const booklet = booklets.find((b) => b.id === data.bookletId);
+    const studentGrade = student?.gradeLevel || (allStudents.find((s) => s.id === data.studentId) as any)?.gradeLevel;
+
+    if (
+      paymentType === 'BOOKLET' &&
+      booklet &&
+      studentGrade &&
+      booklet.gradeLevel &&
+      studentGrade !== booklet.gradeLevel
+    ) {
+      toast.error(
+        `لا يمكن سداد المذكرة (${booklet.title}) المخصصة لـ (${booklet.gradeLevel}) للطالب المقيد بالصف (${studentGrade})`,
+      );
+      return;
+    }
 
     const expected =
       paymentType === 'BOOKLET'

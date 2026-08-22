@@ -60,6 +60,13 @@ export class SubscriptionsService {
         throw new NotFoundException(`Booklet [${dto.bookletId}] not found`);
       }
 
+      // Grade level mismatch validation
+      if (student.gradeLevel && booklet.gradeLevel && student.gradeLevel !== booklet.gradeLevel) {
+        throw new BadRequestException(
+          `لا يمكن سداد المذكرة (${booklet.title}) المخصصة لـ (${booklet.gradeLevel}) للطالب المقيد بالصف (${student.gradeLevel})`,
+        );
+      }
+
       bookletTitle = booklet.title;
       if (amountExpected === undefined) {
         amountExpected = Number(booklet.price);
@@ -317,6 +324,13 @@ export class SubscriptionsService {
 
       if (!booklet) {
         throw new NotFoundException(`Booklet [${dto.bookletId}] not found`);
+      }
+
+      // Grade level mismatch validation
+      if (student.gradeLevel && booklet.gradeLevel && student.gradeLevel !== booklet.gradeLevel) {
+        throw new BadRequestException(
+          `لا يمكن سداد المذكرة (${booklet.title}) المخصصة لـ (${booklet.gradeLevel}) للطالب المقيد بالصف (${student.gradeLevel})`,
+        );
       }
 
       const amountExpected = Number(booklet.price);

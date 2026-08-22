@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
+  offlineDb,
   bulkPutBooklets,
   putBooklet,
   getBookletsOffline,
@@ -134,5 +135,39 @@ describe('Offline Booklet Engine (IndexedDB & Memory Store)', () => {
     // Check duplicate
     const isPaidAfter = await isBookletPaymentRecordedOffline('stu-1', 'b-stock-1');
     expect(isPaidAfter.isRecorded).toBe(true);
+  });
+
+  it('throws error when recording offline payment for a booklet belonging to a different grade level', async () => {
+    // Put student in 1st secondary
+    const student = {
+      id: 'stu-grade-test-1',
+      fullName: 'طالب أولى ثانوي',
+      gradeLevel: 'الصف الأول الثانوي',
+      studentCode: 'STU-G1',
+      qrCodeToken: 'qr-g1',
+      user: { id: 'stu-grade-test-1', fullName: 'طالب أولى ثانوي', isActive: true },
+    };
+    await offlineDb.bulkPutStudents([student as any]);
+
+    // Put booklet for 3rd secondary
+    const booklet = {
+      id: 'b-grade-3',
+      title: 'مذكرة كيمياء تالتة ثانوي',
+      price: 100,
+      gradeLevel: 'الصف الثالث الثانوي',
+      stockCount: 10,
+      salesCount: 0,
+      totalRevenue: 0,
+      isActive: true,
+    };
+    await putBooklet(booklet as any);
+
+    await expect(
+      recordBookletPaymentOffline({
+        studentId: 'stu-grade-test-1',
+        bookletId: 'b-grade-3',
+        amountPaid: 100,
+      }),
+    ).rejects.toThrow('لا يمكن سداد المذكرة');
   });
 });
