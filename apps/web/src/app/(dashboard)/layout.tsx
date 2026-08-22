@@ -25,11 +25,11 @@ import { AcademicPeriodSwitcher } from '@/features/groups/components/AcademicPer
 import { PwaInstallButton } from '@/components/pwa';
 import { BootstrapProgressIndicator } from '@/components/pwa/BootstrapProgressIndicator';
 import { MobileBottomNav } from '@/components/navigation';
-import { SyncReviewModal } from '@/components/sync';
+import { SyncReviewModal, SyncConfirmationModal, OfflineActivityDrawer } from '@/components/sync';
 import { getNavigationItemsForRole } from '@/config/navigation';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import { syncEngine } from '@/lib/offline/sync-engine';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, ListChecks } from 'lucide-react';
 
 export default function DashboardLayout({
   children,
@@ -38,6 +38,8 @@ export default function DashboardLayout({
 }) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isSyncReviewOpen, setIsSyncReviewOpen] = useState(false);
+  const [isSyncConfirmationOpen, setIsSyncConfirmationOpen] = useState(false);
+  const [isActivityDrawerOpen, setIsActivityDrawerOpen] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
   const pathname = usePathname();
@@ -50,7 +52,9 @@ export default function DashboardLayout({
     const unsubscribe = syncEngine.subscribe((event) => {
       setPendingSyncCount(event.pendingCount);
       if (event.type === 'SYNC_REVIEW_REQUIRED') {
-        setIsSyncReviewOpen(true);
+        // Reconnection with pending offline actions: silent auto-sync is disabled,
+        // require explicit user confirmation before dispatching anything to the server.
+        setIsSyncConfirmationOpen(true);
       }
     });
     return () => unsubscribe();
@@ -217,6 +221,22 @@ export default function DashboardLayout({
               <AcademicPeriodSwitcher />
             )}
 
+            {/* Pending Actions Button - visible while offline with queued mutations */}
+            {!isOnline && pendingSyncCount > 0 && (
+              <button
+                onClick={() => setIsActivityDrawerOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border bg-purple-50 border-purple-200 text-purple-800 hover:bg-purple-100 shadow-xs"
+                title="عرض العمليات المعلقة"
+                aria-label="عرض العمليات المعلقة"
+              >
+                <ListChecks className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">عرض العمليات المعلقة</span>
+                <span className="bg-purple-600 text-white rounded-full px-1.5 py-0.2 text-[10px] font-mono font-black">
+                  {pendingSyncCount}
+                </span>
+              </button>
+            )}
+
             {/* Sync Review Button (shows when online with pending items or on click) */}
             <button
               onClick={() => setIsSyncReviewOpen(true)}
@@ -293,13 +313,25 @@ export default function DashboardLayout({
         {/* Floating Offline Bootstrap Hydration Indicator */}
         <BootstrapProgressIndicator />
 
-        {/* Bi-Directional Sync Review Modal */}
+        {/* Bi-Directional Sync Review Modal (manual, on-demand review) */}
         <SyncReviewModal
           isOpen={isSyncReviewOpen}
           onClose={() => setIsSyncReviewOpen(false)}
           onSuccess={() => {
             setIsSyncReviewOpen(false);
           }}
+        />
+
+        {/* Reconnection Confirmation Modal - blocks silent auto-syncing until the user decides */}
+        <SyncConfirmationModal
+          isOpen={isSyncConfirmationOpen}
+          onClose={() => setIsSyncConfirmationOpen(false)}
+        />
+
+        {/* Offline Pending Activity Drawer */}
+        <OfflineActivityDrawer
+          isOpen={isActivityDrawerOpen}
+          onClose={() => setIsActivityDrawerOpen(false)}
         />
       </div>
     </div>

@@ -41,6 +41,24 @@ export interface IncomingDiffSummary {
   serverTime: string;
 }
 
+export type PendingActivityKind =
+  | 'BOOKLET_PAYMENT'
+  | 'TUITION_PAYMENT'
+  | 'ATTENDANCE_SCAN'
+  | 'DELETED_RECORD'
+  | 'OTHER';
+
+export interface PendingActivityItem {
+  id: string;
+  domain: OutboxMutationRecord['domain'];
+  kind: PendingActivityKind;
+  title: string;
+  subtitle: string;
+  amount?: number;
+  timestamp: number;
+  raw: OutboxMutationRecord;
+}
+
 export type SyncEngineEventType =
   | 'ONLINE'
   | 'OFFLINE'
@@ -49,6 +67,7 @@ export type SyncEngineEventType =
   | 'SYNC_SUCCESS'
   | 'SYNC_ERROR'
   | 'MUTATION_ENQUEUED'
+  | 'MUTATION_UNDONE'
   | 'SYNC_REVIEW_REQUIRED';
 
 export type SyncEngineEventListener = (event: {
@@ -75,6 +94,11 @@ class OfflineSyncEngine {
   private syncTimer: NodeJS.Timeout | null = null;
   private lastSyncedAt: number | null = null;
   private queryClient: any = null;
+  /**
+   * When true, automatic dispatching (periodic checks, triggerSync) is paused
+   * pending explicit user confirmation via <SyncConfirmationModal /> after reconnection.
+   */
+  private syncConfirmationRequired: boolean = false;
 
   public setQueryClient(client: any): void {
     this.queryClient = client;
@@ -132,6 +156,14 @@ class OfflineSyncEngine {
     if (typeof window !== 'undefined' && window.localStorage) {
       localStorage.setItem('el_awal_auto_sync_enabled', enabled ? 'true' : 'false');
     }
+  }
+
+  /**
+   * True while the app is blocking automatic outbox dispatching, awaiting the
+   * user's explicit decision via <SyncConfirmationModal /> after reconnection.
+   */
+  public isSyncConfirmationRequired(): boolean {
+    return this.syncConfirmationRequired;
   }
 
   /**
@@ -210,6 +242,100 @@ class OfflineSyncEngine {
     };
   }
 
+  /**
+   * Builds a rich, human-readable list of every pending local mutation for display
+   * in <OfflineActivityDrawer /> and <SyncConfirmationModal />, resolving related
+   * student/group/booklet names from local IndexedDB caches.
+   */
+  public async getDetailedPendingActivity(): Promise<PendingActivityItem[]> {
+    const pending = await offlineDb.getPendingMutations();
+    const items: PendingActivityItem[] = [];
+
+    for (const m of pending) {
+      const payload = m.payload || {};
+
+      if (m.domain === 'finance' && payload.type === 'DELETE_PAYMENT') {
+        const snapshot = payload.previousPaymentSnapshot || {};
+        const student = snapshot.studentId ? await offlineDb.getStudentByIdOffline(snapshot.studentId) : null;
+        const targetName = student?.fullName || student?.user?.fullName || 'سجل مالي';
+        items.push({
+          id: m.id,
+          domain: m.domain,
+          kind: 'DELETED_RECORD',
+          title: `حذف دفعة: ${targetName}`,
+          subtitle: snapshot.bookletId ? 'مذكرة دراسية' : 'اشتراك شهري',
+          amount: snapshot.amountPaid,
+          timestamp: m.clientTimestamp,
+          raw: m,
+        });
+        continue;
+      }
+
+      if (m.domain === 'finance') {
+        const isBooklet = payload.paymentType === 'BOOKLET' || Boolean(payload.bookletId);
+        const student = payload.studentId ? await offlineDb.getStudentByIdOffline(payload.studentId) : null;
+        const studentName = student?.fullName || student?.user?.fullName || 'طالب';
+
+        if (isBooklet) {
+          const booklet = payload.bookletId ? await offlineDb.getBookletByIdOffline(payload.bookletId) : null;
+          items.push({
+            id: m.id,
+            domain: m.domain,
+            kind: 'BOOKLET_PAYMENT',
+            title: `${studentName} • ${booklet?.title || 'مذكرة'}`,
+            subtitle: `${payload.amountPaid ?? 0} ج.م`,
+            amount: payload.amountPaid,
+            timestamp: m.clientTimestamp,
+            raw: m,
+          });
+        } else {
+          const group = payload.groupId ? await offlineDb.getGroupByIdOffline(payload.groupId) : null;
+          items.push({
+            id: m.id,
+            domain: m.domain,
+            kind: 'TUITION_PAYMENT',
+            title: `${studentName} • ${group?.name || 'المجموعة'}`,
+            subtitle: `${payload.periodMonth ?? ''}/${payload.periodYear ?? ''} — ${payload.amountPaid ?? 0} ج.م`,
+            amount: payload.amountPaid,
+            timestamp: m.clientTimestamp,
+            raw: m,
+          });
+        }
+        continue;
+      }
+
+      if (m.domain === 'attendance') {
+        const student = payload.studentId ? await offlineDb.getStudentByIdOffline(payload.studentId) : null;
+        const studentName = student?.fullName || student?.user?.fullName || 'طالب';
+        const allSessions = await offlineDb.getSessionsOffline();
+        const session = allSessions.find((s) => String(s.id) === String(payload.sessionId));
+        const group = session?.groupId ? await offlineDb.getGroupByIdOffline(session.groupId) : null;
+        items.push({
+          id: m.id,
+          domain: m.domain,
+          kind: 'ATTENDANCE_SCAN',
+          title: `${studentName} • ${group?.name || session?.group?.name || 'الجلسة الدراسية'}`,
+          subtitle: payload.status || 'PRESENT',
+          timestamp: m.clientTimestamp,
+          raw: m,
+        });
+        continue;
+      }
+
+      items.push({
+        id: m.id,
+        domain: m.domain,
+        kind: 'OTHER',
+        title: payload.fullName || payload.name || m.endpoint,
+        subtitle: m.method,
+        timestamp: m.clientTimestamp,
+        raw: m,
+      });
+    }
+
+    return items.sort((a, b) => a.timestamp - b.timestamp);
+  }
+
   private async handleNetworkChange(online: boolean) {
     if (online) {
       // Confirm genuine connectivity via fast ping
@@ -218,7 +344,10 @@ class OfflineSyncEngine {
       if (verified) {
         this.notify('ONLINE');
         const pendingCount = await offlineDb.getPendingCount();
-        if (!this.isAutoSyncEnabled() && pendingCount > 0) {
+        if (pendingCount > 0) {
+          // Silent auto-syncing on reconnection is disabled: pause automatic
+          // dispatching and require explicit user confirmation via <SyncConfirmationModal />.
+          this.syncConfirmationRequired = true;
           this.notify('SYNC_REVIEW_REQUIRED', { pendingCount });
         } else {
           this.triggerSync();
@@ -292,6 +421,8 @@ class OfflineSyncEngine {
   public triggerSync(): void {
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : this.isOnlineState;
     if (!isOnline) return;
+    // Automatic dispatching stays paused until the user confirms via <SyncConfirmationModal />.
+    if (this.syncConfirmationRequired) return;
 
     if (this.syncTimer) {
       clearTimeout(this.syncTimer);
@@ -304,6 +435,7 @@ class OfflineSyncEngine {
   private async checkAndSync() {
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : this.isOnlineState;
     if (!isOnline) return;
+    if (this.syncConfirmationRequired) return;
 
     const verified = await this.verifyConnection();
     if (verified) {
@@ -316,14 +448,29 @@ class OfflineSyncEngine {
    * 1. Entity Creations (groups -> students -> schedules)
    * 2. Domain Batch Endpoints (attendance -> finance -> progress -> assessments)
    * 3. Remaining Generic FIFO mutations
+   *
+   * @param options.mutationIds Restrict the flush to only these outbox mutation ids
+   *   (used when the user selects a subset of pending actions in <SyncConfirmationModal />).
+   * @param options.force Bypass the reconnection confirmation gate (used once the user
+   *   has explicitly confirmed via <SyncConfirmationModal />).
    */
-  public async flushOutbox(): Promise<{ synced: number; failed: number }> {
+  public async flushOutbox(options?: {
+    mutationIds?: string[];
+    force?: boolean;
+  }): Promise<{ synced: number; failed: number }> {
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : this.isOnlineState;
     if (!isOnline || this.isSyncingState) {
       return { synced: 0, failed: 0 };
     }
+    if (this.syncConfirmationRequired && !options?.force) {
+      return { synced: 0, failed: 0 };
+    }
 
-    const pending = await offlineDb.getPendingMutations();
+    let pending = await offlineDb.getPendingMutations();
+    if (options?.mutationIds) {
+      const allowed = new Set(options.mutationIds);
+      pending = pending.filter((m) => allowed.has(m.id));
+    }
     if (pending.length === 0) {
       return { synced: 0, failed: 0 };
     }
@@ -517,26 +664,36 @@ class OfflineSyncEngine {
         }
       }
 
-      // 5. Batch Payments Sync
-      const paymentItems = pending.filter((m) => m.domain === 'finance' && m.method === 'POST');
+      // 5. Batch Payments Sync (includes both payment creations and DELETE_PAYMENT reversals)
+      const paymentItems = pending.filter((m) => m.domain === 'finance');
       if (paymentItems.length > 0) {
         try {
-          const operations = paymentItems.map((item) => ({
-            id: item.id,
-            studentId: item.payload.studentId,
-            groupId: item.payload.groupId,
-            paymentType: item.payload.paymentType || (item.payload.bookletId ? 'BOOKLET' : 'TUITION'),
-            bookletId: item.payload.bookletId,
-            periodYear: item.payload.periodYear,
-            periodMonth: item.payload.periodMonth,
-            amountPaid: item.payload.amountPaid,
-            amountExpected: item.payload.amountExpected,
-            paymentMethod: item.payload.paymentMethod || 'CASH',
-            receiptNumber: item.payload.receiptNumber,
-            notes: item.payload.notes,
-            clientTimestamp: item.clientTimestamp,
-            collectedAt: item.payload.collectedAt,
-          }));
+          const operations = paymentItems.map((item) => {
+            if (item.payload?.type === 'DELETE_PAYMENT') {
+              return {
+                id: item.id,
+                type: 'DELETE_PAYMENT' as const,
+                paymentId: item.payload.paymentId,
+                clientTimestamp: item.clientTimestamp,
+              };
+            }
+            return {
+              id: item.id,
+              studentId: item.payload.studentId,
+              groupId: item.payload.groupId,
+              paymentType: item.payload.paymentType || (item.payload.bookletId ? 'BOOKLET' : 'TUITION'),
+              bookletId: item.payload.bookletId,
+              periodYear: item.payload.periodYear,
+              periodMonth: item.payload.periodMonth,
+              amountPaid: item.payload.amountPaid,
+              amountExpected: item.payload.amountExpected,
+              paymentMethod: item.payload.paymentMethod || 'CASH',
+              receiptNumber: item.payload.receiptNumber,
+              notes: item.payload.notes,
+              clientTimestamp: item.clientTimestamp,
+              collectedAt: item.payload.collectedAt,
+            };
+          });
 
           const res = await apiClient<any>(API_ENDPOINTS.SYNC.PAYMENTS, {
             method: 'POST',
@@ -700,6 +857,122 @@ class OfflineSyncEngine {
     }
 
     return { synced: syncedCount, failed: failedCount };
+  }
+
+  /**
+   * Explicit user-confirmed sync entry point for the reconnection flow.
+   * Called by <SyncConfirmationModal /> when the user clicks "Sync Now", optionally
+   * restricted to a checklist-selected subset of pending mutation ids.
+   */
+  public async confirmAndSync(selectedMutationIds?: string[]): Promise<{ synced: number; failed: number }> {
+    this.syncConfirmationRequired = false;
+    return this.flushOutbox({ mutationIds: selectedMutationIds, force: true });
+  }
+
+  /**
+   * Closes the confirmation prompt without dispatching anything. Pending mutations
+   * remain untouched in the outbox and automatic dispatching stays paused until the
+   * user later confirms or discards them.
+   */
+  public deferSyncConfirmation(): void {
+    this.notify('SYNC_REVIEW_REQUIRED');
+  }
+
+  /**
+   * Reverts the local side-effects of a single pending outbox mutation and removes
+   * it from the outbox, without contacting the server. Used by the individual
+   * "Undo" action in <OfflineActivityDrawer /> and <SyncConfirmationModal />.
+   */
+  public async undoMutation(mutationId: string): Promise<void> {
+    const pending = await offlineDb.getPendingMutations();
+    const mutation = pending.find((m) => m.id === mutationId);
+    if (!mutation) return;
+
+    const payload = mutation.payload || {};
+
+    try {
+      if (mutation.domain === 'finance') {
+        if (payload.type === 'DELETE_PAYMENT') {
+          const snapshot = payload.previousPaymentSnapshot;
+          if (snapshot) {
+            await offlineDb.putPayment(snapshot);
+            if (snapshot.studentId) {
+              await offlineDb.markStudentPaidOffline(snapshot.studentId, snapshot);
+            }
+            if (snapshot.paymentType === 'BOOKLET' && snapshot.bookletId) {
+              const booklet = await offlineDb.getBookletByIdOffline(snapshot.bookletId);
+              if (booklet) {
+                await offlineDb.putBooklet({
+                  ...booklet,
+                  stockCount:
+                    booklet.stockCount !== null && booklet.stockCount !== undefined
+                      ? Math.max(0, booklet.stockCount - 1)
+                      : booklet.stockCount,
+                  salesCount: (booklet.salesCount || 0) + 1,
+                  totalRevenue: (booklet.totalRevenue || 0) + Number(snapshot.amountPaid || 0),
+                });
+              }
+            }
+          }
+        } else {
+          const paymentId = mutation.optimisticId || payload.id;
+          if (paymentId) {
+            await offlineDb.deletePaymentLocally(paymentId);
+          }
+        }
+      } else if (mutation.domain === 'attendance') {
+        if (payload.sessionId && payload.studentId) {
+          await offlineDb.revertAttendanceRecordOffline(payload.sessionId, payload.studentId);
+        }
+      } else if (mutation.domain === 'students' && mutation.method === 'POST') {
+        const studentId = mutation.optimisticId || payload.id;
+        if (studentId) {
+          await offlineDb.removeStudent(studentId);
+        }
+      } else if (mutation.domain === 'groups' && mutation.method === 'POST') {
+        const groupId = mutation.optimisticId || payload.id;
+        if (groupId) {
+          await offlineDb.removeGroup(groupId);
+        }
+      }
+    } finally {
+      await offlineDb.removeMutation(mutationId);
+      if (this.queryClient) {
+        this.queryClient.invalidateQueries({ queryKey: ['finance'] });
+        this.queryClient.invalidateQueries({ queryKey: ['payments'] });
+        this.queryClient.invalidateQueries({ queryKey: ['booklets'] });
+        this.queryClient.invalidateQueries({ queryKey: ['students'] });
+        this.queryClient.invalidateQueries({ queryKey: ['group-defaulters'] });
+      }
+      this.notify('MUTATION_UNDONE', mutation);
+    }
+  }
+
+  /**
+   * Called by <SyncConfirmationModal /> when the user clicks "Discard Local Changes".
+   * Reverts and purges every pending outbox mutation, then re-hydrates fresh state
+   * from the remote database via a full bootstrap pull.
+   */
+  public async discardAllLocalChanges(): Promise<{ discardedCount: number }> {
+    const pending = await offlineDb.getPendingMutations();
+    for (const m of pending) {
+      await this.undoMutation(m.id);
+    }
+
+    this.syncConfirmationRequired = false;
+
+    try {
+      await bootstrapManager.performBootstrap({ forceFull: true, queryClient: this.queryClient });
+    } catch (e) {
+      console.warn('Failed to rehydrate after discarding local changes:', e);
+    }
+
+    if (this.queryClient) {
+      this.queryClient.invalidateQueries();
+    }
+
+    this.notify('SYNC_SUCCESS', { syncedCount: 0, failedCount: 0, discarded: pending.length });
+    return { discardedCount: pending.length };
   }
 
   /**

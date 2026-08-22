@@ -1061,6 +1061,52 @@ export class SyncService {
 
     for (const op of dto.operations) {
       const opId = op.id || op.clientTempId || randomUUID();
+
+      if (op.type === 'DELETE_PAYMENT') {
+        const targetPaymentId = op.paymentId || op.id;
+        try {
+          await this.prisma.$transaction(async (tx) => {
+            const payment = await tx.studentPaymentRecord.findUnique({
+              where: { id: targetPaymentId },
+              include: { group: true },
+            });
+
+            if (!payment) {
+              // Already deleted (or never persisted) on the server: treat as an idempotent success.
+              result.duplicatesIgnored++;
+              result.processedOperationIds.push(opId);
+              return;
+            }
+
+            if (user.role === UserRole.TEACHER) {
+              const teacherId = user.teacherProfileId || user.id;
+              if (payment.group && payment.group.teacherId !== teacherId && payment.group.teacherId !== user.id) {
+                result.conflicts.push({
+                  operationId: opId,
+                  reason: 'FORBIDDEN: You do not own the academic group for this payment',
+                  entityId: targetPaymentId,
+                });
+                result.failedCount++;
+                return;
+              }
+            }
+
+            await tx.studentPaymentRecord.delete({ where: { id: targetPaymentId } });
+
+            result.syncedCount++;
+            result.processedOperationIds.push(opId);
+          });
+        } catch (err: any) {
+          this.logger.error(`Failed to sync DELETE_PAYMENT op [${opId}]:`, err);
+          result.failedCount++;
+          result.conflicts.push({
+            operationId: opId,
+            reason: err?.message || 'Payment deletion transaction error',
+          });
+        }
+        continue;
+      }
+
       const amountPaid = op.amountPaid ?? op.amount ?? 0;
       const amountExpected = op.amountExpected ?? op.amount ?? op.amountPaid ?? 0;
       const periodYear = op.periodYear || op.billingPeriodYear || new Date().getFullYear();

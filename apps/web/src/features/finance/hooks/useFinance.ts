@@ -486,13 +486,89 @@ export function useScanPaymentQr() {
   });
 }
 
+export interface DeletePaymentResult {
+  success: boolean;
+  isOfflineSaved: boolean;
+  mode: 'ONLINE' | 'LOCAL_DISCARD' | 'QUEUED_DELETE';
+  message: string;
+  payment?: any;
+}
+
+/**
+ * Deletes/reverses a recorded payment (tuition or booklet), fully supporting offline mode:
+ *  - Case A: The payment was itself created offline and is still an unsynced outbox mutation.
+ *    It is discarded directly (both the local record and its pending mutation are removed),
+ *    instantly reverting the student's paid status and local revenue metrics.
+ *  - Case B: The payment already exists on the server. It is removed optimistically from
+ *    local IndexedDB and a `DELETE_PAYMENT` mutation is enqueued for the backend to execute
+ *    `prisma.studentPaymentRecord.delete(...)` once synced.
+ */
 export function useDeletePayment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => deletePayment(id),
+    mutationFn: async (id: string): Promise<DeletePaymentResult> => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+      if (!isOnline) {
+        const pendingMutations = await offlineDb.getPendingMutations();
+        const pendingCreation = pendingMutations.find(
+          (m) =>
+            m.domain === 'finance' &&
+            m.payload?.type !== 'DELETE_PAYMENT' &&
+            (m.optimisticId === id || m.payload?.id === id),
+        );
+
+        if (pendingCreation) {
+          // Case A: purge the local-only payment and its unsent creation mutation together.
+          await offlineDb.deletePaymentLocally(id);
+          await offlineDb.removeMutation(pendingCreation.id);
+
+          return {
+            success: true,
+            isOfflineSaved: true,
+            mode: 'LOCAL_DISCARD',
+            message: 'تم إلغاء العملية المحلية وإزالتها من قائمة الانتظار فوراً 🗑️',
+          };
+        }
+
+        // Case B: optimistically remove a previously-synced payment and queue its deletion.
+        const removedPayment = await offlineDb.deletePaymentLocally(id);
+
+        await syncEngine.enqueue(
+          'finance',
+          API_ENDPOINTS.SYNC.PAYMENTS,
+          'DELETE',
+          {
+            type: 'DELETE_PAYMENT',
+            paymentId: id,
+            clientTimestamp: Date.now(),
+            previousPaymentSnapshot: removedPayment || null,
+          },
+        );
+
+        return {
+          success: true,
+          isOfflineSaved: true,
+          mode: 'QUEUED_DELETE',
+          message: 'تم حذف الدفعة محلياً ووضع العملية في انتظار المزامنة مع السيرفر 💾',
+          payment: removedPayment,
+        };
+      }
+
+      await deletePayment(id);
+      return {
+        success: true,
+        isOfflineSaved: false,
+        mode: 'ONLINE',
+        message: 'تم حذف الدفعة بنجاح',
+      };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: financeKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['booklets'] });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['group-defaulters'] });
     },
   });
 }

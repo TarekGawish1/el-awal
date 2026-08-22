@@ -4,7 +4,6 @@ import {
   IsArray,
   IsEnum,
   IsInt,
-  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
@@ -26,10 +25,24 @@ export class SyncPaymentItemDto {
   @IsOptional()
   clientTempId?: string;
 
-  @ApiProperty({ description: 'Student profile UUID' })
+  @ApiPropertyOptional({
+    enum: ['CREATE_PAYMENT', 'DELETE_PAYMENT'],
+    default: 'CREATE_PAYMENT',
+    description: 'Operation kind. Defaults to a payment creation/update when omitted.',
+  })
   @IsString()
-  @IsNotEmpty()
-  studentId: string;
+  @IsOptional()
+  type?: 'CREATE_PAYMENT' | 'DELETE_PAYMENT';
+
+  @ApiPropertyOptional({ description: 'Target StudentPaymentRecord UUID when type is DELETE_PAYMENT' })
+  @IsString()
+  @IsOptional()
+  paymentId?: string;
+
+  @ApiPropertyOptional({ description: 'Student profile UUID (required unless type is DELETE_PAYMENT)' })
+  @IsString()
+  @IsOptional()
+  studentId?: string;
 
   @ApiPropertyOptional({ description: 'Academic group UUID' })
   @IsString()

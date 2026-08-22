@@ -59,11 +59,17 @@ describe('SyncService', () => {
     parentStudentLink: {
       create: jest.fn(),
     },
+    booklet: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
     studentPaymentRecord: {
       findFirst: jest.fn(),
+      findUnique: jest.fn(),
       findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn(),
       update: jest.fn(),
+      delete: jest.fn(),
     },
     assessment: {
       findUnique: jest.fn(),
@@ -279,6 +285,123 @@ describe('SyncService', () => {
       expect(result.idMappings['op-pay-1']).toBe('pay-new');
       expect(result.idMappings['op-pay-2']).toBe('pay-existing');
       expect(mockPrismaService.studentPaymentRecord.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('should persist a booklet payment inside an atomic transaction and decrement booklet stockCount', async () => {
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue({
+        id: 'student-1',
+        gradeLevel: 'الصف الأول الثانوي',
+        groupEnrollments: [],
+      });
+
+      mockPrismaService.booklet.findUnique
+        .mockResolvedValueOnce({
+          id: 'booklet-1',
+          title: 'مذكرة الكيمياء',
+          gradeLevel: 'الصف الأول الثانوي',
+          groupId: null,
+          stockCount: 10,
+        })
+        .mockResolvedValueOnce({
+          id: 'booklet-1',
+          title: 'مذكرة الكيمياء',
+          gradeLevel: 'الصف الأول الثانوي',
+          groupId: null,
+          stockCount: 10,
+        });
+
+      mockPrismaService.studentPaymentRecord.findFirst.mockResolvedValue(null);
+      mockPrismaService.studentPaymentRecord.create.mockResolvedValue({
+        id: 'pay-booklet-new',
+        studentId: 'student-1',
+        bookletId: 'booklet-1',
+        paymentType: 'BOOKLET',
+        amountPaid: 85,
+      });
+
+      const dto = {
+        operations: [
+          {
+            id: 'op-pay-booklet-1',
+            studentId: 'student-1',
+            paymentType: 'BOOKLET' as const,
+            bookletId: 'booklet-1',
+            amountPaid: 85,
+            paymentMethod: 'CASH',
+            clientTimestamp: Date.now(),
+          },
+        ],
+      };
+
+      const result = await service.syncPaymentsBatch(mockTeacherUser, dto);
+
+      expect(result.syncedCount).toBe(1);
+      expect(result.failedCount).toBe(0);
+      expect(mockPrismaService.studentPaymentRecord.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            studentId: 'student-1',
+            bookletId: 'booklet-1',
+            paymentType: 'BOOKLET',
+            amountPaid: 85,
+          }),
+        }),
+      );
+      expect(mockPrismaService.booklet.update).toHaveBeenCalledWith({
+        where: { id: 'booklet-1' },
+        data: { stockCount: { decrement: 1 } },
+      });
+      expect(result.idMappings['op-pay-booklet-1']).toBe('pay-booklet-new');
+    });
+
+    it('should delete the StudentPaymentRecord in PostgreSQL when processing a DELETE_PAYMENT operation', async () => {
+      mockPrismaService.studentPaymentRecord.findUnique.mockResolvedValue({
+        id: 'pay-to-delete',
+        studentId: 'student-1',
+        group: { teacherId: 'teacher-profile-1' },
+      });
+      mockPrismaService.studentPaymentRecord.delete.mockResolvedValue({ id: 'pay-to-delete' });
+
+      const dto = {
+        operations: [
+          {
+            id: 'op-delete-1',
+            type: 'DELETE_PAYMENT' as const,
+            paymentId: 'pay-to-delete',
+            clientTimestamp: Date.now(),
+          },
+        ],
+      };
+
+      const result = await service.syncPaymentsBatch(mockTeacherUser, dto);
+
+      expect(mockPrismaService.studentPaymentRecord.delete).toHaveBeenCalledWith({
+        where: { id: 'pay-to-delete' },
+      });
+      expect(result.syncedCount).toBe(1);
+      expect(result.failedCount).toBe(0);
+      expect(result.processedOperationIds).toContain('op-delete-1');
+    });
+
+    it('should treat DELETE_PAYMENT as an idempotent success when the record no longer exists', async () => {
+      mockPrismaService.studentPaymentRecord.findUnique.mockResolvedValue(null);
+
+      const dto = {
+        operations: [
+          {
+            id: 'op-delete-2',
+            type: 'DELETE_PAYMENT' as const,
+            paymentId: 'already-gone',
+            clientTimestamp: Date.now(),
+          },
+        ],
+      };
+
+      const result = await service.syncPaymentsBatch(mockTeacherUser, dto);
+
+      expect(mockPrismaService.studentPaymentRecord.delete).not.toHaveBeenCalled();
+      expect(result.duplicatesIgnored).toBe(1);
+      expect(result.processedOperationIds).toContain('op-delete-2');
     });
   });
 

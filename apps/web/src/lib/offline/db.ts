@@ -1738,6 +1738,113 @@ class OfflineDatabase {
     }
   }
 
+  /**
+   * Removes a single payment entry (matching by id) from a student's embedded
+   * paymentRecords array, effectively reverting them to "unpaid" for that record's period/booklet.
+   */
+  public async removePaymentRecordFromStudent(studentId: string, paymentId: string): Promise<void> {
+    const cleanStudentId = String(studentId).trim();
+    const student = this.memoryStudents.get(cleanStudentId);
+    if (student && Array.isArray(student.paymentRecords)) {
+      student.paymentRecords = student.paymentRecords.filter((p: any) => p.id !== paymentId);
+      this.memoryStudents.set(cleanStudentId, { ...student });
+    }
+
+    if (!this.isSupported()) return;
+
+    try {
+      const { store } = await this.getStore('students', 'readwrite');
+      const getReq = store.get(cleanStudentId);
+      getReq.onsuccess = () => {
+        const s = getReq.result as StudentEntity;
+        if (s && Array.isArray(s.paymentRecords)) {
+          s.paymentRecords = s.paymentRecords.filter((p: any) => p.id !== paymentId);
+          store.put(s);
+        }
+      };
+    } catch (e) {
+      console.warn('Failed to removePaymentRecordFromStudent in IndexedDB:', e);
+    }
+  }
+
+  /**
+   * Fetches a single payment record by id from the offline payments store.
+   */
+  public async getPaymentByIdOffline(id: string): Promise<PaymentEntity | null> {
+    const cleanId = String(id).trim();
+    if (!this.isSupported()) {
+      return this.memoryPayments.get(cleanId) || null;
+    }
+    try {
+      const { store } = await this.getStore('payments', 'readonly');
+      return new Promise((resolve) => {
+        const req = store.get(cleanId);
+        req.onsuccess = () => resolve(req.result || this.memoryPayments.get(cleanId) || null);
+        req.onerror = () => resolve(this.memoryPayments.get(cleanId) || null);
+      });
+    } catch {
+      return this.memoryPayments.get(cleanId) || null;
+    }
+  }
+
+  /**
+   * Removes a payment record from the local payments store (memory + IndexedDB).
+   */
+  public async removePayment(id: string): Promise<void> {
+    const cleanId = String(id).trim();
+    this.memoryPayments.delete(cleanId);
+    if (!this.isSupported()) return;
+    try {
+      const { store } = await this.getStore('payments', 'readwrite');
+      store.delete(cleanId);
+    } catch {}
+  }
+
+  /**
+   * Reverses the local stock/revenue side-effects that were applied when a booklet
+   * payment was originally recorded offline (used when deleting/undoing that payment).
+   */
+  public async revertBookletPaymentEffectsOffline(bookletId: string, amountPaid: number): Promise<void> {
+    const booklet = await this.getBookletByIdOffline(bookletId);
+    if (!booklet) return;
+
+    const updatedBooklet: BookletEntity = {
+      ...booklet,
+      stockCount:
+        booklet.stockCount !== null && booklet.stockCount !== undefined
+          ? booklet.stockCount + 1
+          : booklet.stockCount,
+      salesCount: Math.max(0, (booklet.salesCount || 0) - 1),
+      totalRevenue: Math.max(0, (booklet.totalRevenue || 0) - Number(amountPaid || 0)),
+    };
+
+    await this.putBooklet(updatedBooklet);
+  }
+
+  /**
+   * Fully reverts all local side-effects of a payment record being deleted:
+   * removes it from the payments store, removes it from the owning student's
+   * embedded paymentRecords array, and reverses booklet stock/revenue counters
+   * when applicable. Returns the removed payment entity (or null if not found).
+   */
+  public async deletePaymentLocally(paymentId: string): Promise<PaymentEntity | null> {
+    const cleanId = String(paymentId).trim();
+    const payment = await this.getPaymentByIdOffline(cleanId);
+    if (!payment) return null;
+
+    await this.removePayment(cleanId);
+
+    if (payment.studentId) {
+      await this.removePaymentRecordFromStudent(payment.studentId, cleanId);
+    }
+
+    if (payment.paymentType === 'BOOKLET' && payment.bookletId) {
+      await this.revertBookletPaymentEffectsOffline(payment.bookletId, Number(payment.amountPaid || 0));
+    }
+
+    return payment;
+  }
+
   // ==========================================
   // Session Reports & Attendance Operations
   // ==========================================
@@ -1871,6 +1978,52 @@ class OfflineDatabase {
 
     await this.cacheSessionReport(cleanSessionId, updatedReport);
     return updatedReport;
+  }
+
+  /**
+   * Reverts a single locally-recorded attendance scan back to its unrecorded state,
+   * used when a teacher cancels/undoes a pending offline attendance mutation.
+   */
+  public async revertAttendanceRecordOffline(sessionId: string, studentId: string): Promise<void> {
+    const cleanSessionId = String(sessionId).trim().toLowerCase();
+    const currentReport = await this.getSessionReport(cleanSessionId);
+    if (!currentReport) return;
+
+    const records = Array.isArray(currentReport.records) ? [...currentReport.records] : [];
+    const idx = records.findIndex((r: any) => String(r.studentId).trim() === String(studentId).trim());
+    if (idx >= 0) {
+      records[idx] = {
+        ...records[idx],
+        status: null,
+        recordingMethod: null,
+        recordedAt: null,
+      };
+    }
+
+    const totalEnrolled = Math.max(records.length, currentReport.metrics?.totalEnrolled || 0);
+    const presentCount = records.filter((r: any) => r.status === 'PRESENT').length;
+    const excusedCount = records.filter((r: any) => r.status === 'EXCUSED').length;
+    const absentCount = records.filter((r: any) => r.status === 'ABSENT' || !r.status).length;
+    const attendanceRatePercentage = totalEnrolled > 0 ? Math.round((presentCount / totalEnrolled) * 100) : 0;
+
+    const updatedReport = {
+      ...currentReport,
+      metrics: {
+        totalEnrolled,
+        presentCount,
+        absentCount,
+        excusedCount,
+        attendanceRatePercentage,
+      },
+      records,
+      stats: {
+        totalEnrolled,
+        totalPresent: presentCount,
+        totalAbsent: absentCount,
+      },
+    };
+
+    await this.cacheSessionReport(cleanSessionId, updatedReport);
   }
 
   // ==========================================

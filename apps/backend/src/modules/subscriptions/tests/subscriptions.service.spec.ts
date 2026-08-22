@@ -35,6 +35,7 @@ describe('SubscriptionsService', () => {
       findFirst: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      delete: jest.fn(),
     },
     groupEnrollment: {
       findUnique: jest.fn(),
@@ -222,6 +223,91 @@ describe('SubscriptionsService', () => {
           amountPaid: 70.0,
         }),
       ).rejects.toThrow('INVALID_BOOKLET_FOR_STUDENT');
+    });
+  });
+
+  describe('deleteStudentPayment', () => {
+    it('should delete the StudentPaymentRecord in PostgreSQL', async () => {
+      mockPrismaService.studentPaymentRecord.findUnique.mockResolvedValue({
+        id: 'payment-to-delete',
+        studentId: 'stu-1',
+        group: { teacherId: 'staff-1' },
+      });
+      mockPrismaService.studentPaymentRecord.delete.mockResolvedValue({ id: 'payment-to-delete' });
+
+      const result = await service.deleteStudentPayment('payment-to-delete', mockUser);
+
+      expect(mockPrismaService.studentPaymentRecord.delete).toHaveBeenCalledWith({
+        where: { id: 'payment-to-delete' },
+      });
+      expect(result).toEqual({ success: true });
+    });
+
+    it('should throw NotFoundException when the payment record does not exist', async () => {
+      mockPrismaService.studentPaymentRecord.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.deleteStudentPayment('missing-id', mockUser),
+      ).rejects.toThrow('not found');
+      expect(mockPrismaService.studentPaymentRecord.delete).not.toHaveBeenCalled();
+    });
+
+    it('should forbid a teacher from deleting a payment belonging to a group they do not own', async () => {
+      const teacherUser: AuthenticatedUser = {
+        id: 'teacher-1',
+        role: UserRole.TEACHER,
+        teacherProfileId: 'teacher-profile-1',
+      } as any;
+
+      mockPrismaService.studentPaymentRecord.findUnique.mockResolvedValue({
+        id: 'payment-1',
+        studentId: 'stu-1',
+        group: { teacherId: 'someone-else' },
+      });
+
+      await expect(
+        service.deleteStudentPayment('payment-1', teacherUser),
+      ).rejects.toThrow('You do not own the academic group for this payment');
+      expect(mockPrismaService.studentPaymentRecord.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getStudentPaymentHistory (cross-device financial ledger verification)', () => {
+    it('surfaces a booklet purchase synced from another device in the student transaction history', async () => {
+      const studentId = 'stu-cross-device-1';
+
+      // Simulates a booklet payment that was persisted to PostgreSQL by a DIFFERENT
+      // device/session (e.g. via SyncService.syncPaymentsBatch while offline elsewhere).
+      mockPrismaService.studentPaymentRecord.findMany.mockResolvedValue([
+        {
+          id: 'pay-cross-device-1',
+          studentId,
+          groupId: null,
+          paymentType: 'BOOKLET',
+          bookletId: 'booklet-cross-1',
+          periodYear: 2026,
+          periodMonth: 9,
+          amountExpected: 95,
+          amountPaid: 95,
+          currency: 'EGP',
+          paymentStatus: PaymentStatus.PAID,
+          paymentMethod: 'CASH',
+          createdAt: new Date().toISOString(),
+          group: null,
+          booklet: { id: 'booklet-cross-1', title: 'مذكرة الرياضيات الشاملة', price: 95 },
+          recordedBy: { fullName: 'مدرس آخر' },
+        },
+      ]);
+
+      const history = await service.getStudentPaymentHistory(studentId, mockUser);
+
+      expect(mockPrismaService.studentPaymentRecord.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { studentId } }),
+      );
+      expect(history).toHaveLength(1);
+      expect(history[0].paymentType).toBe('BOOKLET');
+      expect(history[0].booklet?.title).toBe('مذكرة الرياضيات الشاملة');
+      expect(history[0].amountPaid).toBe(95);
     });
   });
 
