@@ -63,7 +63,7 @@ export function PaymentQrScannerModal({
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
 
   const { data: groups = [] } = useGroups();
-  const { booklets = [] } = useBooklets(groupId ? { groupId } : undefined);
+  const { booklets = [] } = useBooklets();
   const { mutate: scanPayment, isPending } = useScanPaymentQr();
 
   // Set default booklet when entering booklet mode

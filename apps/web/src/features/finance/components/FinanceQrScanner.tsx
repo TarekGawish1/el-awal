@@ -24,7 +24,7 @@ export function FinanceQrScanner({
   const [paymentType, setPaymentType] = useState<'TUITION' | 'BOOKLET'>('TUITION');
   const [selectedBookletId, setSelectedBookletId] = useState<string>('');
 
-  const { booklets = [] } = useBooklets(groupId ? { groupId } : undefined);
+  const { booklets = [] } = useBooklets();
 
   useEffect(() => {
     if (paymentType === 'BOOKLET' && booklets.length > 0 && !selectedBookletId) {

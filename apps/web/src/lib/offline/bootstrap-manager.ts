@@ -157,6 +157,7 @@ class BootstrapManager {
         await offlineDb.bulkPutBooklets(payload.booklets);
         if (qc) {
           qc.setQueryData(['booklets'], payload.booklets);
+          qc.setQueryData(['booklets', undefined], payload.booklets);
         }
       }
 

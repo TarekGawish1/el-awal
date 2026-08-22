@@ -15,9 +15,26 @@ export function useBooklets(query?: {
 }) {
   const queryClient = useQueryClient();
 
-  const bookletsQuery = useQuery({
+  const bookletsQuery = useQuery<Booklet[]>({
     queryKey: ['booklets', query],
-    queryFn: () => fetchBookletsApi(query),
+    queryFn: async (): Promise<Booklet[]> => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        return (await offlineDb.getBookletsOffline(query)) as unknown as Booklet[];
+      }
+
+      try {
+        const list = await fetchBookletsApi(query);
+        if (list && list.length > 0) {
+          await offlineDb.bulkPutBooklets(list as any);
+        }
+        return list;
+      } catch (err) {
+        console.warn('Failed to fetch booklets from API, falling back to offline IndexedDB:', err);
+        return (await offlineDb.getBookletsOffline(query)) as unknown as Booklet[];
+      }
+    },
+    networkMode: 'offlineFirst',
     staleTime: 1000 * 60 * 3, // 3 minutes
   });
 
