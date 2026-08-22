@@ -25,6 +25,8 @@ import { AcademicPeriodSwitcher } from '@/features/groups/components/AcademicPer
 import { PwaInstallButton } from '@/components/pwa';
 import { BootstrapProgressIndicator } from '@/components/pwa/BootstrapProgressIndicator';
 import { MobileBottomNav } from '@/components/navigation';
+import { getNavigationItemsForRole } from '@/config/navigation';
+import { useOnlineStatus } from '@/lib/offline/use-online-status';
 
 export default function DashboardLayout({
   children,
@@ -36,6 +38,7 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { user, isAuthenticated, isInitialized, logout } = useAuth();
+  const isOnline = useOnlineStatus();
 
   useEffect(() => {
     setIsMounted(true);
@@ -44,7 +47,6 @@ export default function DashboardLayout({
   // Authentication Route Protection
   useEffect(() => {
     if (isMounted && isInitialized && !isAuthenticated) {
-      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       // Do not redirect to login when offline if a stored user exists
       if (!isOnline && user) {
         return;
@@ -52,7 +54,7 @@ export default function DashboardLayout({
       const redirectParam = pathname ? `?redirect=${encodeURIComponent(pathname)}` : '';
       router.replace(`/login${redirectParam}`);
     }
-  }, [isMounted, isInitialized, isAuthenticated, pathname, router, user]);
+  }, [isMounted, isInitialized, isAuthenticated, pathname, router, user, isOnline]);
 
   const getRoleLabel = (role?: string) => {
     switch (role) {
@@ -69,34 +71,7 @@ export default function DashboardLayout({
     }
   };
 
-  const teacherNavigationItems = [
-    { label: 'لوحة التحكم', href: '/teacher/dashboard', icon: LayoutDashboard },
-    { label: 'المجموعات الدراسية', href: '/teacher/groups', icon: Users },
-    { label: 'جدول وحصص المعلم', href: '/teacher/schedules', icon: Calendar },
-    { label: 'رصد الحضور والـ QR', href: '/teacher/attendance', icon: QrCode },
-    { label: 'سجل الطلاب', href: '/teacher/students', icon: GraduationCap },
-    { label: 'الواجبات والاختبارات', href: '/teacher/assessments', icon: FileText },
-    { label: 'المحتوى والدروس', href: '/teacher/content', icon: BookOpen },
-    { label: 'الماليات والمصروفات', href: '/teacher/finance', icon: DollarSign },
-  ];
-
-  const studentNavigationItems = [
-    { label: 'الرئيسية', href: '/student/dashboard', icon: LayoutDashboard },
-    { label: 'الدورات', href: '/student/courses', icon: BookOpen },
-    { label: 'الاختبارات', href: '/student/assessments', icon: FileText },
-    { label: 'الحضور', href: '/student/attendance', icon: QrCode },
-    { label: 'المدفوعات', href: '/student/payments', icon: DollarSign },
-  ];
-
-  const parentNavigationItems = [
-    { label: 'أبنائي', href: '/parent/dashboard', icon: LayoutDashboard },
-  ];
-
-  const navigationItems = user?.role === 'STUDENT'
-    ? studentNavigationItems
-    : user?.role === 'PARENT'
-      ? parentNavigationItems
-      : teacherNavigationItems;
+  const navigationItems = getNavigationItemsForRole(user?.role, isOnline);
 
   // Hydration-safe initial loading screen before auth initialization & client mount
   if (!isMounted || !isInitialized) {

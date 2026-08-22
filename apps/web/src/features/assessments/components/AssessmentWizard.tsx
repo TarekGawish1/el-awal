@@ -19,6 +19,8 @@ import { AssessmentQuestionEditor } from './AssessmentQuestionEditor';
 import { useCreateAssessment } from '../hooks/use-assessments';
 import { useGroups } from '../../groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '../../groups/hooks/useAcademicPeriod';
+import { FeatureRequiresOnlineCard } from '@/components/offline/FeatureRequiresOnlineCard';
+import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import toast from 'react-hot-toast';
 
 type Step = 'metadata' | 'questions' | 'review';
@@ -34,19 +36,27 @@ function getGroupNextSessionDate(group: Group): Date | null {
   }
   
   const now = new Date();
+  let nextSessionDate: Date | null = null;
   let minDiff = Infinity;
-  let nextSessionDate = new Date();
   
-  group.schedules.forEach(sched => {
-    const schedDay = sched.dayOfWeek;
+  group.schedules.forEach((sched: GroupSchedule) => {
+    let schedDay = 0;
+    if (typeof sched.dayOfWeek === 'number') {
+      schedDay = sched.dayOfWeek;
+    } else {
+      const daysMap: Record<string, number> = {
+        'SUNDAY': 0, 'MONDAY': 1, 'TUESDAY': 2, 'WEDNESDAY': 3,
+        'THURSDAY': 4, 'FRIDAY': 5, 'SATURDAY': 6
+      };
+      schedDay = daysMap[sched.dayOfWeek as string] ?? 0;
+    }
+    
     let hours = 15;
     let minutes = 0;
     if (sched.startTime) {
-      const parts = sched.startTime.split(':');
-      if (parts.length >= 2) {
-        hours = parseInt(parts[0], 10);
-        minutes = parseInt(parts[1], 10);
-      }
+      const [h, m] = sched.startTime.split(':').map(Number);
+      if (!isNaN(h)) hours = h;
+      if (!isNaN(m)) minutes = m;
     }
     
     const currentDay = now.getDay();
@@ -93,8 +103,19 @@ function getNextSessionDate(groups: Group[], targetGroupIds: string[]): Date | n
 }
 
 export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMENT' }) {
+  const isOnline = useOnlineStatus();
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  if (!isOnline) {
+    return (
+      <FeatureRequiresOnlineCard
+        featureName="إنشاء اختبار"
+        description="إنشاء الاختبارات وتوليد الأسئلة يتطلب اتصالاً نشطاً بالخادم."
+        backHref="/teacher/dashboard"
+      />
+    );
+  }
   const paramGroupId = searchParams.get('groupId');
   const paramTopic = searchParams.get('topic');
   const paramDueDate = searchParams.get('dueDate');

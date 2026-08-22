@@ -17,13 +17,26 @@ import {
   BookOpen, Video, FileText, ChevronLeft, ChevronRight, Play, 
   CheckCircle2, AlertTriangle, ArrowRight, Download, Award, Clock, User
 } from 'lucide-react';
+import { FeatureRequiresOnlineCard } from '@/components/offline/FeatureRequiresOnlineCard';
+import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import toast from 'react-hot-toast';
 
 export default function StudentCoursesPage() {
+  const isOnline = useOnlineStatus();
   const { data: courses = [], isLoading, isError } = useStudentCourses();
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+
+  if (!isOnline) {
+    return (
+      <FeatureRequiresOnlineCard
+        featureName="الدورات والمحاضرات التعليمية"
+        description="مشاهدة الدورات والدروس الرقمية وتحميل الملخصات تتطلب اتصالاً نشطاً بالخادم."
+        backHref="/student/dashboard"
+      />
+    );
+  }
 
   const PAGE_SIZE = 6;
   const totalPages = Math.ceil(courses.length / PAGE_SIZE);

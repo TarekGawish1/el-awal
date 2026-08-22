@@ -10,11 +10,24 @@ import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
 import { Pagination } from '@/components/ui/Pagination';
+import { FeatureRequiresOnlineCard } from '@/components/offline/FeatureRequiresOnlineCard';
+import { useOnlineStatus } from '@/lib/offline/use-online-status';
 
 const PAGE_SIZE = 9;
 
 export function AssessmentList() {
+  const isOnline = useOnlineStatus();
   const { data, isLoading, isError, error, refetch } = useAssessments();
+
+  if (!isOnline) {
+    return (
+      <FeatureRequiresOnlineCard
+        featureName="الواجبات والاختبارات"
+        description="إدارة بنوك الأسئلة ورفع الواجبات والاختبارات التفاعلية تتطلب اتصالاً نشطاً بالخادم."
+        backHref="/teacher/dashboard"
+      />
+    );
+  }
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'ALL' | 'EXAM' | 'ASSIGNMENT'>('ALL');
   const [currentPage, setCurrentPage] = useState(1);

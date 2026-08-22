@@ -13,14 +13,27 @@ import {
   ChevronLeft, Award, Play, HelpCircle, Send, Check, AlertTriangle 
 } from 'lucide-react';
 import { formatArabicDate, formatArabicTime } from '@/lib/utils/formatters';
+import { FeatureRequiresOnlineCard } from '@/components/offline/FeatureRequiresOnlineCard';
+import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import toast from 'react-hot-toast';
 
 export default function StudentAssessmentsPage() {
+  const isOnline = useOnlineStatus();
   const [filterType, setFilterType] = useState<'ALL' | 'EXAM' | 'ASSIGNMENT'>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const { data: assessmentsData, isLoading, isError } = useAssessments();
   const [activeAssessmentId, setActiveAssessmentId] = useState<string | null>(null);
   const [activeMode, setActiveMode] = useState<'NONE' | 'SOLVE' | 'REVIEW'>('NONE');
+
+  if (!isOnline) {
+    return (
+      <FeatureRequiresOnlineCard
+        featureName="الواجبات والاختبارات"
+        description="حل الواجبات والاختبارات التفاعلية ومتابعة الدرجات تتطلب اتصالاً نشطاً بالخادم."
+        backHref="/student/dashboard"
+      />
+    );
+  }
 
   const PAGE_SIZE = 6;
 

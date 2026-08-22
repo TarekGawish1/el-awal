@@ -15,11 +15,14 @@ import {
   GraduationCap,
 } from 'lucide-react';
 
+import { useOnlineStatus } from '@/lib/offline/use-online-status';
+
 interface NavTabItem {
   label: string;
   href: string;
   icon: React.ElementType;
   isHighlighted?: boolean;
+  onlineOnly?: boolean;
 }
 
 interface MobileBottomNavProps {
@@ -29,31 +32,35 @@ interface MobileBottomNavProps {
 
 export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavProps) {
   const pathname = usePathname();
+  const isOnline = useOnlineStatus();
 
   // Role-specific bottom navigation tabs (Top 4 most-used daily tasks + Menu trigger)
   const teacherTabs: NavTabItem[] = [
-    { label: 'الرئيسية', href: '/teacher/dashboard', icon: LayoutDashboard },
-    { label: 'المجموعات', href: '/teacher/groups', icon: Users },
-    { label: 'رصد الحضور', href: '/teacher/attendance', icon: QrCode, isHighlighted: true },
-    { label: 'الجدول', href: '/teacher/schedules', icon: Calendar },
+    { label: 'الرئيسية', href: '/teacher/dashboard', icon: LayoutDashboard, onlineOnly: false },
+    { label: 'المجموعات', href: '/teacher/groups', icon: Users, onlineOnly: false },
+    { label: 'رصد الحضور', href: '/teacher/attendance', icon: QrCode, isHighlighted: true, onlineOnly: false },
+    { label: 'الجدول', href: '/teacher/schedules', icon: Calendar, onlineOnly: false },
   ];
 
   const studentTabs: NavTabItem[] = [
-    { label: 'الرئيسية', href: '/student/dashboard', icon: LayoutDashboard },
-    { label: 'الدورات', href: '/student/courses', icon: BookOpen },
-    { label: 'الـ QR', href: '/student/attendance', icon: QrCode, isHighlighted: true },
-    { label: 'التقييمات', href: '/student/assessments', icon: FileText },
+    { label: 'الرئيسية', href: '/student/dashboard', icon: LayoutDashboard, onlineOnly: false },
+    { label: 'الدورات', href: '/student/courses', icon: BookOpen, onlineOnly: true },
+    { label: 'الـ QR', href: '/student/attendance', icon: QrCode, isHighlighted: true, onlineOnly: false },
+    { label: 'التقييمات', href: '/student/assessments', icon: FileText, onlineOnly: true },
+    { label: 'المدفوعات', href: '/student/payments', icon: DollarSign, onlineOnly: false },
   ];
 
   const parentTabs: NavTabItem[] = [
-    { label: 'أبنائي', href: '/parent/dashboard', icon: LayoutDashboard },
+    { label: 'أبنائي', href: '/parent/dashboard', icon: LayoutDashboard, onlineOnly: false },
   ];
 
-  const tabs: NavTabItem[] = userRole === 'STUDENT'
+  const baseTabs: NavTabItem[] = userRole === 'STUDENT'
     ? studentTabs
     : userRole === 'PARENT'
       ? parentTabs
       : teacherTabs;
+
+  const tabs = isOnline ? baseTabs : baseTabs.filter((t) => !t.onlineOnly);
 
   return (
     <nav
