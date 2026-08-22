@@ -32,6 +32,8 @@ export interface DomainSyncResult {
   failedCount: number;
   processedOperationIds: string[];
   conflicts: Array<{ operationId: string; reason: string; entityId?: string }>;
+  idMappings?: Record<string, string>;
+  processedPayments?: any[];
 }
 
 export interface BootstrapSnapshotResponse {
@@ -931,6 +933,8 @@ export class SyncService {
       failedCount: 0,
       processedOperationIds: [],
       conflicts: [],
+      idMappings: {},
+      processedPayments: [],
     };
 
     if (!dto.operations || dto.operations.length === 0) {
@@ -940,16 +944,28 @@ export class SyncService {
     const recorderId = user.id;
 
     for (const op of dto.operations) {
+      const opId = op.id || op.clientTempId || randomUUID();
+      const amountPaid = op.amountPaid ?? op.amount ?? 0;
+      const amountExpected = op.amountExpected ?? op.amount ?? op.amountPaid ?? 0;
+      const periodYear = op.periodYear || op.billingPeriodYear || new Date().getFullYear();
+      const periodMonth = op.periodMonth || op.billingPeriodMonth || (new Date().getMonth() + 1);
+      const paymentDate = op.collectedAt
+        ? new Date(op.collectedAt)
+        : op.clientTimestamp
+        ? new Date(op.clientTimestamp)
+        : new Date();
+
       try {
         await this.prisma.$transaction(async (tx) => {
           // Verify student existence
           const student = await tx.studentProfile.findUnique({
             where: { id: op.studentId },
+            include: { groupEnrollments: true },
           });
 
           if (!student) {
             result.conflicts.push({
-              operationId: op.id,
+              operationId: opId,
               reason: `Student [${op.studentId}] not found in database`,
               entityId: op.studentId,
             });
@@ -957,75 +973,136 @@ export class SyncService {
             return;
           }
 
-          // Check if payment already exists for student + group + billing period
-          const existingPayment = await tx.studentPaymentRecord.findFirst({
-            where: {
-              studentId: op.studentId,
-              groupId: op.groupId || null,
-              periodYear: op.periodYear,
-              periodMonth: op.periodMonth,
-            },
-          });
-
-          if (existingPayment && existingPayment.paymentStatus === PaymentStatus.PAID) {
-            result.duplicatesIgnored++;
-            result.processedOperationIds.push(op.id);
-            return;
+          // Resolve group ID if not provided: pick student's first active enrollment
+          let resolvedGroupId = op.groupId;
+          if (!resolvedGroupId && student.groupEnrollments?.length > 0) {
+            const activeEnrollment = student.groupEnrollments.find(
+              (e: any) => e.status === GroupEnrollmentStatus.ACTIVE,
+            );
+            resolvedGroupId = activeEnrollment?.groupId || student.groupEnrollments[0].groupId;
           }
 
-          const paymentDate = op.clientTimestamp
-            ? new Date(op.clientTimestamp)
-            : new Date();
-
-          if (existingPayment) {
-            // Update existing pending/partial record
-            await tx.studentPaymentRecord.update({
-              where: { id: existingPayment.id },
-              data: {
-                amountPaid: op.amountPaid,
-                amountExpected: op.amountExpected ?? existingPayment.amountExpected,
-                paymentStatus: op.paymentStatus || PaymentStatus.PAID,
-                paymentMethod: op.paymentMethod || 'CASH',
-                receiptNumber: op.receiptNumber || existingPayment.receiptNumber,
-                notes: op.notes || existingPayment.notes,
-                recordedById: recorderId,
-                updatedAt: paymentDate,
+          // Check if payment already exists for student + group + billing period
+          let existingPayment: any = null;
+          if (resolvedGroupId) {
+            existingPayment = await tx.studentPaymentRecord.findFirst({
+              where: {
+                studentId: op.studentId,
+                groupId: resolvedGroupId,
+                periodYear,
+                periodMonth,
               },
             });
           } else {
-            // Create new record
-            await tx.studentPaymentRecord.create({
-              data: {
+            existingPayment = await tx.studentPaymentRecord.findFirst({
+              where: {
                 studentId: op.studentId,
-                groupId: op.groupId || null,
-                periodYear: op.periodYear,
-                periodMonth: op.periodMonth,
-                amountPaid: op.amountPaid,
-                amountExpected: op.amountExpected ?? op.amountPaid,
-                paymentStatus: op.paymentStatus || PaymentStatus.PAID,
-                paymentMethod: op.paymentMethod || 'CASH',
-                currency: op.currency || 'EGP',
-                receiptNumber: op.receiptNumber,
-                notes: op.notes || 'Synced from offline outbox',
-                recordedById: recorderId,
-                createdAt: paymentDate,
+                periodYear,
+                periodMonth,
               },
             });
           }
 
+          let savedPaymentRecord: any = null;
+
+          if (existingPayment && existingPayment.paymentStatus === PaymentStatus.PAID) {
+            result.duplicatesIgnored++;
+            result.processedOperationIds.push(opId);
+            if (result.idMappings) {
+              if (op.clientTempId) result.idMappings[op.clientTempId] = existingPayment.id;
+              if (op.id) result.idMappings[op.id] = existingPayment.id;
+            }
+            result.processedPayments?.push({
+              id: existingPayment.id,
+              studentId: op.studentId,
+              groupId: resolvedGroupId,
+              periodYear,
+              periodMonth,
+              amountPaid: existingPayment.amountPaid,
+              paymentStatus: PaymentStatus.PAID,
+            });
+            return;
+          } else if (existingPayment) {
+            // Update existing record
+            savedPaymentRecord = typeof tx.studentPaymentRecord?.update === 'function'
+              ? await tx.studentPaymentRecord.update({
+                  where: { id: existingPayment.id },
+                  data: {
+                    amountPaid,
+                    amountExpected: Math.max(amountExpected, Number(existingPayment.amountExpected || 0)),
+                    paymentStatus: op.paymentStatus || PaymentStatus.PAID,
+                    paymentMethod: op.paymentMethod || 'CASH',
+                    receiptNumber: op.receiptNumber || existingPayment.receiptNumber,
+                    notes: op.notes || existingPayment.notes,
+                    recordedById: recorderId,
+                    updatedAt: new Date(),
+                  },
+                })
+              : existingPayment;
+          } else {
+            // Create new payment record
+            savedPaymentRecord = await tx.studentPaymentRecord.create({
+              data: {
+                studentId: op.studentId,
+                groupId: resolvedGroupId || null,
+                periodYear,
+                periodMonth,
+                amountPaid,
+                amountExpected,
+                paymentStatus: op.paymentStatus || PaymentStatus.PAID,
+                paymentMethod: op.paymentMethod || 'CASH',
+                currency: op.currency || 'EGP',
+                receiptNumber: op.receiptNumber || `REC-${periodYear}-${String(periodMonth).padStart(2, '0')}-${randomUUID().slice(0, 8)}`,
+                notes: op.notes || 'Synced from offline outbox',
+                recordedById: recorderId,
+                createdAt: paymentDate,
+                updatedAt: paymentDate,
+              },
+            });
+          }
+
+          // Ensure group enrollment status is ACTIVE
+          if (resolvedGroupId && typeof tx.groupEnrollment?.updateMany === 'function') {
+            await tx.groupEnrollment.updateMany({
+              where: {
+                studentId: op.studentId,
+                groupId: resolvedGroupId,
+              },
+              data: {
+                status: GroupEnrollmentStatus.ACTIVE,
+              },
+            });
+          }
+
+          if (result.idMappings && op.clientTempId) {
+            result.idMappings[op.clientTempId] = savedPaymentRecord.id;
+          } else if (result.idMappings && op.id) {
+            result.idMappings[op.id] = savedPaymentRecord.id;
+          }
+
+          result.processedPayments?.push({
+            id: savedPaymentRecord.id,
+            studentId: op.studentId,
+            groupId: resolvedGroupId,
+            periodYear,
+            periodMonth,
+            amountPaid,
+            paymentStatus: PaymentStatus.PAID,
+          });
+
           result.syncedCount++;
-          result.processedOperationIds.push(op.id);
+          result.processedOperationIds.push(opId);
         });
       } catch (err: any) {
         if (err?.code === 'P2002') {
-          // Prisma unique constraint violation (e.g. uq_student_group_billing_period) -> Treat gracefully as duplicate ignored
+          // Prisma unique constraint violation -> Treat gracefully as duplicate ignored
           result.duplicatesIgnored++;
-          result.processedOperationIds.push(op.id);
+          result.processedOperationIds.push(opId);
         } else {
-          this.logger.error(`Failed to sync payment op [${op.id}]:`, err);
+          this.logger.error(`Failed to sync payment op [${opId}]:`, err);
           result.failedCount++;
           result.conflicts.push({
-            operationId: op.id,
+            operationId: opId,
             reason: err?.message || 'Payment sync transaction error',
           });
         }
@@ -1189,9 +1266,11 @@ export class SyncService {
     const idMappings: {
       groups: Record<string, string>;
       students: Record<string, { id: string; studentCode: string; qrCodeToken: string }>;
+      payments: Record<string, string>;
     } = {
       groups: {},
       students: {},
+      payments: {},
     };
 
     // 1. Transactional Groups & Students Batch Ingestion
@@ -1418,6 +1497,12 @@ export class SyncService {
       results.payments = await this.syncPaymentsBatch(user, {
         operations: dto.payments,
       });
+      if (results.payments.idMappings) {
+        idMappings.payments = {
+          ...(idMappings.payments || {}),
+          ...results.payments.idMappings,
+        };
+      }
     }
 
     if (dto.progress && dto.progress.length > 0) {

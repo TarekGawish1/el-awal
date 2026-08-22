@@ -533,6 +533,10 @@ class OfflineSyncEngine {
             body: JSON.stringify({ operations }),
           });
 
+          if (res?.idMappings) {
+            await offlineDb.reconcileEntityIds({ payments: res.idMappings });
+          }
+
           if (res?.processedOperationIds) {
             for (const id of res.processedOperationIds) {
               await offlineDb.removeMutation(id);
@@ -670,6 +674,9 @@ class OfflineSyncEngine {
         this.queryClient.invalidateQueries({ queryKey: ['students'] });
         this.queryClient.invalidateQueries({ queryKey: ['attendance'] });
         this.queryClient.invalidateQueries({ queryKey: ['finance'] });
+        this.queryClient.invalidateQueries({ queryKey: ['payments'] });
+        this.queryClient.invalidateQueries({ queryKey: ['student-payments'] });
+        this.queryClient.invalidateQueries({ queryKey: ['group-defaulters'] });
       }
 
       // 8. Downstream Pull: Fetch updated server snapshot and merge into IndexedDB + TanStack Query cache

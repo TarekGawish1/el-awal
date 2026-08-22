@@ -174,6 +174,7 @@ export function useRecordPayment() {
         };
 
         await offlineDb.bulkPutPayments([paymentRecord]);
+        await offlineDb.markStudentPaidOffline(payload.studentId, paymentRecord);
 
         await syncEngine.enqueue(
           'finance',
@@ -194,14 +195,14 @@ export function useRecordPayment() {
       return recordPayment(payload);
     },
     onSuccess: (data: any, variables) => {
-      if (!data?.isOfflineSaved) {
-        queryClient.invalidateQueries({ queryKey: financeKeys.payments() });
-        queryClient.invalidateQueries({ queryKey: financeKeys.studentHistory(variables.studentId) });
-        if (variables.groupId) {
-          queryClient.invalidateQueries({ 
-            queryKey: financeKeys.defaulters(variables.groupId, variables.periodYear, variables.periodMonth) 
-          });
-        }
+      queryClient.invalidateQueries({ queryKey: financeKeys.payments() });
+      queryClient.invalidateQueries({ queryKey: financeKeys.studentHistory(variables.studentId) });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['group-defaulters'] });
+      if (variables.groupId) {
+        queryClient.invalidateQueries({ 
+          queryKey: financeKeys.defaulters(variables.groupId, variables.periodYear, variables.periodMonth) 
+        });
       }
     },
   });
@@ -268,6 +269,7 @@ export function useScanPaymentQr() {
         };
 
         await offlineDb.bulkPutPayments([paymentRecord]);
+        await offlineDb.markStudentPaidOffline(studentId, paymentRecord);
 
         await syncEngine.enqueue(
           'finance',
@@ -349,6 +351,7 @@ export function useScanPaymentQr() {
           };
 
           await offlineDb.bulkPutPayments([paymentRecord]);
+          await offlineDb.markStudentPaidOffline(studentId, paymentRecord);
 
           await syncEngine.enqueue(
             'finance',
@@ -371,19 +374,19 @@ export function useScanPaymentQr() {
       }
     },
     onSuccess: (data, variables) => {
-      if (!data?.isOfflineSaved) {
-        queryClient.invalidateQueries({ queryKey: financeKeys.payments() });
-        if (data?.student?.id) {
-          queryClient.invalidateQueries({ queryKey: financeKeys.studentHistory(data.student.id) });
-        }
-        const targetGroupId = variables.groupId || data?.group?.id;
-        if (targetGroupId) {
-          const year = variables.periodYear || new Date().getFullYear();
-          const month = variables.periodMonth || (new Date().getMonth() + 1);
-          queryClient.invalidateQueries({ 
-            queryKey: financeKeys.defaulters(targetGroupId, year, month) 
-          });
-        }
+      queryClient.invalidateQueries({ queryKey: financeKeys.payments() });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['group-defaulters'] });
+      if (data?.student?.id) {
+        queryClient.invalidateQueries({ queryKey: financeKeys.studentHistory(data.student.id) });
+      }
+      const targetGroupId = variables.groupId || data?.group?.id;
+      if (targetGroupId) {
+        const year = variables.periodYear || new Date().getFullYear();
+        const month = variables.periodMonth || (new Date().getMonth() + 1);
+        queryClient.invalidateQueries({ 
+          queryKey: financeKeys.defaulters(targetGroupId, year, month) 
+        });
       }
     },
   });

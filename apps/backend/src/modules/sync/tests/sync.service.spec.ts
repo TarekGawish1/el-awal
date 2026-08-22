@@ -36,6 +36,7 @@ describe('SyncService', () => {
       findFirst: jest.fn(),
       findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     attendanceRecord: {
       findUnique: jest.fn(),
@@ -240,9 +241,10 @@ describe('SyncService', () => {
 
       mockPrismaService.studentPaymentRecord.findFirst
         .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({ id: 'pay-1', paymentStatus: PaymentStatus.PAID });
+        .mockResolvedValueOnce({ id: 'pay-existing', paymentStatus: PaymentStatus.PAID, amountExpected: 350 });
 
       mockPrismaService.studentPaymentRecord.create.mockResolvedValue({ id: 'pay-new' });
+      mockPrismaService.studentPaymentRecord.update.mockResolvedValue({ id: 'pay-existing' });
 
       const dto = {
         operations: [
@@ -273,6 +275,9 @@ describe('SyncService', () => {
 
       expect(result.syncedCount).toBe(1);
       expect(result.duplicatesIgnored).toBe(1);
+      expect(result.idMappings).toBeDefined();
+      expect(result.idMappings['op-pay-1']).toBe('pay-new');
+      expect(result.idMappings['op-pay-2']).toBe('pay-existing');
       expect(mockPrismaService.studentPaymentRecord.create).toHaveBeenCalledTimes(1);
     });
   });

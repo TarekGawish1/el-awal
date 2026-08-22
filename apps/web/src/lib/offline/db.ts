@@ -515,12 +515,32 @@ class OfflineDatabase {
     }
   }
 
+  public async putStudent(student: StudentEntity): Promise<void> {
+    const existing = this.memoryStudents.get(student.id) || {};
+    this.memoryStudents.set(student.id, { ...existing, ...student, updatedAt: Date.now() });
+    if (!this.isSupported()) return;
+    try {
+      const { store } = await this.getStore('students', 'readwrite');
+      store.put(student);
+    } catch {}
+  }
+
   public async removeStudent(id: string): Promise<void> {
     this.memoryStudents.delete(id);
     if (!this.isSupported()) return;
     try {
       const { store } = await this.getStore('students', 'readwrite');
       store.delete(id);
+    } catch {}
+  }
+
+  public async putGroup(group: GroupEntity): Promise<void> {
+    const existing = this.memoryGroups.get(group.id) || {};
+    this.memoryGroups.set(group.id, { ...existing, ...group, updatedAt: Date.now() });
+    if (!this.isSupported()) return;
+    try {
+      const { store } = await this.getStore('groups', 'readwrite');
+      store.put(group);
     } catch {}
   }
 
@@ -1334,6 +1354,157 @@ class OfflineDatabase {
     return { isRecorded: false };
   }
 
+  /**
+   * Optimistically updates student record and roster cache to mark the student as PAID for the current period.
+   */
+  public async markStudentPaidOffline(
+    studentId: string,
+    paymentRecord: Partial<PaymentEntity>,
+  ): Promise<void> {
+    const cleanId = String(studentId).trim();
+    const student = this.memoryStudents.get(cleanId);
+    if (student) {
+      student.academicStatus = 'ACTIVE';
+      student.paymentRecords = student.paymentRecords || [];
+      student.paymentRecords.push({
+        id: paymentRecord.id || `pay-${Date.now()}`,
+        periodYear: paymentRecord.periodYear,
+        periodMonth: paymentRecord.periodMonth,
+        amountPaid: paymentRecord.amountPaid,
+        paymentStatus: 'PAID',
+        paymentMethod: paymentRecord.paymentMethod || 'CASH',
+        createdAt: paymentRecord.createdAt || new Date().toISOString(),
+      });
+      this.memoryStudents.set(cleanId, { ...student });
+    }
+
+    if (!this.isSupported()) return;
+
+    try {
+      const { store } = await this.getStore('students', 'readwrite');
+      const getReq = store.get(cleanId);
+      getReq.onsuccess = () => {
+        const s = getReq.result as StudentEntity;
+        if (s) {
+          s.academicStatus = 'ACTIVE';
+          s.paymentRecords = s.paymentRecords || [];
+          s.paymentRecords.push({
+            id: paymentRecord.id || `pay-${Date.now()}`,
+            periodYear: paymentRecord.periodYear,
+            periodMonth: paymentRecord.periodMonth,
+            amountPaid: paymentRecord.amountPaid,
+            paymentStatus: 'PAID',
+            paymentMethod: paymentRecord.paymentMethod || 'CASH',
+            createdAt: paymentRecord.createdAt || new Date().toISOString(),
+          });
+          store.put(s);
+        }
+      };
+    } catch (e) {
+      console.warn('Failed to markStudentPaidOffline in IndexedDB:', e);
+    }
+  }
+
+  /**
+   * Reconciles temporary offline entity IDs with server assigned IDs across groups, students, and payments.
+   */
+  public async reconcileEntityIds(mappings: {
+    groups?: Record<string, string>;
+    students?: Record<string, { id: string; studentCode?: string; qrCodeToken?: string }>;
+    payments?: Record<string, string>;
+  }): Promise<void> {
+    // 1. Reconcile Groups
+    if (mappings.groups) {
+      for (const [tempId, serverId] of Object.entries(mappings.groups)) {
+        const grp = this.memoryGroups.get(tempId);
+        if (grp) {
+          this.memoryGroups.delete(tempId);
+          grp.id = serverId;
+          this.memoryGroups.set(serverId, grp);
+        }
+      }
+    }
+
+    // 2. Reconcile Students
+    if (mappings.students) {
+      for (const [tempId, serverData] of Object.entries(mappings.students)) {
+        const stu = this.memoryStudents.get(tempId);
+        if (stu) {
+          this.memoryStudents.delete(tempId);
+          stu.id = serverData.id;
+          if (serverData.studentCode) stu.studentCode = serverData.studentCode;
+          if (serverData.qrCodeToken) stu.qrCodeToken = serverData.qrCodeToken;
+          this.memoryStudents.set(serverData.id, stu);
+        }
+      }
+    }
+
+    // 3. Reconcile Payments
+    if (mappings.payments) {
+      for (const [tempId, serverId] of Object.entries(mappings.payments)) {
+        const pay = this.memoryPayments.get(tempId);
+        if (pay) {
+          this.memoryPayments.delete(tempId);
+          pay.id = serverId;
+          this.memoryPayments.set(serverId, pay);
+        }
+      }
+    }
+
+    if (!this.isSupported()) return;
+
+    try {
+      if (mappings.groups) {
+        const { store } = await this.getStore('groups', 'readwrite');
+        for (const [tempId, serverId] of Object.entries(mappings.groups)) {
+          const getReq = store.get(tempId);
+          getReq.onsuccess = () => {
+            const val = getReq.result;
+            if (val) {
+              store.delete(tempId);
+              val.id = serverId;
+              store.put(val);
+            }
+          };
+        }
+      }
+
+      if (mappings.students) {
+        const { store } = await this.getStore('students', 'readwrite');
+        for (const [tempId, serverData] of Object.entries(mappings.students)) {
+          const getReq = store.get(tempId);
+          getReq.onsuccess = () => {
+            const val = getReq.result;
+            if (val) {
+              store.delete(tempId);
+              val.id = serverData.id;
+              if (serverData.studentCode) val.studentCode = serverData.studentCode;
+              if (serverData.qrCodeToken) val.qrCodeToken = serverData.qrCodeToken;
+              store.put(val);
+            }
+          };
+        }
+      }
+
+      if (mappings.payments) {
+        const { store } = await this.getStore('payments', 'readwrite');
+        for (const [tempId, serverId] of Object.entries(mappings.payments)) {
+          const getReq = store.get(tempId);
+          getReq.onsuccess = () => {
+            const val = getReq.result;
+            if (val) {
+              store.delete(tempId);
+              val.id = serverId;
+              store.put(val);
+            }
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('Error during reconcileEntityIds:', e);
+    }
+  }
+
   // ==========================================
   // Assessment Drafts Operations
   // ==========================================
@@ -1424,6 +1595,53 @@ class OfflineDatabase {
       };
     } catch {}
   }
+
+  /**
+   * Completely wipes all stores in IndexedDB and in-memory caches.
+   */
+  public async wipeAllOfflineData(): Promise<void> {
+    this.memoryStudents.clear();
+    this.memoryGroups.clear();
+    this.memorySessions.clear();
+    this.memorySchedules.clear();
+    this.memoryPayments.clear();
+    this.memoryAssessments.clear();
+    this.memoryCourses.clear();
+    this.memoryMetadata.clear();
+    this.memoryOutbox.clear();
+    this.memoryRosters.clear();
+    this.memoryDrafts.clear();
+    this.memoryConflicts.clear();
+    this.memoryCredentials.clear();
+
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        localStorage.removeItem('el_awal_bootstrap_version');
+        localStorage.removeItem('el_awal_last_sync_timestamp');
+        localStorage.removeItem('el_awal_outbox_queue');
+      } catch {}
+    }
+
+    if (!this.isSupported()) return;
+
+    try {
+      const db = await this.open();
+      const storeNames = Array.from(db.objectStoreNames);
+      if (storeNames.length === 0) return;
+
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(storeNames, 'readwrite');
+        for (const storeName of storeNames) {
+          tx.objectStore(storeName).clear();
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } catch (e) {
+      console.warn('Failed to completely wipe IndexedDB stores:', e);
+    }
+  }
 }
 
 export const offlineDb = new OfflineDatabase();
@@ -1435,3 +1653,8 @@ export async function getGroupDetailsOffline(id: string) {
 export async function getStudentDetailsOffline(id: string) {
   return offlineDb.getStudentDetailsOffline(id);
 }
+
+export async function wipeAllOfflineData() {
+  return offlineDb.wipeAllOfflineData();
+}
+
