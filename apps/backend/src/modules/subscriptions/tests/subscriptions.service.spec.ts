@@ -172,6 +172,7 @@ describe('SubscriptionsService', () => {
         id: studentId,
         gradeLevel: 'الصف الأول الثانوي',
         user: { fullName: 'محمود أحمد' },
+        groupEnrollments: [{ groupId: 'grp-1' }],
       });
 
       mockPrismaService.booklet.findUnique.mockResolvedValue({
@@ -190,7 +191,37 @@ describe('SubscriptionsService', () => {
           bookletId,
           amountPaid: 90.0,
         }),
-      ).rejects.toThrow('لا يمكن سداد المذكرة');
+      ).rejects.toThrow('INVALID_BOOKLET_FOR_STUDENT');
+    });
+
+    it('should throw BadRequestException when student is not enrolled in booklet group', async () => {
+      const studentId = 'stu-1';
+      const bookletId = 'booklet-diff-group';
+
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue({
+        id: studentId,
+        gradeLevel: 'الصف الأول الثانوي',
+        user: { fullName: 'محمود أحمد' },
+        groupEnrollments: [{ groupId: 'grp-1' }],
+      });
+
+      mockPrismaService.booklet.findUnique.mockResolvedValue({
+        id: bookletId,
+        title: 'مذكرة مجموعة المتفوقين',
+        gradeLevel: 'الصف الأول الثانوي',
+        price: 70.0,
+        stockCount: 10,
+        groupId: 'grp-special-2',
+      });
+
+      await expect(
+        service.recordStudentPayment(mockUser, {
+          studentId,
+          paymentType: 'BOOKLET',
+          bookletId,
+          amountPaid: 70.0,
+        }),
+      ).rejects.toThrow('INVALID_BOOKLET_FOR_STUDENT');
     });
   });
 
@@ -326,7 +357,38 @@ describe('SubscriptionsService', () => {
           paymentType: 'BOOKLET',
           bookletId,
         }),
-      ).rejects.toThrow('لا يمكن سداد المذكرة');
+      ).rejects.toThrow('INVALID_BOOKLET_FOR_STUDENT');
+    });
+
+    it('should throw BadRequestException when student is not enrolled in booklet group in scanPaymentQr', async () => {
+      const qrCodeToken = 'qr_tok_student_grp_1';
+      const studentId = 'stu-grp-1';
+      const bookletId = 'booklet-grp-target';
+
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue({
+        id: studentId,
+        qrCodeToken,
+        gradeLevel: 'الصف الأول الثانوي',
+        user: { fullName: 'طالب مجموعة 1', phone: '01012345678', isActive: true },
+        groupEnrollments: [{ groupId: 'grp-actual-1' }],
+      });
+
+      mockPrismaService.booklet.findUnique.mockResolvedValue({
+        id: bookletId,
+        title: 'مذكرة مجموعة 2 فقط',
+        gradeLevel: 'الصف الأول الثانوي',
+        price: 50.0,
+        stockCount: 5,
+        groupId: 'grp-target-2',
+      });
+
+      await expect(
+        service.scanPaymentQr(mockUser, {
+          qrCodeToken,
+          paymentType: 'BOOKLET',
+          bookletId,
+        }),
+      ).rejects.toThrow('INVALID_BOOKLET_FOR_STUDENT');
     });
 
     it('should throw BadRequestException for invalid or inactive student QR code', async () => {

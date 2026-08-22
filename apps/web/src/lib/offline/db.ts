@@ -127,7 +127,9 @@ export interface PaymentEntity {
   currency?: string;
   receiptNumber?: string | null;
   notes?: string | null;
+  recordedById?: string;
   createdAt: string | number;
+  updatedAt?: string | number;
   student?: { user?: { fullName?: string } };
   group?: { name?: string };
 }
@@ -1228,11 +1230,17 @@ class OfflineDatabase {
     } catch {}
   }
 
-  public async getBookletsOffline(filter?: {
-    gradeLevel?: string;
-    groupId?: string;
-    isActive?: boolean;
-  }): Promise<BookletEntity[]> {
+  public async getBookletsOffline(
+    gradeLevelOrFilter?:
+      | string
+      | {
+          gradeLevel?: string;
+          groupId?: string;
+          groupIds?: string[];
+          isActive?: boolean;
+        },
+    groupIdsArg?: string[],
+  ): Promise<BookletEntity[]> {
     let list: BookletEntity[] = [];
     if (!this.isSupported()) {
       list = Array.from(this.memoryBooklets.values());
@@ -1249,12 +1257,30 @@ class OfflineDatabase {
       }
     }
 
+    if (typeof gradeLevelOrFilter === 'string') {
+      const grade = gradeLevelOrFilter;
+      const groupIds = groupIdsArg || [];
+      return list.filter((b) => {
+        if (b.isActive === false) return false;
+        if (grade && b.gradeLevel && b.gradeLevel !== grade) return false;
+        if (b.groupId) {
+          if (!groupIds.includes(b.groupId)) return false;
+        }
+        return true;
+      });
+    }
+
+    const filter = gradeLevelOrFilter;
     if (!filter) return list;
 
     return list.filter((b) => {
-      if (filter.gradeLevel && b.gradeLevel && b.gradeLevel !== filter.gradeLevel) return false;
-      if (filter.groupId && b.groupId !== filter.groupId) return false;
       if (filter.isActive !== undefined && b.isActive !== filter.isActive) return false;
+      if (filter.gradeLevel && b.gradeLevel && b.gradeLevel !== filter.gradeLevel) return false;
+      if (filter.groupIds !== undefined) {
+        if (b.groupId && !filter.groupIds.includes(b.groupId)) return false;
+      } else if (filter.groupId) {
+        if (b.groupId !== filter.groupId) return false;
+      }
       return true;
     });
   }
@@ -1333,8 +1359,18 @@ class OfflineDatabase {
 
     if (student?.gradeLevel && booklet?.gradeLevel && student.gradeLevel !== booklet.gradeLevel) {
       throw new Error(
-        `لا يمكن سداد المذكرة (${booklet.title}) المخصصة لـ (${booklet.gradeLevel}) للطالب المقيد بالصف (${student.gradeLevel})`,
+        `INVALID_BOOKLET_FOR_STUDENT: هذه المذكرة غير مخصصة للصف الدراسي أو المجموعة الخاصة بهذا الطالب (${booklet.gradeLevel} != ${student.gradeLevel})`,
       );
+    }
+
+    if (booklet?.groupId) {
+      const studentGroupId = student?.groupId || (student as any)?.initialGroupId;
+      const studentGroupIds = (student as any)?.groupIds || (studentGroupId ? [studentGroupId] : []);
+      if (studentGroupIds.length > 0 && !studentGroupIds.includes(booklet.groupId)) {
+        throw new Error(
+          'INVALID_BOOKLET_FOR_STUDENT: هذه المذكرة غير مخصصة للصف الدراسي أو المجموعة الخاصة بهذا الطالب',
+        );
+      }
     }
 
     const expected = params.amountExpected ?? (booklet ? Number(booklet.price) : params.amountPaid);
@@ -1371,6 +1407,32 @@ class OfflineDatabase {
       };
       await this.putBooklet(updatedBooklet);
     }
+
+    // 3. Enqueue Outbox Mutation for upstream sync
+    await this.enqueueMutation({
+      id: `mut-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      domain: 'finance',
+      endpoint: '/subscriptions/payment',
+      method: 'POST',
+      payload: {
+        studentId: params.studentId,
+        groupId: params.groupId || booklet?.groupId || null,
+        bookletId: params.bookletId,
+        paymentType: 'BOOKLET',
+        periodYear,
+        periodMonth,
+        amountPaid: params.amountPaid,
+        amountExpected: expected,
+        paymentMethod: params.paymentMethod || 'CASH',
+        receiptNumber: paymentRecord.receiptNumber,
+        notes: paymentRecord.notes,
+        collectedAt: now.toISOString(),
+      },
+      optimisticId: paymentId,
+      status: 'PENDING',
+      retryCount: 0,
+      clientTimestamp: Date.now(),
+    });
 
     return paymentRecord;
   }
@@ -1963,8 +2025,18 @@ export async function wipeAllOfflineData() {
   return offlineDb.wipeAllOfflineData();
 }
 
-export async function getBookletsOffline(filter?: { gradeLevel?: string; groupId?: string; isActive?: boolean }) {
-  return offlineDb.getBookletsOffline(filter);
+export async function getBookletsOffline(
+  gradeLevelOrFilter?:
+    | string
+    | {
+        gradeLevel?: string;
+        groupId?: string;
+        groupIds?: string[];
+        isActive?: boolean;
+      },
+  groupIdsArg?: string[],
+) {
+  return offlineDb.getBookletsOffline(gradeLevelOrFilter, groupIdsArg);
 }
 
 export async function getBookletByIdOffline(id: string) {

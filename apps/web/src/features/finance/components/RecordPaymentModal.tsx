@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -48,9 +48,7 @@ export function RecordPaymentModal({
     periodYear,
     periodMonth,
   );
-  const { booklets, isLoading: isBookletsLoading } = useBooklets(
-    groupId ? { groupId } : undefined,
-  );
+  const { booklets = [], isLoading: isBookletsLoading } = useBooklets();
 
   const {
     register,
@@ -83,6 +81,24 @@ export function RecordPaymentModal({
           fee: d.monthlyFeeExpected,
         }));
 
+  // Filter booklets strictly for the selected student's grade and group
+  const eligibleBooklets = useMemo(() => {
+    if (!selectedStudentId) return booklets;
+    const student = defaulters.find((d) => d.studentId === selectedStudentId);
+    const fullStudent = allStudents.find((s) => s.id === selectedStudentId) as any;
+    const studentGrade = student?.gradeLevel || fullStudent?.gradeLevel;
+    const studentGroupId = fullStudent?.groupId || fullStudent?.initialGroupId || groupId;
+    const studentGroupIds = fullStudent?.groupIds || (studentGroupId ? [studentGroupId] : []);
+
+    return booklets.filter((b) => {
+      if (studentGrade && b.gradeLevel && b.gradeLevel !== studentGrade) return false;
+      if (b.groupId && studentGroupIds.length > 0 && !studentGroupIds.includes(b.groupId)) {
+        return false;
+      }
+      return true;
+    });
+  }, [booklets, selectedStudentId, defaulters, allStudents, groupId]);
+
   // Auto-fill amount based on student expected fee when selected
   const handleStudentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const sId = e.target.value;
@@ -91,6 +107,23 @@ export function RecordPaymentModal({
       const student = defaulters.find((d) => d.studentId === sId);
       if (student) {
         setValue('amountPaid', student.monthlyFeeExpected);
+      }
+    } else if (sId && paymentType === 'BOOKLET') {
+      // If currently selected booklet is no longer eligible for this student, reset booklet selection
+      const student = defaulters.find((d) => d.studentId === sId);
+      const fullStudent = allStudents.find((s) => s.id === sId) as any;
+      const studentGrade = student?.gradeLevel || fullStudent?.gradeLevel;
+      const studentGroupId = fullStudent?.groupId || fullStudent?.initialGroupId || groupId;
+      const studentGroupIds = fullStudent?.groupIds || (studentGroupId ? [studentGroupId] : []);
+
+      const currentBooklet = booklets.find((b) => b.id === selectedBookletId);
+      if (
+        currentBooklet &&
+        ((studentGrade && currentBooklet.gradeLevel && currentBooklet.gradeLevel !== studentGrade) ||
+          (currentBooklet.groupId && studentGroupIds.length > 0 && !studentGroupIds.includes(currentBooklet.groupId)))
+      ) {
+        setValue('bookletId', '');
+        setValue('amountPaid', 0);
       }
     }
   };
@@ -108,9 +141,9 @@ export function RecordPaymentModal({
 
   const handlePaymentTypeChange = (type: 'TUITION' | 'BOOKLET') => {
     setPaymentType(type);
-    if (type === 'BOOKLET' && booklets.length > 0) {
-      setValue('bookletId', booklets[0].id);
-      setValue('amountPaid', Number(booklets[0].price));
+    if (type === 'BOOKLET' && eligibleBooklets.length > 0) {
+      setValue('bookletId', eligibleBooklets[0].id);
+      setValue('amountPaid', Number(eligibleBooklets[0].price));
     } else if (type === 'TUITION' && selectedStudentId) {
       const student = defaulters.find((d) => d.studentId === selectedStudentId);
       if (student) {
@@ -129,8 +162,11 @@ export function RecordPaymentModal({
     }
 
     const student = defaulters.find((d) => d.studentId === data.studentId);
+    const fullStudent = allStudents.find((s) => s.id === data.studentId) as any;
     const booklet = booklets.find((b) => b.id === data.bookletId);
-    const studentGrade = student?.gradeLevel || (allStudents.find((s) => s.id === data.studentId) as any)?.gradeLevel;
+    const studentGrade = student?.gradeLevel || fullStudent?.gradeLevel;
+    const studentGroupId = fullStudent?.groupId || fullStudent?.initialGroupId || groupId;
+    const studentGroupIds = fullStudent?.groupIds || (studentGroupId ? [studentGroupId] : []);
 
     if (
       paymentType === 'BOOKLET' &&
@@ -140,7 +176,19 @@ export function RecordPaymentModal({
       studentGrade !== booklet.gradeLevel
     ) {
       toast.error(
-        `لا يمكن سداد المذكرة (${booklet.title}) المخصصة لـ (${booklet.gradeLevel}) للطالب المقيد بالصف (${studentGrade})`,
+        `INVALID_BOOKLET_FOR_STUDENT: هذه المذكرة غير مخصصة للصف الدراسي أو المجموعة الخاصة بهذا الطالب (${booklet.gradeLevel} != ${studentGrade})`,
+      );
+      return;
+    }
+
+    if (
+      paymentType === 'BOOKLET' &&
+      booklet?.groupId &&
+      studentGroupIds.length > 0 &&
+      !studentGroupIds.includes(booklet.groupId)
+    ) {
+      toast.error(
+        'INVALID_BOOKLET_FOR_STUDENT: هذه المذكرة غير مخصصة للصف الدراسي أو المجموعة الخاصة بهذا الطالب',
       );
       return;
     }
@@ -289,13 +337,18 @@ export function RecordPaymentModal({
                   disabled={isPending || isBookletsLoading}
                 >
                   <option value="">-- اختر المذكرة --</option>
-                  {booklets.map((b) => (
+                  {eligibleBooklets.map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.title} - {b.gradeLevel} ({b.price} ج.م)
                     </option>
                   ))}
                 </select>
-                {booklets.length === 0 && !isBookletsLoading && (
+                {selectedStudentId && eligibleBooklets.length === 0 && !isBookletsLoading && (
+                  <p className="text-amber-600 text-xs mt-1 font-medium">
+                    لا توجد مذكرات مخصصة لصف أو مجموعة هذا الطالب.
+                  </p>
+                )}
+                {!selectedStudentId && booklets.length === 0 && !isBookletsLoading && (
                   <p className="text-amber-600 text-xs mt-1">
                     لا توجد مذكرات نشطة حالياً. يمكنك إضافة مذكرات من تبويب "المذكرات والملازم".
                   </p>

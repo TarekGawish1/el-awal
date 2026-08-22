@@ -525,6 +525,8 @@ class OfflineSyncEngine {
             id: item.id,
             studentId: item.payload.studentId,
             groupId: item.payload.groupId,
+            paymentType: item.payload.paymentType || (item.payload.bookletId ? 'BOOKLET' : 'TUITION'),
+            bookletId: item.payload.bookletId,
             periodYear: item.payload.periodYear,
             periodMonth: item.payload.periodMonth,
             amountPaid: item.payload.amountPaid,
@@ -533,6 +535,7 @@ class OfflineSyncEngine {
             receiptNumber: item.payload.receiptNumber,
             notes: item.payload.notes,
             clientTimestamp: item.clientTimestamp,
+            collectedAt: item.payload.collectedAt,
           }));
 
           const res = await apiClient<any>(API_ENDPOINTS.SYNC.PAYMENTS, {

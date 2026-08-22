@@ -168,6 +168,98 @@ describe('Offline Booklet Engine (IndexedDB & Memory Store)', () => {
         bookletId: 'b-grade-3',
         amountPaid: 100,
       }),
-    ).rejects.toThrow('لا يمكن سداد المذكرة');
+    ).rejects.toThrow('INVALID_BOOKLET_FOR_STUDENT');
+  });
+
+  it('filters booklets strictly by student grade and enrolled groups with overloaded signatures', async () => {
+    const booklets = [
+      {
+        id: 'b-g10-general',
+        title: 'مذكرة عامة أولى ثانوي',
+        gradeLevel: 'الصف الأول الثانوي',
+        groupId: null,
+        price: 50,
+        isActive: true,
+      },
+      {
+        id: 'b-g10-groupA',
+        title: 'مذكرة مجموعة أ أولى ثانوي',
+        gradeLevel: 'الصف الأول الثانوي',
+        groupId: 'grp-A',
+        price: 60,
+        isActive: true,
+      },
+      {
+        id: 'b-g10-groupB',
+        title: 'مذكرة مجموعة ب أولى ثانوي',
+        gradeLevel: 'الصف الأول الثانوي',
+        groupId: 'grp-B',
+        price: 60,
+        isActive: true,
+      },
+      {
+        id: 'b-g12-general',
+        title: 'مذكرة تالتة ثانوي',
+        gradeLevel: 'الصف الثالث الثانوي',
+        groupId: null,
+        price: 100,
+        isActive: true,
+      },
+    ];
+
+    await bulkPutBooklets(booklets as any);
+
+    // Query for Grade 10 student enrolled in group 'grp-A'
+    const studentABooklets = await getBookletsOffline('الصف الأول الثانوي', ['grp-A']);
+    expect(studentABooklets).toHaveLength(2);
+    expect(studentABooklets.map((b) => b.id)).toEqual(
+      expect.arrayContaining(['b-g10-general', 'b-g10-groupA']),
+    );
+    expect(studentABooklets.map((b) => b.id)).not.toContain('b-g10-groupB');
+    expect(studentABooklets.map((b) => b.id)).not.toContain('b-g12-general');
+
+    // Query for Grade 10 student with no specific group (only general booklets)
+    const studentGeneralBooklets = await getBookletsOffline('الصف الأول الثانوي', []);
+    expect(studentGeneralBooklets).toHaveLength(1);
+    expect(studentGeneralBooklets[0].id).toBe('b-g10-general');
+  });
+
+  it('enqueues outbox mutation when recording booklet payment offline', async () => {
+    const student = {
+      id: 'stu-outbox-1',
+      fullName: 'طالب أوت بوكس',
+      gradeLevel: 'الصف الأول الثانوي',
+      groupId: 'grp-A',
+      user: { id: 'stu-outbox-1', fullName: 'طالب أوت بوكس', isActive: true },
+    };
+    await offlineDb.bulkPutStudents([student as any]);
+
+    const booklet = {
+      id: 'b-outbox-1',
+      title: 'مذكرة مراجعة نهائية',
+      price: 75,
+      gradeLevel: 'الصف الأول الثانوي',
+      groupId: null,
+      stockCount: 20,
+      isActive: true,
+    };
+    await putBooklet(booklet as any);
+
+    await recordBookletPaymentOffline({
+      studentId: 'stu-outbox-1',
+      bookletId: 'b-outbox-1',
+      amountPaid: 75,
+      receiptNumber: 'REC-OUTBOX-01',
+    });
+
+    const pending = await offlineDb.getPendingMutations();
+    const mutation = pending.find(
+      (m) => m.domain === 'finance' && m.payload?.bookletId === 'b-outbox-1',
+    );
+
+    expect(mutation).toBeDefined();
+    expect(mutation?.payload?.paymentType).toBe('BOOKLET');
+    expect(mutation?.payload?.studentId).toBe('stu-outbox-1');
+    expect(mutation?.payload?.amountPaid).toBe(75);
   });
 });

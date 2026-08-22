@@ -1111,11 +1111,24 @@ export class SyncService {
             if (booklet && student.gradeLevel && booklet.gradeLevel && student.gradeLevel !== booklet.gradeLevel) {
               result.conflicts.push({
                 operationId: opId,
-                reason: `لا يمكن سداد المذكرة (${booklet.title}) لصف دراسي مختلف (${booklet.gradeLevel}) عن صف الطالب (${student.gradeLevel})`,
+                reason: `INVALID_BOOKLET_FOR_STUDENT: هذه المذكرة غير مخصصة للصف الدراسي أو المجموعة الخاصة بهذا الطالب (${booklet.gradeLevel} != ${student.gradeLevel})`,
                 entityId: op.bookletId,
               });
               result.failedCount++;
               return;
+            }
+
+            if (booklet?.groupId) {
+              const studentGroupIds = student.groupEnrollments?.map((e: any) => e.groupId) || [];
+              if (!studentGroupIds.includes(booklet.groupId)) {
+                result.conflicts.push({
+                  operationId: opId,
+                  reason: 'INVALID_BOOKLET_FOR_STUDENT: هذه المذكرة غير مخصصة للصف الدراسي أو المجموعة الخاصة بهذا الطالب',
+                  entityId: op.bookletId,
+                });
+                result.failedCount++;
+                return;
+              }
             }
 
             const existingBookletPayment = await tx.studentPaymentRecord.findFirst({

@@ -29,7 +29,13 @@ export class SubscriptionsService {
   async recordStudentPayment(user: AuthenticatedUser, dto: RecordPaymentDto) {
     const student = await this.prisma.studentProfile.findUnique({
       where: { id: dto.studentId },
-      include: { user: { select: { fullName: true, phone: true } } },
+      include: {
+        user: { select: { fullName: true, phone: true } },
+        groupEnrollments: {
+          where: { status: GroupEnrollmentStatus.ACTIVE },
+          select: { groupId: true },
+        },
+      },
     });
 
     if (!student) {
@@ -63,8 +69,18 @@ export class SubscriptionsService {
       // Grade level mismatch validation
       if (student.gradeLevel && booklet.gradeLevel && student.gradeLevel !== booklet.gradeLevel) {
         throw new BadRequestException(
-          `لا يمكن سداد المذكرة (${booklet.title}) المخصصة لـ (${booklet.gradeLevel}) للطالب المقيد بالصف (${student.gradeLevel})`,
+          `INVALID_BOOKLET_FOR_STUDENT: هذه المذكرة غير مخصصة للصف الدراسي أو المجموعة الخاصة بهذا الطالب (${booklet.gradeLevel} != ${student.gradeLevel})`,
         );
+      }
+
+      // Group scoping validation if booklet is tied to a specific group
+      if (booklet.groupId) {
+        const studentGroupIds = student.groupEnrollments?.map((e) => e.groupId) || [];
+        if (!studentGroupIds.includes(booklet.groupId)) {
+          throw new BadRequestException(
+            'INVALID_BOOKLET_FOR_STUDENT: هذه المذكرة غير مخصصة للصف الدراسي أو المجموعة الخاصة بهذا الطالب',
+          );
+        }
       }
 
       bookletTitle = booklet.title;
@@ -329,8 +345,18 @@ export class SubscriptionsService {
       // Grade level mismatch validation
       if (student.gradeLevel && booklet.gradeLevel && student.gradeLevel !== booklet.gradeLevel) {
         throw new BadRequestException(
-          `لا يمكن سداد المذكرة (${booklet.title}) المخصصة لـ (${booklet.gradeLevel}) للطالب المقيد بالصف (${student.gradeLevel})`,
+          `INVALID_BOOKLET_FOR_STUDENT: هذه المذكرة غير مخصصة للصف الدراسي أو المجموعة الخاصة بهذا الطالب (${booklet.gradeLevel} != ${student.gradeLevel})`,
         );
+      }
+
+      // Group scoping validation if booklet is tied to a specific group
+      if (booklet.groupId) {
+        const studentGroupIds = student.groupEnrollments?.map((e) => e.groupId) || [];
+        if (!studentGroupIds.includes(booklet.groupId)) {
+          throw new BadRequestException(
+            'INVALID_BOOKLET_FOR_STUDENT: هذه المذكرة غير مخصصة للصف الدراسي أو المجموعة الخاصة بهذا الطالب',
+          );
+        }
       }
 
       const amountExpected = Number(booklet.price);

@@ -135,6 +135,41 @@ export function useRecordPayment() {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
       if (!isOnline) {
+        const isBooklet = payload.paymentType === 'BOOKLET' || Boolean(payload.bookletId);
+        if (isBooklet && payload.bookletId) {
+          const booklet = await offlineDb.getBookletByIdOffline(payload.bookletId);
+          const bookletCheck = await offlineDb.isBookletPaymentRecordedOffline(payload.studentId, payload.bookletId);
+
+          if (bookletCheck.isRecorded) {
+            return {
+              success: false,
+              isDuplicate: true,
+              isOfflineSaved: true,
+              message: `تم سداد قيمة المذكرة (${booklet?.title || ''}) لهذا الطالب مسبقاً`,
+              payment: bookletCheck.existingPayment,
+            };
+          }
+
+          const paymentRecord = await offlineDb.recordBookletPaymentOffline({
+            studentId: payload.studentId,
+            bookletId: payload.bookletId,
+            amountPaid: payload.amountPaid,
+            amountExpected: payload.amountPaid,
+            groupId: payload.groupId,
+            notes: payload.notes,
+            receiptNumber: payload.receiptNumber,
+            paymentMethod: payload.paymentMethod,
+          });
+
+          return {
+            success: true,
+            isDuplicate: false,
+            isOfflineSaved: true,
+            message: `تم تسجيل سداد المذكرة (${booklet?.title || ''}) محلياً بنجاح 💾`,
+            payment: paymentRecord,
+          };
+        }
+
         const periodYear = Number(payload.periodYear || new Date().getFullYear());
         const periodMonth = Number(payload.periodMonth || (new Date().getMonth() + 1));
 
@@ -194,9 +229,9 @@ export function useRecordPayment() {
 
       return recordPayment(payload);
     },
-    onSuccess: (data: any, variables) => {
-      queryClient.invalidateQueries({ queryKey: financeKeys.payments() });
-      queryClient.invalidateQueries({ queryKey: financeKeys.studentHistory(variables.studentId) });
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['booklets'] });
       queryClient.invalidateQueries({ queryKey: ['students'] });
       queryClient.invalidateQueries({ queryKey: ['group-defaulters'] });
       if (variables.groupId) {
@@ -204,6 +239,7 @@ export function useRecordPayment() {
           queryKey: financeKeys.defaulters(variables.groupId, variables.periodYear, variables.periodMonth) 
         });
       }
+      queryClient.invalidateQueries({ queryKey: financeKeys.studentHistory(variables.studentId) });
     },
   });
 }
@@ -222,8 +258,66 @@ export function useScanPaymentQr() {
         const groupId = payload.groupId || localMatch?.groupId;
         const periodYear = Number(payload.periodYear || new Date().getFullYear());
         const periodMonth = Number(payload.periodMonth || (new Date().getMonth() + 1));
+        const isBooklet = payload.paymentType === 'BOOKLET' || Boolean(payload.bookletId);
 
-        // Check if payment already exists or queued for this billing period
+        if (isBooklet && payload.bookletId) {
+          const booklet = await offlineDb.getBookletByIdOffline(payload.bookletId);
+          const bookletCheck = await offlineDb.isBookletPaymentRecordedOffline(studentId, payload.bookletId);
+
+          if (bookletCheck.isRecorded) {
+            return {
+              success: false,
+              isDuplicate: true,
+              isOfflineSaved: true,
+              message: `تم سداد قيمة المذكرة (${booklet?.title || ''}) لهذا الطالب مسبقاً`,
+              payment: bookletCheck.existingPayment,
+              student: {
+                id: studentId,
+                fullName: resolvedStudentName,
+                phone: localMatch?.student?.phone || null,
+              },
+              booklet: booklet ? {
+                id: booklet.id,
+                title: booklet.title,
+                price: booklet.price,
+              } : undefined,
+              group: groupId ? {
+                id: groupId,
+                name: localMatch?.groupName || 'المجموعة',
+              } : null,
+            };
+          }
+
+          const paymentRecord = await offlineDb.recordBookletPaymentOffline({
+            studentId,
+            bookletId: payload.bookletId,
+            amountPaid: payload.amountPaid !== undefined ? payload.amountPaid : (booklet ? Number(booklet.price) : 0),
+            groupId,
+          });
+
+          return {
+            success: true,
+            isDuplicate: false,
+            isOfflineSaved: true,
+            message: `تم تسجيل سداد المذكرة (${booklet?.title || ''}) محلياً بنجاح 💾`,
+            payment: paymentRecord,
+            booklet: booklet ? {
+              id: booklet.id,
+              title: booklet.title,
+              price: booklet.price,
+            } : undefined,
+            student: {
+              id: studentId,
+              fullName: resolvedStudentName,
+              phone: localMatch?.student?.phone || null,
+            },
+            group: groupId ? {
+              id: groupId,
+              name: localMatch?.groupName || 'المجموعة',
+            } : null,
+          };
+        }
+
         const paymentCheck = await offlineDb.isPaymentRecordedOffline(
           studentId,
           groupId,
