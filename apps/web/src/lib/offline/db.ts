@@ -1391,7 +1391,9 @@ class OfflineDatabase {
       currency: 'EGP',
       receiptNumber: params.receiptNumber || `REC-BKT-${Date.now().toString().slice(-6)}`,
       notes: params.notes || (booklet ? `سداد مذكرة: ${booklet.title}` : 'سداد قيمة مذكرة'),
+      recordedById: 'offline-teacher',
       createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
     };
 
     // 1. Put payment in offline payments store

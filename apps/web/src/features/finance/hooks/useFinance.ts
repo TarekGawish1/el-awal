@@ -300,7 +300,7 @@ export function useScanPaymentQr() {
             isDuplicate: false,
             isOfflineSaved: true,
             message: `تم تسجيل سداد المذكرة (${booklet?.title || ''}) محلياً بنجاح 💾`,
-            payment: paymentRecord,
+            payment: paymentRecord as any,
             booklet: booklet ? {
               id: booklet.id,
               title: booklet.title,
