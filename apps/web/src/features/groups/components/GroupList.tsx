@@ -6,6 +6,7 @@ import { useGroups } from '../hooks/useGroups';
 import { useStoredAcademicPeriod } from '../hooks/useAcademicPeriod';
 import { GroupCard } from './GroupCard';
 import { CreateGroupModal } from './CreateGroupModal';
+import { GroupDetailsModal } from './GroupDetailsModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { MultiSelectDropdown } from './MultiSelectDropdown';
@@ -54,6 +55,7 @@ export function GroupList() {
   } = useStoredAcademicPeriod(groups);
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
@@ -453,7 +455,11 @@ export function GroupList() {
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {groupedGroups[stage][grade].map((group) => (
-                        <GroupCard key={group.id} group={group} />
+                        <GroupCard
+                          key={group.id}
+                          group={group}
+                          onClick={() => setSelectedGroupId(group.id)}
+                        />
                       ))}
                     </div>
                   </div>
@@ -467,6 +473,12 @@ export function GroupList() {
       <CreateGroupModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
+      />
+
+      <GroupDetailsModal
+        groupId={selectedGroupId}
+        isOpen={!!selectedGroupId}
+        onClose={() => setSelectedGroupId(null)}
       />
     </div>
   );

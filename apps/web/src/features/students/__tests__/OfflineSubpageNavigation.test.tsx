@@ -4,13 +4,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import StudentDetailPage from '@/app/(dashboard)/teacher/students/[id]/page';
 import GroupDetailsPage from '@/app/(dashboard)/teacher/groups/[id]/page';
+import TeacherStudentsPage from '@/app/(dashboard)/teacher/students/page';
+import GroupsPage from '@/app/(dashboard)/teacher/groups/page';
 import { StudentDetailsModal } from '@/features/students/components/StudentDetailsModal';
+import { GroupDetailsModal } from '@/features/groups/components/GroupDetailsModal';
 import * as useStudentsModule from '@/features/students/hooks/use-students';
 import * as useGroupsModule from '@/features/groups/hooks/useGroups';
 import * as nextNavigation from 'next/navigation';
 
 vi.mock('next/navigation', () => ({
   useParams: vi.fn(),
+  usePathname: vi.fn(() => '/teacher/students'),
   useRouter: vi.fn(() => ({
     push: vi.fn(),
     replace: vi.fn(),
@@ -105,6 +109,18 @@ describe('Offline Subpage Navigation & Resilient Hydration', () => {
       },
     });
 
+    (nextNavigation.usePathname as any).mockReturnValue('/teacher/students');
+    (nextNavigation.useParams as any).mockReturnValue({ id: 'offline-stu-101' });
+
+    vi.spyOn(useStudentsModule, 'useStudents').mockReturnValue({
+      data: {
+        data: [mockOfflineStudent],
+        meta: { total: 1, hasMore: false, limit: 10 },
+      } as any,
+      isLoading: false,
+      isError: false,
+    } as any);
+
     vi.spyOn(useStudentsModule, 'useStudent').mockReturnValue({
       data: mockOfflineStudent as any,
       isLoading: false,
@@ -121,6 +137,12 @@ describe('Offline Subpage Navigation & Resilient Hydration', () => {
         gradeLevel: 'الصف الأول الثانوي',
         qrCodeToken: 'offline-stu-101',
       },
+      isLoading: false,
+      isError: false,
+    } as any);
+
+    vi.spyOn(useGroupsModule, 'useGroups').mockReturnValue({
+      data: [mockOfflineGroup] as any,
       isLoading: false,
       isError: false,
     } as any);
@@ -148,7 +170,7 @@ describe('Offline Subpage Navigation & Resilient Hydration', () => {
   it('renders student detail subpage with params from useParams when offline', () => {
     (nextNavigation.useParams as any).mockReturnValue({ id: 'offline-stu-101' });
 
-    renderWithClient(<StudentDetailPage />);
+    renderWithClient(<StudentDetailPage params={{ id: 'offline-stu-101' }} />);
 
     expect(screen.getAllByText('عمر خالد المنشاوي')[0]).toBeInTheDocument();
     expect(screen.getAllByText('STU-101001')[0]).toBeInTheDocument();
@@ -160,7 +182,7 @@ describe('Offline Subpage Navigation & Resilient Hydration', () => {
   it('renders group detail subpage with params from useParams when offline', () => {
     (nextNavigation.useParams as any).mockReturnValue({ id: 'grp-secondary-1' });
 
-    renderWithClient(<GroupDetailsPage />);
+    renderWithClient(<GroupDetailsPage params={{ id: 'grp-secondary-1' }} />);
 
     expect(screen.getByText('مجموعة الفيزياء للثانوية')).toBeInTheDocument();
     expect(screen.getByText(/350/)).toBeInTheDocument();
@@ -177,7 +199,7 @@ describe('Offline Subpage Navigation & Resilient Hydration', () => {
       refetch: vi.fn(),
     } as any);
 
-    renderWithClient(<StudentDetailPage />);
+    renderWithClient(<StudentDetailPage params={{ id: 'unknown-id' }} />);
 
     expect(screen.getByText('لم يتم العثور على سجل الطالب')).toBeInTheDocument();
     expect(screen.getByText('العودة لسجل الطلاب')).toBeInTheDocument();
@@ -193,7 +215,7 @@ describe('Offline Subpage Navigation & Resilient Hydration', () => {
       refetch: vi.fn(),
     } as any);
 
-    renderWithClient(<GroupDetailsPage />);
+    renderWithClient(<GroupDetailsPage params={{ id: 'unknown-group-id' }} />);
 
     expect(screen.getByText('لم يتم العثور على المجموعة الدراسية')).toBeInTheDocument();
     expect(screen.getByText('العودة لقائمة المجموعات')).toBeInTheDocument();
@@ -214,5 +236,40 @@ describe('Offline Subpage Navigation & Resilient Hydration', () => {
     expect(screen.getByText('مجموعة الفيزياء للثانوية')).toBeInTheDocument();
     expect(screen.getByText('خالد المنشاوي')).toBeInTheDocument();
     expect(screen.getByText('عرض الصفحة الكاملة')).toBeInTheDocument();
+  });
+
+  it('renders GroupDetailsModal for quick offline group view without page navigation', () => {
+    const handleClose = vi.fn();
+    renderWithClient(
+      <GroupDetailsModal
+        groupId="grp-secondary-1"
+        isOpen={true}
+        onClose={handleClose}
+      />
+    );
+
+    expect(screen.getByText('مجموعة الفيزياء للثانوية')).toBeInTheDocument();
+    expect(screen.getByText(/350/)).toBeInTheDocument();
+  });
+
+  it('renders subpath student detail on offline reload of /teacher/students/[id]', () => {
+    (nextNavigation.usePathname as any).mockReturnValue('/teacher/students/offline-stu-101');
+    (nextNavigation.useParams as any).mockReturnValue({ id: 'offline-stu-101' });
+
+    renderWithClient(<TeacherStudentsPage />);
+
+    expect(screen.getAllByText('عمر خالد المنشاوي')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('STU-101001')[0]).toBeInTheDocument();
+    expect(screen.getByText('معلومات الهوية')).toBeInTheDocument();
+  });
+
+  it('renders subpath group detail on offline reload of /teacher/groups/[id]', () => {
+    (nextNavigation.usePathname as any).mockReturnValue('/teacher/groups/grp-secondary-1');
+    (nextNavigation.useParams as any).mockReturnValue({ id: 'grp-secondary-1' });
+
+    renderWithClient(<GroupsPage />);
+
+    expect(screen.getByText('مجموعة الفيزياء للثانوية')).toBeInTheDocument();
+    expect(screen.getByText(/350/)).toBeInTheDocument();
   });
 });

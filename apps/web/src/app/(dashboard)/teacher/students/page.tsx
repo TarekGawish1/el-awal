@@ -1,14 +1,25 @@
 'use client';
 
 import React, { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { StudentList } from '@/features/students/components/StudentList';
 import { CreateStudentForm } from '@/features/students/components/CreateStudentForm';
 import { StudentQrBadge } from '@/features/students/components/StudentQrBadge';
+import StudentDetailPage from './[id]/page';
 import { Button } from '@/components/ui/Button';
 
 export default function TeacherStudentsPage() {
+  const pathname = usePathname();
   const [isCreating, setIsCreating] = useState(false);
   const [createdStudent, setCreatedStudent] = useState<{ id: string; password?: string; email?: string; phone?: string } | null>(null);
+
+  // If a subpath is loaded (e.g. offline reload of /teacher/students/[id] where SW serves parent document)
+  const pathParts = pathname?.split('/').filter(Boolean) || [];
+  const directStudentId = pathParts.length >= 3 && pathParts[1] === 'students' ? pathParts[2] : null;
+
+  if (directStudentId) {
+    return <StudentDetailPage params={{ id: directStudentId }} />;
+  }
 
   return (
     <div className="max-w-6xl mx-auto py-4 sm:py-8 px-2 sm:px-6 lg:px-8">

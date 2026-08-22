@@ -507,9 +507,13 @@ export function StudentList() {
                 </tr>
               ) : (
                 paginatedStudents.map((student) => (
-                  <tr key={student.id} className="hover:bg-slate-50/80 transition-colors duration-200">
+                  <tr
+                    key={student.id}
+                    onClick={() => setSelectedStudentForModal(student.id)}
+                    className="hover:bg-slate-50/80 transition-colors duration-200 cursor-pointer"
+                  >
                     <td className="px-6 py-4">
-                      <Link href={`/teacher/students/${student.id}`} className="flex items-center gap-3 w-fit">
+                      <div className="flex items-center gap-3 w-fit">
                         <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center font-bold text-sm border border-primary-100/50 shadow-sm">
                           {student.user.fullName.charAt(0)}
                         </div>
@@ -523,7 +527,7 @@ export function StudentList() {
                             </span>
                           )}
                         </span>
-                      </Link>
+                      </div>
                     </td>
                     <td className="px-6 py-4 font-mono text-sm">
                       <div className="inline-flex items-center px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 font-semibold text-xs border border-slate-200/60">
@@ -563,22 +567,16 @@ export function StudentList() {
                       </Badge>
                     </td>
                     <td className="px-6 py-4 text-end">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                         <Button
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
                           onClick={() => setSelectedStudentForModal(student.id)}
-                          className="rounded-xl font-medium text-slate-500 hover:text-primary-600 hover:bg-primary-50 transition-all p-2"
-                          title="معاينة سريعة"
-                          aria-label="معاينة سريعة"
+                          className="rounded-xl font-bold bg-white hover:bg-primary-50 hover:text-primary-600 border-slate-200 hover:border-primary-200 transition-all shadow-sm"
                         >
-                          <Eye className="w-4 h-4" />
+                          <Eye className="w-4 h-4 ml-1.5" />
+                          عرض التفاصيل
                         </Button>
-                        <Link href={`/teacher/students/${student.id}`}>
-                          <Button variant="outline" size="sm" className="rounded-xl font-bold bg-white hover:bg-primary-50 hover:text-primary-600 border-slate-200 hover:border-primary-200 transition-all shadow-sm">
-                            عرض التفاصيل
-                          </Button>
-                        </Link>
                       </div>
                     </td>
                   </tr>
@@ -614,9 +612,13 @@ export function StudentList() {
           ) : (
             <div className="divide-y divide-slate-100">
               {paginatedStudents.map((student) => (
-                <div key={student.id} className="p-4 space-y-3 hover:bg-slate-50/50 transition-colors">
+                <div
+                  key={student.id}
+                  onClick={() => setSelectedStudentForModal(student.id)}
+                  className="p-4 space-y-3 hover:bg-slate-50/50 transition-colors cursor-pointer"
+                >
                   <div className="flex items-start justify-between gap-3">
-                    <Link href={`/teacher/students/${student.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div className="w-11 h-11 rounded-2xl bg-primary-50 text-primary-700 flex items-center justify-center font-extrabold text-base border border-primary-100 shrink-0 shadow-2xs">
                         {student.user.fullName.charAt(0)}
                       </div>
@@ -633,7 +635,7 @@ export function StudentList() {
                           </span>
                         </div>
                       </div>
-                    </Link>
+                    </div>
 
                     <Badge variant={getStatusColor(student.academicStatus)} className="text-[10px] font-bold shrink-0">
                       {getStatusText(student.academicStatus)}
@@ -655,21 +657,19 @@ export function StudentList() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div>
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      onClick={() => setSelectedStudentForModal(student.id)}
-                      className="px-3 text-xs font-bold rounded-xl py-2 bg-slate-100 text-slate-700 hover:bg-slate-200"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedStudentForModal(student.id);
+                      }}
+                      className="w-full text-xs font-bold rounded-xl py-2 bg-white hover:bg-primary-50 hover:text-primary-600 border-slate-200"
                     >
-                      <Eye className="w-3.5 h-3.5 ml-1" />
-                      معاينة
+                      <Eye className="w-3.5 h-3.5 ml-1.5" />
+                      عرض تفاصيل وملف الطالب
                     </Button>
-                    <Link href={`/teacher/students/${student.id}`} className="flex-1">
-                      <Button variant="outline" size="sm" className="w-full text-xs font-bold rounded-xl py-2 bg-white">
-                        عرض التفاصيل
-                      </Button>
-                    </Link>
                   </div>
                 </div>
               ))}

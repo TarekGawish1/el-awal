@@ -9,9 +9,9 @@
  * - Zero-redirect offline subpage navigation
  */
 
-const CACHE_NAME = 'el-awal-core-v6';
-const RUNTIME_CACHE = 'el-awal-runtime-v6';
-const RSC_CACHE = 'el-awal-rsc-v6';
+const CACHE_NAME = 'el-awal-core-v7';
+const RUNTIME_CACHE = 'el-awal-runtime-v7';
+const RSC_CACHE = 'el-awal-rsc-v7';
 
 // Critical App Shell assets and core dashboard routes to pre-cache on install
 const PRECACHE_URLS = [
@@ -220,10 +220,14 @@ self.addEventListener('fetch', (event) => {
           if (assessRsc) return assessRsc;
         }
 
-        // 5. CRITICAL: Never return an HTML document for RSC requests!
-        // Returning text/html causes Next.js client router to perform a hard redirect to the root shell.
-        // Instead, return a synthetic empty RSC flight stream so the client-side component hydrates from local IndexedDB.
-        return new Response('0:[]\n', {
+        // 5. Fall back to root dashboard RSC if available
+        const dashboardRsc = await rscCache.match(new Request('/teacher/dashboard', { headers: { RSC: '1' } }));
+        if (dashboardRsc) {
+          return dashboardRsc;
+        }
+
+        // 6. Return safe non-error empty response with text/x-component header
+        return new Response('', {
           status: 200,
           headers: {
             'Content-Type': 'text/x-component; charset=utf-8',
@@ -278,6 +282,10 @@ self.addEventListener('fetch', (event) => {
         }
         if (url.pathname.startsWith('/teacher/groups/')) {
           const parentDoc = (await coreCache.match('/teacher/groups')) || (await runtimeCache.match('/teacher/groups'));
+          if (parentDoc) return parentDoc;
+        }
+        if (url.pathname.startsWith('/teacher/assessments/')) {
+          const parentDoc = (await coreCache.match('/teacher/assessments')) || (await runtimeCache.match('/teacher/assessments'));
           if (parentDoc) return parentDoc;
         }
 
