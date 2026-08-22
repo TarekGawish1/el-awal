@@ -10,7 +10,7 @@ import { PrismaService } from '../../../core/database/prisma.service';
 import { RecordPaymentDto } from '../dto/record-payment.dto';
 import { ScanPaymentQrDto } from '../dto/scan-payment-qr.dto';
 import { PaymentQueryDto } from '../dto/payment-query.dto';
-import { PaymentStatus, GroupEnrollmentStatus, UserRole } from '@prisma/client';
+import { PaymentStatus, PaymentType, GroupEnrollmentStatus, UserRole } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 
@@ -24,21 +24,137 @@ export class SubscriptionsService {
   ) {}
 
   /**
-   * Records or updates a tuition payment record and dispatches payment event upon success.
+   * Records or updates a tuition or booklet payment record and dispatches payment event upon success.
    */
   async recordStudentPayment(user: AuthenticatedUser, dto: RecordPaymentDto) {
     const student = await this.prisma.studentProfile.findUnique({
       where: { id: dto.studentId },
-      include: { user: { select: { fullName: true } } },
+      include: { user: { select: { fullName: true, phone: true } } },
     });
 
     if (!student) {
       throw new NotFoundException(`Student [${dto.studentId}] not found`);
     }
 
+    const isBooklet = dto.paymentType === 'BOOKLET' || Boolean(dto.bookletId);
+    const now = new Date();
+    const periodYear = dto.periodYear ?? now.getFullYear();
+    const periodMonth = dto.periodMonth ?? (now.getMonth() + 1);
+
     let amountExpected = dto.amountExpected;
     let groupName = 'عام';
+    let bookletTitle: string | undefined;
 
+    // 1. Booklet Payment Flow
+    if (isBooklet) {
+      if (!dto.bookletId) {
+        throw new BadRequestException('معرف المذكرة مطلوب لسداد قيمة مذكرة');
+      }
+
+      const booklet = await this.prisma.booklet.findUnique({
+        where: { id: dto.bookletId },
+        include: { group: true },
+      });
+
+      if (!booklet) {
+        throw new NotFoundException(`Booklet [${dto.bookletId}] not found`);
+      }
+
+      bookletTitle = booklet.title;
+      if (amountExpected === undefined) {
+        amountExpected = Number(booklet.price);
+      }
+
+      const resolvedGroupId = dto.groupId || booklet.groupId || null;
+
+      // Check if student already paid for this booklet
+      const existingBookletPayment = await this.prisma.studentPaymentRecord.findFirst({
+        where: {
+          studentId: dto.studentId,
+          bookletId: dto.bookletId,
+          paymentType: PaymentType.BOOKLET,
+        },
+      });
+
+      let payment: any;
+      if (existingBookletPayment) {
+        payment = await this.prisma.studentPaymentRecord.update({
+          where: { id: existingBookletPayment.id },
+          data: {
+            amountPaid: dto.amountPaid,
+            amountExpected: amountExpected ?? Number(existingBookletPayment.amountExpected || 0),
+            paymentStatus: dto.paymentStatus || PaymentStatus.PAID,
+            paymentMethod: dto.paymentMethod || 'CASH',
+            receiptNumber: dto.receiptNumber || existingBookletPayment.receiptNumber,
+            notes: dto.notes || existingBookletPayment.notes,
+            recordedById: user.id,
+            updatedAt: new Date(),
+          },
+          include: {
+            student: {
+              include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+            },
+            group: { select: { id: true, name: true } },
+            booklet: { select: { id: true, title: true, price: true } },
+          },
+        });
+      } else {
+        payment = await this.prisma.studentPaymentRecord.create({
+          data: {
+            studentId: dto.studentId,
+            groupId: resolvedGroupId,
+            bookletId: dto.bookletId,
+            paymentType: PaymentType.BOOKLET,
+            periodYear,
+            periodMonth,
+            amountExpected: amountExpected ?? 0,
+            amountPaid: dto.amountPaid,
+            currency: 'EGP',
+            paymentStatus: dto.paymentStatus || PaymentStatus.PAID,
+            paymentMethod: dto.paymentMethod || 'CASH',
+            receiptNumber: dto.receiptNumber,
+            notes: dto.notes,
+            recordedById: user.id,
+          },
+          include: {
+            student: {
+              include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+            },
+            group: { select: { id: true, name: true } },
+            booklet: { select: { id: true, title: true, price: true } },
+          },
+        });
+
+        // Decrement stock if tracked
+        if (booklet.stockCount !== null && booklet.stockCount > 0) {
+          await this.prisma.booklet.update({
+            where: { id: booklet.id },
+            data: { stockCount: { decrement: 1 } },
+          });
+        }
+      }
+
+      if (payment.paymentStatus === PaymentStatus.PAID) {
+        this.eventEmitter.emit('payment.recorded', {
+          studentId: dto.studentId,
+          studentName: student.user.fullName,
+          paymentType: 'BOOKLET',
+          bookletId: dto.bookletId,
+          bookletTitle,
+          amountPaid: Number(payment.amountPaid),
+          periodYear,
+          periodMonth,
+        });
+      }
+
+      this.logger.log(
+        `Booklet payment recorded: Student [${dto.studentId}], Booklet [${dto.bookletId} - ${bookletTitle}], Paid: ${dto.amountPaid} EGP`,
+      );
+
+      return payment;
+    }
+
+    // 2. Regular Monthly Tuition Payment Flow
     if (dto.groupId) {
       const group = await this.prisma.academicGroup.findUnique({
         where: { id: dto.groupId },
@@ -74,45 +190,64 @@ export class SubscriptionsService {
       }
     }
 
-    const payment = await this.prisma.studentPaymentRecord.upsert({
+    const existingPayment = await this.prisma.studentPaymentRecord.findFirst({
       where: {
-        studentId_groupId_periodYear_periodMonth: {
-          studentId: dto.studentId,
-          groupId: dto.groupId ?? null,
-          periodYear: dto.periodYear,
-          periodMonth: dto.periodMonth,
-        },
-      },
-      create: {
         studentId: dto.studentId,
-        groupId: dto.groupId,
-        periodYear: dto.periodYear,
-        periodMonth: dto.periodMonth,
-        amountExpected: amountExpected ?? 0,
-        amountPaid: dto.amountPaid,
-        currency: 'EGP',
-        paymentStatus: dto.paymentStatus || PaymentStatus.PAID,
-        paymentMethod: dto.paymentMethod || 'CASH',
-        receiptNumber: dto.receiptNumber,
-        notes: dto.notes,
-        recordedById: user.id,
-      },
-      update: {
-        amountPaid: dto.amountPaid,
-        ...(amountExpected !== undefined ? { amountExpected } : {}),
-        paymentStatus: dto.paymentStatus || PaymentStatus.PAID,
-        paymentMethod: dto.paymentMethod || 'CASH',
-        receiptNumber: dto.receiptNumber,
-        notes: dto.notes,
-        recordedById: user.id,
-      },
-      include: {
-        student: {
-          include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
-        },
-        group: { select: { id: true, name: true } },
+        groupId: dto.groupId ?? null,
+        periodYear,
+        periodMonth,
+        paymentType: PaymentType.TUITION,
       },
     });
+
+    let payment: any;
+    if (existingPayment) {
+      payment = await this.prisma.studentPaymentRecord.update({
+        where: { id: existingPayment.id },
+        data: {
+          amountPaid: dto.amountPaid,
+          ...(amountExpected !== undefined ? { amountExpected } : {}),
+          paymentStatus: dto.paymentStatus || PaymentStatus.PAID,
+          paymentMethod: dto.paymentMethod || 'CASH',
+          receiptNumber: dto.receiptNumber,
+          notes: dto.notes,
+          recordedById: user.id,
+          updatedAt: new Date(),
+        },
+        include: {
+          student: {
+            include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+          },
+          group: { select: { id: true, name: true } },
+          booklet: { select: { id: true, title: true, price: true } },
+        },
+      });
+    } else {
+      payment = await this.prisma.studentPaymentRecord.create({
+        data: {
+          studentId: dto.studentId,
+          groupId: dto.groupId || null,
+          paymentType: PaymentType.TUITION,
+          periodYear,
+          periodMonth,
+          amountExpected: amountExpected ?? 0,
+          amountPaid: dto.amountPaid,
+          currency: 'EGP',
+          paymentStatus: dto.paymentStatus || PaymentStatus.PAID,
+          paymentMethod: dto.paymentMethod || 'CASH',
+          receiptNumber: dto.receiptNumber,
+          notes: dto.notes,
+          recordedById: user.id,
+        },
+        include: {
+          student: {
+            include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+          },
+          group: { select: { id: true, name: true } },
+          booklet: { select: { id: true, title: true, price: true } },
+        },
+      });
+    }
 
     // If payment is marked as PAID, dispatch asynchronous domain event
     if (payment.paymentStatus === PaymentStatus.PAID) {
@@ -121,21 +256,22 @@ export class SubscriptionsService {
         studentName: student.user.fullName,
         groupId: dto.groupId,
         groupName,
+        paymentType: 'TUITION',
         amountPaid: Number(payment.amountPaid),
-        periodYear: dto.periodYear,
-        periodMonth: dto.periodMonth,
+        periodYear,
+        periodMonth,
       });
     }
 
     this.logger.log(
-      `Payment recorded: Student [${dto.studentId}], Period ${dto.periodMonth}/${dto.periodYear}, Paid: ${dto.amountPaid} EGP`,
+      `Payment recorded: Student [${dto.studentId}], Period ${periodMonth}/${periodYear}, Paid: ${dto.amountPaid} EGP`,
     );
 
     return payment;
   }
 
   /**
-   * Scans student QR code and automatically records the student tuition payment.
+   * Scans student QR code and automatically records the student tuition or booklet payment.
    */
   async scanPaymentQr(user: AuthenticatedUser, dto: ScanPaymentQrDto) {
     // 1. Resolve student by QR token, studentCode or UUID
@@ -163,7 +299,140 @@ export class SubscriptionsService {
       throw new BadRequestException('رمز الـ QR غير صالح أو أن حساب الطالب غير مفعّل.');
     }
 
-    // 2. Resolve target group
+    const isBooklet = dto.paymentType === 'BOOKLET' || Boolean(dto.bookletId);
+    const now = new Date();
+    const periodYear = dto.periodYear ?? now.getFullYear();
+    const periodMonth = dto.periodMonth ?? (now.getMonth() + 1);
+
+    // Flow A: QR Booklet Purchase
+    if (isBooklet) {
+      if (!dto.bookletId) {
+        throw new BadRequestException('معرف المذكرة مطلوب لسداد قيمة مذكرة');
+      }
+
+      const booklet = await this.prisma.booklet.findUnique({
+        where: { id: dto.bookletId },
+        include: { group: true },
+      });
+
+      if (!booklet) {
+        throw new NotFoundException(`Booklet [${dto.bookletId}] not found`);
+      }
+
+      const amountExpected = Number(booklet.price);
+      const amountPaid = dto.amountPaid !== undefined ? dto.amountPaid : amountExpected;
+      const resolvedGroupId = dto.groupId || booklet.groupId || (student.groupEnrollments[0]?.groupId || null);
+
+      // Check if student already purchased this booklet
+      const existingPayment = await this.prisma.studentPaymentRecord.findFirst({
+        where: {
+          studentId: student.id,
+          bookletId: dto.bookletId,
+          paymentType: PaymentType.BOOKLET,
+        },
+      });
+
+      const isDuplicate = !!(
+        existingPayment &&
+        existingPayment.paymentStatus === PaymentStatus.PAID &&
+        Number(existingPayment.amountPaid) >= amountExpected
+      );
+
+      let payment: any;
+      if (existingPayment) {
+        payment = await this.prisma.studentPaymentRecord.update({
+          where: { id: existingPayment.id },
+          data: {
+            amountPaid,
+            amountExpected,
+            paymentStatus: PaymentStatus.PAID,
+            paymentMethod: dto.paymentMethod || 'CASH',
+            receiptNumber: dto.receiptNumber || existingPayment.receiptNumber,
+            notes: dto.notes || existingPayment.notes,
+            recordedById: user.id,
+            updatedAt: new Date(),
+          },
+          include: {
+            student: {
+              include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+            },
+            group: { select: { id: true, name: true } },
+            booklet: { select: { id: true, title: true, price: true } },
+          },
+        });
+      } else {
+        payment = await this.prisma.studentPaymentRecord.create({
+          data: {
+            studentId: student.id,
+            groupId: resolvedGroupId,
+            bookletId: dto.bookletId,
+            paymentType: PaymentType.BOOKLET,
+            periodYear,
+            periodMonth,
+            amountExpected,
+            amountPaid,
+            currency: 'EGP',
+            paymentStatus: PaymentStatus.PAID,
+            paymentMethod: dto.paymentMethod || 'CASH',
+            receiptNumber: dto.receiptNumber,
+            notes: dto.notes || `سداد مذكرة: ${booklet.title}`,
+            recordedById: user.id,
+          },
+          include: {
+            student: {
+              include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+            },
+            group: { select: { id: true, name: true } },
+            booklet: { select: { id: true, title: true, price: true } },
+          },
+        });
+
+        if (booklet.stockCount !== null && booklet.stockCount > 0) {
+          await this.prisma.booklet.update({
+            where: { id: booklet.id },
+            data: { stockCount: { decrement: 1 } },
+          });
+        }
+      }
+
+      this.eventEmitter.emit('payment.recorded', {
+        studentId: student.id,
+        studentName: student.user.fullName,
+        parentPhone: student.user.phone,
+        paymentType: 'BOOKLET',
+        bookletId: dto.bookletId,
+        bookletTitle: booklet.title,
+        amountPaid: Number(payment.amountPaid),
+        periodYear,
+        periodMonth,
+      });
+
+      this.logger.log(
+        `QR Booklet Payment processed: Student [${student.user.fullName}], Booklet [${booklet.title}], Paid: ${amountPaid} EGP`,
+      );
+
+      return {
+        success: true,
+        isDuplicate,
+        message: isDuplicate
+          ? `تم تحديث سداد مذكرة "${booklet.title}" للطالب ${student.user.fullName} (مسجل مسبقاً)`
+          : `تم تسجيل سداد مذكرة "${booklet.title}" للطالب ${student.user.fullName} بنجاح`,
+        payment,
+        student: {
+          id: student.id,
+          fullName: student.user.fullName,
+          phone: student.user.phone,
+        },
+        booklet: {
+          id: booklet.id,
+          title: booklet.title,
+          price: Number(booklet.price),
+        },
+        group: booklet.group ? { id: booklet.group.id, name: booklet.group.name } : null,
+      };
+    }
+
+    // Flow B: QR Tuition Payment
     let targetGroup: { id: string; name: string; monthlyFee: any; teacherId: string } | null = null;
 
     if (dto.groupId) {
@@ -197,22 +466,17 @@ export class SubscriptionsService {
       }
     }
 
-    const now = new Date();
-    const periodYear = dto.periodYear ?? now.getFullYear();
-    const periodMonth = dto.periodMonth ?? (now.getMonth() + 1);
-
     const amountExpected = targetGroup ? Number(targetGroup.monthlyFee) : 0;
     const amountPaid = dto.amountPaid !== undefined ? dto.amountPaid : amountExpected;
 
     // 3. Check for previous payment in this period
-    const existingPayment = await this.prisma.studentPaymentRecord.findUnique({
+    const existingPayment = await this.prisma.studentPaymentRecord.findFirst({
       where: {
-        studentId_groupId_periodYear_periodMonth: {
-          studentId: student.id,
-          groupId: targetGroup ? targetGroup.id : null,
-          periodYear,
-          periodMonth,
-        },
+        studentId: student.id,
+        groupId: targetGroup ? targetGroup.id : null,
+        periodYear,
+        periodMonth,
+        paymentType: PaymentType.TUITION,
       },
     });
 
@@ -223,45 +487,54 @@ export class SubscriptionsService {
     );
 
     // 4. Upsert payment record
-    const payment = await this.prisma.studentPaymentRecord.upsert({
-      where: {
-        studentId_groupId_periodYear_periodMonth: {
+    let payment: any;
+    if (existingPayment) {
+      payment = await this.prisma.studentPaymentRecord.update({
+        where: { id: existingPayment.id },
+        data: {
+          amountPaid,
+          amountExpected,
+          paymentStatus: PaymentStatus.PAID,
+          paymentMethod: dto.paymentMethod || 'CASH',
+          receiptNumber: dto.receiptNumber,
+          notes: dto.notes || 'تم السداد عبر مسح رمز الـ QR',
+          recordedById: user.id,
+          updatedAt: new Date(),
+        },
+        include: {
+          student: {
+            include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+          },
+          group: { select: { id: true, name: true } },
+          booklet: { select: { id: true, title: true, price: true } },
+        },
+      });
+    } else {
+      payment = await this.prisma.studentPaymentRecord.create({
+        data: {
           studentId: student.id,
           groupId: targetGroup ? targetGroup.id : null,
+          paymentType: PaymentType.TUITION,
           periodYear,
           periodMonth,
+          amountExpected,
+          amountPaid,
+          currency: 'EGP',
+          paymentStatus: PaymentStatus.PAID,
+          paymentMethod: dto.paymentMethod || 'CASH',
+          receiptNumber: dto.receiptNumber,
+          notes: dto.notes || 'تم السداد عبر مسح رمز الـ QR',
+          recordedById: user.id,
         },
-      },
-      create: {
-        studentId: student.id,
-        groupId: targetGroup ? targetGroup.id : null,
-        periodYear,
-        periodMonth,
-        amountExpected,
-        amountPaid,
-        currency: 'EGP',
-        paymentStatus: PaymentStatus.PAID,
-        paymentMethod: dto.paymentMethod || 'CASH',
-        receiptNumber: dto.receiptNumber,
-        notes: dto.notes || 'تم السداد عبر مسح رمز الـ QR',
-        recordedById: user.id,
-      },
-      update: {
-        amountPaid,
-        amountExpected,
-        paymentStatus: PaymentStatus.PAID,
-        paymentMethod: dto.paymentMethod || 'CASH',
-        receiptNumber: dto.receiptNumber,
-        notes: dto.notes || 'تم السداد عبر مسح رمز الـ QR',
-        recordedById: user.id,
-      },
-      include: {
-        student: {
-          include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+        include: {
+          student: {
+            include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+          },
+          group: { select: { id: true, name: true } },
+          booklet: { select: { id: true, title: true, price: true } },
         },
-        group: { select: { id: true, name: true } },
-      },
-    });
+      });
+    }
 
     // 5. Emit payment recorded event
     this.eventEmitter.emit('payment.recorded', {
@@ -269,6 +542,7 @@ export class SubscriptionsService {
       studentName: student.user.fullName,
       parentPhone: student.user.phone,
       groupName: targetGroup ? targetGroup.name : 'عام',
+      paymentType: 'TUITION',
       amountPaid: Number(payment.amountPaid),
       periodYear,
       periodMonth,
@@ -335,6 +609,7 @@ export class SubscriptionsService {
           include: { user: { select: { id: true, fullName: true, phone: true } } },
         },
         group: { select: { id: true, name: true } },
+        booklet: { select: { id: true, title: true, price: true } },
         recordedBy: { select: { id: true, fullName: true } },
       },
     });
@@ -385,9 +660,10 @@ export class SubscriptionsService {
 
     const records = await this.prisma.studentPaymentRecord.findMany({
       where: { studentId },
-      orderBy: [{ periodYear: 'desc' }, { periodMonth: 'desc' }],
+      orderBy: [{ periodYear: 'desc' }, { periodMonth: 'desc' }, { createdAt: 'desc' }],
       include: {
         group: { select: { id: true, name: true } },
+        booklet: { select: { id: true, title: true, price: true } },
         recordedBy: { select: { fullName: true } },
       },
     });

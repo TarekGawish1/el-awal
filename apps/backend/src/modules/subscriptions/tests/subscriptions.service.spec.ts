@@ -23,10 +23,18 @@ describe('SubscriptionsService', () => {
     academicGroup: {
       findUnique: jest.fn(),
     },
+    booklet: {
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      update: jest.fn(),
+    },
     studentPaymentRecord: {
       upsert: jest.fn(),
       findMany: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
     },
     groupEnrollment: {
       findUnique: jest.fn(),
@@ -86,7 +94,8 @@ describe('SubscriptionsService', () => {
         paymentStatus: PaymentStatus.PAID,
       };
 
-      mockPrismaService.studentPaymentRecord.upsert.mockResolvedValue(mockPayment);
+      mockPrismaService.studentPaymentRecord.findFirst.mockResolvedValue(null);
+      mockPrismaService.studentPaymentRecord.create.mockResolvedValue(mockPayment);
 
       const result = await service.recordStudentPayment(mockUser, {
         studentId,
@@ -105,6 +114,52 @@ describe('SubscriptionsService', () => {
           amountPaid: 400.0,
           periodYear: 2026,
           periodMonth: 9,
+        }),
+      );
+    });
+
+    it('should record booklet payment when paymentType is BOOKLET', async () => {
+      const studentId = 'stu-1';
+      const bookletId = 'booklet-1';
+
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue({
+        id: studentId,
+        user: { fullName: 'محمود أحمد' },
+      });
+
+      mockPrismaService.booklet.findUnique.mockResolvedValue({
+        id: bookletId,
+        title: 'مذكرة الشرح',
+        price: 85.0,
+        stockCount: 10,
+        groupId: null,
+      });
+
+      mockPrismaService.studentPaymentRecord.findFirst.mockResolvedValue(null);
+      mockPrismaService.studentPaymentRecord.create.mockResolvedValue({
+        id: 'pay-booklet-1',
+        studentId,
+        bookletId,
+        amountPaid: 85.0,
+        amountExpected: 85.0,
+        paymentStatus: PaymentStatus.PAID,
+      });
+
+      const result = await service.recordStudentPayment(mockUser, {
+        studentId,
+        paymentType: 'BOOKLET',
+        bookletId,
+        amountPaid: 85.0,
+      });
+
+      expect(result.id).toBe('pay-booklet-1');
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'payment.recorded',
+        expect.objectContaining({
+          studentId,
+          paymentType: 'BOOKLET',
+          bookletTitle: 'مذكرة الشرح',
+          amountPaid: 85.0,
         }),
       );
     });
@@ -176,7 +231,7 @@ describe('SubscriptionsService', () => {
         ],
       });
 
-      mockPrismaService.studentPaymentRecord.findUnique.mockResolvedValue(null);
+      mockPrismaService.studentPaymentRecord.findFirst.mockResolvedValue(null);
 
       const mockPayment = {
         id: 'payment-qr-1',
@@ -191,7 +246,7 @@ describe('SubscriptionsService', () => {
         notes: 'تم السداد عبر مسح رمز الـ QR',
       };
 
-      mockPrismaService.studentPaymentRecord.upsert.mockResolvedValue(mockPayment);
+      mockPrismaService.studentPaymentRecord.create.mockResolvedValue(mockPayment);
 
       const result = await service.scanPaymentQr(mockUser, {
         qrCodeToken,

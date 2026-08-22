@@ -1,11 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { PaymentQrScannerModal } from '../components/PaymentQrScannerModal';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useScanPaymentQr } from '../hooks/useFinance';
+import { useBooklets } from '@/features/booklets/hooks/useBooklets';
 
 vi.mock('@/features/groups/hooks/useGroups', () => ({
   useGroups: vi.fn(),
+}));
+
+vi.mock('@/features/booklets/hooks/useBooklets', () => ({
+  useBooklets: vi.fn(() => ({
+    booklets: [
+      { id: 'b-1', title: 'مذكرة الفيزياء الحديثة', price: 60, gradeLevel: 'G1' },
+    ],
+    isLoading: false,
+  })),
 }));
 
 let mockScanHandler: any = null;
@@ -61,7 +71,7 @@ describe('PaymentQrScannerModal', () => {
       />
     );
 
-    expect(screen.getByText('دفع المصروفات عبر ماسح الـ QR')).toBeInTheDocument();
+    expect(screen.getByText('الماسح الذكي لتحصيل المدفوعات والمذكرات')).toBeInTheDocument();
     expect(screen.getByText(/مجموعة الأوائل/i)).toBeInTheDocument();
     expect(screen.getByTestId('mock-scanner')).toBeInTheDocument();
   });
@@ -74,10 +84,10 @@ describe('PaymentQrScannerModal', () => {
       />
     );
 
-    expect(screen.queryByText('دفع المصروفات عبر ماسح الـ QR')).not.toBeInTheDocument();
+    expect(screen.queryByText('الماسح الذكي لتحصيل المدفوعات والمذكرات')).not.toBeInTheDocument();
   });
 
-  it('triggers mutation upon scanning a student QR code', () => {
+  it('triggers mutation upon scanning a student QR code in tuition mode', () => {
     render(
       <PaymentQrScannerModal
         isOpen={true}
@@ -95,8 +105,34 @@ describe('PaymentQrScannerModal', () => {
       expect.objectContaining({
         qrCodeToken: 'qr_tok_student_demo_123',
         groupId: 'group-1',
+        paymentType: 'TUITION',
         periodYear: 2026,
         periodMonth: 8,
+      }),
+      expect.any(Object)
+    );
+  });
+
+  it('allows switching to booklet mode and scanning with bookletId', () => {
+    render(
+      <PaymentQrScannerModal
+        isOpen={true}
+        onClose={mockOnClose}
+        initialGroupId="group-1"
+      />
+    );
+
+    // Switch to booklet payment mode
+    fireEvent.click(screen.getByRole('button', { name: /سداد قيمة مذكرة/i }));
+
+    const simulateBtn = screen.getByTestId('simulate-scan-btn');
+    fireEvent.click(simulateBtn);
+
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        qrCodeToken: 'qr_tok_student_demo_123',
+        paymentType: 'BOOKLET',
+        bookletId: 'b-1',
       }),
       expect.any(Object)
     );

@@ -76,6 +76,13 @@ export const API_ENDPOINTS = {
     STUDENT_HISTORY: (studentId: string) => `/subscriptions/student/${studentId}`,
     SCAN_QR: '/subscriptions/scan-qr',
   },
+  BOOKLETS: {
+    LIST: '/booklets',
+    CREATE: '/booklets',
+    DETAIL: (id: string) => `/booklets/${id}`,
+    UPDATE: (id: string) => `/booklets/${id}`,
+    DELETE: (id: string) => `/booklets/${id}`,
+  },
   NOTIFICATIONS: {
     LIST: '/notifications',
     UNREAD_COUNT: '/notifications/unread-count',

@@ -103,6 +103,7 @@ class BootstrapManager {
         payments: Array.isArray(rootData.payments) ? rootData.payments : Array.isArray(response?.payments) ? response.payments : [],
         assessments: Array.isArray(rootData.assessments) ? rootData.assessments : Array.isArray(response?.assessments) ? response.assessments : [],
         courses: Array.isArray(rootData.courses) ? rootData.courses : Array.isArray(response?.courses) ? response.courses : [],
+        booklets: Array.isArray(rootData.booklets) ? rootData.booklets : Array.isArray(response?.booklets) ? response.booklets : [],
         attendance: Array.isArray(rootData.attendance) ? rootData.attendance : Array.isArray(response?.attendance) ? response.attendance : [],
         academicPeriod: rootData.academicPeriod || response?.academicPeriod || {
           academicYear: '2026-2027',
@@ -144,14 +145,22 @@ class BootstrapManager {
         await offlineDb.bulkPutSessions(payload.sessions);
       }
 
-      this.notify('PROGRESS', 75, 'حفظ السجلات المالية والاختبارات والمناهج الدراسية...');
+      this.notify('PROGRESS', 75, 'حفظ السجلات المالية والمذكرات والاختبارات محلياً...');
 
       // 4. Ingest Payments & Tuition
       if (payload.payments.length > 0) {
         await offlineDb.bulkPutPayments(payload.payments);
       }
 
-      // 5. Ingest Attendance Records
+      // 5. Ingest Booklets
+      if (payload.booklets.length > 0) {
+        await offlineDb.bulkPutBooklets(payload.booklets);
+        if (qc) {
+          qc.setQueryData(['booklets'], payload.booklets);
+        }
+      }
+
+      // 6. Ingest Attendance Records
       if (payload.attendance.length > 0) {
         for (const att of payload.attendance) {
           if (att.sessionId) {
@@ -166,7 +175,7 @@ class BootstrapManager {
         }
       }
 
-      // 6. Ingest Assessments & Questions
+      // 7. Ingest Assessments & Questions
       if (payload.assessments.length > 0) {
         await offlineDb.bulkPutAssessments(payload.assessments);
         if (qc) {
@@ -177,7 +186,7 @@ class BootstrapManager {
         }
       }
 
-      // 7. Ingest Educational Courses
+      // 8. Ingest Educational Courses
       if (payload.courses.length > 0) {
         await offlineDb.bulkPutCourses(payload.courses);
         if (qc) {
@@ -185,7 +194,7 @@ class BootstrapManager {
         }
       }
 
-      // 8. Ingest Academic Period
+      // 9. Ingest Academic Period
       if (payload.academicPeriod) {
         await offlineDb.setMetadata('academicPeriod', payload.academicPeriod);
         if (qc) {
@@ -207,6 +216,7 @@ class BootstrapManager {
         groups: payload.groups.length,
         sessions: payload.sessions.length,
         payments: payload.payments.length,
+        booklets: payload.booklets.length,
         assessments: payload.assessments.length,
       };
 

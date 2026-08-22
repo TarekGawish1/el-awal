@@ -93,6 +93,24 @@ export interface ScheduleEntity {
   location?: string;
 }
 
+export interface BookletEntity {
+  id: string;
+  title: string;
+  price: number;
+  gradeLevel: string;
+  groupId?: string | null;
+  teacherProfileId?: string;
+  academicYear?: string;
+  academicTerm?: string;
+  stockCount?: number | null;
+  isActive: boolean;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
+  salesCount?: number;
+  totalRevenue?: number;
+  group?: { id: string; name: string; gradeLevel?: string } | null;
+}
+
 export interface PaymentEntity {
   id: string;
   studentId: string;
@@ -101,6 +119,9 @@ export interface PaymentEntity {
   periodMonth: number;
   amountPaid: number;
   amountExpected?: number;
+  paymentType?: 'TUITION' | 'BOOKLET' | 'OTHER';
+  bookletId?: string | null;
+  booklet?: { id: string; title: string; price?: number } | null;
   paymentStatus: string;
   paymentMethod: string;
   currency?: string;
@@ -240,6 +261,7 @@ class OfflineDatabase {
   private memoryConflicts: Map<string, SyncConflictRecord> = new Map();
   private memoryCredentials: Map<string, OfflineCredentialsRecord> = new Map();
   private memoryReports: Map<string, any> = new Map();
+  private memoryBooklets: Map<string, BookletEntity> = new Map();
 
   private isSupported(): boolean {
     return typeof window !== 'undefined' && 'indexedDB' in window && typeof indexedDB?.open === 'function';
@@ -304,6 +326,13 @@ class OfflineDatabase {
           if (!db.objectStoreNames.contains('courses')) {
             const store = db.createObjectStore('courses', { keyPath: 'id' });
             store.createIndex('idx_isPublished', 'isPublished', { unique: false });
+          }
+
+          if (!db.objectStoreNames.contains('booklets')) {
+            const store = db.createObjectStore('booklets', { keyPath: 'id' });
+            store.createIndex('idx_gradeLevel', 'gradeLevel', { unique: false });
+            store.createIndex('idx_groupId', 'groupId', { unique: false });
+            store.createIndex('idx_isActive', 'isActive', { unique: false });
           }
 
           if (!db.objectStoreNames.contains('system_metadata')) {
@@ -1154,6 +1183,191 @@ class OfflineDatabase {
   }
 
   // ==========================================
+  // Booklets & Study Notes Operations
+  // ==========================================
+
+  public async bulkPutBooklets(booklets: BookletEntity[]): Promise<void> {
+    booklets.forEach((b) => {
+      const existing = this.memoryBooklets.get(b.id) || {};
+      this.memoryBooklets.set(b.id, { ...existing, ...b, updatedAt: Date.now() });
+    });
+    if (!this.isSupported() || booklets.length === 0) return;
+    try {
+      const { store } = await this.getStore('booklets', 'readwrite');
+      for (const b of booklets) {
+        store.put(b);
+      }
+    } catch {}
+  }
+
+  public async putBooklet(booklet: BookletEntity): Promise<void> {
+    const existing = this.memoryBooklets.get(booklet.id) || {};
+    this.memoryBooklets.set(booklet.id, { ...existing, ...booklet, updatedAt: Date.now() });
+    if (!this.isSupported()) return;
+    try {
+      const { store } = await this.getStore('booklets', 'readwrite');
+      store.put(booklet);
+    } catch {}
+  }
+
+  public async removeBooklet(id: string): Promise<void> {
+    this.memoryBooklets.delete(id);
+    if (!this.isSupported()) return;
+    try {
+      const { store } = await this.getStore('booklets', 'readwrite');
+      store.delete(id);
+    } catch {}
+  }
+
+  public async putPayment(payment: PaymentEntity): Promise<void> {
+    this.memoryPayments.set(payment.id, payment);
+    if (!this.isSupported()) return;
+    try {
+      const { store } = await this.getStore('payments', 'readwrite');
+      store.put(payment);
+    } catch {}
+  }
+
+  public async getBookletsOffline(filter?: {
+    gradeLevel?: string;
+    groupId?: string;
+    isActive?: boolean;
+  }): Promise<BookletEntity[]> {
+    let list: BookletEntity[] = [];
+    if (!this.isSupported()) {
+      list = Array.from(this.memoryBooklets.values());
+    } else {
+      try {
+        const { store } = await this.getStore('booklets', 'readonly');
+        list = await new Promise((resolve) => {
+          const req = store.getAll();
+          req.onsuccess = () => resolve(req.result || Array.from(this.memoryBooklets.values()));
+          req.onerror = () => resolve(Array.from(this.memoryBooklets.values()));
+        });
+      } catch {
+        list = Array.from(this.memoryBooklets.values());
+      }
+    }
+
+    if (!filter) return list;
+
+    return list.filter((b) => {
+      if (filter.gradeLevel && b.gradeLevel && b.gradeLevel !== filter.gradeLevel) return false;
+      if (filter.groupId && b.groupId !== filter.groupId) return false;
+      if (filter.isActive !== undefined && b.isActive !== filter.isActive) return false;
+      return true;
+    });
+  }
+
+  public async getBookletByIdOffline(id: string): Promise<BookletEntity | null> {
+    const cleanId = String(id).trim();
+    if (!this.isSupported()) {
+      return this.memoryBooklets.get(cleanId) || null;
+    }
+    try {
+      const { store } = await this.getStore('booklets', 'readonly');
+      return new Promise((resolve) => {
+        const req = store.get(cleanId);
+        req.onsuccess = () => resolve(req.result || this.memoryBooklets.get(cleanId) || null);
+        req.onerror = () => resolve(this.memoryBooklets.get(cleanId) || null);
+      });
+    } catch {
+      return this.memoryBooklets.get(cleanId) || null;
+    }
+  }
+
+  public async isBookletPaymentRecordedOffline(
+    studentId: string,
+    bookletId: string,
+  ): Promise<{ isRecorded: boolean; existingPayment?: any }> {
+    const cleanStudentId = String(studentId).trim();
+    const cleanBookletId = String(bookletId).trim();
+
+    // 1. Check local payments store
+    const localPayments = await this.getPaymentsOffline({ studentId: cleanStudentId });
+    const matchingLocal = localPayments.find(
+      (p) =>
+        p.paymentType === 'BOOKLET' &&
+        p.bookletId === cleanBookletId &&
+        (p.paymentStatus === 'PAID' || Number(p.amountPaid) > 0),
+    );
+
+    if (matchingLocal) {
+      return { isRecorded: true, existingPayment: matchingLocal };
+    }
+
+    // 2. Check pending outbox mutations
+    const pendingMutations = await this.getPendingMutations();
+    const matchingMutation = pendingMutations.find(
+      (m) =>
+        m.payload &&
+        (m.payload.paymentType === 'BOOKLET' || m.payload.bookletId) &&
+        m.payload.studentId === cleanStudentId &&
+        m.payload.bookletId === cleanBookletId,
+    );
+
+    if (matchingMutation) {
+      return { isRecorded: true, existingPayment: matchingMutation.payload };
+    }
+
+    return { isRecorded: false };
+  }
+
+  public async recordBookletPaymentOffline(params: {
+    studentId: string;
+    bookletId: string;
+    amountPaid: number;
+    amountExpected?: number;
+    groupId?: string;
+    notes?: string;
+    receiptNumber?: string;
+    paymentMethod?: string;
+  }): Promise<PaymentEntity> {
+    const now = new Date();
+    const periodYear = now.getFullYear();
+    const periodMonth = now.getMonth() + 1;
+    const paymentId = `pay-bkt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+    const booklet = await this.getBookletByIdOffline(params.bookletId);
+    const expected = params.amountExpected ?? (booklet ? Number(booklet.price) : params.amountPaid);
+
+    const paymentRecord: PaymentEntity = {
+      id: paymentId,
+      studentId: params.studentId,
+      groupId: params.groupId || booklet?.groupId || null,
+      periodYear,
+      periodMonth,
+      paymentType: 'BOOKLET',
+      bookletId: params.bookletId,
+      booklet: booklet ? { id: booklet.id, title: booklet.title, price: booklet.price } : null,
+      amountPaid: params.amountPaid,
+      amountExpected: expected,
+      paymentStatus: 'PAID',
+      paymentMethod: params.paymentMethod || 'CASH',
+      currency: 'EGP',
+      receiptNumber: params.receiptNumber || `REC-BKT-${Date.now().toString().slice(-6)}`,
+      notes: params.notes || (booklet ? `سداد مذكرة: ${booklet.title}` : 'سداد قيمة مذكرة'),
+      createdAt: now.toISOString(),
+    };
+
+    // 1. Put payment in offline payments store
+    await this.putPayment(paymentRecord);
+
+    // 2. Decrement booklet stock locally if tracked
+    if (booklet && booklet.stockCount !== null && booklet.stockCount !== undefined && booklet.stockCount > 0) {
+      const updatedBooklet = {
+        ...booklet,
+        stockCount: booklet.stockCount - 1,
+        salesCount: (booklet.salesCount || 0) + 1,
+        totalRevenue: (booklet.totalRevenue || 0) + params.amountPaid,
+      };
+      await this.putBooklet(updatedBooklet);
+    }
+
+    return paymentRecord;
+  }
+
+  // ==========================================
   // Outbox Mutations Operations
   // ==========================================
 
@@ -1695,6 +1909,7 @@ class OfflineDatabase {
     this.memoryDrafts.clear();
     this.memoryConflicts.clear();
     this.memoryCredentials.clear();
+    this.memoryBooklets.clear();
 
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
@@ -1739,4 +1954,42 @@ export async function getStudentDetailsOffline(id: string) {
 export async function wipeAllOfflineData() {
   return offlineDb.wipeAllOfflineData();
 }
+
+export async function getBookletsOffline(filter?: { gradeLevel?: string; groupId?: string; isActive?: boolean }) {
+  return offlineDb.getBookletsOffline(filter);
+}
+
+export async function getBookletByIdOffline(id: string) {
+  return offlineDb.getBookletByIdOffline(id);
+}
+
+export async function bulkPutBooklets(booklets: BookletEntity[]) {
+  return offlineDb.bulkPutBooklets(booklets);
+}
+
+export async function putBooklet(booklet: BookletEntity) {
+  return offlineDb.putBooklet(booklet);
+}
+
+export async function removeBooklet(id: string) {
+  return offlineDb.removeBooklet(id);
+}
+
+export async function isBookletPaymentRecordedOffline(studentId: string, bookletId: string) {
+  return offlineDb.isBookletPaymentRecordedOffline(studentId, bookletId);
+}
+
+export async function recordBookletPaymentOffline(params: {
+  studentId: string;
+  bookletId: string;
+  amountPaid: number;
+  amountExpected?: number;
+  groupId?: string;
+  notes?: string;
+  receiptNumber?: string;
+  paymentMethod?: string;
+}) {
+  return offlineDb.recordBookletPaymentOffline(params);
+}
+
 

@@ -123,6 +123,14 @@ enum PaymentStatus {
   @@map("payment_status")
 }
 
+enum PaymentType {
+  TUITION
+  BOOKLET
+  OTHER
+
+  @@map("payment_type")
+}
+
 // ==========================================
 // 2. USERS & IDENTITY DOMAIN
 // ==========================================
@@ -191,6 +199,7 @@ model TeacherProfile {
   educationalContents EducationalContent[]
   assessments         Assessment[]
   studentEvaluations  StudentEvaluation[]
+  booklets            Booklet[]
 
   @@map("teacher_profiles")
 }
@@ -292,6 +301,7 @@ model AcademicGroup {
   targetAssessments   Assessment[] @relation("AssessmentTargetGroups")
   studentEvaluations  StudentEvaluation[]
   paymentRecords      StudentPaymentRecord[]
+  booklets            Booklet[]
 
   @@index([teacherId], map: "idx_groups_teacher")
   @@index([gradeLevel, isActive], map: "idx_groups_grade_active")
@@ -710,6 +720,29 @@ model Notification {
   @@map("notifications")
 }
 
+model Booklet {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  title            String          @map("title") @db.VarChar(255)
+  price            Decimal         @map("price") @db.Decimal(10, 2)
+  gradeLevel       String          @map("grade_level") @db.VarChar(50)
+  groupId          String?         @map("group_id") @db.Uuid
+  group            AcademicGroup?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  teacherProfileId String          @map("teacher_profile_id") @db.Uuid
+  teacherProfile   TeacherProfile  @relation(fields: [teacherProfileId], references: [id], onDelete: Cascade)
+  academicYear     String?         @default("2026-2027") @map("academic_year") @db.VarChar(30)
+  academicTerm     String?         @default("FIRST_TERM") @map("academic_term") @db.VarChar(30)
+  stockCount       Int?            @map("stock_count")
+  isActive         Boolean         @default(true) @map("is_active")
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  payments         StudentPaymentRecord[]
+
+  @@index([teacherProfileId, gradeLevel], map: "idx_booklets_teacher_grade")
+  @@index([groupId], map: "idx_booklets_group")
+  @@map("booklets")
+}
+
 model StudentPaymentRecord {
   id             String        @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
   studentId      String        @map("student_id") @db.Uuid
@@ -719,6 +752,8 @@ model StudentPaymentRecord {
   amountExpected Decimal       @default(0.00) @map("amount_expected") @db.Decimal(10, 2)
   amountPaid     Decimal       @default(0.00) @map("amount_paid") @db.Decimal(10, 2)
   currency       String        @default("EGP") @map("currency") @db.VarChar(10)
+  paymentType    PaymentType   @default(TUITION) @map("payment_type")
+  bookletId      String?       @map("booklet_id") @db.Uuid
   paymentStatus  PaymentStatus @default(PENDING) @map("payment_status")
   paymentMethod  String        @default("CASH") @map("payment_method") @db.VarChar(50)
   receiptNumber  String?       @map("receipt_number") @db.VarChar(100)
@@ -729,10 +764,12 @@ model StudentPaymentRecord {
 
   student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Restrict)
   group      AcademicGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  booklet    Booklet?       @relation(fields: [bookletId], references: [id], onDelete: SetNull)
   recordedBy User           @relation("RecordedPayments", fields: [recordedById], references: [id], onDelete: Restrict)
 
-  @@unique([studentId, groupId, periodYear, periodMonth], map: "uq_student_group_billing_period")
+  @@index([studentId, groupId, periodYear, periodMonth], map: "idx_student_group_billing_period")
   @@index([studentId], map: "idx_payments_student")
+  @@index([bookletId], map: "idx_payments_booklet")
   @@index([recordedById, groupId], map: "idx_payments_recorder_group")
   @@map("student_payment_records")
 }

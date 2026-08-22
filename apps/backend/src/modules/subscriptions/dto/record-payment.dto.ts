@@ -22,34 +22,53 @@ export class RecordPaymentDto {
   studentId: string;
 
   @ApiPropertyOptional({
-    description: 'Physical academic group ID (Optional if general tuition)',
+    description: 'Physical academic group ID (Optional if general tuition or booklet)',
     example: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
   })
   @IsOptional()
   @IsUUID()
   groupId?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
+    enum: ['TUITION', 'BOOKLET', 'OTHER'],
+    description: 'Type of payment (TUITION, BOOKLET, OTHER)',
+    default: 'TUITION',
+    example: 'BOOKLET',
+  })
+  @IsOptional()
+  paymentType?: 'TUITION' | 'BOOKLET' | 'OTHER';
+
+  @ApiPropertyOptional({
+    description: 'Booklet ID if payment is for a study booklet/notes (UUID)',
+    example: 'c3d4e5f6-a7b8-9c0d-1e2f-3a4b5c6d7e8f',
+  })
+  @IsOptional()
+  @IsUUID()
+  bookletId?: string;
+
+  @ApiPropertyOptional({
     description: 'Billing year (2020 - 2050)',
     example: 2026,
     minimum: 2020,
     maximum: 2050,
   })
+  @IsOptional()
   @IsInt()
   @Min(2020)
   @Max(2050)
-  periodYear: number;
+  periodYear?: number;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Billing month (1 - 12)',
     example: 9,
     minimum: 1,
     maximum: 12,
   })
+  @IsOptional()
   @IsInt()
   @Min(1)
   @Max(12)
-  periodMonth: number;
+  periodMonth?: number;
 
   @ApiProperty({
     description: 'Amount paid in EGP',

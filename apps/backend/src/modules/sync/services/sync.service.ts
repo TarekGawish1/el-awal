@@ -20,6 +20,7 @@ import {
   AttendanceStatus,
   RecordingMethod,
   PaymentStatus,
+  PaymentType,
   SubmissionStatus,
   QuestionType,
   GroupEnrollmentStatus,
@@ -50,6 +51,7 @@ export interface BootstrapSnapshotResponse {
     payments?: any[];
     assessments?: any[];
     courses?: any[];
+    booklets?: any[];
     attendance?: any[];
     attendanceHistory?: any[];
     children?: any[];
@@ -557,6 +559,47 @@ export class SyncService {
       attendanceRecords = [];
     }
 
+    // 10. Booklets
+    let booklets: any[] = [];
+    try {
+      if (typeof this.prisma.booklet?.findMany === 'function') {
+        const rawBooklets = await this.prisma.booklet.findMany({
+          where: {
+            ...(user.role === UserRole.TEACHER && effectiveTeacherId
+              ? { teacherProfileId: effectiveTeacherId }
+              : {}),
+            isActive: true,
+            academicYear: academicPeriod.activeAcademicYear,
+            academicTerm: academicPeriod.activeAcademicTerm,
+            ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
+          },
+          include: {
+            group: { select: { id: true, name: true, gradeLevel: true } },
+            payments: {
+              where: { paymentStatus: PaymentStatus.PAID },
+              select: { id: true, amountPaid: true },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        booklets = (rawBooklets || []).map((b) => {
+          const salesCount = b.payments?.length || 0;
+          const totalRevenue = (b.payments || []).reduce((acc: number, p: any) => acc + Number(p.amountPaid || 0), 0);
+          const { payments, ...rest } = b;
+          return {
+            ...rest,
+            price: Number(b.price),
+            salesCount,
+            totalRevenue,
+          };
+        });
+      }
+    } catch (err) {
+      this.logger.warn('Failed to fetch booklets in bootstrap snapshot:', err);
+      booklets = [];
+    }
+
     return {
       snapshotVersion,
       timestamp,
@@ -572,6 +615,7 @@ export class SyncService {
         attendance: attendanceRecords || [],
         assessments: assessments || [],
         courses: courses || [],
+        booklets: booklets || [],
       },
     };
   }
@@ -731,6 +775,45 @@ export class SyncService {
       payments = [];
     }
 
+    // 7. Available Booklets for Student
+    let booklets: any[] = [];
+    try {
+      if (typeof this.prisma.booklet?.findMany === 'function') {
+        const studentProfile = await this.prisma.studentProfile.findUnique({
+          where: { id: studentProfileId },
+          select: { gradeLevel: true },
+        });
+
+        const rawBooklets = await this.prisma.booklet.findMany({
+          where: {
+            isActive: true,
+            ...(studentProfile?.gradeLevel ? { gradeLevel: studentProfile.gradeLevel } : {}),
+            ...(groupIds.length > 0
+              ? {
+                  OR: [
+                    { groupId: { in: groupIds } },
+                    { groupId: null },
+                  ],
+                }
+              : { groupId: null }),
+            ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
+          },
+          include: {
+            group: { select: { id: true, name: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        booklets = (rawBooklets || []).map((b) => ({
+          ...b,
+          price: Number(b.price),
+        }));
+      }
+    } catch (err) {
+      this.logger.warn('Failed to fetch student booklets for bootstrap:', err);
+      booklets = [];
+    }
+
     return {
       snapshotVersion,
       timestamp,
@@ -743,6 +826,7 @@ export class SyncService {
         courses: courses || [],
         attendanceHistory: attendanceHistory || [],
         payments: payments || [],
+        booklets: booklets || [],
       },
     };
   }
@@ -1005,6 +1089,8 @@ export class SyncService {
             return;
           }
 
+          const isBookletOp = op.paymentType === 'BOOKLET' || Boolean(op.bookletId);
+
           // Resolve group ID if not provided: pick student's first active enrollment
           let resolvedGroupId = op.groupId;
           if (!resolvedGroupId && student.groupEnrollments?.length > 0) {
@@ -1014,83 +1100,163 @@ export class SyncService {
             resolvedGroupId = activeEnrollment?.groupId || student.groupEnrollments[0].groupId;
           }
 
-          // Check if payment already exists for student + group + billing period
-          let existingPayment: any = null;
-          if (resolvedGroupId) {
-            existingPayment = await tx.studentPaymentRecord.findFirst({
+          let savedPaymentRecord: any = null;
+
+          if (isBookletOp && op.bookletId) {
+            // Flow A: Ingest Booklet Payment
+            const existingBookletPayment = await tx.studentPaymentRecord.findFirst({
               where: {
+                studentId: op.studentId,
+                bookletId: op.bookletId,
+                paymentType: PaymentType.BOOKLET,
+              },
+            });
+
+            if (existingBookletPayment && existingBookletPayment.paymentStatus === PaymentStatus.PAID) {
+              result.duplicatesIgnored++;
+              result.processedOperationIds.push(opId);
+              if (result.idMappings) {
+                if (op.clientTempId) result.idMappings[op.clientTempId] = existingBookletPayment.id;
+                if (op.id) result.idMappings[op.id] = existingBookletPayment.id;
+              }
+              result.processedPayments?.push({
+                id: existingBookletPayment.id,
+                studentId: op.studentId,
+                bookletId: op.bookletId,
+                paymentType: 'BOOKLET',
+                amountPaid: existingBookletPayment.amountPaid,
+                paymentStatus: PaymentStatus.PAID,
+              });
+              return;
+            } else if (existingBookletPayment) {
+              savedPaymentRecord = await tx.studentPaymentRecord.update({
+                where: { id: existingBookletPayment.id },
+                data: {
+                  amountPaid,
+                  amountExpected: Math.max(amountExpected, Number(existingBookletPayment.amountExpected || 0)),
+                  paymentStatus: op.paymentStatus || PaymentStatus.PAID,
+                  paymentMethod: op.paymentMethod || 'CASH',
+                  receiptNumber: op.receiptNumber || existingBookletPayment.receiptNumber,
+                  notes: op.notes || existingBookletPayment.notes,
+                  recordedById: recorderId,
+                  updatedAt: new Date(),
+                },
+              });
+            } else {
+              savedPaymentRecord = await tx.studentPaymentRecord.create({
+                data: {
+                  studentId: op.studentId,
+                  groupId: resolvedGroupId || null,
+                  bookletId: op.bookletId,
+                  paymentType: PaymentType.BOOKLET,
+                  periodYear,
+                  periodMonth,
+                  amountPaid,
+                  amountExpected,
+                  paymentStatus: op.paymentStatus || PaymentStatus.PAID,
+                  paymentMethod: op.paymentMethod || 'CASH',
+                  currency: op.currency || 'EGP',
+                  receiptNumber: op.receiptNumber || `REC-BKT-${randomUUID().slice(0, 8)}`,
+                  notes: op.notes || 'Synced booklet payment from offline outbox',
+                  recordedById: recorderId,
+                  createdAt: paymentDate,
+                  updatedAt: paymentDate,
+                },
+              });
+
+              // Decrement booklet stock if tracked
+              if (typeof tx.booklet?.update === 'function') {
+                try {
+                  const booklet = await tx.booklet.findUnique({ where: { id: op.bookletId } });
+                  if (booklet && booklet.stockCount !== null && booklet.stockCount > 0) {
+                    await tx.booklet.update({
+                      where: { id: op.bookletId },
+                      data: { stockCount: { decrement: 1 } },
+                    });
+                  }
+                } catch {
+                  // non-blocking
+                }
+              }
+            }
+          } else {
+            // Flow B: Ingest Monthly Tuition Payment
+            let existingPayment: any = null;
+            if (resolvedGroupId) {
+              existingPayment = await tx.studentPaymentRecord.findFirst({
+                where: {
+                  studentId: op.studentId,
+                  groupId: resolvedGroupId,
+                  periodYear,
+                  periodMonth,
+                  paymentType: PaymentType.TUITION,
+                },
+              });
+            } else {
+              existingPayment = await tx.studentPaymentRecord.findFirst({
+                where: {
+                  studentId: op.studentId,
+                  periodYear,
+                  periodMonth,
+                  paymentType: PaymentType.TUITION,
+                },
+              });
+            }
+
+            if (existingPayment && existingPayment.paymentStatus === PaymentStatus.PAID) {
+              result.duplicatesIgnored++;
+              result.processedOperationIds.push(opId);
+              if (result.idMappings) {
+                if (op.clientTempId) result.idMappings[op.clientTempId] = existingPayment.id;
+                if (op.id) result.idMappings[op.id] = existingPayment.id;
+              }
+              result.processedPayments?.push({
+                id: existingPayment.id,
                 studentId: op.studentId,
                 groupId: resolvedGroupId,
                 periodYear,
                 periodMonth,
-              },
-            });
-          } else {
-            existingPayment = await tx.studentPaymentRecord.findFirst({
-              where: {
-                studentId: op.studentId,
-                periodYear,
-                periodMonth,
-              },
-            });
-          }
-
-          let savedPaymentRecord: any = null;
-
-          if (existingPayment && existingPayment.paymentStatus === PaymentStatus.PAID) {
-            result.duplicatesIgnored++;
-            result.processedOperationIds.push(opId);
-            if (result.idMappings) {
-              if (op.clientTempId) result.idMappings[op.clientTempId] = existingPayment.id;
-              if (op.id) result.idMappings[op.id] = existingPayment.id;
+                amountPaid: existingPayment.amountPaid,
+                paymentStatus: PaymentStatus.PAID,
+              });
+              return;
+            } else if (existingPayment) {
+              savedPaymentRecord = typeof tx.studentPaymentRecord?.update === 'function'
+                ? await tx.studentPaymentRecord.update({
+                    where: { id: existingPayment.id },
+                    data: {
+                      amountPaid,
+                      amountExpected: Math.max(amountExpected, Number(existingPayment.amountExpected || 0)),
+                      paymentStatus: op.paymentStatus || PaymentStatus.PAID,
+                      paymentMethod: op.paymentMethod || 'CASH',
+                      receiptNumber: op.receiptNumber || existingPayment.receiptNumber,
+                      notes: op.notes || existingPayment.notes,
+                      recordedById: recorderId,
+                      updatedAt: new Date(),
+                    },
+                  })
+                : existingPayment;
+            } else {
+              savedPaymentRecord = await tx.studentPaymentRecord.create({
+                data: {
+                  studentId: op.studentId,
+                  groupId: resolvedGroupId || null,
+                  paymentType: PaymentType.TUITION,
+                  periodYear,
+                  periodMonth,
+                  amountPaid,
+                  amountExpected,
+                  paymentStatus: op.paymentStatus || PaymentStatus.PAID,
+                  paymentMethod: op.paymentMethod || 'CASH',
+                  currency: op.currency || 'EGP',
+                  receiptNumber: op.receiptNumber || `REC-${periodYear}-${String(periodMonth).padStart(2, '0')}-${randomUUID().slice(0, 8)}`,
+                  notes: op.notes || 'Synced from offline outbox',
+                  recordedById: recorderId,
+                  createdAt: paymentDate,
+                  updatedAt: paymentDate,
+                },
+              });
             }
-            result.processedPayments?.push({
-              id: existingPayment.id,
-              studentId: op.studentId,
-              groupId: resolvedGroupId,
-              periodYear,
-              periodMonth,
-              amountPaid: existingPayment.amountPaid,
-              paymentStatus: PaymentStatus.PAID,
-            });
-            return;
-          } else if (existingPayment) {
-            // Update existing record
-            savedPaymentRecord = typeof tx.studentPaymentRecord?.update === 'function'
-              ? await tx.studentPaymentRecord.update({
-                  where: { id: existingPayment.id },
-                  data: {
-                    amountPaid,
-                    amountExpected: Math.max(amountExpected, Number(existingPayment.amountExpected || 0)),
-                    paymentStatus: op.paymentStatus || PaymentStatus.PAID,
-                    paymentMethod: op.paymentMethod || 'CASH',
-                    receiptNumber: op.receiptNumber || existingPayment.receiptNumber,
-                    notes: op.notes || existingPayment.notes,
-                    recordedById: recorderId,
-                    updatedAt: new Date(),
-                  },
-                })
-              : existingPayment;
-          } else {
-            // Create new payment record
-            savedPaymentRecord = await tx.studentPaymentRecord.create({
-              data: {
-                studentId: op.studentId,
-                groupId: resolvedGroupId || null,
-                periodYear,
-                periodMonth,
-                amountPaid,
-                amountExpected,
-                paymentStatus: op.paymentStatus || PaymentStatus.PAID,
-                paymentMethod: op.paymentMethod || 'CASH',
-                currency: op.currency || 'EGP',
-                receiptNumber: op.receiptNumber || `REC-${periodYear}-${String(periodMonth).padStart(2, '0')}-${randomUUID().slice(0, 8)}`,
-                notes: op.notes || 'Synced from offline outbox',
-                recordedById: recorderId,
-                createdAt: paymentDate,
-                updatedAt: paymentDate,
-              },
-            });
           }
 
           // Ensure group enrollment status is ACTIVE

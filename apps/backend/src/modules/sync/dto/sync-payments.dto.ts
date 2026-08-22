@@ -36,6 +36,16 @@ export class SyncPaymentItemDto {
   @IsOptional()
   groupId?: string;
 
+  @ApiPropertyOptional({ enum: ['TUITION', 'BOOKLET', 'OTHER'], default: 'TUITION' })
+  @IsString()
+  @IsOptional()
+  paymentType?: 'TUITION' | 'BOOKLET' | 'OTHER';
+
+  @ApiPropertyOptional({ description: 'Booklet UUID if payment is for a study booklet' })
+  @IsString()
+  @IsOptional()
+  bookletId?: string;
+
   @ApiPropertyOptional({ description: 'Billing period year (e.g. 2026)' })
   @IsInt()
   @Min(2020)

@@ -16,6 +16,7 @@ import { AssessmentsModule } from './modules/assessments/assessments.module';
 import { ParentPortalModule } from './modules/parent-portal/parent-portal.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { BookletsModule } from './modules/booklets/booklets.module';
 import { SyncModule } from './modules/sync/sync.module';
 import { HealthModule } from './modules/health/health.module';
 import { TeachersModule } from './modules/teachers/teachers.module';
@@ -31,7 +32,7 @@ import { TeachersModule } from './modules/teachers/teachers.module';
     // External Cloud Integrations (Cloudflare R2, Bunny Stream)
     IntegrationsModule,
 
-    // 14 Domain Feature Modules + Health
+    // 15 Domain Feature Modules + Health
     AuthModule,
     UsersModule,
     StudentsModule,
@@ -45,6 +46,7 @@ import { TeachersModule } from './modules/teachers/teachers.module';
     ParentPortalModule,
     NotificationsModule,
     SubscriptionsModule,
+    BookletsModule,
     SyncModule,
     HealthModule,
   ],

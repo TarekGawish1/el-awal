@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { FinanceDashboard } from '../components/FinanceDashboard';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { usePayments, useGroupDefaulters, useScanPaymentQr } from '../hooks/useFinance';
+import { useBooklets } from '@/features/booklets/hooks/useBooklets';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
@@ -13,6 +14,30 @@ vi.mock('next/navigation', () => ({
 // Mock dependencies
 vi.mock('@/features/groups/hooks/useGroups', () => ({
   useGroups: vi.fn(),
+}));
+
+vi.mock('@/features/booklets/hooks/useBooklets', () => ({
+  useBooklets: vi.fn(() => ({
+    booklets: [
+      {
+        id: 'b-1',
+        title: 'مذكرة النحو والتدريبات',
+        price: 75,
+        gradeLevel: 'الصف الأول الثانوي',
+        stockCount: 50,
+        salesCount: 0,
+        totalRevenue: 0,
+        isActive: true,
+      },
+    ],
+    isLoading: false,
+    createBooklet: vi.fn(),
+    isCreating: false,
+    updateBooklet: vi.fn(),
+    isUpdating: false,
+    deleteBooklet: vi.fn(),
+    isDeleting: false,
+  })),
 }));
 
 vi.mock('@yudiel/react-qr-scanner', () => ({
@@ -71,8 +96,9 @@ describe('FinanceDashboard', () => {
     expect(screen.getByText('إدارة المصروفات وسداد الطلاب')).toBeInTheDocument();
     
     // Tabs should be visible directly
-    expect(screen.getByRole('button', { name: /مسح بالـ QR/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /رصد يدوي/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /الماسح الذكي \(QR\)/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /رصد يدوي للمصروفات/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /المذكرات والملازم الدراسية/i })).toBeInTheDocument();
 
     // QR scanner is ready immediately
     expect(screen.getByTestId('mock-qr-scanner')).toBeInTheDocument();
@@ -82,7 +108,7 @@ describe('FinanceDashboard', () => {
     render(<FinanceDashboard />);
 
     // Switch to manual tab
-    fireEvent.click(screen.getByRole('button', { name: /رصد يدوي/i }));
+    fireEvent.click(screen.getByRole('button', { name: /رصد يدوي للمصروفات/i }));
 
     // Group select label should be visible in manual tab
     expect(screen.getByText(/المجموعة الدراسية/i)).toBeInTheDocument();
@@ -92,5 +118,16 @@ describe('FinanceDashboard', () => {
 
     expect(screen.getByText(/الطلاب المتأخرين - مجموعة الأوائل/i)).toBeInTheDocument();
     expect(screen.getAllByText('طالب متأخر').length).toBeGreaterThan(0);
+  });
+
+  it('renders the booklets management view when booklets tab is selected', () => {
+    render(<FinanceDashboard />);
+
+    // Click on Booklets tab
+    fireEvent.click(screen.getByRole('button', { name: /المذكرات والملازم الدراسية/i }));
+
+    // Header and booklet card should be rendered
+    expect(screen.getByText('إدارة المذكرات والملازم الدراسية')).toBeInTheDocument();
+    expect(screen.getByText('مذكرة النحو والتدريبات')).toBeInTheDocument();
   });
 });
