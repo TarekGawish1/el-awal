@@ -1510,6 +1510,34 @@ class OfflineDatabase {
     } catch {}
   }
 
+  /**
+   * Resets a single outbox mutation back to PENDING with retryCount = 0.
+   * Used by the "Retry All" action in SyncConflictsModal when auth failures
+   * have burned retry slots that should not count against the mutation.
+   */
+  public async resetMutationForRetry(id: string): Promise<void> {
+    const mem = this.memoryOutbox.get(id);
+    if (mem) {
+      mem.status = 'PENDING';
+      mem.retryCount = 0;
+      mem.lastError = undefined;
+      this.memoryOutbox.set(id, mem);
+    }
+    if (!this.isSupported()) return;
+    try {
+      const { store } = await this.getStore('outbox_mutations', 'readwrite');
+      const getReq = store.get(id);
+      getReq.onsuccess = () => {
+        const record = getReq.result as OutboxMutationRecord;
+        if (!record) return;
+        record.status = 'PENDING';
+        record.retryCount = 0;
+        record.lastError = undefined;
+        store.put(record);
+      };
+    } catch {}
+  }
+
   public async removeMutation(id: string): Promise<void> {
     this.memoryOutbox.delete(id);
     if (!this.isSupported()) return;

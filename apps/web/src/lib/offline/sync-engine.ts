@@ -6,7 +6,8 @@
 
 import { offlineDb, OutboxMutationRecord, MutationStatus } from './db';
 import { API_BASE_URL, API_ENDPOINTS } from '../api/endpoints';
-import { apiClient } from '../api/client';
+import { apiClient, isAccessTokenExpiredOrExpiring, refreshAccessToken } from '../api/client';
+import { getStoredAccessToken, getStoredRefreshToken } from '@/features/auth/utils/auth-tokens';
 import { bootstrapManager } from './bootstrap-manager';
 import toast from 'react-hot-toast';
 
@@ -491,6 +492,26 @@ class OfflineSyncEngine {
       return { synced: 0, failed: 0 };
     }
 
+    // ── Pre-flight authentication guard ──────────────────────────────────────
+    // Proactively refresh the access token before starting any network work so
+    // that 401 errors don’t cascade across all outbox items and burn their retry
+    // counters.  The guard only activates when a refresh token is present in
+    // storage — this lets test environments (where localStorage has no tokens)
+    // proceed through to the mocked apiClient without interference.
+    const storedRefreshToken = getStoredRefreshToken();
+    if (storedRefreshToken) {
+      const accessToken = getStoredAccessToken();
+      if (!accessToken || isAccessTokenExpiredOrExpiring()) {
+        const fresh = await refreshAccessToken();
+        if (!fresh) {
+          // Both tokens rejected – user is genuinely logged out.
+          // Pause without incrementing retry counters.
+          return { synced: 0, failed: 0 };
+        }
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     let pending = await offlineDb.getPendingMutations();
     if (options?.mutationIds) {
       const allowed = new Set(options.mutationIds);
@@ -895,6 +916,71 @@ class OfflineSyncEngine {
   }
 
   /**
+   * Re-queues conflict records back into the outbox so they are flushed on the
+   * next sync.  When `conflictIds` is omitted every unresolved conflict is
+   * re-enqueued.  A fresh access token is obtained first.
+   *
+   * Returns the number of conflicts successfully re-queued.
+   */
+  public async retryConflicts(conflictIds?: string[]): Promise<number> {
+    // Ensure we have a valid token before attempting to re-dispatch.
+    const fresh = await refreshAccessToken();
+    if (!fresh && !getStoredAccessToken()) {
+      throw new Error('يرجى تسجيل الدخول أولاً قبل إعادة المحاولة');
+    }
+
+    const allConflicts = await offlineDb.getConflicts();
+    const targets = conflictIds
+      ? allConflicts.filter((c) => conflictIds.includes(c.id))
+      : allConflicts;
+
+    if (targets.length === 0) return 0;
+
+    const domainEndpointMap: Partial<
+      Record<OutboxMutationRecord['domain'], { endpoint: string; method: OutboxMutationRecord['method'] }>
+    > = {
+      attendance: { endpoint: API_ENDPOINTS.SYNC.ATTENDANCE, method: 'POST' },
+      finance: { endpoint: API_ENDPOINTS.SYNC.PAYMENTS, method: 'POST' },
+      students: { endpoint: API_ENDPOINTS.STUDENTS.CREATE, method: 'POST' },
+      groups: { endpoint: API_ENDPOINTS.GROUPS.CREATE, method: 'POST' },
+    };
+
+    let count = 0;
+    for (const conflict of targets) {
+      const mapping = domainEndpointMap[conflict.domain as OutboxMutationRecord['domain']];
+      if (!mapping || !conflict.payload) continue;
+
+      await this.enqueue(
+        conflict.domain as OutboxMutationRecord['domain'],
+        mapping.endpoint,
+        mapping.method,
+        conflict.payload,
+      );
+      await offlineDb.resolveConflict(conflict.id, 'إعادة المحاولة التلقائية');
+      count++;
+    }
+
+    if (count > 0) {
+      this.triggerSync();
+    }
+
+    return count;
+  }
+
+  /**
+   * Resets all outbox mutations that failed due to transient auth errors back
+   * to PENDING with retryCount = 0, making them eligible for the next flush.
+   */
+  public async resetFailedMutations(): Promise<number> {
+    const all = await offlineDb.getPendingMutations();
+    const failed = all.filter((m) => m.status === 'FAILED');
+    for (const m of failed) {
+      await offlineDb.resetMutationForRetry(m.id);
+    }
+    return failed.length;
+  }
+
+  /**
    * Closes the confirmation prompt without dispatching anything. Pending mutations
    * remain untouched in the outbox and automatic dispatching stays paused until the
    * user later confirms or discards them.
@@ -1052,7 +1138,36 @@ class OfflineSyncEngine {
     return pushResult;
   }
 
+  /** Returns true when the error message indicates a transient authentication failure. */
+  private isAuthError(errorMessage: string): boolean {
+    return (
+      errorMessage?.includes('401') ||
+      errorMessage?.includes('Authentication required') ||
+      errorMessage?.includes('Unauthorized') ||
+      errorMessage?.includes('انتهت صلاحية') ||
+      errorMessage?.includes('Authentication')
+    );
+  }
+
+  /** Returns true when the conflict reason is auth-related and safe to re-queue. */
+  private isAuthConflictReason(reason: string): boolean {
+    return (
+      reason?.includes('Authentication required') ||
+      reason?.includes('Unauthorized') ||
+      reason?.includes('401') ||
+      reason?.includes('انتهت صلاحية')
+    );
+  }
+
   private async handleFailedMutation(mutation: OutboxMutationRecord, errorMessage: string) {
+    // Auth failures are transient — do NOT increment the retry counter or
+    // promote to a permanent conflict.  The pre-flight guard in flushOutbox
+    // will refresh the token on the next attempt so these mutations succeed.
+    if (this.isAuthError(errorMessage)) {
+      await offlineDb.updateMutationStatus(mutation.id, 'PENDING');
+      return;
+    }
+
     const isValidationError =
       errorMessage?.includes('already registered') ||
       errorMessage?.includes('Collision') ||

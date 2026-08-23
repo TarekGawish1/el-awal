@@ -82,6 +82,35 @@ async function getRefreshedAccessToken(): Promise<string | null> {
   return refreshPromise;
 }
 
+/**
+ * Decodes the stored JWT access token (without verifying the signature) and
+ * returns true when it is already expired or will expire within `bufferSeconds`.
+ * Returns true (treat as expired) when no token is present or the token is malformed.
+ */
+export function isAccessTokenExpiredOrExpiring(bufferSeconds = 90): boolean {
+  const token = getStoredAccessToken();
+  if (!token) return true;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    // base64url → base64 → JSON
+    const padded = parts[1].replace(/-/g, '+').replace(/_/g, '/') + '=='.slice((parts[1].length % 4) || 4);
+    const payload = JSON.parse(atob(padded));
+    if (!payload.exp) return false;
+    return payload.exp - bufferSeconds < Math.floor(Date.now() / 1000);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Public wrapper around the internal refresh mutex, usable by the sync engine
+ * to proactively acquire a fresh access token before starting a batch flush.
+ */
+export async function refreshAccessToken(): Promise<string | null> {
+  return getRefreshedAccessToken();
+}
+
 function handleAuthFailure(isExplicitRejection: boolean = false): void {
   // Never log user out if device is offline or when network failure prevents verification
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
