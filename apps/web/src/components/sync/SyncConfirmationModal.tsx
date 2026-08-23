@@ -28,6 +28,7 @@ const KIND_ICON: Record<PendingActivityItem['kind'], React.ElementType> = {
   BOOKLET_PAYMENT: BookOpen,
   TUITION_PAYMENT: CreditCard,
   ATTENDANCE_SCAN: QrCode,
+  ENTITY_UPDATE: RefreshCw,
   DELETED_RECORD: Trash2,
   OTHER: Inbox,
 };
