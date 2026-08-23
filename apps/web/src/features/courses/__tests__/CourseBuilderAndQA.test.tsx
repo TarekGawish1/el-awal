@@ -8,6 +8,8 @@ import { LessonResourcesTab } from '@/features/student-portal/components/LessonR
 import { LessonQuizTab } from '@/features/student-portal/components/LessonQuizTab';
 import { StudentCourseLearningRoom } from '@/features/student-portal/components/StudentCourseLearningRoom';
 import { LessonEditorModal } from '@/features/courses/components/LessonEditorModal';
+import { CourseManagementContainer } from '@/features/courses/components/CourseManagementContainer';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { coursesApi } from '@/features/courses/api/courses.api';
 
 // Mock dependencies
@@ -16,10 +18,12 @@ vi.mock('@/features/courses/api/courses.api', () => ({
     getLessonQuestions: vi.fn(),
     createQuestion: vi.fn(),
     createReply: vi.fn(),
+    getTeacherCourses: vi.fn(),
     getCourseDetails: vi.fn(),
     getLessonViewer: vi.fn(),
     getLessonStreamAuth: vi.fn(),
     updateLessonProgress: vi.fn(),
+    deleteCourse: vi.fn(),
     getVideoUploadCredentials: vi.fn(),
   },
 }));
@@ -62,6 +66,70 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
   const wrapper = ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
+
+  describe('ConfirmModal Component (Custom Popups, No JS Confirm)', () => {
+    it('renders custom confirmation modal with title and message and calls onConfirm when clicked', () => {
+      const onConfirm = vi.fn();
+      const onClose = vi.fn();
+
+      render(
+        <ConfirmModal
+          isOpen={true}
+          title="تأكيد حذف الكورس"
+          message="هل أنت متأكد من حذف هذا الكورس وجميع دروسه؟"
+          confirmLabel="حذف الكورس نهائياً"
+          cancelLabel="تراجع"
+          variant="danger"
+          onConfirm={onConfirm}
+          onClose={onClose}
+        />
+      );
+
+      expect(screen.getByText('تأكيد حذف الكورس')).toBeInTheDocument();
+      expect(screen.getByText('هل أنت متأكد من حذف هذا الكورس وجميع دروسه؟')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'حذف الكورس نهائياً' }));
+      expect(onConfirm).toHaveBeenCalledTimes(1);
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('CourseManagementContainer Component (Light Theme & Custom Delete Popup)', () => {
+    it('opens custom confirmation modal on delete click without triggering browser window.confirm', async () => {
+      const confirmSpy = vi.spyOn(window, 'confirm');
+      vi.mocked(coursesApi.getTeacherCourses).mockResolvedValue([
+        {
+          id: 'course-1',
+          title: 'كورس النحو الشامل',
+          subject: 'اللغة العربية',
+          gradeLevel: 'الصف الثالث الثانوي',
+          academicStage: 'المرحلة الثانوية',
+          price: 150,
+          status: 'PUBLISHED',
+          totalLessons: 8,
+          modules: [],
+          _count: { enrollments: 12 },
+        } as any,
+      ]);
+
+      render(<CourseManagementContainer />, { wrapper });
+
+      expect(await screen.findByText('كورس النحو الشامل')).toBeInTheDocument();
+      expect(screen.getByText('الكورسات والدورات التدريبية أونلاين')).toBeInTheDocument();
+
+      const deleteBtn = screen.getByTitle('حذف الكورس');
+      fireEvent.click(deleteBtn);
+
+      // Browser native confirm should NOT have been called
+      expect(confirmSpy).not.toHaveBeenCalled();
+
+      // Custom popup should be rendered
+      expect(screen.getByText('تأكيد حذف الكورس')).toBeInTheDocument();
+      expect(screen.getByText(/هل أنت متأكد من حذف كورس "كورس النحو الشامل" نهائياً/i)).toBeInTheDocument();
+
+      confirmSpy.mockRestore();
+    });
+  });
 
   describe('LessonQAPanel Component', () => {
     const mockQuestions = [

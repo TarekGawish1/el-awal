@@ -26,9 +26,10 @@ export class ContentService {
     const sanitizedFileName = dto.fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
     const fileKey = `uploads/${folder}/${Date.now()}-${randomUUID().slice(0, 8)}-${sanitizedFileName}`;
 
+    const rawContentType = dto.contentType || dto.fileType || 'application/octet-stream';
     const presigned = await this.storageService.generatePresignedUploadUrl(
       fileKey,
-      dto.contentType,
+      rawContentType,
       900, // 15 minutes
     );
 

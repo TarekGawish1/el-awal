@@ -22,6 +22,7 @@ import {
 import { useTeacherCourses, useDeleteCourse } from '../hooks/useCourses';
 import { CourseDetail } from '../types/courses.types';
 import { CreateCourseModal } from './CreateCourseModal';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { useRouter } from 'next/navigation';
 
 export function CourseManagementContainer() {
@@ -33,6 +34,9 @@ export function CourseManagementContainer() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGrade, setSelectedGrade] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
+
+  // Custom Delete Modal State
+  const [courseToDelete, setCourseToDelete] = useState<{ id: string; title: string } | null>(null);
 
   const filteredCourses = useMemo(() => {
     return courses.filter((c: CourseDetail) => {
@@ -54,7 +58,7 @@ export function CourseManagementContainer() {
   return (
     <div className="space-y-6 text-right animate-in fade-in">
       {/* Header & Metrics */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-6 rounded-3xl shadow-sm bg-gradient-to-l from-blue-50/50 via-white to-white dark:from-slate-800/40 dark:via-slate-900 dark:to-slate-900">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-800/40">
@@ -79,33 +83,33 @@ export function CourseManagementContainer() {
 
       {/* KPI Stats Overview */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl shadow-sm">
+        <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl shadow-sm">
           <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">إجمالي الكورسات</p>
           <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1 font-mono">{totalCourses}</p>
         </div>
-        <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl shadow-sm">
+        <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl shadow-sm">
           <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">الكورسات المنشورة</p>
           <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 font-mono">{publishedCourses}</p>
         </div>
-        <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl shadow-sm">
+        <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl shadow-sm">
           <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">إجمالي الدروس المصورة</p>
           <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1 font-mono">{totalLessons}</p>
         </div>
-        <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl shadow-sm">
+        <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl shadow-sm">
           <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">الاشتراكات والطلاب</p>
           <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1 font-mono">{totalEnrollments}</p>
         </div>
       </div>
 
       {/* Search & Filters */}
-      <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl flex flex-col sm:flex-row gap-3 items-center shadow-sm">
+      <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl flex flex-col sm:flex-row gap-3 items-center shadow-sm">
         <div className="relative flex-1 w-full">
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="بحث باسم الكورس أو المادة الدراسية..."
-            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl pr-10 pl-4 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+            className="w-full bg-slate-50 border border-slate-300 dark:border-slate-700 rounded-xl pr-10 pl-4 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white"
           />
           <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-2.5" />
         </div>
@@ -113,7 +117,7 @@ export function CourseManagementContainer() {
         <select
           value={selectedGrade}
           onChange={(e) => setSelectedGrade(e.target.value)}
-          className="w-full sm:w-48 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+          className="w-full sm:w-48 bg-slate-50 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white"
         >
           <option value="ALL">جميع المراحل والصفوف</option>
           <option value="الصف الأول الثانوي">الصف الأول الثانوي</option>
@@ -127,7 +131,7 @@ export function CourseManagementContainer() {
         <select
           value={selectedStatus}
           onChange={(e) => setSelectedStatus(e.target.value)}
-          className="w-full sm:w-40 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+          className="w-full sm:w-40 bg-slate-50 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white"
         >
           <option value="ALL">جميع الحالات</option>
           <option value="PUBLISHED">منشور أونلاين</option>
@@ -141,7 +145,7 @@ export function CourseManagementContainer() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
       ) : filteredCourses.length === 0 ? (
-        <div className="p-12 text-center bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl space-y-3 shadow-sm">
+        <div className="p-12 text-center bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl space-y-3 shadow-sm">
           <BookOpen className="w-10 h-10 text-slate-400 mx-auto" />
           <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">لا توجد كورسات مطابقة للبحث</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
@@ -158,7 +162,7 @@ export function CourseManagementContainer() {
             return (
               <div
                 key={c.id}
-                className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl overflow-hidden hover:border-blue-300 dark:hover:border-blue-700/60 transition-all flex flex-col group shadow-sm hover:shadow-md"
+                className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl overflow-hidden hover:border-blue-300 dark:hover:border-blue-700/60 transition-all flex flex-col group shadow-sm hover:shadow-md"
               >
                 {/* Course Cover Image Banner */}
                 <div className="relative aspect-video bg-slate-100 dark:bg-slate-950 overflow-hidden">
@@ -249,11 +253,7 @@ export function CourseManagementContainer() {
 
                     <button
                       type="button"
-                      onClick={() => {
-                        if (confirm('هل أنت متأكد من حذف هذا الكورس وجميع دروسه؟')) {
-                          deleteMutation.mutate(c.id);
-                        }
-                      }}
+                      onClick={() => setCourseToDelete({ id: c.id, title: c.title })}
                       className="p-2.5 text-slate-400 hover:text-rose-600 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl transition-colors"
                       title="حذف الكورس"
                     >
@@ -275,6 +275,24 @@ export function CourseManagementContainer() {
           onSuccess={(newId) => router.push(`/teacher/courses/${newId}`)}
         />
       )}
+
+      {/* Custom Confirmation Popup Modal (No JS Confirm) */}
+      <ConfirmModal
+        isOpen={Boolean(courseToDelete)}
+        title="تأكيد حذف الكورس"
+        message={`هل أنت متأكد من حذف كورس "${courseToDelete?.title}" نهائياً وجميع الفصول والدروس التابعة له؟ لا يمكن التراجع عن هذا الإجراء.`}
+        confirmLabel="حذف الكورس نهائياً"
+        cancelLabel="إلغاء وتراجع"
+        variant="danger"
+        isLoading={deleteMutation.isPending}
+        onConfirm={() => {
+          if (courseToDelete) {
+            deleteMutation.mutate(courseToDelete.id);
+            setCourseToDelete(null);
+          }
+        }}
+        onClose={() => setCourseToDelete(null)}
+      />
     </div>
   );
 }

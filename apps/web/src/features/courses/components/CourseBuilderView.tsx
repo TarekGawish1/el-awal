@@ -36,6 +36,7 @@ import { CourseModule, CourseLesson } from '../types/courses.types';
 import { LessonEditorModal } from './LessonEditorModal';
 import { CourseGroupAccessModal } from './CourseGroupAccessModal';
 import { CourseEnrollmentsTab } from './CourseEnrollmentsTab';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import toast from 'react-hot-toast';
 
 interface CourseBuilderViewProps {
@@ -67,6 +68,10 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
     moduleId: '',
     lesson: null,
   });
+
+  // Custom Delete Modals State (No JS Confirm)
+  const [moduleToDelete, setModuleToDelete] = useState<{ id: string; title: string } | null>(null);
+  const [lessonToDelete, setLessonToDelete] = useState<{ id: string; title: string } | null>(null);
 
   // Inline New Module State
   const [isCreatingModule, setIsCreatingModule] = useState(false);
@@ -248,132 +253,156 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                 <Award className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <span>الاختبار النهائي الشامل للكورس</span>
-                  {course.courseQuiz && (
-                    <span className="px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 text-[10px] rounded-full font-mono border border-emerald-200 dark:border-emerald-800">
-                      تم الربط: {course.courseQuiz.title} ({course.courseQuiz.totalScore} درجة)
-                    </span>
-                  )}
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                    الامتحان الشامل للكورس
+                  </span>
+                </div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-1">
+                  {course.courseQuiz ? course.courseQuiz.title : 'لم يتم تعيين امتحان نهائي للكورس بعد'}
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  يظهر هذا الامتحان في نهاية المنهج لقياس استيعاب الطالب لجميع فصول ووحدات الدورة التدريبية.
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {course.courseQuiz
+                    ? `إجمالي الدرجات: ${course.courseQuiz.totalScore} درجة • تقييم ختامي للمنهج`
+                    : 'يمكنك ربط امتحان شامل يقيمه الطالب بعد إنهاء جميع فصول ودروس الكورس.'}
                 </p>
               </div>
             </div>
 
-            <div className="sm:w-64">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               <select
                 value={course.courseQuizId || ''}
                 onChange={(e) => handleUpdateCourseQuiz(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                className="w-full sm:w-64 bg-slate-50 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white"
               >
-                <option value="">-- بدون اختبار شامل --</option>
+                <option value="">-- بدون امتحان شامل --</option>
                 {assessments.map((a: any) => (
                   <option key={a.id} value={a.id}>
-                    {a.title} ({a.totalScore} درجة)
+                    {a.title} ({a.type === 'EXAM' ? 'امتحان' : 'واجب'} - {a.totalScore} درجة)
                   </option>
                 ))}
               </select>
             </div>
           </div>
 
-          {/* Curriculum Units & Lessons Tree */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Layers className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                  <span>هيكل المنهج والوحدات التدريبية ({modules.length} وحدات • {totalLessons} درس)</span>
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">تنظيم الفصول، الدروس، ملخصات الشرح والاختبارات التفاعلية</p>
-              </div>
+          {/* Modules Control Bar */}
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Layers className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              <span>فصول ووحدات المنهج ({modules.length})</span>
+            </h2>
 
-              {!isCreatingModule && (
+            {!isCreatingModule && (
+              <button
+                type="button"
+                onClick={() => setIsCreatingModule(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                <span>إضافة وحدة جديدة</span>
+              </button>
+            )}
+          </div>
+
+          {/* Inline Create Module Form */}
+          {isCreatingModule && (
+            <form
+              onSubmit={handleCreateModule}
+              className="p-5 bg-white dark:bg-slate-900 border border-blue-200/90 dark:border-blue-800/60 rounded-3xl space-y-4 shadow-sm animate-in fade-in"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Plus className="w-4 h-4 text-blue-600" />
+                  <span>إنشاء وحدة تعليمية جديدة</span>
+                </h3>
                 <button
                   type="button"
-                  onClick={() => setIsCreatingModule(true)}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-md shadow-blue-600/20"
+                  onClick={() => setIsCreatingModule(false)}
+                  className="text-xs text-slate-400 hover:text-slate-600"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>إضافة وحدة / فصل جديد</span>
+                  إلغاء
                 </button>
-              )}
-            </div>
+              </div>
 
-            {/* New Module Form */}
-            {isCreatingModule && (
-              <form onSubmit={handleCreateModule} className="p-6 bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-700/60 rounded-3xl space-y-4 shadow-sm animate-in fade-in">
-                <h3 className="text-sm font-bold text-blue-900 dark:text-blue-300">إضافة وحدة تعليمية جديدة</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">اسم الوحدة / الفصل *</label>
-                    <input
-                      type="text"
-                      value={newModuleTitle}
-                      onChange={(e) => setNewModuleTitle(e.target.value)}
-                      placeholder="مثال: الوحدة الأولى: مهارات البلاغة والنصوص"
-                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">ربط اختبار شامل للوحدة</label>
-                    <select
-                      value={newModuleQuizId}
-                      onChange={(e) => setNewModuleQuizId(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="">-- بدون اختبار للوحدة --</option>
-                      {assessments.map((a: any) => (
-                        <option key={a.id} value={a.id}>
-                          {a.title} ({a.totalScore} درجة)
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">نبذة عن الوحدة</label>
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
+                    اسم الوحدة <span className="text-rose-500">*</span>
+                  </label>
                   <input
                     type="text"
-                    value={newModuleDescription}
-                    onChange={(e) => setNewModuleDescription(e.target.value)}
-                    placeholder="أهم المفاهيم والتطبيقات المتضمنة في هذا الفصل..."
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                    value={newModuleTitle}
+                    onChange={(e) => setNewModuleTitle(e.target.value)}
+                    placeholder="مثال: الوحدة الأولى - النحو وقواعد الإعراب"
+                    className="w-full bg-slate-50 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-600 focus:bg-white outline-none"
+                    required
                   />
                 </div>
-                <div className="flex justify-end gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setIsCreatingModule(false)}
-                    className="px-4 py-2 text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
-                  >
-                    إلغاء
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={createModuleMutation.isPending}
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-md shadow-blue-600/20"
-                  >
-                    {createModuleMutation.isPending ? 'جاري الحفظ...' : 'حفظ الوحدة'}
-                  </button>
-                </div>
-              </form>
-            )}
 
-            {/* Modules Accordion List */}
-            {modules.length === 0 && !isCreatingModule ? (
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
+                    ربط امتحان شامل للوحدة (اختياري)
+                  </label>
+                  <select
+                    value={newModuleQuizId}
+                    onChange={(e) => setNewModuleQuizId(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none"
+                  >
+                    <option value="">-- بدون امتحان شامل للوحدة --</option>
+                    {assessments.map((a: any) => (
+                      <option key={a.id} value={a.id}>
+                        {a.title} ({a.type === 'EXAM' ? 'امتحان' : 'واجب'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
+                  وصف وملاحظات الوحدة (اختياري)
+                </label>
+                <input
+                  type="text"
+                  value={newModuleDescription}
+                  onChange={(e) => setNewModuleDescription(e.target.value)}
+                  placeholder="وصف مختصر لمحتويات الوحدة..."
+                  className="w-full bg-slate-50 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-600 focus:bg-white outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingModule(false)}
+                  className="px-4 py-2 rounded-xl text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={createModuleMutation.isPending}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/30 disabled:opacity-50"
+                >
+                  {createModuleMutation.isPending ? 'جاري الحفظ...' : 'حفظ الوحدة'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Modules List Accordion */}
+          <div className="space-y-4">
+            {modules.length === 0 ? (
               <div className="p-12 text-center bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl space-y-3 shadow-sm">
                 <BookOpen className="w-10 h-10 text-slate-400 mx-auto" />
-                <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">لم تقم بإضافة وحدات تدريبية بعد</h3>
+                <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">لا توجد فصول أو وحدات مضافة بعد</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-                  ابدأ بإضافة الوحدة الأولى ثم أضف إليها دروس الفيديو وملخصات الشرح والاختبارات التفاعلية.
+                  ابدأ بإنشاء الوحدة الأولى لإضافة دروس الفيديو وملخصات الشرح والامتحانات.
                 </p>
                 <button
                   type="button"
                   onClick={() => setIsCreatingModule(true)}
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5 shadow-md shadow-blue-600/20"
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold transition-all shadow-sm inline-flex items-center gap-2"
                 >
                   <Plus className="w-4 h-4" />
                   <span>إضافة الوحدة الأولى الآن</span>
@@ -382,28 +411,28 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
             ) : (
               modules.map((mod: CourseModule, modIndex: number) => {
                 const isCollapsed = expandedModuleIds[mod.id] === false;
-                const lessonCount = mod.lessons?.length || 0;
+                const lessonsCount = mod.lessons?.length || 0;
 
                 return (
                   <div
                     key={mod.id}
                     className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm transition-all"
                   >
-                    {/* Module Header Bar */}
-                    <div className="p-5 bg-slate-50/80 dark:bg-slate-850 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800/80">
-                      <div className="flex items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={() => toggleModuleExpanded(mod.id)}
-                          className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-colors"
-                        >
-                          {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                        </button>
+                    {/* Module Accordion Header */}
+                    <div className="p-4 sm:p-5 bg-slate-50/80 dark:bg-slate-800/40 border-b border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div
+                        className="flex items-center gap-3 cursor-pointer flex-1"
+                        onClick={() => toggleModuleExpanded(mod.id)}
+                      >
+                        <div className="w-9 h-9 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs shrink-0 border border-blue-100 dark:border-blue-800/40">
+                          {modIndex + 1}
+                        </div>
                         <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-blue-600 dark:text-blue-400">الوحدة {modIndex + 1}:</span>
+                          <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="text-sm font-bold text-slate-900 dark:text-white">{mod.title}</h3>
-                            <span className="text-[11px] text-slate-400 font-sans">({lessonCount} دروس)</span>
+                            <span className="text-[11px] text-slate-500 font-normal">
+                              ({lessonsCount} دروس)
+                            </span>
                           </div>
                           {mod.description && (
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{mod.description}</p>
@@ -411,19 +440,21 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                         </div>
                       </div>
 
-                      {/* Unit Quiz & Actions */}
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <div className="flex items-center gap-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-xl shadow-sm">
+                      {/* Unit Controls (Unit Quiz + Add Lesson + Delete) */}
+                      <div className="flex items-center gap-2 flex-wrap self-end sm:self-auto">
+                        {/* Unit Exam Selector Dropdown */}
+                        <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2.5 py-1 rounded-xl text-xs">
                           <Award className="w-3.5 h-3.5 text-amber-500" />
                           <select
                             value={mod.unitQuizId || ''}
                             onChange={(e) => handleUpdateUnitQuiz(mod.id, e.target.value)}
-                            className="bg-transparent text-[11px] text-slate-800 dark:text-slate-200 focus:outline-none"
+                            className="bg-transparent text-[11px] text-slate-700 dark:text-slate-300 font-bold focus:outline-none max-w-[140px]"
+                            title="ربط امتحان للوحدة"
                           >
-                            <option value="">-- ربط اختبار الوحدة --</option>
+                            <option value="">-- بدون امتحان للوحدة --</option>
                             {assessments.map((a: any) => (
                               <option key={a.id} value={a.id}>
-                                {a.title} ({a.totalScore} د)
+                                {a.title}
                               </option>
                             ))}
                           </select>
@@ -446,11 +477,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
 
                         <button
                           type="button"
-                          onClick={() => {
-                            if (confirm(`هل أنت متأكد من حذف الوحدة "${mod.title}" وجميع دروسها؟`)) {
-                              deleteModuleMutation.mutate(mod.id);
-                            }
-                          }}
+                          onClick={() => setModuleToDelete({ id: mod.id, title: mod.title })}
                           className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors"
                           title="حذف الوحدة بالكامل"
                         >
@@ -468,61 +495,63 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                           </p>
                         ) : (
                           mod.lessons.map((les: CourseLesson, lesIndex: number) => {
-                            const hasSummary = !!les.summary;
-                            const hasAttachments = les.attachments && les.attachments.length > 0;
-                            const hasQuiz = !!les.lessonQuizId;
+                            const hasVideo = Boolean(les.bunnyVideoId || les.contentUrl);
+                            const hasSummary = Boolean(les.summary);
+                            const hasAttachments = Boolean(les.attachments && les.attachments.length > 0);
+                            const hasQuiz = Boolean(les.lessonQuiz);
 
                             return (
                               <div
                                 key={les.id}
-                                className="flex items-center justify-between p-3.5 bg-slate-50/70 dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700/60 rounded-2xl transition-all"
+                                className="p-3.5 rounded-2xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-100/60 dark:hover:bg-slate-800/80 transition-colors"
                               >
                                 <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs border border-blue-100 dark:border-blue-800/40">
-                                    {lesIndex + 1}
+                                  <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center font-mono font-bold text-xs border border-slate-200 dark:border-slate-700 shadow-sm shrink-0">
+                                    {modIndex + 1}.{lesIndex + 1}
                                   </div>
                                   <div>
                                     <div className="flex items-center gap-2 flex-wrap">
-                                      <h4 className="text-xs font-bold text-slate-900 dark:text-white">{les.title}</h4>
+                                      <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                                        {les.title}
+                                      </h4>
                                       {les.isPreview && (
-                                        <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 text-[10px] rounded-full font-bold border border-emerald-200 dark:border-emerald-800">
+                                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300">
                                           معاينة مجانية
                                         </span>
                                       )}
+                                    </div>
+                                    <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-1">
                                       {les.videoDurationSeconds ? (
-                                        <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
-                                          <Clock className="w-3 h-3 text-slate-400" />
+                                        <span className="flex items-center gap-1">
+                                          <Clock className="w-3 h-3" />
                                           {Math.floor(les.videoDurationSeconds / 60)} دقيقة
                                         </span>
                                       ) : null}
-                                    </div>
-
-                                    {/* Feature Badges */}
-                                    <div className="flex items-center gap-2 mt-1">
+                                      {hasVideo && (
+                                        <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                                          <Video className="w-3 h-3" /> فيديو الشرح
+                                        </span>
+                                      )}
                                       {hasSummary && (
-                                        <span className="flex items-center gap-1 text-[10px] text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-md border border-blue-200/60 dark:border-blue-800/30">
-                                          <FileText className="w-2.5 h-2.5" />
-                                          <span>ملخص الشرح</span>
+                                        <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                                          <FileText className="w-3 h-3" /> ملخص الدرس
                                         </span>
                                       )}
                                       {hasAttachments && (
-                                        <span className="flex items-center gap-1 text-[10px] text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded-md border border-rose-200/60 dark:border-rose-800/30">
-                                          <Paperclip className="w-2.5 h-2.5" />
-                                          <span>{les.attachments?.length} ملفات ومستندات</span>
+                                        <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                                          <Paperclip className="w-3 h-3" /> {les.attachments?.length} مرفقات
                                         </span>
                                       )}
                                       {hasQuiz && (
-                                        <span className="flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-md border border-amber-200/60 dark:border-amber-800/30">
-                                          <Award className="w-2.5 h-2.5" />
-                                          <span>اختبار الدرس</span>
+                                        <span className="flex items-center gap-1 text-purple-600 dark:text-purple-400 font-bold">
+                                          <Award className="w-3 h-3" /> اختبار الدرس
                                         </span>
                                       )}
                                     </div>
                                   </div>
                                 </div>
 
-                                {/* Lesson Actions */}
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5 self-end sm:self-auto">
                                   <button
                                     type="button"
                                     onClick={() =>
@@ -539,11 +568,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      if (confirm(`هل أنت متأكد من حذف درس "${les.title}"؟`)) {
-                                        deleteLessonMutation.mutate(les.id);
-                                      }
-                                    }}
+                                    onClick={() => setLessonToDelete({ id: les.id, title: les.title })}
                                     className="p-2 text-slate-400 hover:text-rose-600 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 transition-colors shadow-sm"
                                     title="حذف الدرس"
                                   >
@@ -569,31 +594,72 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
         <CourseEnrollmentsTab
           courseId={courseId}
           courseTitle={course.title}
-          courseGradeLevel={course.gradeLevel}
         />
       )}
 
-      {/* Lesson Editor Modal */}
+      {/* Lesson Editor Modal (Video, Summary, Attachments, Quiz) */}
       {lessonModalState.isOpen && (
         <LessonEditorModal
           isOpen={lessonModalState.isOpen}
           courseId={courseId}
           moduleId={lessonModalState.moduleId}
           lesson={lessonModalState.lesson}
-          onClose={() => setLessonModalState({ isOpen: false, moduleId: '', lesson: null })}
+          onClose={() =>
+            setLessonModalState({
+              isOpen: false,
+              moduleId: '',
+              lesson: null,
+            })
+          }
         />
       )}
 
-      {/* Group Access Modal */}
+      {/* Group Access Permissions Modal */}
       {isGroupAccessModalOpen && (
         <CourseGroupAccessModal
           isOpen={isGroupAccessModalOpen}
           courseId={courseId}
           courseTitle={course.title}
-          alreadyLinkedGroupIds={course.groupAccess?.map((g) => g.groupId) || []}
+          currentGroupAccess={course.groupAccess || []}
           onClose={() => setIsGroupAccessModalOpen(false)}
         />
       )}
+
+      {/* Custom Confirmation Dialog for Module Deletion (No JS Confirm) */}
+      <ConfirmModal
+        isOpen={Boolean(moduleToDelete)}
+        title="تأكيد حذف الوحدة التعليمية"
+        message={`هل أنت متأكد من حذف الوحدة "${moduleToDelete?.title}" وجميع دروسها ومرفقاتها نهائياً؟`}
+        confirmLabel="حذف الوحدة بالكامل"
+        cancelLabel="تراجع"
+        variant="danger"
+        isLoading={deleteModuleMutation.isPending}
+        onConfirm={() => {
+          if (moduleToDelete) {
+            deleteModuleMutation.mutate(moduleToDelete.id);
+            setModuleToDelete(null);
+          }
+        }}
+        onClose={() => setModuleToDelete(null)}
+      />
+
+      {/* Custom Confirmation Dialog for Lesson Deletion (No JS Confirm) */}
+      <ConfirmModal
+        isOpen={Boolean(lessonToDelete)}
+        title="تأكيد حذف الدرس التعليمي"
+        message={`هل أنت متأكد من حذف درس "${lessonToDelete?.title}"؟ سيتم حذف جميع الفيديوهات والملخصات والأسئلة المرتبطة به.`}
+        confirmLabel="حذف الدرس"
+        cancelLabel="تراجع"
+        variant="danger"
+        isLoading={deleteLessonMutation.isPending}
+        onConfirm={() => {
+          if (lessonToDelete) {
+            deleteLessonMutation.mutate(lessonToDelete.id);
+            setLessonToDelete(null);
+          }
+        }}
+        onClose={() => setLessonToDelete(null)}
+      />
     </div>
   );
 }

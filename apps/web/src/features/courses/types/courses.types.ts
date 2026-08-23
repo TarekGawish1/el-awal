@@ -156,3 +156,18 @@ export interface LessonViewerData {
   lastPositionSeconds: number;
   isCompleted: boolean;
 }
+
+export interface CourseEnrollmentStudent {
+  id: string;
+  studentId: string;
+  fullName: string;
+  phone?: string | null;
+  studentCode?: string | null;
+  gradeLevel: string;
+  accessType?: string;
+  status?: string;
+  enrolledAt: string;
+  groups?: string[];
+  progressPercentage?: number;
+}
+

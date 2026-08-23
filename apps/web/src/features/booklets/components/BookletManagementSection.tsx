@@ -21,6 +21,7 @@ import { useBooklets } from '../hooks/useBooklets';
 import { Booklet } from '../types';
 import { CreateBookletModal } from './CreateBookletModal';
 import { EditBookletModal } from './EditBookletModal';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -58,19 +59,16 @@ export function BookletManagementSection({ groups = [] }: Props) {
   const totalCopiesSold = booklets.reduce((acc, b) => acc + (b.salesCount || 0), 0);
   const totalRevenue = booklets.reduce((acc, b) => acc + (b.totalRevenue || 0), 0);
 
-  const handleDelete = async (booklet: Booklet) => {
-    const confirmMsg =
-      (booklet.salesCount || 0) > 0
-        ? `المذكرة "${booklet.title}" لديها ${booklet.salesCount} عمليات سداد سابقة. هل تريد إيقاف تفعيلها؟`
-        : `هل أنت متأكد من حذف مذكرة "${booklet.title}"؟`;
+  const [bookletToDelete, setBookletToDelete] = useState<Booklet | null>(null);
 
-    if (window.confirm(confirmMsg)) {
-      try {
-        await deleteBooklet(booklet.id);
-        toast.success('تم حذف / إيقاف تفعيل المذكرة بنجاح');
-      } catch (err: any) {
-        toast.error(err.message || 'حدث خطأ أثناء الحذف');
-      }
+  const handleConfirmDelete = async () => {
+    if (!bookletToDelete) return;
+    try {
+      await deleteBooklet(bookletToDelete.id);
+      toast.success('تم حذف / إيقاف تفعيل المذكرة بنجاح');
+      setBookletToDelete(null);
+    } catch (err: any) {
+      toast.error(err.message || 'حدث خطأ أثناء الحذف');
     }
   };
 
@@ -292,7 +290,7 @@ export function BookletManagementSection({ groups = [] }: Props) {
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => handleDelete(booklet)}
+                          onClick={() => setBookletToDelete(booklet)}
                           disabled={isDeleting}
                           className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="حذف / إيقاف"
@@ -324,6 +322,23 @@ export function BookletManagementSection({ groups = [] }: Props) {
           groups={groups}
         />
       )}
+
+      {/* Custom Confirmation Modal (No JS Confirm) */}
+      <ConfirmModal
+        isOpen={Boolean(bookletToDelete)}
+        title="تأكيد حذف / إيقاف المذكرة"
+        message={
+          (bookletToDelete?.salesCount || 0) > 0
+            ? `المذكرة "${bookletToDelete?.title}" لديها ${bookletToDelete?.salesCount} عمليات سداد سابقة. هل تريد إيقاف تفعيلها؟`
+            : `هل أنت متأكد من حذف مذكرة "${bookletToDelete?.title}"؟`
+        }
+        confirmLabel="تأكيد الحذف / الإيقاف"
+        cancelLabel="تراجع"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onClose={() => setBookletToDelete(null)}
+      />
     </div>
   );
 }

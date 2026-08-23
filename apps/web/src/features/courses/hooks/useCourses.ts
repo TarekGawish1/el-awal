@@ -345,3 +345,5 @@ export function useRevokeStudentEnrollment(courseId: string) {
     },
   });
 }
+
+export const useRevokeCourseAccess = useRevokeStudentEnrollment;

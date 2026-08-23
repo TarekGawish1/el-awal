@@ -33,17 +33,22 @@ export class PresignedUploadDto {
   @IsNotEmpty({ message: 'File name is required' })
   fileName: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'MIME type of the upload file (Strict allowlist enforced)',
     example: 'application/pdf',
     enum: ALLOWED_MIME_TYPES,
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'Content type is required' })
-  @IsIn(ALLOWED_MIME_TYPES as unknown as string[], {
-    message: 'Unsupported MIME type. Allowed types: PDF, JPG, PNG, WEBP, MP3, MP4, DOC, DOCX',
+  contentType?: string;
+
+  @ApiPropertyOptional({
+    description: 'Alias for contentType',
+    example: 'application/pdf',
   })
-  contentType: string;
+  @IsOptional()
+  @IsString()
+  fileType?: string;
 
   @ApiPropertyOptional({
     description: 'File size in bytes (max 100MB for R2)',
@@ -57,12 +62,11 @@ export class PresignedUploadDto {
 
   @ApiPropertyOptional({
     description: 'Target storage directory partition',
-    enum: ['courses', 'assignments', 'summaries', 'avatars', 'assessments'],
     example: 'courses',
     default: 'courses',
   })
   @IsOptional()
-  @IsIn(['courses', 'assignments', 'summaries', 'avatars', 'assessments'])
+  @IsString()
   folder?: string;
 }
 
