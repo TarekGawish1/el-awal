@@ -71,8 +71,8 @@ async function bootstrap() {
         return callback(null, true);
       }
 
-      // Automatically allow Vercel deployment origins (vercel.app)
-      if (/^https:\/\/(.*\.)?vercel\.app$/i.test(origin)) {
+      // Automatically allow Vercel and Heroku deployment origins
+      if (/^https:\/\/(.*\.)?(vercel\.app|herokuapp\.com)$/i.test(origin)) {
         return callback(null, true);
       }
 

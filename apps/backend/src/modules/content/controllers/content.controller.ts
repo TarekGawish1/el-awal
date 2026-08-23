@@ -32,6 +32,21 @@ import { UserRole, ContentType } from '@prisma/client';
 export class ContentController {
   constructor(private readonly contentService: ContentService) { }
 
+  @Post('upload-file')
+  @UseInterceptors(FileInterceptor('file'))
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload binary file with automatic storage' })
+  async uploadFile(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('folder') folder?: string,
+  ) {
+    if (!file) {
+      throw new BadRequestException('الملف مطلوب للرفع');
+    }
+    return this.contentService.uploadRawFile(file, folder);
+  }
+
   @Post('upload-direct')
   @UseInterceptors(FileInterceptor('file'))
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)

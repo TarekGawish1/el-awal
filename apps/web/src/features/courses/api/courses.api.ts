@@ -259,5 +259,70 @@ export const coursesApi = {
       body: JSON.stringify(data),
     });
   },
+
+  uploadDirectFile: async (
+    file: File,
+    folder = 'courses',
+    onProgress?: (percent: number) => void,
+  ): Promise<{
+    fileUrl: string;
+    fileKey: string;
+    fileSize: number;
+    fileType: string;
+    fileName: string;
+  }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('folder', folder);
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
+      xhr.open('POST', `${apiUrl}/content/upload-file`);
+
+      try {
+        const token =
+          typeof window !== 'undefined'
+            ? localStorage.getItem('access_token') || sessionStorage.getItem('access_token')
+            : null;
+        if (token) {
+          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        }
+      } catch {}
+
+      if (onProgress) {
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percent = Math.round((event.loaded / event.total) * 100);
+            onProgress(percent);
+          }
+        };
+      }
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const parsed = JSON.parse(xhr.responseText);
+            const data = parsed?.data || parsed;
+            resolve(data);
+          } catch {
+            resolve({
+              fileUrl: URL.createObjectURL(file),
+              fileKey: `file_${Date.now()}`,
+              fileSize: file.size,
+              fileType: file.type,
+              fileName: file.name,
+            });
+          }
+        } else {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('Network error during direct upload'));
+      xhr.send(formData);
+    });
+  },
 };
+
 

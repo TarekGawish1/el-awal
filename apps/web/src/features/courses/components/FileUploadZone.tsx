@@ -27,7 +27,7 @@ export function FileUploadZone({
   accept = 'image/*,.pdf,.docx',
   folder = 'courses',
   label,
-  description = 'اسحب وأفلت الملف هنا أو انقر للاختيار',
+  description = 'اسحب وأفلت الملف هنا، أو انقر للاختيار من جهازك',
   currentFileUrl,
   fileCategory = 'document',
   maxSizeBytes = 50 * 1024 * 1024,
@@ -38,18 +38,40 @@ export function FileUploadZone({
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const performDirectFallbackUpload = async (file: File) => {
+    try {
+      const directResult = await coursesApi.uploadDirectFile(file, folder, (percent) => {
+        setUploadProgress(percent);
+      });
+
+      setIsUploading(false);
+      setUploadProgress(100);
+      onUploadComplete({
+        fileUrl: directResult.fileUrl,
+        fileKey: directResult.fileKey,
+        fileSize: directResult.fileSize || file.size,
+        fileType: directResult.fileType || file.type,
+        fileName: directResult.fileName || file.name,
+      });
+      toast.success('تم رفع الملف بنجاح');
+    } catch {
+      setIsUploading(false);
+      toast.error('تعذر رفع الملف، يرجى المحاولة مجدداً');
+    }
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (file.size > maxSizeBytes) {
-      toast.error(`حجم الملف يتجاوز الحد المسموح (${Math.round(maxSizeBytes / (1024 * 1024))}MB)`);
+      toast.error(`حجم الملف يتجاوز الحد المسموح (${Math.round(maxSizeBytes / (1024 * 1024))} ميجابايت)`);
       return;
     }
 
     try {
       setIsUploading(true);
-      setUploadProgress(10);
+      setUploadProgress(15);
 
       const mimeType = file.type || 'application/octet-stream';
       const presigned = await coursesApi.getPresignedUploadUrl({
@@ -60,7 +82,18 @@ export function FileUploadZone({
         folder,
       });
 
-      setUploadProgress(30);
+      // If presigned URL is invalid, empty, or internal fallback route, use direct multipart upload
+      const isValidExternalUrl =
+        presigned?.uploadUrl &&
+        presigned.uploadUrl.startsWith('http') &&
+        !presigned.uploadUrl.includes('https://.r2');
+
+      if (!isValidExternalUrl) {
+        await performDirectFallbackUpload(file);
+        return;
+      }
+
+      setUploadProgress(35);
 
       const xhr = new XMLHttpRequest();
       xhr.open('PUT', presigned.uploadUrl);
@@ -68,12 +101,12 @@ export function FileUploadZone({
 
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
-          const percent = Math.round((event.loaded / event.total) * 65) + 30;
+          const percent = Math.round((event.loaded / event.total) * 60) + 35;
           setUploadProgress(percent);
         }
       };
 
-      xhr.onload = () => {
+      xhr.onload = async () => {
         if (xhr.status >= 200 && xhr.status < 300) {
           setUploadProgress(100);
           setIsUploading(false);
@@ -86,20 +119,20 @@ export function FileUploadZone({
           });
           toast.success('تم رفع الملف بنجاح');
         } else {
-          setIsUploading(false);
-          toast.error('تعذر إتمام رفع الملف');
+          // Direct fallback if presigned PUT returned non-2xx
+          await performDirectFallbackUpload(file);
         }
       };
 
-      xhr.onerror = () => {
-        setIsUploading(false);
-        toast.error('حدث خطأ في الاتصال أثناء الرفع');
+      xhr.onerror = async () => {
+        // Direct fallback if presigned PUT had network / CORS error
+        await performDirectFallbackUpload(file);
       };
 
       xhr.send(file);
     } catch {
-      setIsUploading(false);
-      toast.error('تعذر إنشاء رابط الرفع المباشر');
+      // Direct fallback if presigned initialization failed
+      await performDirectFallbackUpload(file);
     }
   };
 
@@ -108,16 +141,16 @@ export function FileUploadZone({
       <label className="block text-xs font-bold text-slate-800">{label}</label>
 
       {currentFileUrl ? (
-        <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
+        <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl shadow-sm">
           <div className="flex items-center gap-3 overflow-hidden">
             {fileCategory === 'image' ? (
               <img
                 src={currentFileUrl}
                 alt="معاينة الملف"
-                className="w-12 h-12 object-cover rounded-lg border border-slate-200"
+                className="w-12 h-12 object-cover rounded-lg border border-slate-200 shadow-sm"
               />
             ) : (
-              <div className="w-10 h-10 rounded-lg bg-primary-50 text-primary-600 flex items-center justify-center font-bold text-xs shrink-0">
+              <div className="w-10 h-10 rounded-lg bg-primary-50 text-primary-600 flex items-center justify-center font-bold text-xs shrink-0 border border-primary-100">
                 <File className="w-5 h-5" />
               </div>
             )}
@@ -127,7 +160,7 @@ export function FileUploadZone({
                 href={currentFileUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="text-[11px] text-primary-600 hover:underline block truncate"
+                className="text-xs text-primary-600 hover:underline block truncate font-medium mt-0.5"
               >
                 معاينة الملف المرفوع
               </a>
@@ -139,7 +172,7 @@ export function FileUploadZone({
               <button
                 type="button"
                 onClick={onRemoveFile}
-                className="px-3 py-1.5 text-xs text-slate-600 hover:text-primary-600 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200 bg-white"
+                className="px-3.5 py-1.5 text-xs text-slate-700 hover:text-primary-600 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200 bg-white font-medium shadow-sm"
               >
                 تغيير الملف
               </button>
@@ -149,7 +182,7 @@ export function FileUploadZone({
       ) : (
         <div
           onClick={() => fileInputRef.current?.click()}
-          className="border-2 border-dashed border-slate-200 hover:border-primary-500 rounded-2xl p-5 text-center cursor-pointer transition-colors bg-white group shadow-sm"
+          className="border-2 border-dashed border-blue-200 hover:border-primary-500 rounded-2xl p-6 text-center cursor-pointer transition-all bg-blue-50/20 hover:bg-blue-50/40 group shadow-sm"
         >
           <input
             ref={fileInputRef}
@@ -160,28 +193,32 @@ export function FileUploadZone({
             className="hidden"
           />
 
-          <div className="flex flex-col items-center gap-1.5 text-slate-500">
+          <div className="flex flex-col items-center gap-2 text-slate-600">
             {isUploading ? (
-              <Loader2 className="w-8 h-8 text-primary-600 animate-spin mb-1" />
+              <Loader2 className="w-9 h-9 text-primary-600 animate-spin mb-1" />
             ) : fileCategory === 'image' ? (
-              <ImageIcon className="w-8 h-8 text-primary-600 group-hover:scale-110 transition-transform mb-1" />
+              <div className="w-12 h-12 rounded-2xl bg-white border border-blue-200 text-primary-600 flex items-center justify-center group-hover:scale-105 transition-transform shadow-sm">
+                <ImageIcon className="w-6 h-6" />
+              </div>
             ) : (
-              <UploadCloud className="w-8 h-8 text-primary-600 group-hover:scale-110 transition-transform mb-1" />
+              <div className="w-12 h-12 rounded-2xl bg-white border border-blue-200 text-primary-600 flex items-center justify-center group-hover:scale-105 transition-transform shadow-sm">
+                <UploadCloud className="w-6 h-6" />
+              </div>
             )}
 
             <p className="text-xs font-bold text-slate-800">{description}</p>
-            <p className="text-[10px] text-slate-400">
-              الحد الأقصى {Math.round(maxSizeBytes / (1024 * 1024))} ميجابايت • رفع مباشر وسريع
+            <p className="text-[11px] text-slate-500 font-medium">
+              الحد الأقصى {Math.round(maxSizeBytes / (1024 * 1024))} ميجابايت • رفع سحابي مباشر
             </p>
           </div>
 
           {isUploading && (
-            <div className="mt-3 space-y-1">
-              <div className="flex justify-between text-[11px] font-bold text-slate-800">
-                <span>جاري الرفع السحابي...</span>
+            <div className="mt-4 space-y-1.5 max-w-xs mx-auto">
+              <div className="flex justify-between text-xs font-bold text-slate-800">
+                <span>جاري الرفع...</span>
                 <span className="font-mono text-primary-600">{uploadProgress}%</span>
               </div>
-              <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+              <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
                 <div
                   className="bg-primary-600 h-full transition-all duration-200 rounded-full"
                   style={{ width: `${uploadProgress}%` }}

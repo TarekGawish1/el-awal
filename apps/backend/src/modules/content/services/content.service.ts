@@ -49,6 +49,25 @@ export class ContentService {
   }
 
   /**
+   * Uploads a raw binary file (image, cover, pdf, etc.) directly with automatic R2 storage / fallback.
+   */
+  async uploadRawFile(file: Express.Multer.File, folder = 'courses') {
+    const sanitizedFileName = (file.originalname || 'file.bin').replace(/[^a-zA-Z0-9._-]/g, '_');
+    const uniqueKey = `uploads/${folder}/${Date.now()}-${randomUUID().slice(0, 8)}-${sanitizedFileName}`;
+    const mimeType = file.mimetype || 'application/octet-stream';
+
+    const uploadRes = await this.storageService.uploadBuffer(uniqueKey, file.buffer, mimeType);
+
+    return {
+      fileUrl: uploadRes.publicUrl,
+      fileKey: uploadRes.fileKey,
+      fileSize: file.size,
+      fileType: mimeType,
+      fileName: file.originalname,
+    };
+  }
+
+  /**
    * Registers educational asset metadata in the library attached to a teacher, gradeLevel, group, session, or lesson.
    */
   async createContent(teacherId: string, dto: CreateContentDto) {
