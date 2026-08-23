@@ -12,7 +12,6 @@ import {
   Plus,
   Trash2,
   ExternalLink,
-  Eye,
   Clock,
   Loader2,
 } from 'lucide-react';
@@ -75,6 +74,7 @@ export function LessonEditorModal({
   const [newAttachmentUrl, setNewAttachmentUrl] = useState('');
   const [newAttachmentKey, setNewAttachmentKey] = useState('');
   const [newAttachmentSize, setNewAttachmentSize] = useState<number | undefined>();
+  const [newAttachmentType, setNewAttachmentType] = useState<string>('application/pdf');
   const [isAddingAttachment, setIsAddingAttachment] = useState(false);
 
   useEffect(() => {
@@ -109,11 +109,11 @@ export function LessonEditorModal({
       setIsUploadingVideo(true);
       setVideoUploadProgress(10);
 
-      // Step 1: Get Bunny upload credentials
+      // Step 1: Get secure upload credentials
       const creds = await coursesApi.getVideoUploadCredentials(title || file.name);
       setVideoUploadProgress(30);
 
-      // Step 2: Upload file directly to Bunny Stream
+      // Step 2: Upload file directly to secure streaming server
       const xhr = new XMLHttpRequest();
       xhr.open('PUT', creds.uploadUrl);
       xhr.setRequestHeader('AccessKey', creds.accessKey);
@@ -130,7 +130,7 @@ export function LessonEditorModal({
         if (xhr.status >= 200 && xhr.status < 300) {
           setBunnyVideoId(creds.videoId);
           setVideoUploadProgress(100);
-          toast.success('تم رفع الفيديو ومعالجته بنجاح على Bunny Stream');
+          toast.success('تم رفع الفيديو وتجهيز البث المشفر بنجاح');
         } else {
           toast.error('تعذر رفع الفيديو');
         }
@@ -202,7 +202,7 @@ export function LessonEditorModal({
           fileUrl: newAttachmentUrl.trim(),
           fileKey: newAttachmentKey || `courses/attachments/${Date.now()}-${newAttachmentTitle.trim()}`,
           fileSize: newAttachmentSize,
-          fileType: 'application/pdf',
+          fileType: newAttachmentType || 'application/pdf',
         },
       });
       setNewAttachmentTitle('');
@@ -216,19 +216,19 @@ export function LessonEditorModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-md">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-gradient-to-l from-blue-50/50 to-white dark:from-slate-800/60 dark:to-slate-900">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-800/40">
               <Video className="w-5 h-5" />
             </div>
-            <div>
+            <div className="text-right">
               <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                {isEditing ? 'تعديل تفاصيل ومحتوى الدرس' : 'إضافة درس جديد'}
+                {isEditing ? 'تعديل محتوى وتفاصيل الدرس' : 'إضافة درس تعليمي جديد'}
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">إعداد الشرح، الفيديو، الملخص والاختبارات التفاعلية</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">إعداد الشرح، الفيديو، الملخصات والاختبارات التفاعلية</p>
             </div>
           </div>
           <button
@@ -274,7 +274,7 @@ export function LessonEditorModal({
             }`}
           >
             <Paperclip className="w-4 h-4" />
-            <span>المرفقات والـ PDF</span>
+            <span>المرفقات والملخصات</span>
             {lesson?.attachments && lesson.attachments.length > 0 && (
               <span className="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 px-1.5 py-0.5 rounded-full text-[10px]">
                 {lesson.attachments.length}
@@ -304,7 +304,7 @@ export function LessonEditorModal({
           {activeTab === 'video' && (
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
                   عنوان الدرس <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -317,8 +317,8 @@ export function LessonEditorModal({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  وصف وأهداف الدرس
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                  أهداف ونبذة عن الدرس
                 </label>
                 <textarea
                   rows={2}
@@ -329,22 +329,22 @@ export function LessonEditorModal({
                 />
               </div>
 
-              {/* Video Provider Section */}
-              <div className="p-4 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-3">
+              {/* Video Upload Section */}
+              <div className="p-4 bg-slate-50/70 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-blue-900 dark:text-blue-300 flex items-center gap-1.5">
                     <Video className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                    فيديو الشرح التفاعلي (Bunny Stream DRM)
+                    فيديو الشرح التفاعلي المشفر
                   </span>
                   {bunnyVideoId && (
-                    <span className="text-[11px] font-mono bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                      معرف الفيديو: {bunnyVideoId.slice(0, 8)}...
+                    <span className="text-[11px] font-mono bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                      تم تعيين الفيديو: {bunnyVideoId.slice(0, 8)}...
                     </span>
                   )}
                 </div>
 
                 {/* Direct Upload Trigger */}
-                <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 rounded-xl p-5 text-center cursor-pointer transition-colors relative bg-white dark:bg-slate-900">
+                <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 rounded-2xl p-6 text-center cursor-pointer transition-colors relative bg-white dark:bg-slate-900">
                   <input
                     type="file"
                     accept="video/*"
@@ -352,24 +352,24 @@ export function LessonEditorModal({
                     disabled={isUploadingVideo}
                     className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                   />
-                  <div className="flex flex-col items-center gap-1.5 text-slate-500 dark:text-slate-400">
-                    <UploadCloud className="w-8 h-8 text-blue-600 dark:text-blue-400 animate-bounce" />
+                  <div className="flex flex-col items-center gap-2 text-slate-600 dark:text-slate-400">
+                    <UploadCloud className="w-9 h-9 text-blue-600 dark:text-blue-400 animate-bounce" />
                     <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                      انقر لاختيار فيديو أو سحبه هنا للرفع المباشر إلى Bunny Stream
+                      انقر لاختيار فيديو أو سحبه هنا للرفع المباشر إلى السيرفر السحابي المشفر
                     </p>
-                    <p className="text-[11px] text-slate-400">
-                      يتم التشفير والتقطيع التلقائي بجودة HD و HLS DRM ضد القرصنة
+                    <p className="text-[11px] text-slate-500">
+                      يتم التشفير الآمن والتقطيع التلقائي بجودات متعددة ضد التسجيل والقرصنة
                     </p>
                   </div>
                 </div>
 
                 {isUploadingVideo && (
                   <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs text-slate-700 dark:text-slate-300">
-                      <span>جاري رفع الفيديو وتجهيز البث...</span>
-                      <span className="font-mono">{videoUploadProgress}%</span>
+                    <div className="flex justify-between text-xs font-bold text-slate-800 dark:text-slate-200">
+                      <span>جاري رفع الفيديو وتجهيز البث السحابي...</span>
+                      <span className="font-mono text-blue-600">{videoUploadProgress}%</span>
                     </div>
-                    <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                    <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden">
                       <div
                         className="bg-blue-600 h-full transition-all duration-300 rounded-full"
                         style={{ width: `${videoUploadProgress}%` }}
@@ -379,8 +379,8 @@ export function LessonEditorModal({
                 )}
 
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
-                    أو أدخل Bunny Video ID يدوياً:
+                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                    أو أدخل معرف الفيديو المشفر يدوياً:
                   </label>
                   <input
                     type="text"
@@ -395,7 +395,7 @@ export function LessonEditorModal({
               {/* Duration & Free Preview */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
                     مدة الفيديو (بالثواني)
                   </label>
                   <div className="relative">
@@ -415,8 +415,8 @@ export function LessonEditorModal({
 
                 <div className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl my-auto">
                   <div>
-                    <p className="text-xs font-bold text-slate-900 dark:text-white">معاينة مجانية (Free Preview)</p>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400">إتاحة مشاهدة هذا الدرس لجميع الزوار مجاناً</p>
+                    <p className="text-xs font-bold text-slate-900 dark:text-white">معاينة مجانية للجميع</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">إتاحة مشاهدة هذا الدرس لجميع الزوار بدون اشتراك</p>
                   </div>
                   <input
                     type="checkbox"
@@ -433,10 +433,10 @@ export function LessonEditorModal({
           {activeTab === 'summary' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  ملخص الدرس وملاحظات المذاكرة (Study Notes & Formulas)
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
+                  ملخص الدرس وملاحظات المذاكرة
                 </label>
-                <span className="text-[11px] text-blue-600 dark:text-blue-400">يدعم تنسيق Markdown والعناوين</span>
+                <span className="text-[11px] text-blue-600 dark:text-blue-400">يدعم تنسيق العناوين والنقاط</span>
               </div>
               <textarea
                 rows={10}
@@ -451,7 +451,7 @@ export function LessonEditorModal({
             </div>
           )}
 
-          {/* TAB 3: ATTACHMENTS & PDFS */}
+          {/* TAB 3: ATTACHMENTS & DOCUMENTS */}
           {activeTab === 'attachments' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -463,53 +463,54 @@ export function LessonEditorModal({
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 hover:bg-blue-600 hover:text-white rounded-xl text-xs font-bold transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>إضافة ملف PDF</span>
+                    <span>إضافة ملف جديد</span>
                   </button>
                 )}
               </div>
 
               {!lesson && (
                 <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-2xl text-xs text-amber-700 dark:text-amber-300">
-                  يرجى حفظ الدرس أولاً لتتمكن من رفع وإرفاق ملفات الـ PDF وأوراق العمل.
+                  يرجى حفظ الدرس أولاً لتتمكن من رفع وإرفاق الملفات والمستندات وأوراق العمل.
                 </div>
               )}
 
               {/* Add Attachment with FileUploadZone */}
               {isAddingAttachment && (
                 <div className="p-4 bg-slate-50 dark:bg-slate-950 border border-blue-200 dark:border-blue-800/40 rounded-2xl space-y-3">
-                  <p className="text-xs font-bold text-blue-900 dark:text-blue-300">إضافة مرفق جديد للدرس</p>
+                  <p className="text-xs font-bold text-blue-900 dark:text-blue-300">إضافة مستند أو ملخص جديد للدرس</p>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                      اسم المرفق (مثال: ملخص القوانين PDF)
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      اسم المرفق (مثال: ملخص القوانين وأوراق العمل)
                     </label>
                     <input
                       type="text"
                       value={newAttachmentTitle}
                       onChange={(e) => setNewAttachmentTitle(e.target.value)}
-                      placeholder="ملخص الحصة PDF"
+                      placeholder="ملخص الحصة وأوراق العمل"
                       className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
                     />
                   </div>
 
-                  {/* Direct Presigned PDF Uploader */}
+                  {/* Direct Presigned Document Uploader */}
                   <FileUploadZone
-                    accept="application/pdf"
+                    accept=".pdf,.docx,.png,.jpg,.jpeg"
                     folder="courses/attachments"
-                    label="رفع ملف الـ PDF"
-                    description="اسحب وأفلت ملف الـ PDF هنا للرفع السحابي"
+                    label="رفع الملف المرفق (مستند / ورقة عمل)"
+                    description="اسحب وأفلت الملف هنا للرفع السحابي الفوري"
                     currentFileUrl={newAttachmentUrl}
-                    onUploadComplete={({ fileUrl, fileKey, fileSize, fileName }) => {
+                    onUploadComplete={({ fileUrl, fileKey, fileSize, fileType, fileName }) => {
                       setNewAttachmentUrl(fileUrl);
                       setNewAttachmentKey(fileKey);
                       setNewAttachmentSize(fileSize);
-                      if (!newAttachmentTitle) setNewAttachmentTitle(fileName.replace(/\.pdf$/i, ''));
+                      setNewAttachmentType(fileType || 'application/pdf');
+                      if (!newAttachmentTitle) setNewAttachmentTitle(fileName.replace(/\.[^/.]+$/, ''));
                     }}
                     onRemoveFile={() => {
                       setNewAttachmentUrl('');
                       setNewAttachmentKey('');
                       setNewAttachmentSize(undefined);
                     }}
-                    fileCategory="pdf"
+                    fileCategory="document"
                   />
 
                   <div className="flex justify-end gap-2 pt-1">
@@ -526,7 +527,7 @@ export function LessonEditorModal({
                       disabled={addAttachmentMutation.isPending || !newAttachmentUrl}
                       className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors disabled:opacity-50"
                     >
-                      {addAttachmentMutation.isPending ? 'جاري الإضافة...' : 'حفظ المرفق'}
+                      {addAttachmentMutation.isPending ? 'جاري الحفظ...' : 'حفظ المرفق'}
                     </button>
                   </div>
                 </div>
@@ -543,8 +544,8 @@ export function LessonEditorModal({
                       className="flex items-center justify-between p-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center font-bold text-xs">
-                          PDF
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 flex items-center justify-center font-bold text-xs">
+                          <FileText className="w-4 h-4" />
                         </div>
                         <div>
                           <p className="text-xs font-bold text-slate-900 dark:text-white">{att.title}</p>
@@ -554,7 +555,7 @@ export function LessonEditorModal({
                             rel="noopener noreferrer"
                             className="text-[10px] text-blue-600 hover:underline flex items-center gap-1 mt-0.5"
                           >
-                            <span>تحميل / معاينة</span>
+                            <span>تحميل / معاينة المستند</span>
                             <ExternalLink className="w-2.5 h-2.5" />
                           </a>
                         </div>
@@ -577,12 +578,12 @@ export function LessonEditorModal({
           {/* TAB 4: LESSON QUIZ LINKING */}
           {activeTab === 'quiz' && (
             <div className="space-y-4">
-              <div className="p-4 bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800/40 rounded-2xl space-y-3">
+              <div className="p-4 bg-gradient-to-l from-blue-50/70 to-white dark:from-blue-950/30 dark:to-slate-950 border border-blue-200/80 dark:border-blue-800/40 rounded-2xl space-y-3">
                 <div className="flex items-center gap-2">
                   <Award className="w-5 h-5 text-amber-500" />
                   <div>
-                    <h3 className="text-xs font-bold text-blue-950 dark:text-blue-300">
-                      ربط اختبار سريع أو واجب خاص بهذا الدرس (Lesson Quiz)
+                    <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                      ربط اختبار سريع أو واجب خاص بهذا الدرس
                     </h3>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
                       يظهر هذا الاختبار للطالب في نافذة المشغل فور انتهائه من مشاهدة الفيديو لقياس مستوى الفهم.
@@ -591,8 +592,8 @@ export function LessonEditorModal({
                 </div>
 
                 <div className="pt-2">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                    اختر الاختبار / الواجب المرتبط:
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                    اختر الاختبار أو الواجب المرتبط:
                   </label>
                   <select
                     value={lessonQuizId}
@@ -625,7 +626,7 @@ export function LessonEditorModal({
             type="button"
             onClick={handleSaveLesson}
             disabled={createMutation.isPending || updateMutation.isPending}
-            className="px-6 py-2.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-lg shadow-blue-600/30 disabled:opacity-50 flex items-center gap-2"
+            className="px-6 py-2.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-md shadow-blue-600/30 disabled:opacity-50 flex items-center gap-2"
           >
             {(createMutation.isPending || updateMutation.isPending) && (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />

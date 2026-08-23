@@ -21,6 +21,7 @@ import {
   RotateCcw,
   ShieldCheck,
   Lock,
+  Loader2,
 } from 'lucide-react';
 import { useCourseDetail, useLessonViewer, useLessonStreamAuth } from '@/features/courses/hooks/useCourses';
 import { coursesApi } from '@/features/courses/api/courses.api';
@@ -65,8 +66,12 @@ export function StudentCourseLearningRoom({
   }, [course, activeLessonId]);
 
   const { data: lessonData, isLoading: isLessonLoading } = useLessonViewer(activeLessonId);
-  const { data: streamAuthData, isLoading: isStreamAuthLoading, isError: isStreamAuthError } =
-    useLessonStreamAuth(activeLessonId);
+  const {
+    data: streamAuthData,
+    isLoading: isStreamAuthLoading,
+    isError: isStreamAuthError,
+    refetch: refetchStreamAuth,
+  } = useLessonStreamAuth(activeLessonId);
 
   // Tab & Player State
   const [activeTab, setActiveTab] = useState<ActiveTab>('summary');
@@ -74,7 +79,7 @@ export function StudentCourseLearningRoom({
   const [isSidebarOpenMobile, setIsSidebarOpenMobile] = useState(false);
   const [completedLessonIds, setCompletedLessonIds] = useState<string[]>([]);
 
-  // Video Ref for HTML5 / Native Player
+  // Video Ref for Native Player
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // Track progress heartbeat
@@ -145,23 +150,25 @@ export function StudentCourseLearningRoom({
     );
   }
 
+  const isVideoProcessing = streamAuthData?.videoStatus === 'PROCESSING';
+
   const effectivePlayerUrl =
     streamAuthData?.embedUrl ||
     streamAuthData?.playbackUrl ||
     lessonData?.videoPlayerUrl;
 
-  const isBunnyIframe =
+  const isIframeEmbed =
     effectivePlayerUrl?.includes('iframe') ||
     effectivePlayerUrl?.includes('mediadelivery.net');
 
   return (
     <div className="space-y-6 text-right max-w-7xl mx-auto pb-12 animate-in fade-in">
       {/* Top Breadcrumb & Header Navbar */}
-      <div className="flex items-center justify-between bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 px-6 py-4 rounded-3xl shadow-sm">
+      <div className="flex items-center justify-between bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 px-6 py-4 rounded-3xl shadow-sm bg-gradient-to-l from-blue-50/50 via-white to-white dark:from-slate-800/40 dark:via-slate-900 dark:to-slate-900">
         <div className="flex items-center gap-3">
           <Link
             href="/student/courses"
-            className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-colors shrink-0"
+            className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 hover:text-blue-600 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-colors shrink-0 border border-slate-200 dark:border-slate-700"
           >
             <ArrowRight className="w-5 h-5" />
           </Link>
@@ -191,7 +198,7 @@ export function StudentCourseLearningRoom({
           <button
             type="button"
             onClick={() => setIsSidebarOpenMobile(!isSidebarOpenMobile)}
-            className="lg:hidden w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center"
+            className="lg:hidden w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center border border-slate-200 dark:border-slate-700"
           >
             <Menu className="w-5 h-5" />
           </button>
@@ -202,7 +209,7 @@ export function StudentCourseLearningRoom({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Left/Center Main Column: Video Player & Tabs */}
         <div className="lg:col-span-2 space-y-6">
-          {/* 16:9 Responsive Video Container with Anti-Piracy Watermark & Context Guard */}
+          {/* 16:9 Responsive Video Container with Anti-Piracy Watermark & Transcoding State Card */}
           <div
             onContextMenu={(e) => e.preventDefault()}
             className="relative w-full aspect-video bg-black rounded-3xl overflow-hidden border border-slate-800 shadow-xl flex items-center justify-center group select-none"
@@ -216,6 +223,30 @@ export function StudentCourseLearningRoom({
 
             {isLessonLoading || isStreamAuthLoading ? (
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500" />
+            ) : isVideoProcessing ? (
+              /* Video Transcoding / Processing State Placeholder Card */
+              <div className="p-8 text-center bg-slate-900/90 rounded-3xl max-w-md mx-auto space-y-4 border border-slate-800 text-white animate-in fade-in">
+                <div className="w-16 h-16 rounded-3xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center mx-auto animate-pulse">
+                  <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
+                </div>
+                <div className="space-y-1.5">
+                  <h3 className="text-base font-bold text-white">الفيديو قيد المعالجة السحابية</h3>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    نقوم حالياً بتهيئة الفيديو وتوليد الجودات المتعددة (1080p, 720p, 480p). سيكون جاهزاً للمشاهدة خلال دقائق معدودة.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    refetchStreamAuth();
+                    toast.success('جاري التحقق من حالة معالجة الفيديو...');
+                  }}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/30 inline-flex items-center gap-2"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>تحديث حالة الفيديو</span>
+                </button>
+              </div>
             ) : isStreamAuthError ? (
               <div className="p-8 text-center text-slate-300 space-y-3 bg-slate-950/80 rounded-2xl max-w-md mx-auto">
                 <Lock className="w-12 h-12 stroke-[1.5] mx-auto text-amber-400" />
@@ -225,7 +256,7 @@ export function StudentCourseLearningRoom({
                 </p>
               </div>
             ) : effectivePlayerUrl ? (
-              isBunnyIframe ? (
+              isIframeEmbed ? (
                 <iframe
                   src={
                     effectivePlayerUrl.includes('?')
@@ -255,13 +286,13 @@ export function StudentCourseLearningRoom({
               <div className="p-8 text-center text-slate-400 space-y-2">
                 <Video className="w-12 h-12 stroke-[1.5] mx-auto text-slate-600" />
                 <p className="text-xs font-bold text-slate-300">لا يوجد فيديو متوفر لهذا الدرس حالياً</p>
-                <p className="text-[11px] text-slate-500">يمكنك مراجعة ملخص الدرس أو أوراق الـ PDF المرفقة أسفل الشاشة.</p>
+                <p className="text-[11px] text-slate-500">يمكنك مراجعة ملخص الدرس أو أوراق العمل والمستندات المرفقة أسفل الشاشة.</p>
               </div>
             )}
           </div>
 
           {/* Navigation Tabs Below Video */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-1.5 flex items-center gap-1 overflow-x-auto text-xs shadow-sm">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-1.5 flex items-center gap-1.5 overflow-x-auto text-xs shadow-sm">
             <button
               type="button"
               onClick={() => setActiveTab('summary')}

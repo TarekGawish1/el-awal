@@ -19,8 +19,6 @@ import {
   ChevronDown,
   ChevronUp,
   Layers,
-  Sparkles,
-  DollarSign,
   Globe,
   Lock,
   GraduationCap,
@@ -144,25 +142,25 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 text-right animate-in fade-in">
-      {/* Top Breadcrumb & Controls Card */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
+      {/* Top Breadcrumb & Controls Card (Light Header Banner) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-6 rounded-3xl shadow-sm bg-gradient-to-l from-blue-50/50 via-white to-white dark:from-slate-800/40 dark:via-slate-900 dark:to-slate-900">
         <div className="flex items-center gap-3">
           <Link
             href="/teacher/courses"
-            className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-colors shrink-0"
+            className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 hover:text-blue-600 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-colors shrink-0 border border-slate-200 dark:border-slate-700"
           >
             <ArrowRight className="w-5 h-5" />
           </Link>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800/40">
+              <span className="px-3 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800/40">
                 {course.subject}
               </span>
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+              <span className="px-3 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                 {course.gradeLevel}
               </span>
               <span
-                className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                className={`px-3 py-0.5 rounded-full text-[11px] font-bold ${
                   course.status === 'PUBLISHED'
                     ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
                     : 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
@@ -171,7 +169,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                 {course.status === 'PUBLISHED' ? 'منشور أونلاين' : 'مسودة قيد التجهيز'}
               </span>
             </div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-white mt-1">{course.title}</h1>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white mt-1.5">{course.title}</h1>
           </div>
         </div>
 
@@ -180,7 +178,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
           <button
             type="button"
             onClick={() => setIsGroupAccessModalOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors border border-slate-200 dark:border-slate-700 shadow-sm"
+            className="flex items-center gap-1.5 px-4 py-2 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors border border-slate-200 dark:border-slate-700 shadow-sm"
           >
             <Users className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             <span>صلاحيات المجموعات ({course.groupAccess?.length || 0})</span>
@@ -189,10 +187,10 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
           <Link
             href={`/student/courses/${course.id}/learn`}
             target="_blank"
-            className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors border border-slate-200 dark:border-slate-700 shadow-sm"
+            className="flex items-center gap-1.5 px-4 py-2 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors border border-slate-200 dark:border-slate-700 shadow-sm"
           >
             <Eye className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            <span>معاينة غرفة الطالب</span>
+            <span>معاينة قاعة المشاهدة</span>
           </Link>
 
           <button
@@ -202,7 +200,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
             className={`flex items-center gap-1.5 px-5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
               course.status === 'PUBLISHED'
                 ? 'bg-amber-600 hover:bg-amber-700 text-white'
-                : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
+                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/20'
             }`}
           >
             {course.status === 'PUBLISHED' ? <Lock className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
@@ -212,13 +210,13 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
       </div>
 
       {/* Top View Selector Tabs (Curriculum vs Enrollments) */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-1.5 flex items-center gap-1 shadow-sm text-xs">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-1.5 flex items-center gap-1.5 shadow-sm text-xs">
         <button
           type="button"
           onClick={() => setActiveTopTab('curriculum')}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bold transition-all ${
             activeTopTab === 'curriculum'
-              ? 'bg-blue-600 text-white shadow-sm'
+              ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800'
           }`}
         >
@@ -231,7 +229,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
           onClick={() => setActiveTopTab('enrollments')}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bold transition-all ${
             activeTopTab === 'enrollments'
-              ? 'bg-blue-600 text-white shadow-sm'
+              ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800'
           }`}
         >
@@ -243,22 +241,22 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
       {/* TAB 1: CURRICULUM & LESSONS */}
       {activeTopTab === 'curriculum' && (
         <div className="space-y-6">
-          {/* Multi-Level Assessment Banner: Course Final Quiz */}
-          <div className="bg-gradient-to-l from-blue-50 to-white dark:from-blue-950/30 dark:to-slate-900 border border-blue-200/80 dark:border-blue-800/40 p-5 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
-            <div className="flex items-center gap-3">
+          {/* Assessment Banner: Course Final Exam */}
+          <div className="bg-white dark:bg-slate-900 bg-gradient-to-l from-blue-50/70 via-white to-white dark:from-blue-950/20 dark:via-slate-900 dark:to-slate-900 border border-blue-200/80 dark:border-blue-800/40 p-6 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-3.5">
               <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200 dark:border-amber-800/40 shrink-0">
                 <Award className="w-6 h-6" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <span>الاختبار الشامل النهائي للكورس (Course Final Exam)</span>
+                  <span>الاختبار النهائي الشامل للكورس</span>
                   {course.courseQuiz && (
-                    <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 text-[10px] rounded-full font-mono border border-emerald-200 dark:border-emerald-800">
+                    <span className="px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 text-[10px] rounded-full font-mono border border-emerald-200 dark:border-emerald-800">
                       تم الربط: {course.courseQuiz.title} ({course.courseQuiz.totalScore} درجة)
                     </span>
                   )}
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   يظهر هذا الامتحان في نهاية المنهج لقياس استيعاب الطالب لجميع فصول ووحدات الدورة التدريبية.
                 </p>
               </div>
@@ -268,7 +266,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
               <select
                 value={course.courseQuizId || ''}
                 onChange={(e) => handleUpdateCourseQuiz(e.target.value)}
-                className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
               >
                 <option value="">-- بدون اختبار شامل --</option>
                 {assessments.map((a: any) => (
@@ -295,7 +293,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                 <button
                   type="button"
                   onClick={() => setIsCreatingModule(true)}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
+                  className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-md shadow-blue-600/20"
                 >
                   <Plus className="w-4 h-4" />
                   <span>إضافة وحدة / فصل جديد</span>
@@ -305,22 +303,22 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
 
             {/* New Module Form */}
             {isCreatingModule && (
-              <form onSubmit={handleCreateModule} className="p-5 bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-700/60 rounded-3xl space-y-4 shadow-sm animate-in fade-in">
+              <form onSubmit={handleCreateModule} className="p-6 bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-700/60 rounded-3xl space-y-4 shadow-sm animate-in fade-in">
                 <h3 className="text-sm font-bold text-blue-900 dark:text-blue-300">إضافة وحدة تعليمية جديدة</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">اسم الوحدة / الفصل *</label>
+                    <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">اسم الوحدة / الفصل *</label>
                     <input
                       type="text"
                       value={newModuleTitle}
                       onChange={(e) => setNewModuleTitle(e.target.value)}
-                      placeholder="مثال: الوحدة الأولى: الحركة الدائرية والجاذبية"
+                      placeholder="مثال: الوحدة الأولى: مهارات البلاغة والنصوص"
                       className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">ربط اختبار شامل للوحدة (Unit Quiz)</label>
+                    <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">ربط اختبار شامل للوحدة</label>
                     <select
                       value={newModuleQuizId}
                       onChange={(e) => setNewModuleQuizId(e.target.value)}
@@ -336,7 +334,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">نبذة عن الوحدة</label>
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">نبذة عن الوحدة</label>
                   <input
                     type="text"
                     value={newModuleDescription}
@@ -356,7 +354,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                   <button
                     type="submit"
                     disabled={createModuleMutation.isPending}
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors"
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-md shadow-blue-600/20"
                   >
                     {createModuleMutation.isPending ? 'جاري الحفظ...' : 'حفظ الوحدة'}
                   </button>
@@ -366,7 +364,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
 
             {/* Modules Accordion List */}
             {modules.length === 0 && !isCreatingModule ? (
-              <div className="p-12 text-center bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl space-y-3 shadow-sm">
+              <div className="p-12 text-center bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl space-y-3 shadow-sm">
                 <BookOpen className="w-10 h-10 text-slate-400 mx-auto" />
                 <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">لم تقم بإضافة وحدات تدريبية بعد</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
@@ -375,7 +373,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                 <button
                   type="button"
                   onClick={() => setIsCreatingModule(true)}
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5"
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5 shadow-md shadow-blue-600/20"
                 >
                   <Plus className="w-4 h-4" />
                   <span>إضافة الوحدة الأولى الآن</span>
@@ -389,15 +387,15 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                 return (
                   <div
                     key={mod.id}
-                    className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm transition-all"
+                    className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm transition-all"
                   >
                     {/* Module Header Bar */}
-                    <div className="p-5 bg-slate-50/70 dark:bg-slate-900/90 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800/80">
+                    <div className="p-5 bg-slate-50/80 dark:bg-slate-850 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800/80">
                       <div className="flex items-center gap-3">
                         <button
                           type="button"
                           onClick={() => toggleModuleExpanded(mod.id)}
-                          className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-colors"
+                          className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-colors"
                         >
                           {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
                         </button>
@@ -405,7 +403,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-blue-600 dark:text-blue-400">الوحدة {modIndex + 1}:</span>
                             <h3 className="text-sm font-bold text-slate-900 dark:text-white">{mod.title}</h3>
-                            <span className="text-[11px] text-slate-400">({lessonCount} دروس)</span>
+                            <span className="text-[11px] text-slate-400 font-sans">({lessonCount} دروس)</span>
                           </div>
                           {mod.description && (
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{mod.description}</p>
@@ -463,7 +461,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
 
                     {/* Lessons List in Module */}
                     {!isCollapsed && (
-                      <div className="p-4 space-y-2.5 bg-white dark:bg-slate-950/40">
+                      <div className="p-4 space-y-2.5 bg-white dark:bg-slate-900">
                         {(!mod.lessons || mod.lessons.length === 0) ? (
                           <p className="text-xs text-slate-400 text-center py-5">
                             لا توجد دروس في هذه الوحدة بعد. انقر على "+ إضافة درس" للبدء.
@@ -477,10 +475,10 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                             return (
                               <div
                                 key={les.id}
-                                className="flex items-center justify-between p-3.5 bg-slate-50/50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 hover:border-blue-200 dark:hover:border-slate-700 rounded-2xl transition-all"
+                                className="flex items-center justify-between p-3.5 bg-slate-50/70 dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700/60 rounded-2xl transition-all"
                               >
                                 <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs">
+                                  <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs border border-blue-100 dark:border-blue-800/40">
                                     {lesIndex + 1}
                                   </div>
                                   <div>
@@ -494,7 +492,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                                       {les.videoDurationSeconds ? (
                                         <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
                                           <Clock className="w-3 h-3 text-slate-400" />
-                                          {Math.floor(les.videoDurationSeconds / 60)} د
+                                          {Math.floor(les.videoDurationSeconds / 60)} دقيقة
                                         </span>
                                       ) : null}
                                     </div>
@@ -510,7 +508,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                                       {hasAttachments && (
                                         <span className="flex items-center gap-1 text-[10px] text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded-md border border-rose-200/60 dark:border-rose-800/30">
                                           <Paperclip className="w-2.5 h-2.5" />
-                                          <span>{les.attachments?.length} ملفات PDF</span>
+                                          <span>{les.attachments?.length} ملفات ومستندات</span>
                                         </span>
                                       )}
                                       {hasQuiz && (
@@ -534,7 +532,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                                         lesson: les,
                                       })
                                     }
-                                    className="p-2 text-slate-500 hover:text-blue-600 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 transition-colors shadow-sm"
+                                    className="p-2 text-slate-600 hover:text-blue-600 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 transition-colors shadow-sm"
                                     title="تعديل محتوى الدرس"
                                   >
                                     <Edit className="w-4 h-4" />

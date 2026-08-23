@@ -256,7 +256,13 @@ export function useLessonStreamAuth(lessonId: string) {
     queryKey: ['lesson-stream-auth', lessonId],
     queryFn: () => coursesApi.getLessonStreamAuth(lessonId),
     enabled: !!lessonId,
-    staleTime: 60 * 1000,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (data?.videoStatus === 'PROCESSING') {
+        return 8000;
+      }
+      return false;
+    },
   });
 }
 

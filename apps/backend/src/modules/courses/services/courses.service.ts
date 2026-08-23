@@ -1151,12 +1151,26 @@ export class CoursesService {
       throw new ForbiddenException('يجب الاشتراك في هذا الكورس أولاً لمشاهدة شرح هذا الدرس');
     }
 
-    // Generate signed Bunny Stream playback & embed URLs
     const videoId = lesson.bunnyVideoId || lesson.contentUrl || '';
     let embedUrl = '';
     let playbackUrl = '';
+    let videoStatus: 'READY' | 'PROCESSING' | 'ERROR' = 'READY';
 
     if (videoId) {
+      try {
+        const details = await this.bunnyVideoService.getVideoDetails(videoId);
+        if (details.status === 0 || details.status === 1 || details.status === 2 || details.status === 3) {
+          videoStatus = 'PROCESSING';
+        } else if (details.status === 5) {
+          videoStatus = 'ERROR';
+        } else {
+          videoStatus = 'READY';
+        }
+      } catch {
+        // Fallback: default to READY if status check not available or in test env
+        videoStatus = 'READY';
+      }
+
       playbackUrl = this.bunnyVideoService.generateSecurePlaybackUrl(videoId);
       const libId = (this.bunnyVideoService as any).libraryId || process.env.BUNNY_LIBRARY_ID || '12345';
       const expires = Math.floor(Date.now() / 1000) + 7200;
@@ -1181,6 +1195,7 @@ export class CoursesService {
       courseId: course.id,
       title: lesson.title,
       videoId,
+      videoStatus,
       embedUrl,
       playbackUrl,
       isPreview: lesson.isPreview,

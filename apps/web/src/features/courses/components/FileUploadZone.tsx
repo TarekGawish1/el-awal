@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { UploadCloud, FileText, Image as ImageIcon, Loader2, CheckCircle2, X } from 'lucide-react';
+import { UploadCloud, FileText, Image as ImageIcon, CheckCircle2, X } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
 import toast from 'react-hot-toast';
 
@@ -19,7 +19,7 @@ interface FileUploadZoneProps {
     fileName: string;
   }) => void;
   onRemoveFile?: () => void;
-  fileCategory?: 'image' | 'pdf';
+  fileCategory?: 'image' | 'document';
 }
 
 export function FileUploadZone({
@@ -50,7 +50,7 @@ export function FileUploadZone({
       setIsUploading(true);
       setProgress(10);
 
-      // Step 1: Request presigned PUT URL from backend
+      // Step 1: Request presigned upload URL from backend
       const presignedRes = await apiClient<{
         uploadUrl: string;
         publicUrl: string;
@@ -68,7 +68,7 @@ export function FileUploadZone({
       const { uploadUrl, publicUrl, fileKey } = presignedRes;
       setProgress(30);
 
-      // Step 2: Upload raw binary directly to Cloudflare R2
+      // Step 2: Upload raw binary directly to secure cloud storage
       const xhr = new XMLHttpRequest();
       xhr.open('PUT', uploadUrl);
       xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
@@ -84,7 +84,7 @@ export function FileUploadZone({
         if (xhr.status >= 200 && xhr.status < 300) {
           setProgress(100);
           setIsUploading(false);
-          toast.success('تم رفع الملف بنجاح إلى التخزين السحابي');
+          toast.success('تم رفع الملف وحفظه بنجاح');
           onUploadComplete({
             fileUrl: publicUrl,
             fileKey,
@@ -132,30 +132,31 @@ export function FileUploadZone({
   };
 
   return (
-    <div className="space-y-2">
-      {label && <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">{label}</label>}
+    <div className="space-y-2 text-right">
+      {label && <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">{label}</label>}
 
       {currentFileUrl ? (
-        <div className="relative rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-900 p-3 flex items-center justify-between">
+        <div className="relative rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-white dark:bg-slate-900 p-3.5 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-3 min-w-0">
             {fileCategory === 'image' ? (
-              <div className="w-16 h-12 rounded-xl overflow-hidden bg-slate-200 dark:bg-slate-800 shrink-0">
+              <div className="w-16 h-12 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 border border-slate-200 dark:border-slate-700">
                 <img src={currentFileUrl} alt="Cover" className="w-full h-full object-cover" />
               </div>
             ) : (
-              <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center font-bold text-xs shrink-0">
+              <div className="w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs shrink-0 border border-blue-100 dark:border-blue-800/40">
                 <FileText className="w-5 h-5" />
               </div>
             )}
-            <div className="min-w-0">
-              <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
-                تم رفع الملف بنجاح
-              </p>
+            <div className="min-w-0 text-right">
+              <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>تم رفع الملف بنجاح</span>
+              </div>
               <a
                 href={currentFileUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[11px] text-blue-600 hover:underline flex items-center gap-1"
+                className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline inline-block mt-0.5"
               >
                 معاينة الملف المرفوع
               </a>
@@ -166,9 +167,9 @@ export function FileUploadZone({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-colors"
+              className="px-3.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 hover:text-blue-600 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-colors border border-slate-200 dark:border-slate-700"
             >
-              تغيير
+              تغيير الملف
             </button>
             {onRemoveFile && (
               <button
@@ -188,10 +189,10 @@ export function FileUploadZone({
           onDragLeave={onDragLeave}
           onDrop={onDrop}
           onClick={() => fileInputRef.current?.click()}
-          className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-2 ${
+          className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-2.5 ${
             isDragging
-              ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/20'
-              : 'border-slate-200 dark:border-slate-700/80 hover:border-blue-400 bg-slate-50/50 dark:bg-slate-900/50 hover:bg-white dark:hover:bg-slate-900'
+              ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-950/20'
+              : 'border-slate-300 dark:border-slate-700/80 hover:border-blue-500 bg-slate-50/60 dark:bg-slate-900/50 hover:bg-blue-50/20'
           }`}
         >
           <input
@@ -205,11 +206,11 @@ export function FileUploadZone({
 
           {isUploading ? (
             <div className="w-full max-w-xs space-y-2 py-2">
-              <div className="flex justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
-                <span>جاري نقل ورفع الملف إلى السحابة...</span>
-                <span className="font-mono">{progress}%</span>
+              <div className="flex justify-between text-xs font-bold text-slate-800 dark:text-slate-200">
+                <span>جاري رفع الملف إلى الخادم السحابي المشفر...</span>
+                <span className="font-mono text-blue-600">{progress}%</span>
               </div>
-              <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+              <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden">
                 <div
                   className="bg-blue-600 h-full transition-all duration-300 rounded-full"
                   style={{ width: `${progress}%` }}
@@ -218,7 +219,7 @@ export function FileUploadZone({
             </div>
           ) : (
             <>
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-800/40">
                 {fileCategory === 'image' ? (
                   <ImageIcon className="w-6 h-6" />
                 ) : (
@@ -227,8 +228,10 @@ export function FileUploadZone({
               </div>
               <div>
                 <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{description}</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  {fileCategory === 'image' ? 'PNG, JPG, WEBP حتى 10 ميجابايت' : 'ملفات PDF حتى 50 ميجابايت'}
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                  {fileCategory === 'image'
+                    ? 'الصور المدعومة (صورة عالية الدقة) حتى 10 ميجابايت'
+                    : 'المستندات المدعومة (ملفات الشرح، التمارين، أوراق العمل) حتى 50 ميجابايت'}
                 </p>
               </div>
             </>

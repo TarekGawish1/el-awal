@@ -173,6 +173,7 @@ export const coursesApi = {
     courseId: string;
     title: string;
     videoId: string;
+    videoStatus?: 'READY' | 'PROCESSING' | 'ERROR';
     embedUrl: string;
     playbackUrl: string;
     isPreview: boolean;

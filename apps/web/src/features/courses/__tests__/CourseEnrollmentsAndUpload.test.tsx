@@ -123,7 +123,7 @@ describe('Course DRM, Direct Upload & Hybrid Enrollment Suite', () => {
 
       expect(screen.getByText('تم رفع الملف بنجاح')).toBeInTheDocument();
       expect(screen.getByText('معاينة الملف المرفوع')).toBeInTheDocument();
-      expect(screen.getByText('تغيير')).toBeInTheDocument();
+      expect(screen.getByText('تغيير الملف')).toBeInTheDocument();
     });
   });
 

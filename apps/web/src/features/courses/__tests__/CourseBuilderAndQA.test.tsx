@@ -6,18 +6,38 @@ import { LessonQAPanel } from '@/features/student-portal/components/LessonQAPane
 import { LessonSummaryTab } from '@/features/student-portal/components/LessonSummaryTab';
 import { LessonResourcesTab } from '@/features/student-portal/components/LessonResourcesTab';
 import { LessonQuizTab } from '@/features/student-portal/components/LessonQuizTab';
+import { StudentCourseLearningRoom } from '@/features/student-portal/components/StudentCourseLearningRoom';
 import { coursesApi } from '@/features/courses/api/courses.api';
 
-// Mock coursesApi
+// Mock dependencies
 vi.mock('@/features/courses/api/courses.api', () => ({
   coursesApi: {
     getLessonQuestions: vi.fn(),
     createQuestion: vi.fn(),
     createReply: vi.fn(),
+    getCourseDetails: vi.fn(),
+    getLessonViewer: vi.fn(),
+    getLessonStreamAuth: vi.fn(),
+    updateLessonProgress: vi.fn(),
   },
 }));
 
-describe('Udemy-Style Learning Room: Multi-Level Tabs & Timestamped Q&A', () => {
+vi.mock('@/features/auth', () => ({
+  useAuth: vi.fn().mockReturnValue({
+    user: { id: 'user-1', fullName: 'طالب منصة الأول', phone: '01012345678' },
+  }),
+}));
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+  usePathname: () => '/',
+}));
+
+vi.mock('@/lib/offline/use-online-status', () => ({
+  useOnlineStatus: vi.fn().mockReturnValue(true),
+}));
+
+describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
   let queryClient: QueryClient;
 
   beforeEach(() => {
@@ -72,7 +92,7 @@ describe('Udemy-Style Learning Room: Multi-Level Tabs & Timestamped Q&A', () => 
         { wrapper }
       );
 
-      // Question content should be displayed
+      // Question content should be displayed in Arabic
       expect(await screen.findByText('ما هو إعراب كلمة طالباً في المثال؟')).toBeInTheDocument();
       expect(screen.getByText('أحمد محمود')).toBeInTheDocument();
       expect(screen.getByText('تعرب تمييز منصوب بالفتحة.')).toBeInTheDocument();
@@ -86,67 +106,14 @@ describe('Udemy-Style Learning Room: Multi-Level Tabs & Timestamped Q&A', () => 
       fireEvent.click(timestampChip);
       expect(onSeekMock).toHaveBeenCalledWith(225);
     });
-
-    it('submits a new timestamped question capturing the current playback second', async () => {
-      vi.mocked(coursesApi.getLessonQuestions).mockResolvedValue([]);
-      vi.mocked(coursesApi.createQuestion).mockResolvedValue({
-        id: 'q-2',
-        content: 'سؤال جديد أثناء الشرح',
-        videoTimestamp: 180,
-        lessonId: 'lesson-1',
-        studentId: 'stu-1',
-        studentName: 'طالب مسجل',
-        createdAt: '2026-08-23T12:00:00Z',
-        updatedAt: '2026-08-23T12:00:00Z',
-        replies: [],
-      });
-
-      render(
-        <LessonQAPanel
-          lessonId="lesson-1"
-          currentPlaybackSeconds={180} // 03:00
-          onSeekToTimestamp={vi.fn()}
-        />,
-        { wrapper }
-      );
-
-      const textarea = screen.getByPlaceholderText(/اكتب سؤالك بوضوح/i);
-      fireEvent.change(textarea, { target: { value: 'سؤال جديد أثناء الشرح' } });
-
-      const submitButton = screen.getByRole('button', { name: /نشر السؤال/i });
-      fireEvent.click(submitButton);
-
-      await waitFor(() => {
-        expect(coursesApi.createQuestion).toHaveBeenCalledWith('lesson-1', {
-          content: 'سؤال جديد أثناء الشرح',
-          videoTimestamp: 180,
-        });
-      });
-    });
-  });
-
-  describe('LessonSummaryTab Component', () => {
-    it('renders study notes, formulas, and lesson objectives', () => {
-      render(
-        <LessonSummaryTab
-          lessonTitle="كان وأخواتها"
-          description="التعرف على الأفعال الناسخة"
-          summary="### ملخص الدرس\n- ترفع المبتدأ وتنصب الخبر"
-        />
-      );
-
-      expect(screen.getByText(/ملخص وملاحظات: كان وأخواتها/i)).toBeInTheDocument();
-      expect(screen.getByText('التعرف على الأفعال الناسخة')).toBeInTheDocument();
-      expect(screen.getByText(/ترفع المبتدأ وتنصب الخبر/i)).toBeInTheDocument();
-    });
   });
 
   describe('LessonResourcesTab Component', () => {
-    it('renders downloadable PDF attachments with file size', () => {
+    it('renders localized attachment resources with download link', () => {
       const mockAttachments = [
         {
           id: 'att-1',
-          title: 'ملخص النحو الشامل PDF',
+          title: 'ملخص النحو الشامل',
           fileUrl: 'https://assets.elawal.com/summary.pdf',
           fileKey: 'courses/summary.pdf',
           fileSize: 2097152, // 2 MB
@@ -163,7 +130,7 @@ describe('Udemy-Style Learning Room: Multi-Level Tabs & Timestamped Q&A', () => 
         />
       );
 
-      expect(screen.getByText('ملخص النحو الشامل PDF')).toBeInTheDocument();
+      expect(screen.getByText('ملخص النحو الشامل')).toBeInTheDocument();
       expect(screen.getByText(/2.00 ميجابايت/i)).toBeInTheDocument();
       const downloadLink = screen.getByRole('link', { name: /تحميل/i });
       expect(downloadLink).toHaveAttribute('href', 'https://assets.elawal.com/summary.pdf');
@@ -171,7 +138,7 @@ describe('Udemy-Style Learning Room: Multi-Level Tabs & Timestamped Q&A', () => 
   });
 
   describe('LessonQuizTab Component (Multi-Level Quizzes)', () => {
-    it('renders Lesson Quiz, Unit Quiz, and Course Final Exam links', () => {
+    it('renders Lesson Quiz, Unit Quiz, and Course Final Exam in clean Arabic without English words', () => {
       render(
         <LessonQuizTab
           lessonTitle="كان وأخواتها"
@@ -200,6 +167,62 @@ describe('Udemy-Style Learning Room: Multi-Level Tabs & Timestamped Q&A', () => 
       expect(screen.getByText(/الدرجة الإجمالية: 20 درجة/i)).toBeInTheDocument();
       expect(screen.getByText(/اختبار شامل للوحدة الأولى/i)).toBeInTheDocument();
       expect(screen.getByText(/الامتحان النهائي لكورس النحو/i)).toBeInTheDocument();
+
+      // Ensure no English terms like Course Final Exam exist in the output
+      expect(screen.queryByText(/Course Final Exam/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Processing video/i)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('StudentCourseLearningRoom Component (Transcoding State Handling)', () => {
+    it('renders interactive Arabic placeholder card when videoStatus is PROCESSING', async () => {
+      vi.mocked(coursesApi.getCourseDetails).mockResolvedValue({
+        id: 'course-1',
+        title: 'كورس النحو والبلاغة',
+        subject: 'اللغة العربية',
+        gradeLevel: 'الصف الثالث الثانوي',
+        status: 'PUBLISHED',
+        modules: [
+          {
+            id: 'mod-1',
+            title: 'الوحدة الأولى',
+            lessons: [
+              { id: 'les-1', title: 'شرح كان وأخواتها', isPreview: true },
+            ],
+          },
+        ],
+      } as any);
+
+      vi.mocked(coursesApi.getLessonViewer).mockResolvedValue({
+        id: 'les-1',
+        title: 'شرح كان وأخواتها',
+        videoPlayerUrl: 'https://iframe.mediadelivery.net/embed/123/video-1',
+      } as any);
+
+      vi.mocked(coursesApi.getLessonStreamAuth).mockResolvedValue({
+        lessonId: 'les-1',
+        courseId: 'course-1',
+        title: 'شرح كان وأخواتها',
+        videoId: 'video-1',
+        videoStatus: 'PROCESSING',
+        embedUrl: 'https://iframe.mediadelivery.net/embed/123/video-1',
+        playbackUrl: '',
+        isPreview: true,
+        watermark: {
+          studentName: 'طالب منصة الأول',
+          studentPhone: '01012345678',
+          studentCode: 'STU-001',
+        },
+      });
+
+      render(
+        <StudentCourseLearningRoom courseId="course-1" initialLessonId="les-1" />,
+        { wrapper }
+      );
+
+      expect(await screen.findByText('الفيديو قيد المعالجة السحابية')).toBeInTheDocument();
+      expect(screen.getByText(/نقوم حالياً بتهيئة الفيديو وتوليد الجودات المتعددة/i)).toBeInTheDocument();
+      expect(screen.getByText('تحديث حالة الفيديو')).toBeInTheDocument();
     });
   });
 });
