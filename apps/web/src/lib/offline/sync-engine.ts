@@ -892,11 +892,17 @@ class OfflineSyncEngine {
         this.queryClient.invalidateQueries({ queryKey: ['group-defaulters'] });
       }
 
-      // 8. Downstream Pull: Fetch updated server snapshot and merge into IndexedDB + TanStack Query cache
-      try {
-        await bootstrapManager.performBootstrap({ queryClient: this.queryClient });
-      } catch (pullErr) {
-        console.warn('Downstream bootstrap sync error after outbox flush:', pullErr);
+      // 8. Downstream Pull: fetch the delta snapshot from the server and merge it
+      // into IndexedDB so the local cache reflects any concurrent remote changes.
+      // Only triggered when at least one mutation was successfully synced; a flush
+      // with zero synced items (e.g. all-failed or empty outbox) does NOT need a
+      // downstream pull because nothing changed on the server side from our end.
+      if (syncedCount > 0) {
+        try {
+          await bootstrapManager.performBootstrap({ queryClient: this.queryClient });
+        } catch (pullErr) {
+          console.warn('Downstream bootstrap sync error after outbox flush:', pullErr);
+        }
       }
     } finally {
       this.isSyncingState = false;
@@ -1126,8 +1132,13 @@ class OfflineSyncEngine {
 
     onProgress?.(85, 'تحميل التحديثات من الخادم وتحديث التخزين المحلي...');
     this.notify('SYNC_PROGRESS', { progress: 85, step: 'PULLING_DIFF' });
+    // Always pull the downstream delta here (skipCooldown) because the user
+    // explicitly requested a bi-directional sync.  If flushOutbox already ran
+    // a bootstrap the cooldown guard in bootstrap-manager will have updated
+    // lastBootstrapAt, but skipCooldown ensures we still fetch the latest diff
+    // so the UI reflects any concurrent remote changes immediately.
     try {
-      await bootstrapManager.performBootstrap({ queryClient: this.queryClient });
+      await bootstrapManager.performBootstrap({ queryClient: this.queryClient, skipCooldown: true });
     } catch (e) {
       console.warn('Bootstrap refresh error during bidirectional sync:', e);
     }

@@ -23,6 +23,11 @@ class BootstrapManager {
   private isBootstrappingState: boolean = false;
   private lastError: string | null = null;
   private listeners: Set<BootstrapListener> = new Set();
+  /** Wall-clock time of the last successful bootstrap (full or delta). */
+  private lastBootstrapAt: number = 0;
+  /** Minimum milliseconds between two delta bootstrap calls.  Full bootstrap
+   *  (forceFull) and explicit skipCooldown calls always bypass this. */
+  private readonly MIN_DELTA_INTERVAL_MS = 3 * 60 * 1000; // 3 minutes
 
   public isBootstrapping(): boolean {
     return this.isBootstrappingState;
@@ -47,15 +52,34 @@ class BootstrapManager {
     });
   }
 
+  public getLastBootstrapAt(): number {
+    return this.lastBootstrapAt;
+  }
+
   /**
    * Executes full tenant bootstrap hydration or incremental delta sync.
+   *
+   * @param options.forceFull  Ignore lastBootstrapTimestamp and download the full snapshot.
+   * @param options.skipCooldown  Bypass the 3-minute cooldown (e.g. for explicit bi-directional
+   *   syncs where we always want a fresh pull, but still use delta).
+   * @param options.queryClient  React Query client to update in-memory caches.
    */
   public async performBootstrap(options?: {
     forceFull?: boolean;
+    skipCooldown?: boolean;
     queryClient?: QueryClient;
   }): Promise<{ success: boolean; isDelta: boolean; counts?: Record<string, number> }> {
     if (this.isBootstrappingState) {
       return { success: false, isDelta: false };
+    }
+
+    // Skip if last bootstrap was very recent, unless the caller explicitly opted out
+    // of the cooldown or requested a full re-download.
+    if (!options?.forceFull && !options?.skipCooldown) {
+      const elapsed = Date.now() - this.lastBootstrapAt;
+      if (elapsed < this.MIN_DELTA_INTERVAL_MS) {
+        return { success: true, isDelta: true };
+      }
     }
 
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
@@ -95,6 +119,11 @@ class BootstrapManager {
 
       // Robust payload extraction handling any nesting envelope (e.g. response.data.data, response.data, or direct)
       const rootData = response?.data?.data || response?.data || response || {};
+
+      // Determine whether this is a delta response BEFORE ingesting data so we
+      // can choose the correct merge strategy (upsert-only vs. reconcile+prune).
+      const isDeltaResponse = response.isDelta ?? rootData.isDelta ?? false;
+
       const payload = {
         students: Array.isArray(rootData.students) ? rootData.students : Array.isArray(response?.students) ? response.students : [],
         groups: Array.isArray(rootData.groups) ? rootData.groups : Array.isArray(response?.groups) ? response.groups : [],
@@ -117,14 +146,21 @@ class BootstrapManager {
 
       this.notify('PROGRESS', 50, 'حفظ سجلات الطلاب والمجموعات والحصص محلياً...');
 
-      // 1. Ingest Students (Reconciles with server and prunes stale local orphans)
+      // 1. Ingest Students
+      // Full snapshot → reconcile with server and prune orphaned local records.
+      // Delta snapshot → upsert only; never prune, because the server only returns
+      //   the changed subset and deleting the rest would corrupt local state.
       if (payload.students.length > 0) {
-        await offlineDb.syncStudentsSnapshot(payload.students);
-        if (qc) {
-          qc.setQueryData(['students'], {
-            data: payload.students,
-            meta: { total: payload.students.length, hasMore: false },
-          });
+        if (isDeltaResponse) {
+          await offlineDb.bulkPutStudents(payload.students);
+        } else {
+          await offlineDb.syncStudentsSnapshot(payload.students);
+          if (qc) {
+            qc.setQueryData(['students'], {
+              data: payload.students,
+              meta: { total: payload.students.length, hasMore: false },
+            });
+          }
         }
       }
 
@@ -206,11 +242,11 @@ class BootstrapManager {
 
       const syncTimestamp = response.timestamp || rootData.timestamp || Date.now();
       const syncVersion = response.snapshotVersion || rootData.snapshotVersion || 'v1';
-      const isDelta = response.isDelta ?? rootData.isDelta ?? false;
 
-      // Record sync timestamp
+      // Record sync timestamp and mark the local wall clock for the cooldown guard.
       await offlineDb.setMetadata('lastBootstrapTimestamp', syncTimestamp);
       await offlineDb.setMetadata('syncVersion', syncVersion);
+      this.lastBootstrapAt = Date.now();
 
       const counts = {
         students: payload.students.length,
@@ -224,12 +260,12 @@ class BootstrapManager {
       this.isBootstrappingState = false;
       this.notify('SUCCESS', 100, 'تم تجهيز مساحة العمل بنجاح والجاهزية للعمل بدون إنترنت 🚀', {
         counts,
-        isDelta,
+        isDelta: isDeltaResponse,
       });
 
       return {
         success: true,
-        isDelta,
+        isDelta: isDeltaResponse,
         counts,
       };
     } catch (err: any) {
