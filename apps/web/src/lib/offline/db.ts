@@ -18,6 +18,8 @@
  *   - sync_conflicts: Unresolved conflict logs
  */
 
+import { parseStudentQr } from '../qr/qr-parser';
+
 export interface StudentEntity {
   id: string;
   userId?: string;
@@ -1602,23 +1604,44 @@ class OfflineDatabase {
     groupId: string;
     groupName: string;
   } | null> {
-    const cleanToken = qrCodeToken.trim();
-
-    // 1. Direct student store index check
-    const student = await this.getStudentByIdOffline(cleanToken);
-    if (student) {
-      const group = student.groupId ? await this.getGroupByIdOffline(student.groupId) : null;
-      return {
-        student,
-        groupId: student.groupId || group?.id || '',
-        groupName: group?.name || 'المجموعة الدراسية',
-      };
+    if (!qrCodeToken || typeof qrCodeToken !== 'string') {
+      return null;
     }
 
+    const parsed = parseStudentQr(qrCodeToken);
+    if (!parsed.isValid) {
+      return null;
+    }
+
+    const cleanToken = qrCodeToken.trim();
+    const candidateIds = new Set<string>();
+    if (parsed.studentId) candidateIds.add(parsed.studentId);
+    if (parsed.studentCode) candidateIds.add(parsed.studentCode);
+    if (parsed.token) candidateIds.add(parsed.token);
+    candidateIds.add(cleanToken);
+
+    // 1. Direct student store index check (by id or token)
+    for (const candidate of candidateIds) {
+      const student = await this.getStudentByIdOffline(candidate);
+      if (student) {
+        const group = student.groupId ? await this.getGroupByIdOffline(student.groupId) : null;
+        return {
+          student,
+          groupId: student.groupId || group?.id || '',
+          groupName: group?.name || 'المجموعة الدراسية',
+        };
+      }
+    }
+
+    // 2. Search all students by qrCodeToken, studentCode, or id
     const allStudents = await this.getStudentsOffline();
-    const foundDirect = allStudents.find(
-      (s) => s.qrCodeToken === cleanToken || s.studentCode === cleanToken || s.id === cleanToken,
-    );
+    const foundDirect = allStudents.find((s) => {
+      const sQr = s.qrCodeToken ? String(s.qrCodeToken).trim() : '';
+      const sCode = s.studentCode ? String(s.studentCode).trim() : '';
+      const sId = s.id ? String(s.id).trim() : '';
+      return candidateIds.has(sQr) || candidateIds.has(sCode) || candidateIds.has(sId);
+    });
+
     if (foundDirect) {
       const group = foundDirect.groupId ? await this.getGroupByIdOffline(foundDirect.groupId) : null;
       return {
@@ -1628,12 +1651,15 @@ class OfflineDatabase {
       };
     }
 
-    // 2. Offline roster cache fallback
+    // 3. Offline roster cache fallback
     const rosters = await this.getAllCachedRosters();
     for (const roster of rosters) {
-      const found = roster.students.find(
-        (s) => s.qrCodeToken === cleanToken || s.id === cleanToken || s.studentCode === cleanToken,
-      );
+      const found = roster.students.find((s) => {
+        const sQr = s.qrCodeToken ? String(s.qrCodeToken).trim() : '';
+        const sCode = s.studentCode ? String(s.studentCode).trim() : '';
+        const sId = s.id ? String(s.id).trim() : '';
+        return candidateIds.has(sQr) || candidateIds.has(sCode) || candidateIds.has(sId);
+      });
       if (found) {
         return { student: found, groupId: roster.groupId, groupName: roster.groupName };
       }

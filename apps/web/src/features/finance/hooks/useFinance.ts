@@ -12,6 +12,7 @@ import { offlineDb } from '@/lib/offline/db';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
 import { formatBookletMismatchError } from '../utils/bookletEligibility';
+import { parseStudentQr } from '@/lib/qr/qr-parser';
 
 export const financeKeys = {
   all: ['finance'] as const,
@@ -250,13 +251,30 @@ export function useScanPaymentQr() {
 
   return useMutation({
     mutationFn: async (payload: ScanPaymentQrPayload): Promise<ScanPaymentQrResponse & { isOfflineSaved?: boolean }> => {
+      // 1. Strict QR Format & Prefix Verification
+      const parsed = parseStudentQr(payload.qrCodeToken);
+      if (!parsed.isValid) {
+        const err: any = new Error(parsed.errorMessage || 'الرمز الممسوح ضوئياً لا يتبع منصة الأول وغير مسجل في النظام.');
+        err.code = parsed.error || 'INVALID_QR_CODE';
+        throw err;
+      }
+
+      const effectiveToken = parsed.token || payload.qrCodeToken;
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
       if (!isOnline) {
+        // 2. Strict Offline Database Lookup Verification
         const localMatch = await offlineDb.findStudentByQrToken(payload.qrCodeToken);
-        const resolvedStudentName = localMatch?.student?.fullName || 'طالب';
-        const studentId = localMatch?.student?.id || payload.qrCodeToken;
-        const groupId = payload.groupId || localMatch?.groupId;
+        if (!localMatch || !localMatch.student) {
+          const err: any = new Error('بيانات الطالب غير مسجلة في قاعدة البيانات المحلية. يرجى تحديث البيانات عند توفر الإنترنت.');
+          err.code = 'STUDENT_NOT_FOUND';
+          throw err;
+        }
+
+        const student = localMatch.student;
+        const studentId = student.id;
+        const resolvedStudentName = student.fullName || student.user?.fullName || 'طالب';
+        const groupId = payload.groupId || localMatch.groupId || student.groupId;
         const periodYear = Number(payload.periodYear || new Date().getFullYear());
         const periodMonth = Number(payload.periodMonth || (new Date().getMonth() + 1));
         const isBooklet = payload.paymentType === 'BOOKLET' || Boolean(payload.bookletId);
@@ -275,7 +293,7 @@ export function useScanPaymentQr() {
               student: {
                 id: studentId,
                 fullName: resolvedStudentName,
-                phone: localMatch?.student?.phone || null,
+                phone: student.phone || student.user?.phone || null,
               },
               booklet: booklet ? {
                 id: booklet.id,
@@ -284,7 +302,7 @@ export function useScanPaymentQr() {
               } : undefined,
               group: groupId ? {
                 id: groupId,
-                name: localMatch?.groupName || 'المجموعة',
+                name: localMatch.groupName || 'المجموعة',
               } : null,
             };
           }
@@ -310,11 +328,11 @@ export function useScanPaymentQr() {
             student: {
               id: studentId,
               fullName: resolvedStudentName,
-              phone: localMatch?.student?.phone || null,
+              phone: student.phone || student.user?.phone || null,
             },
             group: groupId ? {
               id: groupId,
-              name: localMatch?.groupName || 'المجموعة',
+              name: localMatch.groupName || 'المجموعة',
             } : null,
           };
         }
@@ -336,11 +354,11 @@ export function useScanPaymentQr() {
             student: {
               id: studentId,
               fullName: resolvedStudentName,
-              phone: localMatch?.student?.phone || null,
+              phone: student.phone || student.user?.phone || null,
             },
             group: groupId ? {
               id: groupId,
-              name: localMatch?.groupName || 'المجموعة',
+              name: localMatch.groupName || 'المجموعة',
             } : null,
           };
         }
@@ -372,6 +390,7 @@ export function useScanPaymentQr() {
           'POST',
           {
             ...payload,
+            qrCodeToken: effectiveToken,
             studentId,
             groupId,
             periodYear,
@@ -388,17 +407,17 @@ export function useScanPaymentQr() {
           student: {
             id: studentId,
             fullName: resolvedStudentName,
-            phone: localMatch?.student?.phone || null,
+            phone: student.phone || student.user?.phone || null,
           },
           group: groupId ? {
             id: groupId,
-            name: localMatch?.groupName || 'المجموعة',
+            name: localMatch.groupName || 'المجموعة',
           } : null,
         };
       }
 
       try {
-        return await scanPaymentQr(payload);
+        return await scanPaymentQr({ ...payload, qrCodeToken: effectiveToken });
       } catch (error: any) {
         const bookletMismatchMessage = formatBookletMismatchError(
           error?.response?.data?.message || error?.message,
@@ -409,11 +428,18 @@ export function useScanPaymentQr() {
 
         if (typeof navigator !== 'undefined' && !navigator.onLine) {
           const localMatch = await offlineDb.findStudentByQrToken(payload.qrCodeToken);
-          const studentId = localMatch?.student?.id || payload.qrCodeToken;
-          const groupId = payload.groupId || localMatch?.groupId;
+          if (!localMatch || !localMatch.student) {
+            const err: any = new Error('بيانات الطالب غير مسجلة في قاعدة البيانات المحلية. يرجى تحديث البيانات عند توفر الإنترنت.');
+            err.code = 'STUDENT_NOT_FOUND';
+            throw err;
+          }
+
+          const student = localMatch.student;
+          const studentId = student.id;
+          const groupId = payload.groupId || localMatch.groupId || student.groupId;
           const periodYear = Number(payload.periodYear || new Date().getFullYear());
           const periodMonth = Number(payload.periodMonth || (new Date().getMonth() + 1));
-          const resolvedStudentName = localMatch?.student?.fullName || 'طالب';
+          const resolvedStudentName = student.fullName || student.user?.fullName || 'طالب';
 
           const paymentCheck = await offlineDb.isPaymentRecordedOffline(
             studentId,
@@ -429,8 +455,8 @@ export function useScanPaymentQr() {
               isOfflineSaved: true,
               message: `تم سداد اشتراك شهر ${periodMonth} - ${periodYear} للطالب مسبقاً`,
               payment: paymentCheck.existingPayment,
-              student: { id: studentId, fullName: resolvedStudentName, phone: localMatch?.student?.phone || null },
-              group: groupId ? { id: groupId, name: localMatch?.groupName || 'المجموعة' } : null,
+              student: { id: studentId, fullName: resolvedStudentName, phone: student.phone || student.user?.phone || null },
+              group: groupId ? { id: groupId, name: localMatch.groupName || 'المجموعة' } : null,
             };
           }
 
@@ -459,7 +485,14 @@ export function useScanPaymentQr() {
             'finance',
             API_ENDPOINTS.SUBSCRIPTIONS.SCAN_QR,
             'POST',
-            payload,
+            {
+              ...payload,
+              qrCodeToken: effectiveToken,
+              studentId,
+              groupId,
+              periodYear,
+              periodMonth,
+            },
           );
 
           return {
@@ -468,8 +501,8 @@ export function useScanPaymentQr() {
             isOfflineSaved: true,
             message: 'تم حفظ السداد محلياً بنجاح في انتظار الاتصال 💾',
             payment: paymentRecord,
-            student: { id: studentId, fullName: resolvedStudentName, phone: localMatch?.student?.phone || null },
-            group: groupId ? { id: groupId, name: localMatch?.groupName || 'المجموعة' } : null,
+            student: { id: studentId, fullName: resolvedStudentName, phone: student.phone || student.user?.phone || null },
+            group: groupId ? { id: groupId, name: localMatch.groupName || 'المجموعة' } : null,
           };
         }
         throw error;

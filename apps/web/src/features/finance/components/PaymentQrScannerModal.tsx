@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Alert';
 import { formatBookletMismatchError, isBookletEligibleForStudent } from '../utils/bookletEligibility';
 import { Badge } from '@/components/ui/Badge';
+import { parseStudentQr } from '@/lib/qr/qr-parser';
 import { 
   QrCode, 
   CheckCircle2, 
@@ -51,6 +52,7 @@ export function PaymentQrScannerModal({
   const [lastScanResult, setLastScanResult] = useState<{
     success?: boolean;
     isDuplicate?: boolean;
+    title?: string;
     message?: string;
     studentName?: string;
     groupName?: string;
@@ -139,6 +141,22 @@ export function PaymentQrScannerModal({
 
     const token = detectedCodes[0]?.rawValue;
     if (!token) return;
+
+    // Strict client-side format and schema verification
+    const parsed = parseStudentQr(token);
+    if (!parsed.isValid) {
+      playBeep(false);
+      setLastScanResult({
+        success: false,
+        title: 'رمز QR غير صالح',
+        message: 'الرمز الممسوح ضوئياً لا يتبع منصة الأول وغير مسجل في النظام.',
+      });
+      setLocked(true);
+      setTimeout(() => {
+        setLocked(false);
+      }, 1500);
+      return;
+    }
 
     if (paymentType === 'BOOKLET' && !groupId) {
       setLastScanResult({
@@ -231,15 +249,21 @@ export function PaymentQrScannerModal({
           error.response?.data?.message ||
           error.message ||
           'رمز QR غير صالح أو حدث خطأ أثناء التسجيل';
+        const errorMsg = formatBookletMismatchError(msg) || (Array.isArray(msg) ? msg[0] : msg);
+        const isNotFound = error?.code === 'STUDENT_NOT_FOUND' || String(errorMsg).includes('غير مسجلة في قاعدة البيانات المحلية');
+
         setLastScanResult({
           success: false,
-          message: formatBookletMismatchError(msg) || (Array.isArray(msg) ? msg[0] : msg),
+          title: isNotFound ? 'طالب غير موجود' : 'رمز QR غير صالح',
+          message: isNotFound
+            ? 'بيانات الطالب غير مسجلة في قاعدة البيانات المحلية. يرجى تحديث البيانات عند توفر الإنترنت.'
+            : errorMsg,
         });
 
-        // Resume scanner after 2.2 seconds
+        // Resume scanner after 1.5 seconds
         setTimeout(() => {
           setLocked(false);
-        }, 2200);
+        }, 1500);
       },
     });
   };
@@ -539,7 +563,7 @@ export function PaymentQrScannerModal({
                     <AlertCircle className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-rose-900 text-sm">فشل تسجيل الدفعة</h4>
+                    <h4 className="font-bold text-rose-900 text-sm">{lastScanResult.title || 'فشل تسجيل الدفعة'}</h4>
                     <p className="text-xs text-rose-700 mt-0.5">{lastScanResult.message}</p>
                   </div>
                 </div>

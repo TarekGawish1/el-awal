@@ -6,6 +6,7 @@ import { useScanPaymentQr } from '../hooks/useFinance';
 import { useBooklets } from '@/features/booklets/hooks/useBooklets';
 import { Alert } from '@/components/ui/Alert';
 import { RefreshCcw, CreditCard, BookOpen } from 'lucide-react';
+import { parseStudentQr } from '@/lib/qr/qr-parser';
 import toast from 'react-hot-toast';
 
 interface FinanceQrScannerProps {
@@ -35,6 +36,8 @@ export function FinanceQrScanner({
   const [lastScanResult, setLastScanResult] = useState<{
     success?: boolean;
     isDuplicate?: boolean;
+    isNotFound?: boolean;
+    title?: string;
     message?: string;
     studentName?: string;
     bookletTitle?: string;
@@ -112,6 +115,25 @@ export function FinanceQrScanner({
     const token = detectedCodes[0]?.rawValue;
     if (!token) return;
 
+    // Strict client-side format and schema verification
+    const parsed = parseStudentQr(token);
+    if (!parsed.isValid) {
+      playBeep('error');
+      setFlashType('error');
+      setLastScanResult({
+        success: false,
+        title: 'رمز QR غير صالح',
+        message: 'الرمز الممسوح ضوئياً لا يتبع منصة الأول وغير مسجل في النظام.',
+      });
+      toast.error('الرمز الممسوح ضوئياً لا يتبع منصة الأول وغير مسجل في النظام.');
+      setLocked(true);
+      setTimeout(() => {
+        setLocked(false);
+        setFlashType(null);
+      }, 1500);
+      return;
+    }
+
     if (paymentType === 'BOOKLET' && !selectedBookletId) {
       toast.error('يرجى اختيار المذكرة المراد تحصيل قيمتها أولاً');
       return;
@@ -187,17 +209,22 @@ export function FinanceQrScanner({
             error?.response?.data?.message ||
             'رمز الـ QR غير صالح أو حدث خطأ أثناء المسح.';
           const errorMsg = Array.isArray(message) ? message[0] : message;
+          const isNotFound = error?.code === 'STUDENT_NOT_FOUND' || errorMsg.includes('غير مسجلة في قاعدة البيانات المحلية');
 
           setLastScanResult({
             success: false,
-            message: errorMsg,
+            isNotFound,
+            title: isNotFound ? 'طالب غير موجود' : 'رمز QR غير صالح',
+            message: isNotFound
+              ? 'بيانات الطالب غير مسجلة في قاعدة البيانات المحلية. يرجى تحديث البيانات عند توفر الإنترنت.'
+              : errorMsg,
           });
           toast.error(errorMsg);
 
           setTimeout(() => {
             setLocked(false);
             setFlashType(null);
-          }, 1200);
+          }, 1500);
         },
       },
     );
@@ -326,12 +353,15 @@ export function FinanceQrScanner({
             variant={
               lastScanResult.success
                 ? 'success'
-                : lastScanResult.isDuplicate
+                : lastScanResult.isDuplicate || lastScanResult.isNotFound
                 ? 'warning'
                 : 'error'
             }
           >
             <div className="flex flex-col">
+              {lastScanResult.title && (
+                <span className="font-bold text-sm mb-1">{lastScanResult.title}</span>
+              )}
               <span className="font-semibold">{lastScanResult.message}</span>
               {lastScanResult.studentName && (
                 <span className="text-sm mt-1 font-bold">
