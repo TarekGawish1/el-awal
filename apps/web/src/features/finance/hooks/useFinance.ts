@@ -11,6 +11,7 @@ import { PaymentQuery, RecordPaymentPayload, ScanPaymentQrPayload, DefaultersRes
 import { offlineDb } from '@/lib/offline/db';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
+import { formatBookletMismatchError } from '../utils/bookletEligibility';
 
 export const financeKeys = {
   all: ['finance'] as const,
@@ -398,7 +399,14 @@ export function useScanPaymentQr() {
 
       try {
         return await scanPaymentQr(payload);
-      } catch (error) {
+      } catch (error: any) {
+        const bookletMismatchMessage = formatBookletMismatchError(
+          error?.response?.data?.message || error?.message,
+        );
+        if (bookletMismatchMessage) {
+          throw new Error(bookletMismatchMessage);
+        }
+
         if (typeof navigator !== 'undefined' && !navigator.onLine) {
           const localMatch = await offlineDb.findStudentByQrToken(payload.qrCodeToken);
           const studentId = localMatch?.student?.id || payload.qrCodeToken;

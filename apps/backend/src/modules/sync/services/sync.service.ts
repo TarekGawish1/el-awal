@@ -32,7 +32,13 @@ export interface DomainSyncResult {
   duplicatesIgnored: number;
   failedCount: number;
   processedOperationIds: string[];
-  conflicts: Array<{ operationId: string; reason: string; entityId?: string }>;
+  conflicts: Array<{
+    operationId: string;
+    reason: string;
+    entityId?: string;
+    code?: string;
+    details?: Record<string, string>;
+  }>;
   idMappings?: Record<string, string>;
   processedPayments?: any[];
 }
@@ -1157,8 +1163,15 @@ export class SyncService {
             if (booklet && student.gradeLevel && booklet.gradeLevel && student.gradeLevel !== booklet.gradeLevel) {
               result.conflicts.push({
                 operationId: opId,
-                reason: `INVALID_BOOKLET_FOR_STUDENT: هذه المذكرة غير مخصصة للصف الدراسي أو المجموعة الخاصة بهذا الطالب (${booklet.gradeLevel} != ${student.gradeLevel})`,
+                reason: 'هذه المذكرة غير مخصصة للصف الدراسي لهذا الطالب',
+                code: 'BOOKLET_GRADE_MISMATCH',
                 entityId: op.bookletId,
+                details: {
+                  studentId: student.id,
+                  studentGradeLevel: student.gradeLevel,
+                  bookletId: booklet.id,
+                  bookletGradeLevel: booklet.gradeLevel,
+                },
               });
               result.failedCount++;
               return;
@@ -1576,8 +1589,25 @@ export class SyncService {
             });
 
             if (existing) {
+              if (g.type === 'UPDATE_GROUP') {
+                await tx.academicGroup.update({
+                  where: { id: existing.id },
+                  data: {
+                    name: g.name,
+                    gradeLevel: g.gradeLevel,
+                    academicYear: g.academicYear ?? existing.academicYear,
+                    academicTerm: g.academicTerm ?? existing.academicTerm,
+                    description: g.description,
+                    maxCapacity: g.maxCapacity ?? existing.maxCapacity,
+                    monthlyFee: g.monthlyFee ?? existing.monthlyFee,
+                  },
+                });
+              }
               idMappings.groups[g.clientTempId] = existing.id;
             } else {
+              if (g.type === 'UPDATE_GROUP') {
+                throw new NotFoundException(`Academic group [${g.clientTempId}] not found for update`);
+              }
               const created = await tx.academicGroup.create({
                 data: {
                   id: g.clientTempId,
@@ -1633,10 +1663,31 @@ export class SyncService {
             let finalQrToken = '';
 
             if (existingStudent) {
+              if (s.type === 'UPDATE_STUDENT') {
+                await tx.user.update({
+                  where: { id: existingStudent.id },
+                  data: {
+                    fullName: s.fullName ?? s.name ?? existingStudent.user?.fullName,
+                    phone: s.phone ?? existingStudent.user?.phone,
+                    email: s.email ?? existingStudent.user?.email,
+                  },
+                });
+                await tx.studentProfile.update({
+                  where: { id: existingStudent.id },
+                  data: {
+                    gradeLevel: s.gradeLevel ?? existingStudent.gradeLevel,
+                    academicStage: s.academicStage ?? existingStudent.academicStage,
+                    emergencyPhone: s.parentPhone ?? existingStudent.emergencyPhone,
+                  },
+                });
+              }
               finalStudentId = existingStudent.id;
               finalStudentCode = existingStudent.studentCode || '';
               finalQrToken = existingStudent.qrCodeToken || '';
             } else {
+              if (s.type === 'UPDATE_STUDENT') {
+                throw new NotFoundException(`Student [${s.clientTempId}] not found for update`);
+              }
               const passwordHash = await bcrypt.hash(s.password || 'Password123!', 10);
               const userRecord = await tx.user.create({
                 data: {

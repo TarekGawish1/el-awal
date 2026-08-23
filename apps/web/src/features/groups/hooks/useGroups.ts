@@ -315,17 +315,37 @@ export function useUpdateGroup() {
             updatedAt: Date.now(),
           };
           await offlineDb.bulkPutGroups([updated]);
+
+          const roster = await offlineDb.getRoster(id);
+          if (roster) {
+            await offlineDb.cacheRoster({
+              ...roster,
+              groupName: updated.name,
+              gradeLevel: updated.gradeLevel,
+              monthlyFee: updated.monthlyFee,
+              sessions: updated.schedules ?? roster.sessions,
+              updatedAt: Date.now(),
+            });
+          }
+
+          queryClient.setQueryData(['groups', id], updated as unknown as Group);
+          queryClient.setQueriesData({ queryKey: ['groups'] }, (old: Group[] | undefined) =>
+            Array.isArray(old) ? old.map((group) => (group.id === id ? updated as unknown as Group : group)) : old,
+          );
+
+          await syncEngine.enqueue(
+            'groups',
+            API_ENDPOINTS.GROUPS.UPDATE(id),
+            'PATCH',
+            payload,
+            { rollbackData: existing },
+          );
+
+          toast.success('تم تعديل المجموعة محلياً بنجاح وسيتم إرسال التعديل فور الاتصال 💾');
+          return updated as unknown as Group;
         }
 
-        await syncEngine.enqueue(
-          'groups',
-          API_ENDPOINTS.GROUPS.UPDATE(id),
-          'PATCH',
-          payload,
-        );
-
-        toast.success('تم تعديل المجموعة محلياً بنجاح وسيتم إرسال التعديل فور الاتصال 💾');
-        return { id, ...payload } as unknown as Group;
+        throw new Error('تعذر العثور على بيانات المجموعة المخزنة محلياً');
       }
 
       return updateGroup(id, payload);

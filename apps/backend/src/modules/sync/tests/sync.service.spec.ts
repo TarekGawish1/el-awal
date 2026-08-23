@@ -29,6 +29,7 @@ describe('SyncService', () => {
       findUnique: jest.fn(),
       findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn(),
+      update: jest.fn(),
       count: jest.fn().mockResolvedValue(47),
     },
     groupEnrollment: {
@@ -47,10 +48,12 @@ describe('SyncService', () => {
       findFirst: jest.fn(),
       findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn(),
+      update: jest.fn(),
     },
     user: {
       create: jest.fn(),
       findUnique: jest.fn(),
+      update: jest.fn(),
     },
     teacherProfile: {
       findFirst: jest.fn(),
@@ -354,6 +357,46 @@ describe('SyncService', () => {
       expect(result.idMappings['op-pay-booklet-1']).toBe('pay-booklet-new');
     });
 
+    it('should return a structured conflict when a booklet grade does not match the student grade', async () => {
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue({
+        id: 'student-1',
+        gradeLevel: 'الصف الأول الثانوي',
+        groupEnrollments: [],
+      });
+      mockPrismaService.booklet.findUnique.mockResolvedValue({
+        id: 'booklet-1',
+        gradeLevel: 'الصف الثالث الثانوي',
+      });
+
+      const result = await service.syncPaymentsBatch(mockTeacherUser, {
+        operations: [
+          {
+            id: 'op-pay-booklet-mismatch',
+            studentId: 'student-1',
+            paymentType: 'BOOKLET',
+            bookletId: 'booklet-1',
+            amountPaid: 85,
+          },
+        ],
+      });
+
+      expect(result.failedCount).toBe(1);
+      expect(result.conflicts).toEqual([
+        expect.objectContaining({
+          operationId: 'op-pay-booklet-mismatch',
+          code: 'BOOKLET_GRADE_MISMATCH',
+          entityId: 'booklet-1',
+          details: {
+            studentId: 'student-1',
+            studentGradeLevel: 'الصف الأول الثانوي',
+            bookletId: 'booklet-1',
+            bookletGradeLevel: 'الصف الثالث الثانوي',
+          },
+        }),
+      ]);
+      expect(mockPrismaService.studentPaymentRecord.create).not.toHaveBeenCalled();
+    });
+
     it('should delete the StudentPaymentRecord in PostgreSQL when processing a DELETE_PAYMENT operation', async () => {
       mockPrismaService.studentPaymentRecord.findUnique.mockResolvedValue({
         id: 'pay-to-delete',
@@ -533,6 +576,86 @@ describe('SyncService', () => {
       expect(mockPrismaService.academicGroup.create).toHaveBeenCalledTimes(1);
       expect(mockPrismaService.studentProfile.create).toHaveBeenCalledTimes(2);
       expect(mockPrismaService.groupEnrollment.create).toHaveBeenCalledTimes(2);
+    });
+
+    it('should atomically apply UPDATE_GROUP and UPDATE_STUDENT operations', async () => {
+      const groupId = '018d39f4-6a8b-7000-8000-000000000010';
+      const studentId = '018d39f4-6a8b-7000-8000-000000000011';
+      mockPrismaService.teacherProfile.findFirst.mockResolvedValue({ id: 'teacher-profile-1' });
+      mockPrismaService.academicGroup.findFirst.mockResolvedValue({
+        id: groupId,
+        academicYear: '2026-2027',
+        academicTerm: 'FIRST_TERM',
+        maxCapacity: 40,
+        monthlyFee: 300,
+      });
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue({
+        id: studentId,
+        studentCode: 'STU-2026-00001',
+        qrCodeToken: 'qr-existing',
+        gradeLevel: 'الصف الأول الثانوي',
+        academicStage: 'ثانوي',
+        emergencyPhone: '01000000000',
+        user: {
+          fullName: 'الاسم السابق',
+          phone: '01000000000',
+          email: 'old@example.com',
+        },
+      });
+
+      const result = await service.syncUnifiedBatch(mockTeacherUser, {
+        groups: [
+          {
+            type: 'UPDATE_GROUP',
+            clientTempId: groupId,
+            name: 'مجموعة الفيزياء المحدثة',
+            gradeLevel: 'الصف الثاني الثانوي',
+            monthlyFee: 450,
+          },
+        ],
+        students: [
+          {
+            type: 'UPDATE_STUDENT',
+            clientTempId: studentId,
+            fullName: 'الاسم المحدث',
+            phone: '01111111111',
+            email: 'new@example.com',
+            gradeLevel: 'الصف الثاني الثانوي',
+            academicStage: 'ثانوي',
+          },
+        ],
+      } as any);
+
+      expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockPrismaService.academicGroup.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: groupId },
+          data: expect.objectContaining({
+            name: 'مجموعة الفيزياء المحدثة',
+            gradeLevel: 'الصف الثاني الثانوي',
+            monthlyFee: 450,
+          }),
+        }),
+      );
+      expect(mockPrismaService.user.update).toHaveBeenCalledWith({
+        where: { id: studentId },
+        data: {
+          fullName: 'الاسم المحدث',
+          phone: '01111111111',
+          email: 'new@example.com',
+        },
+      });
+      expect(mockPrismaService.studentProfile.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: studentId },
+          data: expect.objectContaining({ gradeLevel: 'الصف الثاني الثانوي' }),
+        }),
+      );
+      expect(result.idMappings.groups[groupId]).toBe(groupId);
+      expect(result.idMappings.students[studentId]).toMatchObject({
+        id: studentId,
+        studentCode: 'STU-2026-00001',
+      });
     });
   });
 

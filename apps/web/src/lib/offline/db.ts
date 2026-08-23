@@ -182,6 +182,8 @@ export interface OutboxMutationRecord {
   conflictStrategy?: 'CLIENT_WINS' | 'SERVER_WINS' | 'MONOTONIC' | 'MANUAL_REVIEW';
   lastError?: string;
   optimisticId?: string;
+  /** Local-only snapshot used to restore IndexedDB when a pending edit is undone. */
+  rollbackData?: unknown;
 }
 
 export interface OfflineRosterRecord {

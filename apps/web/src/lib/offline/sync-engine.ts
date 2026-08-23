@@ -45,6 +45,7 @@ export type PendingActivityKind =
   | 'BOOKLET_PAYMENT'
   | 'TUITION_PAYMENT'
   | 'ATTENDANCE_SCAN'
+  | 'ENTITY_UPDATE'
   | 'DELETED_RECORD'
   | 'OTHER';
 
@@ -304,6 +305,28 @@ class OfflineSyncEngine {
         continue;
       }
 
+      if ((m.domain === 'groups' || m.domain === 'students') && ['PATCH', 'PUT'].includes(m.method)) {
+        const entityId = payload.id || m.endpoint.split('/').pop() || '';
+        const isGroupUpdate = m.domain === 'groups';
+        const name = isGroupUpdate
+          ? (await offlineDb.getGroupByIdOffline(entityId))?.name || payload.name || 'مجموعة دراسية'
+          : (await offlineDb.getStudentByIdOffline(entityId))?.fullName ||
+            (await offlineDb.getStudentByIdOffline(entityId))?.user?.fullName ||
+            payload.fullName ||
+            'طالب';
+        const changedFields = Object.keys(payload).filter((key) => key !== 'id').join('، ');
+        items.push({
+          id: m.id,
+          domain: m.domain,
+          kind: 'ENTITY_UPDATE',
+          title: `تعديل ${isGroupUpdate ? 'مجموعة' : 'طالب'}: ${name}`,
+          subtitle: changedFields || 'تحديث البيانات',
+          timestamp: m.clientTimestamp,
+          raw: m,
+        });
+        continue;
+      }
+
       if (m.domain === 'attendance') {
         const student = payload.studentId ? await offlineDb.getStudentByIdOffline(payload.studentId) : null;
         const studentName = student?.fullName || student?.user?.fullName || 'طالب';
@@ -391,6 +414,7 @@ class OfflineSyncEngine {
     options: {
       conflictStrategy?: 'CLIENT_WINS' | 'SERVER_WINS' | 'MONOTONIC' | 'MANUAL_REVIEW';
       optimisticId?: string;
+      rollbackData?: unknown;
     } = {},
   ): Promise<string> {
     const id = generateClientOperationId();
@@ -405,6 +429,7 @@ class OfflineSyncEngine {
       status: 'PENDING',
       conflictStrategy: options.conflictStrategy || 'CLIENT_WINS',
       optimisticId: options.optimisticId,
+      rollbackData: options.rollbackData,
     };
 
     await offlineDb.enqueueMutation(mutation);
@@ -933,6 +958,27 @@ class OfflineSyncEngine {
         const groupId = mutation.optimisticId || payload.id;
         if (groupId) {
           await offlineDb.removeGroup(groupId);
+        }
+      } else if (mutation.domain === 'groups' && ['PATCH', 'PUT'].includes(mutation.method)) {
+        const previousGroup = mutation.rollbackData as any;
+        if (previousGroup?.id) {
+          await offlineDb.bulkPutGroups([previousGroup]);
+          const roster = await offlineDb.getRoster(previousGroup.id);
+          if (roster) {
+            await offlineDb.cacheRoster({
+              ...roster,
+              groupName: previousGroup.name || roster.groupName,
+              gradeLevel: previousGroup.gradeLevel || roster.gradeLevel,
+              monthlyFee: previousGroup.monthlyFee ?? roster.monthlyFee,
+              sessions: previousGroup.schedules ?? roster.sessions,
+              updatedAt: Date.now(),
+            });
+          }
+        }
+      } else if (mutation.domain === 'students' && ['PATCH', 'PUT'].includes(mutation.method)) {
+        const previousStudent = mutation.rollbackData as any;
+        if (previousStudent?.id) {
+          await offlineDb.bulkPutStudents([previousStudent]);
         }
       }
     } finally {

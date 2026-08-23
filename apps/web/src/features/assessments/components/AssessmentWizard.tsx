@@ -110,8 +110,12 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
   if (!isOnline) {
     return (
       <FeatureRequiresOnlineCard
-        featureName="إنشاء اختبار"
-        description="إنشاء الاختبارات وتوليد الأسئلة يتطلب اتصالاً نشطاً بالخادم."
+        featureName={type === 'ASSIGNMENT' ? 'إنشاء واجب' : 'إنشاء اختبار'}
+        description={
+          type === 'ASSIGNMENT'
+            ? 'إنشاء الواجبات وتوليد الأسئلة يتطلب اتصالاً نشطاً بالخادم.'
+            : 'إنشاء الاختبارات وتوليد الأسئلة يتطلب اتصالاً نشطاً بالخادم.'
+        }
         backHref="/teacher/dashboard"
       />
     );

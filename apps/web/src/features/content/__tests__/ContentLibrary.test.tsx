@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { ContentLibrary } from '../components/ContentLibrary';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as useContent from '../hooks/use-content';
+import * as useOnlineStatus from '@/lib/offline/use-online-status';
 import { ContentType } from '../types/content.types';
 
 // Mock hooks
@@ -17,6 +18,10 @@ vi.mock('../hooks/use-content', () => ({
     data: [],
     isLoading: false,
   }),
+}));
+
+vi.mock('@/lib/offline/use-online-status', () => ({
+  useOnlineStatus: vi.fn(() => true),
 }));
 
 vi.mock('@/features/groups/hooks/useAcademicPeriod', () => ({
@@ -58,6 +63,7 @@ const renderWithProviders = (ui: React.ReactElement) => {
 
 describe('ContentLibrary', () => {
   beforeEach(() => {
+    vi.mocked(useOnlineStatus.useOnlineStatus).mockReturnValue(true);
     vi.mocked(useContent.useDeleteContent).mockReturnValue({
       mutate: vi.fn(),
       isPending: false,
@@ -126,6 +132,22 @@ describe('ContentLibrary', () => {
     const uploadBtns = screen.getAllByRole('button', { name: /رفع/ });
     fireEvent.click(uploadBtns[0]);
     expect(onUploadClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables upload actions with an Arabic tooltip offline', () => {
+    vi.mocked(useOnlineStatus.useOnlineStatus).mockReturnValue(false);
+    vi.mocked(useContent.useContent).mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+    } as any);
+
+    renderWithProviders(<ContentLibrary onUploadClick={vi.fn()} />);
+
+    const uploadButton = screen.getByRole('button', { name: 'رفع مرفق / ملزمة جديدة' });
+    expect(uploadButton).toBeDisabled();
+    expect(uploadButton.parentElement).toHaveAttribute('title', 'يتطلب رفع المرفقات اتصالاً بالإنترنت');
+    expect(screen.getByRole('button', { name: 'رفع أول مرفق للحصة' })).toBeDisabled();
   });
 });
 

@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { useScanPaymentQr } from '../hooks/useFinance';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useBooklets } from '@/features/booklets/hooks/useBooklets';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Alert';
+import { formatBookletMismatchError, isBookletEligibleForStudent } from '../utils/bookletEligibility';
 import { Badge } from '@/components/ui/Badge';
 import { 
   QrCode, 
@@ -66,12 +67,28 @@ export function PaymentQrScannerModal({
   const { booklets = [] } = useBooklets();
   const { mutate: scanPayment, isPending } = useScanPaymentQr();
 
-  // Set default booklet when entering booklet mode
+  const selectedGroup = useMemo(
+    () => groups.find((group) => group.id === groupId),
+    [groups, groupId],
+  );
+  const eligibleBooklets = useMemo(() => {
+    if (!selectedGroup?.gradeLevel) return [];
+
+    return booklets.filter((booklet) =>
+      isBookletEligibleForStudent(booklet, {
+        gradeLevel: selectedGroup.gradeLevel,
+        groupIds: groupId ? [groupId] : [],
+      }),
+    );
+  }, [booklets, groupId, selectedGroup?.gradeLevel]);
+
+  // A QR booklet payment is scoped to the selected group before scanning.
   useEffect(() => {
-    if (paymentType === 'BOOKLET' && booklets.length > 0 && !selectedBookletId) {
-      setSelectedBookletId(booklets[0].id);
+    if (paymentType !== 'BOOKLET') return;
+    if (!eligibleBooklets.some((booklet) => booklet.id === selectedBookletId)) {
+      setSelectedBookletId(eligibleBooklets[0]?.id || '');
     }
-  }, [paymentType, booklets, selectedBookletId]);
+  }, [paymentType, eligibleBooklets, selectedBookletId]);
 
   // Keep state synced with props when opened
   useEffect(() => {
@@ -123,10 +140,18 @@ export function PaymentQrScannerModal({
     const token = detectedCodes[0]?.rawValue;
     if (!token) return;
 
+    if (paymentType === 'BOOKLET' && !groupId) {
+      setLastScanResult({
+        success: false,
+        message: 'يرجى اختيار مجموعة الطالب أولاً لعرض المذكرات المتوافقة.',
+      });
+      return;
+    }
+
     if (paymentType === 'BOOKLET' && !selectedBookletId) {
       setLastScanResult({
         success: false,
-        message: 'يرجى اختيار المذكرة المراد سدادها أولاً',
+        message: 'لا توجد مذكرة متوافقة مع صف أو مجموعة الطالب المحددة.',
       });
       return;
     }
@@ -208,7 +233,7 @@ export function PaymentQrScannerModal({
           'رمز QR غير صالح أو حدث خطأ أثناء التسجيل';
         setLastScanResult({
           success: false,
-          message: Array.isArray(msg) ? msg[0] : msg,
+          message: formatBookletMismatchError(msg) || (Array.isArray(msg) ? msg[0] : msg),
         });
 
         // Resume scanner after 2.2 seconds
@@ -341,25 +366,45 @@ export function PaymentQrScannerModal({
                 </div>
               </>
             ) : (
-              /* Booklet Mode Control */
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
-                  <BookOpen className="w-3.5 h-3.5 text-purple-600" />
-                  المذكرة المراد سدادها
-                </label>
-                <select
-                  className="w-full h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-purple-500/20"
-                  value={selectedBookletId}
-                  onChange={(e) => setSelectedBookletId(e.target.value)}
-                >
-                  <option value="">-- اختر المذكرة للتحصيل --</option>
-                  {booklets.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.title} - {b.gradeLevel} ({b.price} ج.م)
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                    <Users className="w-3.5 h-3.5 text-purple-600" />
+                    مجموعة الطالب
+                  </label>
+                  <select
+                    className="w-full h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-purple-500/20"
+                    value={groupId}
+                    onChange={(e) => setGroupId(e.target.value)}
+                  >
+                    <option value="">-- اختر المجموعة أولاً --</option>
+                    {groups.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name} - {g.gradeLevel}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                    <BookOpen className="w-3.5 h-3.5 text-purple-600" />
+                    المذكرة المراد سدادها
+                  </label>
+                  <select
+                    className="w-full h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-purple-500/20"
+                    value={selectedBookletId}
+                    onChange={(e) => setSelectedBookletId(e.target.value)}
+                    disabled={!groupId || eligibleBooklets.length === 0}
+                  >
+                    <option value="">-- اختر المذكرة للتحصيل --</option>
+                    {eligibleBooklets.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.title} - {b.gradeLevel} ({b.price} ج.م)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
             )}
 
             {/* Custom Amount & Sound */}

@@ -192,7 +192,17 @@ describe('SubscriptionsService', () => {
           bookletId,
           amountPaid: 90.0,
         }),
-      ).rejects.toThrow('INVALID_BOOKLET_FOR_STUDENT');
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          code: 'BOOKLET_GRADE_MISMATCH',
+          details: {
+            studentId,
+            studentGradeLevel: 'الصف الأول الثانوي',
+            bookletId,
+            bookletGradeLevel: 'الصف الثالث الثانوي',
+          },
+        }),
+      });
     });
 
     it('should throw BadRequestException when student is not enrolled in booklet group', async () => {
@@ -415,7 +425,7 @@ describe('SubscriptionsService', () => {
       );
     });
 
-    it('should throw BadRequestException when booklet gradeLevel does not match student in scanPaymentQr', async () => {
+    it('should throw a structured validation error when booklet gradeLevel does not match student in scanPaymentQr', async () => {
       const qrCodeToken = 'qr_tok_student_grade_1';
       const studentId = 'stu-grade-1';
       const bookletId = 'booklet-grade-2';
@@ -443,7 +453,17 @@ describe('SubscriptionsService', () => {
           paymentType: 'BOOKLET',
           bookletId,
         }),
-      ).rejects.toThrow('INVALID_BOOKLET_FOR_STUDENT');
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          code: 'BOOKLET_GRADE_MISMATCH',
+          details: {
+            studentId,
+            studentGradeLevel: 'الصف الأول الثانوي',
+            bookletId,
+            bookletGradeLevel: 'الصف الثاني الثانوي',
+          },
+        }),
+      });
     });
 
     it('should throw BadRequestException when student is not enrolled in booklet group in scanPaymentQr', async () => {

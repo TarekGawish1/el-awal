@@ -121,26 +121,23 @@ describe('Offline Navigation Filtering & Route Guards', () => {
     });
   });
 
-  describe('Direct Route Access Guards', () => {
-    it('renders FeatureRequiresOnlineCard when accessing AssessmentList offline', () => {
+  describe('Offline creation guards', () => {
+    it('keeps assessments visible but disables creating homework and exams offline', () => {
       vi.spyOn(useOnlineStatusModule, 'useOnlineStatus').mockReturnValue(false);
 
       render(<AssessmentList />, { wrapper: createWrapper() });
 
-      expect(screen.getByText('هذه الميزة تتطلب اتصالاً بالإنترنت')).toBeDefined();
-      expect(
-        screen.getByText('إدارة بنوك الأسئلة ورفع الواجبات والاختبارات التفاعلية تتطلب اتصالاً نشطاً بالخادم.')
-      ).toBeDefined();
-      expect(screen.queryByText('إدارة الاختبارات والواجبات')).toBeNull();
+      expect(screen.getByText('إدارة الاختبارات والواجبات')).toBeDefined();
+      expect(screen.getByRole('button', { name: 'إنشاء اختبار جديد' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'إنشاء واجب جديد' })).toBeDisabled();
     });
 
-    it('renders ContentContainer offline warning when offline', () => {
+    it('keeps the content library available offline while upload remains locked', () => {
       vi.spyOn(useOnlineStatusModule, 'useOnlineStatus').mockReturnValue(false);
 
       render(<ContentContainer />);
 
-      expect(screen.getByText('هذه الميزة تتطلب اتصالاً بالإنترنت')).toBeDefined();
-      expect(screen.queryByTestId('content-library')).toBeNull();
+      expect(screen.getByTestId('content-library')).toBeDefined();
     });
   });
 });

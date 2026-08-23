@@ -7,6 +7,15 @@ import { SyncProgressItemDto } from './batch-progress-sync.dto';
 import { SyncAssessmentItemDto } from './sync-assessments.dto';
 
 export class SyncBatchGroupItemDto {
+  @ApiPropertyOptional({
+    enum: ['CREATE_GROUP', 'UPDATE_GROUP'],
+    default: 'CREATE_GROUP',
+    description: 'Operation kind. Existing groups are updated only when UPDATE_GROUP is supplied.',
+  })
+  @IsString()
+  @IsOptional()
+  type?: 'CREATE_GROUP' | 'UPDATE_GROUP';
+
   @ApiPropertyOptional({ example: '018d39f4-6a8b-7000-8000-000000000001' })
   @IsString()
   clientTempId: string;
@@ -51,6 +60,15 @@ export class SyncBatchGroupItemDto {
 }
 
 export class SyncBatchStudentItemDto {
+  @ApiPropertyOptional({
+    enum: ['CREATE_STUDENT', 'UPDATE_STUDENT'],
+    default: 'CREATE_STUDENT',
+    description: 'Operation kind. Existing students are updated only when UPDATE_STUDENT is supplied.',
+  })
+  @IsString()
+  @IsOptional()
+  type?: 'CREATE_STUDENT' | 'UPDATE_STUDENT';
+
   @ApiPropertyOptional({ example: '018d39f4-6a8b-7000-8000-000000000002' })
   @IsString()
   clientTempId: string;

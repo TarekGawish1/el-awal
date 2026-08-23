@@ -48,8 +48,8 @@ describe('PaymentQrScannerModal', () => {
     vi.clearAllMocks();
     vi.mocked(useGroups).mockReturnValue({
       data: [
-        { id: 'group-1', name: 'مجموعة الأوائل', monthlyFee: 400 },
-        { id: 'group-2', name: 'مجموعة المتميزين', monthlyFee: 350 },
+        { id: 'group-1', name: 'مجموعة الأوائل', gradeLevel: 'G1', monthlyFee: 400 },
+        { id: 'group-2', name: 'مجموعة المتميزين', gradeLevel: 'G2', monthlyFee: 350 },
       ],
       isLoading: false,
     } as any);
@@ -111,6 +111,37 @@ describe('PaymentQrScannerModal', () => {
       }),
       expect.any(Object)
     );
+  });
+
+  it('filters booklet choices to the selected group grade and scope', () => {
+    vi.mocked(useBooklets).mockReturnValue({
+      booklets: [
+        { id: 'b-1', title: 'مذكرة الصف الأول', price: 60, gradeLevel: 'G1' },
+        { id: 'b-2', title: 'مذكرة مجموعة أخرى', price: 70, gradeLevel: 'G1', groupId: 'group-2' },
+        { id: 'b-3', title: 'مذكرة الصف الثاني', price: 80, gradeLevel: 'G2' },
+      ],
+      isLoading: false,
+    } as any);
+
+    render(<PaymentQrScannerModal isOpen={true} onClose={mockOnClose} initialGroupId="group-1" />);
+    fireEvent.click(screen.getByRole('button', { name: /سداد قيمة مذكرة/i }));
+
+    expect(screen.getByRole('option', { name: /مذكرة الصف الأول/i })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /مذكرة مجموعة أخرى/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /مذكرة الصف الثاني/i })).not.toBeInTheDocument();
+  });
+
+  it('presents booklet grade mismatch errors in Arabic without the API error code', () => {
+    mockMutate.mockImplementation((_payload, options) => {
+      options.onError({ message: 'INVALID_BOOKLET_FOR_STUDENT: invalid booklet (G1 != G2)' });
+    });
+
+    render(<PaymentQrScannerModal isOpen={true} onClose={mockOnClose} initialGroupId="group-1" />);
+    fireEvent.click(screen.getByRole('button', { name: /سداد قيمة مذكرة/i }));
+    fireEvent.click(screen.getByTestId('simulate-scan-btn'));
+
+    expect(screen.getByText('هذه المذكرة مخصصة لطلاب G1، بينما الطالب في G2. يرجى اختيار مذكرة متوافقة.')).toBeInTheDocument();
+    expect(screen.queryByText(/INVALID_BOOKLET_FOR_STUDENT/i)).not.toBeInTheDocument();
   });
 
   it('allows switching to booklet mode and scanning with bookletId', () => {

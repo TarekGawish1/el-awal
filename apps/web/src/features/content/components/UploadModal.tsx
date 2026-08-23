@@ -29,6 +29,8 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Textarea } from '@/components/ui/Textarea';
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { FeatureRequiresOnlineCard } from '@/components/offline/FeatureRequiresOnlineCard';
+import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import toast from 'react-hot-toast';
 
 const ALL_GRADE_LEVELS = [
@@ -93,6 +95,7 @@ export function UploadModal({
   initialSessionTopic,
   initialSessionId,
 }: UploadModalProps) {
+  const isOnline = useOnlineStatus();
   const [file, setFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -232,6 +235,16 @@ export function UploadModal({
   }, [isOpen, initialGradeLevel, initialGroupId, initialSessionTopic, initialSessionId, setValue]);
 
   if (!isOpen) return null;
+
+  if (!isOnline) {
+    return (
+      <FeatureRequiresOnlineCard
+        featureName="رفع المرفقات"
+        description="رفع الفيديوهات والمرفقات التعليمية يتطلب اتصالاً نشطاً بالخادم."
+        backHref="/teacher/content"
+      />
+    );
+  }
 
   const handleClose = () => {
     if (isPending) return;

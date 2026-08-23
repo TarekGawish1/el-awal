@@ -68,9 +68,16 @@ export class SubscriptionsService {
 
       // Grade level mismatch validation
       if (student.gradeLevel && booklet.gradeLevel && student.gradeLevel !== booklet.gradeLevel) {
-        throw new BadRequestException(
-          `INVALID_BOOKLET_FOR_STUDENT: هذه المذكرة غير مخصصة للصف الدراسي أو المجموعة الخاصة بهذا الطالب (${booklet.gradeLevel} != ${student.gradeLevel})`,
-        );
+        throw new BadRequestException({
+          code: 'BOOKLET_GRADE_MISMATCH',
+          message: 'هذه المذكرة غير مخصصة للصف الدراسي لهذا الطالب',
+          details: {
+            studentId: student.id,
+            studentGradeLevel: student.gradeLevel,
+            bookletId: booklet.id,
+            bookletGradeLevel: booklet.gradeLevel,
+          },
+        });
       }
 
       // Group scoping validation if booklet is tied to a specific group
@@ -344,9 +351,16 @@ export class SubscriptionsService {
 
       // Grade level mismatch validation
       if (student.gradeLevel && booklet.gradeLevel && student.gradeLevel !== booklet.gradeLevel) {
-        throw new BadRequestException(
-          `INVALID_BOOKLET_FOR_STUDENT: هذه المذكرة غير مخصصة للصف الدراسي أو المجموعة الخاصة بهذا الطالب (${booklet.gradeLevel} != ${student.gradeLevel})`,
-        );
+        throw new BadRequestException({
+          code: 'BOOKLET_GRADE_MISMATCH',
+          message: 'هذه المذكرة غير مخصصة للصف الدراسي لهذا الطالب',
+          details: {
+            studentId: student.id,
+            studentGradeLevel: student.gradeLevel,
+            bookletId: booklet.id,
+            bookletGradeLevel: booklet.gradeLevel,
+          },
+        });
       }
 
       // Group scoping validation if booklet is tied to a specific group

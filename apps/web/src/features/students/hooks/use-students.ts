@@ -442,6 +442,84 @@ export function useCreateStudent() {
   });
 }
 
+export function useUpdateStudent() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: Partial<CreateStudentPayload> }) => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+      if (!isOnline) {
+        const existing = await offlineDb.getStudentByIdOffline(id);
+        if (!existing) {
+          throw new Error('تعذر العثور على بيانات الطالب المخزنة محلياً');
+        }
+
+        const updated: StudentEntity = {
+          ...existing,
+          fullName: payload.fullName ?? existing.fullName,
+          phone: payload.phone ?? existing.phone,
+          email: payload.email ?? existing.email,
+          gradeLevel: payload.gradeLevel ?? existing.gradeLevel,
+          academicStage: payload.academicStage ?? existing.academicStage,
+          emergencyPhone: payload.parentPhone ?? existing.emergencyPhone,
+          groupId: payload.initialGroupId ?? existing.groupId,
+          user: {
+            ...existing.user,
+            fullName: payload.fullName ?? existing.user?.fullName ?? existing.fullName,
+            phone: payload.phone ?? existing.user?.phone,
+            email: payload.email ?? existing.user?.email,
+          },
+          updatedAt: Date.now(),
+        };
+
+        await offlineDb.bulkPutStudents([updated]);
+        queryClient.setQueryData(['students', id], updated as unknown as StudentDetail);
+        queryClient.setQueriesData({ queryKey: ['students'] }, (old: any) => {
+          if (!old) return old;
+          const toListItem = (student: StudentEntity) => ({
+            ...student,
+            user: student.user || { fullName: student.fullName },
+          });
+          if (Array.isArray(old)) {
+            return old.map((student) => (student.id === id ? toListItem(updated) : student));
+          }
+          if (Array.isArray(old.data)) {
+            return {
+              ...old,
+              data: old.data.map((student: any) =>
+                student.id === id ? { ...student, ...toListItem(updated) } : student,
+              ),
+            };
+          }
+          return old;
+        });
+
+        await syncEngine.enqueue(
+          'students',
+          API_ENDPOINTS.STUDENTS.DETAIL(id),
+          'PATCH',
+          payload,
+          { rollbackData: existing },
+        );
+
+        toast.success('تم تعديل بيانات الطالب محلياً وسيتم إرسال التعديل فور الاتصال 💾');
+        return updated as unknown as StudentDetail;
+      }
+
+      const { apiClient } = await import('@/lib/api/client');
+      return apiClient<StudentDetail>(API_ENDPOINTS.STUDENTS.DETAIL(id), {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      });
+    },
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData(['students', variables.id], data);
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+    },
+  });
+}
+
 export function useRegenerateStudentQr() {
   const queryClient = useQueryClient();
 

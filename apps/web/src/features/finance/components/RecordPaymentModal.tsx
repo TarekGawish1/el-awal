@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import toast from 'react-hot-toast';
+import { formatBookletMismatchMessage, isBookletEligibleForStudent } from '../utils/bookletEligibility';
 
 const paymentSchema = z.object({
   studentId: z.string().min(1, 'يجب اختيار الطالب'),
@@ -29,7 +30,15 @@ interface Props {
   groupId?: string;
   periodYear: number;
   periodMonth: number;
-  allStudents?: Array<{ id: string; fullName: string; studentCode?: string }>;
+  allStudents?: Array<{
+    id: string;
+    fullName: string;
+    studentCode?: string;
+    gradeLevel?: string;
+    groupId?: string;
+    initialGroupId?: string;
+    groupIds?: string[];
+  }>;
 }
 
 export function RecordPaymentModal({
@@ -81,22 +90,24 @@ export function RecordPaymentModal({
           fee: d.monthlyFeeExpected,
         }));
 
-  // Filter booklets strictly for the selected student's grade and group
-  const eligibleBooklets = useMemo(() => {
-    if (!selectedStudentId) return booklets;
-    const student = defaulters.find((d) => d.studentId === selectedStudentId);
-    const fullStudent = allStudents.find((s) => s.id === selectedStudentId) as any;
-    const studentGrade = student?.gradeLevel || fullStudent?.gradeLevel;
-    const studentGroupId = fullStudent?.groupId || fullStudent?.initialGroupId || groupId;
-    const studentGroupIds = fullStudent?.groupIds || (studentGroupId ? [studentGroupId] : []);
+  const getStudentBookletContext = (studentId: string) => {
+    const defaulter = defaulters.find((student) => student.studentId === studentId);
+    const fullStudent = allStudents.find((student) => student.id === studentId);
+    const groupIds = fullStudent?.groupIds || [
+      fullStudent?.groupId || fullStudent?.initialGroupId || (defaulter ? groupId : ''),
+    ].filter(Boolean);
 
-    return booklets.filter((b) => {
-      if (studentGrade && b.gradeLevel && b.gradeLevel !== studentGrade) return false;
-      if (b.groupId && studentGroupIds.length > 0 && !studentGroupIds.includes(b.groupId)) {
-        return false;
-      }
-      return true;
-    });
+    return {
+      gradeLevel: fullStudent?.gradeLevel || defaulter?.gradeLevel,
+      groupIds,
+    };
+  };
+
+  // Do not expose a booklet until the selected student's grade and membership are known.
+  const eligibleBooklets = useMemo(() => {
+    if (!selectedStudentId) return [];
+    const student = getStudentBookletContext(selectedStudentId);
+    return booklets.filter((booklet) => isBookletEligibleForStudent(booklet, student));
   }, [booklets, selectedStudentId, defaulters, allStudents, groupId]);
 
   // Auto-fill amount based on student expected fee when selected
@@ -109,19 +120,9 @@ export function RecordPaymentModal({
         setValue('amountPaid', student.monthlyFeeExpected);
       }
     } else if (sId && paymentType === 'BOOKLET') {
-      // If currently selected booklet is no longer eligible for this student, reset booklet selection
-      const student = defaulters.find((d) => d.studentId === sId);
-      const fullStudent = allStudents.find((s) => s.id === sId) as any;
-      const studentGrade = student?.gradeLevel || fullStudent?.gradeLevel;
-      const studentGroupId = fullStudent?.groupId || fullStudent?.initialGroupId || groupId;
-      const studentGroupIds = fullStudent?.groupIds || (studentGroupId ? [studentGroupId] : []);
-
-      const currentBooklet = booklets.find((b) => b.id === selectedBookletId);
-      if (
-        currentBooklet &&
-        ((studentGrade && currentBooklet.gradeLevel && currentBooklet.gradeLevel !== studentGrade) ||
-          (currentBooklet.groupId && studentGroupIds.length > 0 && !studentGroupIds.includes(currentBooklet.groupId)))
-      ) {
+      // Clear a previously selected booklet if it is not valid for the new student.
+      const currentBooklet = booklets.find((booklet) => booklet.id === selectedBookletId);
+      if (currentBooklet && !isBookletEligibleForStudent(currentBooklet, getStudentBookletContext(sId))) {
         setValue('bookletId', '');
         setValue('amountPaid', 0);
       }
@@ -162,34 +163,11 @@ export function RecordPaymentModal({
     }
 
     const student = defaulters.find((d) => d.studentId === data.studentId);
-    const fullStudent = allStudents.find((s) => s.id === data.studentId) as any;
     const booklet = booklets.find((b) => b.id === data.bookletId);
-    const studentGrade = student?.gradeLevel || fullStudent?.gradeLevel;
-    const studentGroupId = fullStudent?.groupId || fullStudent?.initialGroupId || groupId;
-    const studentGroupIds = fullStudent?.groupIds || (studentGroupId ? [studentGroupId] : []);
+    const studentContext = getStudentBookletContext(data.studentId);
 
-    if (
-      paymentType === 'BOOKLET' &&
-      booklet &&
-      studentGrade &&
-      booklet.gradeLevel &&
-      studentGrade !== booklet.gradeLevel
-    ) {
-      toast.error(
-        `INVALID_BOOKLET_FOR_STUDENT: هذه المذكرة غير مخصصة للصف الدراسي أو المجموعة الخاصة بهذا الطالب (${booklet.gradeLevel} != ${studentGrade})`,
-      );
-      return;
-    }
-
-    if (
-      paymentType === 'BOOKLET' &&
-      booklet?.groupId &&
-      studentGroupIds.length > 0 &&
-      !studentGroupIds.includes(booklet.groupId)
-    ) {
-      toast.error(
-        'INVALID_BOOKLET_FOR_STUDENT: هذه المذكرة غير مخصصة للصف الدراسي أو المجموعة الخاصة بهذا الطالب',
-      );
+    if (paymentType === 'BOOKLET' && booklet && !isBookletEligibleForStudent(booklet, studentContext)) {
+      toast.error(formatBookletMismatchMessage(booklet.gradeLevel, studentContext.gradeLevel));
       return;
     }
 
