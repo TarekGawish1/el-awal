@@ -96,6 +96,34 @@ describe('SyncReviewModal Component', () => {
     });
   });
 
+  it('can always be dismissed with its close button, backdrop, or Escape key', async () => {
+    vi.spyOn(syncEngine, 'getPendingOutboxSummary').mockResolvedValue({
+      students: [],
+      groups: [],
+      attendanceCount: 0,
+      paymentsCount: 0,
+      totalCount: 0,
+    });
+    vi.spyOn(syncEngine, 'isOnline').mockReturnValue(false);
+    vi.spyOn(syncEngine, 'executeBidirectionalSync').mockImplementation(
+      () => new Promise(() => {}),
+    );
+
+    const handleClose = vi.fn();
+    render(<SyncReviewModal isOpen={true} onClose={handleClose} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('لا توجد عمليات محلية معلقة')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /تأكيد ومزامنة الآن/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'إغلاق' }));
+    fireEvent.mouseDown(document.getElementById('sync-review-modal')!);
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(handleClose).toHaveBeenCalledTimes(3);
+  });
+
   it('does not render when isOpen is false', () => {
     const { container } = render(
       <SyncReviewModal isOpen={false} onClose={vi.fn()} />

@@ -80,6 +80,17 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
     }
   }, [isOpen, loadData]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   const handleToggleAutoSync = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVal = e.target.checked;
     setAutoSyncEnabled(newVal);
@@ -119,6 +130,12 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
     <div
       id="sync-review-modal"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="sync-review-modal-title"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
     >
       <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-150 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
@@ -128,7 +145,7 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
               <RefreshCw className={`w-5 h-5 ${isExecuting ? 'animate-spin' : ''}`} />
             </div>
             <div>
-              <h3 className="text-lg font-black tracking-tight">مراجعة المزامنة السحابية</h3>
+              <h3 id="sync-review-modal-title" className="text-lg font-black tracking-tight">مراجعة المزامنة السحابية</h3>
               <p className="text-xs text-primary-200 font-medium">
                 مطابقة البيانات ثنائية الاتجاه بين جهازك والخادم السحابي
               </p>
@@ -136,7 +153,6 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
           </div>
           <button
             onClick={onClose}
-            disabled={isExecuting}
             className="p-1.5 rounded-full hover:bg-white/10 text-primary-200 hover:text-white transition-colors"
             aria-label="إغلاق"
           >
@@ -368,7 +384,6 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
               variant="outline"
               size="sm"
               onClick={onClose}
-              disabled={isExecuting}
               className="flex-1 sm:flex-none rounded-xl text-xs font-bold"
             >
               {isComplete ? 'إغلاق' : 'تأجيل'}
