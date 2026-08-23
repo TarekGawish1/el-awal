@@ -2194,6 +2194,42 @@ class OfflineDatabase {
       console.warn('Failed to completely wipe IndexedDB stores:', e);
     }
   }
+
+  /**
+   * Clears only the period-scoped caches (roster, students, groups, sessions)
+   * from both the in-memory maps and IndexedDB, leaving the outbox, credentials,
+   * conflicts, drafts, and metadata intact. Used after switching the active
+   * academic year/term so a fresh bootstrap repopulates the new period's data
+   * without discarding pending offline mutations or the offline login session.
+   */
+  public async clearPeriodScopedData(): Promise<void> {
+    const scopedStores = ['offline_roster_cache', 'students', 'groups', 'sessions'];
+
+    this.memoryStudents.clear();
+    this.memoryGroups.clear();
+    this.memorySessions.clear();
+    this.memoryRosters.clear();
+
+    if (!this.isSupported()) return;
+
+    try {
+      const db = await this.open();
+      const targets = scopedStores.filter((name) => db.objectStoreNames.contains(name));
+      if (targets.length === 0) return;
+
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(targets, 'readwrite');
+        for (const storeName of targets) {
+          tx.objectStore(storeName).clear();
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } catch (e) {
+      console.warn('Failed to clear period-scoped IndexedDB stores:', e);
+    }
+  }
 }
 
 export const offlineDb = new OfflineDatabase();

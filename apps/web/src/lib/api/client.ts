@@ -13,6 +13,13 @@ interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
   token?: string;
   _isRetry?: boolean;
+  /**
+   * When true, a 401 response is thrown immediately as an ApiError without
+   * attempting a silent token refresh/retry or logging the user out. Used for
+   * re-authentication endpoints (e.g. password-gated academic period switch)
+   * where a 401 means "wrong password", not "expired session".
+   */
+  skipAuthRefresh?: boolean;
 }
 
 // Concurrency mutex: In-flight refresh promise shared across all simultaneous 401 requests
@@ -137,7 +144,7 @@ function handleAuthFailure(isExplicitRejection: boolean = false): void {
  * Wraps native fetch with JWT authorization, silent token refresh on 401, response unwrapping, and error normalization
  */
 export async function apiClient<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-  const { params, token, headers, _isRetry = false, ...customConfig } = options;
+  const { params, token, headers, _isRetry = false, skipAuthRefresh = false, ...customConfig } = options;
 
   let url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
 
@@ -197,9 +204,11 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
 
     // Intercept 401 Unauthorized for automatic token refresh & request retry
     if (response.status === 401) {
-      // If it's a login/refresh/logout request or already retried once, do not refresh again
-      if (isAuthEndpoint || _isRetry) {
-        if (!isAuthEndpoint) {
+      // If it's a login/refresh/logout request, an explicit re-auth call, or already
+      // retried once, do not refresh again. skipAuthRefresh also avoids logging out —
+      // the 401 is a business error (wrong password), not an expired session.
+      if (isAuthEndpoint || _isRetry || skipAuthRefresh) {
+        if (!isAuthEndpoint && !skipAuthRefresh) {
           handleAuthFailure();
         }
       } else if (isInternalApi) {
