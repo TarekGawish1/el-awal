@@ -119,23 +119,32 @@ export function OfflineActivityDrawer({ isOpen, onClose }: OfflineActivityDrawer
     }
   };
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
   return (
     <>
-      {isOpen && (
-        <div
-          onClick={onClose}
-          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-[60] animate-in fade-in duration-200"
-          aria-hidden="true"
-        />
-      )}
+      <div
+        onClick={onClose}
+        className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-[60] animate-in fade-in duration-200"
+        aria-hidden="true"
+      />
 
       <div
         role="dialog"
         aria-modal="true"
         aria-label="عرض العمليات المعلقة"
-        className={`fixed inset-y-0 end-0 z-[70] w-full max-w-md bg-white shadow-2xl border-s border-slate-200 flex flex-col transition-transform duration-300 ease-in-out ${
-          isOpen ? 'translate-x-0' : 'translate-x-full'
-        }`}
+        className="fixed inset-y-0 right-0 z-[70] w-full max-w-md bg-white shadow-2xl border-s border-slate-200 flex flex-col"
       >
         {/* Header */}
         <div className="p-5 border-b border-slate-100 bg-gradient-to-l from-purple-700 via-purple-600 to-purple-700 text-white flex items-center justify-between">
