@@ -1621,7 +1621,8 @@ class OfflineDatabase {
     candidateIds.add(cleanToken);
 
     // 1. Direct student store index check (by id or token)
-    for (const candidate of candidateIds) {
+    const candidateList = Array.from(candidateIds);
+    for (const candidate of candidateList) {
       const student = await this.getStudentByIdOffline(candidate);
       if (student) {
         const group = student.groupId ? await this.getGroupByIdOffline(student.groupId) : null;
