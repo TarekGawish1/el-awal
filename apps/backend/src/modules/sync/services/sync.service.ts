@@ -1113,8 +1113,8 @@ export class SyncService {
         continue;
       }
 
-      const amountPaid = op.amountPaid ?? op.amount ?? 0;
-      const amountExpected = op.amountExpected ?? op.amount ?? op.amountPaid ?? 0;
+      let amountPaid = Number(op.amountPaid ?? op.amount ?? 0);
+      let amountExpected = Number(op.amountExpected ?? op.amount ?? op.amountPaid ?? 0);
       const periodYear = op.periodYear || op.billingPeriodYear || new Date().getFullYear();
       const periodMonth = op.periodMonth || op.billingPeriodMonth || (new Date().getMonth() + 1);
       const paymentDate = op.collectedAt
@@ -1159,6 +1159,11 @@ export class SyncService {
             const booklet = await tx.booklet.findUnique({
               where: { id: op.bookletId },
             });
+
+            if (amountPaid <= 0 && booklet && Number(booklet.price) > 0) {
+              amountPaid = Number(booklet.price);
+              amountExpected = Number(booklet.price);
+            }
 
             if (booklet && student.gradeLevel && booklet.gradeLevel && student.gradeLevel !== booklet.gradeLevel) {
               result.conflicts.push({
@@ -1267,6 +1272,25 @@ export class SyncService {
             }
           } else {
             // Flow B: Ingest Monthly Tuition Payment
+            if (amountPaid <= 0 && resolvedGroupId) {
+              try {
+                const group = await tx.academicGroup.findUnique({
+                  where: { id: resolvedGroupId },
+                  select: { monthlyFee: true },
+                });
+                if (group && Number(group.monthlyFee) > 0) {
+                  amountPaid = Number(group.monthlyFee);
+                  amountExpected = Number(group.monthlyFee);
+                }
+              } catch {
+                // non-blocking
+              }
+            }
+            if (amountPaid <= 0) {
+              amountPaid = 350;
+              amountExpected = 350;
+            }
+
             let existingPayment: any = null;
             if (resolvedGroupId) {
               existingPayment = await tx.studentPaymentRecord.findFirst({

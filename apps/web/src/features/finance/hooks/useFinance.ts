@@ -152,11 +152,18 @@ export function useRecordPayment() {
             };
           }
 
+          const resolvedBookletAmount =
+            payload.amountPaid !== undefined && Number(payload.amountPaid) > 0
+              ? Number(payload.amountPaid)
+              : booklet && Number(booklet.price) > 0
+              ? Number(booklet.price)
+              : 50;
+
           const paymentRecord = await offlineDb.recordBookletPaymentOffline({
             studentId: payload.studentId,
             bookletId: payload.bookletId,
-            amountPaid: payload.amountPaid,
-            amountExpected: payload.amountPaid,
+            amountPaid: resolvedBookletAmount,
+            amountExpected: resolvedBookletAmount,
             groupId: payload.groupId,
             notes: payload.notes,
             receiptNumber: payload.receiptNumber,
@@ -192,14 +199,28 @@ export function useRecordPayment() {
           };
         }
 
+        const group = payload.groupId
+          ? await offlineDb.getGroupByIdOffline(payload.groupId)
+          : payload.studentId
+          ? await offlineDb.getStudentByIdOffline(payload.studentId).then((s) => (s?.groupId ? offlineDb.getGroupByIdOffline(s.groupId) : null))
+          : null;
+
+        const groupFee = Number(group?.monthlyFee ?? (group as any)?.fee ?? (group as any)?.price ?? 0);
+        const resolvedAmount =
+          payload.amountPaid !== undefined && Number(payload.amountPaid) > 0
+            ? Number(payload.amountPaid)
+            : groupFee > 0
+            ? groupFee
+            : 350;
+
         const paymentRecord: any = {
           id: `offline-pay-${Date.now()}`,
           studentId: payload.studentId,
-          groupId: payload.groupId || null,
+          groupId: payload.groupId || group?.id || null,
           periodYear,
           periodMonth,
-          amountExpected: payload.amountPaid,
-          amountPaid: payload.amountPaid,
+          amountExpected: resolvedAmount,
+          amountPaid: resolvedAmount,
           currency: 'EGP',
           paymentStatus: 'PAID' as any,
           paymentMethod: payload.paymentMethod || 'CASH',
@@ -217,7 +238,16 @@ export function useRecordPayment() {
           'finance',
           API_ENDPOINTS.SUBSCRIPTIONS.RECORD_PAYMENT,
           'POST',
-          payload,
+          {
+            ...payload,
+            type: 'CREATE_PAYMENT',
+            amount: resolvedAmount,
+            amountPaid: resolvedAmount,
+            amountExpected: resolvedAmount,
+            paymentType: 'TUITION',
+            paymentMethod: payload.paymentMethod || 'CASH',
+            clientTimestamp: Date.now(),
+          },
         );
 
         return {
@@ -298,7 +328,7 @@ export function useScanPaymentQr() {
               booklet: booklet ? {
                 id: booklet.id,
                 title: booklet.title,
-                price: booklet.price,
+                price: Number(booklet.price),
               } : undefined,
               group: groupId ? {
                 id: groupId,
@@ -307,10 +337,18 @@ export function useScanPaymentQr() {
             };
           }
 
+          const resolvedBookletAmount =
+            payload.amountPaid !== undefined && Number(payload.amountPaid) > 0
+              ? Number(payload.amountPaid)
+              : booklet && Number(booklet.price) > 0
+              ? Number(booklet.price)
+              : 50;
+
           const paymentRecord = await offlineDb.recordBookletPaymentOffline({
             studentId,
             bookletId: payload.bookletId,
-            amountPaid: payload.amountPaid !== undefined ? payload.amountPaid : (booklet ? Number(booklet.price) : 0),
+            amountPaid: resolvedBookletAmount,
+            amountExpected: resolvedBookletAmount,
             groupId,
           });
 
@@ -323,7 +361,7 @@ export function useScanPaymentQr() {
             booklet: booklet ? {
               id: booklet.id,
               title: booklet.title,
-              price: booklet.price,
+              price: Number(booklet.price),
             } : undefined,
             student: {
               id: studentId,
@@ -363,14 +401,29 @@ export function useScanPaymentQr() {
           };
         }
 
+        // Resolve group monthly fee from IndexedDB/memory
+        const group = groupId
+          ? await offlineDb.getGroupByIdOffline(groupId)
+          : student.groupId
+          ? await offlineDb.getGroupByIdOffline(student.groupId)
+          : null;
+
+        const groupFee = Number(group?.monthlyFee ?? (group as any)?.fee ?? (group as any)?.price ?? 0);
+        const resolvedAmount =
+          payload.amountPaid !== undefined && Number(payload.amountPaid) > 0
+            ? Number(payload.amountPaid)
+            : groupFee > 0
+            ? groupFee
+            : 350;
+
         const paymentRecord: any = {
           id: `offline-pay-${Date.now()}`,
           studentId,
-          groupId: groupId || null,
+          groupId: groupId || group?.id || null,
           periodYear,
           periodMonth,
-          amountExpected: payload.amountPaid || 350,
-          amountPaid: payload.amountPaid || 350,
+          amountExpected: resolvedAmount,
+          amountPaid: resolvedAmount,
           currency: 'EGP',
           paymentStatus: 'PAID' as any,
           paymentMethod: payload.paymentMethod || 'CASH',
@@ -390,11 +443,18 @@ export function useScanPaymentQr() {
           'POST',
           {
             ...payload,
+            type: 'CREATE_PAYMENT',
             qrCodeToken: effectiveToken,
             studentId,
-            groupId,
+            groupId: groupId || group?.id || null,
+            amount: resolvedAmount,
+            amountPaid: resolvedAmount,
+            amountExpected: resolvedAmount,
             periodYear,
             periodMonth,
+            paymentType: 'TUITION',
+            paymentMethod: payload.paymentMethod || 'CASH',
+            clientTimestamp: Date.now(),
           },
         );
 
@@ -411,7 +471,7 @@ export function useScanPaymentQr() {
           },
           group: groupId ? {
             id: groupId,
-            name: localMatch.groupName || 'المجموعة',
+            name: localMatch.groupName || group?.name || 'المجموعة',
           } : null,
         };
       }
@@ -460,14 +520,28 @@ export function useScanPaymentQr() {
             };
           }
 
+          const group = groupId
+            ? await offlineDb.getGroupByIdOffline(groupId)
+            : student.groupId
+            ? await offlineDb.getGroupByIdOffline(student.groupId)
+            : null;
+
+          const groupFee = Number(group?.monthlyFee ?? (group as any)?.fee ?? (group as any)?.price ?? 0);
+          const resolvedAmount =
+            payload.amountPaid !== undefined && Number(payload.amountPaid) > 0
+              ? Number(payload.amountPaid)
+              : groupFee > 0
+              ? groupFee
+              : 350;
+
           const paymentRecord: any = {
             id: `offline-pay-${Date.now()}`,
             studentId,
-            groupId: groupId || null,
+            groupId: groupId || group?.id || null,
             periodYear,
             periodMonth,
-            amountExpected: payload.amountPaid || 350,
-            amountPaid: payload.amountPaid || 350,
+            amountExpected: resolvedAmount,
+            amountPaid: resolvedAmount,
             currency: 'EGP',
             paymentStatus: 'PAID' as any,
             paymentMethod: payload.paymentMethod || 'CASH',
@@ -487,11 +561,18 @@ export function useScanPaymentQr() {
             'POST',
             {
               ...payload,
+              type: 'CREATE_PAYMENT',
               qrCodeToken: effectiveToken,
               studentId,
-              groupId,
+              groupId: groupId || group?.id || null,
+              amount: resolvedAmount,
+              amountPaid: resolvedAmount,
+              amountExpected: resolvedAmount,
               periodYear,
               periodMonth,
+              paymentType: 'TUITION',
+              paymentMethod: payload.paymentMethod || 'CASH',
+              clientTimestamp: Date.now(),
             },
           );
 
@@ -502,7 +583,7 @@ export function useScanPaymentQr() {
             message: 'تم حفظ السداد محلياً بنجاح في انتظار الاتصال 💾',
             payment: paymentRecord,
             student: { id: studentId, fullName: resolvedStudentName, phone: student.phone || student.user?.phone || null },
-            group: groupId ? { id: groupId, name: localMatch.groupName || 'المجموعة' } : null,
+            group: groupId ? { id: groupId, name: localMatch.groupName || group?.name || 'المجموعة' } : null,
           };
         }
         throw error;

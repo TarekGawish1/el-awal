@@ -191,14 +191,21 @@ export function PaymentQrScannerModal({
       payload.groupId = groupId;
     }
 
-    if (amountPaidOverride && !isNaN(Number(amountPaidOverride))) {
+    if (amountPaidOverride && !isNaN(Number(amountPaidOverride)) && Number(amountPaidOverride) > 0) {
       payload.amountPaid = Number(amountPaidOverride);
+    } else if (paymentType === 'BOOKLET') {
+      const bkt = eligibleBooklets.find((b) => b.id === selectedBookletId);
+      if (bkt && Number(bkt.price) > 0) {
+        payload.amountPaid = Number(bkt.price);
+      }
+    } else if (selectedGroup && Number(selectedGroup.monthlyFee) > 0) {
+      payload.amountPaid = Number(selectedGroup.monthlyFee);
     }
 
     scanPayment(payload, {
       onSuccess: (data) => {
         const studentName = data.student?.fullName || 'الطالب';
-        const amount = Number(data.payment?.amountPaid ?? (data.booklet?.price || 0));
+        const amount = Number(data.payment?.amountPaid ?? (data.booklet?.price || data.payment?.amountExpected || 0));
         const bookletTitle = data.booklet?.title;
 
         if (data.isDuplicate) {

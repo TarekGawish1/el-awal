@@ -280,25 +280,44 @@ class OfflineSyncEngine {
 
         if (isBooklet) {
           const booklet = payload.bookletId ? await offlineDb.getBookletByIdOffline(payload.bookletId) : null;
+          const resolvedAmount =
+            payload.amountPaid !== undefined && Number(payload.amountPaid) > 0
+              ? Number(payload.amountPaid)
+              : payload.amount !== undefined && Number(payload.amount) > 0
+              ? Number(payload.amount)
+              : booklet && Number(booklet.price) > 0
+              ? Number(booklet.price)
+              : 50;
+
           items.push({
             id: m.id,
             domain: m.domain,
             kind: 'BOOKLET_PAYMENT',
             title: `${studentName} • ${booklet?.title || 'مذكرة'}`,
-            subtitle: `${payload.amountPaid ?? 0} ج.م`,
-            amount: payload.amountPaid,
+            subtitle: `${resolvedAmount} ج.م`,
+            amount: resolvedAmount,
             timestamp: m.clientTimestamp,
             raw: m,
           });
         } else {
           const group = payload.groupId ? await offlineDb.getGroupByIdOffline(payload.groupId) : null;
+          const groupFee = Number(group?.monthlyFee ?? (group as any)?.fee ?? (group as any)?.price ?? 0);
+          const resolvedAmount =
+            payload.amountPaid !== undefined && Number(payload.amountPaid) > 0
+              ? Number(payload.amountPaid)
+              : payload.amount !== undefined && Number(payload.amount) > 0
+              ? Number(payload.amount)
+              : groupFee > 0
+              ? groupFee
+              : 350;
+
           items.push({
             id: m.id,
             domain: m.domain,
             kind: 'TUITION_PAYMENT',
             title: `${studentName} • ${group?.name || 'المجموعة'}`,
-            subtitle: `${payload.periodMonth ?? ''}/${payload.periodYear ?? ''} — ${payload.amountPaid ?? 0} ج.م`,
-            amount: payload.amountPaid,
+            subtitle: `${payload.periodMonth ?? ''}/${payload.periodYear ?? ''} — ${resolvedAmount} ج.م`,
+            amount: resolvedAmount,
             timestamp: m.clientTimestamp,
             raw: m,
           });

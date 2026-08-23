@@ -15,6 +15,7 @@ import {
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/Button';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { useQueryClient } from '@tanstack/react-query';
 import { syncEngine, PendingActivityItem } from '@/lib/offline/sync-engine';
 
 interface SyncConfirmationModalProps {
@@ -40,6 +41,12 @@ const KIND_ICON: Record<PendingActivityItem['kind'], React.ElementType> = {
  * the user picks one of the three actions below.
  */
 export function SyncConfirmationModal({ isOpen, onClose, onSynced, onDiscarded }: SyncConfirmationModalProps) {
+  let queryClient: any = null;
+  try {
+    queryClient = useQueryClient();
+  } catch {
+    // Graceful fallback if rendered without QueryClientProvider in isolated component tests
+  }
   const [items, setItems] = useState<PendingActivityItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
@@ -95,6 +102,14 @@ export function SyncConfirmationModal({ isOpen, onClose, onSynced, onDiscarded }
       } else {
         toast.success(`تمت مزامنة ورفع ${result.synced} عملية بنجاح إلى السيرفر 🚀`);
       }
+
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['finance'] });
+      queryClient.invalidateQueries({ queryKey: ['group-defaulters'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance'] });
+
       onSynced?.();
       onClose();
     } catch (err: any) {
