@@ -50,10 +50,11 @@ describe('Offline Navigation Filtering & Route Guards', () => {
   });
 
   describe('getNavigationItemsForRole', () => {
-    it('returns all 8 teacher navigation items when online', () => {
+    it('returns all 9 teacher navigation items when online', () => {
       const items = getNavigationItemsForRole('TEACHER', true);
-      expect(items).toHaveLength(8);
+      expect(items).toHaveLength(9);
       const labels = items.map((i) => i.label);
+      expect(labels).toContain('الكورسات أونلاين');
       expect(labels).toContain('الواجبات والاختبارات');
       expect(labels).toContain('المحتوى والدروس');
       expect(labels).toContain('لوحة التحكم');
@@ -64,6 +65,7 @@ describe('Offline Navigation Filtering & Route Guards', () => {
       const items = getNavigationItemsForRole('TEACHER', false);
       expect(items).toHaveLength(6);
       const labels = items.map((i) => i.label);
+      expect(labels).not.toContain('الكورسات أونلاين');
       expect(labels).not.toContain('الواجبات والاختبارات');
       expect(labels).not.toContain('المحتوى والدروس');
       expect(labels).toContain('لوحة التحكم');

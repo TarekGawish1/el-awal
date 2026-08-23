@@ -7,6 +7,7 @@ import {
   GraduationCap,
   FileText,
   BookOpen,
+  Video,
   DollarSign,
 } from 'lucide-react';
 
@@ -25,6 +26,7 @@ export const TEACHER_NAVIGATION_ITEMS: NavItemConfig[] = [
   { label: 'رصد الحضور والـ QR', href: '/teacher/attendance', icon: QrCode, onlineOnly: false },
   { label: 'سجل الطلاب', href: '/teacher/students', icon: GraduationCap, onlineOnly: false },
   { label: 'الواجبات والاختبارات', href: '/teacher/assessments', icon: FileText, onlineOnly: true },
+  { label: 'الكورسات أونلاين', href: '/teacher/courses', icon: Video, onlineOnly: true },
   { label: 'المحتوى والدروس', href: '/teacher/content', icon: BookOpen, onlineOnly: true },
   { label: 'الماليات والمصروفات', href: '/teacher/finance', icon: DollarSign, onlineOnly: false },
 ];

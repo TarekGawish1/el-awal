@@ -1,5 +1,4 @@
 import {
-  IsNotEmpty,
   IsString,
   MinLength,
   IsOptional,
@@ -8,18 +7,18 @@ import {
   IsBoolean,
   IsIn,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 
-export class CreateLessonDto {
-  @ApiProperty({
+export class UpdateLessonDto {
+  @ApiPropertyOptional({
     description: 'Lesson title',
-    example: 'الدرس الأول: همزة القطع وألف الوصل',
+    example: 'الدرس الأول: همزة القطع وألف الوصل (محدث)',
     minLength: 3,
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'Lesson title is required' })
-  @MinLength(3, { message: 'Lesson title must be at least 3 characters' })
-  title: string;
+  @MinLength(3)
+  title?: string;
 
   @ApiPropertyOptional({
     description: 'Lesson description or learning objectives',
@@ -43,7 +42,6 @@ export class CreateLessonDto {
     description: 'Type of curriculum item',
     enum: ['VIDEO', 'DOCUMENT', 'QUIZ'],
     example: 'VIDEO',
-    default: 'VIDEO',
   })
   @IsOptional()
   @IsIn(['VIDEO', 'DOCUMENT', 'QUIZ'])
@@ -77,7 +75,6 @@ export class CreateLessonDto {
   @ApiPropertyOptional({
     description: 'Whether non-enrolled students can access this lesson as a free preview sample',
     example: false,
-    default: false,
   })
   @IsOptional()
   @IsBoolean()
@@ -97,5 +94,5 @@ export class CreateLessonDto {
   })
   @IsOptional()
   @IsString()
-  lessonQuizId?: string;
+  lessonQuizId?: string | null;
 }

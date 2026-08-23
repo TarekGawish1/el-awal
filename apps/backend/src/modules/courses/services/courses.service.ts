@@ -16,9 +16,15 @@ import { StorageService } from '../../../integrations/storage/storage.service';
 import { CreateCourseDto } from '../dto/create-course.dto';
 import { UpdateCourseDto } from '../dto/update-course.dto';
 import { CreateModuleDto } from '../dto/create-module.dto';
+import { UpdateModuleDto } from '../dto/update-module.dto';
 import { CreateLessonDto } from '../dto/create-lesson.dto';
+import { UpdateLessonDto } from '../dto/update-lesson.dto';
 import { CourseQueryDto } from '../dto/course-query.dto';
 import { UpdateProgressDto } from '../dto/update-progress.dto';
+import { CreateQuestionDto, CreateQuestionReplyDto } from '../dto/lesson-qa.dto';
+import { CreateAttachmentDto } from '../dto/lesson-attachment.dto';
+import { GrantGroupAccessDto } from '../dto/group-access.dto';
+import { ReorderModulesDto } from '../dto/reorder-modules.dto';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import {
   CourseStatus,
@@ -50,11 +56,72 @@ export class CoursesService {
         subject: dto.subject,
         gradeLevel: dto.gradeLevel,
         academicStage: dto.academicStage,
+        academicYear: dto.academicYear || '2026-2027',
+        academicTerm: dto.academicTerm || 'FIRST_TERM',
         price: dto.price || 0.0,
         coverImageUrl: dto.coverImageUrl,
+        courseQuizId: dto.courseQuizId || null,
         teacherId,
         status: CourseStatus.DRAFT,
       },
+    });
+  }
+
+  /**
+   * Returns all courses created by the teacher with stats and quiz linkages.
+   */
+  async getTeacherCourses(teacherId: string) {
+    const courses = await this.prisma.course.findMany({
+      where: { teacherId },
+      orderBy: [{ createdAt: 'desc' }],
+      include: {
+        courseQuiz: {
+          select: { id: true, title: true, type: true, totalScore: true },
+        },
+        modules: {
+          orderBy: { orderIndex: 'asc' },
+          include: {
+            unitQuiz: {
+              select: { id: true, title: true, type: true, totalScore: true },
+            },
+            lessons: {
+              orderBy: { orderIndex: 'asc' },
+              include: {
+                lessonQuiz: {
+                  select: { id: true, title: true, type: true, totalScore: true },
+                },
+                _count: {
+                  select: { attachments: true, questions: true },
+                },
+              },
+            },
+          },
+        },
+        groupAccess: {
+          include: {
+            group: { select: { id: true, name: true, gradeLevel: true } },
+          },
+        },
+        _count: {
+          select: { enrollments: true, modules: true },
+        },
+      },
+    });
+
+    return courses.map((c) => {
+      let totalLessons = 0;
+      let totalDurationSeconds = 0;
+      for (const m of c.modules) {
+        totalLessons += m.lessons.length;
+        for (const l of m.lessons) {
+          totalDurationSeconds += l.videoDurationSeconds || 0;
+        }
+      }
+      return {
+        ...c,
+        totalLessons,
+        totalDurationSeconds,
+      };
     });
   }
 
@@ -98,30 +165,39 @@ export class CoursesService {
   }
 
   /**
-   * Retrieves full course outline including ordered modules and lessons.
-   * Scopes unpublished courses to the course creator teacher or secretariat.
+   * Retrieves full course outline including ordered modules, lessons, attachments, and quizzes.
    */
   async getCourseDetails(courseId: string, user?: AuthenticatedUser) {
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
       include: {
         teacher: {
-          include: { user: { select: { fullName: true, email: true } } },
+          include: { user: { select: { fullName: true, email: true, phone: true } } },
+        },
+        courseQuiz: {
+          select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true },
+        },
+        groupAccess: {
+          include: {
+            group: { select: { id: true, name: true, gradeLevel: true } },
+          },
         },
         modules: {
           orderBy: { orderIndex: 'asc' },
           include: {
+            unitQuiz: {
+              select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true },
+            },
             lessons: {
               orderBy: { orderIndex: 'asc' },
-              select: {
-                id: true,
-                title: true,
-                description: true,
-                orderIndex: true,
-                lessonType: true,
-                videoDurationSeconds: true,
-                isPreview: true,
-                createdAt: true,
+              include: {
+                attachments: true,
+                lessonQuiz: {
+                  select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true },
+                },
+                _count: {
+                  select: { questions: true },
+                },
               },
             },
           },
@@ -174,15 +250,32 @@ export class CoursesService {
         ...(dto.subject ? { subject: dto.subject } : {}),
         ...(dto.gradeLevel ? { gradeLevel: dto.gradeLevel } : {}),
         ...(dto.academicStage !== undefined ? { academicStage: dto.academicStage } : {}),
+        ...(dto.academicYear !== undefined ? { academicYear: dto.academicYear } : {}),
+        ...(dto.academicTerm !== undefined ? { academicTerm: dto.academicTerm } : {}),
         ...(dto.price !== undefined ? { price: dto.price } : {}),
         ...(dto.coverImageUrl !== undefined ? { coverImageUrl: dto.coverImageUrl } : {}),
         ...(dto.status ? { status: dto.status } : {}),
+        ...(dto.courseQuizId !== undefined ? { courseQuizId: dto.courseQuizId } : {}),
       },
     });
   }
 
   /**
-   * Adds a module/chapter to a course with auto-computed order index.
+   * Deletes / archives a course.
+   */
+  async deleteCourse(courseId: string, teacherId: string, isSecretariat: boolean) {
+    const course = await this.prisma.course.findUnique({ where: { id: courseId } });
+    if (!course) {
+      throw new NotFoundException(`Course [${courseId}] not found`);
+    }
+    if (!isSecretariat && course.teacherId !== teacherId) {
+      throw new ForbiddenException('You do not have permission to delete this course');
+    }
+    return this.prisma.course.delete({ where: { id: courseId } });
+  }
+
+  /**
+   * Adds a module/chapter to a course with auto-computed order index and optional unit quiz.
    */
   async createModule(
     courseId: string,
@@ -211,12 +304,94 @@ export class CoursesService {
         title: dto.title,
         description: dto.description,
         orderIndex,
+        unitQuizId: dto.unitQuizId || null,
+      },
+      include: {
+        unitQuiz: { select: { id: true, title: true, type: true } },
       },
     });
   }
 
   /**
-   * Creates a lesson in a module with DRM media identifiers and preview flags.
+   * Updates an existing course module / unit.
+   */
+  async updateModule(
+    moduleId: string,
+    teacherId: string,
+    isSecretariat: boolean,
+    dto: UpdateModuleDto,
+  ) {
+    const module = await this.prisma.courseModule.findUnique({
+      where: { id: moduleId },
+      include: { course: true },
+    });
+    if (!module) {
+      throw new NotFoundException(`Module [${moduleId}] not found`);
+    }
+    if (!isSecretariat && module.course.teacherId !== teacherId) {
+      throw new ForbiddenException('You do not have permission to modify this module');
+    }
+
+    return this.prisma.courseModule.update({
+      where: { id: moduleId },
+      data: {
+        ...(dto.title ? { title: dto.title } : {}),
+        ...(dto.description !== undefined ? { description: dto.description } : {}),
+        ...(dto.orderIndex !== undefined ? { orderIndex: dto.orderIndex } : {}),
+        ...(dto.unitQuizId !== undefined ? { unitQuizId: dto.unitQuizId } : {}),
+      },
+      include: {
+        unitQuiz: { select: { id: true, title: true, type: true } },
+      },
+    });
+  }
+
+  /**
+   * Deletes a module and cascades deletion to lessons.
+   */
+  async deleteModule(moduleId: string, teacherId: string, isSecretariat: boolean) {
+    const module = await this.prisma.courseModule.findUnique({
+      where: { id: moduleId },
+      include: { course: true },
+    });
+    if (!module) {
+      throw new NotFoundException(`Module [${moduleId}] not found`);
+    }
+    if (!isSecretariat && module.course.teacherId !== teacherId) {
+      throw new ForbiddenException('You do not have permission to delete this module');
+    }
+    return this.prisma.courseModule.delete({ where: { id: moduleId } });
+  }
+
+  /**
+   * Bulk reorders modules in a course.
+   */
+  async reorderModules(
+    courseId: string,
+    teacherId: string,
+    isSecretariat: boolean,
+    dto: ReorderModulesDto,
+  ) {
+    const course = await this.prisma.course.findUnique({ where: { id: courseId } });
+    if (!course) {
+      throw new NotFoundException(`Course [${courseId}] not found`);
+    }
+    if (!isSecretariat && course.teacherId !== teacherId) {
+      throw new ForbiddenException('You do not have permission to reorder modules in this course');
+    }
+
+    return this.prisma.$transaction(
+      dto.moduleOrders.map((item) =>
+        this.prisma.courseModule.update({
+          where: { id: item.moduleId },
+          data: { orderIndex: item.orderIndex },
+        }),
+      ),
+    );
+  }
+
+  /**
+   * Creates a lesson in a module with summary, DRM video, attachments, and quiz.
    */
   async createLesson(
     moduleId: string,
@@ -248,14 +423,324 @@ export class CoursesService {
         moduleId,
         title: dto.title,
         description: dto.description,
+        summary: dto.summary || null,
         orderIndex,
         lessonType: dto.lessonType || 'VIDEO',
         bunnyVideoId: dto.bunnyVideoId,
         contentUrl: dto.contentUrl,
         videoDurationSeconds: dto.videoDurationSeconds,
         isPreview: dto.isFreePreview || false,
+        lessonQuizId: dto.lessonQuizId || null,
+      },
+      include: {
+        attachments: true,
+        lessonQuiz: { select: { id: true, title: true, type: true } },
       },
     });
+  }
+
+  /**
+   * Updates an existing lesson's metadata, rich summary, or linked quiz.
+   */
+  async updateLesson(
+    lessonId: string,
+    teacherId: string,
+    isSecretariat: boolean,
+    dto: UpdateLessonDto,
+  ) {
+    const lesson = await this.prisma.courseLesson.findUnique({
+      where: { id: lessonId },
+      include: { module: { include: { course: true } } },
+    });
+    if (!lesson) {
+      throw new NotFoundException(`Lesson [${lessonId}] not found`);
+    }
+    if (!isSecretariat && lesson.module.course.teacherId !== teacherId) {
+      throw new ForbiddenException('You do not have permission to modify this lesson');
+    }
+
+    return this.prisma.courseLesson.update({
+      where: { id: lessonId },
+      data: {
+        ...(dto.title ? { title: dto.title } : {}),
+        ...(dto.description !== undefined ? { description: dto.description } : {}),
+        ...(dto.summary !== undefined ? { summary: dto.summary } : {}),
+        ...(dto.orderIndex !== undefined ? { orderIndex: dto.orderIndex } : {}),
+        ...(dto.lessonType ? { lessonType: dto.lessonType } : {}),
+        ...(dto.bunnyVideoId !== undefined ? { bunnyVideoId: dto.bunnyVideoId } : {}),
+        ...(dto.contentUrl !== undefined ? { contentUrl: dto.contentUrl } : {}),
+        ...(dto.videoDurationSeconds !== undefined ? { videoDurationSeconds: dto.videoDurationSeconds } : {}),
+        ...(dto.isFreePreview !== undefined ? { isPreview: dto.isFreePreview } : {}),
+        ...(dto.lessonQuizId !== undefined ? { lessonQuizId: dto.lessonQuizId } : {}),
+      },
+      include: {
+        attachments: true,
+        lessonQuiz: { select: { id: true, title: true, type: true } },
+      },
+    });
+  }
+
+  /**
+   * Deletes a lesson.
+   */
+  async deleteLesson(lessonId: string, teacherId: string, isSecretariat: boolean) {
+    const lesson = await this.prisma.courseLesson.findUnique({
+      where: { id: lessonId },
+      include: { module: { include: { course: true } } },
+    });
+    if (!lesson) {
+      throw new NotFoundException(`Lesson [${lessonId}] not found`);
+    }
+    if (!isSecretariat && lesson.module.course.teacherId !== teacherId) {
+      throw new ForbiddenException('You do not have permission to delete this lesson');
+    }
+    return this.prisma.courseLesson.delete({ where: { id: lessonId } });
+  }
+
+  /**
+   * Adds a downloadable PDF / summary attachment to a lesson.
+   */
+  async addLessonAttachment(
+    lessonId: string,
+    teacherId: string,
+    isSecretariat: boolean,
+    dto: CreateAttachmentDto,
+  ) {
+    const lesson = await this.prisma.courseLesson.findUnique({
+      where: { id: lessonId },
+      include: { module: { include: { course: true } } },
+    });
+    if (!lesson) {
+      throw new NotFoundException(`Lesson [${lessonId}] not found`);
+    }
+    if (!isSecretariat && lesson.module.course.teacherId !== teacherId) {
+      throw new ForbiddenException('You do not have permission to manage attachments for this lesson');
+    }
+
+    return this.prisma.lessonAttachment.create({
+      data: {
+        lessonId,
+        title: dto.title,
+        fileUrl: dto.fileUrl,
+        fileKey: dto.fileKey,
+        fileSize: dto.fileSize,
+        fileType: dto.fileType || 'application/pdf',
+      },
+    });
+  }
+
+  /**
+   * Deletes a lesson attachment.
+   */
+  async deleteLessonAttachment(
+    attachmentId: string,
+    teacherId: string,
+    isSecretariat: boolean,
+  ) {
+    const attachment = await this.prisma.lessonAttachment.findUnique({
+      where: { id: attachmentId },
+      include: { lesson: { include: { module: { include: { course: true } } } } },
+    });
+    if (!attachment) {
+      throw new NotFoundException(`Attachment [${attachmentId}] not found`);
+    }
+    if (!isSecretariat && attachment.lesson.module.course.teacherId !== teacherId) {
+      throw new ForbiddenException('You do not have permission to delete this attachment');
+    }
+    return this.prisma.lessonAttachment.delete({ where: { id: attachmentId } });
+  }
+
+  /**
+   * Fetches timestamped Q&A questions for a lesson with threaded replies.
+   */
+  async getLessonQuestions(lessonId: string) {
+    const questions = await this.prisma.lessonQuestion.findMany({
+      where: { lessonId },
+      orderBy: [{ videoTimestamp: 'asc' }, { createdAt: 'desc' }],
+      include: {
+        student: {
+          include: {
+            user: { select: { id: true, fullName: true, role: true } },
+          },
+        },
+        replies: {
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    return questions.map((q) => ({
+      id: q.id,
+      content: q.content,
+      videoTimestamp: q.videoTimestamp,
+      lessonId: q.lessonId,
+      studentId: q.studentId,
+      studentName: q.student.user.fullName,
+      createdAt: q.createdAt,
+      updatedAt: q.updatedAt,
+      replies: q.replies,
+    }));
+  }
+
+  /**
+   * Submits a timestamped question on a video lesson.
+   */
+  async createLessonQuestion(
+    lessonId: string,
+    user: AuthenticatedUser,
+    dto: CreateQuestionDto,
+  ) {
+    const studentId = user.studentProfileId || user.id;
+
+    // Ensure student exists
+    const student = await this.prisma.studentProfile.findUnique({
+      where: { id: studentId },
+    });
+    if (!student) {
+      throw new NotFoundException('Student profile not found');
+    }
+
+    const question = await this.prisma.lessonQuestion.create({
+      data: {
+        lessonId,
+        studentId,
+        content: dto.content,
+        videoTimestamp: dto.videoTimestamp !== undefined ? dto.videoTimestamp : null,
+      },
+      include: {
+        student: {
+          include: { user: { select: { fullName: true } } },
+        },
+        replies: true,
+      },
+    });
+
+    return {
+      id: question.id,
+      content: question.content,
+      videoTimestamp: question.videoTimestamp,
+      lessonId: question.lessonId,
+      studentId: question.studentId,
+      studentName: question.student.user.fullName,
+      createdAt: question.createdAt,
+      updatedAt: question.updatedAt,
+      replies: [],
+    };
+  }
+
+  /**
+   * Adds a reply to a student's timestamped question.
+   */
+  async createQuestionReply(
+    questionId: string,
+    user: AuthenticatedUser,
+    dto: CreateQuestionReplyDto,
+  ) {
+    const question = await this.prisma.lessonQuestion.findUnique({
+      where: { id: questionId },
+    });
+    if (!question) {
+      throw new NotFoundException(`Question [${questionId}] not found`);
+    }
+
+    const author = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { fullName: true },
+    });
+    const authorName = author?.fullName || user.email || 'مستخدم المنصة';
+
+    return this.prisma.lessonQuestionReply.create({
+      data: {
+        questionId,
+        content: dto.content,
+        authorId: user.id,
+        authorRole: user.role,
+        authorName,
+      },
+    });
+  }
+
+  /**
+   * Batch grants course access to all students in specified physical AcademicGroups.
+   */
+  async grantGroupAccess(
+    courseId: string,
+    teacherId: string,
+    isSecretariat: boolean,
+    dto: GrantGroupAccessDto,
+  ) {
+    const course = await this.prisma.course.findUnique({ where: { id: courseId } });
+    if (!course) {
+      throw new NotFoundException(`Course [${courseId}] not found`);
+    }
+    if (!isSecretariat && course.teacherId !== teacherId) {
+      throw new ForbiddenException('You do not have permission to grant access to this course');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const addedGroupAccess = [];
+
+      for (const groupId of dto.groupIds) {
+        // Link group to course
+        const groupAccess = await tx.groupCourseAccess.upsert({
+          where: {
+            courseId_groupId: { courseId, groupId },
+          },
+          create: { courseId, groupId },
+          update: {},
+        });
+        addedGroupAccess.push(groupAccess);
+
+        // Fetch all active enrolled students in this group
+        const groupEnrollments = await tx.groupEnrollment.findMany({
+          where: { groupId, status: 'ACTIVE' },
+          select: { studentId: true },
+        });
+
+        // Provision CourseEnrollment and CourseAccess for all students in group
+        for (const ge of groupEnrollments) {
+          const enrollment = await tx.courseEnrollment.upsert({
+            where: {
+              courseId_studentId: { courseId, studentId: ge.studentId },
+            },
+            create: {
+              courseId,
+              studentId: ge.studentId,
+              status: CourseEnrollmentStatus.ACTIVE,
+            },
+            update: {
+              status: CourseEnrollmentStatus.ACTIVE,
+            },
+          });
+
+          await tx.courseAccess.upsert({
+            where: { enrollmentId: enrollment.id },
+            create: {
+              enrollmentId: enrollment.id,
+              studentId: ge.studentId,
+              courseId,
+              accessStatus: CourseAccessStatus.ACTIVE,
+              validFrom: new Date(),
+            },
+            update: {
+              accessStatus: CourseAccessStatus.ACTIVE,
+            },
+          });
+        }
+      }
+
+      return {
+        courseId,
+        groupsGranted: dto.groupIds.length,
+      };
+    });
+  }
+
+  /**
+   * Generates direct upload credentials for Bunny Stream video upload.
+   */
+  async generateDirectVideoUploadCredentials(title: string) {
+    return this.bunnyVideoService.generateDirectUploadCredentials(title);
   }
 
   /**
@@ -382,17 +867,29 @@ export class CoursesService {
    * Secure Lesson Viewer:
    * 1. Verifies preview flag, active access entitlement, or teacher ownership.
    * 2. Issues signed time-limited Bunny Stream DRM HLS URLs or Cloudflare R2 download links.
-   * 3. Returns student resume position.
+   * 3. Returns student resume position, attachments, summary, and linked quiz.
    */
   async getLessonViewer(lessonId: string, user: AuthenticatedUser) {
     const lesson = await this.prisma.courseLesson.findUnique({
       where: { id: lessonId },
       include: {
+        attachments: true,
+        lessonQuiz: {
+          select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true },
+        },
         module: {
           include: {
+            unitQuiz: {
+              select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true },
+            },
             course: {
               include: {
-                teacher: true,
+                teacher: {
+                  include: { user: { select: { fullName: true } } },
+                },
+                courseQuiz: {
+                  select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true },
+                },
               },
             },
           },
@@ -485,11 +982,16 @@ export class CoursesService {
       courseTitle: course.title,
       title: lesson.title,
       description: lesson.description,
+      summary: lesson.summary,
       lessonType: lesson.lessonType,
       isPreview: lesson.isPreview,
       videoDurationSeconds: lesson.videoDurationSeconds,
       videoPlayerUrl,
       documentDownloadUrl,
+      attachments: lesson.attachments,
+      lessonQuiz: lesson.lessonQuiz,
+      unitQuiz: lesson.module.unitQuiz,
+      courseQuiz: course.courseQuiz,
       lastPositionSeconds,
       isCompleted,
     };
@@ -555,52 +1057,21 @@ export class CoursesService {
     }
 
     const lessonIds = items.map((i) => i.lessonId);
-    const lessons = await this.prisma.courseLesson.findMany({
+    const validLessons = await this.prisma.courseLesson.findMany({
       where: { id: { in: lessonIds } },
       include: { module: true },
     });
 
-    const lessonMap = new Map(lessons.map((l) => [l.id, l.module.courseId]));
+    const validLessonMap = new Map<string, string>();
+    validLessons.forEach((l) => validLessonMap.set(l.id, l.module.courseId));
 
-    for (const item of items) {
-      const actualCourseId = lessonMap.get(item.lessonId);
-      if (!actualCourseId) {
-        throw new NotFoundException(`Lesson [${item.lessonId}] not found`);
-      }
-      if (actualCourseId !== item.courseId) {
-        throw new BadRequestException(
-          `Lesson [${item.lessonId}] belongs to course [${actualCourseId}], not [${item.courseId}]`,
-        );
-      }
-    }
+    const enrichedItems = items
+      .filter((i) => validLessonMap.has(i.lessonId))
+      .map((i) => ({
+        ...i,
+        courseId: validLessonMap.get(i.lessonId)!,
+      }));
 
-    // Verify student course entitlement for courses in batch
-    const uniqueCourseIds = [...new Set(items.map((i) => i.courseId))];
-    for (const cId of uniqueCourseIds) {
-      const hasEnrollment = await this.prisma.courseEnrollment.findFirst({
-        where: {
-          studentId,
-          courseId: cId,
-          status: CourseEnrollmentStatus.ACTIVE,
-        },
-      });
-
-      const hasAccess = await this.prisma.courseAccess.findFirst({
-        where: {
-          studentId,
-          courseId: cId,
-          accessStatus: 'ACTIVE',
-          OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
-        },
-      });
-
-      if (!hasEnrollment && !hasAccess) {
-        throw new ForbiddenException(
-          `Student is not enrolled or entitled to course [${cId}]`,
-        );
-      }
-    }
-
-    return this.progressRepository.syncBatch(studentId, items);
+    return this.progressRepository.syncBatch(studentId, enrichedItems);
   }
 }

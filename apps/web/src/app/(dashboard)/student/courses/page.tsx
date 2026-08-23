@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { 
   useStudentCourses, 
   useCourseDetails, 
@@ -159,13 +160,13 @@ export default function StudentCoursesPage() {
                       <span>{c.totalLessons} دروس رقمية</span>
                     </div>
 
-                    <Button
-                      onClick={() => setSelectedCourseId(c.courseId)}
-                      className="w-full rounded-xl py-5 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer mt-2"
+                    <Link
+                      href={`/student/courses/${c.courseId}/learn`}
+                      className="w-full bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl py-3 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer mt-2 transition-colors shadow-lg shadow-indigo-600/20"
                     >
-                      <Play className="w-3 h-3" />
-                      {c.progressPercentage > 0 ? 'استئناف التعلم' : 'دخول الدورة وبدء الدراسة'}
-                    </Button>
+                      <Play className="w-3.5 h-3.5 fill-current" />
+                      <span>{c.progressPercentage > 0 ? 'استئناف التعلم' : 'دخول غرفة التعلم والمشاهدة'}</span>
+                    </Link>
                   </div>
                 </CardContent>
               </Card>

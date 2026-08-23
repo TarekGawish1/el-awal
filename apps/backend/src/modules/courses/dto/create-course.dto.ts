@@ -69,4 +69,28 @@ export class CreateCourseDto {
   @IsOptional()
   @IsString()
   coverImageUrl?: string;
+
+  @ApiPropertyOptional({
+    description: 'Academic year, e.g. 2026-2027',
+    example: '2026-2027',
+  })
+  @IsOptional()
+  @IsString()
+  academicYear?: string;
+
+  @ApiPropertyOptional({
+    description: 'Academic term, e.g. FIRST_TERM',
+    example: 'FIRST_TERM',
+  })
+  @IsOptional()
+  @IsString()
+  academicTerm?: string;
+
+  @ApiPropertyOptional({
+    description: 'Linked course final exam / comprehensive quiz ID',
+    example: 'd933cc98-532e-4940-a1b6-ba121ff5a697',
+  })
+  @IsOptional()
+  @IsString()
+  courseQuizId?: string;
 }

@@ -228,6 +228,7 @@ model StudentProfile {
   assessmentSubmissions AssessmentSubmission[]
   studentEvaluations    StudentEvaluation[]
   paymentRecords        StudentPaymentRecord[]
+  lessonQuestions       LessonQuestion[]
 
   @@index([qrCodeToken], map: "idx_students_qr_code")
   @@index([gradeLevel], map: "idx_students_grade_level")
@@ -302,6 +303,7 @@ model AcademicGroup {
   studentEvaluations  StudentEvaluation[]
   paymentRecords      StudentPaymentRecord[]
   booklets            Booklet[]
+  courseAccess        GroupCourseAccess[]
 
   @@index([teacherId], map: "idx_groups_teacher")
   @@index([gradeLevel, isActive], map: "idx_groups_grade_active")
@@ -397,17 +399,22 @@ model Course {
   subject       String       @map("subject") @db.VarChar(100)
   gradeLevel    String       @map("grade_level") @db.VarChar(50)
   academicStage String?      @map("academic_stage") @db.VarChar(50)
+  academicYear  String?      @default("2026-2027") @map("academic_year") @db.VarChar(30)
+  academicTerm  String?      @default("FIRST_TERM") @map("academic_term") @db.VarChar(30)
   price         Decimal      @default(0.00) @map("price") @db.Decimal(10, 2)
   coverImageUrl String?      @map("cover_image_url") @db.Text
   status        CourseStatus @default(DRAFT) @map("status")
   orderIndex    Int          @default(0) @map("order_index")
+  courseQuizId  String?      @unique(map: "uq_course_quiz") @map("course_quiz_id") @db.Uuid
   createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  teacher TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  teacher    TeacherProfile      @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  courseQuiz Assessment?         @relation("CourseFinalQuiz", fields: [courseQuizId], references: [id], onDelete: SetNull)
 
   modules     CourseModule[]
   enrollments CourseEnrollment[]
+  groupAccess GroupCourseAccess[]
   assessments Assessment[]
 
   @@index([teacherId], map: "idx_courses_teacher")
@@ -421,10 +428,12 @@ model CourseModule {
   title       String   @map("title") @db.VarChar(255)
   description String?  @map("description") @db.Text
   orderIndex  Int      @map("order_index")
+  unitQuizId  String?  @unique(map: "uq_unit_quiz") @map("unit_quiz_id") @db.Uuid
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course   Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  unitQuiz Assessment? @relation("UnitQuiz", fields: [unitQuizId], references: [id], onDelete: SetNull)
 
   lessons CourseLesson[]
 
@@ -438,6 +447,7 @@ model CourseLesson {
   moduleId             String   @map("module_id") @db.Uuid
   title                String   @map("title") @db.VarChar(255)
   description          String?  @map("description") @db.Text
+  summary              String?  @map("summary") @db.Text
   orderIndex           Int      @map("order_index")
   lessonType           String   @default("VIDEO") @map("lesson_type") @db.VarChar(50)
   videoAssetId         String?  @map("video_asset_id") @db.VarChar(255)
@@ -445,11 +455,15 @@ model CourseLesson {
   contentUrl           String?  @map("content_url") @db.Text
   videoDurationSeconds Int?     @map("video_duration_seconds")
   isPreview            Boolean  @default(false) @map("is_preview")
+  lessonQuizId         String?  @unique(map: "uq_lesson_quiz") @map("lesson_quiz_id") @db.Uuid
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  module CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  module     CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  lessonQuiz Assessment?  @relation("LessonQuiz", fields: [lessonQuizId], references: [id], onDelete: SetNull)
 
+  attachments         LessonAttachment[]
+  questions           LessonQuestion[]
   progresses          CourseProgress[]
   educationalContents EducationalContent[]
   assessments         Assessment[]
@@ -457,6 +471,66 @@ model CourseLesson {
   @@unique([moduleId, orderIndex], map: "uq_module_lesson_order")
   @@index([moduleId, orderIndex], map: "idx_lessons_module_order")
   @@map("course_lessons")
+}
+
+model LessonAttachment {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  title     String       @map("title") @db.VarChar(255)
+  fileUrl   String       @map("file_url") @db.Text
+  fileKey   String       @map("file_key") @db.VarChar(500)
+  fileSize  Int?         @map("file_size")
+  fileType  String?      @map("file_type") @db.VarChar(100)
+  lessonId  String       @map("lesson_id") @db.Uuid
+  lesson    CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([lessonId], map: "idx_attachments_lesson")
+  @@map("lesson_attachments")
+}
+
+model LessonQuestion {
+  id             String                @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  content        String                @map("content") @db.Text
+  videoTimestamp Int?                  @map("video_timestamp")
+  lessonId       String                @map("lesson_id") @db.Uuid
+  lesson         CourseLesson          @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  studentId      String                @map("student_id") @db.Uuid
+  student        StudentProfile        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  replies        LessonQuestionReply[]
+  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([lessonId, videoTimestamp], map: "idx_lesson_questions_timestamp")
+  @@index([studentId], map: "idx_lesson_questions_student")
+  @@map("lesson_questions")
+}
+
+model LessonQuestionReply {
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  content    String         @map("content") @db.Text
+  questionId String         @map("question_id") @db.Uuid
+  question   LessonQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  authorId   String         @map("author_id") @db.Uuid
+  authorRole UserRole       @map("author_role")
+  authorName String         @map("author_name") @db.VarChar(200)
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([questionId], map: "idx_question_replies_question")
+  @@map("lesson_question_replies")
+}
+
+model GroupCourseAccess {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  courseId  String        @map("course_id") @db.Uuid
+  groupId   String        @map("group_id") @db.Uuid
+  course    Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  group     AcademicGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([courseId, groupId], map: "uq_group_course_access")
+  @@index([groupId], map: "idx_group_course_access_group")
+  @@index([courseId], map: "idx_group_course_access_course")
+  @@map("group_course_access")
 }
 
 model CourseEnrollment {
@@ -606,6 +680,10 @@ model Assessment {
   targetGroups AcademicGroup[] @relation("AssessmentTargetGroups")
   course  Course?        @relation(fields: [courseId], references: [id], onDelete: Cascade)
   lesson  CourseLesson?  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  courseFinalQuizOf Course?       @relation("CourseFinalQuiz")
+  unitQuizOf        CourseModule? @relation("UnitQuiz")
+  lessonQuizOf      CourseLesson? @relation("LessonQuiz")
 
   questions   AssessmentQuestion[]
   submissions AssessmentSubmission[]

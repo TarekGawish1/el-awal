@@ -51,4 +51,19 @@ export class UpdateCourseDto {
   @IsOptional()
   @IsEnum(CourseStatus)
   status?: CourseStatus;
+
+  @ApiPropertyOptional({ example: '2026-2027' })
+  @IsOptional()
+  @IsString()
+  academicYear?: string;
+
+  @ApiPropertyOptional({ example: 'FIRST_TERM' })
+  @IsOptional()
+  @IsString()
+  academicTerm?: string;
+
+  @ApiPropertyOptional({ example: 'd933cc98-532e-4940-a1b6-ba121ff5a697' })
+  @IsOptional()
+  @IsString()
+  courseQuizId?: string | null;
 }
