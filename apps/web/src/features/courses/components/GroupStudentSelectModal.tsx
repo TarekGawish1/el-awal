@@ -78,62 +78,56 @@ export function GroupStudentSelectModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-2xl shadow-xl overflow-hidden my-auto flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-md">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-800/40">
+            <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center border border-primary-100">
               <Users className="w-5 h-5" />
             </div>
-            <div>
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">ضم طلاب من المجموعات الدراسية</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-sm">{courseTitle}</p>
+            <div className="text-right">
+              <h2 className="text-base font-bold text-slate-900">ضم طلاب من المجموعات الدراسية</h2>
+              <p className="text-xs text-slate-500 truncate max-w-xs">{courseTitle}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Filters */}
-        <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-950/40 space-y-3">
+        {/* Filter Controls */}
+        <div className="p-4 bg-slate-50 border-b border-slate-100 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">المجموعة الدراسية</label>
-              <select
-                value={selectedGroupId}
-                onChange={(e) => setSelectedGroupId(e.target.value)}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500"
-              >
-                <option value="">جميع المجموعات</option>
-                {groups.map((g: any) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name} ({g.gradeLevel})
-                  </option>
-                ))}
-              </select>
-            </div>
+            <select
+              value={selectedGroupId}
+              onChange={(e) => setSelectedGroupId(e.target.value)}
+              className="bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm cursor-pointer"
+            >
+              <option value="">-- فلترة حسب المجموعة الحضورية --</option>
+              {groups.map((g: any) => (
+                <option key={g.id} value={g.id}>
+                  {g.name} ({g.gradeLevel})
+                </option>
+              ))}
+            </select>
 
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">الصف الدراسي</label>
-              <select
-                value={selectedGrade}
-                onChange={(e) => setSelectedGrade(e.target.value)}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500"
-              >
-                <option value="">جميع الصفوف</option>
-                <option value="الصف الأول الثانوي">الصف الأول الثانوي</option>
-                <option value="الصف الثاني الثانوي">الصف الثاني الثانوي</option>
-                <option value="الصف الثالث الثانوي">الصف الثالث الثانوي</option>
-                <option value="الصف الأول الإعدادي">الصف الأول الإعدادي</option>
-                <option value="الصف الثاني الإعدادي">الصف الثاني الإعدادي</option>
-                <option value="الصف الثالث الإعدادي">الصف الثالث الإعدادي</option>
-              </select>
-            </div>
+            <select
+              value={selectedGrade}
+              onChange={(e) => setSelectedGrade(e.target.value)}
+              className="bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm cursor-pointer"
+            >
+              <option value="">-- فلترة حسب الصف الدراسي --</option>
+              <option value="الصف الأول الثانوي">الصف الأول الثانوي</option>
+              <option value="الصف الثاني الثانوي">الصف الثاني الثانوي</option>
+              <option value="الصف الثالث الثانوي">الصف الثالث الثانوي</option>
+              <option value="الصف الأول الإعدادي">الصف الأول الإعدادي</option>
+              <option value="الصف الثاني الإعدادي">الصف الثاني الإعدادي</option>
+              <option value="الصف الثالث الإعدادي">الصف الثالث الإعدادي</option>
+            </select>
           </div>
 
           <div className="relative">
@@ -141,86 +135,84 @@ export function GroupStudentSelectModal({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="بحث بالاسم أو كود الطالب أو رقم الهاتف..."
-              className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl pr-9 pl-4 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+              placeholder="بحث باسم الطالب، الهاتف، أو كود الطالب..."
+              className="w-full bg-white border border-slate-200 rounded-xl pr-10 pl-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm"
             />
-            <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
+            <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-2.5" />
           </div>
 
-          <div className="flex items-center justify-between text-xs pt-1">
-            <span className="text-slate-500 dark:text-slate-400">
-              تم تحديد <strong className="text-blue-600 dark:text-blue-400">{selectedStudentIds.length}</strong> طالب
+          <div className="flex items-center justify-between pt-1 text-xs">
+            <span className="text-slate-500 font-bold">
+              تم العثور على {students.length} طالب • تم تحديد ({selectedStudentIds.length})
             </span>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleSelectAll}
-                className="text-[11px] font-bold text-blue-600 hover:underline"
-              >
+            <div className="flex gap-3 text-primary-600 font-bold">
+              <button type="button" onClick={handleSelectAll} className="hover:underline">
                 تحديد الكل
               </button>
-              <span className="text-slate-300 dark:text-slate-700">•</span>
-              <button
-                type="button"
-                onClick={handleDeselectAll}
-                className="text-[11px] font-bold text-slate-500 hover:underline"
-              >
+              <span>•</span>
+              <button type="button" onClick={handleDeselectAll} className="hover:underline text-slate-500">
                 إلغاء التحديد
               </button>
             </div>
           </div>
         </div>
 
-        {/* Students Checkbox List */}
-        <div className="p-4 overflow-y-auto flex-1 divide-y divide-slate-100 dark:divide-slate-800 space-y-1">
+        {/* Students List */}
+        <div className="p-4 overflow-y-auto space-y-2 flex-1 max-h-[350px] bg-white">
           {isLoading ? (
-            <div className="py-12 text-center text-slate-400">جاري تحميل قائمة الطلاب...</div>
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
+            </div>
           ) : students.length === 0 ? (
-            <div className="py-12 text-center text-slate-400 text-xs">لا يوجد طلاب مطابقين لمعايير التصفية</div>
+            <p className="text-xs text-slate-400 text-center py-8">لا يوجد طلاب مطابقين لخيارات البحث</p>
           ) : (
-            students.map((stu) => {
-              const isEnrolled = alreadyEnrolledStudentIds.includes(stu.id);
-              const isSelected = selectedStudentIds.includes(stu.id);
-
-              const studentFullName = (stu as any).fullName || stu.user?.fullName || 'طالب';
-              const studentGroupName = (stu as any).groupName || stu.groupEnrollments?.[0]?.group?.name || 'بدون مجموعة';
+            students.map((student) => {
+              const isAlreadyEnrolled = alreadyEnrolledStudentIds.includes(student.id);
+              const isChecked = selectedStudentIds.includes(student.id);
 
               return (
                 <div
-                  key={stu.id}
-                  onClick={() => !isEnrolled && handleToggleStudent(stu.id)}
-                  className={`flex items-center justify-between p-3 rounded-2xl transition-colors ${
-                    isEnrolled
-                      ? 'opacity-60 bg-slate-50 dark:bg-slate-950/40 cursor-not-allowed'
-                      : isSelected
-                      ? 'bg-blue-50 dark:bg-blue-950/40 cursor-pointer'
-                      : 'hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer'
+                  key={student.id}
+                  onClick={() => !isAlreadyEnrolled && handleToggleStudent(student.id)}
+                  className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
+                    isAlreadyEnrolled
+                      ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed'
+                      : isChecked
+                      ? 'bg-primary-50/60 border-primary-300 cursor-pointer'
+                      : 'bg-white border-slate-200 hover:bg-slate-50 cursor-pointer'
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <div
-                      className={`w-5 h-5 rounded-lg flex items-center justify-center border transition-colors ${
-                        isSelected || isEnrolled
-                          ? 'bg-blue-600 border-blue-600 text-white'
-                          : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900'
+                      className={`w-5 h-5 rounded-md flex items-center justify-center border transition-colors ${
+                        isAlreadyEnrolled
+                          ? 'bg-slate-200 border-slate-300'
+                          : isChecked
+                          ? 'bg-primary-600 text-white border-primary-600'
+                          : 'border-slate-300 bg-white'
                       }`}
                     >
-                      {(isSelected || isEnrolled) && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                      {(isChecked || isAlreadyEnrolled) && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                     </div>
+
                     <div>
-                      <p className="text-xs font-bold text-slate-900 dark:text-white">{studentFullName}</p>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        كود: {stu.studentCode} • {stu.gradeLevel || 'غير محدد'}
+                      <p className="text-xs font-bold text-slate-900">
+                        {student.user?.fullName || (student as any).fullName || 'طالب'}
                       </p>
+                      <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5 font-mono">
+                        <span>{student.studentCode}</span>
+                        <span>•</span>
+                        <span>{student.user?.phone || (student as any).phone || '—'}</span>
+                        <span>•</span>
+                        <span className="font-sans">{student.gradeLevel}</span>
+                      </div>
                     </div>
                   </div>
 
-                  {isEnrolled ? (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 border border-emerald-200 dark:border-emerald-800">
-                      مشترك بالفعل
+                  {isAlreadyEnrolled && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      مشترك مسبقاً
                     </span>
-                  ) : (
-                    <span className="text-[11px] text-slate-400">{studentGroupName}</span>
                   )}
                 </div>
               );
@@ -229,24 +221,31 @@ export function GroupStudentSelectModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/80 dark:bg-slate-900/80">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-5 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          >
-            إلغاء
-          </button>
-          <button
-            type="button"
-            onClick={handleBatchEnroll}
-            disabled={enrollBatchMutation.isPending || selectedStudentIds.length === 0}
-            className="px-6 py-2.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-lg shadow-blue-600/30 disabled:opacity-50"
-          >
-            {enrollBatchMutation.isPending
-              ? 'جاري الضم...'
-              : `ضم الطلاب المحددين (${selectedStudentIds.length})`}
-          </button>
+        <div className="px-6 py-4 border-t border-slate-100 flex justify-between items-center bg-slate-50/50">
+          <span className="text-xs font-bold text-slate-600">
+            {selectedStudentIds.length} طالب سيتم اشتراكهم
+          </span>
+          <div className="flex gap-2.5">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+            >
+              إلغاء
+            </button>
+            <button
+              type="button"
+              onClick={handleBatchEnroll}
+              disabled={enrollBatchMutation.isPending || selectedStudentIds.length === 0}
+              className="px-6 py-2 rounded-xl text-xs font-bold bg-primary-600 hover:bg-primary-700 text-white transition-colors shadow-sm disabled:opacity-50"
+            >
+              {enrollBatchMutation.isPending
+                ? 'جاري الضم...'
+                : selectedStudentIds.length > 0
+                ? `ضم الطلاب المحددين (${selectedStudentIds.length})`
+                : 'ضم الطلاب المحددين'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

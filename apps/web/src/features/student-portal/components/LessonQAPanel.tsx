@@ -7,29 +7,28 @@ import {
   Clock,
   User,
   CornerDownLeft,
-  Sparkles,
+  CheckCircle,
   HelpCircle,
-  Play,
-  Loader2,
+  Sparkles,
 } from 'lucide-react';
-import { useLessonQuestions, useCreateQuestion, useCreateReply } from '@/features/courses/hooks/useCourses';
+import {
+  useLessonQuestions,
+  useCreateQuestion,
+  useCreateReply,
+} from '@/features/courses/hooks/useCourses';
 import { LessonQuestion, LessonQuestionReply } from '@/features/courses/types/courses.types';
 import toast from 'react-hot-toast';
 
 interface LessonQAPanelProps {
   lessonId: string;
-  currentPlaybackSeconds: number;
-  onSeekToTimestamp: (seconds: number) => void;
-}
-
-function formatSecondsToMMSS(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  lessonTitle?: string;
+  currentPlaybackSeconds?: number;
+  onSeekToTimestamp?: (seconds: number) => void;
 }
 
 export function LessonQAPanel({
   lessonId,
+  lessonTitle,
   currentPlaybackSeconds,
   onSeekToTimestamp,
 }: LessonQAPanelProps) {
@@ -38,11 +37,17 @@ export function LessonQAPanel({
   const createReplyMutation = useCreateReply(lessonId);
 
   const [questionContent, setQuestionContent] = useState('');
-  const [includeTimestamp, setIncludeTimestamp] = useState(true);
-  const [activeReplyQuestionId, setActiveReplyQuestionId] = useState<string | null>(null);
+  const [includeTimestamp, setIncludeTimestamp] = useState(false);
+  const [replyInputOpenForId, setReplyInputOpenForId] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState('');
 
-  const handlePostQuestion = async (e: React.FormEvent) => {
+  const formatTimestamp = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleSubmitQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!questionContent.trim()) {
       toast.error('يرجى كتابة نص السؤال');
@@ -50,17 +55,25 @@ export function LessonQAPanel({
     }
 
     try {
+      const calculatedTimestamp =
+        currentPlaybackSeconds !== undefined
+          ? Math.floor(currentPlaybackSeconds)
+          : includeTimestamp
+          ? 0
+          : undefined;
+
       await createQuestionMutation.mutateAsync({
         content: questionContent.trim(),
-        videoTimestamp: includeTimestamp ? Math.floor(currentPlaybackSeconds) : undefined,
+        videoTimestamp: calculatedTimestamp,
       });
       setQuestionContent('');
+      setIncludeTimestamp(false);
     } catch {
-      // Handled by mutation
+      // Error handled by mutation
     }
   };
 
-  const handlePostReply = async (questionId: string) => {
+  const handleSendReply = async (questionId: string) => {
     if (!replyContent.trim()) {
       toast.error('يرجى كتابة نص الرد');
       return;
@@ -72,100 +85,100 @@ export function LessonQAPanel({
         data: { content: replyContent.trim() },
       });
       setReplyContent('');
-      setActiveReplyQuestionId(null);
+      setReplyInputOpenForId(null);
     } catch {
-      // Handled by mutation
+      // Error handled by mutation
     }
   };
 
   return (
     <div className="space-y-6 text-right animate-in fade-in">
       {/* Ask Question Box */}
-      <form
-        onSubmit={handlePostQuestion}
-        className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-5 rounded-2xl space-y-3 shadow-sm"
-      >
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-            <HelpCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            <span>اسأل سؤالاً أو اطلب توضيحاً حول نقطة في الشرح</span>
-          </label>
-
-          <button
-            type="button"
-            onClick={() => setIncludeTimestamp(!includeTimestamp)}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-mono font-medium transition-colors ${
-              includeTimestamp
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-            }`}
-          >
-            <Clock className="w-3.5 h-3.5" />
-            <span>ربط بالدقيقة [{formatSecondsToMMSS(currentPlaybackSeconds)}]</span>
-          </button>
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center border border-primary-100">
+            <HelpCircle className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold text-slate-900">
+              اسأل المعلم عن أي جزئية غير واضحة في الدرس
+            </h3>
+            <p className="text-[11px] text-slate-500">
+              سيقوم المعلم أو المشرف الأكاديمي بالرد عليك مباشرة هنا في نافذة المناقشة
+            </p>
+          </div>
         </div>
 
-        <textarea
-          rows={3}
-          value={questionContent}
-          onChange={(e) => setQuestionContent(e.target.value)}
-          placeholder="اكتب سؤالك بوضوح ليجيبك المعلم أو المساعد التعليمي..."
-          className="w-full bg-slate-50 border border-slate-300 dark:border-slate-700 rounded-xl p-3.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-600 focus:bg-white transition-all outline-none leading-relaxed"
-        />
+        <form onSubmit={handleSubmitQuestion} className="space-y-3">
+          <textarea
+            rows={3}
+            value={questionContent}
+            onChange={(e) => setQuestionContent(e.target.value)}
+            placeholder="اكتب سؤالك بوضوح ليستفيد الجميع..."
+            className="w-full bg-white border border-slate-200 rounded-xl p-3.5 text-xs text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm leading-relaxed"
+          />
 
-        <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={createQuestionMutation.isPending}
-            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-medium transition-all shadow-md shadow-blue-600/20 disabled:opacity-50"
-          >
-            {createQuestionMutation.isPending ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={includeTimestamp || currentPlaybackSeconds !== undefined}
+                onChange={(e) => setIncludeTimestamp(e.target.checked)}
+                className="w-4 h-4 rounded text-primary-600 bg-white border-slate-300 cursor-pointer"
+              />
+              <span className="flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-primary-600" />
+                ربط السؤال بلحظة الفيديو الحالية
+              </span>
+            </label>
+
+            <button
+              type="submit"
+              disabled={createQuestionMutation.isPending || !questionContent.trim()}
+              className="flex items-center gap-2 px-5 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm disabled:opacity-50"
+            >
               <Send className="w-3.5 h-3.5" />
-            )}
-            <span>نشر السؤال</span>
-          </button>
-        </div>
-      </form>
+              <span>{createQuestionMutation.isPending ? 'جاري النشر...' : 'نشر السؤال'}</span>
+            </button>
+          </div>
+        </form>
+      </div>
 
-      {/* Questions Thread List */}
+      {/* Discussion Stream */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <MessageSquare className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            <span>الأسئلة والنقاشات ({questions.length})</span>
-          </h3>
+          <h4 className="text-xs font-bold text-slate-900 flex items-center gap-2">
+            <MessageSquare className="w-4 h-4 text-primary-600" />
+            <span>أسئلة ونقاشات الطلاب ({questions.length})</span>
+          </h4>
         </div>
 
         {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+          <div className="flex justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
           </div>
         ) : questions.length === 0 ? (
-          <div className="p-8 text-center bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl space-y-2 shadow-sm">
-            <MessageSquare className="w-8 h-8 text-slate-400 mx-auto" />
-            <p className="text-xs text-slate-900 dark:text-slate-100 font-bold">لا توجد أسئلة على هذا الدرس بعد</p>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">كن أول من يطرح سؤالاً أثناء المشاهدة!</p>
+          <div className="p-8 text-center bg-white border border-slate-200 rounded-2xl text-slate-500 text-xs space-y-1 shadow-sm">
+            <p className="font-bold text-slate-700">لا توجد أسئلة منشورة على هذا الدرس بعد</p>
+            <p className="text-[11px] text-slate-400">كن أول من يطرح سؤالاً ويفتح باب النقاش المثمر!</p>
           </div>
         ) : (
           questions.map((q: LessonQuestion) => {
-            const hasReplies = q.replies && q.replies.length > 0;
-            const isReplying = activeReplyQuestionId === q.id;
+            const isReplying = replyInputOpenForId === q.id;
 
             return (
               <div
                 key={q.id}
-                className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 space-y-3 shadow-sm transition-all"
+                className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3.5"
               >
                 {/* Question Header */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs border border-blue-100 dark:border-blue-800/40">
+                    <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-xs">
                       <User className="w-4 h-4" />
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-slate-900 dark:text-slate-100">{q.studentName}</p>
+                      <p className="text-xs font-bold text-slate-900">{q.studentName || 'طالب'}</p>
                       <p className="text-[10px] text-slate-400">
                         {new Date(q.createdAt).toLocaleDateString('ar-EG', {
                           day: 'numeric',
@@ -177,110 +190,113 @@ export function LessonQAPanel({
                     </div>
                   </div>
 
-                  {/* Timestamp Link Button */}
-                  {q.videoTimestamp !== null && q.videoTimestamp !== undefined && (
+                  {q.videoTimestamp !== undefined && q.videoTimestamp !== null && (
                     <button
                       type="button"
-                      onClick={() => onSeekToTimestamp(q.videoTimestamp!)}
-                      className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900 rounded-lg text-xs font-mono font-bold transition-colors border border-blue-100 dark:border-blue-800/40"
-                      title="انقر للانتقال إلى وقت السؤال في الفيديو"
+                      onClick={() => onSeekToTimestamp?.(q.videoTimestamp!)}
+                      className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-primary-50 hover:bg-primary-100 text-primary-700 border border-primary-100 flex items-center gap-1 transition-colors cursor-pointer"
+                      title="الانتقال للحظة الفيديو"
                     >
-                      <Play className="w-2.5 h-2.5 fill-current" />
-                      <span>{formatSecondsToMMSS(q.videoTimestamp)}</span>
+                      <Clock className="w-3 h-3" />
+                      <span>{formatTimestamp(q.videoTimestamp)}</span>
                     </button>
                   )}
                 </div>
 
-                {/* Question Body */}
-                <p className="text-xs text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
+                {/* Question Content */}
+                <p className="text-xs text-slate-800 leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-100">
                   {q.content}
                 </p>
 
-                {/* Threaded Replies */}
-                {hasReplies && (
-                  <div className="mt-3 space-y-2 border-r-2 border-blue-500/40 pr-3 mr-1">
-                    {q.replies.map((rep: LessonQuestionReply) => {
-                      const isTeacher = rep.authorRole === 'TEACHER' || rep.authorRole === 'SECRETARIAT';
+                {/* Replies Thread */}
+                {q.replies && q.replies.length > 0 && (
+                  <div className="pr-4 border-r-2 border-primary-200 space-y-2.5 my-2">
+                    {q.replies.map((reply: LessonQuestionReply) => {
+                      const isTeacher = reply.authorRole === 'TEACHER' || reply.authorRole === 'ADMIN';
 
                       return (
                         <div
-                          key={rep.id}
+                          key={reply.id}
                           className={`p-3 rounded-xl text-xs space-y-1 ${
                             isTeacher
-                              ? 'bg-blue-50/70 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-800/40'
-                              : 'bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/60'
+                              ? 'bg-primary-50/60 border border-primary-200 text-slate-900'
+                              : 'bg-slate-50 border border-slate-200 text-slate-800'
                           }`}
                         >
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-slate-900 dark:text-slate-100">{rep.authorName}</span>
+                            <div className="flex items-center gap-1.5 font-bold">
                               {isTeacher && (
-                                <span className="px-1.5 py-0.2 text-[9px] font-bold bg-blue-600 text-white rounded-md">
+                                <span className="bg-primary-600 text-white text-[9px] px-2 py-0.5 rounded-full font-bold">
                                   المعلم
                                 </span>
                               )}
+                              <span className={isTeacher ? 'text-primary-900 font-bold' : 'text-slate-700'}>
+                                {reply.authorName}
+                              </span>
                             </div>
                             <span className="text-[10px] text-slate-400">
-                              {new Date(rep.createdAt).toLocaleDateString('ar-EG', {
+                              {new Date(reply.createdAt).toLocaleDateString('ar-EG', {
                                 day: 'numeric',
                                 month: 'short',
-                                hour: '2-digit',
-                                minute: '2-digit',
                               })}
                             </span>
                           </div>
-                          <p className="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
-                            {rep.content}
-                          </p>
+                          <p className="leading-relaxed">{reply.content}</p>
                         </div>
                       );
                     })}
                   </div>
                 )}
 
-                {/* Reply Action Form / Trigger */}
-                <div className="pt-1 flex items-center justify-between border-t border-slate-100 dark:border-slate-800">
-                  {!isReplying ? (
-                    <button
-                      type="button"
-                      onClick={() => setActiveReplyQuestionId(q.id)}
-                      className="flex items-center gap-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline pt-1"
-                    >
-                      <CornerDownLeft className="w-3 h-3" />
-                      <span>إضافة رد أو تعقيب</span>
-                    </button>
-                  ) : (
-                    <div className="w-full space-y-2 pt-2">
-                      <textarea
-                        rows={2}
+                {/* Reply Action Form */}
+                {isReplying ? (
+                  <div className="pt-2 space-y-2">
+                    <div className="relative">
+                      <input
+                        type="text"
                         value={replyContent}
                         onChange={(e) => setReplyContent(e.target.value)}
-                        placeholder="اكتب ردك التوضيحي هنا..."
-                        className="w-full bg-slate-50 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-600 focus:bg-white transition-all outline-none"
+                        placeholder="اكتب ردك أو توضيحك..."
+                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm"
+                        autoFocus
                       />
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveReplyQuestionId(null);
-                            setReplyContent('');
-                          }}
-                          className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
-                        >
-                          إلغاء
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handlePostReply(q.id)}
-                          disabled={createReplyMutation.isPending}
-                          className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-medium transition-colors shadow-sm disabled:opacity-50"
-                        >
-                          {createReplyMutation.isPending ? 'جاري الإرسال...' : 'إرسال الرد'}
-                        </button>
-                      </div>
                     </div>
-                  )}
-                </div>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReplyInputOpenForId(null);
+                          setReplyContent('');
+                        }}
+                        className="px-3 py-1.5 rounded-lg text-xs text-slate-500 hover:text-slate-800"
+                      >
+                        إلغاء
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSendReply(q.id)}
+                        disabled={createReplyMutation.isPending || !replyContent.trim()}
+                        className="px-4 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                      >
+                        {createReplyMutation.isPending ? 'جاري الإرسال...' : 'إرسال الرد'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReplyInputOpenForId(q.id);
+                        setReplyContent('');
+                      }}
+                      className="flex items-center gap-1.5 text-xs text-primary-600 hover:text-primary-700 font-bold"
+                    >
+                      <CornerDownLeft className="w-3.5 h-3.5" />
+                      <span>إضافة رد</span>
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })

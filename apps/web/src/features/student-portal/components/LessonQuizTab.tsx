@@ -2,102 +2,102 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Award, ArrowLeft, CheckCircle2, Clock, HelpCircle, Sparkles } from 'lucide-react';
+import { Award, ArrowLeft, CheckCircle2, Clock, FileQuestion, Sparkles } from 'lucide-react';
 import { AssessmentSummary } from '@/features/courses/types/courses.types';
 
 interface LessonQuizTabProps {
+  lessonTitle?: string;
   lessonQuiz?: AssessmentSummary | null;
   unitQuiz?: AssessmentSummary | null;
   courseQuiz?: AssessmentSummary | null;
-  lessonTitle: string;
 }
 
-export function LessonQuizTab({
-  lessonQuiz,
-  unitQuiz,
-  courseQuiz,
-  lessonTitle,
-}: LessonQuizTabProps) {
-  if (!lessonQuiz && !unitQuiz && !courseQuiz) {
+export function LessonQuizTab({ lessonTitle, lessonQuiz, unitQuiz, courseQuiz }: LessonQuizTabProps) {
+  const hasAnyQuiz = Boolean(lessonQuiz || unitQuiz || courseQuiz);
+
+  if (!hasAnyQuiz) {
     return (
-      <div className="p-8 text-center bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl space-y-2 text-right shadow-sm">
-        <Award className="w-8 h-8 text-slate-400 mx-auto" />
-        <p className="text-xs text-slate-700 dark:text-slate-300 font-bold">لا يوجد اختبار مرتبط بهذا الدرس مباشرة</p>
-        <p className="text-[11px] text-slate-400">يمكنك مراجعة ملخص الدرس أو الانتقال للدرس التالي.</p>
+      <div className="p-8 text-center bg-white border border-slate-200 rounded-2xl space-y-2 text-right shadow-sm">
+        <Award className="w-10 h-10 text-slate-300 mx-auto" />
+        <p className="text-xs text-slate-700 font-bold">لا يوجد اختبار مرتبط بهذا الدرس مباشرة</p>
+        <p className="text-[11px] text-slate-400">
+          استمر في متابعة الدروس القادمة لإجراء الاختبارات الشاملة للوحدات والمنهج.
+        </p>
       </div>
     );
   }
 
   return (
     <div className="space-y-4 text-right animate-in fade-in">
-      {/* 1. Lesson Quiz (Primary) */}
+      {/* 1. LESSON LEVEL QUIZ */}
       {lessonQuiz && (
-        <div className="bg-gradient-to-l from-blue-50 to-white dark:from-blue-950/40 dark:to-slate-900 border border-blue-200/80 dark:border-blue-800/40 rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200 dark:border-amber-800/40 shrink-0">
+        <div className="bg-primary-50/50 border border-primary-200 rounded-2xl p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-200 shrink-0">
               <Award className="w-6 h-6" />
             </div>
             <div>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                اختبار الدرس الحالي
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                اختبار الدرس السريع
               </span>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-1">{lessonQuiz.title}</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                الدرجة الإجمالية: {lessonQuiz.totalScore} درجة • النوع: {lessonQuiz.type === 'EXAM' ? 'امتحان' : 'واجب'}
+              <h3 className="text-sm font-bold text-slate-900 mt-1">{lessonQuiz.title}</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                الدرجة الإجمالية: {lessonQuiz.totalScore} درجة
+                {lessonQuiz.durationMinutes ? ` • المدة: ${lessonQuiz.durationMinutes} دقيقة` : ''}
               </p>
             </div>
           </div>
 
           <Link
-            href={`/student/assessments/${lessonQuiz.id}`}
-            className="flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/20 self-start sm:self-auto"
+            href={`/student/assessments`}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm self-start sm:self-auto"
           >
-            <span>بدء الاختبار الآن</span>
+            <span>بدء اختبار الدرس الآن</span>
             <ArrowLeft className="w-4 h-4" />
           </Link>
         </div>
       )}
 
-      {/* 2. Unit Quiz Banner */}
+      {/* 2. UNIT LEVEL QUIZ */}
       {unitQuiz && (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 flex items-center justify-between gap-4 shadow-sm">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-center justify-between gap-4 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-              <Award className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center">
+              <FileQuestion className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">اختبار الوحدة الشامل</span>
-              <h4 className="text-xs font-bold text-slate-900 dark:text-white">{unitQuiz.title} ({unitQuiz.totalScore} د)</h4>
+              <span className="text-[10px] font-bold text-primary-600">اختبار الوحدة الشامل</span>
+              <h4 className="text-xs font-bold text-slate-900">{unitQuiz.title} ({unitQuiz.totalScore} د)</h4>
             </div>
           </div>
 
           <Link
-            href={`/student/assessments/${unitQuiz.id}`}
-            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors border border-slate-200 dark:border-slate-700"
+            href={`/student/assessments`}
+            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors border border-slate-200"
           >
-            عرض اختبار الوحدة
+            الانتقال للامتحان
           </Link>
         </div>
       )}
 
-      {/* 3. Course Final Quiz Banner */}
+      {/* 3. COURSE LEVEL FINAL QUIZ */}
       {courseQuiz && (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 flex items-center justify-between gap-4 shadow-sm">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-center justify-between gap-4 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-              <Award className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <Award className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">الامتحان النهائي للكورس</span>
-              <h4 className="text-xs font-bold text-slate-900 dark:text-white">{courseQuiz.title} ({courseQuiz.totalScore} د)</h4>
+              <span className="text-[10px] font-bold text-emerald-600">الامتحان الشامل والنهائي للكورس</span>
+              <h4 className="text-xs font-bold text-slate-900">{courseQuiz.title} ({courseQuiz.totalScore} د)</h4>
             </div>
           </div>
 
           <Link
-            href={`/student/assessments/${courseQuiz.id}`}
-            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors border border-slate-200 dark:border-slate-700"
+            href={`/student/assessments`}
+            className="px-4 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white rounded-xl text-xs font-bold transition-colors border border-emerald-200"
           >
-            عرض الامتحان النهائي
+            بدء الامتحان النهائي
           </Link>
         </div>
       )}

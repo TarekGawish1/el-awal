@@ -241,4 +241,23 @@ export const coursesApi = {
       method: 'DELETE',
     });
   },
+
+  getPresignedUploadUrl: async (data: {
+    fileName: string;
+    contentType?: string;
+    fileType?: string;
+    fileSizeBytes?: number;
+    folder?: string;
+  }): Promise<{
+    uploadUrl: string;
+    publicUrl: string;
+    fileKey: string;
+    expiresInSeconds: number;
+  }> => {
+    return apiClient('/content/presigned-upload-url', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
 };
+

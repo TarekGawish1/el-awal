@@ -148,6 +148,7 @@ export interface LessonViewerData {
   isPreview: boolean;
   videoDurationSeconds?: number | null;
   videoPlayerUrl?: string | null;
+  contentUrl?: string | null;
   documentDownloadUrl?: string | null;
   attachments?: LessonAttachment[];
   lessonQuiz?: AssessmentSummary | null;

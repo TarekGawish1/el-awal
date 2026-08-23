@@ -1,101 +1,90 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { UploadCloud, FileText, Image as ImageIcon, CheckCircle2, X } from 'lucide-react';
-import { apiClient } from '@/lib/api/client';
+import { UploadCloud, CheckCircle, File, Image as ImageIcon, Trash2, Loader2, ExternalLink } from 'lucide-react';
+import { coursesApi } from '../api/courses.api';
 import toast from 'react-hot-toast';
 
 interface FileUploadZoneProps {
   accept?: string;
   folder?: string;
-  label?: string;
+  label: string;
   description?: string;
   currentFileUrl?: string | null;
+  fileCategory?: 'image' | 'document' | 'video';
+  maxSizeBytes?: number;
   onUploadComplete: (result: {
     fileUrl: string;
     fileKey: string;
-    fileSize: number;
-    fileType: string;
+    fileSize?: number;
+    fileType?: string;
     fileName: string;
   }) => void;
   onRemoveFile?: () => void;
-  fileCategory?: 'image' | 'document';
 }
 
 export function FileUploadZone({
-  accept = 'image/*',
+  accept = 'image/*,.pdf,.docx',
   folder = 'courses',
-  label = 'رفع صورة الغلاف',
-  description = 'اسحب وأفلت الملف هنا، أو انقر للاختيار من جهازك',
+  label,
+  description = 'اسحب وأفلت الملف هنا أو انقر للاختيار',
   currentFileUrl,
+  fileCategory = 'document',
+  maxSizeBytes = 50 * 1024 * 1024,
   onUploadComplete,
   onRemoveFile,
-  fileCategory = 'image',
 }: FileUploadZoneProps) {
-  const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFile = async (file: File) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate size (max 50MB)
-    if (file.size > 50 * 1024 * 1024) {
-      toast.error('حجم الملف كبير جداً (الحد الأقصى 50 ميجابايت)');
+    if (file.size > maxSizeBytes) {
+      toast.error(`حجم الملف يتجاوز الحد المسموح (${Math.round(maxSizeBytes / (1024 * 1024))}MB)`);
       return;
     }
 
     try {
       setIsUploading(true);
-      setProgress(10);
+      setUploadProgress(10);
 
-      const mimeType = file.type || (fileCategory === 'image' ? 'image/jpeg' : 'application/pdf');
-
-      // Step 1: Request presigned upload URL from backend
-      const presignedRes = await apiClient<{
-        uploadUrl: string;
-        publicUrl: string;
-        fileKey: string;
-        expiresInSeconds: number;
-      }>('/content/presigned-upload-url', {
-        method: 'POST',
-        body: JSON.stringify({
-          fileName: file.name,
-          contentType: mimeType,
-          fileType: mimeType,
-          fileSizeBytes: file.size,
-          folder: folder || 'courses',
-        }),
+      const mimeType = file.type || 'application/octet-stream';
+      const presigned = await coursesApi.getPresignedUploadUrl({
+        fileName: file.name,
+        contentType: mimeType,
+        fileType: mimeType,
+        fileSizeBytes: file.size,
+        folder,
       });
 
-      const { uploadUrl, publicUrl, fileKey } = presignedRes;
-      setProgress(30);
+      setUploadProgress(30);
 
-      // Step 2: Upload raw binary directly to secure cloud storage
       const xhr = new XMLHttpRequest();
-      xhr.open('PUT', uploadUrl);
+      xhr.open('PUT', presigned.uploadUrl);
       xhr.setRequestHeader('Content-Type', mimeType);
 
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
-          const percentComplete = Math.round((event.loaded / event.total) * 60) + 30;
-          setProgress(percentComplete);
+          const percent = Math.round((event.loaded / event.total) * 65) + 30;
+          setUploadProgress(percent);
         }
       };
 
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
-          setProgress(100);
+          setUploadProgress(100);
           setIsUploading(false);
-          toast.success('تم رفع الملف وحفظه بنجاح');
           onUploadComplete({
-            fileUrl: publicUrl,
-            fileKey,
+            fileUrl: presigned.publicUrl,
+            fileKey: presigned.fileKey,
             fileSize: file.size,
             fileType: mimeType,
             fileName: file.name,
           });
+          toast.success('تم رفع الملف بنجاح');
         } else {
           setIsUploading(false);
           toast.error('تعذر إتمام رفع الملف');
@@ -104,63 +93,41 @@ export function FileUploadZone({
 
       xhr.onerror = () => {
         setIsUploading(false);
-        toast.error('حدث خطأ أثناء نقل الملف');
+        toast.error('حدث خطأ في الاتصال أثناء الرفع');
       };
 
       xhr.send(file);
-    } catch (err: any) {
+    } catch {
       setIsUploading(false);
-      toast.error(err?.message || 'تعذر إنشاء رابط الرفع المباشر');
+      toast.error('تعذر إنشاء رابط الرفع المباشر');
     }
   };
 
-  const onDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const onDragLeave = () => {
-    setIsDragging(false);
-  };
-
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) handleFile(file);
-  };
-
-  const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) handleFile(file);
-  };
-
   return (
-    <div className="space-y-2 text-right">
-      {label && <label className="block text-xs font-bold text-slate-900 dark:text-slate-100">{label}</label>}
+    <div className="space-y-1.5 text-right">
+      <label className="block text-xs font-bold text-slate-800">{label}</label>
 
       {currentFileUrl ? (
-        <div className="relative rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-white dark:bg-slate-900 p-3.5 flex items-center justify-between shadow-sm">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
+          <div className="flex items-center gap-3 overflow-hidden">
             {fileCategory === 'image' ? (
-              <div className="w-16 h-12 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 border border-slate-200 dark:border-slate-700">
-                <img src={currentFileUrl} alt="Cover" className="w-full h-full object-cover" />
-              </div>
+              <img
+                src={currentFileUrl}
+                alt="معاينة الملف"
+                className="w-12 h-12 object-cover rounded-lg border border-slate-200"
+              />
             ) : (
-              <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs shrink-0 border border-blue-100 dark:border-blue-800/40">
-                <FileText className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-lg bg-primary-50 text-primary-600 flex items-center justify-center font-bold text-xs shrink-0">
+                <File className="w-5 h-5" />
               </div>
             )}
-            <div className="min-w-0 text-right">
-              <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>تم رفع الملف بنجاح</span>
-              </div>
+            <div className="truncate">
+              <p className="text-xs font-bold text-slate-900 truncate">تم رفع الملف بنجاح</p>
               <a
                 href={currentFileUrl}
                 target="_blank"
-                rel="noopener noreferrer"
-                className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline inline-block mt-0.5"
+                rel="noreferrer"
+                className="text-[11px] text-primary-600 hover:underline block truncate"
               >
                 معاينة الملف المرفوع
               </a>
@@ -168,77 +135,59 @@ export function FileUploadZone({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="px-3.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 hover:text-blue-600 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-medium transition-colors border border-slate-200 dark:border-slate-700"
-            >
-              تغيير الملف
-            </button>
             {onRemoveFile && (
               <button
                 type="button"
                 onClick={onRemoveFile}
-                className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg transition-colors"
-                title="إزالة"
+                className="px-3 py-1.5 text-xs text-slate-600 hover:text-primary-600 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200 bg-white"
               >
-                <X className="w-4 h-4" />
+                تغيير الملف
               </button>
             )}
           </div>
         </div>
       ) : (
         <div
-          onDragOver={onDragOver}
-          onDragLeave={onDragLeave}
-          onDrop={onDrop}
           onClick={() => fileInputRef.current?.click()}
-          className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-2.5 ${
-            isDragging
-              ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-950/20'
-              : 'border-slate-300 dark:border-slate-700 hover:border-blue-500 bg-slate-50 dark:bg-slate-900/50 hover:bg-white dark:hover:bg-slate-900'
-          }`}
+          className="border-2 border-dashed border-slate-200 hover:border-primary-500 rounded-2xl p-5 text-center cursor-pointer transition-colors bg-white group shadow-sm"
         >
           <input
             ref={fileInputRef}
             type="file"
             accept={accept}
-            onChange={onInputChange}
+            onChange={handleFileChange}
             disabled={isUploading}
             className="hidden"
           />
 
-          {isUploading ? (
-            <div className="w-full max-w-xs space-y-2 py-2">
-              <div className="flex justify-between text-xs font-bold text-slate-800 dark:text-slate-200">
-                <span>جاري رفع الملف إلى الخادم السحابي المشفر...</span>
-                <span className="font-mono text-blue-600">{progress}%</span>
+          <div className="flex flex-col items-center gap-1.5 text-slate-500">
+            {isUploading ? (
+              <Loader2 className="w-8 h-8 text-primary-600 animate-spin mb-1" />
+            ) : fileCategory === 'image' ? (
+              <ImageIcon className="w-8 h-8 text-primary-600 group-hover:scale-110 transition-transform mb-1" />
+            ) : (
+              <UploadCloud className="w-8 h-8 text-primary-600 group-hover:scale-110 transition-transform mb-1" />
+            )}
+
+            <p className="text-xs font-bold text-slate-800">{description}</p>
+            <p className="text-[10px] text-slate-400">
+              الحد الأقصى {Math.round(maxSizeBytes / (1024 * 1024))} ميجابايت • رفع مباشر وسريع
+            </p>
+          </div>
+
+          {isUploading && (
+            <div className="mt-3 space-y-1">
+              <div className="flex justify-between text-[11px] font-bold text-slate-800">
+                <span>جاري الرفع السحابي...</span>
+                <span className="font-mono text-primary-600">{uploadProgress}%</span>
               </div>
-              <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden">
+              <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                 <div
-                  className="bg-blue-600 h-full transition-all duration-300 rounded-full"
-                  style={{ width: `${progress}%` }}
+                  className="bg-primary-600 h-full transition-all duration-200 rounded-full"
+                  style={{ width: `${uploadProgress}%` }}
                 />
               </div>
             </div>
-          ) : (
-            <>
-              <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-800/40">
-                {fileCategory === 'image' ? (
-                  <ImageIcon className="w-6 h-6" />
-                ) : (
-                  <UploadCloud className="w-6 h-6" />
-                )}
-              </div>
-              <div>
-                <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{description}</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                  {fileCategory === 'image'
-                    ? 'الصور المدعومة (صورة عالية الدقة) حتى 10 ميجابايت'
-                    : 'المستندات المدعومة (ملفات الشرح، التمارين، أوراق العمل) حتى 50 ميجابايت'}
-                </p>
-              </div>
-            </>
           )}
         </div>
       )}
