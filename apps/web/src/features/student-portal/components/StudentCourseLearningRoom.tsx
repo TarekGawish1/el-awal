@@ -144,7 +144,7 @@ export function StudentCourseLearningRoom({
 
   if (!course) {
     return (
-      <div className="p-8 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl text-slate-500 shadow-sm">
+      <div className="p-8 text-center bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl text-slate-500 shadow-sm">
         لم يتم العثور على الكورس المطلوب.
       </div>
     );
@@ -163,12 +163,12 @@ export function StudentCourseLearningRoom({
 
   return (
     <div className="space-y-6 text-right max-w-7xl mx-auto pb-12 animate-in fade-in">
-      {/* Top Breadcrumb & Header Navbar */}
-      <div className="flex items-center justify-between bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 px-6 py-4 rounded-3xl shadow-sm bg-gradient-to-l from-blue-50/50 via-white to-white dark:from-slate-800/40 dark:via-slate-900 dark:to-slate-900">
+      {/* Top Header Navbar */}
+      <div className="flex items-center justify-between bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 px-6 py-4 rounded-2xl shadow-sm bg-gradient-to-l from-blue-50/50 via-white to-white dark:from-slate-800/40 dark:via-slate-900 dark:to-slate-900">
         <div className="flex items-center gap-3">
           <Link
             href="/student/courses"
-            className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 hover:text-blue-600 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-colors shrink-0 border border-slate-200 dark:border-slate-700"
+            className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 hover:text-blue-600 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-colors shrink-0 border border-slate-200 dark:border-slate-700"
           >
             <ArrowRight className="w-5 h-5" />
           </Link>
@@ -178,7 +178,7 @@ export function StudentCourseLearningRoom({
               <span className="text-slate-300 dark:text-slate-700">•</span>
               <span className="text-[11px] text-slate-500 dark:text-slate-400">{course.subject}</span>
             </div>
-            <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white mt-0.5">
+            <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 mt-0.5">
               {lessonData?.title || 'جاري تحميل الدرس...'}
             </h1>
           </div>
@@ -189,7 +189,7 @@ export function StudentCourseLearningRoom({
           <button
             type="button"
             onClick={handleMarkCompleted}
-            className="hidden sm:flex items-center gap-1.5 px-4 py-2 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white rounded-xl text-xs font-bold transition-all border border-emerald-200 dark:border-emerald-800"
+            className="hidden sm:flex items-center gap-1.5 px-4 py-2 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white rounded-xl text-xs font-medium transition-all border border-emerald-200 dark:border-emerald-800 shadow-sm"
           >
             <CheckCircle className="w-4 h-4" />
             <span>تحديد كمكتمل</span>
@@ -198,7 +198,7 @@ export function StudentCourseLearningRoom({
           <button
             type="button"
             onClick={() => setIsSidebarOpenMobile(!isSidebarOpenMobile)}
-            className="lg:hidden w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center border border-slate-200 dark:border-slate-700"
+            className="lg:hidden w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center border border-slate-200 dark:border-slate-700"
           >
             <Menu className="w-5 h-5" />
           </button>
@@ -209,10 +209,10 @@ export function StudentCourseLearningRoom({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Left/Center Main Column: Video Player & Tabs */}
         <div className="lg:col-span-2 space-y-6">
-          {/* 16:9 Responsive Video Container with Anti-Piracy Watermark & Transcoding State Card */}
+          {/* Strict 16:9 Responsive Video Container with max-h-[70vh] */}
           <div
             onContextMenu={(e) => e.preventDefault()}
-            className="relative w-full aspect-video bg-black rounded-3xl overflow-hidden border border-slate-800 shadow-xl flex items-center justify-center group select-none"
+            className="relative w-full overflow-hidden rounded-2xl bg-black shadow-lg aspect-video max-h-[70vh] border border-slate-800 flex items-center justify-center group select-none"
           >
             {/* Dynamic Anti-Piracy Watermark Overlay */}
             <AntiPiracyWatermark
@@ -225,8 +225,8 @@ export function StudentCourseLearningRoom({
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500" />
             ) : isVideoProcessing ? (
               /* Video Transcoding / Processing State Placeholder Card */
-              <div className="p-8 text-center bg-slate-900/90 rounded-3xl max-w-md mx-auto space-y-4 border border-slate-800 text-white animate-in fade-in">
-                <div className="w-16 h-16 rounded-3xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center mx-auto animate-pulse">
+              <div className="p-8 text-center bg-slate-900/90 rounded-2xl max-w-md mx-auto space-y-4 border border-slate-800 text-white animate-in fade-in">
+                <div className="w-16 h-16 rounded-2xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center mx-auto animate-pulse">
                   <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
                 </div>
                 <div className="space-y-1.5">
@@ -241,7 +241,7 @@ export function StudentCourseLearningRoom({
                     refetchStreamAuth();
                     toast.success('جاري التحقق من حالة معالجة الفيديو...');
                   }}
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/30 inline-flex items-center gap-2"
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-medium transition-all shadow-md shadow-blue-600/30 inline-flex items-center gap-2"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>تحديث حالة الفيديو</span>
@@ -264,7 +264,7 @@ export function StudentCourseLearningRoom({
                       : `${effectivePlayerUrl}?autoplay=true&preload=true`
                   }
                   loading="lazy"
-                  className="w-full h-full border-0 absolute inset-0"
+                  className="w-full h-full border-0 absolute inset-0 object-contain"
                   allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
                   allowFullScreen
                   title={lessonData?.title || 'فيديو الدرس'}
@@ -275,6 +275,7 @@ export function StudentCourseLearningRoom({
                   src={effectivePlayerUrl}
                   controls
                   controlsList="nodownload"
+                  playsInline
                   autoPlay
                   onTimeUpdate={(e) => setCurrentPlaybackSeconds((e.target as HTMLVideoElement).currentTime)}
                   className="w-full h-full object-contain"
@@ -291,15 +292,15 @@ export function StudentCourseLearningRoom({
             )}
           </div>
 
-          {/* Navigation Tabs Below Video */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-1.5 flex items-center gap-1.5 overflow-x-auto text-xs shadow-sm">
+          {/* Clean Pill Tab Navigation Below Video */}
+          <div className="bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl flex items-center gap-1 overflow-x-auto text-xs shadow-sm">
             <button
               type="button"
               onClick={() => setActiveTab('summary')}
-              className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl font-bold transition-all ${
+              className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2 px-3 rounded-lg font-medium transition-all ${
                 activeTab === 'summary'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/60'
               }`}
             >
               <FileText className="w-4 h-4" />
@@ -309,16 +310,16 @@ export function StudentCourseLearningRoom({
             <button
               type="button"
               onClick={() => setActiveTab('attachments')}
-              className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl font-bold transition-all ${
+              className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2 px-3 rounded-lg font-medium transition-all ${
                 activeTab === 'attachments'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/60'
               }`}
             >
               <Paperclip className="w-4 h-4" />
               <span>المرفقات والتحميلات</span>
               {lessonData?.attachments && lessonData.attachments.length > 0 && (
-                <span className="bg-white/20 text-white px-1.5 py-0.2 rounded-full text-[10px]">
+                <span className="bg-white/25 text-white px-1.5 py-0.2 rounded-full text-[10px]">
                   {lessonData.attachments.length}
                 </span>
               )}
@@ -327,10 +328,10 @@ export function StudentCourseLearningRoom({
             <button
               type="button"
               onClick={() => setActiveTab('qa')}
-              className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl font-bold transition-all ${
+              className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2 px-3 rounded-lg font-medium transition-all ${
                 activeTab === 'qa'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/60'
               }`}
             >
               <MessageSquare className="w-4 h-4" />
@@ -340,10 +341,10 @@ export function StudentCourseLearningRoom({
             <button
               type="button"
               onClick={() => setActiveTab('quiz')}
-              className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl font-bold transition-all ${
+              className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2 px-3 rounded-lg font-medium transition-all ${
                 activeTab === 'quiz'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/60'
               }`}
             >
               <Award className="w-4 h-4" />
@@ -408,7 +409,7 @@ export function StudentCourseLearningRoom({
       {/* Mobile Syllabus Modal Drawer */}
       {isSidebarOpenMobile && (
         <div className="fixed inset-0 z-50 flex lg:hidden bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-sm bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 h-full p-4 overflow-y-auto mr-auto flex flex-col justify-between shadow-2xl">
+          <div className="w-full max-w-sm bg-white dark:bg-slate-900 border-l border-slate-200/80 dark:border-slate-800 h-full p-4 overflow-y-auto mr-auto flex flex-col justify-between shadow-2xl">
             <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
               <span className="text-xs font-bold text-slate-900 dark:text-white">فصول ومنهج الدورة</span>
               <button

@@ -59,30 +59,30 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[90vh]">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl w-full max-w-xl shadow-xl overflow-hidden my-auto flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-gradient-to-l from-blue-50/50 to-white dark:from-slate-800/60 dark:to-slate-900">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-gradient-to-l from-blue-50/50 to-white dark:from-slate-800/60 dark:to-slate-900">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-800/40">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-800/40">
               <BookOpen className="w-5 h-5" />
             </div>
             <div className="text-right">
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">إنشاء كورس تعليمي جديد</h2>
+              <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">إنشاء كورس تعليمي جديد</h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">إضافة دورة تدريبية بفصول وشروحات تفاعلية</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Body Form */}
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4 text-right">
+        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4 text-right bg-white dark:bg-slate-900">
           <div>
-            <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+            <label className="block text-xs font-bold text-slate-900 dark:text-slate-100 mb-1.5">
               عنوان الكورس <span className="text-rose-500">*</span>
             </label>
             <input
@@ -90,31 +90,31 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="مثال: المراجعة النهائية في النحو والبلاغة"
-              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-colors"
+              className="w-full bg-slate-50 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-600 focus:bg-white transition-all outline-none"
               required
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+              <label className="block text-xs font-bold text-slate-900 dark:text-slate-100 mb-1.5">
                 المادة الدراسية
               </label>
               <input
                 type="text"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+              <label className="block text-xs font-bold text-slate-900 dark:text-slate-100 mb-1.5">
                 الصف الدراسي
               </label>
               <select
                 value={gradeLevel}
                 onChange={(e) => setGradeLevel(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none"
               >
                 <option value="الصف الأول الثانوي">الصف الأول الثانوي</option>
                 <option value="الصف الثاني الثانوي">الصف الثاني الثانوي</option>
@@ -127,7 +127,7 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+            <label className="block text-xs font-bold text-slate-900 dark:text-slate-100 mb-1.5">
               سعر الاشتراك (ج.م)
             </label>
             <div className="relative">
@@ -137,7 +137,7 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
                 step="10"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white pl-10 focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white pl-10 focus:ring-2 focus:ring-blue-600 outline-none"
               />
               <DollarSign className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
             </div>
@@ -159,7 +159,7 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+            <label className="block text-xs font-bold text-slate-900 dark:text-slate-100 mb-1.5">
               نبذة ووصف الكورس
             </label>
             <textarea
@@ -167,7 +167,7 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="اكتب نبذة تشرح ما سيتعلمه الطالب وأهم مميزات هذه الدورة..."
-              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+              className="w-full bg-slate-50 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-600 outline-none"
             />
           </div>
 
@@ -182,7 +182,7 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
             <select
               value={courseQuizId}
               onChange={(e) => setCourseQuizId(e.target.value)}
-              className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+              className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none"
             >
               <option value="">-- بدون اختبار شامل حالياً --</option>
               {assessments.map((a: any) => (
@@ -201,14 +201,14 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="px-5 py-2.5 rounded-xl text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             >
               إلغاء
             </button>
             <button
               type="submit"
               disabled={createMutation.isPending}
-              className="px-6 py-2.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-md shadow-blue-600/30 disabled:opacity-50"
+              className="px-6 py-2.5 rounded-xl text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-md shadow-blue-600/30 disabled:opacity-50"
             >
               {createMutation.isPending ? 'جاري الإنشاء...' : 'إنشاء ومتابعة البناء'}
             </button>

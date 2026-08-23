@@ -220,10 +220,10 @@ export function useCreateQuestion(lessonId: string) {
       coursesApi.createQuestion(lessonId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lesson-questions', lessonId] });
-      toast.success('تم طرح سؤالك بنجاح');
+      toast.success('تم نشر سؤالك بنجاح');
     },
-    onError: () => {
-      toast.error('تعذر نشر السؤال');
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر نشر السؤال');
     },
   });
 }
@@ -235,10 +235,10 @@ export function useCreateReply(lessonId: string) {
       coursesApi.createReply(questionId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lesson-questions', lessonId] });
-      toast.success('تمت إضافة الرد');
+      toast.success('تمت إضافة الرد بنجاح');
     },
-    onError: () => {
-      toast.error('تعذر إرسال الرد');
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر إرسال الرد');
     },
   });
 }

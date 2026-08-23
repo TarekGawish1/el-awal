@@ -7,6 +7,7 @@ import { LessonSummaryTab } from '@/features/student-portal/components/LessonSum
 import { LessonResourcesTab } from '@/features/student-portal/components/LessonResourcesTab';
 import { LessonQuizTab } from '@/features/student-portal/components/LessonQuizTab';
 import { StudentCourseLearningRoom } from '@/features/student-portal/components/StudentCourseLearningRoom';
+import { LessonEditorModal } from '@/features/courses/components/LessonEditorModal';
 import { coursesApi } from '@/features/courses/api/courses.api';
 
 // Mock dependencies
@@ -19,7 +20,15 @@ vi.mock('@/features/courses/api/courses.api', () => ({
     getLessonViewer: vi.fn(),
     getLessonStreamAuth: vi.fn(),
     updateLessonProgress: vi.fn(),
+    getVideoUploadCredentials: vi.fn(),
   },
+}));
+
+vi.mock('@/features/assessments/hooks/use-assessments', () => ({
+  useAssessments: vi.fn().mockReturnValue({
+    data: { data: [] },
+    isLoading: false,
+  }),
 }));
 
 vi.mock('@/features/auth', () => ({
@@ -106,6 +115,45 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
       fireEvent.click(timestampChip);
       expect(onSeekMock).toHaveBeenCalledWith(225);
     });
+
+    it('submits a new question with integer timestamp and resets input', async () => {
+      vi.mocked(coursesApi.getLessonQuestions).mockResolvedValue([]);
+      vi.mocked(coursesApi.createQuestion).mockResolvedValue({
+        id: 'q-new',
+        content: 'سؤال جديد حول كان وأخواتها',
+        videoTimestamp: 45,
+        lessonId: 'lesson-1',
+        studentId: 'stu-1',
+        studentName: 'طالب منصة الأول',
+        createdAt: '2026-08-23T12:00:00Z',
+        updatedAt: '2026-08-23T12:00:00Z',
+        replies: [],
+      });
+
+      render(
+        <LessonQAPanel
+          lessonId="lesson-1"
+          currentPlaybackSeconds={45.7}
+          onSeekToTimestamp={vi.fn()}
+        />,
+        { wrapper }
+      );
+
+      const textarea = screen.getByPlaceholderText(/اكتب سؤالك بوضوح/i);
+      fireEvent.change(textarea, { target: { value: 'سؤال جديد حول كان وأخواتها' } });
+
+      const submitBtn = screen.getByRole('button', { name: /نشر السؤال/i });
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(coursesApi.createQuestion).toHaveBeenCalledWith('lesson-1', {
+          content: 'سؤال جديد حول كان وأخواتها',
+          videoTimestamp: 45,
+        });
+      });
+
+      expect(textarea).toHaveValue('');
+    });
   });
 
   describe('LessonResourcesTab Component', () => {
@@ -174,8 +222,30 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
     });
   });
 
-  describe('StudentCourseLearningRoom Component (Transcoding State Handling)', () => {
-    it('renders interactive Arabic placeholder card when videoStatus is PROCESSING', async () => {
+  describe('LessonEditorModal Component (No Manual ID Inputs)', () => {
+    it('renders direct upload dropzone and does NOT render manual video ID input fields', () => {
+      render(
+        <LessonEditorModal
+          isOpen={true}
+          courseId="course-1"
+          moduleId="mod-1"
+          lesson={null}
+          onClose={vi.fn()}
+        />,
+        { wrapper }
+      );
+
+      expect(screen.getByText('إضافة درس تعليمي جديد')).toBeInTheDocument();
+      expect(screen.getByText(/انقر لاختيار فيديو أو سحبه هنا/i)).toBeInTheDocument();
+
+      // Ensure no manual ID text inputs exist
+      expect(screen.queryByText(/أو أدخل معرف الفيديو المشفر يدوياً/i)).not.toBeInTheDocument();
+      expect(screen.queryByPlaceholderText(/9f8a7b6c/i)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('StudentCourseLearningRoom Component (Transcoding State Handling & 16:9 Aspect Ratio)', () => {
+    it('renders interactive Arabic placeholder card and strict aspect-video container when videoStatus is PROCESSING', async () => {
       vi.mocked(coursesApi.getCourseDetails).mockResolvedValue({
         id: 'course-1',
         title: 'كورس النحو والبلاغة',
@@ -215,7 +285,7 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
         },
       });
 
-      render(
+      const { container } = render(
         <StudentCourseLearningRoom courseId="course-1" initialLessonId="les-1" />,
         { wrapper }
       );
@@ -223,6 +293,11 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
       expect(await screen.findByText('الفيديو قيد المعالجة السحابية')).toBeInTheDocument();
       expect(screen.getByText(/نقوم حالياً بتهيئة الفيديو وتوليد الجودات المتعددة/i)).toBeInTheDocument();
       expect(screen.getByText('تحديث حالة الفيديو')).toBeInTheDocument();
+
+      // Check aspect-video and overflow-hidden classes on the video wrapper
+      const videoWrapper = container.querySelector('.aspect-video');
+      expect(videoWrapper).toBeInTheDocument();
+      expect(videoWrapper).toHaveClass('overflow-hidden');
     });
   });
 });

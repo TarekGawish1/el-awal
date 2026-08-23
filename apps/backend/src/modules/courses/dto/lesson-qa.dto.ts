@@ -1,4 +1,5 @@
 import { IsNotEmpty, IsString, IsOptional, IsInt, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateQuestionDto {
@@ -7,7 +8,7 @@ export class CreateQuestionDto {
     example: 'هل يجوز تقديم خبر كان على اسمها في هذه الحالة؟',
   })
   @IsString()
-  @IsNotEmpty({ message: 'Question content is required' })
+  @IsNotEmpty({ message: 'نص السؤال مطلوب' })
   content: string;
 
   @ApiPropertyOptional({
@@ -15,6 +16,7 @@ export class CreateQuestionDto {
     example: 145,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(0)
   videoTimestamp?: number;
@@ -26,6 +28,6 @@ export class CreateQuestionReplyDto {
     example: 'نعم يجوز تقديم الخبر إذا كان شبه جملة واسمها نكرة.',
   })
   @IsString()
-  @IsNotEmpty({ message: 'Reply content is required' })
+  @IsNotEmpty({ message: 'نص الرد مطلوب' })
   content: string;
 }

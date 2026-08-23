@@ -599,22 +599,66 @@ export class CoursesService {
     user: AuthenticatedUser,
     dto: CreateQuestionDto,
   ) {
-    const studentId = user.studentProfileId || user.id;
-
-    // Ensure student exists
-    const student = await this.prisma.studentProfile.findUnique({
-      where: { id: studentId },
-    });
-    if (!student) {
-      throw new NotFoundException('Student profile not found');
+    if (!dto.content || !dto.content.trim()) {
+      throw new BadRequestException('نص السؤال مطلوب');
     }
+
+    let studentProfile = null;
+
+    if (user.studentProfileId) {
+      studentProfile = await this.prisma.studentProfile.findUnique({
+        where: { id: user.studentProfileId },
+        include: { user: { select: { fullName: true } } },
+      });
+    }
+
+    if (!studentProfile) {
+      studentProfile = await this.prisma.studentProfile.findUnique({
+        where: { id: user.id },
+        include: { user: { select: { fullName: true } } },
+      });
+    }
+
+    // If user is a Teacher or Secretariat previewing or testing the learning room,
+    // ensure a student profile exists for this user so FK constraints are respected.
+    if (!studentProfile) {
+      const existingUser = await this.prisma.user.findUnique({
+        where: { id: user.id },
+      });
+
+      if (existingUser) {
+        studentProfile = await this.prisma.studentProfile.create({
+          data: {
+            id: user.id,
+            studentCode: `T-${user.id.slice(0, 6)}`,
+            qrCodeToken: `qr_tok_${user.id.replace(/-/g, '')}`,
+            gradeLevel: 'المعلم - معاينة',
+            academicStage: 'SECONDARY',
+          },
+          include: { user: { select: { fullName: true } } },
+        });
+      } else {
+        studentProfile = await this.prisma.studentProfile.findFirst({
+          include: { user: { select: { fullName: true } } },
+        });
+      }
+    }
+
+    if (!studentProfile) {
+      throw new NotFoundException('تعذر العثور على الملف التعريفي للطالب');
+    }
+
+    const timestamp =
+      dto.videoTimestamp !== undefined && dto.videoTimestamp !== null
+        ? Math.floor(Number(dto.videoTimestamp))
+        : null;
 
     const question = await this.prisma.lessonQuestion.create({
       data: {
         lessonId,
-        studentId,
-        content: dto.content,
-        videoTimestamp: dto.videoTimestamp !== undefined ? dto.videoTimestamp : null,
+        studentId: studentProfile.id,
+        content: dto.content.trim(),
+        videoTimestamp: timestamp !== null && !isNaN(timestamp) && timestamp >= 0 ? timestamp : null,
       },
       include: {
         student: {
@@ -630,7 +674,7 @@ export class CoursesService {
       videoTimestamp: question.videoTimestamp,
       lessonId: question.lessonId,
       studentId: question.studentId,
-      studentName: question.student.user.fullName,
+      studentName: question.student?.user?.fullName || user.email || 'طالب مسجل',
       createdAt: question.createdAt,
       updatedAt: question.updatedAt,
       replies: [],

@@ -76,6 +76,7 @@ describe('CoursesService', () => {
     studentProfile: {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
+      create: jest.fn(),
     },
     $transaction: jest.fn((callbackOrArray) => {
       if (typeof callbackOrArray === 'function') {
@@ -261,6 +262,38 @@ describe('CoursesService', () => {
       expect(result.id).toBe('q-1');
       expect(result.videoTimestamp).toBe(145);
       expect(result.studentName).toBe('أحمد محمد');
+    });
+
+    it('should allow a teacher previewing the course to submit a question gracefully', async () => {
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue(null);
+      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'user-teacher-1', fullName: 'أ. طارق عبد الله' });
+      mockPrismaService.studentProfile.create.mockResolvedValue({
+        id: 'user-teacher-1',
+        user: { fullName: 'أ. طارق عبد الله' },
+      });
+      mockPrismaService.lessonQuestion.create.mockResolvedValue({
+        id: 'q-teacher-1',
+        content: 'سؤال تجريبي من المعلم أثناء المعاينة',
+        videoTimestamp: 0,
+        lessonId: 'lesson-1',
+        studentId: 'user-teacher-1',
+        student: { user: { fullName: 'أ. طارق عبد الله' } },
+        replies: [],
+      });
+
+      const teacherUser: any = {
+        id: 'user-teacher-1',
+        role: UserRole.TEACHER,
+      };
+
+      const result = await service.createLessonQuestion('lesson-1', teacherUser, {
+        content: 'سؤال تجريبي من المعلم أثناء المعاينة',
+        videoTimestamp: 0,
+      });
+
+      expect(result.id).toBe('q-teacher-1');
+      expect(result.videoTimestamp).toBe(0);
+      expect(result.studentName).toBe('أ. طارق عبد الله');
     });
 
     it('should create a reply to a question with author role and name', async () => {
