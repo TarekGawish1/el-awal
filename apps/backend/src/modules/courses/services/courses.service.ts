@@ -25,6 +25,11 @@ import { CreateQuestionDto, CreateQuestionReplyDto } from '../dto/lesson-qa.dto'
 import { CreateAttachmentDto } from '../dto/lesson-attachment.dto';
 import { GrantGroupAccessDto } from '../dto/group-access.dto';
 import { ReorderModulesDto } from '../dto/reorder-modules.dto';
+import {
+  EnrollStudentsBatchDto,
+  CreateAndEnrollStudentDto,
+  EnrollByQrDto,
+} from '../dto/enrollment.dto';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import {
   CourseStatus,
@@ -33,6 +38,10 @@ import {
   UserRole,
 } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
+import { normalizeEgyptianPhone } from '../../../common/utils/phone.util';
+import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
+import { createHash, randomUUID } from 'crypto';
+import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class CoursesService {
@@ -1073,5 +1082,494 @@ export class CoursesService {
       }));
 
     return this.progressRepository.syncBatch(studentId, enrichedItems);
+  }
+
+  /**
+   * Generates DRM signed playback and embed tokens for secure video playback with anti-piracy validation.
+   */
+  async getLessonStreamAuth(lessonId: string, user: AuthenticatedUser) {
+    const lesson = await this.prisma.courseLesson.findUnique({
+      where: { id: lessonId },
+      include: {
+        module: {
+          include: {
+            course: {
+              include: {
+                groupAccess: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!lesson) {
+      throw new NotFoundException(`Lesson [${lessonId}] not found`);
+    }
+
+    const course = lesson.module.course;
+    const isTeacherOrSecretariat =
+      user.role === UserRole.TEACHER ||
+      user.role === UserRole.SECRETARIAT;
+
+    let isAuthorized = isTeacherOrSecretariat || lesson.isPreview;
+
+    let studentProfile: any = null;
+    if (user.role === UserRole.STUDENT) {
+      const studentId = user.studentProfileId || user.id;
+      studentProfile = await this.prisma.studentProfile.findUnique({
+        where: { id: studentId },
+        include: { user: true, groupEnrollments: true },
+      });
+
+      if (!isAuthorized && studentProfile) {
+        // 1. Direct enrollment check
+        const enrollment = await this.prisma.courseEnrollment.findUnique({
+          where: {
+            courseId_studentId: {
+              courseId: course.id,
+              studentId: studentProfile.id,
+            },
+          },
+        });
+
+        if (enrollment && enrollment.status === CourseEnrollmentStatus.ACTIVE) {
+          isAuthorized = true;
+        } else {
+          // 2. Physical group batch access check
+          const studentGroupIds = studentProfile.groupEnrollments?.map((g: any) => g.groupId) || [];
+          const courseGroupIds = course.groupAccess?.map((ga) => ga.groupId) || [];
+          const hasMatchingGroup = studentGroupIds.some((gid: string) => courseGroupIds.includes(gid));
+          if (hasMatchingGroup) {
+            isAuthorized = true;
+          }
+        }
+      }
+    }
+
+    if (!isAuthorized) {
+      throw new ForbiddenException('يجب الاشتراك في هذا الكورس أولاً لمشاهدة شرح هذا الدرس');
+    }
+
+    // Generate signed Bunny Stream playback & embed URLs
+    const videoId = lesson.bunnyVideoId || lesson.contentUrl || '';
+    let embedUrl = '';
+    let playbackUrl = '';
+
+    if (videoId) {
+      playbackUrl = this.bunnyVideoService.generateSecurePlaybackUrl(videoId);
+      const libId = (this.bunnyVideoService as any).libraryId || process.env.BUNNY_LIBRARY_ID || '12345';
+      const expires = Math.floor(Date.now() / 1000) + 7200;
+      const tokenSecKey = (this.bunnyVideoService as any).tokenSecurityKey || process.env.BUNNY_TOKEN_AUTH_KEY || '';
+      if (tokenSecKey) {
+        const rawSignature = `${tokenSecKey}${videoId}${expires}`;
+        const token = createHash('sha256').update(rawSignature).digest('hex');
+        embedUrl = `https://iframe.mediadelivery.net/embed/${libId}/${videoId}?token=${token}&expires=${expires}`;
+      } else {
+        embedUrl = `https://iframe.mediadelivery.net/embed/${libId}/${videoId}`;
+      }
+    }
+
+    const watermark = {
+      studentName: studentProfile?.user?.fullName || user.email || 'طالب مسجل',
+      studentPhone: studentProfile?.user?.phone || user.phone || '',
+      studentCode: studentProfile?.studentCode || user.id.slice(0, 8),
+    };
+
+    return {
+      lessonId: lesson.id,
+      courseId: course.id,
+      title: lesson.title,
+      videoId,
+      embedUrl,
+      playbackUrl,
+      isPreview: lesson.isPreview,
+      watermark,
+    };
+  }
+
+  /**
+   * Retrieves all enrolled students for a specific course.
+   */
+  async getCourseEnrollments(courseId: string, teacherId: string, isSecretariat: boolean) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: { id: true, teacherId: true, title: true },
+    });
+
+    if (!course) {
+      throw new NotFoundException(`Course [${courseId}] not found`);
+    }
+
+    if (!isSecretariat && course.teacherId !== teacherId) {
+      throw new ForbiddenException('You do not have permission to view enrollments for this course');
+    }
+
+    const enrollments = await this.prisma.courseEnrollment.findMany({
+      where: { courseId },
+      include: {
+        student: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                phone: true,
+              },
+            },
+            groupEnrollments: {
+              include: {
+                group: {
+                  select: { id: true, name: true, gradeLevel: true },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { enrolledAt: 'desc' },
+    });
+
+    return enrollments.map((e) => ({
+      id: e.id,
+      studentId: e.studentId,
+      studentCode: e.student.studentCode,
+      fullName: e.student.user.fullName,
+      phone: e.student.user.phone,
+      gradeLevel: e.student.gradeLevel,
+      status: e.status,
+      enrolledAt: e.enrolledAt,
+      groups: e.student.groupEnrollments.map((g) => g.group.name),
+    }));
+  }
+
+  /**
+   * Bulk enrolls a list of student IDs into a course.
+   */
+  async enrollStudentsBatch(
+    courseId: string,
+    teacherId: string,
+    isSecretariat: boolean,
+    dto: EnrollStudentsBatchDto,
+  ) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+    });
+
+    if (!course) {
+      throw new NotFoundException(`Course [${courseId}] not found`);
+    }
+
+    if (!isSecretariat && course.teacherId !== teacherId) {
+      throw new ForbiddenException('You do not have permission to manage enrollments for this course');
+    }
+
+    const { studentIds } = dto;
+    if (!studentIds || studentIds.length === 0) {
+      throw new BadRequestException('يجب تحديد طالب واحد على الأقل للضم');
+    }
+
+    const results = await this.prisma.$transaction(async (tx) => {
+      const createdEnrollments = [];
+      for (const studentId of studentIds) {
+        const enrollment = await tx.courseEnrollment.upsert({
+          where: {
+            courseId_studentId: {
+              courseId,
+              studentId,
+            },
+          },
+          update: {
+            status: CourseEnrollmentStatus.ACTIVE,
+          },
+          create: {
+            courseId,
+            studentId,
+            status: CourseEnrollmentStatus.ACTIVE,
+          },
+        });
+
+        await tx.courseAccess.upsert({
+          where: { enrollmentId: enrollment.id },
+          update: { accessStatus: CourseAccessStatus.ACTIVE },
+          create: {
+            enrollmentId: enrollment.id,
+            studentId,
+            courseId,
+            accessStatus: CourseAccessStatus.ACTIVE,
+          },
+        });
+
+        createdEnrollments.push(enrollment);
+      }
+      return createdEnrollments;
+    });
+
+    return {
+      success: true,
+      enrolledCount: results.length,
+      message: `تم ضم ${results.length} طالب إلى الكورس بنجاح`,
+    };
+  }
+
+  /**
+   * Creates a new student and enrolls them into the course immediately.
+   */
+  async createAndEnrollStudent(
+    courseId: string,
+    teacherId: string,
+    isSecretariat: boolean,
+    dto: CreateAndEnrollStudentDto,
+  ) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+    });
+
+    if (!course) {
+      throw new NotFoundException(`Course [${courseId}] not found`);
+    }
+
+    if (!isSecretariat && course.teacherId !== teacherId) {
+      throw new ForbiddenException('You do not have permission to manage enrollments for this course');
+    }
+
+    const studentPhone = normalizeEgyptianPhone(dto.phone);
+    const parentPhone = normalizeEgyptianPhone(dto.parentPhone);
+
+    const generatedPassword = Math.random().toString(36).slice(-8) + 'A1!';
+    const passwordHash = await bcrypt.hash(generatedPassword, 10);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // 1. Check existing user by phone
+      let user = await tx.user.findFirst({
+        where: { phone: studentPhone },
+        include: { studentProfile: true },
+      });
+
+      let studentProfile = user?.studentProfile;
+
+      if (!user) {
+        const studentCode = await generateUniqueStudentCode(tx);
+        const qrCodeToken = `qr_tok_${randomUUID().replace(/-/g, '')}`;
+
+        user = await tx.user.create({
+          data: {
+            fullName: dto.fullName.trim(),
+            phone: studentPhone,
+            passwordHash,
+            role: UserRole.STUDENT,
+            isActive: true,
+            studentProfile: {
+              create: {
+                studentCode,
+                qrCodeToken,
+                gradeLevel: dto.gradeLevel || course.gradeLevel,
+                academicStage: dto.academicStage || course.academicStage || 'SECONDARY',
+                emergencyPhone: parentPhone,
+              },
+            },
+          },
+          include: { studentProfile: true },
+        });
+
+        studentProfile = user.studentProfile;
+      }
+
+      if (!studentProfile) {
+        throw new BadRequestException('تعذر إنشاء ملف الطالب الأكاديمي');
+      }
+
+      // If group specified, enroll in group
+      if (dto.groupId) {
+        await tx.groupEnrollment.upsert({
+          where: {
+            groupId_studentId: {
+              groupId: dto.groupId,
+              studentId: studentProfile.id,
+            },
+          },
+          update: {},
+          create: {
+            groupId: dto.groupId,
+            studentId: studentProfile.id,
+          },
+        });
+      }
+
+      // 2. Enroll in course
+      const enrollment = await tx.courseEnrollment.upsert({
+        where: {
+          courseId_studentId: {
+            courseId,
+            studentId: studentProfile.id,
+          },
+        },
+        update: { status: CourseEnrollmentStatus.ACTIVE },
+        create: {
+          courseId,
+          studentId: studentProfile.id,
+          status: CourseEnrollmentStatus.ACTIVE,
+        },
+      });
+
+      await tx.courseAccess.upsert({
+        where: { enrollmentId: enrollment.id },
+        update: { accessStatus: CourseAccessStatus.ACTIVE },
+        create: {
+          enrollmentId: enrollment.id,
+          studentId: studentProfile.id,
+          courseId,
+          accessStatus: CourseAccessStatus.ACTIVE,
+        },
+      });
+
+      return {
+        studentId: studentProfile.id,
+        studentCode: studentProfile.studentCode,
+        fullName: user.fullName,
+        phone: user.phone,
+        generatedPassword,
+        enrollmentId: enrollment.id,
+      };
+    });
+
+    return {
+      success: true,
+      student: result,
+      message: 'تم تسجيل الطالب وضمّه إلى الكورس بنجاح',
+    };
+  }
+
+  /**
+   * Enrolls a student into a course using their scanned QR code token or student code.
+   */
+  async enrollByQrToken(
+    courseId: string,
+    teacherId: string,
+    isSecretariat: boolean,
+    dto: EnrollByQrDto,
+  ) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+    });
+
+    if (!course) {
+      throw new NotFoundException(`Course [${courseId}] not found`);
+    }
+
+    if (!isSecretariat && course.teacherId !== teacherId) {
+      throw new ForbiddenException('You do not have permission to manage enrollments for this course');
+    }
+
+    const trimmedToken = dto.qrToken?.trim();
+    if (!trimmedToken) {
+      throw new BadRequestException('رمز الـ QR مطلوب');
+    }
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmedToken);
+
+    // Try parsing JSON payload if present (e.g. { type: 'STUDENT_QR', studentId: '...' })
+    let parsedStudentId: string | null = null;
+    let parsedToken: string | null = null;
+    try {
+      if (trimmedToken.startsWith('{') && trimmedToken.endsWith('}')) {
+        const json = JSON.parse(trimmedToken);
+        if (json.studentId) parsedStudentId = json.studentId;
+        if (json.token) parsedToken = json.token;
+      }
+    } catch {
+      // Not JSON
+    }
+
+    const student = await this.prisma.studentProfile.findFirst({
+      where: {
+        OR: [
+          { qrCodeToken: trimmedToken },
+          { studentCode: trimmedToken },
+          ...(isUuid ? [{ id: trimmedToken }] : []),
+          ...(parsedStudentId ? [{ id: parsedStudentId }] : []),
+          ...(parsedToken ? [{ qrCodeToken: parsedToken }] : []),
+        ],
+      },
+      include: {
+        user: { select: { id: true, fullName: true, phone: true } },
+      },
+    });
+
+    if (!student) {
+      throw new NotFoundException('لم يتم العثور على طالب مطابق لرمز الـ QR الممسوح');
+    }
+
+    const enrollment = await this.prisma.courseEnrollment.upsert({
+      where: {
+        courseId_studentId: {
+          courseId,
+          studentId: student.id,
+        },
+      },
+      update: { status: CourseEnrollmentStatus.ACTIVE },
+      create: {
+        courseId,
+        studentId: student.id,
+        status: CourseEnrollmentStatus.ACTIVE,
+      },
+    });
+
+    await this.prisma.courseAccess.upsert({
+      where: { enrollmentId: enrollment.id },
+      update: { accessStatus: CourseAccessStatus.ACTIVE },
+      create: {
+        enrollmentId: enrollment.id,
+        studentId: student.id,
+        courseId,
+        accessStatus: CourseAccessStatus.ACTIVE,
+      },
+    });
+
+    return {
+      success: true,
+      student: {
+        id: student.id,
+        studentCode: student.studentCode,
+        fullName: student.user.fullName,
+        phone: student.user.phone,
+        gradeLevel: student.gradeLevel,
+      },
+      message: `تم ضم الطالب ${student.user.fullName} إلى الكورس بنجاح عبر الـ QR`,
+    };
+  }
+
+  /**
+   * Revokes student enrollment from a course.
+   */
+  async revokeStudentEnrollment(
+    courseId: string,
+    studentId: string,
+    teacherId: string,
+    isSecretariat: boolean,
+  ) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+    });
+
+    if (!course) {
+      throw new NotFoundException(`Course [${courseId}] not found`);
+    }
+
+    if (!isSecretariat && course.teacherId !== teacherId) {
+      throw new ForbiddenException('You do not have permission to manage enrollments for this course');
+    }
+
+    await this.prisma.courseEnrollment.deleteMany({
+      where: {
+        courseId,
+        studentId,
+      },
+    });
+
+    return {
+      success: true,
+      message: 'تم إلغاء اشتراك الطالب في هذا الكورس بنجاح',
+    };
   }
 }

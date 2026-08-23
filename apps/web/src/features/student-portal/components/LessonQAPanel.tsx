@@ -79,15 +79,15 @@ export function LessonQAPanel({
   };
 
   return (
-    <div className="space-y-6 text-right">
+    <div className="space-y-6 text-right animate-in fade-in">
       {/* Ask Question Box */}
       <form
         onSubmit={handlePostQuestion}
-        className="bg-slate-900 border border-slate-800 p-5 rounded-3xl space-y-3 shadow-lg"
+        className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-5 rounded-3xl space-y-3 shadow-sm"
       >
         <div className="flex items-center justify-between">
-          <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-            <HelpCircle className="w-4 h-4 text-indigo-400" />
+          <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+            <HelpCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             <span>اسأل سؤالاً أو اطلب توضيحاً حول نقطة في الشرح</span>
           </label>
 
@@ -96,8 +96,8 @@ export function LessonQAPanel({
             onClick={() => setIncludeTimestamp(!includeTimestamp)}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold transition-colors ${
               includeTimestamp
-                ? 'bg-indigo-600 text-white'
-                : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
@@ -110,14 +110,14 @@ export function LessonQAPanel({
           value={questionContent}
           onChange={(e) => setQuestionContent(e.target.value)}
           placeholder="اكتب سؤالك بوضوح ليجيبك المعلم أو المساعد التعليمي..."
-          className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-3.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 leading-relaxed"
+          className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 leading-relaxed"
         />
 
         <div className="flex justify-end">
           <button
             type="submit"
             disabled={createQuestionMutation.isPending}
-            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-600/20 disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/20 disabled:opacity-50"
           >
             {createQuestionMutation.isPending ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -132,21 +132,21 @@ export function LessonQAPanel({
       {/* Questions Thread List */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-bold text-slate-300 flex items-center gap-2">
-            <MessageSquare className="w-4 h-4 text-indigo-400" />
+          <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+            <MessageSquare className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             <span>الأسئلة والنقاشات ({questions.length})</span>
           </h3>
         </div>
 
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
           </div>
         ) : questions.length === 0 ? (
-          <div className="p-8 text-center bg-slate-900/60 border border-slate-800 rounded-3xl space-y-2">
-            <MessageSquare className="w-8 h-8 text-slate-600 mx-auto" />
-            <p className="text-xs text-slate-400 font-bold">لا توجد أسئلة على هذا الدرس بعد</p>
-            <p className="text-[11px] text-slate-500">كن أول من يطرح سؤالاً أثناء المشاهدة!</p>
+          <div className="p-8 text-center bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl space-y-2 shadow-sm">
+            <MessageSquare className="w-8 h-8 text-slate-400 mx-auto" />
+            <p className="text-xs text-slate-700 dark:text-slate-300 font-bold">لا توجد أسئلة على هذا الدرس بعد</p>
+            <p className="text-[11px] text-slate-400">كن أول من يطرح سؤالاً أثناء المشاهدة!</p>
           </div>
         ) : (
           questions.map((q: LessonQuestion) => {
@@ -156,17 +156,17 @@ export function LessonQAPanel({
             return (
               <div
                 key={q.id}
-                className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-3.5 shadow-md"
+                className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 space-y-3.5 shadow-sm"
               >
                 {/* Question Header */}
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-slate-800 text-indigo-400 flex items-center justify-center font-bold text-xs">
+                    <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs">
                       {q.studentName?.charAt(0) || 'ط'}
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-white">{q.studentName}</p>
-                      <p className="text-[10px] text-slate-500">
+                      <p className="text-xs font-bold text-slate-900 dark:text-white">{q.studentName}</p>
+                      <p className="text-[10px] text-slate-400">
                         {new Date(q.createdAt).toLocaleDateString('ar-EG', {
                           day: 'numeric',
                           month: 'short',
@@ -180,7 +180,7 @@ export function LessonQAPanel({
                     <button
                       type="button"
                       onClick={() => onSeekToTimestamp(q.videoTimestamp!)}
-                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-600 hover:text-white transition-colors"
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 border border-blue-100 dark:border-blue-800/40 hover:bg-blue-600 hover:text-white transition-colors"
                       title="انقر للانتقال لهذه اللحظة في الفيديو"
                     >
                       <Play className="w-3 h-3 fill-current" />
@@ -190,11 +190,11 @@ export function LessonQAPanel({
                 </div>
 
                 {/* Question Content */}
-                <p className="text-xs text-slate-200 leading-relaxed pr-1">{q.content}</p>
+                <p className="text-xs text-slate-800 dark:text-slate-200 leading-relaxed pr-1">{q.content}</p>
 
                 {/* Replies List */}
                 {q.replies && q.replies.length > 0 && (
-                  <div className="space-y-2.5 pt-2 border-t border-slate-800/80 mr-4 pr-3 border-r-2 border-r-indigo-500/30">
+                  <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/80 mr-4 pr-3 border-r-2 border-r-blue-500/40">
                     {q.replies.map((reply: LessonQuestionReply) => {
                       const isTeacher = reply.authorRole === 'TEACHER';
                       const isSecretariat = reply.authorRole === 'SECRETARIAT';
@@ -202,20 +202,20 @@ export function LessonQAPanel({
                       return (
                         <div key={reply.id} className="space-y-1">
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-white">{reply.authorName}</span>
+                            <span className="text-xs font-bold text-slate-900 dark:text-white">{reply.authorName}</span>
                             {(isTeacher || isSecretariat) && (
-                              <span className="px-2 py-0.2 rounded-full text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                              <span className="px-2 py-0.2 rounded-full text-[9px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                                 {isTeacher ? 'المعلم' : 'المساعد التعليمي'}
                               </span>
                             )}
-                            <span className="text-[10px] text-slate-500">
+                            <span className="text-[10px] text-slate-400">
                               {new Date(reply.createdAt).toLocaleDateString('ar-EG', {
                                 day: 'numeric',
                                 month: 'short',
                               })}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-300 leading-relaxed">{reply.content}</p>
+                          <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{reply.content}</p>
                         </div>
                       );
                     })}
@@ -231,7 +231,7 @@ export function LessonQAPanel({
                         setActiveReplyQuestionId(q.id);
                         setReplyContent('');
                       }}
-                      className="self-start text-[11px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                      className="self-start text-[11px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1"
                     >
                       <CornerDownLeft className="w-3 h-3" />
                       <span>كتابة رد...</span>
@@ -243,21 +243,21 @@ export function LessonQAPanel({
                         value={replyContent}
                         onChange={(e) => setReplyContent(e.target.value)}
                         placeholder="اكتب ردك هنا..."
-                        className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                        className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
                         autoFocus
                       />
                       <button
                         type="button"
                         onClick={() => handlePostReply(q.id)}
                         disabled={createReplyMutation.isPending}
-                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-colors disabled:opacity-50"
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors disabled:opacity-50"
                       >
                         إرسال
                       </button>
                       <button
                         type="button"
                         onClick={() => setActiveReplyQuestionId(null)}
-                        className="px-2 py-1.5 text-xs text-slate-400 hover:text-white"
+                        className="px-2 py-1.5 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-white"
                       >
                         إلغاء
                       </button>

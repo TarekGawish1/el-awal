@@ -24,6 +24,11 @@ import { CreateQuestionDto, CreateQuestionReplyDto } from '../dto/lesson-qa.dto'
 import { CreateAttachmentDto } from '../dto/lesson-attachment.dto';
 import { GrantGroupAccessDto } from '../dto/group-access.dto';
 import { ReorderModulesDto } from '../dto/reorder-modules.dto';
+import {
+  EnrollStudentsBatchDto,
+  CreateAndEnrollStudentDto,
+  EnrollByQrDto,
+} from '../dto/enrollment.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
 import { Public } from '../../../core/security/decorators/public.decorator';
 import {
@@ -350,6 +355,101 @@ export class CoursesController {
       user.studentProfileId || user.id,
       lessonId,
       dto,
+    );
+  }
+
+  @Get('lessons/:lessonId/stream-auth')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT)
+  @ApiOperation({ summary: 'Generate time-limited signed DRM streaming credentials and watermark verification' })
+  @ApiResponse({ status: 200, description: 'Signed DRM stream payload returned' })
+  @ApiResponse({ status: 403, description: 'Access denied: enrollment required' })
+  async getLessonStreamAuth(
+    @Param('lessonId') lessonId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.coursesService.getLessonStreamAuth(lessonId, user);
+  }
+
+  @Get(':id/enrollments')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'List all students enrolled in a course' })
+  async getCourseEnrollments(
+    @Param('id') courseId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const isSecretariat = user.role === UserRole.SECRETARIAT;
+    return this.coursesService.getCourseEnrollments(
+      courseId,
+      user.teacherProfileId || user.id,
+      isSecretariat,
+    );
+  }
+
+  @Post(':id/enroll-students')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Batch enroll student IDs into a course' })
+  async enrollStudentsBatch(
+    @Param('id') courseId: string,
+    @Body() dto: EnrollStudentsBatchDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const isSecretariat = user.role === UserRole.SECRETARIAT;
+    return this.coursesService.enrollStudentsBatch(
+      courseId,
+      user.teacherProfileId || user.id,
+      isSecretariat,
+      dto,
+    );
+  }
+
+  @Post(':id/create-and-enroll-student')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Create a new student and enroll them in this course' })
+  async createAndEnrollStudent(
+    @Param('id') courseId: string,
+    @Body() dto: CreateAndEnrollStudentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const isSecretariat = user.role === UserRole.SECRETARIAT;
+    return this.coursesService.createAndEnrollStudent(
+      courseId,
+      user.teacherProfileId || user.id,
+      isSecretariat,
+      dto,
+    );
+  }
+
+  @Post(':id/enroll-by-qr')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Enroll a student into this course by scanning their QR code' })
+  async enrollByQrToken(
+    @Param('id') courseId: string,
+    @Body() dto: EnrollByQrDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const isSecretariat = user.role === UserRole.SECRETARIAT;
+    return this.coursesService.enrollByQrToken(
+      courseId,
+      user.teacherProfileId || user.id,
+      isSecretariat,
+      dto,
+    );
+  }
+
+  @Delete(':id/enrollments/:studentId')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Revoke student enrollment from course' })
+  async revokeStudentEnrollment(
+    @Param('id') courseId: string,
+    @Param('studentId') studentId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const isSecretariat = user.role === UserRole.SECRETARIAT;
+    return this.coursesService.revokeStudentEnrollment(
+      courseId,
+      studentId,
+      user.teacherProfileId || user.id,
+      isSecretariat,
     );
   }
 }

@@ -20,29 +20,29 @@ export function LessonQuizTab({
 }: LessonQuizTabProps) {
   if (!lessonQuiz && !unitQuiz && !courseQuiz) {
     return (
-      <div className="p-8 text-center bg-slate-900/60 border border-slate-800 rounded-3xl space-y-2 text-right">
-        <Award className="w-8 h-8 text-slate-600 mx-auto" />
-        <p className="text-xs text-slate-400 font-bold">لا يوجد اختبار مرتبط بهذا الدرس مباشرة</p>
-        <p className="text-[11px] text-slate-500">يمكنك مراجعة ملخص الدرس أو الانتقال للدرس التالي.</p>
+      <div className="p-8 text-center bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl space-y-2 text-right shadow-sm">
+        <Award className="w-8 h-8 text-slate-400 mx-auto" />
+        <p className="text-xs text-slate-700 dark:text-slate-300 font-bold">لا يوجد اختبار مرتبط بهذا الدرس مباشرة</p>
+        <p className="text-[11px] text-slate-400">يمكنك مراجعة ملخص الدرس أو الانتقال للدرس التالي.</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 text-right">
+    <div className="space-y-4 text-right animate-in fade-in">
       {/* 1. Lesson Quiz (Primary) */}
       {lessonQuiz && (
-        <div className="bg-gradient-to-l from-indigo-950/50 to-slate-900 border border-indigo-800/40 rounded-3xl p-6 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="bg-gradient-to-l from-blue-50 to-white dark:from-blue-950/40 dark:to-slate-900 border border-blue-200/80 dark:border-blue-800/40 rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center border border-amber-500/20 shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200 dark:border-amber-800/40 shrink-0">
               <Award className="w-6 h-6" />
             </div>
             <div>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
                 اختبار الدرس الحالي
               </span>
-              <h3 className="text-sm font-bold text-white mt-1">{lessonQuiz.title}</h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-1">{lessonQuiz.title}</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 الدرجة الإجمالية: {lessonQuiz.totalScore} درجة • النوع: {lessonQuiz.type === 'EXAM' ? 'امتحان' : 'واجب'}
               </p>
             </div>
@@ -50,7 +50,7 @@ export function LessonQuizTab({
 
           <Link
             href={`/student/assessments/${lessonQuiz.id}`}
-            className="flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-600/30 self-start sm:self-auto"
+            className="flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/20 self-start sm:self-auto"
           >
             <span>بدء الاختبار الآن</span>
             <ArrowLeft className="w-4 h-4" />
@@ -60,20 +60,20 @@ export function LessonQuizTab({
 
       {/* 2. Unit Quiz Banner */}
       {unitQuiz && (
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 flex items-center justify-between gap-4">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 flex items-center justify-between gap-4 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center">
               <Award className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-[10px] font-bold text-indigo-400">اختبار الوحدة الشامل</span>
-              <h4 className="text-xs font-bold text-white">{unitQuiz.title} ({unitQuiz.totalScore} د)</h4>
+              <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">اختبار الوحدة الشامل</span>
+              <h4 className="text-xs font-bold text-slate-900 dark:text-white">{unitQuiz.title} ({unitQuiz.totalScore} د)</h4>
             </div>
           </div>
 
           <Link
             href={`/student/assessments/${unitQuiz.id}`}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-colors border border-slate-700"
+            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors border border-slate-200 dark:border-slate-700"
           >
             عرض اختبار الوحدة
           </Link>
@@ -82,20 +82,20 @@ export function LessonQuizTab({
 
       {/* 3. Course Final Quiz Banner */}
       {courseQuiz && (
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 flex items-center justify-between gap-4">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 flex items-center justify-between gap-4 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
               <Award className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-[10px] font-bold text-emerald-400">الامتحان النهائي للكورس</span>
-              <h4 className="text-xs font-bold text-white">{courseQuiz.title} ({courseQuiz.totalScore} د)</h4>
+              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">الامتحان النهائي للكورس</span>
+              <h4 className="text-xs font-bold text-slate-900 dark:text-white">{courseQuiz.title} ({courseQuiz.totalScore} د)</h4>
             </div>
           </div>
 
           <Link
             href={`/student/assessments/${courseQuiz.id}`}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-colors border border-slate-700"
+            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors border border-slate-200 dark:border-slate-700"
           >
             عرض الامتحان النهائي
           </Link>

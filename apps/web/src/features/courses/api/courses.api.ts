@@ -163,15 +163,81 @@ export const coursesApi = {
     });
   },
 
-  // Student Lesson Viewer
+  // Student Lesson Viewer & DRM Stream Auth
   getLessonViewer: async (lessonId: string): Promise<LessonViewerData> => {
     return apiClient<LessonViewerData>(`/courses/lessons/${lessonId}`);
+  },
+
+  getLessonStreamAuth: async (lessonId: string): Promise<{
+    lessonId: string;
+    courseId: string;
+    title: string;
+    videoId: string;
+    embedUrl: string;
+    playbackUrl: string;
+    isPreview: boolean;
+    watermark: {
+      studentName: string;
+      studentPhone: string;
+      studentCode: string;
+    };
+  }> => {
+    return apiClient(`/courses/lessons/${lessonId}/stream-auth`);
   },
 
   updateLessonProgress: async (lessonId: string, data: { lastPositionSeconds: number; isCompleted?: boolean }): Promise<any> => {
     return apiClient(`/courses/lessons/${lessonId}/progress`, {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+
+  // Enrollments Suite
+  getCourseEnrollments: async (courseId: string): Promise<Array<{
+    id: string;
+    studentId: string;
+    studentCode: string;
+    fullName: string;
+    phone: string;
+    gradeLevel: string;
+    status: string;
+    enrolledAt: string;
+    groups: string[];
+  }>> => {
+    return apiClient(`/courses/${courseId}/enrollments`);
+  },
+
+  enrollStudentsBatch: async (courseId: string, studentIds: string[]): Promise<{ success: boolean; enrolledCount: number; message: string }> => {
+    return apiClient(`/courses/${courseId}/enroll-students`, {
+      method: 'POST',
+      body: JSON.stringify({ studentIds }),
+    });
+  },
+
+  createAndEnrollStudent: async (courseId: string, data: {
+    fullName: string;
+    phone: string;
+    parentPhone: string;
+    gradeLevel: string;
+    academicStage?: string;
+    groupId?: string;
+  }): Promise<any> => {
+    return apiClient(`/courses/${courseId}/create-and-enroll-student`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  enrollByQrToken: async (courseId: string, qrToken: string): Promise<{ success: boolean; student: any; message: string }> => {
+    return apiClient(`/courses/${courseId}/enroll-by-qr`, {
+      method: 'POST',
+      body: JSON.stringify({ qrToken }),
+    });
+  },
+
+  revokeStudentEnrollment: async (courseId: string, studentId: string): Promise<any> => {
+    return apiClient(`/courses/${courseId}/enrollments/${studentId}`, {
+      method: 'DELETE',
     });
   },
 };

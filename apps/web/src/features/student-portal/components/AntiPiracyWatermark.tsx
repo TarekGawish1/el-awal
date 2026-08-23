@@ -26,8 +26,8 @@ export function AntiPiracyWatermark({
       });
     };
 
-    // Change watermark position every 12 seconds
-    const interval = setInterval(updatePosition, 12000);
+    // Change watermark position every 10 seconds
+    const interval = setInterval(updatePosition, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -38,7 +38,7 @@ export function AntiPiracyWatermark({
       className="absolute pointer-events-none select-none z-30 transition-all duration-1000 ease-in-out"
       style={{ top: position.top, left: position.left }}
     >
-      <div className="bg-black/30 backdrop-blur-[1px] px-3 py-1 rounded-full border border-white/10 text-white/30 text-[11px] font-mono whitespace-nowrap shadow-sm">
+      <div className="bg-black/25 backdrop-blur-[1px] px-3 py-1 rounded-full border border-white/10 text-white/25 text-[11px] font-mono whitespace-nowrap shadow-sm">
         {watermarkText}
       </div>
     </div>
