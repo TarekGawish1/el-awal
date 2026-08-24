@@ -408,14 +408,27 @@ export class CoursesService {
       throw new ForbiddenException('You do not have permission to reorder modules in this course');
     }
 
-    return this.prisma.$transaction(
-      dto.moduleOrders.map((item) =>
+    // Two-phase update to avoid the (course_id, order_index) unique constraint
+    // colliding mid-transaction. A reorder is a permutation of the indexes that
+    // already exist, so writing a final index directly clashes with the row that
+    // still holds it (Postgres checks unique constraints per-statement). Phase 1
+    // parks every module at a distinct negative index — never used at rest, so it
+    // can't collide — then phase 2 assigns the final positive indexes into the
+    // now-free slots.
+    return this.prisma.$transaction([
+      ...dto.moduleOrders.map((item, i) =>
+        this.prisma.courseModule.update({
+          where: { id: item.moduleId },
+          data: { orderIndex: -(i + 1) },
+        }),
+      ),
+      ...dto.moduleOrders.map((item) =>
         this.prisma.courseModule.update({
           where: { id: item.moduleId },
           data: { orderIndex: item.orderIndex },
         }),
       ),
-    );
+    ]);
   }
 
   /**
@@ -467,17 +480,28 @@ export class CoursesService {
       }
     }
 
-    return this.prisma.$transaction(
-      dto.lessonOrders.map((item) =>
+    // Two-phase update to avoid the (module_id, order_index) unique constraint
+    // colliding mid-transaction (same reasoning as reorderModules). Phase 1 parks
+    // every lesson at a distinct negative index AND moves it to its target module,
+    // so the destination unit's final slots are freed before we fill them. Phase 2
+    // then assigns the final positive order indexes with no collision.
+    return this.prisma.$transaction([
+      ...dto.lessonOrders.map((item, i) =>
         this.prisma.courseLesson.update({
           where: { id: item.lessonId },
           data: {
-            orderIndex: item.orderIndex,
+            orderIndex: -(i + 1),
             ...(item.moduleId ? { moduleId: item.moduleId } : {}),
           },
         }),
       ),
-    );
+      ...dto.lessonOrders.map((item) =>
+        this.prisma.courseLesson.update({
+          where: { id: item.lessonId },
+          data: { orderIndex: item.orderIndex },
+        }),
+      ),
+    ]);
   }
 
   /**
