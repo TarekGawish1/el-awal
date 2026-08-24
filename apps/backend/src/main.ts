@@ -4,7 +4,9 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { AppLogger } from './core/logger/app-logger.service';
-
+import * as express from 'express';
+import * as path from 'path';
+import * as fs from 'fs';
 import helmet from 'helmet';
 
 async function bootstrap() {
@@ -15,8 +17,19 @@ async function bootstrap() {
   });
   const configService = app.get(ConfigService);
 
-  // Security Headers via Helmet
-  app.use(helmet());
+  // Security Headers via Helmet (allow cross-origin asset loading)
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
+
+  // Serve uploads directory statically with auto-creation
+  const uploadsPath = path.join(process.cwd(), 'uploads');
+  if (!fs.existsSync(uploadsPath)) {
+    fs.mkdirSync(uploadsPath, { recursive: true });
+  }
+  app.use('/uploads', express.static(uploadsPath));
 
   // Trust upstream reverse proxy (e.g. Nginx, Cloudflare) if configured
   if (configService.get<boolean>('TRUST_PROXY', false)) {

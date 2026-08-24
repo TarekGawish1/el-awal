@@ -3,6 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { UploadCloud, CheckCircle, File, Image as ImageIcon, Trash2, Loader2, ExternalLink } from 'lucide-react';
 import { coursesApi } from '../api/courses.api';
+import { API_BASE_URL } from '@/lib/api/endpoints';
 import toast from 'react-hot-toast';
 
 interface FileUploadZoneProps {
@@ -54,9 +55,10 @@ export function FileUploadZone({
         fileName: directResult.fileName || file.name,
       });
       toast.success('تم رفع الملف بنجاح');
-    } catch {
+    } catch (err: any) {
       setIsUploading(false);
-      toast.error('تعذر رفع الملف، يرجى المحاولة مجدداً');
+      setUploadProgress(0);
+      toast.error(err?.message || 'تعذر رفع الملف، يرجى المحاولة مجدداً');
     }
   };
 
@@ -136,6 +138,13 @@ export function FileUploadZone({
     }
   };
 
+  const resolvedFileUrl =
+    currentFileUrl && (currentFileUrl.startsWith('http') || currentFileUrl.startsWith('data:') || currentFileUrl.startsWith('blob:'))
+      ? currentFileUrl
+      : currentFileUrl
+        ? `${API_BASE_URL.replace(/\/api\/v1\/?$/, '')}${currentFileUrl.startsWith('/') ? '' : '/'}${currentFileUrl}`
+        : '';
+
   return (
     <div className="space-y-1.5 text-right">
       <label className="block text-xs font-bold text-slate-800">{label}</label>
@@ -145,7 +154,7 @@ export function FileUploadZone({
           <div className="flex items-center gap-3 overflow-hidden">
             {fileCategory === 'image' ? (
               <img
-                src={currentFileUrl}
+                src={resolvedFileUrl}
                 alt="معاينة الملف"
                 className="w-12 h-12 object-cover rounded-lg border border-slate-200 shadow-sm"
               />
@@ -157,7 +166,7 @@ export function FileUploadZone({
             <div className="truncate">
               <p className="text-xs font-bold text-slate-900 truncate">تم رفع الملف بنجاح</p>
               <a
-                href={currentFileUrl}
+                href={resolvedFileUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="text-xs text-primary-600 hover:underline block truncate font-medium mt-0.5"

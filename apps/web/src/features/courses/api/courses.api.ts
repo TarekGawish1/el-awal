@@ -1,4 +1,6 @@
 import { apiClient } from '@/lib/api/client';
+import { API_BASE_URL } from '@/lib/api/endpoints';
+import { getStoredAccessToken } from '@/features/auth/utils/auth-tokens';
 import {
   CourseDetail,
   CourseModule,
@@ -277,49 +279,51 @@ export const coursesApi = {
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
-      xhr.open('POST', `${apiUrl}/content/upload-file`);
+      const url = `${API_BASE_URL}/content/upload-file`;
+      xhr.open('POST', url);
 
-      try {
-        const token =
-          typeof window !== 'undefined'
-            ? localStorage.getItem('access_token') || sessionStorage.getItem('access_token')
-            : null;
-        if (token) {
-          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        }
-      } catch {}
+      const token = getStoredAccessToken();
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+
+      xhr.setRequestHeader('Accept', 'application/json');
 
       if (onProgress) {
         xhr.upload.onprogress = (event) => {
-          if (event.lengthComputable) {
-            const percent = Math.round((event.loaded / event.total) * 100);
+          if (event.lengthComputable && event.total > 0) {
+            const percent = Math.min(Math.round((event.loaded / event.total) * 100), 100);
             onProgress(percent);
           }
         };
       }
 
       xhr.onload = () => {
+        let responseJson: any;
+        try {
+          responseJson = JSON.parse(xhr.responseText);
+        } catch {
+          responseJson = xhr.responseText;
+        }
+
         if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const parsed = JSON.parse(xhr.responseText);
-            const data = parsed?.data || parsed;
-            resolve(data);
-          } catch {
-            resolve({
-              fileUrl: URL.createObjectURL(file),
-              fileKey: `file_${Date.now()}`,
-              fileSize: file.size,
-              fileType: file.type,
-              fileName: file.name,
-            });
-          }
+          const data =
+            responseJson && typeof responseJson === 'object' && 'data' in responseJson
+              ? responseJson.data
+              : responseJson;
+
+          resolve(data);
         } else {
-          reject(new Error(`Upload failed with status ${xhr.status}`));
+          const errorMsg =
+            (responseJson && responseJson.message) ||
+            (responseJson && responseJson.error) ||
+            `فشل الرفع (كود ${xhr.status})`;
+          reject(new Error(errorMsg));
         }
       };
 
-      xhr.onerror = () => reject(new Error('Network error during direct upload'));
+      xhr.onerror = () => reject(new Error('تعذر الاتصال بالخادم أثناء رفع الملف. يرجى التحقق من اتصالك بالإنترنت.'));
+      xhr.onabort = () => reject(new Error('تم إلغاء عملية الرفع'));
       xhr.send(formData);
     });
   },
