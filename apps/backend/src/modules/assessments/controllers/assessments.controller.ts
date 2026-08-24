@@ -68,7 +68,7 @@ export class AssessmentsController {
 
   @Post(':id/submit')
   @HttpCode(HttpStatus.OK)
-  @Roles(UserRole.STUDENT)
+  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Submit student answers for synchronous auto-grading (Single attempt enforced)' })
   @ApiResponse({ status: 200, description: 'Submission auto-graded or staged for manual review' })
   @ApiResponse({ status: 409, description: 'Assessment already submitted' })
@@ -79,7 +79,7 @@ export class AssessmentsController {
   ) {
     return this.assessmentsService.submitAssessment(
       id,
-      user.studentProfileId || user.id,
+      user,
       dto,
     );
   }

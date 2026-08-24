@@ -320,26 +320,28 @@ export class AssessmentsService {
    */
   async submitAssessment(
     assessmentId: string,
-    studentId: string,
+    user: AuthenticatedUser,
     dto: SubmitAssessmentDto,
   ) {
+    const studentId = user.studentProfileId || (user.role === UserRole.STUDENT ? user.id : null);
+
     const assessment = await this.prisma.assessment.findUnique({
       where: { id: assessmentId },
       include: {
         questions: true,
         group: {
           include: {
-            enrollments: { where: { studentId, status: GroupEnrollmentStatus.ACTIVE } },
+            enrollments: studentId ? { where: { studentId, status: GroupEnrollmentStatus.ACTIVE } } : false,
           },
         },
         targetGroups: {
           include: {
-            enrollments: { where: { studentId, status: GroupEnrollmentStatus.ACTIVE } },
+            enrollments: studentId ? { where: { studentId, status: GroupEnrollmentStatus.ACTIVE } } : false,
           },
         },
         course: {
           include: {
-            enrollments: { where: { studentId, status: CourseEnrollmentStatus.ACTIVE } },
+            enrollments: studentId ? { where: { studentId, status: CourseEnrollmentStatus.ACTIVE } } : false,
           },
         },
       },
@@ -347,6 +349,70 @@ export class AssessmentsService {
 
     if (!assessment) {
       throw new NotFoundException(`Assessment [${assessmentId}] not found`);
+    }
+
+    // If teacher/secretariat previewing or student profile is absent, perform instant preview evaluation
+    if (user.role === UserRole.TEACHER || user.role === UserRole.SECRETARIAT || !studentId) {
+      const questionMap = new Map(assessment.questions.map((q) => [q.id, q]));
+      let totalScoreObtained = 0;
+      let hasPendingEssay = false;
+      const answersToCreate = [];
+
+      for (const ans of dto.answers) {
+        const question = questionMap.get(ans.questionId);
+        if (!question) continue;
+
+        if (
+          question.questionType === QuestionType.MULTIPLE_CHOICE ||
+          question.questionType === QuestionType.TRUE_FALSE
+        ) {
+          const isCorrect =
+            ans.answerGiven.trim().toLowerCase() ===
+            question.correctAnswer.trim().toLowerCase();
+
+          const pointsEarned = isCorrect ? Number(question.points) : 0;
+          totalScoreObtained += pointsEarned;
+
+          answersToCreate.push({
+            id: 'preview-ans-' + question.id,
+            questionId: question.id,
+            selectedAnswer: ans.answerGiven,
+            isCorrect,
+            pointsEarned,
+            maxPointsSnapshot: question.points,
+          });
+        } else if (question.questionType === QuestionType.ESSAY) {
+          hasPendingEssay = true;
+          answersToCreate.push({
+            id: 'preview-ans-' + question.id,
+            questionId: question.id,
+            selectedAnswer: ans.answerGiven,
+            isCorrect: null,
+            pointsEarned: null,
+            maxPointsSnapshot: question.points,
+          });
+        }
+      }
+
+      const status = hasPendingEssay
+        ? SubmissionStatus.SUBMITTED
+        : SubmissionStatus.GRADED;
+      const finalScore = hasPendingEssay ? null : totalScoreObtained;
+      const isAutoGraded = !hasPendingEssay;
+      const gradedAt = hasPendingEssay ? null : new Date();
+
+      return {
+        id: 'preview-submission',
+        assessmentId,
+        studentId: user.id,
+        status,
+        scoreObtained: finalScore,
+        isAutoGraded,
+        gradedAt,
+        attachmentUrl: dto.attachmentUrl,
+        submittedAt: new Date(),
+        answers: answersToCreate,
+      };
     }
 
     if (!assessment.isPublished) {

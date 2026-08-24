@@ -122,6 +122,11 @@ describe('AssessmentsService', () => {
   describe('submitAssessment (Auto-Grading & Single Attempt Enforcement)', () => {
     const assessmentId = 'assessment-uuid-1';
     const studentId = 'student-profile-1';
+    const studentUser: any = {
+      id: 'student-user-1',
+      studentProfileId: studentId,
+      role: UserRole.STUDENT,
+    };
 
     const mockAssessmentWithMcq = {
       id: assessmentId,
@@ -167,7 +172,7 @@ describe('AssessmentsService', () => {
         });
       });
 
-      const result = await service.submitAssessment(assessmentId, studentId, {
+      const result = await service.submitAssessment(assessmentId, studentUser, {
         answers: [
           { questionId: 'q-1', answerGiven: 'خبر كان منصوب' },
           { questionId: 'q-2', answerGiven: 'صواب' },
@@ -226,7 +231,7 @@ describe('AssessmentsService', () => {
         });
       });
 
-      const result = await service.submitAssessment(assessmentId, studentId, {
+      const result = await service.submitAssessment(assessmentId, studentUser, {
         answers: [
           { questionId: 'q-1', answerGiven: 'أ' },
           { questionId: 'q-2', answerGiven: 'إجابة الطالب المقالية المفصلة' },
@@ -244,7 +249,7 @@ describe('AssessmentsService', () => {
       }); // Already submitted
 
       await expect(
-        service.submitAssessment(assessmentId, studentId, {
+        service.submitAssessment(assessmentId, studentUser, {
           answers: [{ questionId: 'q-1', answerGiven: 'خبر كان منصوب' }],
         }),
       ).rejects.toThrow(ConflictException);
