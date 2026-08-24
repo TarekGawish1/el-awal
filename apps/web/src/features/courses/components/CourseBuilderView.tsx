@@ -22,6 +22,7 @@ import {
   Globe,
   Lock,
   GraduationCap,
+  GripVertical,
 } from 'lucide-react';
 import {
   useCourseDetail,
@@ -30,6 +31,8 @@ import {
   useUpdateModule,
   useDeleteModule,
   useDeleteLesson,
+  useReorderModules,
+  useReorderLessons,
 } from '../hooks/useCourses';
 import { useAssessments } from '@/features/assessments/hooks/use-assessments';
 import { CourseModule, CourseLesson } from '../types/courses.types';
@@ -50,6 +53,8 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
   const updateModuleMutation = useUpdateModule(courseId);
   const deleteModuleMutation = useDeleteModule(courseId);
   const deleteLessonMutation = useDeleteLesson(courseId);
+  const reorderModulesMutation = useReorderModules(courseId);
+  const reorderLessonsMutation = useReorderLessons(courseId);
 
   const { data: assessmentsData } = useAssessments();
   const assessments = assessmentsData?.data || [];
@@ -81,6 +86,15 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
 
   // Accordion collapsed module state
   const [expandedModuleIds, setExpandedModuleIds] = useState<Record<string, boolean>>({});
+
+  // Drag & Drop reordering state
+  const [dragItem, setDragItem] = useState<{
+    type: 'module' | 'lesson';
+    id: string;
+    moduleId?: string;
+  } | null>(null);
+  const [moduleDropTargetId, setModuleDropTargetId] = useState<string | null>(null);
+  const [lessonDropTarget, setLessonDropTarget] = useState<{ moduleId: string; index: number } | null>(null);
 
   if (isLoading) {
     return (
@@ -144,6 +158,97 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
 
   const modules = course.modules || [];
   const totalLessons = modules.reduce((acc, m) => acc + (m.lessons?.length || 0), 0);
+
+  // ---------- Drag & Drop Reordering Handlers ----------
+  const clearDragState = () => {
+    setDragItem(null);
+    setModuleDropTargetId(null);
+    setLessonDropTarget(null);
+  };
+
+  const handleModuleDragStart = (e: React.DragEvent, moduleId: string) => {
+    e.stopPropagation();
+    e.dataTransfer.effectAllowed = 'move';
+    setDragItem({ type: 'module', id: moduleId });
+  };
+
+  const handleModuleDrop = (targetModuleId: string) => {
+    if (!dragItem || dragItem.type !== 'module' || dragItem.id === targetModuleId) {
+      clearDragState();
+      return;
+    }
+    const ids = modules.map((m: CourseModule) => m.id);
+    const fromIdx = ids.indexOf(dragItem.id);
+    const toIdx = ids.indexOf(targetModuleId);
+    if (fromIdx === -1 || toIdx === -1) {
+      clearDragState();
+      return;
+    }
+    ids.splice(toIdx, 0, ids.splice(fromIdx, 1)[0]);
+    reorderModulesMutation.mutate(ids.map((id: string, i: number) => ({ moduleId: id, orderIndex: i + 1 })));
+    clearDragState();
+  };
+
+  const handleLessonDragStart = (e: React.DragEvent, lessonId: string, moduleId: string) => {
+    e.stopPropagation();
+    e.dataTransfer.effectAllowed = 'move';
+    setDragItem({ type: 'lesson', id: lessonId, moduleId });
+    // Make sure the source unit is expanded while dragging
+    setExpandedModuleIds((prev) => ({ ...prev, [moduleId]: true }));
+  };
+
+  const handleLessonDrop = (targetModuleId: string, targetIndex: number) => {
+    if (!dragItem || dragItem.type !== 'lesson') {
+      clearDragState();
+      return;
+    }
+
+    const sourceModule = modules.find((m: CourseModule) => m.id === dragItem.moduleId);
+    const targetModule = modules.find((m: CourseModule) => m.id === targetModuleId);
+    if (!sourceModule || !targetModule) {
+      clearDragState();
+      return;
+    }
+
+    const sourceLessons = [...(sourceModule.lessons || [])];
+    const draggedIdx = sourceLessons.findIndex((l: CourseLesson) => l.id === dragItem.id);
+    if (draggedIdx === -1) {
+      clearDragState();
+      return;
+    }
+    const [dragged] = sourceLessons.splice(draggedIdx, 1);
+
+    let insertIndex = targetIndex;
+    const orders: Array<{ lessonId: string; orderIndex: number; moduleId?: string }> = [];
+
+    if (sourceModule.id === targetModule.id) {
+      // Same-unit reorder
+      if (draggedIdx < targetIndex) insertIndex = targetIndex - 1;
+      sourceLessons.splice(insertIndex, 0, dragged);
+      sourceLessons.forEach((l: CourseLesson, i: number) =>
+        orders.push({ lessonId: l.id, orderIndex: i + 1 }),
+      );
+    } else {
+      // Cross-unit move
+      const targetLessons = [...(targetModule.lessons || [])];
+      const clamped = Math.max(0, Math.min(insertIndex, targetLessons.length));
+      targetLessons.splice(clamped, 0, dragged);
+      sourceLessons.forEach((l: CourseLesson, i: number) =>
+        orders.push({ lessonId: l.id, orderIndex: i + 1 }),
+      );
+      targetLessons.forEach((l: CourseLesson, i: number) =>
+        orders.push({ lessonId: l.id, orderIndex: i + 1, moduleId: targetModule.id }),
+      );
+      // Keep the target unit open so the moved lesson is visible
+      setExpandedModuleIds((prev) => ({ ...prev, [targetModule.id]: true }));
+    }
+
+    if (orders.length > 0) {
+      reorderLessonsMutation.mutate(orders);
+    }
+    clearDragState();
+  };
+
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 text-right animate-in fade-in">
@@ -457,14 +562,45 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                 return (
                   <div
                     key={mod.id}
-                    className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm transition-all"
+                    className={`bg-white border rounded-2xl overflow-hidden shadow-sm transition-all ${
+                      moduleDropTargetId === mod.id && dragItem?.type === 'module' && dragItem.id !== mod.id
+                        ? 'border-primary-400 ring-2 ring-primary-200'
+                        : 'border-slate-200'
+                    }`}
+                    onDragOver={(e) => {
+                      if (dragItem?.type === 'module') {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        setModuleDropTargetId(mod.id);
+                        // Auto-expand target unit so its lessons can receive drops
+                        setExpandedModuleIds((prev) => ({ ...prev, [mod.id]: true }));
+                      }
+                    }}
+                    onDragLeave={(e) => {
+                      if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                      setModuleDropTargetId((prev) => (prev === mod.id ? null : prev));
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (dragItem?.type === 'module') {
+                        handleModuleDrop(mod.id);
+                      }
+                    }}
                   >
                     {/* Module Accordion Header */}
-                    <div className="p-4 sm:p-5 bg-slate-50/70 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div
+                      className="p-4 sm:p-5 bg-slate-50/70 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      draggable
+                      onDragStart={(e) => handleModuleDragStart(e, mod.id)}
+                      onDragEnd={clearDragState}
+                    >
                       <div
                         className="flex items-center gap-3 cursor-pointer flex-1"
                         onClick={() => toggleModuleExpanded(mod.id)}
                       >
+                        <span title="اسحب لإعادة ترتيب الوحدات" className="shrink-0 cursor-grab active:cursor-grabbing">
+                          <GripVertical className="w-4 h-4 text-slate-300 hover:text-primary-500" />
+                        </span>
                         <div className="w-9 h-9 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center font-bold text-xs shrink-0 border border-primary-100">
                           {modIndex + 1}
                         </div>
@@ -529,10 +665,34 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
 
                     {/* Lessons List in Module */}
                     {!isCollapsed && (
-                      <div className="p-4 space-y-2.5 bg-white">
+                      <div
+                        className={`p-4 space-y-2.5 transition-colors ${
+                          lessonDropTarget?.moduleId === mod.id && dragItem?.type === 'lesson' && dragItem.moduleId !== mod.id
+                            ? 'bg-primary-50/40 ring-2 ring-inset ring-primary-200 bg-white'
+                            : 'bg-white'
+                        }`}
+                        onDragOver={(e) => {
+                          if (dragItem?.type !== 'lesson') return;
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                          setLessonDropTarget({ moduleId: mod.id, index: mod.lessons?.length || 0 });
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          handleLessonDrop(mod.id, mod.lessons?.length || 0);
+                        }}
+                      >
                         {(!mod.lessons || mod.lessons.length === 0) ? (
-                          <p className="text-xs text-slate-400 text-center py-5">
-                            لا توجد دروس في هذه الوحدة بعد. انقر على "+ إضافة درس" للبدء.
+                          <p
+                            className={`text-xs text-center py-5 rounded-xl border-2 border-dashed ${
+                              dragItem?.type === 'lesson'
+                                ? 'text-primary-500 border-primary-300 bg-primary-50/50'
+                                : 'text-slate-400 border-transparent'
+                            }`}
+                          >
+                            {dragItem?.type === 'lesson'
+                              ? 'أفلت الدرس هنا لنقله إلى هذه الوحدة'
+                              : 'لا توجد دروس في هذه الوحدة بعد. انقر على "+ إضافة درس" للبدء.'}
                           </p>
                         ) : (
                           mod.lessons.map((les: CourseLesson, lesIndex: number) => {
@@ -540,13 +700,43 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                             const hasSummary = Boolean(les.summary);
                             const hasAttachments = Boolean(les.attachments && les.attachments.length > 0);
                             const hasQuiz = Boolean(les.lessonQuiz);
+                            const isDraggedLesson = dragItem?.type === 'lesson' && dragItem.id === les.id;
+                            const isDropIndicator =
+                              !isDraggedLesson &&
+                              dragItem?.type === 'lesson' &&
+                              lessonDropTarget?.moduleId === mod.id &&
+                              lessonDropTarget?.index === lesIndex;
 
                             return (
                               <div
                                 key={les.id}
-                                className="p-3.5 rounded-xl bg-slate-50/60 border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-100/60 transition-colors"
+                                draggable
+                                onDragStart={(e) => handleLessonDragStart(e, les.id, mod.id)}
+                                onDragEnd={clearDragState}
+                                onDragOver={(e) => {
+                                  if (dragItem?.type !== 'lesson' || dragItem.id === les.id) return;
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  e.dataTransfer.dropEffect = 'move';
+                                  setLessonDropTarget({ moduleId: mod.id, index: lesIndex });
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleLessonDrop(mod.id, lesIndex);
+                                }}
+                                className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors cursor-grab active:cursor-grabbing ${
+                                  isDraggedLesson
+                                    ? 'opacity-40 border-primary-300 bg-slate-50'
+                                    : isDropIndicator
+                                    ? 'border-t-2 border-t-primary-500 bg-primary-50/30'
+                                    : 'border-slate-100 bg-slate-50/60 hover:bg-slate-100/60'
+                                }`}
                               >
                                 <div className="flex items-center gap-3">
+                                  <span title="اسحب لإعادة الترتيب أو النقل بين الوحدات" className="shrink-0 cursor-grab active:cursor-grabbing">
+                                    <GripVertical className="w-3.5 h-3.5 text-slate-300 hover:text-primary-500" />
+                                  </span>
                                   <div className="w-8 h-8 rounded-lg bg-white text-slate-600 flex items-center justify-center font-mono font-bold text-xs border border-slate-200 shadow-sm shrink-0">
                                     {modIndex + 1}.{lesIndex + 1}
                                   </div>

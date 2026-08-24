@@ -146,6 +146,22 @@ export function useCreateLesson(courseId: string) {
   });
 }
 
+export function useReorderLessons(courseId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (lessonOrders: Array<{ lessonId: string; orderIndex: number; moduleId?: string }>) =>
+      coursesApi.reorderLessons(courseId, lessonOrders),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
+      toast.success('تم تحديث ترتيب الدروس');
+    },
+    onError: (err: any) => {
+      queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
+      toast.error(err?.message || 'تعذر تحديث ترتيب الدروس');
+    },
+  });
+}
+
 export function useUpdateLesson(courseId: string) {
   const queryClient = useQueryClient();
   return useMutation({

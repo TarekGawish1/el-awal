@@ -24,7 +24,7 @@ import { UpdateProgressDto } from '../dto/update-progress.dto';
 import { CreateQuestionDto, CreateQuestionReplyDto } from '../dto/lesson-qa.dto';
 import { CreateAttachmentDto } from '../dto/lesson-attachment.dto';
 import { GrantGroupAccessDto } from '../dto/group-access.dto';
-import { ReorderModulesDto } from '../dto/reorder-modules.dto';
+import { ReorderModulesDto, ReorderLessonsDto } from '../dto/reorder-modules.dto';
 import {
   EnrollStudentsBatchDto,
   CreateAndEnrollStudentDto,
@@ -413,6 +413,68 @@ export class CoursesService {
         this.prisma.courseModule.update({
           where: { id: item.moduleId },
           data: { orderIndex: item.orderIndex },
+        }),
+      ),
+    );
+  }
+
+  /**
+   * Bulk reorders lessons within/across modules.
+   * Supports moving a lesson to a different module via `moduleId` on each item.
+   */
+  async reorderLessons(
+    courseId: string,
+    teacherId: string,
+    isSecretariat: boolean,
+    dto: ReorderLessonsDto,
+  ) {
+    const course = await this.prisma.course.findUnique({ where: { id: courseId } });
+    if (!course) {
+      throw new NotFoundException(`Course [${courseId}] not found`);
+    }
+    if (!isSecretariat && course.teacherId !== teacherId) {
+      throw new ForbiddenException('You do not have permission to reorder lessons in this course');
+    }
+
+    // Validate all lessons belong to this course and target modules belong to it too
+    const lessonIds = dto.lessonOrders.map((item) => item.lessonId);
+    const lessons = await this.prisma.courseLesson.findMany({
+      where: { id: { in: lessonIds } },
+      include: { module: { select: { courseId: true, id: true } } },
+    });
+    if (lessons.length !== lessonIds.length) {
+      throw new NotFoundException('One or more lessons were not found');
+    }
+    for (const lesson of lessons) {
+      if (lesson.module.courseId !== courseId) {
+        throw new ForbiddenException('You do not have permission to reorder these lessons');
+      }
+    }
+
+    const targetModuleIds = [
+      ...new Set(dto.lessonOrders.map((item) => item.moduleId).filter((id): id is string => Boolean(id))),
+    ];
+    if (targetModuleIds.length > 0) {
+      const targetModules = await this.prisma.courseModule.findMany({
+        where: { id: { in: targetModuleIds } },
+        select: { id: true, courseId: true },
+      });
+      if (
+        targetModules.length !== targetModuleIds.length ||
+        targetModules.some((m) => m.courseId !== courseId)
+      ) {
+        throw new NotFoundException('One or more target modules were not found in this course');
+      }
+    }
+
+    return this.prisma.$transaction(
+      dto.lessonOrders.map((item) =>
+        this.prisma.courseLesson.update({
+          where: { id: item.lessonId },
+          data: {
+            orderIndex: item.orderIndex,
+            ...(item.moduleId ? { moduleId: item.moduleId } : {}),
+          },
         }),
       ),
     );

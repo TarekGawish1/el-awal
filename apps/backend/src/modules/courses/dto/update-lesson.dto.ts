@@ -6,6 +6,7 @@ import {
   Min,
   IsBoolean,
   IsIn,
+  IsUUID,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -19,6 +20,14 @@ export class UpdateLessonDto {
   @IsString()
   @MinLength(3)
   title?: string;
+
+  @ApiPropertyOptional({
+    description: 'Move the lesson to a different module/unit',
+    example: 'f1e2d3c4-b5a6-9786-4532-1098fedcba09',
+  })
+  @IsOptional()
+  @IsUUID()
+  moduleId?: string;
 
   @ApiPropertyOptional({
     description: 'Lesson description or learning objectives',

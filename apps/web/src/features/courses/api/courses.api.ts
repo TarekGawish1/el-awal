@@ -77,6 +77,16 @@ export const coursesApi = {
     });
   },
 
+  reorderLessons: async (
+    courseId: string,
+    lessonOrders: Array<{ lessonId: string; orderIndex: number; moduleId?: string }>,
+  ): Promise<any> => {
+    return apiClient('/courses/lessons/reorder', {
+      method: 'POST',
+      body: JSON.stringify({ courseId, lessonOrders }),
+    });
+  },
+
   // Lessons
   createLesson: async (moduleId: string, data: {
     title: string;
@@ -105,6 +115,7 @@ export const coursesApi = {
     videoDurationSeconds?: number;
     isFreePreview?: boolean;
     lessonQuizId?: string | null;
+    moduleId?: string;
   }): Promise<CourseLesson> => {
     return apiClient<CourseLesson>(`/courses/lessons/${lessonId}`, {
       method: 'PATCH',

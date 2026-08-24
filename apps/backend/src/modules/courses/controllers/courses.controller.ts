@@ -24,6 +24,7 @@ import { CreateQuestionDto, CreateQuestionReplyDto } from '../dto/lesson-qa.dto'
 import { CreateAttachmentDto } from '../dto/lesson-attachment.dto';
 import { GrantGroupAccessDto } from '../dto/group-access.dto';
 import { ReorderModulesDto } from '../dto/reorder-modules.dto';
+import { ReorderLessonsDto } from '../dto/reorder-modules.dto';
 import {
   EnrollStudentsBatchDto,
   CreateAndEnrollStudentDto,
@@ -149,6 +150,23 @@ export class CoursesController {
   ) {
     const isSecretariat = user.role === UserRole.SECRETARIAT;
     return this.coursesService.reorderModules(
+      courseId,
+      user.teacherProfileId || user.id,
+      isSecretariat,
+      dto,
+    );
+  }
+
+  @Post('lessons/reorder')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Bulk reorder lessons within/across modules in a course' })
+  async reorderLessons(
+    @Body('courseId') courseId: string,
+    @Body() dto: ReorderLessonsDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const isSecretariat = user.role === UserRole.SECRETARIAT;
+    return this.coursesService.reorderLessons(
       courseId,
       user.teacherProfileId || user.id,
       isSecretariat,
