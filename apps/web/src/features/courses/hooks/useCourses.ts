@@ -8,13 +8,17 @@ import toast from 'react-hot-toast';
  * Never surfaces raw English backend messages to the user.
  */
 function getArabicReorderError(err: any): string {
-  const status = err?.statusCode ?? err?.response?.status ?? err?.status;
+  // Log the full error so the real cause is visible in the browser console
+  if (typeof console !== 'undefined') console.error('[reorder] failed:', err);
+  const status: number | undefined = err?.statusCode ?? err?.response?.status ?? err?.status;
+  if (status === 400 || status === 422) return 'بيانات الترتيب غير صالحة، حاول مرة أخرى';
+  if (status === 401) return 'انتهت الجلسة، يرجى تسجيل الدخول من جديد';
   if (status === 403) return 'ليس لديك صلاحية لتعديل ترتيب هذا الكورس';
   if (status === 404) return 'لم يتم العثور على الكورس أو الدروس المطلوبة';
-  if (status === 400 || status === 422) return 'بيانات الترتيب غير صالحة، حاول مرة أخرى';
+  if (status && status >= 500) return 'حدث خطأ في الخادم، حاول مرة أخرى لاحقاً';
   if (typeof navigator !== 'undefined' && navigator.onLine === false)
     return 'لا يوجد اتصال بالإنترنت، سيتم حفظ التغييرات عند عودة الاتصال';
-  return 'تعذر تحديث ترتيب الدروس';
+  return 'تعذر تحديث ترتيب الدروس، حاول مرة أخرى';
 }
 
 
