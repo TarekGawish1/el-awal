@@ -463,12 +463,16 @@ export function LessonEditorModal({
                 {/* Uploaded Video Preview Player Card */}
                 {bunnyVideoId ? (
                   <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg space-y-0">
-                    <div className="relative w-full aspect-video max-h-[70vh] bg-black rounded-t-2xl overflow-hidden shadow-xl flex items-center justify-center">
+                    <div
+                      className="relative w-full aspect-video bg-black rounded-t-2xl overflow-hidden flex items-center justify-center"
+                      style={{ aspectRatio: '16 / 9', width: '100%' }}
+                    >
                       {(videoEmbedUrl || streamAuth?.embedUrl) ? (
                         <iframe
                           src={videoEmbedUrl || streamAuth?.embedUrl}
                           loading="lazy"
-                          className="w-full h-full border-0 absolute inset-0 object-contain max-h-full max-w-full"
+                          className="w-full h-full border-0 absolute inset-0 block"
+                          style={{ width: '100%', height: '100%', border: 0 }}
                           allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
                           allowFullScreen
                         />

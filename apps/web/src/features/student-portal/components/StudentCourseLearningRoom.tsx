@@ -174,8 +174,11 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         {/* Left Column: Player & Tab Content */}
         <div className="lg:col-span-8 space-y-6">
           {/* Strict 16:9 Aspect Ratio Video Player Card */}
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xl">
-            <div className="relative w-full aspect-video max-h-[70vh] bg-black rounded-t-2xl overflow-hidden flex items-center justify-center">
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+            <div
+              className="relative w-full aspect-video bg-black overflow-hidden flex items-center justify-center"
+              style={{ aspectRatio: '16 / 9', width: '100%' }}
+            >
               {isLessonLoading || isStreamAuthLoading ? (
                 <div className="flex flex-col items-center gap-3 text-white">
                   <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-500" />
@@ -200,7 +203,8 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 <iframe
                   src={streamAuth.embedUrl}
                   loading="lazy"
-                  className="w-full h-full border-0 absolute inset-0 object-contain max-h-full max-w-full"
+                  className="w-full h-full border-0 absolute inset-0 block"
+                  style={{ width: '100%', height: '100%', border: 0 }}
                   allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
                   allowFullScreen
                 />
@@ -211,7 +215,8 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                   controls
                   controlsList="nodownload"
                   onContextMenu={(e) => e.preventDefault()}
-                  className="w-full h-full object-contain max-h-full max-w-full"
+                  className="w-full h-full object-contain block"
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                 />
               ) : (
                 <div className="flex flex-col items-center gap-3 text-slate-400 p-8 text-center">
@@ -226,7 +231,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
               {/* Dynamic Anti-Piracy Watermark Overlay (Strictly Absolute within Container) */}
               {streamAuth?.watermark && (
                 <div
-                  className="pointer-events-none absolute inset-0 z-20 w-full h-full object-contain overflow-hidden flex items-start justify-end p-4"
+                  className="pointer-events-none absolute inset-0 z-20 w-full h-full overflow-hidden flex items-start justify-end p-4"
                 >
                   <span className="select-none opacity-25 text-[11px] font-mono text-white font-bold bg-black/40 px-2 py-1 rounded-md backdrop-blur-xs">
                     {streamAuth.watermark.studentCode} • {streamAuth.watermark.studentPhone}
@@ -353,11 +358,13 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
 
         {/* Right Column: Syllabus & Modules Accordion on Desktop */}
         <div className="hidden lg:block lg:col-span-4">
-          <CourseSyllabusSidebar
-            modules={course.modules || []}
-            activeLessonId={selectedLessonId}
-            onSelectLesson={(id) => setSelectedLessonId(id)}
-          />
+          <div className="sticky top-6">
+            <CourseSyllabusSidebar
+              modules={course.modules || []}
+              activeLessonId={selectedLessonId}
+              onSelectLesson={(id) => setSelectedLessonId(id)}
+            />
+          </div>
         </div>
       </div>
 
