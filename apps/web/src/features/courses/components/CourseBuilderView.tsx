@@ -197,6 +197,15 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
     setExpandedModuleIds((prev) => ({ ...prev, [moduleId]: true }));
   };
 
+  // Decide whether a drop lands before or after the hovered lesson based on the
+  // pointer's vertical position. Aiming at the lower half of the last lesson yields
+  // an index past the final item, which appends the dragged lesson to the end of the unit.
+  const getLessonDropIndex = (e: React.DragEvent, lesIndex: number) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const isAfter = e.clientY - rect.top > rect.height / 2;
+    return isAfter ? lesIndex + 1 : lesIndex;
+  };
+
   const handleLessonDrop = (targetModuleId: string, targetIndex: number) => {
     if (!dragItem || dragItem.type !== 'lesson') {
       clearDragState();
@@ -706,6 +715,14 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                               dragItem?.type === 'lesson' &&
                               lessonDropTarget?.moduleId === mod.id &&
                               lessonDropTarget?.index === lesIndex;
+                            // "Drop at the end" indicator: rendered under the last lesson
+                            // when the target slot is past the final item.
+                            const isEndDropIndicator =
+                              !isDraggedLesson &&
+                              dragItem?.type === 'lesson' &&
+                              lesIndex === lessonsCount - 1 &&
+                              lessonDropTarget?.moduleId === mod.id &&
+                              lessonDropTarget?.index === lessonsCount;
 
                             return (
                               <div
@@ -718,16 +735,18 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                                   e.preventDefault();
                                   e.stopPropagation();
                                   e.dataTransfer.dropEffect = 'move';
-                                  setLessonDropTarget({ moduleId: mod.id, index: lesIndex });
+                                  setLessonDropTarget({ moduleId: mod.id, index: getLessonDropIndex(e, lesIndex) });
                                 }}
                                 onDrop={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
-                                  handleLessonDrop(mod.id, lesIndex);
+                                  handleLessonDrop(mod.id, getLessonDropIndex(e, lesIndex));
                                 }}
                                 className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors cursor-grab active:cursor-grabbing ${
                                   isDraggedLesson
                                     ? 'opacity-40 border-primary-300 bg-slate-50'
+                                    : isEndDropIndicator
+                                    ? 'border-b-2 border-b-primary-500 bg-primary-50/30'
                                     : isDropIndicator
                                     ? 'border-t-2 border-t-primary-500 bg-primary-50/30'
                                     : 'border-slate-100 bg-slate-50/60 hover:bg-slate-100/60'
