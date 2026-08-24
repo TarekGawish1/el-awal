@@ -102,8 +102,6 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
 
   const isLessonCompleted = selectedLessonId ? completedLessonIds.includes(selectedLessonId) : false;
 
-  // Completion Reminder Modal State (Triggered 1s after video ends if no quiz)
-  const [showCompletionModal, setShowCompletionModal] = useState(false);
   const completionTriggeredRef = useRef<string | null>(null);
 
   // Reset completion trigger state when changing lessons
@@ -111,8 +109,18 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     completionTriggeredRef.current = null;
   }, [selectedLessonId]);
 
-  const handleVideoEnded = () => {
+  const handleVideoProgressOrEnd = async (seconds?: number, duration?: number) => {
+    if (!selectedLessonId) return;
     if (completionTriggeredRef.current === selectedLessonId) return;
+
+    // Check if watched most of the video (>= 80% or reached end)
+    const isMostWatched =
+      (typeof seconds === 'number' && typeof duration === 'number' && duration > 0 && seconds >= duration * 0.8) ||
+      (typeof seconds === 'number' && typeof duration === 'number' && duration > 0 && seconds >= duration - 3) ||
+      (seconds === undefined && duration === undefined); // called from direct ended event
+
+    if (!isMostWatched) return;
+
     completionTriggeredRef.current = selectedLessonId;
 
     const hasQuiz = Boolean(
@@ -120,15 +128,24 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
       activeLesson?.lessonQuizId
     );
 
-    // Wait exactly 1 second after video genuinely finishes
-    setTimeout(() => {
-      if (hasQuiz) {
-        setActiveTab('quiz');
-        toast('انتهى شرح الفيديو! يمكنك الآن حل اختبار الدرس التفاعلي 📝', { icon: '🎓' });
-      } else if (!isLessonCompleted) {
-        setShowCompletionModal(true);
+    if (hasQuiz) {
+      setActiveTab('quiz');
+      toast('أحسنت بمشاهدة شرح الدرس! يرجى حل اختبار الدرس لاحتساب إتمامه بنجاح 📝', { icon: '🎓' });
+    } else {
+      if (!isLessonCompleted) {
+        setCompletedLessonIds((prev) => Array.from(new Set([...prev, selectedLessonId])));
+        try {
+          await coursesApi.updateLessonProgress(selectedLessonId, {
+            isCompleted: true,
+            lastPositionSeconds: Math.round(seconds || 0),
+          });
+          await refetchLesson();
+          toast.success('أحسنت! تمت مشاهدة معظم شرح الدرس وتم رصد إتمامه بنجاح 🎯');
+        } catch {
+          // Ignore
+        }
       }
-    }, 1000);
+    }
   };
 
   // Handshake Player.js event listeners on iframe load
@@ -167,16 +184,16 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         playerInstance.on('ready', () => {
           initIframePlayer();
           playerInstance.on('ended', () => {
-            handleVideoEnded();
+            handleVideoProgressOrEnd();
           });
           playerInstance.on('timeupdate', (data: any) => {
-            if (data?.duration > 0 && data?.seconds >= data.duration) {
-              handleVideoEnded();
+            if (data?.duration > 0 && typeof data?.seconds === 'number') {
+              handleVideoProgressOrEnd(data.seconds, data.duration);
             }
           });
         });
         playerInstance.on('ended', () => {
-          handleVideoEnded();
+          handleVideoProgressOrEnd();
         });
       } catch {}
     };
@@ -203,7 +220,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         if (playerInstance?.destroy) playerInstance.destroy();
       } catch {}
     };
-  }, [streamAuth?.embedUrl, selectedLessonId]);
+  }, [streamAuth?.embedUrl, selectedLessonId, isLessonCompleted, lessonViewer, activeLesson]);
 
   // Listen for Bunny Stream Player.js / HTML5 postMessage events
   useEffect(() => {
@@ -215,7 +232,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
             payload = JSON.parse(payload);
           } catch {
             if (payload === 'ended' || payload.includes('"event":"ended"')) {
-              handleVideoEnded();
+              handleVideoProgressOrEnd();
               return;
             }
           }
@@ -237,20 +254,20 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
           eventName === 'complete' ||
           payload === 'ended'
         ) {
-          handleVideoEnded();
+          handleVideoProgressOrEnd();
           return;
         }
 
         // Player.js event format
         if (payload.context === 'player.js') {
           if (payload.event === 'ended') {
-            handleVideoEnded();
+            handleVideoProgressOrEnd();
             return;
           }
           if (payload.event === 'timeupdate' && payload.value) {
             const { seconds, duration } = payload.value;
-            if (duration > 0 && seconds >= duration) {
-              handleVideoEnded();
+            if (typeof seconds === 'number' && typeof duration === 'number') {
+              handleVideoProgressOrEnd(seconds, duration);
               return;
             }
           }
@@ -260,10 +277,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         const seconds = payload.seconds ?? payload.currentTime ?? payload.value?.seconds;
         const duration = payload.duration ?? payload.value?.duration;
         if (typeof seconds === 'number' && typeof duration === 'number' && duration > 0) {
-          if (seconds >= duration) {
-            handleVideoEnded();
-            return;
-          }
+          handleVideoProgressOrEnd(seconds, duration);
         }
       } catch {
         // Ignore
@@ -424,7 +438,8 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                   playsInline
                   controls
                   controlsList="nodownload"
-                  onEnded={handleVideoEnded}
+                  onEnded={() => handleVideoProgressOrEnd()}
+                  onTimeUpdate={(e) => handleVideoProgressOrEnd(e.currentTarget.currentTime, e.currentTarget.duration)}
                   onContextMenu={(e) => e.preventDefault()}
                   className="w-full h-full object-contain block"
                   style={{ width: '100%', height: '100%', objectFit: 'contain' }}
@@ -559,6 +574,9 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
 
             {activeTab === 'quiz' && (
               <LessonQuizTab
+                courseId={course.id}
+                lessonId={selectedLessonId || undefined}
+                lessonTitle={activeLesson?.title || ''}
                 lessonQuiz={lessonViewer?.lessonQuiz || null}
                 unitQuiz={lessonViewer?.unitQuiz || null}
                 courseQuiz={course.courseQuiz || null}
@@ -604,55 +622,6 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 }}
                 completedLessonIds={completedLessonIds}
               />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Video Ended Completion Reminder Modal (Triggered when video ends without a quiz) */}
-      {showCompletionModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 text-center space-y-5 shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-100 shadow-inner">
-              <Sparkles className="w-8 h-8 text-emerald-500 animate-bounce" />
-            </div>
-
-            <div className="space-y-2">
-              <h3 className="text-lg font-bold text-slate-900">
-                أحسنت! أكملت مشاهدة الدرس 🎉
-              </h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                لقد انتهيت من مشاهدة شرح <span className="font-bold text-slate-900">"{activeLesson?.title || 'هذا الدرس'}"</span>. هل ترغب في تحديده كمكتمل لتحديث شريط إنجازك في الدورة؟
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3 pt-2">
-              <button
-                type="button"
-                onClick={async () => {
-                  setShowCompletionModal(false);
-                  if (!isLessonCompleted) {
-                    await handleToggleComplete();
-                  }
-                  const currentIndex = allLessons.findIndex((l) => l.id === selectedLessonId);
-                  const nextLesson = currentIndex >= 0 && currentIndex < allLessons.length - 1 ? allLessons[currentIndex + 1] : null;
-                  if (nextLesson) {
-                    setSelectedLessonId(nextLesson.id);
-                  }
-                }}
-                className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2"
-              >
-                <CheckCircle className="w-4 h-4" />
-                <span>تحديد كمكتمل ومتابعة</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowCompletionModal(false)}
-                className="py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors"
-              >
-                إغلاق
-              </button>
             </div>
           </div>
         </div>

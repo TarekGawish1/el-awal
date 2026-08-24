@@ -7,12 +7,14 @@ import { AssessmentSummary } from '@/features/courses/types/courses.types';
 
 interface LessonQuizTabProps {
   lessonTitle?: string;
+  courseId?: string;
+  lessonId?: string;
   lessonQuiz?: AssessmentSummary | null;
   unitQuiz?: AssessmentSummary | null;
   courseQuiz?: AssessmentSummary | null;
 }
 
-export function LessonQuizTab({ lessonTitle, lessonQuiz, unitQuiz, courseQuiz }: LessonQuizTabProps) {
+export function LessonQuizTab({ lessonTitle, courseId, lessonId, lessonQuiz, unitQuiz, courseQuiz }: LessonQuizTabProps) {
   const hasAnyQuiz = Boolean(lessonQuiz || unitQuiz || courseQuiz);
 
   if (!hasAnyQuiz) {
@@ -26,6 +28,8 @@ export function LessonQuizTab({ lessonTitle, lessonQuiz, unitQuiz, courseQuiz }:
       </div>
     );
   }
+
+  const learnRoomUrl = courseId ? `/student/courses/${courseId}/learn${lessonId ? `?lessonId=${lessonId}` : ''}` : '/student/courses';
 
   return (
     <div className="space-y-4 text-right animate-in fade-in">
@@ -49,7 +53,7 @@ export function LessonQuizTab({ lessonTitle, lessonQuiz, unitQuiz, courseQuiz }:
           </div>
 
           <Link
-            href={`/student/assessments`}
+            href={`/student/assessments?id=${lessonQuiz.id}&courseId=${courseId || ''}&lessonId=${lessonId || ''}&returnUrl=${encodeURIComponent(learnRoomUrl)}`}
             className="flex items-center justify-center gap-2 px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm self-start sm:self-auto"
           >
             <span>بدء اختبار الدرس الآن</span>
@@ -72,7 +76,7 @@ export function LessonQuizTab({ lessonTitle, lessonQuiz, unitQuiz, courseQuiz }:
           </div>
 
           <Link
-            href={`/student/assessments`}
+            href={`/student/assessments?id=${unitQuiz.id}&courseId=${courseId || ''}&returnUrl=${encodeURIComponent(learnRoomUrl)}`}
             className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors border border-slate-200"
           >
             الانتقال للامتحان
@@ -94,7 +98,7 @@ export function LessonQuizTab({ lessonTitle, lessonQuiz, unitQuiz, courseQuiz }:
           </div>
 
           <Link
-            href={`/student/assessments`}
+            href={`/student/assessments?id=${courseQuiz.id}&courseId=${courseId || ''}&returnUrl=${encodeURIComponent(learnRoomUrl)}`}
             className="px-4 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white rounded-xl text-xs font-bold transition-colors border border-emerald-200"
           >
             بدء الامتحان النهائي

@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAssessments, useAssessment, useSubmitAssessment } from '@/features/assessments/hooks/use-assessments';
+import { coursesApi } from '@/features/courses/api/courses.api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -10,7 +12,7 @@ import { Alert } from '@/components/ui/Alert';
 import { Pagination } from '@/components/ui/Pagination';
 import { 
   FileText, Calendar, Clock, CheckCircle2, XCircle, AlertCircle, 
-  ChevronLeft, Award, Play, HelpCircle, Send, Check, AlertTriangle 
+  ChevronLeft, Award, Play, HelpCircle, Send, Check, AlertTriangle, ArrowLeft 
 } from 'lucide-react';
 import { formatArabicDate, formatArabicTime } from '@/lib/utils/formatters';
 import { FeatureRequiresOnlineCard } from '@/components/offline/FeatureRequiresOnlineCard';
@@ -18,12 +20,45 @@ import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import toast from 'react-hot-toast';
 
 export default function StudentAssessmentsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-6">
+          <Skeleton className="h-10 w-48" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Skeleton className="h-44 w-full rounded-2xl" />
+            <Skeleton className="h-44 w-full rounded-2xl" />
+          </div>
+        </div>
+      }
+    >
+      <StudentAssessmentsContent />
+    </Suspense>
+  );
+}
+
+function StudentAssessmentsContent() {
   const isOnline = useOnlineStatus();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const paramId = searchParams.get('id') || searchParams.get('assessmentId');
+  const returnUrl = searchParams.get('returnUrl');
+  const courseId = searchParams.get('courseId');
+  const lessonId = searchParams.get('lessonId');
+
   const [filterType, setFilterType] = useState<'ALL' | 'EXAM' | 'ASSIGNMENT'>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const { data: assessmentsData, isLoading, isError } = useAssessments();
-  const [activeAssessmentId, setActiveAssessmentId] = useState<string | null>(null);
-  const [activeMode, setActiveMode] = useState<'NONE' | 'SOLVE' | 'REVIEW'>('NONE');
+  const [activeAssessmentId, setActiveAssessmentId] = useState<string | null>(paramId || null);
+  const [activeMode, setActiveMode] = useState<'NONE' | 'SOLVE' | 'REVIEW'>(paramId ? 'SOLVE' : 'NONE');
+
+  useEffect(() => {
+    if (paramId) {
+      setActiveAssessmentId(paramId);
+      setActiveMode('SOLVE');
+    }
+  }, [paramId]);
 
   if (!isOnline) {
     return (
@@ -218,9 +253,16 @@ export default function StudentAssessmentsPage() {
       ) : (
         <AssessmentWrapper 
           assessmentId={activeAssessmentId!} 
+          returnUrl={returnUrl}
+          courseId={courseId}
+          lessonId={lessonId}
           onBack={() => {
-            setActiveAssessmentId(null);
-            setActiveMode('NONE');
+            if (returnUrl) {
+              router.push(returnUrl);
+            } else {
+              setActiveAssessmentId(null);
+              setActiveMode('NONE');
+            }
           }} 
         />
       )}
@@ -228,7 +270,20 @@ export default function StudentAssessmentsPage() {
   );
 }
 
-function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onBack: () => void }) {
+function AssessmentWrapper({ 
+  assessmentId, 
+  returnUrl,
+  courseId,
+  lessonId,
+  onBack 
+}: { 
+  assessmentId: string; 
+  returnUrl?: string | null;
+  courseId?: string | null;
+  lessonId?: string | null;
+  onBack: () => void;
+}) {
+  const router = useRouter();
   const { data: assessment, isLoading, isError, refetch } = useAssessment(assessmentId);
   const { mutate: submit, isPending: isSubmitting } = useSubmitAssessment();
   const [answers, setAnswers] = useState<{ [questionId: string]: string }>({});
@@ -276,6 +331,18 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
     return { answers: formattedAnswers };
   };
 
+  const notifyCourseLessonProgress = async () => {
+    const targetLessonId = lessonId || (assessment as any)?.lessonId;
+    if (targetLessonId) {
+      try {
+        await coursesApi.updateLessonProgress(targetLessonId, {
+          isCompleted: true,
+          lastPositionSeconds: 0,
+        });
+      } catch {}
+    }
+  };
+
   const handleAutoSubmit = () => {
     toast.error('انتهى الوقت المحدد للاختبار! جاري تسليم إجاباتك تلقائياً...');
     const payload = buildSubmitPayload();
@@ -288,6 +355,7 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
           const subData = result?.data || result;
           setLocalSubmission(subData);
           setShowResultModal(true);
+          notifyCourseLessonProgress();
           refetch();
         },
         onError: (err: any) => {
@@ -313,6 +381,7 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
           const subData = result?.data || result;
           setLocalSubmission(subData);
           setShowResultModal(true);
+          notifyCourseLessonProgress();
           refetch();
         },
         onError: (err: any) => {
@@ -356,7 +425,7 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
       <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-100 shadow-2xs">
         <button onClick={onBack} className="flex items-center text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors cursor-pointer">
           <ChevronLeft className="w-5 h-5 ml-1" />
-          الرجوع لقائمة الاختبارات
+          {returnUrl ? 'العودة لقاعة الدرس في الكورس' : 'الرجوع لقائمة الاختبارات'}
         </button>
 
         {timeLeft !== null && !mySubmission && (
@@ -776,9 +845,21 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
             )}
 
             <div className="flex flex-col gap-2 pt-2">
+              {returnUrl && (
+                <Button
+                  onClick={() => {
+                    setShowResultModal(false);
+                    router.push(returnUrl);
+                  }}
+                  className="w-full rounded-xl py-3.5 font-bold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 text-sm"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>العودة للدرس ومتابعة إتمام الكورس 🎓</span>
+                </Button>
+              )}
               <Button
                 onClick={() => setShowResultModal(false)}
-                className="w-full rounded-xl py-3 font-bold bg-primary-600 hover:bg-primary-700 text-white cursor-pointer"
+                className={`w-full rounded-xl py-3 font-bold ${returnUrl ? 'bg-primary-50 text-primary-700 hover:bg-primary-100 border border-primary-200' : 'bg-primary-600 hover:bg-primary-700 text-white'} cursor-pointer`}
               >
                 <CheckCircle2 className="w-4 h-4 ml-2" />
                 عرض ومراجعة تفاصيل الإجابات
@@ -788,7 +869,7 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
                 onClick={onBack}
                 className="w-full rounded-xl py-3 font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
               >
-                الرجوع لقائمة الاختبارات
+                {returnUrl ? 'العودة للدرس في الكورس' : 'الرجوع لقائمة الاختبارات'}
               </Button>
             </div>
           </div>
