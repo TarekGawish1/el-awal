@@ -1067,7 +1067,7 @@ export class CoursesService {
    * Real-time heartbeat lesson progress updater.
    */
   async updateLessonProgress(
-    studentId: string,
+    user: AuthenticatedUser,
     lessonId: string,
     dto: UpdateProgressDto,
   ) {
@@ -1081,6 +1081,34 @@ export class CoursesService {
     }
 
     const courseId = lesson.module.courseId;
+    const studentId = user.studentProfileId || (user.role === UserRole.STUDENT ? user.id : null);
+
+    // If teacher/secretariat previewing or student profile is absent, return graceful preview response
+    if (!studentId) {
+      return {
+        lessonId,
+        courseId,
+        lastPositionSeconds: dto.lastPositionSeconds || 0,
+        isCompleted: dto.isCompleted || false,
+        overallCourseCompletionPercentage: dto.isCompleted ? 100 : 0,
+        lastSyncedAt: new Date(),
+      };
+    }
+
+    const studentProfile = await this.prisma.studentProfile.findUnique({
+      where: { id: studentId },
+    });
+
+    if (!studentProfile) {
+      return {
+        lessonId,
+        courseId,
+        lastPositionSeconds: dto.lastPositionSeconds || 0,
+        isCompleted: dto.isCompleted || false,
+        overallCourseCompletionPercentage: dto.isCompleted ? 100 : 0,
+        lastSyncedAt: new Date(),
+      };
+    }
 
     const progress = await this.progressRepository.upsertRealtimeProgress(
       studentId,

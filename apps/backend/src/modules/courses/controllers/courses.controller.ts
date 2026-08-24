@@ -344,7 +344,7 @@ export class CoursesController {
 
   @Post('lessons/:lessonId/progress')
   @HttpCode(HttpStatus.OK)
-  @Roles(UserRole.STUDENT)
+  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Real-time heartbeat to update lesson video playback position and completion' })
   async updateLessonProgress(
     @Param('lessonId') lessonId: string,
@@ -352,7 +352,7 @@ export class CoursesController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.coursesService.updateLessonProgress(
-      user.studentProfileId || user.id,
+      user,
       lessonId,
       dto,
     );

@@ -86,10 +86,10 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         isCompleted: !isCurrentlyCompleted,
         lastPositionSeconds: lessonViewer?.lastPositionSeconds || 0,
       });
-      refetchLesson();
+      await refetchLesson();
       toast.success(isCurrentlyCompleted ? 'تم إلغاء إتمام الدرس' : 'أحسنت! تم إتمام الدرس بنجاح 🎉');
-    } catch {
-      toast.error('تعذر تحديث حالة إتمام الدرس');
+    } catch (err: any) {
+      toast.error(err?.message || 'تعذر تحديث حالة إتمام الدرس');
     } finally {
       setIsMarkingComplete(false);
     }
