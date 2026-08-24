@@ -331,8 +331,19 @@ function AssessmentWrapper({
     return { answers: formattedAnswers };
   };
 
-  const notifyCourseLessonProgress = async () => {
-    const targetLessonId = lessonId || (assessment as any)?.lessonId;
+  const notifyCourseLessonProgress = async (subData?: any) => {
+    const targetLessonId = lessonId || (assessment as any)?.lessonId || subData?.lessonId;
+    const targetCourseId = courseId || (assessment as any)?.courseId || subData?.courseId;
+
+    if (targetCourseId && targetLessonId && typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(`el_awal_course_progress_${targetCourseId}`);
+        const list = saved ? JSON.parse(saved) : [];
+        const updated = Array.isArray(list) ? Array.from(new Set([...list, targetLessonId])) : [targetLessonId];
+        localStorage.setItem(`el_awal_course_progress_${targetCourseId}`, JSON.stringify(updated));
+      } catch {}
+    }
+
     if (targetLessonId) {
       try {
         await coursesApi.updateLessonProgress(targetLessonId, {
@@ -355,7 +366,7 @@ function AssessmentWrapper({
           const subData = result?.data || result;
           setLocalSubmission(subData);
           setShowResultModal(true);
-          notifyCourseLessonProgress();
+          notifyCourseLessonProgress(subData);
           refetch();
         },
         onError: (err: any) => {
@@ -381,7 +392,7 @@ function AssessmentWrapper({
           const subData = result?.data || result;
           setLocalSubmission(subData);
           setShowResultModal(true);
-          notifyCourseLessonProgress();
+          notifyCourseLessonProgress(subData);
           refetch();
         },
         onError: (err: any) => {

@@ -230,7 +230,24 @@ export class CoursesService {
       }
     }
 
-    return course;
+    let completedLessonIds: string[] = [];
+    const studentId = user?.studentProfileId || (user?.role === UserRole.STUDENT ? user?.id : null);
+    if (studentId) {
+      const progresses = await this.prisma.courseProgress.findMany({
+        where: {
+          courseId,
+          studentId,
+          isCompleted: true,
+        },
+        select: { lessonId: true },
+      });
+      completedLessonIds = progresses.map((p) => p.lessonId);
+    }
+
+    return {
+      ...course,
+      completedLessonIds,
+    };
   }
 
   /**
@@ -1095,23 +1112,19 @@ export class CoursesService {
       };
     }
 
-    const studentProfile = await this.prisma.studentProfile.findUnique({
-      where: { id: studentId },
+    const studentProfile = await this.prisma.studentProfile.findFirst({
+      where: {
+        OR: [
+          ...(studentId ? [{ id: studentId }] : []),
+          ...(user.id ? [{ id: user.id }] : []),
+        ],
+      },
     });
 
-    if (!studentProfile) {
-      return {
-        lessonId,
-        courseId,
-        lastPositionSeconds: dto.lastPositionSeconds || 0,
-        isCompleted: dto.isCompleted || false,
-        overallCourseCompletionPercentage: dto.isCompleted ? 100 : 0,
-        lastSyncedAt: new Date(),
-      };
-    }
+    const targetStudentId = studentProfile?.id || studentId;
 
     const progress = await this.progressRepository.upsertRealtimeProgress(
-      studentId,
+      targetStudentId,
       lessonId,
       courseId,
       dto.lastPositionSeconds,
@@ -1120,7 +1133,7 @@ export class CoursesService {
 
     const overallCourseCompletionPercentage =
       await this.progressRepository.calculateCourseProgressPercentage(
-        studentId,
+        targetStudentId,
         courseId,
       );
 

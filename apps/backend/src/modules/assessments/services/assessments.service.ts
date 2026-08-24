@@ -401,6 +401,13 @@ export class AssessmentsService {
       const isAutoGraded = !hasPendingEssay;
       const gradedAt = hasPendingEssay ? null : new Date();
 
+      const linkedLesson = this.prisma.courseLesson?.findFirst
+        ? await this.prisma.courseLesson.findFirst({
+            where: { lessonQuizId: assessmentId },
+            include: { module: true },
+          })
+        : null;
+
       return {
         id: 'preview-submission',
         assessmentId,
@@ -412,6 +419,8 @@ export class AssessmentsService {
         attachmentUrl: dto.attachmentUrl,
         submittedAt: new Date(),
         answers: answersToCreate,
+        lessonId: linkedLesson?.id,
+        courseId: linkedLesson?.module.courseId,
       };
     }
 
@@ -515,6 +524,37 @@ export class AssessmentsService {
           },
         },
       });
+
+      // Auto-mark associated course lesson as completed if linked
+      if (tx.courseLesson?.findFirst && tx.courseProgress?.upsert) {
+        const linkedLesson = await tx.courseLesson.findFirst({
+          where: { lessonQuizId: assessmentId },
+          include: { module: true },
+        });
+
+        if (linkedLesson && studentId) {
+          await tx.courseProgress.upsert({
+            where: {
+              lessonId_studentId: {
+                lessonId: linkedLesson.id,
+                studentId,
+              },
+            },
+            update: {
+              isCompleted: true,
+              completedAt: new Date(),
+            },
+            create: {
+              studentId,
+              lessonId: linkedLesson.id,
+              courseId: linkedLesson.module.courseId,
+              lastPositionSeconds: 0,
+              isCompleted: true,
+              completedAt: new Date(),
+            },
+          });
+        }
+      }
 
       return submission;
     });

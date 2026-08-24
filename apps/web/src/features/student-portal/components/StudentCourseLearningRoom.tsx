@@ -78,8 +78,40 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     refetch: refetchStreamAuth,
   } = useLessonStreamAuth(selectedLessonId || '');
 
-  // Completed lessons tracker
-  const [completedLessonIds, setCompletedLessonIds] = useState<string[]>([]);
+  // Completed lessons tracker with local storage persistence
+  const [completedLessonIds, setCompletedLessonIds] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(`el_awal_course_progress_${courseId}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
+
+  // Sync completed state from course details and localStorage
+  useEffect(() => {
+    if (course && Array.isArray((course as any).completedLessonIds)) {
+      setCompletedLessonIds((prev) =>
+        Array.from(new Set([...prev, ...(course as any).completedLessonIds]))
+      );
+    }
+  }, [course, courseId]);
+
+  // Persist completedLessonIds whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && completedLessonIds.length > 0) {
+      try {
+        localStorage.setItem(
+          `el_awal_course_progress_${courseId}`,
+          JSON.stringify(completedLessonIds)
+        );
+      } catch {}
+    }
+  }, [completedLessonIds, courseId]);
 
   // Find active module and active lesson objects
   const activeModule = course?.modules?.find((m: CourseModule) =>
@@ -95,8 +127,6 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
   useEffect(() => {
     if (lessonViewer?.isCompleted && selectedLessonId) {
       setCompletedLessonIds((prev) => Array.from(new Set([...prev, selectedLessonId])));
-    } else if (lessonViewer && !lessonViewer.isCompleted && selectedLessonId) {
-      setCompletedLessonIds((prev) => prev.filter((id) => id !== selectedLessonId));
     }
   }, [lessonViewer?.isCompleted, selectedLessonId]);
 

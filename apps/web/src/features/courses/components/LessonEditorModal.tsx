@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   X,
   Video,
@@ -14,19 +14,19 @@ import {
   ExternalLink,
   Clock,
   Loader2,
-} from 'lucide-react';
-import { CourseLesson, LessonAttachment } from '../types/courses.types';
+} from "lucide-react";
+import { CourseLesson, LessonAttachment } from "../types/courses.types";
 import {
   useCreateLesson,
   useUpdateLesson,
   useAddAttachment,
   useDeleteAttachment,
   useLessonStreamAuth,
-} from '../hooks/useCourses';
-import { coursesApi } from '../api/courses.api';
-import { useAssessments } from '@/features/assessments/hooks/use-assessments';
-import { FileUploadZone } from './FileUploadZone';
-import toast from 'react-hot-toast';
+} from "../hooks/useCourses";
+import { coursesApi } from "../api/courses.api";
+import { useAssessments } from "@/features/assessments/hooks/use-assessments";
+import { FileUploadZone } from "./FileUploadZone";
+import toast from "react-hot-toast";
 
 interface LessonEditorModalProps {
   isOpen: boolean;
@@ -36,7 +36,7 @@ interface LessonEditorModalProps {
   onClose: () => void;
 }
 
-type TabType = 'video' | 'summary' | 'attachments' | 'quiz';
+type TabType = "video" | "summary" | "attachments" | "quiz";
 
 export function LessonEditorModal({
   isOpen,
@@ -51,26 +51,26 @@ export function LessonEditorModal({
   const addAttachmentMutation = useAddAttachment(courseId);
   const deleteAttachmentMutation = useDeleteAttachment(courseId);
 
-  const { data: streamAuth } = useLessonStreamAuth(lesson?.id || '');
+  const { data: streamAuth } = useLessonStreamAuth(lesson?.id || "");
 
   const { data: assessmentsData } = useAssessments();
   const assessments = Array.isArray(assessmentsData)
     ? assessmentsData
-    : (assessmentsData?.data || []);
+    : assessmentsData?.data || [];
 
-  const [activeTab, setActiveTab] = useState<TabType>('video');
+  const [activeTab, setActiveTab] = useState<TabType>("video");
 
   // Form State
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [summary, setSummary] = useState('');
-  const [lessonType, setLessonType] = useState('VIDEO');
-  const [bunnyVideoId, setBunnyVideoId] = useState('');
-  const [videoEmbedUrl, setVideoEmbedUrl] = useState('');
-  const [uploadedVideoName, setUploadedVideoName] = useState('');
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [summary, setSummary] = useState("");
+  const [lessonType, setLessonType] = useState("VIDEO");
+  const [bunnyVideoId, setBunnyVideoId] = useState("");
+  const [videoEmbedUrl, setVideoEmbedUrl] = useState("");
+  const [uploadedVideoName, setUploadedVideoName] = useState("");
   const [videoDurationSeconds, setVideoDurationSeconds] = useState(1800);
   const [isFreePreview, setIsFreePreview] = useState(false);
-  const [lessonQuizId, setLessonQuizId] = useState('');
+  const [lessonQuizId, setLessonQuizId] = useState("");
   const [attachments, setAttachments] = useState<LessonAttachment[]>([]);
 
   // Video Upload State
@@ -78,36 +78,39 @@ export function LessonEditorModal({
   const [videoUploadProgress, setVideoUploadProgress] = useState(0);
 
   // New Attachment State
-  const [newAttachmentTitle, setNewAttachmentTitle] = useState('');
-  const [newAttachmentUrl, setNewAttachmentUrl] = useState('');
-  const [newAttachmentKey, setNewAttachmentKey] = useState('');
-  const [newAttachmentSize, setNewAttachmentSize] = useState<number | undefined>();
-  const [newAttachmentType, setNewAttachmentType] = useState<string>('application/pdf');
+  const [newAttachmentTitle, setNewAttachmentTitle] = useState("");
+  const [newAttachmentUrl, setNewAttachmentUrl] = useState("");
+  const [newAttachmentKey, setNewAttachmentKey] = useState("");
+  const [newAttachmentSize, setNewAttachmentSize] = useState<
+    number | undefined
+  >();
+  const [newAttachmentType, setNewAttachmentType] =
+    useState<string>("application/pdf");
   const [isAddingAttachment, setIsAddingAttachment] = useState(false);
 
   useEffect(() => {
     if (lesson) {
-      setTitle(lesson.title || '');
-      setDescription(lesson.description || '');
-      setSummary(lesson.summary || '');
-      setLessonType(lesson.lessonType || 'VIDEO');
-      setBunnyVideoId(lesson.bunnyVideoId || '');
-      setVideoEmbedUrl('');
+      setTitle(lesson.title || "");
+      setDescription(lesson.description || "");
+      setSummary(lesson.summary || "");
+      setLessonType(lesson.lessonType || "VIDEO");
+      setBunnyVideoId(lesson.bunnyVideoId || "");
+      setVideoEmbedUrl("");
       setVideoDurationSeconds(lesson.videoDurationSeconds || 1800);
       setIsFreePreview(lesson.isPreview || false);
-      setLessonQuizId(lesson.lessonQuizId || '');
+      setLessonQuizId(lesson.lessonQuizId || "");
       setAttachments(lesson.attachments || []);
     } else {
-      setTitle('');
-      setDescription('');
-      setSummary('');
-      setLessonType('VIDEO');
-      setBunnyVideoId('');
-      setVideoEmbedUrl('');
-      setUploadedVideoName('');
+      setTitle("");
+      setDescription("");
+      setSummary("");
+      setLessonType("VIDEO");
+      setBunnyVideoId("");
+      setVideoEmbedUrl("");
+      setUploadedVideoName("");
       setVideoDurationSeconds(1800);
       setIsFreePreview(false);
-      setLessonQuizId('');
+      setLessonQuizId("");
       setAttachments([]);
     }
   }, [lesson, isOpen]);
@@ -121,12 +124,14 @@ export function LessonEditorModal({
 
   if (!isOpen) return null;
 
-  const handleDirectVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDirectVideoUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (file.size > 2000 * 1024 * 1024) {
-      toast.error('حجم الفيديو يتجاوز 2 جيجابايت');
+      toast.error("حجم الفيديو يتجاوز 2 جيجابايت");
       return;
     }
 
@@ -135,17 +140,27 @@ export function LessonEditorModal({
       setVideoUploadProgress(5);
       setUploadedVideoName(file.name);
 
-      const creds = await coursesApi.getVideoUploadCredentials(title.trim() || file.name);
+      const creds = await coursesApi.getVideoUploadCredentials(
+        title.trim() || file.name,
+      );
       setVideoUploadProgress(15);
 
       const xhr = new XMLHttpRequest();
-      xhr.open('PUT', creds.uploadUrl);
-      if (creds.accessKey) xhr.setRequestHeader('AccessKey', creds.accessKey);
-      if (creds.authorizationSignature) xhr.setRequestHeader('AuthorizationSignature', creds.authorizationSignature);
-      if (creds.authorizationExpire) xhr.setRequestHeader('AuthorizationExpire', String(creds.authorizationExpire));
-      if (creds.libraryId) xhr.setRequestHeader('LibraryId', creds.libraryId);
-      if (creds.videoId) xhr.setRequestHeader('VideoId', creds.videoId);
-      xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+      xhr.open("PUT", creds.uploadUrl);
+      if (creds.accessKey) xhr.setRequestHeader("AccessKey", creds.accessKey);
+      if (creds.authorizationSignature)
+        xhr.setRequestHeader(
+          "AuthorizationSignature",
+          creds.authorizationSignature,
+        );
+      if (creds.authorizationExpire)
+        xhr.setRequestHeader(
+          "AuthorizationExpire",
+          String(creds.authorizationExpire),
+        );
+      if (creds.libraryId) xhr.setRequestHeader("LibraryId", creds.libraryId);
+      if (creds.videoId) xhr.setRequestHeader("VideoId", creds.videoId);
+      xhr.setRequestHeader("Content-Type", "application/octet-stream");
 
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
@@ -160,22 +175,22 @@ export function LessonEditorModal({
           setIsUploadingVideo(false);
           setBunnyVideoId(creds.videoId);
           setVideoEmbedUrl(creds.embedUrl);
-          toast.success('تم رفع الفيديو بنجاح وجاري بدء البث السحابي');
+          toast.success("تم رفع الفيديو بنجاح وجاري بدء البث السحابي");
         } else {
           setIsUploadingVideo(false);
-          toast.error('تعذر رفع الفيديو');
+          toast.error("تعذر رفع الفيديو");
         }
       };
 
       xhr.onerror = () => {
         setIsUploadingVideo(false);
-        toast.error('حدث خطأ في الاتصال أثناء رفع الفيديو');
+        toast.error("حدث خطأ في الاتصال أثناء رفع الفيديو");
       };
 
       xhr.send(file);
     } catch (err: any) {
       setIsUploadingVideo(false);
-      toast.error(err?.message || 'تعذر الحصول على تصريح رفع الفيديو');
+      toast.error(err?.message || "تعذر الحصول على تصريح رفع الفيديو");
     }
   };
 
@@ -183,29 +198,31 @@ export function LessonEditorModal({
     if (bunnyVideoId) {
       coursesApi.deleteUploadedFile(`bunny:${bunnyVideoId}`);
     }
-    setBunnyVideoId('');
-    setVideoEmbedUrl('');
-    setUploadedVideoName('');
+    setBunnyVideoId("");
+    setVideoEmbedUrl("");
+    setUploadedVideoName("");
   };
 
   const handleSaveLesson = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
-      toast.error('يرجى إدخال عنوان الدرس');
+      toast.error("يرجى إدخال عنوان الدرس");
       return;
     }
     if (title.trim().length < 3) {
-      toast.error('عنوان الدرس يجب أن يتكون من 3 أحرف على الأقل');
+      toast.error("عنوان الدرس يجب أن يتكون من 3 أحرف على الأقل");
       return;
     }
 
-    const stagedAttachments = attachments.filter((a) => a.id.startsWith('staged-')).map((a) => ({
-      title: a.title,
-      fileUrl: a.fileUrl,
-      fileKey: a.fileKey,
-      fileSize: a.fileSize || undefined,
-      fileType: a.fileType || 'application/pdf',
-    }));
+    const stagedAttachments = attachments
+      .filter((a) => a.id.startsWith("staged-"))
+      .map((a) => ({
+        title: a.title,
+        fileUrl: a.fileUrl,
+        fileKey: a.fileKey,
+        fileSize: a.fileSize || undefined,
+        fileType: a.fileType || "application/pdf",
+      }));
 
     const payload = {
       title: title.trim(),
@@ -233,7 +250,11 @@ export function LessonEditorModal({
         });
 
         // If any staged attachments exist and were not created atomically
-        if (newLesson?.id && stagedAttachments.length > 0 && (!newLesson.attachments || newLesson.attachments.length === 0)) {
+        if (
+          newLesson?.id &&
+          stagedAttachments.length > 0 &&
+          (!newLesson.attachments || newLesson.attachments.length === 0)
+        ) {
           for (const att of stagedAttachments) {
             await addAttachmentMutation.mutateAsync({
               lessonId: newLesson.id,
@@ -250,7 +271,7 @@ export function LessonEditorModal({
 
   const handleAddAttachment = async () => {
     if (!newAttachmentTitle.trim() || !newAttachmentUrl.trim()) {
-      toast.error('يرجى كتابة عنوان ورفع الملف');
+      toast.error("يرجى كتابة عنوان ورفع الملف");
       return;
     }
 
@@ -261,17 +282,22 @@ export function LessonEditorModal({
           data: {
             title: newAttachmentTitle.trim(),
             fileUrl: newAttachmentUrl.trim(),
-            fileKey: newAttachmentKey || `courses/attachments/${Date.now()}-${newAttachmentTitle.trim()}`,
+            fileKey:
+              newAttachmentKey ||
+              `courses/attachments/${Date.now()}-${newAttachmentTitle.trim()}`,
             fileSize: newAttachmentSize,
-            fileType: newAttachmentType || 'application/pdf',
+            fileType: newAttachmentType || "application/pdf",
           },
         });
         if (created) {
-          setAttachments((prev) => [...prev.filter((a) => a.id !== created.id), created]);
+          setAttachments((prev) => [
+            ...prev.filter((a) => a.id !== created.id),
+            created,
+          ]);
         }
-        setNewAttachmentTitle('');
-        setNewAttachmentUrl('');
-        setNewAttachmentKey('');
+        setNewAttachmentTitle("");
+        setNewAttachmentUrl("");
+        setNewAttachmentKey("");
         setNewAttachmentSize(undefined);
         setIsAddingAttachment(false);
       } catch {
@@ -283,29 +309,31 @@ export function LessonEditorModal({
         id: `staged-${Date.now()}`,
         title: newAttachmentTitle.trim(),
         fileUrl: newAttachmentUrl.trim(),
-        fileKey: newAttachmentKey || `courses/attachments/${Date.now()}-${newAttachmentTitle.trim()}`,
+        fileKey:
+          newAttachmentKey ||
+          `courses/attachments/${Date.now()}-${newAttachmentTitle.trim()}`,
         fileSize: newAttachmentSize,
-        fileType: newAttachmentType || 'application/pdf',
-        lessonId: '',
+        fileType: newAttachmentType || "application/pdf",
+        lessonId: "",
         createdAt: new Date().toISOString(),
       };
       setAttachments((prev) => [...prev, stagedAtt]);
-      setNewAttachmentTitle('');
-      setNewAttachmentUrl('');
-      setNewAttachmentKey('');
+      setNewAttachmentTitle("");
+      setNewAttachmentUrl("");
+      setNewAttachmentKey("");
       setNewAttachmentSize(undefined);
       setIsAddingAttachment(false);
-      toast.success('تمت إضافة المرفق مؤقتاً وسيتم حفظه مع إنشاء الدرس');
+      toast.success("تمت إضافة المرفق مؤقتاً وسيتم حفظه مع إنشاء الدرس");
     }
   };
 
   const handleDeleteAttachment = async (att: LessonAttachment) => {
-    if (att.id.startsWith('staged-')) {
+    if (att.id.startsWith("staged-")) {
       if (att.fileKey || att.fileUrl) {
         coursesApi.deleteUploadedFile(att.fileKey || att.fileUrl);
       }
       setAttachments((prev) => prev.filter((a) => a.id !== att.id));
-      toast.success('تم حذف المرفق');
+      toast.success("تم حذف المرفق");
       return;
     }
 
@@ -328,9 +356,13 @@ export function LessonEditorModal({
             </div>
             <div className="text-right">
               <h2 className="text-base font-bold text-slate-900">
-                {isEditing ? 'تعديل محتوى وتفاصيل الدرس' : 'إضافة درس تعليمي جديد'}
+                {isEditing
+                  ? "تعديل محتوى وتفاصيل الدرس"
+                  : "إضافة درس تعليمي جديد"}
               </h2>
-              <p className="text-xs text-slate-500">إعداد الشرح، الفيديو، الملخصات والاختبارات التفاعلية</p>
+              <p className="text-xs text-slate-500">
+                إعداد الشرح، الفيديو، الملخصات والاختبارات التفاعلية
+              </p>
             </div>
           </div>
           <button
@@ -346,11 +378,11 @@ export function LessonEditorModal({
           <div className="bg-slate-100 p-1.5 rounded-xl flex items-center gap-1 text-xs">
             <button
               type="button"
-              onClick={() => setActiveTab('video')}
+              onClick={() => setActiveTab("video")}
               className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg font-medium transition-all ${
-                activeTab === 'video'
-                  ? 'bg-primary-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                activeTab === "video"
+                  ? "bg-primary-600 text-white shadow-sm"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-white"
               }`}
             >
               <Video className="w-4 h-4" />
@@ -359,11 +391,11 @@ export function LessonEditorModal({
 
             <button
               type="button"
-              onClick={() => setActiveTab('summary')}
+              onClick={() => setActiveTab("summary")}
               className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg font-medium transition-all ${
-                activeTab === 'summary'
-                  ? 'bg-primary-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                activeTab === "summary"
+                  ? "bg-primary-600 text-white shadow-sm"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-white"
               }`}
             >
               <FileText className="w-4 h-4" />
@@ -372,11 +404,11 @@ export function LessonEditorModal({
 
             <button
               type="button"
-              onClick={() => setActiveTab('attachments')}
+              onClick={() => setActiveTab("attachments")}
               className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg font-medium transition-all ${
-                activeTab === 'attachments'
-                  ? 'bg-primary-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                activeTab === "attachments"
+                  ? "bg-primary-600 text-white shadow-sm"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-white"
               }`}
             >
               <Paperclip className="w-4 h-4" />
@@ -390,11 +422,11 @@ export function LessonEditorModal({
 
             <button
               type="button"
-              onClick={() => setActiveTab('quiz')}
+              onClick={() => setActiveTab("quiz")}
               className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg font-medium transition-all ${
-                activeTab === 'quiz'
-                  ? 'bg-primary-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                activeTab === "quiz"
+                  ? "bg-primary-600 text-white shadow-sm"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-white"
               }`}
             >
               <Award className="w-4 h-4" />
@@ -409,7 +441,7 @@ export function LessonEditorModal({
         {/* Tab Content Panes */}
         <div className="p-6 overflow-y-auto space-y-4 text-right flex-1 bg-white">
           {/* TAB 1: VIDEO & METADATA (NO MANUAL ID INPUT) */}
-          {activeTab === 'video' && (
+          {activeTab === "video" && (
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1.5">
@@ -453,10 +485,13 @@ export function LessonEditorModal({
                 </div>
 
                 {/* Processing notice if video is currently encoding on Bunny CDN */}
-                {streamAuth?.videoStatus === 'PROCESSING' && (
+                {streamAuth?.videoStatus === "PROCESSING" && (
                   <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
-                    <span>جاري تشفير وتقطيع الفيديو سحابياً بجودات متعددة... قد يستغرق دقيقة ليكتمل تجهيز المشغل بالكامل.</span>
+                    <span>
+                      جاري تشفير وتقطيع الفيديو سحابياً بجودات متعددة... قد
+                      يستغرق دقيقة ليكتمل تجهيز المشغل بالكامل.
+                    </span>
                   </div>
                 )}
 
@@ -465,21 +500,23 @@ export function LessonEditorModal({
                   <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg space-y-0">
                     <div
                       className="relative w-full aspect-video bg-black rounded-t-2xl overflow-hidden flex items-center justify-center"
-                      style={{ aspectRatio: '16 / 9', width: '100%' }}
+                      style={{ aspectRatio: "16 / 9", width: "100%" }}
                     >
-                      {(videoEmbedUrl || streamAuth?.embedUrl) ? (
+                      {videoEmbedUrl || streamAuth?.embedUrl ? (
                         <iframe
                           src={videoEmbedUrl || streamAuth?.embedUrl}
                           loading="lazy"
                           className="w-full h-full border-0 absolute inset-0 block"
-                          style={{ width: '100%', height: '100%', border: 0 }}
+                          style={{ width: "100%", height: "100%", border: 0 }}
                           allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
                           allowFullScreen
                         />
                       ) : (
                         <div className="text-center p-6 text-slate-400 space-y-2">
                           <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary-400" />
-                          <p className="text-xs">جاري تجهيز مشغل الفيديو السحابي...</p>
+                          <p className="text-xs">
+                            جاري تجهيز مشغل الفيديو السحابي...
+                          </p>
                         </div>
                       )}
                     </div>
@@ -490,7 +527,7 @@ export function LessonEditorModal({
                         </div>
                         <div className="truncate">
                           <p className="text-xs font-bold text-white truncate">
-                            {uploadedVideoName || 'فيديو الشرح المباشر'}
+                            {uploadedVideoName || "فيديو الشرح المباشر"}
                           </p>
                           <p className="text-[10px] text-slate-400 font-mono truncate">
                             ID: {bunnyVideoId}
@@ -534,10 +571,12 @@ export function LessonEditorModal({
                     <div className="flex flex-col items-center gap-2 text-slate-600">
                       <UploadCloud className="w-10 h-10 text-primary-600" />
                       <p className="text-xs font-bold text-slate-800">
-                        انقر لاختيار فيديو أو سحبه هنا للرفع المباشر إلى السيرفر السحابي المشفر
+                        انقر لاختيار فيديو أو سحبه هنا للرفع المباشر إلى السيرفر
+                        السحابي المشفر
                       </p>
                       <p className="text-[11px] text-slate-500">
-                        يتم التشفير الآمن والتقطيع التلقائي بجودات متعددة ضد التسجيل والقرصنة
+                        يتم التشفير الآمن والتقطيع التلقائي بجودات متعددة ضد
+                        التسجيل والقرصنة
                       </p>
                     </div>
                   </div>
@@ -547,7 +586,9 @@ export function LessonEditorModal({
                   <div className="space-y-1.5">
                     <div className="flex justify-between text-xs font-bold text-slate-800">
                       <span>جاري رفع الفيديو وتجهيز البث السحابي...</span>
-                      <span className="font-mono text-primary-600">{videoUploadProgress}%</span>
+                      <span className="font-mono text-primary-600">
+                        {videoUploadProgress}%
+                      </span>
                     </div>
                     <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
                       <div
@@ -570,20 +611,27 @@ export function LessonEditorModal({
                       type="number"
                       min="0"
                       value={videoDurationSeconds}
-                      onChange={(e) => setVideoDurationSeconds(parseInt(e.target.value) || 0)}
+                      onChange={(e) =>
+                        setVideoDurationSeconds(parseInt(e.target.value) || 0)
+                      }
                       className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-800 pl-10 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm font-mono"
                     />
                     <Clock className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                   </div>
                   <span className="text-[10px] text-slate-500 mt-1 block">
-                    {Math.floor(videoDurationSeconds / 60)} دقيقة و {videoDurationSeconds % 60} ثانية
+                    {Math.floor(videoDurationSeconds / 60)} دقيقة و{" "}
+                    {videoDurationSeconds % 60} ثانية
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl my-auto">
                   <div>
-                    <p className="text-xs font-bold text-slate-900">معاينة مجانية للجميع</p>
-                    <p className="text-[10px] text-slate-500">إتاحة مشاهدة هذا الدرس لجميع الزوار بدون اشتراك</p>
+                    <p className="text-xs font-bold text-slate-900">
+                      معاينة مجانية للجميع
+                    </p>
+                    <p className="text-[10px] text-slate-500">
+                      إتاحة مشاهدة هذا الدرس لجميع الزوار بدون اشتراك
+                    </p>
                   </div>
                   <input
                     type="checkbox"
@@ -597,13 +645,15 @@ export function LessonEditorModal({
           )}
 
           {/* TAB 2: RICH SUMMARY / NOTES */}
-          {activeTab === 'summary' && (
+          {activeTab === "summary" && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold text-slate-800">
                   ملخص الدرس وملاحظات المذاكرة
                 </label>
-                <span className="text-[11px] text-primary-600">يدعم تنسيق العناوين والنقاط</span>
+                <span className="text-[11px] text-primary-600">
+                  يدعم تنسيق العناوين والنقاط
+                </span>
               </div>
               <textarea
                 rows={10}
@@ -613,13 +663,14 @@ export function LessonEditorModal({
                 className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-xs font-sans text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm leading-relaxed"
               />
               <p className="text-[11px] text-slate-500">
-                يظهر هذا الملخص في تبويب 📖 "ملخص الدرس والملاحظات" للطالب أثناء مشاهدة الشرح.
+                يظهر هذا الملخص في تبويب 📖 "ملخص الدرس والملاحظات" للطالب أثناء
+                مشاهدة الشرح.
               </p>
             </div>
           )}
 
           {/* TAB 3: ATTACHMENTS & DOWNLOADS */}
-          {activeTab === 'attachments' && (
+          {activeTab === "attachments" && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
@@ -662,16 +713,25 @@ export function LessonEditorModal({
                     description="اسحب وأفلت الملف هنا للرفع السحابي الفوري"
                     currentFileUrl={newAttachmentUrl}
                     currentFileKey={newAttachmentKey}
-                    onUploadComplete={({ fileUrl, fileKey, fileSize, fileType, fileName }) => {
+                    onUploadComplete={({
+                      fileUrl,
+                      fileKey,
+                      fileSize,
+                      fileType,
+                      fileName,
+                    }) => {
                       setNewAttachmentUrl(fileUrl);
                       setNewAttachmentKey(fileKey);
                       setNewAttachmentSize(fileSize);
-                      setNewAttachmentType(fileType || 'application/pdf');
-                      if (!newAttachmentTitle) setNewAttachmentTitle(fileName.replace(/\.[^/.]+$/, ''));
+                      setNewAttachmentType(fileType || "application/pdf");
+                      if (!newAttachmentTitle)
+                        setNewAttachmentTitle(
+                          fileName.replace(/\.[^/.]+$/, ""),
+                        );
                     }}
                     onRemoveFile={() => {
-                      setNewAttachmentUrl('');
-                      setNewAttachmentKey('');
+                      setNewAttachmentUrl("");
+                      setNewAttachmentKey("");
                       setNewAttachmentSize(undefined);
                     }}
                     fileCategory="document"
@@ -682,11 +742,13 @@ export function LessonEditorModal({
                       type="button"
                       onClick={() => {
                         if (newAttachmentKey || newAttachmentUrl) {
-                          coursesApi.deleteUploadedFile(newAttachmentKey || newAttachmentUrl);
+                          coursesApi.deleteUploadedFile(
+                            newAttachmentKey || newAttachmentUrl,
+                          );
                         }
-                        setNewAttachmentTitle('');
-                        setNewAttachmentUrl('');
-                        setNewAttachmentKey('');
+                        setNewAttachmentTitle("");
+                        setNewAttachmentUrl("");
+                        setNewAttachmentKey("");
                         setNewAttachmentSize(undefined);
                         setIsAddingAttachment(false);
                       }}
@@ -697,10 +759,14 @@ export function LessonEditorModal({
                     <button
                       type="button"
                       onClick={handleAddAttachment}
-                      disabled={addAttachmentMutation.isPending || !newAttachmentUrl}
+                      disabled={
+                        addAttachmentMutation.isPending || !newAttachmentUrl
+                      }
                       className="px-4 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-medium transition-colors disabled:opacity-50"
                     >
-                      {addAttachmentMutation.isPending ? 'جاري الحفظ...' : 'حفظ المرفق'}
+                      {addAttachmentMutation.isPending
+                        ? "جاري الحفظ..."
+                        : "حفظ المرفق"}
                     </button>
                   </div>
                 </div>
@@ -709,7 +775,9 @@ export function LessonEditorModal({
               {/* Attachments List */}
               <div className="space-y-2">
                 {attachments.length === 0 ? (
-                  <p className="text-xs text-slate-400 text-center py-6">لا توجد ملفات مرفقة بهذا الدرس حالياً</p>
+                  <p className="text-xs text-slate-400 text-center py-6">
+                    لا توجد ملفات مرفقة بهذا الدرس حالياً
+                  </p>
                 ) : (
                   attachments.map((att: LessonAttachment) => (
                     <div
@@ -721,7 +789,9 @@ export function LessonEditorModal({
                           <FileText className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="text-xs font-bold text-slate-900">{att.title}</p>
+                          <p className="text-xs font-bold text-slate-900">
+                            {att.title}
+                          </p>
                           <a
                             href={att.fileUrl}
                             target="_blank"
@@ -749,7 +819,7 @@ export function LessonEditorModal({
           )}
 
           {/* TAB 4: LESSON QUIZ LINKING */}
-          {activeTab === 'quiz' && (
+          {activeTab === "quiz" && (
             <div className="space-y-4">
               <div className="p-4 bg-primary-50/50 border border-primary-100 rounded-2xl space-y-3">
                 <div className="flex items-center gap-2">
@@ -759,7 +829,8 @@ export function LessonEditorModal({
                       ربط اختبار سريع أو واجب خاص بهذا الدرس
                     </h3>
                     <p className="text-[11px] text-slate-500">
-                      يظهر هذا الاختبار للطالب في نافذة المشغل فور انتهائه من مشاهدة الفيديو لقياس مستوى الفهم.
+                      يظهر هذا الاختبار للطالب في نافذة المشغل فور انتهائه من
+                      مشاهدة الفيديو لقياس مستوى الفهم.
                     </p>
                   </div>
                 </div>
@@ -797,9 +868,13 @@ export function LessonEditorModal({
 
                   {assessments.length === 0 ? (
                     <div className="p-4 bg-white border border-dashed border-amber-300 rounded-xl text-center space-y-2.5 mt-2">
-                      <p className="text-xs font-bold text-slate-800">لا توجد اختبارات أو واجبات منشأة حالياً في حسابك</p>
+                      <p className="text-xs font-bold text-slate-800">
+                        لا توجد اختبارات أو واجبات منشأة حالياً في حسابك
+                      </p>
                       <p className="text-[11px] text-slate-500 leading-relaxed max-w-md mx-auto">
-                        يتم إنشاء وبناء الامتحانات والأسئلة أولاً من قسم <strong>"الامتحانات والواجبات"</strong>، وبعد حفظها ستظهر في هذه القائمة مباشرة لربطها بالدرس.
+                        يتم إنشاء وبناء الامتحانات والأسئلة أولاً من قسم{" "}
+                        <strong>"الامتحانات والواجبات"</strong>، وبعد حفظها
+                        ستظهر في هذه القائمة مباشرة لربطها بالدرس.
                       </p>
                       <div className="pt-1 flex justify-center gap-2">
                         <a
@@ -824,12 +899,20 @@ export function LessonEditorModal({
                         <option value="">-- بدون اختبار لهذا الدرس --</option>
                         {assessments.map((a: any) => (
                           <option key={a.id} value={a.id}>
-                            {a.title} ({a.type === 'EXAM' ? 'امتحان شامل' : a.type === 'HOMEWORK' ? 'واجب' : 'اختبار قصير'} - {a.totalScore} درجة)
+                            {a.title} (
+                            {a.type === "EXAM"
+                              ? "امتحان شامل"
+                              : a.type === "HOMEWORK"
+                                ? "واجب"
+                                : "اختبار قصير"}{" "}
+                            - {a.totalScore} درجة)
                           </option>
                         ))}
                       </select>
                       <p className="text-[11px] text-slate-400">
-                        💡 يمكنك النقر على <strong>"إنشاء اختبار جديد"</strong> بالأعلى لفتح نموذج إنشاء الاختبارات وربطه تلقائياً بهذا الكورس.
+                        💡 يمكنك النقر على <strong>"إنشاء اختبار جديد"</strong>{" "}
+                        بالأعلى لفتح نموذج إنشاء الاختبارات وربطه تلقائياً بهذا
+                        الكورس.
                       </p>
                     </div>
                   )}
@@ -857,7 +940,7 @@ export function LessonEditorModal({
             {(createMutation.isPending || updateMutation.isPending) && (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
             )}
-            <span>{isEditing ? 'حفظ التعديلات' : 'إضافة الدرس للمنهج'}</span>
+            <span>{isEditing ? "حفظ التعديلات" : "إضافة الدرس للمنهج"}</span>
           </button>
         </div>
       </div>
