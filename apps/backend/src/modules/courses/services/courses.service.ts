@@ -38,6 +38,7 @@ import {
   UserRole,
 } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
+import { resolveOfficialSubmission } from '../../assessments/utils/submission-grade.util';
 import { normalizeEgyptianPhone } from '../../../common/utils/phone.util';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
 import { createHash, randomUUID } from 'crypto';
@@ -175,6 +176,51 @@ export class CoursesService {
   }
 
   /**
+   * Enriches a quiz summary with the requesting student's official (highest-scoring)
+   * submission so the lesson-viewer quiz card can render the final mark directly from
+   * the payload the room already loads — no dependence on a second per-card fetch.
+   * Returns the quiz untouched (plus `mySubmission: null`) for non-student viewers.
+   */
+  private async attachStudentSubmission<
+    Q extends { id: string; passingScore?: unknown },
+  >(quiz: Q | null, studentId: string | null) {
+    if (!quiz) return null;
+
+    const base = {
+      ...quiz,
+      passingScore:
+        quiz.passingScore != null ? Number(quiz.passingScore) : null,
+    };
+
+    if (!studentId) {
+      return { ...base, attemptCount: 0, mySubmission: null };
+    }
+
+    const submissions = await this.prisma.assessmentSubmission.findMany({
+      where: { assessmentId: quiz.id, studentId },
+      orderBy: { attemptNumber: 'asc' },
+      select: { attemptNumber: true, status: true, scoreObtained: true },
+    });
+
+    const official = resolveOfficialSubmission(submissions);
+
+    return {
+      ...base,
+      attemptCount: submissions.length,
+      mySubmission: official
+        ? {
+            status: official.status,
+            scoreObtained:
+              official.scoreObtained != null
+                ? Number(official.scoreObtained)
+                : null,
+            attemptNumber: official.attemptNumber,
+          }
+        : null,
+    };
+  }
+
+  /**
    * Retrieves full course outline including ordered modules, lessons, attachments, and quizzes.
    */
   async getCourseDetails(courseId: string, user?: AuthenticatedUser) {
@@ -185,7 +231,7 @@ export class CoursesService {
           include: { user: { select: { fullName: true, email: true, phone: true } } },
         },
         courseQuiz: {
-          select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true },
+          select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true },
         },
         groupAccess: {
           include: {
@@ -196,14 +242,14 @@ export class CoursesService {
           orderBy: { orderIndex: 'asc' },
           include: {
             unitQuiz: {
-              select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true },
+              select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true },
             },
             lessons: {
               orderBy: { orderIndex: 'asc' },
               include: {
                 attachments: true,
                 lessonQuiz: {
-                  select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true },
+                  select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true },
                 },
                 _count: {
                   select: { questions: true },
@@ -245,8 +291,14 @@ export class CoursesService {
       completedLessonIds = progresses.map((p) => p.lessonId);
     }
 
+    const enrichedCourseQuiz = await this.attachStudentSubmission(
+      course.courseQuiz,
+      studentId,
+    );
+
     return {
       ...course,
+      courseQuiz: enrichedCourseQuiz,
       completedLessonIds,
     };
   }
@@ -1046,12 +1098,12 @@ export class CoursesService {
       include: {
         attachments: true,
         lessonQuiz: {
-          select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true },
+          select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true },
         },
         module: {
           include: {
             unitQuiz: {
-              select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true },
+              select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true },
             },
             course: {
               include: {
@@ -1059,7 +1111,7 @@ export class CoursesService {
                   include: { user: { select: { fullName: true } } },
                 },
                 courseQuiz: {
-                  select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true },
+                  select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true },
                 },
               },
             },
@@ -1146,6 +1198,16 @@ export class CoursesService {
       }
     }
 
+    // Enrich the quiz cards with the student's official (highest) submission so the
+    // lesson-viewer renders the final mark from this payload directly.
+    const quizViewerStudentId =
+      user.role === UserRole.STUDENT || user.studentProfileId ? studentId : null;
+    const [lessonQuiz, unitQuiz, courseQuiz] = await Promise.all([
+      this.attachStudentSubmission(lesson.lessonQuiz, quizViewerStudentId),
+      this.attachStudentSubmission(lesson.module.unitQuiz, quizViewerStudentId),
+      this.attachStudentSubmission(course.courseQuiz, quizViewerStudentId),
+    ]);
+
     return {
       lessonId: lesson.id,
       moduleId: lesson.moduleId,
@@ -1160,9 +1222,9 @@ export class CoursesService {
       videoPlayerUrl,
       documentDownloadUrl,
       attachments: lesson.attachments,
-      lessonQuiz: lesson.lessonQuiz,
-      unitQuiz: lesson.module.unitQuiz,
-      courseQuiz: course.courseQuiz,
+      lessonQuiz,
+      unitQuiz,
+      courseQuiz,
       lastPositionSeconds,
       isCompleted,
     };

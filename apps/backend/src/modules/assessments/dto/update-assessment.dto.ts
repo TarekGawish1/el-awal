@@ -45,6 +45,13 @@ export class UpdateAssessmentDto {
   isPublished?: boolean;
 
   @ApiPropertyOptional({
+    description: 'Whether students may take this assessment more than once (retakes). When false, only a single attempt is allowed.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  allowMultipleAttempts?: boolean;
+
+  @ApiPropertyOptional({
     description: 'Target online course ID',
   })
   @IsOptional()

@@ -1457,21 +1457,37 @@ export class SyncService {
             return;
           }
 
-          // Check if submission already exists
-          const existingSubmission = await tx.assessmentSubmission.findUnique({
+          // Resolve the student's attempt history for this assessment. The
+          // single-submission unique constraint was replaced by a per-attempt one,
+          // so we enforce the attempt policy explicitly here.
+          const priorSubmissions = await tx.assessmentSubmission.findMany({
             where: {
-              assessmentId_studentId: {
-                assessmentId: op.assessmentId,
-                studentId,
-              },
+              assessmentId: op.assessmentId,
+              studentId,
             },
+            orderBy: { attemptNumber: 'desc' },
           });
 
-          if (existingSubmission) {
+          const submittedAt = op.clientTimestamp
+            ? new Date(op.clientTimestamp)
+            : new Date();
+
+          // Idempotency: a prior submission at the same client timestamp is the very
+          // same operation being re-sent (offline retry) — never a new attempt.
+          const alreadySynced = priorSubmissions.some(
+            (s) => s.submittedAt.getTime() === submittedAt.getTime(),
+          );
+
+          if (
+            alreadySynced ||
+            (priorSubmissions.length > 0 && !assessment.allowMultipleAttempts)
+          ) {
             result.duplicatesIgnored++;
             result.processedOperationIds.push(op.id);
             return;
           }
+
+          const attemptNumber = (priorSubmissions[0]?.attemptNumber ?? 0) + 1;
 
           // Auto-grading computation
           let calculatedScore = 0;
@@ -1522,14 +1538,11 @@ export class SyncService {
             ? SubmissionStatus.SUBMITTED
             : SubmissionStatus.GRADED;
 
-          const submittedAt = op.clientTimestamp
-            ? new Date(op.clientTimestamp)
-            : new Date();
-
           const submission = await tx.assessmentSubmission.create({
             data: {
               assessmentId: op.assessmentId,
               studentId,
+              attemptNumber,
               status: finalStatus,
               scoreObtained: hasEssayQuestions ? null : calculatedScore,
               isAutoGraded: !hasEssayQuestions,

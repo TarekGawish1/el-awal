@@ -79,6 +79,7 @@ describe('SyncService', () => {
     },
     assessmentSubmission: {
       findUnique: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn(),
     },
     studentAnswer: {
@@ -453,6 +454,7 @@ describe('SyncService', () => {
       const studentId = 'student-1';
       mockPrismaService.assessment.findUnique.mockResolvedValue({
         id: 'exam-1',
+        allowMultipleAttempts: false,
         questions: [
           {
             id: 'q-1',
@@ -463,7 +465,7 @@ describe('SyncService', () => {
         ],
       });
 
-      mockPrismaService.assessmentSubmission.findUnique.mockResolvedValue(null);
+      mockPrismaService.assessmentSubmission.findMany.mockResolvedValue([]); // No prior attempts
       mockPrismaService.assessmentSubmission.create.mockResolvedValue({
         id: 'sub-1',
         status: SubmissionStatus.GRADED,
@@ -488,11 +490,51 @@ describe('SyncService', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             assessmentId: 'exam-1',
+            attemptNumber: 1,
             scoreObtained: 10,
             status: SubmissionStatus.GRADED,
           }),
         }),
       );
+    });
+
+    it('should ignore a re-sent offline submission with the same client timestamp (idempotency)', async () => {
+      const studentId = 'student-1';
+      const clientTs = 1_700_000_000_000;
+      mockPrismaService.assessment.findUnique.mockResolvedValue({
+        id: 'exam-1',
+        allowMultipleAttempts: true, // even with retakes allowed, a re-send is not a new attempt
+        questions: [
+          {
+            id: 'q-1',
+            questionType: QuestionType.MULTIPLE_CHOICE,
+            correctAnswer: 'A',
+            points: 10,
+          },
+        ],
+      });
+
+      // A prior attempt already stored at the exact same client timestamp.
+      mockPrismaService.assessmentSubmission.findMany.mockResolvedValue([
+        { id: 'sub-prior', attemptNumber: 1, submittedAt: new Date(clientTs) },
+      ]);
+
+      const dto = {
+        operations: [
+          {
+            id: 'op-exam-dup',
+            assessmentId: 'exam-1',
+            answers: [{ questionId: 'q-1', selectedAnswer: 'A' }],
+            clientTimestamp: clientTs,
+          },
+        ],
+      };
+
+      const result = await service.syncAssessmentsBatch(studentId, dto);
+
+      expect(result.duplicatesIgnored).toBe(1);
+      expect(result.syncedCount).toBe(0);
+      expect(mockPrismaService.assessmentSubmission.create).not.toHaveBeenCalled();
     });
   });
 

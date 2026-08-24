@@ -22,6 +22,7 @@ import {
   CourseEnrollmentStatus,
 } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
+import { resolveOfficialSubmission } from '../utils/submission-grade.util';
 
 @Injectable()
 export class AssessmentsService {
@@ -111,6 +112,7 @@ export class AssessmentsService {
           lessonId: dto.lessonId,
           isAutoGraded,
           isPublished: dto.isPublished ?? true,
+          allowMultipleAttempts: dto.allowMultipleAttempts ?? false,
           teacherId,
           targetGroups: dto.targetGroupIds?.length ? {
             connect: dto.targetGroupIds.map(id => ({ id }))
@@ -240,6 +242,7 @@ export class AssessmentsService {
         },
         submissions: {
           where: { studentId },
+          orderBy: { attemptNumber: 'asc' },
           include: {
             answers: true,
           },
@@ -267,7 +270,7 @@ export class AssessmentsService {
       }
     }
 
-    const mySubmission = assessment.submissions[0] || null;
+    const mySubmission = resolveOfficialSubmission(assessment.submissions);
     const isGraded = mySubmission?.status === SubmissionStatus.GRADED;
     const isPrivileged =
       user.role === UserRole.TEACHER || user.role === UserRole.SECRETARIAT;
@@ -293,18 +296,34 @@ export class AssessmentsService {
       durationMinutes: assessment.durationMinutes,
       dueDate: assessment.dueDate,
       isPublished: assessment.isPublished,
+      allowMultipleAttempts: assessment.allowMultipleAttempts,
       teacher: assessment.teacher,
       group: assessment.group,
       targetGroups: assessment.targetGroups,
       course: assessment.course,
       questions: sanitizedQuestions,
+      attemptCount: assessment.submissions.length,
+      bestScore:
+        mySubmission?.scoreObtained != null
+          ? Number(mySubmission.scoreObtained)
+          : null,
+      attempts: assessment.submissions.map((s) => ({
+        id: s.id,
+        attemptNumber: s.attemptNumber,
+        status: s.status,
+        scoreObtained: s.scoreObtained != null ? Number(s.scoreObtained) : null,
+        submittedAt: s.submittedAt,
+        gradedAt: s.gradedAt,
+      })),
       mySubmission: mySubmission
         ? {
             id: mySubmission.id,
+            attemptNumber: mySubmission.attemptNumber,
             status: mySubmission.status,
-            scoreObtained: mySubmission.scoreObtained
-              ? Number(mySubmission.scoreObtained)
-              : null,
+            scoreObtained:
+              mySubmission.scoreObtained != null
+                ? Number(mySubmission.scoreObtained)
+                : null,
             submittedAt: mySubmission.submittedAt,
             gradedAt: mySubmission.gradedAt,
             teacherFeedback: mySubmission.teacherFeedback,
@@ -439,21 +458,21 @@ export class AssessmentsService {
       throw new ForbiddenException('You are not enrolled in the course for this assessment');
     }
 
-    // 1. Check for single attempt duplicate submission
-    const existingSubmission = await this.prisma.assessmentSubmission.findUnique({
-      where: {
-        assessmentId_studentId: {
-          assessmentId,
-          studentId,
-        },
-      },
+    // 1. Enforce the attempt policy and compute the next attempt number.
+    //    (The single-submission unique constraint was replaced by a per-attempt
+    //     one, so we resolve the history explicitly instead of a compound findUnique.)
+    const priorSubmissions = await this.prisma.assessmentSubmission.findMany({
+      where: { assessmentId, studentId },
+      orderBy: { attemptNumber: 'desc' },
     });
 
-    if (existingSubmission) {
+    if (priorSubmissions.length > 0 && !assessment.allowMultipleAttempts) {
       throw new ConflictException(
         'You have already submitted this assessment (Single attempt policy enforced)',
       );
     }
+
+    const attemptNumber = (priorSubmissions[0]?.attemptNumber ?? 0) + 1;
 
     // 2. Validate submission deadline
     if (assessment.dueDate && new Date() > assessment.dueDate) {
@@ -514,6 +533,7 @@ export class AssessmentsService {
         data: {
           assessmentId,
           studentId,
+          attemptNumber,
           status,
           scoreObtained: finalScore,
           isAutoGraded,
@@ -716,18 +736,36 @@ export class AssessmentsService {
       },
     });
 
+    // Under the retake policy a student can have several attempts. Group by student
+    // and flag the official (highest) attempt so the gradebook can highlight the
+    // counting grade, while still listing every attempt for review.
+    const attemptsByStudent = new Map<string, typeof submissions>();
+    for (const s of submissions) {
+      const existing = attemptsByStudent.get(s.studentId);
+      if (existing) existing.push(s);
+      else attemptsByStudent.set(s.studentId, [s]);
+    }
+    const officialSubmissionIds = new Set<string>();
+    for (const [, attempts] of attemptsByStudent) {
+      const official = resolveOfficialSubmission(attempts);
+      if (official) officialSubmissionIds.add(official.id);
+    }
+
     return {
       assessmentId,
       assessmentTitle: assessment.title,
       totalScore: Number(assessment.totalScore),
       totalSubmissions: submissions.length,
+      totalStudents: attemptsByStudent.size,
       submissions: submissions.map((s) => ({
         id: s.id,
         studentId: s.studentId,
         studentName: s.student.user.fullName,
         studentPhone: s.student.user.phone,
+        attemptNumber: s.attemptNumber,
+        isOfficial: officialSubmissionIds.has(s.id),
         status: s.status,
-        scoreObtained: s.scoreObtained ? Number(s.scoreObtained) : null,
+        scoreObtained: s.scoreObtained != null ? Number(s.scoreObtained) : null,
         submittedAt: s.submittedAt,
         gradedAt: s.gradedAt,
         isAutoGraded: s.isAutoGraded,
@@ -774,8 +812,9 @@ export class AssessmentsService {
 
     return {
       id: submission.id,
+      attemptNumber: submission.attemptNumber,
       status: submission.status,
-      scoreObtained: submission.scoreObtained ? Number(submission.scoreObtained) : null,
+      scoreObtained: submission.scoreObtained != null ? Number(submission.scoreObtained) : null,
       isAutoGraded: submission.isAutoGraded,
       submittedAt: submission.submittedAt,
       gradedAt: submission.gradedAt,
@@ -801,7 +840,7 @@ export class AssessmentsService {
         correctAnswer: ans.question.correctAnswer,
         selectedAnswer: ans.selectedAnswer,
         isCorrect: ans.isCorrect,
-        pointsEarned: ans.pointsEarned ? Number(ans.pointsEarned) : null,
+        pointsEarned: ans.pointsEarned != null ? Number(ans.pointsEarned) : null,
         maxPointsSnapshot: Number(ans.maxPointsSnapshot),
         teacherFeedback: ans.teacherFeedback,
       }))
@@ -847,6 +886,7 @@ export class AssessmentsService {
         ...(dto.durationMinutes !== undefined && { durationMinutes: dto.durationMinutes }),
         ...(dto.dueDate !== undefined && { dueDate: dto.dueDate ? new Date(dto.dueDate) : null }),
         ...(dto.isPublished !== undefined && { isPublished: dto.isPublished }),
+        ...(dto.allowMultipleAttempts !== undefined && { allowMultipleAttempts: dto.allowMultipleAttempts }),
         ...(dto.courseId !== undefined && { courseId: dto.courseId || null }),
       },
     });

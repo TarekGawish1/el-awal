@@ -671,6 +671,7 @@ model Assessment {
   durationMinutes Int?           @map("duration_minutes")
   isAutoGraded    Boolean        @default(false) @map("is_auto_graded")
   isPublished     Boolean        @default(true) @map("is_published")
+  allowMultipleAttempts Boolean  @default(false) @map("allow_multiple_attempts")
   startDate       DateTime?      @map("start_date") @db.Timestamptz(6)
   dueDate         DateTime?      @map("due_date") @db.Timestamptz(6)
   createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -721,6 +722,7 @@ model AssessmentSubmission {
   id              String           @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
   assessmentId    String           @map("assessment_id") @db.Uuid
   studentId       String           @map("student_id") @db.Uuid
+  attemptNumber   Int              @default(1) @map("attempt_number")
   status          SubmissionStatus @default(SUBMITTED) @map("status")
   submittedAt     DateTime         @default(now()) @map("submitted_at") @db.Timestamptz(6)
   attachmentUrl   String?          @map("attachment_url") @db.Text
@@ -734,7 +736,7 @@ model AssessmentSubmission {
 
   answers StudentAnswer[]
 
-  @@unique([assessmentId, studentId], map: "uq_assessment_student")
+  @@unique([assessmentId, studentId, attemptNumber], map: "uq_assessment_student_attempt")
   @@index([assessmentId, status], map: "idx_submissions_assessment_status")
   @@index([studentId], map: "idx_submissions_student")
   @@map("assessment_submissions")

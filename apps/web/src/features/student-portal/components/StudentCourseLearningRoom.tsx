@@ -151,6 +151,25 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
 
   const completionTriggeredRef = useRef<string | null>(null);
 
+  // Persistent, per-course set of lessons whose "video completed" popup has already
+  // been shown, so the popup (and the quiz-tab nudge) fires only on the FIRST
+  // completion — surviving reloads, tab switches, and re-watches. The in-memory
+  // completionTriggeredRef below still de-dups rapid timeupdate events within a session.
+  const notifiedLessonIdsRef = useRef<string[]>([]);
+  const notifiedStorageKeyRef = useRef(`el_awal_video_notified_${courseId}`);
+
+  useEffect(() => {
+    notifiedStorageKeyRef.current = `el_awal_video_notified_${courseId}`;
+    if (typeof window === 'undefined') return;
+    try {
+      const saved = localStorage.getItem(notifiedStorageKeyRef.current);
+      const parsed = saved ? JSON.parse(saved) : null;
+      notifiedLessonIdsRef.current = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      notifiedLessonIdsRef.current = [];
+    }
+  }, [courseId]);
+
   // Reset completion trigger state when changing lessons
   useEffect(() => {
     completionTriggeredRef.current = null;
@@ -176,6 +195,24 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     const currentActiveLesson = activeLessonRef.current;
     const currentIsCompleted = isLessonCompletedRef.current;
 
+    // First-completion-only gate: if this lesson's popup was already shown (persisted
+    // across reloads), or the lesson is already completed on the server, stay fully
+    // silent — no toast, no automatic switch to the quiz tab.
+    if (notifiedLessonIdsRef.current.includes(lessonId) || currentIsCompleted) {
+      return;
+    }
+
+    // Record (and persist) that we've now shown the completion popup for this lesson.
+    notifiedLessonIdsRef.current = [...notifiedLessonIdsRef.current, lessonId];
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(
+          notifiedStorageKeyRef.current,
+          JSON.stringify(notifiedLessonIdsRef.current)
+        );
+      } catch {}
+    }
+
     const hasQuiz = Boolean(
       currentLessonViewer?.lessonQuiz ||
       currentActiveLesson?.lessonQuizId
@@ -185,18 +222,16 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
       setActiveTabRef.current('quiz');
       toast('أحسنت بمشاهدة شرح الدرس! يرجى حل اختبار الدرس لاحتساب إتمامه بنجاح 📝', { icon: '🎓' });
     } else {
-      if (!currentIsCompleted) {
-        setCompletedLessonIds((prev) => Array.from(new Set([...prev, lessonId])));
-        try {
-          await coursesApi.updateLessonProgress(lessonId, {
-            isCompleted: true,
-            lastPositionSeconds: Math.round(seconds || 0),
-          });
-          await refetchLessonRef.current();
-          toast.success('أحسنت! تمت مشاهدة معظم شرح الدرس وتم رصد إتمامه بنجاح 🎯');
-        } catch {
-          // Ignore
-        }
+      setCompletedLessonIds((prev) => Array.from(new Set([...prev, lessonId])));
+      try {
+        await coursesApi.updateLessonProgress(lessonId, {
+          isCompleted: true,
+          lastPositionSeconds: Math.round(seconds || 0),
+        });
+        await refetchLessonRef.current();
+        toast.success('أحسنت! تمت مشاهدة معظم شرح الدرس وتم رصد إتمامه بنجاح 🎯');
+      } catch {
+        // Ignore
       }
     }
   }, []); // ← stable: no dependencies, reads from refs

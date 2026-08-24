@@ -148,6 +148,7 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
       passingScore: 50,
       durationMinutes: 60,
       isAutoGraded: true,
+      allowMultipleAttempts: false,
       questions: [
         {
           questionNumber: 1,
@@ -747,6 +748,38 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                   </div>
                 )}
 
+              </div>
+
+              {/* Attempt policy: single vs. multiple attempts */}
+              <div className="mt-6">
+                <Label className="mb-2 block">نظام المحاولات</Label>
+                <p className="text-slate-500 text-sm mb-3">
+                  حدد ما إذا كان بإمكان الطالب حل هذا الاختبار أكثر من مرة. عند اختيار "محاولات متعددة" يتم اعتماد أعلى درجة كدرجة رسمية مع الاحتفاظ بسجل كل المحاولات.
+                </p>
+                <div className="bg-white p-2 rounded-xl border border-slate-200 flex gap-2 max-w-md shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => methods.setValue('allowMultipleAttempts', false, { shouldDirty: true })}
+                    className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${
+                      !formDataValues.allowMultipleAttempts
+                        ? 'bg-primary-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    🔒 محاولة واحدة
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => methods.setValue('allowMultipleAttempts', true, { shouldDirty: true })}
+                    className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${
+                      formDataValues.allowMultipleAttempts
+                        ? 'bg-primary-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    🔁 محاولات متعددة
+                  </button>
+                </div>
               </div>
 
               <div className="pt-6 mt-6 border-t border-slate-100 flex justify-end">

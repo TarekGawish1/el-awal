@@ -27,6 +27,7 @@ const editMetadataSchema = z.object({
   durationMinutes: z.coerce.number().min(1, 'المدة يجب أن تكون دقيقة واحدة على الأقل').optional().nullable(),
   dueDate: z.string().optional().nullable(),
   courseId: z.string().optional().nullable(),
+  allowMultipleAttempts: z.boolean().optional(),
 });
 
 type EditMetadataFormData = z.infer<typeof editMetadataSchema>;
@@ -34,8 +35,8 @@ type EditMetadataFormData = z.infer<typeof editMetadataSchema>;
 export function EditAssessmentMetadataModal({ isOpen, onClose, assessment }: EditMetadataModalProps) {
   const { mutate: updateAssessment, isPending } = useUpdateAssessment();
   const { data: teacherCourses } = useTeacherCourses();
-  
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<EditMetadataFormData>({
+
+  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<EditMetadataFormData>({
     resolver: zodResolver(editMetadataSchema),
   });
 
@@ -47,6 +48,7 @@ export function EditAssessmentMetadataModal({ isOpen, onClose, assessment }: Edi
         durationMinutes: assessment.durationMinutes || undefined,
         dueDate: assessment.dueDate ? new Date(assessment.dueDate).toISOString().slice(0, 16) : undefined,
         courseId: assessment.courseId || undefined,
+        allowMultipleAttempts: assessment.allowMultipleAttempts ?? false,
       });
     }
   }, [isOpen, assessment, reset]);
@@ -124,7 +126,7 @@ export function EditAssessmentMetadataModal({ isOpen, onClose, assessment }: Edi
 
           <div>
             <Label className="mb-2 block">الكورس الأونلاين المرتبط (اختياري)</Label>
-            <Select 
+            <Select
               {...register('courseId')}
               options={[
                 { label: '-- غير مرتبط بكورس أونلاين معين --', value: '' },
@@ -134,6 +136,37 @@ export function EditAssessmentMetadataModal({ isOpen, onClose, assessment }: Edi
                 })) || []),
               ]}
             />
+          </div>
+
+          <div>
+            <Label className="mb-2 block">نظام المحاولات</Label>
+            <div className="bg-white p-2 rounded-xl border border-slate-200 flex gap-2 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setValue('allowMultipleAttempts', false, { shouldDirty: true })}
+                className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${
+                  !watch('allowMultipleAttempts')
+                    ? 'bg-primary-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                🔒 محاولة واحدة
+              </button>
+              <button
+                type="button"
+                onClick={() => setValue('allowMultipleAttempts', true, { shouldDirty: true })}
+                className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${
+                  watch('allowMultipleAttempts')
+                    ? 'bg-primary-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                🔁 محاولات متعددة
+              </button>
+            </div>
+            <p className="text-slate-500 text-xs mt-2">
+              عند السماح بمحاولات متعددة يتم اعتماد أعلى درجة كدرجة رسمية مع الاحتفاظ بسجل كل المحاولات.
+            </p>
           </div>
         </form>
 

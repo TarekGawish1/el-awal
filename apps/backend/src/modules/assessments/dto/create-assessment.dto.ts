@@ -148,6 +148,14 @@ export class CreateAssessmentDto {
   @IsBoolean()
   isPublished?: boolean;
 
+  @ApiPropertyOptional({
+    description: 'Whether students may take this assessment more than once (retakes). When false, only a single attempt is allowed.',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  allowMultipleAttempts?: boolean;
+
   @ApiProperty({
     type: [CreateQuestionDto],
     description: 'Array of assessment questions',

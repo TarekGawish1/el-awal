@@ -68,6 +68,7 @@ describe('AssessmentsService', () => {
       passingScore: 5.0,
       durationMinutes: 30,
       isPublished: true,
+      allowMultipleAttempts: false,
       dueDate: null,
       teacher: { user: { fullName: 'أ. طارق عبد الله' } },
       group: null,
@@ -131,6 +132,7 @@ describe('AssessmentsService', () => {
     const mockAssessmentWithMcq = {
       id: assessmentId,
       isPublished: true,
+      allowMultipleAttempts: false,
       dueDate: null,
       totalScore: 10.0,
       questions: [
@@ -153,7 +155,7 @@ describe('AssessmentsService', () => {
 
     it('should calculate 100% perfect score on all-correct MCQ and mark GRADED', async () => {
       mockPrismaService.assessment.findUnique.mockResolvedValue(mockAssessmentWithMcq);
-      mockPrismaService.assessmentSubmission.findUnique.mockResolvedValue(null); // No previous submission
+      mockPrismaService.assessmentSubmission.findMany.mockResolvedValue([]); // No previous attempts
 
       mockPrismaService.$transaction.mockImplementation(async (callback) => {
         return callback({
@@ -162,6 +164,7 @@ describe('AssessmentsService', () => {
               id: 'submission-uuid-1',
               assessmentId,
               studentId,
+              attemptNumber: 1,
               status: SubmissionStatus.GRADED,
               scoreObtained: 10.0,
               isAutoGraded: true,
@@ -191,6 +194,7 @@ describe('AssessmentsService', () => {
       const mockAssessmentWithEssay = {
         id: assessmentId,
         isPublished: true,
+        allowMultipleAttempts: false,
         dueDate: null,
         totalScore: 10.0,
         questions: [
@@ -212,7 +216,7 @@ describe('AssessmentsService', () => {
       };
 
       mockPrismaService.assessment.findUnique.mockResolvedValue(mockAssessmentWithEssay);
-      mockPrismaService.assessmentSubmission.findUnique.mockResolvedValue(null);
+      mockPrismaService.assessmentSubmission.findMany.mockResolvedValue([]);
 
       mockPrismaService.$transaction.mockImplementation(async (callback) => {
         return callback({
@@ -221,6 +225,7 @@ describe('AssessmentsService', () => {
               id: 'submission-uuid-2',
               assessmentId,
               studentId,
+              attemptNumber: 1,
               status: SubmissionStatus.SUBMITTED,
               scoreObtained: null,
               isAutoGraded: false,
@@ -244,15 +249,54 @@ describe('AssessmentsService', () => {
 
     it('should throw ConflictException on duplicate submission attempt', async () => {
       mockPrismaService.assessment.findUnique.mockResolvedValue(mockAssessmentWithMcq);
-      mockPrismaService.assessmentSubmission.findUnique.mockResolvedValue({
-        id: 'existing-sub-1',
-      }); // Already submitted
+      mockPrismaService.assessmentSubmission.findMany.mockResolvedValue([
+        { id: 'existing-sub-1', attemptNumber: 1 },
+      ]); // Already submitted, single-attempt policy
 
       await expect(
         service.submitAssessment(assessmentId, studentUser, {
           answers: [{ questionId: 'q-1', answerGiven: 'خبر كان منصوب' }],
         }),
       ).rejects.toThrow(ConflictException);
+    });
+
+    it('should allow a retake and increment attemptNumber when allowMultipleAttempts is true', async () => {
+      mockPrismaService.assessment.findUnique.mockResolvedValue({
+        ...mockAssessmentWithMcq,
+        allowMultipleAttempts: true,
+      });
+      mockPrismaService.assessmentSubmission.findMany.mockResolvedValue([
+        { id: 'existing-sub-1', attemptNumber: 1 },
+      ]);
+
+      const createSpy = jest.fn().mockResolvedValue({
+        id: 'submission-uuid-3',
+        assessmentId,
+        studentId,
+        attemptNumber: 2,
+        status: SubmissionStatus.GRADED,
+        scoreObtained: 10.0,
+        isAutoGraded: true,
+        submittedAt: new Date(),
+        gradedAt: new Date(),
+      });
+      mockPrismaService.$transaction.mockImplementation(async (callback) => {
+        return callback({ assessmentSubmission: { create: createSpy } });
+      });
+
+      const result = await service.submitAssessment(assessmentId, studentUser, {
+        answers: [
+          { questionId: 'q-1', answerGiven: 'خبر كان منصوب' },
+          { questionId: 'q-2', answerGiven: 'صواب' },
+        ],
+      });
+
+      expect(result.status).toBe(SubmissionStatus.GRADED);
+      expect(createSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ attemptNumber: 2 }),
+        }),
+      );
     });
   });
 
@@ -261,6 +305,7 @@ describe('AssessmentsService', () => {
     const teacherId = 'teacher-1';
     const mockSubmission = {
       id: submissionId,
+      attemptNumber: 1,
       status: SubmissionStatus.SUBMITTED,
       scoreObtained: null,
       isAutoGraded: false,

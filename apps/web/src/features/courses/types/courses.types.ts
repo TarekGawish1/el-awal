@@ -2,12 +2,22 @@ export type CourseStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 export type LessonType = 'VIDEO' | 'DOCUMENT' | 'LIVE';
 export type AssessmentType = 'EXAM' | 'HOMEWORK' | 'QUIZ';
 
+export interface AssessmentQuizSubmissionSummary {
+  status: 'SUBMITTED' | 'GRADED' | 'UNSOLVED' | 'PENDING';
+  scoreObtained: number | null;
+  attemptNumber: number;
+}
+
 export interface AssessmentSummary {
   id: string;
   title: string;
   type: AssessmentType;
   totalScore: number;
   durationMinutes?: number | null;
+  passingScore?: number | null;
+  allowMultipleAttempts?: boolean;
+  attemptCount?: number;
+  mySubmission?: AssessmentQuizSubmissionSummary | null;
 }
 
 export interface LessonAttachment {

@@ -9,6 +9,10 @@ import {
   PaymentStatus,
 } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
+import {
+  resolveOfficialSubmission,
+  groupSubmissionsByAssessment,
+} from '../../assessments/utils/submission-grade.util';
 
 @Injectable()
 export class ParentPortalService {
@@ -101,7 +105,8 @@ export class ParentPortalService {
     const attendanceRate =
       totalSessions > 0 ? Math.round((presentSessions / totalSessions) * 100) : 100;
 
-    // 2. Academic Assessment Average
+    // 2. Academic Assessment Average — resolve the official (highest) attempt per
+    // assessment so retakes are counted once at the student's best score.
     const gradedSubmissions = await this.prisma.assessmentSubmission.findMany({
       where: { studentId, status: SubmissionStatus.GRADED },
       include: { assessment: { select: { totalScore: true } } },
@@ -110,9 +115,12 @@ export class ParentPortalService {
     let totalScoreObtained = 0;
     let totalMaxScore = 0;
 
-    for (const s of gradedSubmissions) {
-      totalScoreObtained += Number(s.scoreObtained || 0);
-      totalMaxScore += Number(s.assessment.totalScore || 0);
+    const gradedByAssessment = groupSubmissionsByAssessment(gradedSubmissions);
+    for (const [, attempts] of gradedByAssessment) {
+      const official = resolveOfficialSubmission(attempts);
+      if (!official) continue;
+      totalScoreObtained += Number(official.scoreObtained || 0);
+      totalMaxScore += Number(official.assessment.totalScore || 0);
     }
 
     const academicAverage =
@@ -177,7 +185,7 @@ export class ParentPortalService {
         totalSessionsAttended: presentSessions,
         totalSessionsMissed: absentSessions,
         academicAveragePercentage: academicAverage,
-        totalGradedAssessments: gradedSubmissions.length,
+        totalGradedAssessments: gradedByAssessment.size,
         enrolledPhysicalGroups: enrolledGroupsCount,
         enrolledOnlineCourses: enrolledCoursesCount,
         currentMonthBilling: {
@@ -200,7 +208,7 @@ export class ParentPortalService {
         assessmentTitle: sub.assessment.title,
         type: sub.assessment.type,
         status: sub.status,
-        scoreObtained: sub.scoreObtained ? Number(sub.scoreObtained) : null,
+        scoreObtained: sub.scoreObtained != null ? Number(sub.scoreObtained) : null,
         totalScore: Number(sub.assessment.totalScore),
         submittedAt: sub.submittedAt,
       })),
@@ -266,7 +274,7 @@ export class ParentPortalService {
 
     const submissions = await this.prisma.assessmentSubmission.findMany({
       where: { studentId },
-      orderBy: { submittedAt: 'desc' },
+      orderBy: { attemptNumber: 'asc' },
       include: {
         assessment: {
           include: {
@@ -278,24 +286,49 @@ export class ParentPortalService {
       },
     });
 
-    return submissions.map((s) => ({
-      submissionId: s.id,
-      assessmentId: s.assessmentId,
-      title: s.assessment.title,
-      type: s.assessment.type,
-      teacherName: s.assessment.teacher.user.fullName,
-      status: s.status,
-      scoreObtained: s.scoreObtained ? Number(s.scoreObtained) : null,
-      totalScore: Number(s.assessment.totalScore),
-      passingScore: s.assessment.passingScore ? Number(s.assessment.passingScore) : null,
-      isPassed:
-        s.scoreObtained && s.assessment.passingScore
-          ? Number(s.scoreObtained) >= Number(s.assessment.passingScore)
-          : null,
-      submittedAt: s.submittedAt,
-      gradedAt: s.gradedAt,
-      teacherFeedback: s.teacherFeedback,
-    }));
+    // One row per assessment: the official (highest) attempt is the headline grade,
+    // with every attempt retained under `attempts` for history.
+    const byAssessment = groupSubmissionsByAssessment(submissions);
+    const rows = [...byAssessment.values()].map((attempts) => {
+      const official = resolveOfficialSubmission(attempts)!;
+      const passingScore = official.assessment.passingScore
+        ? Number(official.assessment.passingScore)
+        : null;
+      const officialScore =
+        official.scoreObtained != null ? Number(official.scoreObtained) : null;
+
+      return {
+        submissionId: official.id,
+        assessmentId: official.assessmentId,
+        title: official.assessment.title,
+        type: official.assessment.type,
+        teacherName: official.assessment.teacher.user.fullName,
+        status: official.status,
+        scoreObtained: officialScore,
+        totalScore: Number(official.assessment.totalScore),
+        passingScore,
+        isPassed:
+          officialScore != null && passingScore != null
+            ? officialScore >= passingScore
+            : null,
+        submittedAt: official.submittedAt,
+        gradedAt: official.gradedAt,
+        teacherFeedback: official.teacherFeedback,
+        attemptCount: attempts.length,
+        attempts: attempts.map((a) => ({
+          attemptNumber: a.attemptNumber,
+          status: a.status,
+          scoreObtained: a.scoreObtained != null ? Number(a.scoreObtained) : null,
+          submittedAt: a.submittedAt,
+          gradedAt: a.gradedAt,
+        })),
+      };
+    });
+
+    // Most recently active assessment first.
+    return rows.sort(
+      (a, b) => b.submittedAt.getTime() - a.submittedAt.getTime(),
+    );
   }
 
   /**

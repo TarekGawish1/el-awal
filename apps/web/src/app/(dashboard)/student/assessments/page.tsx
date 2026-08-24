@@ -10,9 +10,9 @@ import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
 import { Pagination } from '@/components/ui/Pagination';
-import { 
-  FileText, Calendar, Clock, CheckCircle2, XCircle, AlertCircle, 
-  ChevronLeft, Award, Play, HelpCircle, Send, Check, AlertTriangle, ArrowLeft 
+import {
+  FileText, Calendar, Clock, CheckCircle2, XCircle, AlertCircle,
+  ChevronLeft, Award, Play, HelpCircle, Send, Check, AlertTriangle, ArrowLeft, RefreshCcw
 } from 'lucide-react';
 import { formatArabicDate, formatArabicTime } from '@/lib/utils/formatters';
 import { FeatureRequiresOnlineCard } from '@/components/offline/FeatureRequiresOnlineCard';
@@ -46,6 +46,7 @@ function StudentAssessmentsContent() {
   const returnUrl = searchParams.get('returnUrl');
   const courseId = searchParams.get('courseId');
   const lessonId = searchParams.get('lessonId');
+  const retakeParam = searchParams.get('retake') === '1';
 
   const [filterType, setFilterType] = useState<'ALL' | 'EXAM' | 'ASSIGNMENT'>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
@@ -251,11 +252,12 @@ function StudentAssessmentsContent() {
           )}
         </>
       ) : (
-        <AssessmentWrapper 
-          assessmentId={activeAssessmentId!} 
+        <AssessmentWrapper
+          assessmentId={activeAssessmentId!}
           returnUrl={returnUrl}
           courseId={courseId}
           lessonId={lessonId}
+          initialRetake={retakeParam}
           onBack={() => {
             if (returnUrl) {
               router.push(returnUrl);
@@ -270,17 +272,19 @@ function StudentAssessmentsContent() {
   );
 }
 
-function AssessmentWrapper({ 
-  assessmentId, 
+function AssessmentWrapper({
+  assessmentId,
   returnUrl,
   courseId,
   lessonId,
-  onBack 
-}: { 
-  assessmentId: string; 
+  initialRetake,
+  onBack
+}: {
+  assessmentId: string;
   returnUrl?: string | null;
   courseId?: string | null;
   lessonId?: string | null;
+  initialRetake?: boolean;
   onBack: () => void;
 }) {
   const router = useRouter();
@@ -290,18 +294,33 @@ function AssessmentWrapper({
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [localSubmission, setLocalSubmission] = useState<any>(null);
   const [showResultModal, setShowResultModal] = useState(false);
-  
+  // When true, the student is (re)taking the quiz even though a prior attempt exists.
+  const [retakeMode, setRetakeMode] = useState<boolean>(Boolean(initialRetake));
+
   // Timer state
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
+  // Never allow retake UI for single-attempt quizzes (guards a hand-crafted &retake=1 URL).
   useEffect(() => {
-    if (assessment && assessment.durationMinutes && !assessment.mySubmission && !localSubmission) {
+    if (assessment && !assessment.allowMultipleAttempts) {
+      setRetakeMode(false);
+    }
+  }, [assessment]);
+
+  useEffect(() => {
+    // Arm the timer for a fresh attempt: no prior submission, OR an in-progress retake.
+    if (
+      assessment &&
+      assessment.durationMinutes &&
+      !localSubmission &&
+      (retakeMode || !assessment.mySubmission)
+    ) {
       const minutes = Number(assessment.durationMinutes);
       setTimeLeft(minutes * 60);
     } else {
       setTimeLeft(null);
     }
-  }, [assessment, localSubmission]);
+  }, [assessment, localSubmission, retakeMode]);
 
   useEffect(() => {
     if (timeLeft === null) return;
@@ -321,6 +340,14 @@ function AssessmentWrapper({
 
   const handleTextChange = (questionId: string, text: string) => {
     setAnswers(prev => ({ ...prev, [questionId]: text }));
+  };
+
+  // Begin a new attempt: drop the prior result locally, clear answers, re-arm the timer.
+  const startRetake = () => {
+    setLocalSubmission(null);
+    setAnswers({});
+    setShowResultModal(false);
+    setRetakeMode(true);
   };
 
   const buildSubmitPayload = () => {
@@ -363,6 +390,7 @@ function AssessmentWrapper({
         onSuccess: (result: any) => {
           toast.success('تم تسليم إجاباتك بنجاح.');
           setTimeLeft(null);
+          setRetakeMode(false);
           const subData = result?.data || result;
           setLocalSubmission(subData);
           setShowResultModal(true);
@@ -389,6 +417,7 @@ function AssessmentWrapper({
           toast.success('تم تسليم الإجابات بنجاح وتم رصد النتيجة!');
           setIsConfirmOpen(false);
           setTimeLeft(null);
+          setRetakeMode(false);
           const subData = result?.data || result;
           setLocalSubmission(subData);
           setShowResultModal(true);
@@ -429,6 +458,10 @@ function AssessmentWrapper({
   const isExam = assessment.type === 'EXAM';
   const mySubmission = localSubmission || assessment.mySubmission;
   const isPastDue = assessment.dueDate ? new Date(assessment.dueDate) < new Date() : false;
+  const allowMultipleAttempts = Boolean(assessment.allowMultipleAttempts);
+  // Offer a retake when the quiz permits it, a prior attempt exists, and we're not
+  // already mid-retake or past the due date.
+  const canRetake = allowMultipleAttempts && Boolean(mySubmission) && !retakeMode && !isPastDue;
 
   return (
     <div className="space-y-6 pb-20 relative">
@@ -465,7 +498,7 @@ function AssessmentWrapper({
           </div>
 
           <div className="flex flex-col gap-2 shrink-0 w-full md:w-auto">
-            {mySubmission ? (
+            {mySubmission && !retakeMode ? (
               mySubmission.status === 'GRADED' ? (
                 <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl flex items-center gap-4">
                   <div className="p-2.5 bg-emerald-500 text-white rounded-xl">
@@ -496,6 +529,14 @@ function AssessmentWrapper({
                   <span className="text-xs text-slate-500 mt-0.5 block">لم تعد قادراً على تسليم هذا الاختبار.</span>
                 </div>
               </div>
+            ) : retakeMode ? (
+              <div className="bg-primary-50 border border-primary-100 p-4 rounded-2xl flex items-center gap-3">
+                <RefreshCcw className="w-5 h-5 text-primary-600" />
+                <div>
+                  <span className="text-sm font-bold text-primary-700 block">محاولة جديدة قيد التقدم</span>
+                  <span className="text-xs text-slate-500 mt-0.5 block">تُحتسب أعلى درجة بين محاولاتك كدرجة رسمية.</span>
+                </div>
+              </div>
             ) : (
               <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl flex items-center gap-3">
                 <Clock className="w-5 h-5 text-amber-600" />
@@ -505,12 +546,24 @@ function AssessmentWrapper({
                 </div>
               </div>
             )}
+
+            {canRetake && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={startRetake}
+                className="rounded-xl font-bold text-primary-700 border-primary-200 hover:bg-primary-50 flex items-center justify-center gap-1.5"
+              >
+                <RefreshCcw className="w-4 h-4" />
+                إعادة المحاولة
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
 
       {/* Solver or Review Board */}
-      {!mySubmission ? (
+      {(!mySubmission || retakeMode) ? (
         isPastDue ? (
           <Card className="border-slate-100 shadow-2xs">
             <CardContent className="p-8 text-center flex flex-col items-center justify-center">
@@ -793,7 +846,9 @@ function AssessmentWrapper({
               )}
               
               <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                بمجرد تأكيد التسليم، سيتم رصد النتيجة ولا يمكنك تعديل الإجابات أو إعادة المحاولة مرة أخرى.
+                {allowMultipleAttempts
+                  ? 'بمجرد تأكيد التسليم، سيتم رصد النتيجة. يمكنك إعادة المحاولة لاحقاً، وتُحتسب أعلى درجة بين محاولاتك كدرجة رسمية.'
+                  : 'بمجرد تأكيد التسليم، سيتم رصد النتيجة ولا يمكنك تعديل الإجابات أو إعادة المحاولة مرة أخرى.'}
               </p>
 
               <div className="flex gap-2.5 pt-2">
@@ -875,6 +930,16 @@ function AssessmentWrapper({
                 <CheckCircle2 className="w-4 h-4 ml-2" />
                 عرض ومراجعة تفاصيل الإجابات
               </Button>
+              {allowMultipleAttempts && !isPastDue && (
+                <Button
+                  variant="outline"
+                  onClick={startRetake}
+                  className="w-full rounded-xl py-3 font-bold text-primary-700 border-primary-200 hover:bg-primary-50 cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <RefreshCcw className="w-4 h-4" />
+                  إعادة المحاولة لتحسين درجتك
+                </Button>
+              )}
               <Button
                 variant="outline"
                 onClick={onBack}
