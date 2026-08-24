@@ -438,7 +438,7 @@ export class CoursesService {
         bunnyVideoId: dto.bunnyVideoId,
         contentUrl: dto.contentUrl,
         videoDurationSeconds: dto.videoDurationSeconds,
-        isPreview: dto.isFreePreview || false,
+        isPreview: dto.isFreePreview !== undefined ? dto.isFreePreview : (dto.isPreview !== undefined ? dto.isPreview : false),
         lessonQuizId: dto.lessonQuizId || null,
       },
       include: {
@@ -468,6 +468,8 @@ export class CoursesService {
       throw new ForbiddenException('You do not have permission to modify this lesson');
     }
 
+    const isPreviewVal = dto.isFreePreview !== undefined ? dto.isFreePreview : dto.isPreview;
+
     return this.prisma.courseLesson.update({
       where: { id: lessonId },
       data: {
@@ -479,7 +481,7 @@ export class CoursesService {
         ...(dto.bunnyVideoId !== undefined ? { bunnyVideoId: dto.bunnyVideoId } : {}),
         ...(dto.contentUrl !== undefined ? { contentUrl: dto.contentUrl } : {}),
         ...(dto.videoDurationSeconds !== undefined ? { videoDurationSeconds: dto.videoDurationSeconds } : {}),
-        ...(dto.isFreePreview !== undefined ? { isPreview: dto.isFreePreview } : {}),
+        ...(isPreviewVal !== undefined ? { isPreview: isPreviewVal } : {}),
         ...(dto.lessonQuizId !== undefined ? { lessonQuizId: dto.lessonQuizId } : {}),
       },
       include: {

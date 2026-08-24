@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { X, BookOpen, DollarSign, Award } from 'lucide-react';
+import { X, BookOpen, DollarSign, Award, Plus, ExternalLink } from 'lucide-react';
 import { useCreateCourse } from '../hooks/useCourses';
 import { coursesApi } from '../api/courses.api';
 import { useAssessments } from '@/features/assessments/hooks/use-assessments';
@@ -17,7 +17,9 @@ interface CreateCourseModalProps {
 export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseModalProps) {
   const createMutation = useCreateCourse();
   const { data: assessmentsData } = useAssessments();
-  const assessments = assessmentsData?.data || [];
+  const assessments = Array.isArray(assessmentsData)
+    ? assessmentsData
+    : (assessmentsData?.data || []);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -211,26 +213,47 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
           </div>
 
           {/* Course Final Quiz Linking */}
-          <div className="p-4 bg-primary-50/50 border border-primary-100 rounded-xl">
-            <div className="flex items-center gap-2 mb-2">
+          <div className="p-4 bg-primary-50/50 border border-primary-100 rounded-xl space-y-2">
+            <div className="flex items-center gap-2 mb-1">
               <Award className="w-4 h-4 text-amber-500" />
               <label className="text-xs font-bold text-slate-800">
                 ربط الاختبار النهائي الشامل للكورس
               </label>
             </div>
-            <select
-              value={courseQuizId}
-              onChange={(e) => setCourseQuizId(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm cursor-pointer"
-            >
-              <option value="">-- بدون اختبار شامل حالياً --</option>
-              {assessments.map((a: any) => (
-                <option key={a.id} value={a.id}>
-                  {a.title} ({a.type === 'EXAM' ? 'امتحان شامل' : 'واجب'} - {a.totalScore} درجة)
-                </option>
-              ))}
-            </select>
-            <p className="text-[11px] text-slate-500 mt-1.5">
+            {assessments.length === 0 ? (
+              <div className="p-3.5 bg-white border border-dashed border-amber-300 rounded-xl text-center space-y-2">
+                <p className="text-xs font-bold text-slate-800">لا توجد امتحانات منشأة حالياً في حسابك</p>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  يمكنك إنشاء امتحانات شاملة من قسم <strong>"الامتحانات والواجبات"</strong>، ثم ربطها كتقييم نهائي للكورس.
+                </p>
+                <div className="pt-1">
+                  <a
+                    href="/teacher/assessments"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>إنشاء اختبار جديد</span>
+                    <ExternalLink className="w-3 h-3 mr-0.5" />
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <select
+                value={courseQuizId}
+                onChange={(e) => setCourseQuizId(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm cursor-pointer"
+              >
+                <option value="">-- بدون اختبار شامل حالياً --</option>
+                {assessments.map((a: any) => (
+                  <option key={a.id} value={a.id}>
+                    {a.title} ({a.type === 'EXAM' ? 'امتحان شامل' : a.type === 'HOMEWORK' ? 'واجب' : 'اختبار قصير'} - {a.totalScore} درجة)
+                  </option>
+                ))}
+              </select>
+            )}
+            <p className="text-[11px] text-slate-500">
               يظهر هذا الاختبار في نهاية المنهج كتقييم ختامي للطالب بعد إنهاء جميع الدروس.
             </p>
           </div>

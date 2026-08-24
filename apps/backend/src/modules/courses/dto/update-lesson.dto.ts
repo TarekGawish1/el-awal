@@ -81,6 +81,14 @@ export class UpdateLessonDto {
   isFreePreview?: boolean;
 
   @ApiPropertyOptional({
+    description: 'Alias for isFreePreview',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isPreview?: boolean;
+
+  @ApiPropertyOptional({
     description: 'Detailed study notes / markdown summary of the lesson',
     example: '### ملخص درس كان وأخواتها\n- ترفع المبتدأ ويسمى اسمها\n- تنصب الخبر ويسمى خبرها',
   })

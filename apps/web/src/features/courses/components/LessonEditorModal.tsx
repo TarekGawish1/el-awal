@@ -51,7 +51,9 @@ export function LessonEditorModal({
   const deleteAttachmentMutation = useDeleteAttachment(courseId);
 
   const { data: assessmentsData } = useAssessments();
-  const assessments = assessmentsData?.data || [];
+  const assessments = Array.isArray(assessmentsData)
+    ? assessmentsData
+    : (assessmentsData?.data || []);
 
   const [activeTab, setActiveTab] = useState<TabType>('video');
 
@@ -61,6 +63,8 @@ export function LessonEditorModal({
   const [summary, setSummary] = useState('');
   const [lessonType, setLessonType] = useState('VIDEO');
   const [bunnyVideoId, setBunnyVideoId] = useState('');
+  const [videoEmbedUrl, setVideoEmbedUrl] = useState('');
+  const [uploadedVideoName, setUploadedVideoName] = useState('');
   const [videoDurationSeconds, setVideoDurationSeconds] = useState(1800);
   const [isFreePreview, setIsFreePreview] = useState(false);
   const [lessonQuizId, setLessonQuizId] = useState('');
@@ -84,6 +88,7 @@ export function LessonEditorModal({
       setSummary(lesson.summary || '');
       setLessonType(lesson.lessonType || 'VIDEO');
       setBunnyVideoId(lesson.bunnyVideoId || '');
+      setVideoEmbedUrl(lesson.bunnyVideoId ? `https://iframe.mediadelivery.net/embed/406085/${lesson.bunnyVideoId}` : '');
       setVideoDurationSeconds(lesson.videoDurationSeconds || 1800);
       setIsFreePreview(lesson.isPreview || false);
       setLessonQuizId(lesson.lessonQuizId || '');
@@ -93,6 +98,8 @@ export function LessonEditorModal({
       setSummary('');
       setLessonType('VIDEO');
       setBunnyVideoId('');
+      setVideoEmbedUrl('');
+      setUploadedVideoName('');
       setVideoDurationSeconds(1800);
       setIsFreePreview(false);
       setLessonQuizId('');
@@ -113,6 +120,7 @@ export function LessonEditorModal({
     try {
       setIsUploadingVideo(true);
       setVideoUploadProgress(5);
+      setUploadedVideoName(file.name);
 
       const creds = await coursesApi.getVideoUploadCredentials(title.trim() || file.name);
       setVideoUploadProgress(15);
@@ -134,7 +142,8 @@ export function LessonEditorModal({
           setVideoUploadProgress(100);
           setIsUploadingVideo(false);
           setBunnyVideoId(creds.videoId);
-          toast.success('تم رفع الفيديو بنجاح وجاري بدء المعالجة السحابية');
+          setVideoEmbedUrl(creds.embedUrl);
+          toast.success('تم رفع الفيديو بنجاح وجاري بدء البث السحابي');
         } else {
           setIsUploadingVideo(false);
           toast.error('تعذر رفع الفيديو');
@@ -147,16 +156,29 @@ export function LessonEditorModal({
       };
 
       xhr.send(file);
-    } catch {
+    } catch (err: any) {
       setIsUploadingVideo(false);
-      toast.error('تعذر الحصول على تصريح رفع الفيديو');
+      toast.error(err?.message || 'تعذر الحصول على تصريح رفع الفيديو');
     }
+  };
+
+  const handleRemoveVideo = async () => {
+    if (bunnyVideoId) {
+      coursesApi.deleteUploadedFile(`bunny:${bunnyVideoId}`);
+    }
+    setBunnyVideoId('');
+    setVideoEmbedUrl('');
+    setUploadedVideoName('');
   };
 
   const handleSaveLesson = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
       toast.error('يرجى إدخال عنوان الدرس');
+      return;
+    }
+    if (title.trim().length < 3) {
+      toast.error('عنوان الدرس يجب أن يتكون من 3 أحرف على الأقل');
       return;
     }
 
@@ -166,7 +188,8 @@ export function LessonEditorModal({
       summary: summary.trim() || undefined,
       lessonType,
       bunnyVideoId: bunnyVideoId || undefined,
-      videoDurationSeconds: videoDurationSeconds || undefined,
+      videoDurationSeconds: Number(videoDurationSeconds) || 0,
+      isFreePreview,
       isPreview: isFreePreview,
       lessonQuizId: lessonQuizId || undefined,
     };
@@ -185,7 +208,7 @@ export function LessonEditorModal({
       }
       onClose();
     } catch {
-      // Handled by mutation
+      // Handled by mutation toast
     }
   };
 
@@ -355,25 +378,77 @@ export function LessonEditorModal({
                   )}
                 </div>
 
-                {/* Direct Upload Dropzone */}
-                <div className="border-2 border-dashed border-slate-200 hover:border-primary-500 rounded-2xl p-6 text-center cursor-pointer transition-colors relative bg-white">
-                  <input
-                    type="file"
-                    accept="video/*"
-                    onChange={handleDirectVideoUpload}
-                    disabled={isUploadingVideo}
-                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                  />
-                  <div className="flex flex-col items-center gap-2 text-slate-600">
-                    <UploadCloud className="w-10 h-10 text-primary-600" />
-                    <p className="text-xs font-bold text-slate-800">
-                      انقر لاختيار فيديو أو سحبه هنا للرفع المباشر إلى السيرفر السحابي المشفر
-                    </p>
-                    <p className="text-[11px] text-slate-500">
-                      يتم التشفير الآمن والتقطيع التلقائي بجودات متعددة ضد التسجيل والقرصنة
-                    </p>
+                {/* Uploaded Video Preview Player Card */}
+                {bunnyVideoId ? (
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg space-y-0">
+                    <div className="relative w-full aspect-video bg-black flex items-center justify-center">
+                      <iframe
+                        src={videoEmbedUrl || `https://iframe.mediadelivery.net/embed/406085/${bunnyVideoId}`}
+                        loading="lazy"
+                        className="w-full h-full border-0"
+                        allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
+                        allowFullScreen
+                      />
+                    </div>
+                    <div className="p-3.5 bg-slate-800/90 flex items-center justify-between gap-3 text-right">
+                      <div className="flex items-center gap-2.5 overflow-hidden">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                          <CheckCircle className="w-4 h-4" />
+                        </div>
+                        <div className="truncate">
+                          <p className="text-xs font-bold text-white truncate">
+                            {uploadedVideoName || 'فيديو الشرح المباشر'}
+                          </p>
+                          <p className="text-[10px] text-slate-400 font-mono truncate">
+                            ID: {bunnyVideoId}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <label className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-semibold cursor-pointer transition-colors flex items-center gap-1">
+                          <UploadCloud className="w-3.5 h-3.5" />
+                          <span>تغيير الفيديو</span>
+                          <input
+                            type="file"
+                            accept="video/*"
+                            onChange={handleDirectVideoUpload}
+                            disabled={isUploadingVideo}
+                            className="hidden"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleRemoveVideo}
+                          className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg transition-colors"
+                          title="حذف الفيديو"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  /* Direct Upload Dropzone */
+                  <div className="border-2 border-dashed border-slate-200 hover:border-primary-500 rounded-2xl p-6 text-center cursor-pointer transition-colors relative bg-white">
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={handleDirectVideoUpload}
+                      disabled={isUploadingVideo}
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    />
+                    <div className="flex flex-col items-center gap-2 text-slate-600">
+                      <UploadCloud className="w-10 h-10 text-primary-600" />
+                      <p className="text-xs font-bold text-slate-800">
+                        انقر لاختيار فيديو أو سحبه هنا للرفع المباشر إلى السيرفر السحابي المشفر
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        يتم التشفير الآمن والتقطيع التلقائي بجودات متعددة ضد التسجيل والقرصنة
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {isUploadingVideo && (
                   <div className="space-y-1.5">
@@ -604,18 +679,39 @@ export function LessonEditorModal({
                   <label className="block text-xs font-bold text-slate-800 mb-1.5">
                     اختر الاختبار أو الواجب المرتبط:
                   </label>
-                  <select
-                    value={lessonQuizId}
-                    onChange={(e) => setLessonQuizId(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm cursor-pointer"
-                  >
-                    <option value="">-- بدون اختبار لهذا الدرس --</option>
-                    {assessments.map((a: any) => (
-                      <option key={a.id} value={a.id}>
-                        {a.title} ({a.type === 'EXAM' ? 'امتحان' : 'واجب'} - {a.totalScore} درجة)
-                      </option>
-                    ))}
-                  </select>
+                  {assessments.length === 0 ? (
+                    <div className="p-4 bg-white border border-dashed border-amber-300 rounded-xl text-center space-y-2.5 mt-2">
+                      <p className="text-xs font-bold text-slate-800">لا توجد اختبارات أو واجبات منشأة حالياً في حسابك</p>
+                      <p className="text-[11px] text-slate-500 leading-relaxed max-w-md mx-auto">
+                        يتم إنشاء وبناء الامتحانات والأسئلة أولاً من قسم <strong>"الامتحانات والواجبات"</strong>، وبعد حفظها ستظهر في هذه القائمة مباشرة لربطها بالدرس.
+                      </p>
+                      <div className="pt-1">
+                        <a
+                          href="/teacher/assessments"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>فتح قسم الامتحانات لإنشاء اختبار جديد</span>
+                          <ExternalLink className="w-3 h-3 mr-0.5" />
+                        </a>
+                      </div>
+                    </div>
+                  ) : (
+                    <select
+                      value={lessonQuizId}
+                      onChange={(e) => setLessonQuizId(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm cursor-pointer"
+                    >
+                      <option value="">-- بدون اختبار لهذا الدرس --</option>
+                      {assessments.map((a: any) => (
+                        <option key={a.id} value={a.id}>
+                          {a.title} ({a.type === 'EXAM' ? 'امتحان شامل' : a.type === 'HOMEWORK' ? 'واجب' : 'اختبار قصير'} - {a.totalScore} درجة)
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               </div>
             </div>

@@ -26,8 +26,8 @@ export function useCreateCourse() {
       queryClient.invalidateQueries({ queryKey: ['teacher-courses'] });
       toast.success('تم إنشاء الكورس بنجاح');
     },
-    onError: () => {
-      toast.error('تعذر إنشاء الكورس');
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر إنشاء الكورس');
     },
   });
 }
@@ -41,8 +41,8 @@ export function useUpdateCourse(courseId: string) {
       queryClient.invalidateQueries({ queryKey: ['teacher-courses'] });
       toast.success('تم حفظ تعديلات الكورس');
     },
-    onError: () => {
-      toast.error('تعذر تحديث بيانات الكورس');
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر تحديث بيانات الكورس');
     },
   });
 }
@@ -55,8 +55,8 @@ export function useDeleteCourse() {
       queryClient.invalidateQueries({ queryKey: ['teacher-courses'] });
       toast.success('تم حذف الكورس بنجاح');
     },
-    onError: () => {
-      toast.error('تعذر حذف الكورس');
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر حذف الكورس');
     },
   });
 }
@@ -69,8 +69,8 @@ export function useGrantGroupAccess(courseId: string) {
       queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
       toast.success('تم منح صلاحية الوصول لطلاب المجموعات المحددة');
     },
-    onError: () => {
-      toast.error('تعذر منح صلاحية الوصول للمجموعات');
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر منح صلاحية الوصول للمجموعات');
     },
   });
 }
@@ -84,8 +84,8 @@ export function useCreateModule(courseId: string) {
       queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
       toast.success('تمت إضافة الوحدة بنجاح');
     },
-    onError: () => {
-      toast.error('تعذر إضافة الوحدة');
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر إضافة الوحدة');
     },
   });
 }
@@ -99,8 +99,8 @@ export function useUpdateModule(courseId: string) {
       queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
       toast.success('تم تحديث بيانات الوحدة');
     },
-    onError: () => {
-      toast.error('تعذر تحديث الوحدة');
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر تحديث الوحدة');
     },
   });
 }
@@ -113,8 +113,8 @@ export function useDeleteModule(courseId: string) {
       queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
       toast.success('تم حذف الوحدة');
     },
-    onError: () => {
-      toast.error('تعذر حذف الوحدة');
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر حذف الوحدة');
     },
   });
 }
@@ -140,8 +140,8 @@ export function useCreateLesson(courseId: string) {
       queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
       toast.success('تمت إضافة الدرس بنجاح');
     },
-    onError: () => {
-      toast.error('تعذر إضافة الدرس');
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر إضافة الدرس');
     },
   });
 }
@@ -155,8 +155,8 @@ export function useUpdateLesson(courseId: string) {
       queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
       toast.success('تم تحديث الدرس');
     },
-    onError: () => {
-      toast.error('تعذر تحديث الدرس');
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر تحديث الدرس');
     },
   });
 }
@@ -169,8 +169,8 @@ export function useDeleteLesson(courseId: string) {
       queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
       toast.success('تم حذف الدرس');
     },
-    onError: () => {
-      toast.error('تعذر حذف الدرس');
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر حذف الدرس');
     },
   });
 }
@@ -184,8 +184,8 @@ export function useAddAttachment(courseId: string) {
       queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
       toast.success('تم إرفاق الملف بالدرس');
     },
-    onError: () => {
-      toast.error('تعذر إرفاق الملف');
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر إرفاق الملف');
     },
   });
 }
@@ -198,8 +198,8 @@ export function useDeleteAttachment(courseId: string) {
       queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
       toast.success('تم حذف المرفق');
     },
-    onError: () => {
-      toast.error('تعذر حذف المرفق');
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر حذف المرفق');
     },
   });
 }
