@@ -603,7 +603,12 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
           isOpen={lessonModalState.isOpen}
           courseId={courseId}
           moduleId={lessonModalState.moduleId}
-          lesson={lessonModalState.lesson}
+          lesson={
+            lessonModalState.lesson?.id
+              ? course?.modules?.flatMap((m) => m.lessons)?.find((l) => l.id === lessonModalState.lesson?.id) ||
+                lessonModalState.lesson
+              : null
+          }
           onClose={() =>
             setLessonModalState({
               isOpen: false,

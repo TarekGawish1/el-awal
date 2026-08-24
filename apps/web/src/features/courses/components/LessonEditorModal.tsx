@@ -21,6 +21,7 @@ import {
   useUpdateLesson,
   useAddAttachment,
   useDeleteAttachment,
+  useLessonStreamAuth,
 } from '../hooks/useCourses';
 import { coursesApi } from '../api/courses.api';
 import { useAssessments } from '@/features/assessments/hooks/use-assessments';
@@ -50,6 +51,8 @@ export function LessonEditorModal({
   const addAttachmentMutation = useAddAttachment(courseId);
   const deleteAttachmentMutation = useDeleteAttachment(courseId);
 
+  const { data: streamAuth } = useLessonStreamAuth(lesson?.id || '');
+
   const { data: assessmentsData } = useAssessments();
   const assessments = Array.isArray(assessmentsData)
     ? assessmentsData
@@ -68,6 +71,7 @@ export function LessonEditorModal({
   const [videoDurationSeconds, setVideoDurationSeconds] = useState(1800);
   const [isFreePreview, setIsFreePreview] = useState(false);
   const [lessonQuizId, setLessonQuizId] = useState('');
+  const [attachments, setAttachments] = useState<LessonAttachment[]>([]);
 
   // Video Upload State
   const [isUploadingVideo, setIsUploadingVideo] = useState(false);
@@ -88,10 +92,11 @@ export function LessonEditorModal({
       setSummary(lesson.summary || '');
       setLessonType(lesson.lessonType || 'VIDEO');
       setBunnyVideoId(lesson.bunnyVideoId || '');
-      setVideoEmbedUrl(lesson.bunnyVideoId ? `https://iframe.mediadelivery.net/embed/406085/${lesson.bunnyVideoId}` : '');
+      setVideoEmbedUrl('');
       setVideoDurationSeconds(lesson.videoDurationSeconds || 1800);
       setIsFreePreview(lesson.isPreview || false);
       setLessonQuizId(lesson.lessonQuizId || '');
+      setAttachments(lesson.attachments || []);
     } else {
       setTitle('');
       setDescription('');
@@ -103,8 +108,16 @@ export function LessonEditorModal({
       setVideoDurationSeconds(1800);
       setIsFreePreview(false);
       setLessonQuizId('');
+      setAttachments([]);
     }
   }, [lesson, isOpen]);
+
+  // Sync streamAuth embed URL when available
+  useEffect(() => {
+    if (streamAuth?.embedUrl && !videoEmbedUrl) {
+      setVideoEmbedUrl(streamAuth.embedUrl);
+    }
+  }, [streamAuth, videoEmbedUrl]);
 
   if (!isOpen) return null;
 
@@ -127,7 +140,11 @@ export function LessonEditorModal({
 
       const xhr = new XMLHttpRequest();
       xhr.open('PUT', creds.uploadUrl);
-      xhr.setRequestHeader('AccessKey', creds.accessKey);
+      if (creds.accessKey) xhr.setRequestHeader('AccessKey', creds.accessKey);
+      if (creds.authorizationSignature) xhr.setRequestHeader('AuthorizationSignature', creds.authorizationSignature);
+      if (creds.authorizationExpire) xhr.setRequestHeader('AuthorizationExpire', String(creds.authorizationExpire));
+      if (creds.libraryId) xhr.setRequestHeader('LibraryId', creds.libraryId);
+      if (creds.videoId) xhr.setRequestHeader('VideoId', creds.videoId);
       xhr.setRequestHeader('Content-Type', 'application/octet-stream');
 
       xhr.upload.onprogress = (event) => {
@@ -182,6 +199,14 @@ export function LessonEditorModal({
       return;
     }
 
+    const stagedAttachments = attachments.filter((a) => a.id.startsWith('staged-')).map((a) => ({
+      title: a.title,
+      fileUrl: a.fileUrl,
+      fileKey: a.fileKey,
+      fileSize: a.fileSize || undefined,
+      fileType: a.fileType || 'application/pdf',
+    }));
+
     const payload = {
       title: title.trim(),
       description: description.trim() || undefined,
@@ -192,6 +217,7 @@ export function LessonEditorModal({
       isFreePreview,
       isPreview: isFreePreview,
       lessonQuizId: lessonQuizId || undefined,
+      attachments: stagedAttachments.length > 0 ? stagedAttachments : undefined,
     };
 
     try {
@@ -201,10 +227,20 @@ export function LessonEditorModal({
           data: payload,
         });
       } else {
-        await createMutation.mutateAsync({
+        const newLesson = await createMutation.mutateAsync({
           moduleId,
           data: payload,
         });
+
+        // If any staged attachments exist and were not created atomically
+        if (newLesson?.id && stagedAttachments.length > 0 && (!newLesson.attachments || newLesson.attachments.length === 0)) {
+          for (const att of stagedAttachments) {
+            await addAttachmentMutation.mutateAsync({
+              lessonId: newLesson.id,
+              data: att,
+            });
+          }
+        }
       }
       onClose();
     } catch {
@@ -217,27 +253,65 @@ export function LessonEditorModal({
       toast.error('يرجى كتابة عنوان ورفع الملف');
       return;
     }
-    if (!lesson?.id) {
-      toast.error('يرجى حفظ الدرس أولاً لإضافة المرفقات');
-      return;
-    }
 
-    try {
-      await addAttachmentMutation.mutateAsync({
-        lessonId: lesson.id,
-        data: {
-          title: newAttachmentTitle.trim(),
-          fileUrl: newAttachmentUrl.trim(),
-          fileKey: newAttachmentKey || `courses/attachments/${Date.now()}-${newAttachmentTitle.trim()}`,
-          fileSize: newAttachmentSize,
-          fileType: newAttachmentType || 'application/pdf',
-        },
-      });
+    if (lesson?.id) {
+      try {
+        const created = await addAttachmentMutation.mutateAsync({
+          lessonId: lesson.id,
+          data: {
+            title: newAttachmentTitle.trim(),
+            fileUrl: newAttachmentUrl.trim(),
+            fileKey: newAttachmentKey || `courses/attachments/${Date.now()}-${newAttachmentTitle.trim()}`,
+            fileSize: newAttachmentSize,
+            fileType: newAttachmentType || 'application/pdf',
+          },
+        });
+        if (created) {
+          setAttachments((prev) => [...prev.filter((a) => a.id !== created.id), created]);
+        }
+        setNewAttachmentTitle('');
+        setNewAttachmentUrl('');
+        setNewAttachmentKey('');
+        setNewAttachmentSize(undefined);
+        setIsAddingAttachment(false);
+      } catch {
+        // Handled by mutation
+      }
+    } else {
+      // Staging for new lesson before creation
+      const stagedAtt: LessonAttachment = {
+        id: `staged-${Date.now()}`,
+        title: newAttachmentTitle.trim(),
+        fileUrl: newAttachmentUrl.trim(),
+        fileKey: newAttachmentKey || `courses/attachments/${Date.now()}-${newAttachmentTitle.trim()}`,
+        fileSize: newAttachmentSize,
+        fileType: newAttachmentType || 'application/pdf',
+        lessonId: '',
+        createdAt: new Date().toISOString(),
+      };
+      setAttachments((prev) => [...prev, stagedAtt]);
       setNewAttachmentTitle('');
       setNewAttachmentUrl('');
       setNewAttachmentKey('');
       setNewAttachmentSize(undefined);
       setIsAddingAttachment(false);
+      toast.success('تمت إضافة المرفق مؤقتاً وسيتم حفظه مع إنشاء الدرس');
+    }
+  };
+
+  const handleDeleteAttachment = async (att: LessonAttachment) => {
+    if (att.id.startsWith('staged-')) {
+      if (att.fileKey || att.fileUrl) {
+        coursesApi.deleteUploadedFile(att.fileKey || att.fileUrl);
+      }
+      setAttachments((prev) => prev.filter((a) => a.id !== att.id));
+      toast.success('تم حذف المرفق');
+      return;
+    }
+
+    try {
+      await deleteAttachmentMutation.mutateAsync(att.id);
+      setAttachments((prev) => prev.filter((a) => a.id !== att.id));
     } catch {
       // Handled by mutation
     }
@@ -307,9 +381,9 @@ export function LessonEditorModal({
             >
               <Paperclip className="w-4 h-4" />
               <span>المرفقات والملخصات</span>
-              {lesson?.attachments && lesson.attachments.length > 0 && (
+              {attachments.length > 0 && (
                 <span className="bg-white/25 text-white px-1.5 py-0.2 rounded-full text-[10px]">
-                  {lesson.attachments.length}
+                  {attachments.length}
                 </span>
               )}
             </button>
@@ -378,17 +452,32 @@ export function LessonEditorModal({
                   )}
                 </div>
 
+                {/* Processing notice if video is currently encoding on Bunny CDN */}
+                {streamAuth?.videoStatus === 'PROCESSING' && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
+                    <span>جاري تشفير وتقطيع الفيديو سحابياً بجودات متعددة... قد يستغرق دقيقة ليكتمل تجهيز المشغل بالكامل.</span>
+                  </div>
+                )}
+
                 {/* Uploaded Video Preview Player Card */}
                 {bunnyVideoId ? (
                   <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg space-y-0">
-                    <div className="relative w-full aspect-video bg-black flex items-center justify-center">
-                      <iframe
-                        src={videoEmbedUrl || `https://iframe.mediadelivery.net/embed/406085/${bunnyVideoId}`}
-                        loading="lazy"
-                        className="w-full h-full border-0"
-                        allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
-                        allowFullScreen
-                      />
+                    <div className="relative w-full aspect-video max-h-[70vh] bg-black rounded-t-2xl overflow-hidden shadow-xl flex items-center justify-center">
+                      {(videoEmbedUrl || streamAuth?.embedUrl) ? (
+                        <iframe
+                          src={videoEmbedUrl || streamAuth?.embedUrl}
+                          loading="lazy"
+                          className="w-full h-full border-0 absolute inset-0 object-contain max-h-full max-w-full"
+                          allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
+                          allowFullScreen
+                        />
+                      ) : (
+                        <div className="text-center p-6 text-slate-400 space-y-2">
+                          <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary-400" />
+                          <p className="text-xs">جاري تجهيز مشغل الفيديو السحابي...</p>
+                        </div>
+                      )}
                     </div>
                     <div className="p-3.5 bg-slate-800/90 flex items-center justify-between gap-3 text-right">
                       <div className="flex items-center gap-2.5 overflow-hidden">
@@ -525,16 +614,19 @@ export function LessonEditorModal({
             </div>
           )}
 
-          {/* TAB 3: ATTACHMENTS & DOCUMENTS (DIRECT UPLOADS ONLY) */}
+          {/* TAB 3: ATTACHMENTS & DOWNLOADS */}
           {activeTab === 'attachments' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold text-slate-900">الملفات والمذكرات المرفقة بالدرس</h3>
-                {lesson && !isAddingAttachment && (
+                <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                  <Paperclip className="w-4 h-4 text-primary-600" />
+                  الملفات والمذكرات المرفقة بالدرس
+                </span>
+                {!isAddingAttachment && (
                   <button
                     type="button"
                     onClick={() => setIsAddingAttachment(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-50 text-primary-600 hover:bg-primary-600 hover:text-white rounded-xl text-xs font-bold transition-colors"
+                    className="px-3 py-1.5 bg-primary-50 hover:bg-primary-100 text-primary-600 rounded-xl text-xs font-bold transition-colors flex items-center gap-1 border border-primary-100"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>إضافة ملف جديد</span>
@@ -542,26 +634,19 @@ export function LessonEditorModal({
                 )}
               </div>
 
-              {!lesson && (
-                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-700">
-                  يرجى حفظ الدرس أولاً لتتمكن من رفع وإرفاق الملفات والمستندات وأوراق العمل.
-                </div>
-              )}
-
-              {/* Add Attachment with FileUploadZone */}
+              {/* Add Attachment Dropzone Panel */}
               {isAddingAttachment && (
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                  <p className="text-xs font-bold text-slate-900">إضافة مستند أو ملخص جديد للدرس</p>
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 animate-in fade-in duration-150">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      اسم المرفق (مثال: ملخص القوانين وأوراق العمل)
+                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                      عنوان المرفق (مثال: ملخص الدرس، واجب تدريبي)
                     </label>
                     <input
                       type="text"
                       value={newAttachmentTitle}
                       onChange={(e) => setNewAttachmentTitle(e.target.value)}
-                      placeholder="ملخص الحصة وأوراق العمل"
-                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm"
+                      placeholder="اكتب اسماً واضحاً للملف..."
+                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm"
                     />
                   </div>
 
@@ -619,10 +704,10 @@ export function LessonEditorModal({
 
               {/* Attachments List */}
               <div className="space-y-2">
-                {(!lesson?.attachments || lesson.attachments.length === 0) ? (
+                {attachments.length === 0 ? (
                   <p className="text-xs text-slate-400 text-center py-6">لا توجد ملفات مرفقة بهذا الدرس حالياً</p>
                 ) : (
-                  lesson.attachments.map((att: LessonAttachment) => (
+                  attachments.map((att: LessonAttachment) => (
                     <div
                       key={att.id}
                       className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl shadow-sm"
@@ -646,7 +731,7 @@ export function LessonEditorModal({
                       </div>
                       <button
                         type="button"
-                        onClick={() => deleteAttachmentMutation.mutate(att.id)}
+                        onClick={() => handleDeleteAttachment(att)}
                         className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors"
                         title="حذف المرفق"
                       >

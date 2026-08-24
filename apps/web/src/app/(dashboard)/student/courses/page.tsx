@@ -475,17 +475,19 @@ function LessonViewer({ courseId, lessonId, onClose, onSelectLesson }: { courseI
         </button>
 
         {/* Media screen box */}
-        <div className="bg-slate-950 rounded-2xl overflow-hidden aspect-video relative flex items-center justify-center shadow-lg border border-slate-900">
+        <div className="bg-slate-950 rounded-2xl overflow-hidden aspect-video max-h-[70vh] relative flex items-center justify-center shadow-lg border border-slate-900">
           {isVideo ? (
             lesson.videoPlayerUrl ? (
               <video
                 ref={videoRef}
                 src={lesson.videoPlayerUrl}
+                playsInline
                 controls
+                onContextMenu={(e) => e.preventDefault()}
                 onPlay={handleVideoPlay}
                 onPause={handleVideoPause}
                 onEnded={handleVideoEnded}
-                className="w-full h-full object-contain"
+                className="w-full h-full object-contain max-h-full max-w-full"
                 controlsList="nodownload"
               />
             ) : (

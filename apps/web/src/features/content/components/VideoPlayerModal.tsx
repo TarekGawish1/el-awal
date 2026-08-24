@@ -59,8 +59,8 @@ export function VideoPlayerModal({ isOpen, content, onClose }: VideoPlayerModalP
           </button>
         </div>
 
-        {/* Video Player Container (16:9 responsive aspect ratio) */}
-        <div className="relative w-full bg-black aspect-video flex items-center justify-center">
+        {/* Video Player Container (16:9 responsive aspect ratio with containment) */}
+        <div className="relative w-full bg-black aspect-video max-h-[70vh] overflow-hidden flex items-center justify-center">
           {isBunnyVideo ? (
             <iframe
               src={
@@ -69,7 +69,7 @@ export function VideoPlayerModal({ isOpen, content, onClose }: VideoPlayerModalP
                   : `${content.fileUrl}?autoplay=true&preload=true`
               }
               loading="lazy"
-              className="absolute inset-0 w-full h-full border-0"
+              className="absolute inset-0 w-full h-full border-0 object-contain max-h-full max-w-full"
               allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
               allowFullScreen
               title={content.title}
@@ -77,9 +77,12 @@ export function VideoPlayerModal({ isOpen, content, onClose }: VideoPlayerModalP
           ) : (
             <video
               src={content.fileUrl}
+              playsInline
               controls
               autoPlay
-              className="w-full h-full object-contain"
+              controlsList="nodownload"
+              onContextMenu={(e) => e.preventDefault()}
+              className="w-full h-full object-contain max-h-full max-w-full"
             >
               متصفحك لا يدعم تشغيل الفيديو.
             </video>

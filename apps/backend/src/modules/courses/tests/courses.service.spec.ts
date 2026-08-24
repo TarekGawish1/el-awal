@@ -95,6 +95,8 @@ describe('CoursesService', () => {
   const mockBunnyVideoService = {
     generateSecurePlaybackUrl: jest.fn(),
     generateDirectUploadCredentials: jest.fn(),
+    getEmbedUrl: jest.fn().mockReturnValue('https://iframe.mediadelivery.net/embed/12345/bunny-vid-123'),
+    getLibraryId: jest.fn().mockReturnValue('12345'),
   };
 
   const mockStorageService = {

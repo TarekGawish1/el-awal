@@ -440,6 +440,17 @@ export class CoursesService {
         videoDurationSeconds: dto.videoDurationSeconds,
         isPreview: dto.isFreePreview !== undefined ? dto.isFreePreview : (dto.isPreview !== undefined ? dto.isPreview : false),
         lessonQuizId: dto.lessonQuizId || null,
+        attachments: dto.attachments?.length
+          ? {
+              create: dto.attachments.map((att) => ({
+                title: att.title,
+                fileUrl: att.fileUrl,
+                fileKey: att.fileKey,
+                fileSize: att.fileSize,
+                fileType: att.fileType || 'application/pdf',
+              })),
+            }
+          : undefined,
       },
       include: {
         attachments: true,
@@ -1218,16 +1229,7 @@ export class CoursesService {
       }
 
       playbackUrl = this.bunnyVideoService.generateSecurePlaybackUrl(videoId);
-      const libId = (this.bunnyVideoService as any).libraryId || process.env.BUNNY_LIBRARY_ID || '12345';
-      const expires = Math.floor(Date.now() / 1000) + 7200;
-      const tokenSecKey = (this.bunnyVideoService as any).tokenSecurityKey || process.env.BUNNY_TOKEN_AUTH_KEY || '';
-      if (tokenSecKey) {
-        const rawSignature = `${tokenSecKey}${videoId}${expires}`;
-        const token = createHash('sha256').update(rawSignature).digest('hex');
-        embedUrl = `https://iframe.mediadelivery.net/embed/${libId}/${videoId}?token=${token}&expires=${expires}`;
-      } else {
-        embedUrl = `https://iframe.mediadelivery.net/embed/${libId}/${videoId}`;
-      }
+      embedUrl = this.bunnyVideoService.getEmbedUrl(videoId);
     }
 
     const watermark = {
@@ -1242,6 +1244,7 @@ export class CoursesService {
       title: lesson.title,
       videoId,
       videoStatus,
+      libraryId: this.bunnyVideoService.getLibraryId(),
       embedUrl,
       playbackUrl,
       isPreview: lesson.isPreview,

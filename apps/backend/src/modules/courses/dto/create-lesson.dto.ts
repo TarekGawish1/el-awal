@@ -7,8 +7,12 @@ import {
   Min,
   IsBoolean,
   IsIn,
+  IsArray,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { CreateAttachmentDto } from './lesson-attachment.dto';
 
 export class CreateLessonDto {
   @ApiProperty({
@@ -106,4 +110,14 @@ export class CreateLessonDto {
   @IsOptional()
   @IsString()
   lessonQuizId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Initial lesson attachments to create atomically with the lesson',
+    type: () => [CreateAttachmentDto],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateAttachmentDto)
+  attachments?: CreateAttachmentDto[];
 }

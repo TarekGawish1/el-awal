@@ -174,8 +174,8 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         {/* Left Column: Player & Tab Content */}
         <div className="lg:col-span-8 space-y-6">
           {/* Strict 16:9 Aspect Ratio Video Player Card */}
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-            <div className="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden">
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xl">
+            <div className="relative w-full aspect-video max-h-[70vh] bg-black rounded-t-2xl overflow-hidden flex items-center justify-center">
               {isLessonLoading || isStreamAuthLoading ? (
                 <div className="flex flex-col items-center gap-3 text-white">
                   <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-500" />
@@ -200,16 +200,18 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 <iframe
                   src={streamAuth.embedUrl}
                   loading="lazy"
-                  className="w-full h-full border-0 absolute inset-0"
+                  className="w-full h-full border-0 absolute inset-0 object-contain max-h-full max-w-full"
                   allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
                   allowFullScreen
                 />
               ) : lessonViewer?.contentUrl ? (
                 <video
                   src={lessonViewer.contentUrl}
+                  playsInline
                   controls
                   controlsList="nodownload"
-                  className="w-full h-full object-contain"
+                  onContextMenu={(e) => e.preventDefault()}
+                  className="w-full h-full object-contain max-h-full max-w-full"
                 />
               ) : (
                 <div className="flex flex-col items-center gap-3 text-slate-400 p-8 text-center">
@@ -221,12 +223,14 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 </div>
               )}
 
-              {/* Dynamic Anti-Piracy Watermark Overlay */}
+              {/* Dynamic Anti-Piracy Watermark Overlay (Strictly Absolute within Container) */}
               {streamAuth?.watermark && (
                 <div
-                  className="absolute pointer-events-none select-none opacity-20 text-[10px] font-mono text-white/80 font-bold z-20 transition-all duration-1000 top-4 right-4"
+                  className="pointer-events-none absolute inset-0 z-20 w-full h-full object-contain overflow-hidden flex items-start justify-end p-4"
                 >
-                  {streamAuth.watermark.studentCode} • {streamAuth.watermark.studentPhone}
+                  <span className="select-none opacity-25 text-[11px] font-mono text-white font-bold bg-black/40 px-2 py-1 rounded-md backdrop-blur-xs">
+                    {streamAuth.watermark.studentCode} • {streamAuth.watermark.studentPhone}
+                  </span>
                 </div>
               )}
             </div>
