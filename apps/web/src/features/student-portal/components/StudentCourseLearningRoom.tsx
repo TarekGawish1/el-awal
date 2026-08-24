@@ -102,20 +102,33 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
 
   const isLessonCompleted = selectedLessonId ? completedLessonIds.includes(selectedLessonId) : false;
 
-  // Completion Reminder Modal State (Triggered at video end if no quiz)
+  // Completion Reminder Modal State (Triggered 1s after video ends if no quiz)
   const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const completionTriggeredRef = useRef<string | null>(null);
+
+  // Reset completion trigger state when changing lessons
+  useEffect(() => {
+    completionTriggeredRef.current = null;
+  }, [selectedLessonId]);
 
   const handleVideoEnded = () => {
+    if (completionTriggeredRef.current === selectedLessonId) return;
+    completionTriggeredRef.current = selectedLessonId;
+
     const hasQuiz = Boolean(
       lessonViewer?.lessonQuiz ||
       activeLesson?.lessonQuizId
     );
-    if (hasQuiz) {
-      setActiveTab('quiz');
-      toast('انتهى شرح الفيديو! يمكنك الآن حل اختبار الدرس التفاعلي 📝', { icon: '🎓' });
-    } else if (!isLessonCompleted) {
-      setShowCompletionModal(true);
-    }
+
+    // Wait exactly 1 second after video genuinely finishes
+    setTimeout(() => {
+      if (hasQuiz) {
+        setActiveTab('quiz');
+        toast('انتهى شرح الفيديو! يمكنك الآن حل اختبار الدرس التفاعلي 📝', { icon: '🎓' });
+      } else if (!isLessonCompleted) {
+        setShowCompletionModal(true);
+      }
+    }, 1000);
   };
 
   // Handshake Player.js event listeners on iframe load
@@ -157,7 +170,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
             handleVideoEnded();
           });
           playerInstance.on('timeupdate', (data: any) => {
-            if (data?.duration > 0 && data?.seconds >= data.duration - 1.5) {
+            if (data?.duration > 0 && data?.seconds >= data.duration) {
               handleVideoEnded();
             }
           });
@@ -201,7 +214,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
           try {
             payload = JSON.parse(payload);
           } catch {
-            if (payload.includes('ended')) {
+            if (payload === 'ended' || payload.includes('"event":"ended"')) {
               handleVideoEnded();
               return;
             }
@@ -236,7 +249,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
           }
           if (payload.event === 'timeupdate' && payload.value) {
             const { seconds, duration } = payload.value;
-            if (duration > 0 && seconds >= duration - 1.5) {
+            if (duration > 0 && seconds >= duration) {
               handleVideoEnded();
               return;
             }
@@ -247,7 +260,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         const seconds = payload.seconds ?? payload.currentTime ?? payload.value?.seconds;
         const duration = payload.duration ?? payload.value?.duration;
         if (typeof seconds === 'number' && typeof duration === 'number' && duration > 0) {
-          if (seconds >= duration - 1.5) {
+          if (seconds >= duration) {
             handleVideoEnded();
             return;
           }
