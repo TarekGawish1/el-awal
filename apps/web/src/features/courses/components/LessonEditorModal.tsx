@@ -765,41 +765,73 @@ export function LessonEditorModal({
                 </div>
 
                 <div className="pt-2">
-                  <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                    اختر الاختبار أو الواجب المرتبط:
-                  </label>
+                  <div className="flex flex-wrap justify-between items-center gap-2 mb-2">
+                    <label className="block text-xs font-bold text-slate-800">
+                      اختر الاختبار أو الواجب المرتبط:
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={`/teacher/assessments/new?type=EXAM&courseId=${courseId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-primary-600 hover:text-primary-700 bg-white hover:bg-primary-50 border border-primary-200 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer"
+                        title="إنشاء اختبار جديد في نافذة جديدة"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>إنشاء اختبار جديد</span>
+                        <ExternalLink className="w-3 h-3 mr-0.5 text-primary-400" />
+                      </a>
+                      <a
+                        href={`/teacher/assessments/new?type=ASSIGNMENT&courseId=${courseId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-slate-800 bg-white hover:bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer"
+                        title="إنشاء واجب جديد في نافذة جديدة"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>إنشاء واجب</span>
+                        <ExternalLink className="w-3 h-3 mr-0.5 text-slate-400" />
+                      </a>
+                    </div>
+                  </div>
+
                   {assessments.length === 0 ? (
                     <div className="p-4 bg-white border border-dashed border-amber-300 rounded-xl text-center space-y-2.5 mt-2">
                       <p className="text-xs font-bold text-slate-800">لا توجد اختبارات أو واجبات منشأة حالياً في حسابك</p>
                       <p className="text-[11px] text-slate-500 leading-relaxed max-w-md mx-auto">
                         يتم إنشاء وبناء الامتحانات والأسئلة أولاً من قسم <strong>"الامتحانات والواجبات"</strong>، وبعد حفظها ستظهر في هذه القائمة مباشرة لربطها بالدرس.
                       </p>
-                      <div className="pt-1">
+                      <div className="pt-1 flex justify-center gap-2">
                         <a
-                          href="/teacher/assessments"
+                          href={`/teacher/assessments/new?type=EXAM&courseId=${courseId}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
                         >
                           <Plus className="w-3.5 h-3.5" />
-                          <span>فتح قسم الامتحانات لإنشاء اختبار جديد</span>
+                          <span>إنشاء اختبار جديد لهذا الكورس</span>
                           <ExternalLink className="w-3 h-3 mr-0.5" />
                         </a>
                       </div>
                     </div>
                   ) : (
-                    <select
-                      value={lessonQuizId}
-                      onChange={(e) => setLessonQuizId(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm cursor-pointer"
-                    >
-                      <option value="">-- بدون اختبار لهذا الدرس --</option>
-                      {assessments.map((a: any) => (
-                        <option key={a.id} value={a.id}>
-                          {a.title} ({a.type === 'EXAM' ? 'امتحان شامل' : a.type === 'HOMEWORK' ? 'واجب' : 'اختبار قصير'} - {a.totalScore} درجة)
-                        </option>
-                      ))}
-                    </select>
+                    <div className="space-y-2">
+                      <select
+                        value={lessonQuizId}
+                        onChange={(e) => setLessonQuizId(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm cursor-pointer"
+                      >
+                        <option value="">-- بدون اختبار لهذا الدرس --</option>
+                        {assessments.map((a: any) => (
+                          <option key={a.id} value={a.id}>
+                            {a.title} ({a.type === 'EXAM' ? 'امتحان شامل' : a.type === 'HOMEWORK' ? 'واجب' : 'اختبار قصير'} - {a.totalScore} درجة)
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[11px] text-slate-400">
+                        💡 يمكنك النقر على <strong>"إنشاء اختبار جديد"</strong> بالأعلى لفتح نموذج إنشاء الاختبارات وربطه تلقائياً بهذا الكورس.
+                      </p>
+                    </div>
                   )}
                 </div>
               </div>
