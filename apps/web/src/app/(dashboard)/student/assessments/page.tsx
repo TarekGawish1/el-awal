@@ -233,16 +233,20 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
   const { mutate: submit, isPending: isSubmitting } = useSubmitAssessment();
   const [answers, setAnswers] = useState<{ [questionId: string]: string }>({});
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [localSubmission, setLocalSubmission] = useState<any>(null);
+  const [showResultModal, setShowResultModal] = useState(false);
   
   // Timer state
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
   useEffect(() => {
-    if (assessment && assessment.durationMinutes && !assessment.mySubmission) {
+    if (assessment && assessment.durationMinutes && !assessment.mySubmission && !localSubmission) {
       const minutes = Number(assessment.durationMinutes);
       setTimeLeft(minutes * 60);
+    } else {
+      setTimeLeft(null);
     }
-  }, [assessment]);
+  }, [assessment, localSubmission]);
 
   useEffect(() => {
     if (timeLeft === null) return;
@@ -278,8 +282,12 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
     submit(
       { id: assessmentId, payload },
       {
-        onSuccess: () => {
+        onSuccess: (result: any) => {
           toast.success('تم تسليم إجاباتك بنجاح.');
+          setTimeLeft(null);
+          const subData = result?.data || result;
+          setLocalSubmission(subData);
+          setShowResultModal(true);
           refetch();
         },
         onError: (err: any) => {
@@ -298,9 +306,13 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
     submit(
       { id: assessmentId, payload },
       {
-        onSuccess: () => {
+        onSuccess: (result: any) => {
           toast.success('تم تسليم الإجابات بنجاح وتم رصد النتيجة!');
           setIsConfirmOpen(false);
+          setTimeLeft(null);
+          const subData = result?.data || result;
+          setLocalSubmission(subData);
+          setShowResultModal(true);
           refetch();
         },
         onError: (err: any) => {
@@ -335,7 +347,7 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
   }
 
   const isExam = assessment.type === 'EXAM';
-  const mySubmission = assessment.mySubmission;
+  const mySubmission = localSubmission || assessment.mySubmission;
   const isPastDue = assessment.dueDate ? new Date(assessment.dueDate) < new Date() : false;
 
   return (
@@ -727,6 +739,61 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
           </div>
         );
       })()}
+
+      {/* Result Celebration Modal */}
+      {showResultModal && mySubmission && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full text-center shadow-2xl border border-slate-150 space-y-5 animate-in zoom-in-95 duration-200" dir="rtl">
+            <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+              <Award className="w-8 h-8" />
+            </div>
+
+            <div>
+              <h3 className="text-xl font-black text-slate-800">تم تسليم إجاباتك بنجاح!</h3>
+              <p className="text-sm text-slate-500 mt-1">
+                {mySubmission.status === 'GRADED'
+                  ? 'تم تصحيح إجاباتك ورصد النتيجة الفورية بنجاح.'
+                  : 'تم استلام إجاباتك بنجاح وسيتم إشعارك فور اعتماد التصحيح من المعلم.'}
+              </p>
+            </div>
+
+            {mySubmission.status === 'GRADED' && (
+              <div className="bg-emerald-50/70 border border-emerald-200/60 rounded-2xl p-4 flex items-center justify-around">
+                <div>
+                  <span className="text-xs text-emerald-700 block font-medium">الدرجة المحصلة</span>
+                  <span className="text-3xl font-extrabold text-emerald-800 font-mono">
+                    {mySubmission.scoreObtained ?? 0}
+                  </span>
+                </div>
+                <div className="w-px h-8 bg-emerald-200"></div>
+                <div>
+                  <span className="text-xs text-slate-500 block font-medium">الدرجة الكلية</span>
+                  <span className="text-2xl font-bold text-slate-700 font-mono">
+                    {assessment.totalScore}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2 pt-2">
+              <Button
+                onClick={() => setShowResultModal(false)}
+                className="w-full rounded-xl py-3 font-bold bg-primary-600 hover:bg-primary-700 text-white cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4 ml-2" />
+                عرض ومراجعة تفاصيل الإجابات
+              </Button>
+              <Button
+                variant="outline"
+                onClick={onBack}
+                className="w-full rounded-xl py-3 font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                الرجوع لقائمة الاختبارات
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
