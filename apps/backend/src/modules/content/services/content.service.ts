@@ -68,6 +68,47 @@ export class ContentService {
   }
 
   /**
+   * Deletes an unlinked asset directly from Cloudflare R2, Bunny Stream, or local storage.
+   */
+  async deleteFileFromStorage(params: { fileKey?: string; fileUrl?: string }) {
+    let key = params.fileKey;
+
+    if (!key && params.fileUrl) {
+      const url = params.fileUrl;
+      if (url.includes('/uploads/')) {
+        key = url.substring(url.indexOf('/uploads/') + 1);
+      } else if (url.includes('bunny:') || url.includes('b-cdn.net')) {
+        const match = url.match(/([a-f0-9\-]{36})/i);
+        if (match) key = `bunny:${match[1]}`;
+      } else {
+        try {
+          const parsed = new URL(url);
+          key = parsed.pathname.replace(/^\/+/, '');
+        } catch {
+          key = url.replace(/^\/+/, '');
+        }
+      }
+    }
+
+    if (!key) {
+      return { success: false, message: 'No file key or URL provided' };
+    }
+
+    if (key.startsWith('bunny:')) {
+      const videoId = key.replace('bunny:', '');
+      await this.bunnyVideoService.deleteVideo(videoId).catch((err) => {
+        this.logger.warn(`Failed to delete Bunny video [${videoId}]`, err);
+      });
+    } else {
+      await this.storageService.deleteObject(key).catch((err) => {
+        this.logger.warn(`Failed to delete object [${key}] from storage`, err);
+      });
+    }
+
+    return { success: true, fileKey: key };
+  }
+
+  /**
    * Registers educational asset metadata in the library attached to a teacher, gradeLevel, group, session, or lesson.
    */
   async createContent(teacherId: string, dto: CreateContentDto) {

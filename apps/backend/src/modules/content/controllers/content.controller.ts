@@ -47,6 +47,21 @@ export class ContentController {
     return this.contentService.uploadRawFile(file, folder);
   }
 
+  @Delete('file')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Delete an unlinked uploaded file from storage bucket' })
+  async deleteUploadedFile(
+    @Body('fileKey') fileKey?: string,
+    @Body('fileUrl') fileUrl?: string,
+    @Query('fileKey') queryFileKey?: string,
+    @Query('fileUrl') queryFileUrl?: string,
+  ) {
+    const key = fileKey || queryFileKey;
+    const url = fileUrl || queryFileUrl;
+    return this.contentService.deleteFileFromStorage({ fileKey: key, fileUrl: url });
+  }
+
   @Post('upload-direct')
   @UseInterceptors(FileInterceptor('file'))
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)

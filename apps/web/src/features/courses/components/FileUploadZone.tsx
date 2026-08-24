@@ -12,8 +12,10 @@ interface FileUploadZoneProps {
   label: string;
   description?: string;
   currentFileUrl?: string | null;
+  currentFileKey?: string | null;
   fileCategory?: 'image' | 'document' | 'video';
   maxSizeBytes?: number;
+  deleteOnRemove?: boolean;
   onUploadComplete: (result: {
     fileUrl: string;
     fileKey: string;
@@ -30,13 +32,16 @@ export function FileUploadZone({
   label,
   description = 'اسحب وأفلت الملف هنا، أو انقر للاختيار من جهازك',
   currentFileUrl,
+  currentFileKey,
   fileCategory = 'document',
   maxSizeBytes = 50 * 1024 * 1024,
+  deleteOnRemove = true,
   onUploadComplete,
   onRemoveFile,
 }: FileUploadZoneProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [lastUploadedKey, setLastUploadedKey] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const performDirectFallbackUpload = async (file: File) => {
@@ -47,6 +52,7 @@ export function FileUploadZone({
 
       setIsUploading(false);
       setUploadProgress(100);
+      setLastUploadedKey(directResult.fileKey);
       onUploadComplete({
         fileUrl: directResult.fileUrl,
         fileKey: directResult.fileKey,
@@ -112,6 +118,7 @@ export function FileUploadZone({
         if (xhr.status >= 200 && xhr.status < 300) {
           setUploadProgress(100);
           setIsUploading(false);
+          setLastUploadedKey(presigned.fileKey);
           onUploadComplete({
             fileUrl: presigned.publicUrl,
             fileKey: presigned.fileKey,
@@ -136,6 +143,18 @@ export function FileUploadZone({
       // Direct fallback if presigned initialization failed
       await performDirectFallbackUpload(file);
     }
+  };
+
+  const handleRemoveClick = async () => {
+    const keyToDelete = currentFileKey || lastUploadedKey || currentFileUrl;
+    if (deleteOnRemove && keyToDelete) {
+      coursesApi.deleteUploadedFile(keyToDelete);
+    }
+    setLastUploadedKey(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    onRemoveFile?.();
   };
 
   const resolvedFileUrl =
@@ -180,7 +199,7 @@ export function FileUploadZone({
             {onRemoveFile && (
               <button
                 type="button"
-                onClick={onRemoveFile}
+                onClick={handleRemoveClick}
                 className="px-3.5 py-1.5 text-xs text-slate-700 hover:text-primary-600 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200 bg-white font-medium shadow-sm"
               >
                 تغيير الملف

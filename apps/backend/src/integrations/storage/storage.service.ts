@@ -172,23 +172,41 @@ export class StorageService {
   }
 
   /**
-   * Deletes an object from Cloudflare R2 bucket.
+   * Deletes an object from Cloudflare R2 bucket or local fallback storage.
    */
   async deleteObject(key: string): Promise<void> {
-    if (!this.isConfigured || !this.s3Client) {
-      return;
+    if (!key) return;
+
+    if (this.isConfigured && this.s3Client) {
+      try {
+        const command = new DeleteObjectCommand({
+          Bucket: this.bucketName,
+          Key: key,
+        });
+
+        await this.s3Client.send(command);
+        this.logger.log(`Deleted object [${key}] from R2 bucket [${this.bucketName}]`);
+      } catch (error) {
+        this.logger.error(`Failed to delete object [${key}] from R2:`, error);
+      }
     }
 
+    // Local / fallback file deletion
     try {
-      const command = new DeleteObjectCommand({
-        Bucket: this.bucketName,
-        Key: key,
-      });
+      const cleanKey = key.replace(/^\/+/, '');
+      const uploadDir = path.join(process.cwd(), 'uploads');
+      const targetPath1 = path.join(process.cwd(), cleanKey);
+      const targetPath2 = path.join(uploadDir, cleanKey.replace(/^uploads[\\/]/, ''));
 
-      await this.s3Client.send(command);
-      this.logger.log(`Deleted object [${key}] from R2 bucket [${this.bucketName}]`);
-    } catch (error) {
-      this.logger.error(`Failed to delete object [${key}] from R2:`, error);
+      if (fs.existsSync(targetPath1) && fs.statSync(targetPath1).isFile()) {
+        fs.unlinkSync(targetPath1);
+        this.logger.log(`Deleted local file [${targetPath1}]`);
+      } else if (fs.existsSync(targetPath2) && fs.statSync(targetPath2).isFile()) {
+        fs.unlinkSync(targetPath2);
+        this.logger.log(`Deleted local file [${targetPath2}]`);
+      }
+    } catch (err) {
+      this.logger.warn(`Failed to delete local fallback file for key [${key}]:`, err);
     }
   }
 

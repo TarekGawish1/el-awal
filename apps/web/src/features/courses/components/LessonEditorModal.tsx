@@ -497,6 +497,7 @@ export function LessonEditorModal({
                     label="رفع الملف المرفق (مستند / ورقة عمل)"
                     description="اسحب وأفلت الملف هنا للرفع السحابي الفوري"
                     currentFileUrl={newAttachmentUrl}
+                    currentFileKey={newAttachmentKey}
                     onUploadComplete={({ fileUrl, fileKey, fileSize, fileType, fileName }) => {
                       setNewAttachmentUrl(fileUrl);
                       setNewAttachmentKey(fileKey);
@@ -515,7 +516,16 @@ export function LessonEditorModal({
                   <div className="flex justify-end gap-2 pt-1">
                     <button
                       type="button"
-                      onClick={() => setIsAddingAttachment(false)}
+                      onClick={() => {
+                        if (newAttachmentKey || newAttachmentUrl) {
+                          coursesApi.deleteUploadedFile(newAttachmentKey || newAttachmentUrl);
+                        }
+                        setNewAttachmentTitle('');
+                        setNewAttachmentUrl('');
+                        setNewAttachmentKey('');
+                        setNewAttachmentSize(undefined);
+                        setIsAddingAttachment(false);
+                      }}
                       className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-800"
                     >
                       إلغاء

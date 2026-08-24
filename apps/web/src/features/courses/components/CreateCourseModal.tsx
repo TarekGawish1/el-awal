@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { X, BookOpen, DollarSign, Award } from 'lucide-react';
 import { useCreateCourse } from '../hooks/useCourses';
+import { coursesApi } from '../api/courses.api';
 import { useAssessments } from '@/features/assessments/hooks/use-assessments';
 import { FileUploadZone } from './FileUploadZone';
 import toast from 'react-hot-toast';
@@ -25,9 +26,37 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
   const [academicStage, setAcademicStage] = useState('المرحلة الثانوية');
   const [price, setPrice] = useState('0');
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
+  const [coverImageKey, setCoverImageKey] = useState<string | null>(null);
   const [courseQuizId, setCourseQuizId] = useState('');
 
+  const isSubmittedRef = useRef(false);
+  const coverImageKeyRef = useRef<string | null>(null);
+  const coverImageUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    coverImageKeyRef.current = coverImageKey;
+    coverImageUrlRef.current = coverImageUrl;
+  }, [coverImageKey, coverImageUrl]);
+
+  // Clean up uploaded image if modal is unmounted without submitting
+  useEffect(() => {
+    return () => {
+      if (!isSubmittedRef.current && (coverImageKeyRef.current || coverImageUrlRef.current)) {
+        coursesApi.deleteUploadedFile(coverImageKeyRef.current || coverImageUrlRef.current);
+      }
+    };
+  }, []);
+
   if (!isOpen) return null;
+
+  const handleCancel = () => {
+    if (!isSubmittedRef.current && (coverImageKey || coverImageUrl)) {
+      coursesApi.deleteUploadedFile(coverImageKey || coverImageUrl);
+      setCoverImageUrl(null);
+      setCoverImageKey(null);
+    }
+    onClose();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,6 +66,7 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
     }
 
     try {
+      isSubmittedRef.current = true;
       const newCourse = await createMutation.mutateAsync({
         title: title.trim(),
         description: description.trim() || undefined,
@@ -53,6 +83,7 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
         onSuccess(newCourse.id);
       }
     } catch {
+      isSubmittedRef.current = false;
       // Handled by mutation
     }
   };
@@ -73,7 +104,7 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleCancel}
             className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
           >
             <X className="w-5 h-5" />
@@ -153,8 +184,15 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
               label="صورة غلاف الكورس (رفع مباشر)"
               description="اسحب وأفلت صورة الغلاف هنا، أو انقر للاختيار من جهازك"
               currentFileUrl={coverImageUrl}
-              onUploadComplete={({ fileUrl }) => setCoverImageUrl(fileUrl)}
-              onRemoveFile={() => setCoverImageUrl(null)}
+              currentFileKey={coverImageKey}
+              onUploadComplete={({ fileUrl, fileKey }) => {
+                setCoverImageUrl(fileUrl);
+                setCoverImageKey(fileKey);
+              }}
+              onRemoveFile={() => {
+                setCoverImageUrl(null);
+                setCoverImageKey(null);
+              }}
               fileCategory="image"
             />
           </div>
@@ -202,7 +240,7 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
         <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50 shrink-0">
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleCancel}
             className="px-5 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
           >
             إلغاء

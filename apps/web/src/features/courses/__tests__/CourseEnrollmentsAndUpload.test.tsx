@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { FileUploadZone } from '../components/FileUploadZone';
+import { CreateCourseModal } from '../components/CreateCourseModal';
 import { AntiPiracyWatermark } from '@/features/student-portal/components/AntiPiracyWatermark';
 import { CourseQrEnrollModal } from '../components/CourseQrEnrollModal';
 import { GroupStudentSelectModal } from '../components/GroupStudentSelectModal';
@@ -26,6 +27,7 @@ vi.mock('../api/courses.api', () => ({
     enrollByQrToken: vi.fn(),
     revokeStudentEnrollment: vi.fn(),
     getCourseEnrollments: vi.fn(),
+    deleteUploadedFile: vi.fn(),
   },
 }));
 
@@ -124,6 +126,43 @@ describe('Course DRM, Direct Upload & Hybrid Enrollment Suite', () => {
       expect(screen.getByText('تم رفع الملف بنجاح')).toBeInTheDocument();
       expect(screen.getByText('معاينة الملف المرفوع')).toBeInTheDocument();
       expect(screen.getByText('تغيير الملف')).toBeInTheDocument();
+    });
+
+    it('triggers deleteUploadedFile when changing/removing the uploaded file', () => {
+      const onRemoveMock = vi.fn();
+      render(
+        <FileUploadZone
+          label="صورة الغلاف"
+          currentFileUrl="https://r2.el-awal.com/courses/cover.jpg"
+          currentFileKey="uploads/courses/cover.jpg"
+          onUploadComplete={vi.fn()}
+          onRemoveFile={onRemoveMock}
+          fileCategory="image"
+        />
+      );
+
+      fireEvent.click(screen.getByText('تغيير الملف'));
+      expect(coursesApi.deleteUploadedFile).toHaveBeenCalledWith('uploads/courses/cover.jpg');
+      expect(onRemoveMock).toHaveBeenCalled();
+    });
+  });
+
+  describe('CreateCourseModal Component (Cancel with uploaded file)', () => {
+    it('deletes uploaded cover image from bucket when cancel button is clicked', async () => {
+      const onCloseMock = vi.fn();
+      render(
+        <CreateCourseModal
+          isOpen={true}
+          onClose={onCloseMock}
+        />,
+        { wrapper }
+      );
+
+      expect(screen.getByText('إنشاء كورس تعليمي جديد')).toBeInTheDocument();
+
+      // Click cancel button
+      fireEvent.click(screen.getByText('إلغاء'));
+      expect(onCloseMock).toHaveBeenCalled();
     });
   });
 

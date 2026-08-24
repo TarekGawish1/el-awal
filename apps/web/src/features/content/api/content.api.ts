@@ -250,3 +250,20 @@ export async function deleteContent(id: string): Promise<{ success: boolean }> {
     method: 'DELETE',
   });
 }
+
+export async function deleteFileFromStorage(fileKeyOrUrl?: string | null): Promise<{ success: boolean }> {
+  if (!fileKeyOrUrl) return { success: true };
+  try {
+    return await apiClient('/content/file', {
+      method: 'DELETE',
+      body: JSON.stringify(
+        fileKeyOrUrl.startsWith('http') || fileKeyOrUrl.startsWith('/')
+          ? { fileUrl: fileKeyOrUrl }
+          : { fileKey: fileKeyOrUrl }
+      ),
+    });
+  } catch (err) {
+    console.warn('Failed to delete file from storage:', err);
+    return { success: false };
+  }
+}
