@@ -78,6 +78,16 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
   // Completed lessons tracker
   const [completedLessonIds, setCompletedLessonIds] = useState<string[]>([]);
 
+  // Find active module and active lesson objects
+  const activeModule = course?.modules?.find((m: CourseModule) =>
+    m.lessons?.some((l: CourseLesson) => l.id === selectedLessonId)
+  );
+  const activeLesson = activeModule?.lessons?.find((l: CourseLesson) => l.id === selectedLessonId);
+
+  // Calculate Overall Course Progress for this student
+  const allLessons: CourseLesson[] = (course?.modules || []).flatMap((m: CourseModule) => m.lessons || []);
+  const totalLessonsCount = allLessons.length;
+
   // Sync completed state from lessonViewer
   useEffect(() => {
     if (lessonViewer?.isCompleted && selectedLessonId) {
@@ -88,6 +98,52 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
   }, [lessonViewer?.isCompleted, selectedLessonId]);
 
   const isLessonCompleted = selectedLessonId ? completedLessonIds.includes(selectedLessonId) : false;
+
+  // Completion Reminder Modal State (Triggered at video end if no quiz)
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+
+  const handleVideoEnded = () => {
+    const hasQuiz = Boolean(
+      lessonViewer?.lessonQuiz ||
+      activeLesson?.lessonQuizId
+    );
+    if (hasQuiz) {
+      setActiveTab('quiz');
+      toast('انتهى شرح الفيديو! يمكنك الآن حل اختبار الدرس التفاعلي 📝', { icon: '🎓' });
+    } else if (!isLessonCompleted) {
+      setShowCompletionModal(true);
+    }
+  };
+
+  // Listen for Bunny Stream player 'ended' postMessage events
+  useEffect(() => {
+    const handleWindowMessage = (event: MessageEvent) => {
+      try {
+        let payload = event.data;
+        if (typeof payload === 'string') {
+          try {
+            payload = JSON.parse(payload);
+          } catch {
+            // Not JSON
+          }
+        }
+        if (
+          payload?.event === 'ended' ||
+          payload?.type === 'ended' ||
+          payload?.event === 'player:ended' ||
+          payload === 'ended' ||
+          payload?.status === 'ended'
+        ) {
+          handleVideoEnded();
+        }
+      } catch {
+        // Ignore
+      }
+    };
+
+    window.addEventListener('message', handleWindowMessage);
+    return () => window.removeEventListener('message', handleWindowMessage);
+  }, [selectedLessonId, isLessonCompleted, lessonViewer, activeLesson]);
 
   // Progress Tracking: Mark Completed
   const [isMarkingComplete, setIsMarkingComplete] = useState(false);
@@ -122,16 +178,6 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
       setIsMarkingComplete(false);
     }
   };
-
-  // Find active module and active lesson objects
-  const activeModule = course?.modules?.find((m: CourseModule) =>
-    m.lessons?.some((l: CourseLesson) => l.id === selectedLessonId)
-  );
-  const activeLesson = activeModule?.lessons?.find((l: CourseLesson) => l.id === selectedLessonId);
-
-  // Calculate Overall Course Progress for this student
-  const allLessons: CourseLesson[] = (course?.modules || []).flatMap((m: CourseModule) => m.lessons || []);
-  const totalLessonsCount = allLessons.length;
 
   if (isCourseLoading) {
     return (
@@ -246,6 +292,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                   playsInline
                   controls
                   controlsList="nodownload"
+                  onEnded={handleVideoEnded}
                   onContextMenu={(e) => e.preventDefault()}
                   className="w-full h-full object-contain block"
                   style={{ width: '100%', height: '100%', objectFit: 'contain' }}
@@ -425,6 +472,55 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 }}
                 completedLessonIds={completedLessonIds}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Video Ended Completion Reminder Modal (Triggered when video ends without a quiz) */}
+      {showCompletionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 text-center space-y-5 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-100 shadow-inner">
+              <Sparkles className="w-8 h-8 text-emerald-500 animate-bounce" />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-lg font-bold text-slate-900">
+                أحسنت! أكملت مشاهدة الدرس 🎉
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                لقد انتهيت من مشاهدة شرح <span className="font-bold text-slate-900">"{activeLesson?.title || 'هذا الدرس'}"</span>. هل ترغب في تحديده كمكتمل لتحديث شريط إنجازك في الدورة؟
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  setShowCompletionModal(false);
+                  if (!isLessonCompleted) {
+                    await handleToggleComplete();
+                  }
+                  const currentIndex = allLessons.findIndex((l) => l.id === selectedLessonId);
+                  const nextLesson = currentIndex >= 0 && currentIndex < allLessons.length - 1 ? allLessons[currentIndex + 1] : null;
+                  if (nextLesson) {
+                    setSelectedLessonId(nextLesson.id);
+                  }
+                }}
+                className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2"
+              >
+                <CheckCircle className="w-4 h-4" />
+                <span>تحديد كمكتمل ومتابعة</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowCompletionModal(false)}
+                className="py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors"
+              >
+                إغلاق
+              </button>
             </div>
           </div>
         </div>
