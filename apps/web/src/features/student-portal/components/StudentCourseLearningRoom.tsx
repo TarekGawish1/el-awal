@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight,
@@ -48,6 +48,9 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
 
   // Mobile Syllabus Drawer State
   const [isMobileSyllabusOpen, setIsMobileSyllabusOpen] = useState(false);
+
+  // Iframe ref for Bunny Stream Player.js integration
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   // Fetch lesson data when selectedLessonId is present
   const { data: lessonViewer, isLoading: isLessonLoading, refetch: refetchLesson } = useLessonViewer(
@@ -115,7 +118,81 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     }
   };
 
-  // Listen for Bunny Stream player 'ended' postMessage events
+  // Handshake Player.js event listeners on iframe load
+  const initIframePlayer = () => {
+    if (!iframeRef.current || !iframeRef.current.contentWindow) return;
+    try {
+      const target = iframeRef.current.contentWindow;
+      const sendRegister = (event: string) => {
+        target.postMessage(
+          JSON.stringify({
+            context: 'player.js',
+            method: 'addEventListener',
+            value: event,
+            version: '0.0.11',
+          }),
+          '*'
+        );
+      };
+      sendRegister('ended');
+      sendRegister('timeupdate');
+      sendRegister('ready');
+    } catch {}
+  };
+
+  // Official Bunny Stream Player.js SDK instance integration
+  useEffect(() => {
+    let playerInstance: any = null;
+
+    const attachPlayerJs = () => {
+      if (typeof window === 'undefined' || !iframeRef.current) return;
+      const playerjs = (window as any).playerjs;
+      if (!playerjs) return;
+
+      try {
+        playerInstance = new playerjs.Player(iframeRef.current);
+        playerInstance.on('ready', () => {
+          initIframePlayer();
+          playerInstance.on('ended', () => {
+            handleVideoEnded();
+          });
+          playerInstance.on('timeupdate', (data: any) => {
+            if (data?.duration > 0 && data?.seconds >= data.duration - 1.5) {
+              handleVideoEnded();
+            }
+          });
+        });
+        playerInstance.on('ended', () => {
+          handleVideoEnded();
+        });
+      } catch {}
+    };
+
+    if (typeof window !== 'undefined') {
+      if (!(window as any).playerjs) {
+        const existingScript = document.querySelector('script[src*="player-0.1.0.min.js"]');
+        if (!existingScript) {
+          const script = document.createElement('script');
+          script.src = 'https://assets.mediadelivery.net/playerjs/player-0.1.0.min.js';
+          script.async = true;
+          script.onload = attachPlayerJs;
+          document.body.appendChild(script);
+        } else {
+          existingScript.addEventListener('load', attachPlayerJs);
+        }
+      } else {
+        attachPlayerJs();
+      }
+    }
+
+    return () => {
+      try {
+        if (playerInstance?.destroy) playerInstance.destroy();
+      } catch {}
+    };
+  }, [streamAuth?.embedUrl, selectedLessonId]);
+
+  // Listen for Bunny Stream Player.js / HTML5 postMessage events
   useEffect(() => {
     const handleWindowMessage = (event: MessageEvent) => {
       try {
@@ -124,17 +201,56 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
           try {
             payload = JSON.parse(payload);
           } catch {
-            // Not JSON
+            if (payload.includes('ended')) {
+              handleVideoEnded();
+              return;
+            }
           }
         }
+
+        if (!payload) return;
+
+        // Player.js handshake reply
+        if (payload.event === 'ready' || (payload.context === 'player.js' && payload.event === 'ready')) {
+          initIframePlayer();
+        }
+
+        // Direct 'ended' event
+        const eventName = payload.event || payload.type || payload.action || payload.status;
         if (
-          payload?.event === 'ended' ||
-          payload?.type === 'ended' ||
-          payload?.event === 'player:ended' ||
-          payload === 'ended' ||
-          payload?.status === 'ended'
+          eventName === 'ended' ||
+          eventName === 'player:ended' ||
+          eventName === 'finish' ||
+          eventName === 'complete' ||
+          payload === 'ended'
         ) {
           handleVideoEnded();
+          return;
+        }
+
+        // Player.js event format
+        if (payload.context === 'player.js') {
+          if (payload.event === 'ended') {
+            handleVideoEnded();
+            return;
+          }
+          if (payload.event === 'timeupdate' && payload.value) {
+            const { seconds, duration } = payload.value;
+            if (duration > 0 && seconds >= duration - 1.5) {
+              handleVideoEnded();
+              return;
+            }
+          }
+        }
+
+        // Generic timeupdate calculation
+        const seconds = payload.seconds ?? payload.currentTime ?? payload.value?.seconds;
+        const duration = payload.duration ?? payload.value?.duration;
+        if (typeof seconds === 'number' && typeof duration === 'number' && duration > 0) {
+          if (seconds >= duration - 1.5) {
+            handleVideoEnded();
+            return;
+          }
         }
       } catch {
         // Ignore
@@ -279,8 +395,11 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 </div>
               ) : streamAuth?.embedUrl ? (
                 <iframe
+                  ref={iframeRef}
+                  id="bunny-stream-embed"
                   src={streamAuth.embedUrl}
                   loading="lazy"
+                  onLoad={initIframePlayer}
                   className="w-full h-full border-0 absolute inset-0 block"
                   style={{ width: '100%', height: '100%', border: 0 }}
                   allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
