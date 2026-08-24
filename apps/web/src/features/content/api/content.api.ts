@@ -199,6 +199,24 @@ export function uploadFileToR2(
   });
 }
 
+export async function uploadRawFile(
+  file: File,
+  folder = 'assessments',
+  onProgress?: UploadProgressCallback,
+): Promise<{ fileUrl: string; fileKey: string; fileSize: number; fileType: string; fileName: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('folder', folder);
+
+  return uploadWithProgress<{ fileUrl: string; fileKey: string; fileSize: number; fileType: string; fileName: string }>(
+    '/content/upload-raw',
+    'POST',
+    formData,
+    undefined,
+    onProgress,
+  );
+}
+
 export async function uploadContentDirectly(
   formData: FormData,
   onProgress?: UploadProgressCallback,

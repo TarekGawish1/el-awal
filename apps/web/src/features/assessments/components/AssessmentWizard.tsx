@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm, FormProvider, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowLeft, ArrowRight, Check, Plus, AlertTriangle, FileText, CheckCircle2, Trash2 } from 'lucide-react';
-import { generatePresignedUrl, uploadFileToR2 } from '@/features/content/api/content.api';
+import { generatePresignedUrl, uploadFileToR2, uploadRawFile } from '@/features/content/api/content.api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
@@ -19,6 +19,7 @@ import { AssessmentQuestionEditor } from './AssessmentQuestionEditor';
 import { useCreateAssessment } from '../hooks/use-assessments';
 import { useGroups } from '../../groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '../../groups/hooks/useAcademicPeriod';
+import { useTeacherCourses } from '@/features/courses/hooks/useCourses';
 import { FeatureRequiresOnlineCard } from '@/components/offline/FeatureRequiresOnlineCard';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import toast from 'react-hot-toast';
@@ -123,8 +124,12 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
   const paramGroupId = searchParams.get('groupId');
   const paramTopic = searchParams.get('topic');
   const paramDueDate = searchParams.get('dueDate');
+  const paramCourseId = searchParams.get('courseId');
+
+  const { data: teacherCourses } = useTeacherCourses();
 
   const [currentStep, setCurrentStep] = useState<Step>('metadata');
+  const [targetScope, setTargetScope] = useState<'GROUPS' | 'COURSE'>(paramCourseId ? 'COURSE' : 'GROUPS');
   const [dueDateOption, setDueDateOption] = useState<'NEXT_SESSION' | 'CUSTOM'>(paramDueDate ? 'CUSTOM' : 'NEXT_SESSION');
   const [homeworkMode, setHomeworkMode] = useState<'INTERACTIVE' | 'BOOKLET'>('INTERACTIVE');
   const [startPage, setStartPage] = useState<number | ''>('');
@@ -157,6 +162,7 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
       academicStage: '',
       gradeLevel: '',
       targetGroupIds: [],
+      courseId: paramCourseId || null,
     },
     mode: 'onTouched'
   });
@@ -175,6 +181,14 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
   const { activeYear, activeTerm } = useStoredAcademicPeriod(allGroups);
   
   const watchedTargetGroupIds = formDataValues.targetGroupIds;
+
+  // Prefill online course ID from query params if provided
+  useEffect(() => {
+    if (paramCourseId) {
+      setTargetScope('COURSE');
+      methods.setValue('courseId', paramCourseId, { shouldValidate: true });
+    }
+  }, [paramCourseId, methods]);
 
   // Prefill group & topic from search params if provided (e.g. from session calendar modal)
   useEffect(() => {
@@ -258,19 +272,24 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
           continue;
         }
 
-        const presigned = await generatePresignedUrl({
-          fileName: file.name,
-          contentType: file.type || 'image/jpeg',
-          fileSizeBytes: file.size,
-          folder: 'assessments',
-        });
+        try {
+          const res = await uploadRawFile(file, 'booklets');
+          uploadedUrls.push(res.fileUrl);
+        } catch {
+          const presigned = await generatePresignedUrl({
+            fileName: file.name,
+            contentType: file.type || 'image/jpeg',
+            fileSizeBytes: file.size,
+            folder: 'assessments',
+          });
 
-        await uploadFileToR2(presigned.uploadUrl, file);
-        uploadedUrls.push(presigned.publicUrl);
+          await uploadFileToR2(presigned.uploadUrl, file);
+          uploadedUrls.push(presigned.publicUrl);
+        }
       }
       setBookletImages(uploadedUrls);
       toast.success('تم رفع الصور بنجاح');
-    } catch (error) {
+    } catch {
       toast.error('حدث خطأ أثناء رفع بعض الصور');
     } finally {
       setIsUploadingBooklet(false);
@@ -350,6 +369,7 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
     if (!payload.academicStage) delete payload.academicStage;
     if (!payload.gradeLevel) delete payload.gradeLevel;
     if (!payload.targetGroupIds || payload.targetGroupIds.length === 0) delete payload.targetGroupIds;
+    if (!payload.courseId) delete payload.courseId;
     
     // Remove extra properties that the backend ValidationPipe forbids
     delete payload.isAutoGraded;
@@ -431,7 +451,7 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
             <div className="p-6 sm:p-8 space-y-6">
               <div>
                 <h2 className="text-xl font-bold text-slate-800 mb-1">المعلومات الأساسية</h2>
-                <p className="text-slate-500 text-sm">أدخل تفاصيل {type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار'} مثل العنوان، الوصف، والمدة المحددة.</p>
+                <p className="text-slate-500 text-sm">أدخل تفاصيل {type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار'} مثل العنوان، الوصف، والجهة المستهدفة.</p>
               </div>
 
               <div className="space-y-4">
@@ -445,88 +465,156 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                   {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title.message}</p>}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="mb-2 block">المرحلة الدراسية (اختياري)</Label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        { id: 'PRIMARY', label: 'الابتدائية', icon: '✏️' },
-                        { id: 'MIDDLE', label: 'الإعدادية', icon: '🏫' },
-                        { id: 'SECONDARY', label: 'الثانوية', icon: '🎓' },
-                      ].map((stage) => (
-                        <button
-                          key={stage.id}
-                          type="button"
-                          onClick={() => {
-                            methods.setValue('academicStage', stage.id);
-                            methods.setValue('gradeLevel', '');
-                          }}
-                          className={`flex flex-col items-center justify-center p-2 rounded-xl border-2 transition-all duration-200 ${
-                            selectedStage === stage.id
-                              ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-sm ring-2 ring-primary-50'
-                              : 'border-slate-100 bg-slate-50/50 hover:border-slate-200 text-slate-500'
-                          }`}
-                        >
-                          <span className="text-xl mb-1">{stage.icon}</span>
-                          <span className="font-bold text-xs">{stage.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <Select
-                      label="الصف الدراسي (اختياري)"
-                      name="gradeLevel"
-                      disabled={!selectedStage}
-                      value={formDataValues.gradeLevel || ''}
-                      onChange={e => {
-                        const newGrade = e.target.value;
-                        methods.setValue('gradeLevel', newGrade);
-                        const groupsForGrade = allGroups?.filter(g => g.gradeLevel === newGrade) || [];
-                        methods.setValue('targetGroupIds', groupsForGrade.map(g => g.id));
+                {/* Target Scope Selection: Groups vs Online Course */}
+                <div className="space-y-3">
+                  <Label className="font-bold text-slate-800 block">
+                    الجهة المستهدفة للـ{type === 'ASSIGNMENT' ? 'واجب' : 'اختبار'} <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTargetScope('GROUPS');
+                        methods.setValue('courseId', null);
                       }}
-                      options={[
-                        { label: '-- اختر الصف الدراسي --', value: '' },
-                        ...(selectedStage ? gradeOptions[selectedStage] : []),
-                      ]}
-                    />
+                      className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 text-xs font-bold transition-all ${
+                        targetScope === 'GROUPS'
+                          ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-sm ring-2 ring-primary-50'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      <span className="text-base">🏫</span>
+                      <span>مجموعات الحضور والسنتر</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTargetScope('COURSE');
+                        methods.setValue('targetGroupIds', []);
+                      }}
+                      className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 text-xs font-bold transition-all ${
+                        targetScope === 'COURSE'
+                          ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-sm ring-2 ring-primary-50'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      <span className="text-base">💻</span>
+                      <span>كورس ودورة أونلاين</span>
+                    </button>
                   </div>
                 </div>
 
-                {selectedGrade && (
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                    <Label className="mb-3 block font-bold text-slate-800">
-                      المجموعات المستهدفة <span className="text-sm font-normal text-slate-500">({type === 'ASSIGNMENT' ? 'اختر المجموعات المستهدفة للواجب' : 'اختر المجموعات التي ستمتحن'})</span>
+                {targetScope === 'COURSE' ? (
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 animate-in fade-in">
+                    <Label className="font-bold text-slate-800 block">
+                      اختر الكورس الأونلاين المرتبط <span className="text-red-500">*</span>
                     </Label>
-                    
-                    {availableGroups.length > 0 ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                        {availableGroups.map(group => (
-                          <label key={group.id} className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-primary-300 transition-colors">
-                            <input
-                              type="checkbox"
-                              value={group.id}
-                              checked={formDataValues.targetGroupIds?.includes(group.id)}
-                              onChange={(e) => {
-                                const currentIds = formDataValues.targetGroupIds || [];
-                                if (e.target.checked) {
-                                  methods.setValue('targetGroupIds', [...currentIds, group.id]);
-                                } else {
-                                  methods.setValue('targetGroupIds', currentIds.filter(id => id !== group.id));
-                                }
-                              }}
-                              className="w-5 h-5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                            />
-                            <span className="text-sm font-medium text-slate-700">{group.name}</span>
-                          </label>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-sm text-slate-500 bg-white p-4 rounded-lg border border-slate-200 text-center">
-                        لا توجد مجموعات مسجلة في هذا الصف الدراسي.
-                      </div>
+                    <Select
+                      value={formDataValues.courseId || ''}
+                      onChange={(e) => {
+                        methods.setValue('courseId', e.target.value || null, { shouldValidate: true });
+                      }}
+                      options={[
+                        { label: '-- اختر الكورس الأونلاين من القائمة --', value: '' },
+                        ...(teacherCourses?.map((c: any) => ({
+                          label: `${c.title} (${c.subject || 'عام'})`,
+                          value: c.id,
+                        })) || []),
+                      ]}
+                    />
+                    {(!teacherCourses || teacherCourses.length === 0) && (
+                      <p className="text-xs text-slate-500 mt-1">
+                        لم يتم العثور على كورسات أونلاين حالياً. يمكنك إنشاء كورس من قسم "الكورسات أونلاين".
+                      </p>
                     )}
                   </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="mb-2 block">المرحلة الدراسية (اختياري)</Label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { id: 'PRIMARY', label: 'الابتدائية', icon: '✏️' },
+                            { id: 'MIDDLE', label: 'الإعدادية', icon: '🏫' },
+                            { id: 'SECONDARY', label: 'الثانوية', icon: '🎓' },
+                          ].map((stage) => (
+                            <button
+                              key={stage.id}
+                              type="button"
+                              onClick={() => {
+                                methods.setValue('academicStage', stage.id);
+                                methods.setValue('gradeLevel', '');
+                              }}
+                              className={`flex flex-col items-center justify-center p-2 rounded-xl border-2 transition-all duration-200 ${
+                                selectedStage === stage.id
+                                  ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-sm ring-2 ring-primary-50'
+                                  : 'border-slate-100 bg-slate-50/50 hover:border-slate-200 text-slate-500'
+                              }`}
+                            >
+                              <span className="text-xl mb-1">{stage.icon}</span>
+                              <span className="font-bold text-xs">{stage.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <Select
+                          label="الصف الدراسي (اختياري)"
+                          name="gradeLevel"
+                          disabled={!selectedStage}
+                          value={formDataValues.gradeLevel || ''}
+                          onChange={e => {
+                            const newGrade = e.target.value;
+                            methods.setValue('gradeLevel', newGrade);
+                            const groupsForGrade = allGroups?.filter(g => g.gradeLevel === newGrade) || [];
+                            methods.setValue('targetGroupIds', groupsForGrade.map(g => g.id));
+                          }}
+                          options={[
+                            { label: '-- اختر الصف الدراسي --', value: '' },
+                            ...(selectedStage ? gradeOptions[selectedStage] : []),
+                          ]}
+                        />
+                      </div>
+                    </div>
+
+                    {selectedGrade && (
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <Label className="mb-3 block font-bold text-slate-800">
+                          المجموعات المستهدفة <span className="text-sm font-normal text-slate-500">({type === 'ASSIGNMENT' ? 'اختر المجموعات المستهدفة للواجب' : 'اختر المجموعات التي ستمتحن'})</span>
+                        </Label>
+                        
+                        {availableGroups.length > 0 ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                            {availableGroups.map(group => (
+                              <label key={group.id} className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-primary-300 transition-colors">
+                                <input
+                                  type="checkbox"
+                                  value={group.id}
+                                  checked={formDataValues.targetGroupIds?.includes(group.id)}
+                                  onChange={(e) => {
+                                    const currentIds = formDataValues.targetGroupIds || [];
+                                    if (e.target.checked) {
+                                      methods.setValue('targetGroupIds', [...currentIds, group.id]);
+                                    } else {
+                                      methods.setValue('targetGroupIds', currentIds.filter(id => id !== group.id));
+                                    }
+                                  }}
+                                  className="w-5 h-5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                                />
+                                <span className="text-sm font-medium text-slate-700">{group.name}</span>
+                              </label>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-slate-500 bg-white p-4 rounded-lg border border-slate-200 text-center">
+                            لا توجد مجموعات مسجلة في هذا الصف الدراسي.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

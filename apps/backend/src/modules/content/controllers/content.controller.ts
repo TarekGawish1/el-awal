@@ -62,6 +62,21 @@ export class ContentController {
     return this.contentService.deleteFileFromStorage({ fileKey: key, fileUrl: url });
   }
 
+  @Post('upload-raw')
+  @UseInterceptors(FileInterceptor('file'))
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Direct multipart raw file upload (image, pdf, cover, attachment)' })
+  async uploadRaw(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('folder') folder?: string,
+  ) {
+    if (!file) {
+      throw new BadRequestException('الملف مطلوب للرفع');
+    }
+    return this.contentService.uploadRawFile(file, folder || 'assessments');
+  }
+
   @Post('upload-direct')
   @UseInterceptors(FileInterceptor('file'))
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)

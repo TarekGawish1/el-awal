@@ -807,6 +807,7 @@ export class AssessmentsService {
         ...(dto.durationMinutes !== undefined && { durationMinutes: dto.durationMinutes }),
         ...(dto.dueDate !== undefined && { dueDate: dto.dueDate ? new Date(dto.dueDate) : null }),
         ...(dto.isPublished !== undefined && { isPublished: dto.isPublished }),
+        ...(dto.courseId !== undefined && { courseId: dto.courseId || null }),
       },
     });
 

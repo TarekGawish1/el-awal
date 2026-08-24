@@ -11,6 +11,8 @@ import { Label } from '@/components/ui/Label';
 import { Textarea } from '@/components/ui/Textarea';
 import { AssessmentDetail } from '../types/assessments.types';
 import { useUpdateAssessment } from '../hooks/use-assessments';
+import { useTeacherCourses } from '@/features/courses/hooks/useCourses';
+import { Select } from '@/components/ui/Select';
 import toast from 'react-hot-toast';
 
 interface EditMetadataModalProps {
@@ -24,12 +26,14 @@ const editMetadataSchema = z.object({
   description: z.string().optional(),
   durationMinutes: z.coerce.number().min(1, 'المدة يجب أن تكون دقيقة واحدة على الأقل').optional().nullable(),
   dueDate: z.string().optional().nullable(),
+  courseId: z.string().optional().nullable(),
 });
 
 type EditMetadataFormData = z.infer<typeof editMetadataSchema>;
 
 export function EditAssessmentMetadataModal({ isOpen, onClose, assessment }: EditMetadataModalProps) {
   const { mutate: updateAssessment, isPending } = useUpdateAssessment();
+  const { data: teacherCourses } = useTeacherCourses();
   
   const { register, handleSubmit, reset, formState: { errors } } = useForm<EditMetadataFormData>({
     resolver: zodResolver(editMetadataSchema),
@@ -42,6 +46,7 @@ export function EditAssessmentMetadataModal({ isOpen, onClose, assessment }: Edi
         description: assessment.description || '',
         durationMinutes: assessment.durationMinutes || undefined,
         dueDate: assessment.dueDate ? new Date(assessment.dueDate).toISOString().slice(0, 16) : undefined,
+        courseId: assessment.courseId || undefined,
       });
     }
   }, [isOpen, assessment, reset]);
@@ -115,6 +120,20 @@ export function EditAssessmentMetadataModal({ isOpen, onClose, assessment }: Edi
                 {...register('dueDate')} 
               />
             </div>
+          </div>
+
+          <div>
+            <Label className="mb-2 block">الكورس الأونلاين المرتبط (اختياري)</Label>
+            <Select 
+              {...register('courseId')}
+              options={[
+                { label: '-- غير مرتبط بكورس أونلاين معين --', value: '' },
+                ...(teacherCourses?.map((c: any) => ({
+                  label: `${c.title} (${c.subject || 'عام'})`,
+                  value: c.id,
+                })) || []),
+              ]}
+            />
           </div>
         </form>
 
