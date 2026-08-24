@@ -75,20 +75,48 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     refetch: refetchStreamAuth,
   } = useLessonStreamAuth(selectedLessonId || '');
 
+  // Completed lessons tracker
+  const [completedLessonIds, setCompletedLessonIds] = useState<string[]>([]);
+
+  // Sync completed state from lessonViewer
+  useEffect(() => {
+    if (lessonViewer?.isCompleted && selectedLessonId) {
+      setCompletedLessonIds((prev) => Array.from(new Set([...prev, selectedLessonId])));
+    } else if (lessonViewer && !lessonViewer.isCompleted && selectedLessonId) {
+      setCompletedLessonIds((prev) => prev.filter((id) => id !== selectedLessonId));
+    }
+  }, [lessonViewer?.isCompleted, selectedLessonId]);
+
+  const isLessonCompleted = selectedLessonId ? completedLessonIds.includes(selectedLessonId) : false;
+
   // Progress Tracking: Mark Completed
   const [isMarkingComplete, setIsMarkingComplete] = useState(false);
   const handleToggleComplete = async () => {
     if (!selectedLessonId) return;
+    const nextCompleted = !isLessonCompleted;
+
+    // Optimistic UI update
+    setCompletedLessonIds((prev) =>
+      nextCompleted
+        ? Array.from(new Set([...prev, selectedLessonId]))
+        : prev.filter((id) => id !== selectedLessonId)
+    );
+
     try {
       setIsMarkingComplete(true);
-      const isCurrentlyCompleted = lessonViewer?.isCompleted || false;
       await coursesApi.updateLessonProgress(selectedLessonId, {
-        isCompleted: !isCurrentlyCompleted,
+        isCompleted: nextCompleted,
         lastPositionSeconds: lessonViewer?.lastPositionSeconds || 0,
       });
       await refetchLesson();
-      toast.success(isCurrentlyCompleted ? 'تم إلغاء إتمام الدرس' : 'أحسنت! تم إتمام الدرس بنجاح 🎉');
+      toast.success(nextCompleted ? 'أحسنت! تم إتمام الدرس بنجاح 🎉' : 'تم إلغاء إتمام الدرس');
     } catch (err: any) {
+      // Revert optimistic update on failure
+      setCompletedLessonIds((prev) =>
+        isLessonCompleted
+          ? Array.from(new Set([...prev, selectedLessonId]))
+          : prev.filter((id) => id !== selectedLessonId)
+      );
       toast.error(err?.message || 'تعذر تحديث حالة إتمام الدرس');
     } finally {
       setIsMarkingComplete(false);
@@ -150,10 +178,14 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
               type="button"
               onClick={handleToggleComplete}
               disabled={isMarkingComplete}
-              className="hidden sm:flex items-center gap-1.5 px-4 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white rounded-xl text-xs font-medium transition-all border border-emerald-200 shadow-sm"
+              className={`hidden sm:flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all border shadow-sm ${
+                isLessonCompleted
+                  ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-600 hover:text-white'
+              }`}
             >
-              <CheckCircle className="w-4 h-4" />
-              <span>{lessonViewer?.isCompleted ? 'مكتمل ومُتقن' : 'تحديد كمكتمل'}</span>
+              <CheckCircle className={`w-4 h-4 ${isLessonCompleted ? 'text-white' : 'text-emerald-600'}`} />
+              <span>{isLessonCompleted ? 'مكتمل ومُتقن' : 'تحديد كمكتمل'}</span>
             </button>
           )}
 
@@ -363,6 +395,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
               modules={course.modules || []}
               activeLessonId={selectedLessonId}
               onSelectLesson={(id) => setSelectedLessonId(id)}
+              completedLessonIds={completedLessonIds}
             />
           </div>
         </div>
@@ -390,6 +423,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                   setSelectedLessonId(id);
                   setIsMobileSyllabusOpen(false);
                 }}
+                completedLessonIds={completedLessonIds}
               />
             </div>
           </div>
