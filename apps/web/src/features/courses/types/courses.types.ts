@@ -104,6 +104,7 @@ export interface CourseDetail {
   coverImageUrl?: string | null;
   status: CourseStatus;
   orderIndex: number;
+  enforceSequentialLessons?: boolean;
   courseQuizId?: string | null;
   courseQuiz?: AssessmentSummary | null;
   modules: CourseModule[];

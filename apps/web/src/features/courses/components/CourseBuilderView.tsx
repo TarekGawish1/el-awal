@@ -285,6 +285,47 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
             </div>
           </div>
 
+          {/* Course Settings: Sequential Lessons Enforcement */}
+          <div className="bg-white border border-slate-200 p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center border border-slate-200 shrink-0">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-900">ترتيب مشاهدة الدروس</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {course.enforceSequentialLessons
+                    ? 'المنهج مرتب — يجب على الطالب إتمام كل درس قبل الانتقال للدرس التالي'
+                    : 'حرية المشاهدة — يمكن للطالب مشاهدة الدروس بأي ترتيب يريد'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                updateCourseMutation.mutate({
+                  enforceSequentialLessons: !course.enforceSequentialLessons,
+                })
+              }
+              disabled={updateCourseMutation.isPending}
+              className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 transition-colors duration-200 ease-in-out focus:outline-none ${
+                course.enforceSequentialLessons
+                  ? 'bg-primary-600 border-primary-600'
+                  : 'bg-slate-200 border-slate-200'
+              }`}
+              role="switch"
+              aria-checked={course.enforceSequentialLessons ?? false}
+              title={course.enforceSequentialLessons ? 'إلغاء التسلسل الإلزامي' : 'تفعيل التسلسل الإلزامي'}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm transform transition-transform duration-200 ease-in-out mt-0.5 ${
+                  course.enforceSequentialLessons ? '-translate-x-5' : 'translate-x-0.5'
+                }`}
+              />
+            </button>
+          </div>
+
           {/* Modules Control Bar */}
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">

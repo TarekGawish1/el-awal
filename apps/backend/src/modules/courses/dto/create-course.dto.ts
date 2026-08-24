@@ -4,6 +4,7 @@ import {
   MinLength,
   IsOptional,
   IsNumber,
+  IsBoolean,
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -93,4 +94,12 @@ export class CreateCourseDto {
   @IsOptional()
   @IsString()
   courseQuizId?: string;
+
+  @ApiPropertyOptional({
+    description: 'If true, students must complete lessons sequentially in order',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  enforceSequentialLessons?: boolean;
 }

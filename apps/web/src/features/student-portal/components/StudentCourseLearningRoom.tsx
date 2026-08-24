@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight,
@@ -132,6 +132,23 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
 
   const isLessonCompleted = selectedLessonId ? completedLessonIds.includes(selectedLessonId) : false;
 
+  // ─── Use refs to always hold the latest values inside stable callbacks ───────
+  // This prevents the player.js useEffect from re-running just because these
+  // values changed, which was the root cause of the toast spam and player
+  // re-registration issues.
+  const selectedLessonIdRef = useRef(selectedLessonId);
+  const isLessonCompletedRef = useRef(isLessonCompleted);
+  const lessonViewerRef = useRef(lessonViewer);
+  const activeLessonRef = useRef(activeLesson);
+  const setActiveTabRef = useRef(setActiveTab);
+  const refetchLessonRef = useRef(refetchLesson);
+
+  useEffect(() => { selectedLessonIdRef.current = selectedLessonId; }, [selectedLessonId]);
+  useEffect(() => { isLessonCompletedRef.current = isLessonCompleted; }, [isLessonCompleted]);
+  useEffect(() => { lessonViewerRef.current = lessonViewer; }, [lessonViewer]);
+  useEffect(() => { activeLessonRef.current = activeLesson; }, [activeLesson]);
+  useEffect(() => { refetchLessonRef.current = refetchLesson; }, [refetchLesson]);
+
   const completionTriggeredRef = useRef<string | null>(null);
 
   // Reset completion trigger state when changing lessons
@@ -139,9 +156,11 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     completionTriggeredRef.current = null;
   }, [selectedLessonId]);
 
-  const handleVideoProgressOrEnd = async (seconds?: number, duration?: number) => {
-    if (!selectedLessonId) return;
-    if (completionTriggeredRef.current === selectedLessonId) return;
+  // Stable completion handler — reads from refs, never needs to be recreated
+  const handleVideoProgressOrEnd = useCallback(async (seconds?: number, duration?: number) => {
+    const lessonId = selectedLessonIdRef.current;
+    if (!lessonId) return;
+    if (completionTriggeredRef.current === lessonId) return;
 
     // Check if watched most of the video (>= 80% or reached end)
     const isMostWatched =
@@ -151,35 +170,39 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
 
     if (!isMostWatched) return;
 
-    completionTriggeredRef.current = selectedLessonId;
+    completionTriggeredRef.current = lessonId;
+
+    const currentLessonViewer = lessonViewerRef.current;
+    const currentActiveLesson = activeLessonRef.current;
+    const currentIsCompleted = isLessonCompletedRef.current;
 
     const hasQuiz = Boolean(
-      lessonViewer?.lessonQuiz ||
-      activeLesson?.lessonQuizId
+      currentLessonViewer?.lessonQuiz ||
+      currentActiveLesson?.lessonQuizId
     );
 
     if (hasQuiz) {
-      setActiveTab('quiz');
+      setActiveTabRef.current('quiz');
       toast('أحسنت بمشاهدة شرح الدرس! يرجى حل اختبار الدرس لاحتساب إتمامه بنجاح 📝', { icon: '🎓' });
     } else {
-      if (!isLessonCompleted) {
-        setCompletedLessonIds((prev) => Array.from(new Set([...prev, selectedLessonId])));
+      if (!currentIsCompleted) {
+        setCompletedLessonIds((prev) => Array.from(new Set([...prev, lessonId])));
         try {
-          await coursesApi.updateLessonProgress(selectedLessonId, {
+          await coursesApi.updateLessonProgress(lessonId, {
             isCompleted: true,
             lastPositionSeconds: Math.round(seconds || 0),
           });
-          await refetchLesson();
+          await refetchLessonRef.current();
           toast.success('أحسنت! تمت مشاهدة معظم شرح الدرس وتم رصد إتمامه بنجاح 🎯');
         } catch {
           // Ignore
         }
       }
     }
-  };
+  }, []); // ← stable: no dependencies, reads from refs
 
   // Handshake Player.js event listeners on iframe load
-  const initIframePlayer = () => {
+  const initIframePlayer = useCallback(() => {
     if (!iframeRef.current || !iframeRef.current.contentWindow) return;
     try {
       const target = iframeRef.current.contentWindow;
@@ -198,9 +221,10 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
       sendRegister('timeupdate');
       sendRegister('ready');
     } catch {}
-  };
+  }, []);
 
   // Official Bunny Stream Player.js SDK instance integration
+  // Dependency: only streamAuth?.embedUrl — so one player instance per video URL
   useEffect(() => {
     let playerInstance: any = null;
 
@@ -250,9 +274,11 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         if (playerInstance?.destroy) playerInstance.destroy();
       } catch {}
     };
-  }, [streamAuth?.embedUrl, selectedLessonId, isLessonCompleted, lessonViewer, activeLesson]);
+  }, [streamAuth?.embedUrl, initIframePlayer, handleVideoProgressOrEnd]);
+  //  ↑ Only re-runs when the embed URL changes (new video), not on every state update
 
   // Listen for Bunny Stream Player.js / HTML5 postMessage events
+  // Dependency: only selectedLessonId — re-registers only when the lesson changes
   useEffect(() => {
     const handleWindowMessage = (event: MessageEvent) => {
       try {
@@ -316,7 +342,8 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
 
     window.addEventListener('message', handleWindowMessage);
     return () => window.removeEventListener('message', handleWindowMessage);
-  }, [selectedLessonId, isLessonCompleted, lessonViewer, activeLesson]);
+  }, [selectedLessonId, handleVideoProgressOrEnd, initIframePlayer]);
+  //  ↑ Re-registers only when the lesson changes, not on every completion state update
 
   // Progress Tracking: Mark Completed
   const [isMarkingComplete, setIsMarkingComplete] = useState(false);
@@ -386,7 +413,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
               <span className="text-[11px] text-slate-500">{course.subject}</span>
             </div>
             <h1 className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">
-              {activeLesson ? activeLesson.title : 'قاعة المحتوى التفاعلي والشروحات'}
+              {activeLesson ? activeLesson.title : 'قاعة المشاهدة والتعلم'}
             </h1>
           </div>
         </div>
@@ -620,9 +647,11 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
           <div className="sticky top-6">
             <CourseSyllabusSidebar
               modules={course.modules || []}
+              allLessons={allLessons}
               activeLessonId={selectedLessonId}
               onSelectLesson={(id) => setSelectedLessonId(id)}
               completedLessonIds={completedLessonIds}
+              enforceSequentialLessons={course.enforceSequentialLessons ?? false}
             />
           </div>
         </div>
@@ -645,12 +674,14 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
             <div className="py-4 flex-1">
               <CourseSyllabusSidebar
                 modules={course.modules || []}
+                allLessons={allLessons}
                 activeLessonId={selectedLessonId}
                 onSelectLesson={(id) => {
                   setSelectedLessonId(id);
                   setIsMobileSyllabusOpen(false);
                 }}
                 completedLessonIds={completedLessonIds}
+                enforceSequentialLessons={course.enforceSequentialLessons ?? false}
               />
             </div>
           </div>

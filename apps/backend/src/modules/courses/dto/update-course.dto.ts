@@ -5,6 +5,7 @@ import {
   IsNumber,
   Min,
   IsEnum,
+  IsBoolean,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { CourseStatus } from '@prisma/client';
@@ -66,4 +67,9 @@ export class UpdateCourseDto {
   @IsOptional()
   @IsString()
   courseQuizId?: string | null;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @IsBoolean()
+  enforceSequentialLessons?: boolean;
 }

@@ -70,6 +70,7 @@ export class CoursesService {
         price: dto.price || 0.0,
         coverImageUrl: dto.coverImageUrl,
         courseQuizId: dto.courseQuizId || null,
+        enforceSequentialLessons: dto.enforceSequentialLessons ?? false,
         teacherId,
         status: CourseStatus.DRAFT,
       },
@@ -282,6 +283,7 @@ export class CoursesService {
         ...(dto.coverImageUrl !== undefined ? { coverImageUrl: dto.coverImageUrl } : {}),
         ...(dto.status ? { status: dto.status } : {}),
         ...(dto.courseQuizId !== undefined ? { courseQuizId: dto.courseQuizId } : {}),
+        ...(dto.enforceSequentialLessons !== undefined ? { enforceSequentialLessons: dto.enforceSequentialLessons } : {}),
       },
     });
   }
