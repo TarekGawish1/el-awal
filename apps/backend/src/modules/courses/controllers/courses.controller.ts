@@ -144,13 +144,12 @@ export class CoursesController {
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Bulk reorder modules in a course' })
   async reorderModules(
-    @Body('courseId') courseId: string,
     @Body() dto: ReorderModulesDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     const isSecretariat = user.role === UserRole.SECRETARIAT;
     return this.coursesService.reorderModules(
-      courseId,
+      dto.courseId,
       user.teacherProfileId || user.id,
       isSecretariat,
       dto,
@@ -161,13 +160,12 @@ export class CoursesController {
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Bulk reorder lessons within/across modules in a course' })
   async reorderLessons(
-    @Body('courseId') courseId: string,
     @Body() dto: ReorderLessonsDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     const isSecretariat = user.role === UserRole.SECRETARIAT;
     return this.coursesService.reorderLessons(
-      courseId,
+      dto.courseId,
       user.teacherProfileId || user.id,
       isSecretariat,
       dto,

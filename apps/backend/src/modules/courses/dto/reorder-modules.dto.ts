@@ -15,6 +15,10 @@ export class ModuleOrderItem {
 }
 
 export class ReorderModulesDto {
+  @ApiProperty({ example: 'd933cc98-532e-4940-a1b6-ba121ff5a697' })
+  @IsUUID()
+  courseId: string;
+
   @ApiProperty({ type: [ModuleOrderItem] })
   @IsArray()
   @ValidateNested({ each: true })
@@ -43,6 +47,10 @@ export class LessonOrderItem {
 }
 
 export class ReorderLessonsDto {
+  @ApiProperty({ example: 'd933cc98-532e-4940-a1b6-ba121ff5a697' })
+  @IsUUID()
+  courseId: string;
+
   @ApiProperty({ type: [LessonOrderItem] })
   @IsArray()
   @ValidateNested({ each: true })

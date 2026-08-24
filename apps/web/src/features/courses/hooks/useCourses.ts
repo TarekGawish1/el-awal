@@ -3,6 +3,21 @@ import { coursesApi } from '../api/courses.api';
 import { CourseDetail, CourseModule, CourseLesson } from '../types/courses.types';
 import toast from 'react-hot-toast';
 
+/**
+ * Maps backend validation/permission errors to Arabic-only messages.
+ * Never surfaces raw English backend messages to the user.
+ */
+function getArabicReorderError(err: any): string {
+  const status = err?.statusCode ?? err?.response?.status ?? err?.status;
+  if (status === 403) return 'ليس لديك صلاحية لتعديل ترتيب هذا الكورس';
+  if (status === 404) return 'لم يتم العثور على الكورس أو الدروس المطلوبة';
+  if (status === 400 || status === 422) return 'بيانات الترتيب غير صالحة، حاول مرة أخرى';
+  if (typeof navigator !== 'undefined' && navigator.onLine === false)
+    return 'لا يوجد اتصال بالإنترنت، سيتم حفظ التغييرات عند عودة الاتصال';
+  return 'تعذر تحديث ترتيب الدروس';
+}
+
+
 export function useTeacherCourses() {
   return useQuery({
     queryKey: ['teacher-courses'],
@@ -128,6 +143,10 @@ export function useReorderModules(courseId: string) {
       queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
       toast.success('تم حفظ ترتيب الوحدات');
     },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
+      toast.error('تعذر حفظ ترتيب الوحدات، حاول مرة أخرى');
+    },
   });
 }
 
@@ -157,7 +176,7 @@ export function useReorderLessons(courseId: string) {
     },
     onError: (err: any) => {
       queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
-      toast.error(err?.message || 'تعذر تحديث ترتيب الدروس');
+      toast.error(getArabicReorderError(err));
     },
   });
 }
