@@ -40,6 +40,16 @@ interface StudentCourseLearningRoomProps {
   initialLessonId?: string;
 }
 
+function getPausedEmbedUrl(embedUrl: string): string {
+  try {
+    const url = new URL(embedUrl);
+    url.searchParams.set('autoplay', 'false');
+    return url.toString();
+  } catch {
+    return `${embedUrl}${embedUrl.includes('?') ? '&' : '?'}autoplay=false`;
+  }
+}
+
 export function StudentCourseLearningRoom({ courseId, initialLessonId }: StudentCourseLearningRoomProps) {
   const { data: course, isLoading: isCourseLoading } = useCourseDetail(courseId);
   const { user } = useAuth();
@@ -733,12 +743,12 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 <iframe
                   ref={iframeRef}
                   id="bunny-stream-embed"
-                  src={streamAuth.embedUrl}
+                  src={getPausedEmbedUrl(streamAuth.embedUrl)}
                   loading="lazy"
                   onLoad={initIframePlayer}
                   className="w-full h-full border-0 absolute inset-0 block"
                   style={{ width: '100%', height: '100%', border: 0 }}
-                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                  allow="accelerometer; gyroscope; encrypted-media; picture-in-picture;"
                   allowFullScreen
                 />
               ) : lessonViewer?.contentUrl ? (
