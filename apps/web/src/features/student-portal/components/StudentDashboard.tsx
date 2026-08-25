@@ -3,7 +3,7 @@
 import React from 'react';
 import { useStudentProfile, useStudentCourses, useStudentAssessments, useStudentAttendance, useGroupSessions } from '../hooks/useStudentPortal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { BookOpen, FileText, QrCode, TrendingUp, Calendar, AlertTriangle, Clock } from 'lucide-react';
+import { BookOpen, FileText, QrCode, TrendingUp, Calendar, AlertTriangle, Clock, Users, Monitor } from 'lucide-react';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
 import Link from 'next/link';
@@ -160,32 +160,46 @@ export function StudentDashboard() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        {/* مجموعات السنتر */}
         <Card className="border-none shadow-sm shadow-slate-200/50 hover:shadow-md transition-shadow">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl"><BookOpen className="w-6 h-6" /></div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">الدورات المسجلة</p>
+          <CardContent className="p-5 flex items-center gap-3">
+            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl flex-shrink-0"><Users className="w-5 h-5" /></div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-slate-500 truncate">مجموعات السنتر</p>
+              <h4 className="text-2xl font-bold text-slate-800">{isProfileLoading ? '-' : enrolledGroups.length}</h4>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* دورات أونلاين */}
+        <Card className="border-none shadow-sm shadow-slate-200/50 hover:shadow-md transition-shadow">
+          <CardContent className="p-5 flex items-center gap-3">
+            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl flex-shrink-0"><Monitor className="w-5 h-5" /></div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-slate-500 truncate">دورات أونلاين</p>
               <h4 className="text-2xl font-bold text-slate-800">{isCoursesLoading ? '-' : courses?.length || 0}</h4>
             </div>
           </CardContent>
         </Card>
         
+        {/* الاختبارات القادمة */}
         <Card className="border-none shadow-sm shadow-slate-200/50 hover:shadow-md transition-shadow">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-purple-50 text-purple-600 rounded-xl"><FileText className="w-6 h-6" /></div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">الاختبارات القادمة</p>
+          <CardContent className="p-5 flex items-center gap-3">
+            <div className="p-3 bg-purple-50 text-purple-600 rounded-xl flex-shrink-0"><FileText className="w-5 h-5" /></div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-slate-500 truncate">الاختبارات القادمة</p>
               <h4 className="text-2xl font-bold text-slate-800">{isAssessmentsLoading ? '-' : assessmentList.length || 0}</h4>
             </div>
           </CardContent>
         </Card>
 
+        {/* نسبة الحضور */}
         <Card className="border-none shadow-sm shadow-slate-200/50 hover:shadow-md transition-shadow">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><TrendingUp className="w-6 h-6" /></div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">نسبة الحضور</p>
+          <CardContent className="p-5 flex items-center gap-3">
+            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl flex-shrink-0"><TrendingUp className="w-5 h-5" /></div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-slate-500 truncate">نسبة الحضور</p>
               <h4 className="text-2xl font-bold text-slate-800">
                 {isAttendanceLoading ? '-' : `${attendanceRate}%`}
               </h4>
@@ -193,12 +207,13 @@ export function StudentDashboard() {
           </CardContent>
         </Card>
 
+        {/* المدفوعات */}
         <Card className="border-none shadow-sm shadow-slate-200/50 hover:shadow-md transition-shadow cursor-pointer" onClick={() => window.location.href = '/student/payments'}>
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-amber-50 text-amber-600 rounded-xl"><Calendar className="w-6 h-6" /></div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">المدفوعات</p>
-              <h4 className="text-sm font-bold text-slate-800 mt-1">الاطلاع على السجل</h4>
+          <CardContent className="p-5 flex items-center gap-3">
+            <div className="p-3 bg-amber-50 text-amber-600 rounded-xl flex-shrink-0"><Calendar className="w-5 h-5" /></div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-slate-500 truncate">المدفوعات</p>
+              <h4 className="text-xs font-bold text-slate-800 mt-1">الاطلاع على السجل</h4>
             </div>
           </CardContent>
         </Card>
@@ -250,22 +265,46 @@ export function StudentDashboard() {
                 <p>لا توجد اختبارات متاحة حالياً</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {assessmentList.slice(0, 3).map((assessment: any) => (
-                  <Link key={assessment.id} href={`/student/assessments/${assessment.id}`} className="block bg-slate-50 rounded-xl p-4 hover:bg-slate-100 transition-colors border border-slate-100">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <h4 className="font-bold text-slate-800">{assessment.title}</h4>
-                        <p className="text-xs text-slate-500 mt-1">الدرجة النهائية: {assessment.totalScore}</p>
+              <div className="space-y-3">
+                {assessmentList.slice(0, 3).map((assessment: any) => {
+                  const isOnlineCourse = !!assessment.course && !assessment.group;
+                  const isOnsiteGroup = !!assessment.group;
+                  return (
+                    <Link key={assessment.id} href={`/student/assessments/${assessment.id}`} className="block bg-slate-50 rounded-xl p-4 hover:bg-slate-100 transition-colors border border-slate-100">
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            {isOnsiteGroup && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
+                                <Users className="w-3 h-3" />
+                                مجموعة السنتر
+                              </span>
+                            )}
+                            {isOnlineCourse && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
+                                <Monitor className="w-3 h-3" />
+                                دورة أونلاين
+                              </span>
+                            )}
+                          </div>
+                          <h4 className="font-bold text-slate-800 truncate">{assessment.title}</h4>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            {isOnsiteGroup && assessment.group?.name ? `${assessment.group.name} · ` : ''}
+                            {isOnlineCourse && assessment.course?.title ? `${assessment.course.title} · ` : ''}
+                            الدرجة: {assessment.totalScore}
+                          </p>
+                        </div>
+                        <div className="flex-shrink-0">
+                          {assessment._count?.submissions > 0 ? (
+                            <Badge variant="success">تم التسليم</Badge>
+                          ) : (
+                            <Badge variant="warning">مطلوب تسليمه</Badge>
+                          )}
+                        </div>
                       </div>
-                      {assessment._count?.submissions > 0 ? (
-                        <Badge variant="success">تم التسليم</Badge>
-                      ) : (
-                        <Badge variant="warning">مطلوب تسليمه</Badge>
-                      )}
-                    </div>
-                  </Link>
-                ))}
+                    </Link>
+                  );
+                })}
               </div>
             )}
           </CardContent>
