@@ -210,6 +210,7 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
 
       const textarea = screen.getByPlaceholderText(/اكتب سؤالك بوضوح/i);
       fireEvent.change(textarea, { target: { value: 'سؤال جديد حول كان وأخواتها' } });
+      fireEvent.click(screen.getByRole('checkbox'));
 
       const submitBtn = screen.getByRole('button', { name: /نشر السؤال/i });
       fireEvent.click(submitBtn);

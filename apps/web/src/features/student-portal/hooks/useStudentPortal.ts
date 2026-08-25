@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { studentApi } from '../api/student.api';
+import { studentApi, StudentGroupQuery } from '../api/student.api';
 import { useAuth } from '@/features/auth';
 import { apiClient } from '@/lib/api/client';
 import { offlineDb, getStudentDetailsOffline } from '@/lib/offline/db';
@@ -84,6 +84,22 @@ export function useStudentCourses() {
         return offlineDb.getCoursesOffline();
       }
     },
+  });
+}
+
+export function useStudentGroup() {
+  return useQuery({
+    queryKey: ['student-group'],
+    queryFn: () => studentApi.getMyGroup(),
+    retry: false,
+  });
+}
+
+export function useStudentGroupSessions(query: StudentGroupQuery) {
+  return useQuery({
+    queryKey: ['student-group-sessions', query.year, query.month],
+    queryFn: () => studentApi.getMyGroupSessions(query),
+    staleTime: 30_000,
   });
 }
 

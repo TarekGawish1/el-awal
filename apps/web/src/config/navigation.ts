@@ -33,7 +33,8 @@ export const TEACHER_NAVIGATION_ITEMS: NavItemConfig[] = [
 
 export const STUDENT_NAVIGATION_ITEMS: NavItemConfig[] = [
   { label: 'الرئيسية', href: '/student/dashboard', icon: LayoutDashboard, onlineOnly: false },
-  { label: 'الدورات', href: '/student/courses', icon: BookOpen, onlineOnly: true },
+  { label: 'المجموعة الدراسية', href: '/student/group', icon: Users, onlineOnly: false },
+  { label: 'الدورات الأونلاين', href: '/student/courses', icon: BookOpen, onlineOnly: true },
   { label: 'الاختبارات', href: '/student/assessments', icon: FileText, onlineOnly: true },
   { label: 'الحضور', href: '/student/attendance', icon: QrCode, onlineOnly: false, isHighlighted: true },
   { label: 'المدفوعات', href: '/student/payments', icon: DollarSign, onlineOnly: false },

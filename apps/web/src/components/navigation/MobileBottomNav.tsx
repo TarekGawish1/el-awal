@@ -44,7 +44,8 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
 
   const studentTabs: NavTabItem[] = [
     { label: 'الرئيسية', href: '/student/dashboard', icon: LayoutDashboard, onlineOnly: false },
-    { label: 'الدورات', href: '/student/courses', icon: BookOpen, onlineOnly: true },
+    { label: 'المجموعة الدراسية', href: '/student/group', icon: Users, onlineOnly: false },
+    { label: 'الدورات الأونلاين', href: '/student/courses', icon: BookOpen, onlineOnly: true },
     { label: 'الـ QR', href: '/student/attendance', icon: QrCode, isHighlighted: true, onlineOnly: false },
     { label: 'التقييمات', href: '/student/assessments', icon: FileText, onlineOnly: true },
     { label: 'المدفوعات', href: '/student/payments', icon: DollarSign, onlineOnly: false },

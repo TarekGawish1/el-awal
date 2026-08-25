@@ -13,6 +13,7 @@ import { StudentsService } from '../services/students.service';
 import { CreateStudentDto } from '../dto/create-student.dto';
 import { StudentQueryDto } from '../dto/student-query.dto';
 import { StudentQrCodeResponseDto } from '../dto/qr-code-response.dto';
+import { StudentGroupQueryDto } from '../dto/student-group-query.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { UserRole } from '@prisma/client';
@@ -39,6 +40,26 @@ export class StudentsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.studentsService.getStudents(query, user);
+  }
+
+  @Get('my-group')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Get the authenticated student physical group, teacher, schedule, and monthly fee status' })
+  async getMyGroup(
+    @Query() query: StudentGroupQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.studentsService.getMyGroup(user, query);
+  }
+
+  @Get('my-group/sessions')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Get the authenticated student group sessions with attendance, homework, and session attachments' })
+  async getMyGroupSessions(
+    @Query() query: StudentGroupQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.studentsService.getMyGroupSessions(user, query);
   }
 
   @Get(':id')

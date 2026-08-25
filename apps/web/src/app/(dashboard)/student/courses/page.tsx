@@ -32,7 +32,7 @@ export default function StudentCoursesPage() {
   if (!isOnline) {
     return (
       <FeatureRequiresOnlineCard
-        featureName="الدورات والمحاضرات التعليمية"
+        featureName="الدورات الأونلاين"
         description="مشاهدة الدورات والدروس الرقمية وتحميل الملخصات تتطلب اتصالاً نشطاً بالخادم."
         backHref="/student/dashboard"
       />
@@ -93,7 +93,7 @@ export default function StudentCoursesPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">الدورات والمحاضرات الرقمية</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">الدورات الأونلاين</h1>
         <p className="text-sm text-slate-500 mt-1">شاهد الدروس الرقمية، وحمل الملخصات، وتابع تقدمك الأكاديمي أولاً بأول</p>
       </div>
 

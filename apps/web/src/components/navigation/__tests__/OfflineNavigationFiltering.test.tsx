@@ -78,16 +78,23 @@ describe('Offline Navigation Filtering & Route Guards', () => {
 
     it('filters out online-only student items when offline', () => {
       const onlineItems = getNavigationItemsForRole('STUDENT', true);
-      expect(onlineItems).toHaveLength(5);
+      expect(onlineItems).toHaveLength(6);
 
       const offlineItems = getNavigationItemsForRole('STUDENT', false);
-      expect(offlineItems).toHaveLength(3);
+      expect(offlineItems).toHaveLength(4);
       const labels = offlineItems.map((i) => i.label);
       expect(labels).not.toContain('الدورات');
+      expect(labels).toContain('المجموعة الدراسية');
       expect(labels).not.toContain('الاختبارات');
       expect(labels).toContain('الرئيسية');
       expect(labels).toContain('الحضور');
       expect(labels).toContain('المدفوعات');
+    });
+
+    it('names the student physical hub and online courses separately', () => {
+      const labels = getNavigationItemsForRole('STUDENT', true).map((item) => item.label);
+      expect(labels).toContain('المجموعة الدراسية');
+      expect(labels).toContain('الدورات الأونلاين');
     });
   });
 
