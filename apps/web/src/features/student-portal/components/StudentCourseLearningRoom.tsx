@@ -21,6 +21,7 @@ import {
   Menu,
   ShieldCheck,
   Video,
+  Trophy,
 } from 'lucide-react';
 import { useCourseDetail, useLessonViewer, useLessonStreamAuth } from '@/features/courses/hooks/useCourses';
 import { coursesApi } from '@/features/courses/api/courses.api';
@@ -31,6 +32,7 @@ import { LessonSummaryTab } from './LessonSummaryTab';
 import { LessonResourcesTab } from './LessonResourcesTab';
 import { LessonQuizTab } from './LessonQuizTab';
 import { CourseSyllabusSidebar } from './CourseSyllabusSidebar';
+import { CourseCertificateModal } from './CourseCertificateModal';
 import toast from 'react-hot-toast';
 
 interface StudentCourseLearningRoomProps {
@@ -453,6 +455,21 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
   }, [selectedLessonId, handleVideoProgressOrEnd, initIframePlayer]);
   //  ↑ Re-registers only when the lesson changes, not on every completion state update
 
+  // ── Course completion detection ─────────────────────────────────────────
+  const isCourseCompleted = totalLessonsCount > 0 && completedLessonIds.length >= totalLessonsCount;
+
+  // Certificate modal state
+  const [isCertificateOpen, setIsCertificateOpen] = useState(false);
+
+  // Show a one-time celebration toast when the course becomes fully complete
+  const courseCompletedToastShownRef = useRef(false);
+  useEffect(() => {
+    if (isCourseCompleted && !courseCompletedToastShownRef.current) {
+      courseCompletedToastShownRef.current = true;
+      toast.success('🎓 تهانينا! أتممت الدورة بالكامل! احصل على شهادتك الآن!', { duration: 5000 });
+    }
+  }, [isCourseCompleted]);
+
   // Progress Tracking: Mark Completed
   const [isMarkingComplete, setIsMarkingComplete] = useState(false);
   const handleToggleComplete = async () => {
@@ -508,8 +525,60 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     );
   }
 
+  // Build certificate data from available course & auth info
+  const certData = {
+    studentName: (user as any)?.fullName || (user as any)?.name || 'الطالب',
+    courseTitle: course?.title || '',
+    teacherName: (course as any)?.teacher?.user?.fullName || undefined,
+    completedDate: new Date().toLocaleDateString('ar-EG', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    }),
+  };
+
   return (
     <div className="space-y-6 text-right animate-in fade-in">
+      {/* Certificate Modal */}
+      <CourseCertificateModal
+        isOpen={isCertificateOpen}
+        onClose={() => setIsCertificateOpen(false)}
+        data={certData}
+      />
+
+      {/* 🎓 Course Completion Celebration Banner */}
+      {isCourseCompleted && (
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-400 p-1 shadow-lg shadow-amber-200/50">
+          <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 rounded-xl px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+            {/* Decorative shimmer strip */}
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse" />
+            </div>
+
+            <div className="flex items-center gap-4 z-10">
+              <div className="p-3 bg-amber-100 rounded-2xl shadow-sm">
+                <Trophy className="w-8 h-8 text-amber-600" />
+              </div>
+              <div className="text-right">
+                <h3 className="text-lg font-extrabold text-amber-900">🎉 أحسنت! أتممت الدورة بالكامل!</h3>
+                <p className="text-sm text-amber-700/80 mt-0.5">
+                  لقد أكملت جميع دروس دورة <span className="font-bold">{course.title}</span> بنجاح
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsCertificateOpen(true)}
+              className="z-10 flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-sm rounded-xl shadow-md shadow-amber-300/50 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap"
+            >
+              <Award className="w-5 h-5" />
+              احصل على شهادتك
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Light Header Banner */}
       <div className="flex items-center justify-between bg-white border border-slate-200 px-6 py-4 rounded-2xl shadow-sm">
         <div className="flex items-center gap-3">

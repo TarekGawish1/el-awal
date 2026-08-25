@@ -1,18 +1,23 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useStudentProfile, useStudentCourses, useStudentAssessments, useStudentAttendance, useGroupSessions } from '../hooks/useStudentPortal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { BookOpen, FileText, QrCode, TrendingUp, Calendar, AlertTriangle, Clock, Users, Monitor } from 'lucide-react';
+import { BookOpen, FileText, QrCode, TrendingUp, Calendar, AlertTriangle, Clock, Users, Monitor, Award } from 'lucide-react';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
 import Link from 'next/link';
+import { CourseCertificateModal } from './CourseCertificateModal';
 
 export function StudentDashboard() {
   const { data: profile, isLoading: isProfileLoading } = useStudentProfile();
   const { data: courses, isLoading: isCoursesLoading } = useStudentCourses();
   const { data: assessments, isLoading: isAssessmentsLoading } = useStudentAssessments();
   const { data: attendance, isLoading: isAttendanceLoading } = useStudentAttendance();
+
+  // Certificate modal state
+  const [certCourse, setCertCourse] = useState<{ title: string; teacherName?: string } | null>(null);
+  const isCertOpen = certCourse !== null;
 
   // These hooks are dual-shape: online they return the cursor-paginated { data, meta } envelope,
   // while their offline/error fallbacks return a bare array. Normalize to a plain list either way.
@@ -91,8 +96,27 @@ export function StudentDashboard() {
 
   const studentName = profile?.user?.fullName || 'طالب';
 
+  const certData = certCourse ? {
+    studentName,
+    courseTitle: certCourse.title,
+    teacherName: certCourse.teacherName,
+    completedDate: new Date().toLocaleDateString('ar-EG', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    }),
+  } : null;
+
   return (
     <div className="space-y-6">
+      {/* Certificate Modal (Dashboard entry point) */}
+      {certData && (
+        <CourseCertificateModal
+          isOpen={isCertOpen}
+          onClose={() => setCertCourse(null)}
+          data={certData}
+        />
+      )}
       {/* Header Profile Section */}
       <div className="bg-gradient-to-r from-primary-600 to-primary-800 rounded-2xl p-6 md:p-8 text-white shadow-lg flex flex-col md:flex-row items-center md:items-start justify-between gap-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
@@ -236,15 +260,40 @@ export function StudentDashboard() {
             ) : (
               <div className="space-y-4">
                 {courses.slice(0, 3).map((course: any) => (
-                  <Link key={course.courseId} href={`/student/courses/${course.courseId}/learn`} className="block bg-slate-50 rounded-xl p-4 hover:bg-slate-100 transition-colors border border-slate-100">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <h4 className="font-bold text-slate-800">{course.title}</h4>
+                  <div key={course.courseId} className="bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition-colors">
+                    <div className="flex items-center justify-between p-4">
+                      <Link href={`/student/courses/${course.courseId}/learn`} className="flex-1 min-w-0">
+                        <h4 className="font-bold text-slate-800 truncate">{course.title}</h4>
                         <p className="text-xs text-slate-500 mt-1">{course.teacherName}</p>
+                      </Link>
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                        {course.progressPercentage >= 100 ? (
+                          <button
+                            type="button"
+                            onClick={() => setCertCourse({ title: course.title, teacherName: course.teacherName })}
+                            title="تحميل شهادة الإتمام"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-500 hover:to-orange-500 text-white shadow-sm shadow-amber-200 hover:shadow-md hover:-translate-y-0.5 transition-all"
+                          >
+                            <Award className="w-3.5 h-3.5" />
+                            شهادتي
+                          </button>
+                        ) : (
+                          <Badge variant="outline" className="bg-white">نسبة الإنجاز: {course.progressPercentage || 0}%</Badge>
+                        )}
                       </div>
-                      <Badge variant="outline" className="bg-white">نسبة الإنجاز: {course.progressPercentage || 0}%</Badge>
                     </div>
-                  </Link>
+                    {/* Progress bar */}
+                    {course.progressPercentage < 100 && (
+                      <div className="px-4 pb-3">
+                        <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary-500 rounded-full transition-all"
+                            style={{ width: `${Math.min(course.progressPercentage || 0, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
