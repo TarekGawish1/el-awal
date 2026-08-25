@@ -77,6 +77,10 @@ function StudentAssessmentsContent() {
   const assessments = assessmentsData?.data || [];
 
   const filteredAssessments = assessments.filter((item: any) => {
+    // This page lists only group exams and homework. Course-linked quizzes (lesson/unit/final
+    // tests) are taken inside the course learning room, which deep-links here by assessment id
+    // and bypasses this list — so exclude anything tied to a course.
+    if (item.courseId || item.lessonId) return false;
     if (filterType === 'ALL') return true;
     return item.type === filterType;
   });
