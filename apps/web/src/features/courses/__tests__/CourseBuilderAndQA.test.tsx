@@ -33,6 +33,7 @@ vi.mock('@/features/assessments/hooks/use-assessments', () => ({
     data: { data: [] },
     isLoading: false,
   }),
+  useAssessment: vi.fn().mockReturnValue({ data: null, isLoading: false }),
 }));
 
 vi.mock('@/features/auth', () => ({

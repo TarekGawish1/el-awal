@@ -334,6 +334,66 @@ export class AssessmentsService {
   }
 
   /**
+   * Lightweight attempt-status summary for the authenticated student.
+   * Returns the official (highest-scoring) result plus the attempt policy so the
+   * learning-room assessment card can render without pulling the full question bank.
+   */
+  async getMyAssessmentStatus(assessmentId: string, user: AuthenticatedUser) {
+    const studentId =
+      user.studentProfileId ||
+      (user.role === UserRole.STUDENT ? user.id : null);
+
+    const assessment = await this.prisma.assessment.findUnique({
+      where: { id: assessmentId },
+      select: {
+        id: true,
+        totalScore: true,
+        allowMultipleAttempts: true,
+      },
+    });
+
+    if (!assessment) {
+      throw new NotFoundException(`Assessment [${assessmentId}] not found`);
+    }
+
+    const totalScore = Number(assessment.totalScore);
+
+    if (!studentId) {
+      return {
+        hasSubmitted: false,
+        score: null,
+        totalScore,
+        percentage: null,
+        attemptsCount: 0,
+        allowMultipleAttempts: assessment.allowMultipleAttempts,
+      };
+    }
+
+    const submissions = await this.prisma.assessmentSubmission.findMany({
+      where: { assessmentId, studentId },
+      orderBy: { attemptNumber: 'asc' },
+      select: { attemptNumber: true, status: true, scoreObtained: true },
+    });
+
+    const official = resolveOfficialSubmission(submissions);
+    const score =
+      official?.scoreObtained != null ? Number(official.scoreObtained) : null;
+    const percentage =
+      score != null && totalScore > 0
+        ? Math.round((score / totalScore) * 100)
+        : null;
+
+    return {
+      hasSubmitted: submissions.length > 0,
+      score,
+      totalScore,
+      percentage,
+      attemptsCount: submissions.length,
+      allowMultipleAttempts: assessment.allowMultipleAttempts,
+    };
+  }
+
+  /**
    * Synchronous Auto-Grading Submission Engine.
    * Handles MCQ/True-False automatic evaluation and marks essay exams for teacher review.
    */
@@ -467,9 +527,11 @@ export class AssessmentsService {
     });
 
     if (priorSubmissions.length > 0 && !assessment.allowMultipleAttempts) {
-      throw new ConflictException(
-        'You have already submitted this assessment (Single attempt policy enforced)',
-      );
+      throw new BadRequestException({
+        code: 'SINGLE_ATTEMPT_ONLY',
+        message:
+          'غير مسموح بإعادة هذا الاختبار، تم استنفاد المحاولة الوحيدة المتاحة',
+      });
     }
 
     const attemptNumber = (priorSubmissions[0]?.attemptNumber ?? 0) + 1;

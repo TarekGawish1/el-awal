@@ -25,6 +25,7 @@ import {
 } from "../hooks/useCourses";
 import { coursesApi } from "../api/courses.api";
 import { useAssessments } from "@/features/assessments/hooks/use-assessments";
+import { updateAssessment } from "@/features/assessments/api/assessments.api";
 import { FileUploadZone } from "./FileUploadZone";
 import toast from "react-hot-toast";
 
@@ -71,6 +72,7 @@ export function LessonEditorModal({
   const [videoDurationSeconds, setVideoDurationSeconds] = useState(1800);
   const [isFreePreview, setIsFreePreview] = useState(false);
   const [lessonQuizId, setLessonQuizId] = useState("");
+  const [allowMultipleAttempts, setAllowMultipleAttempts] = useState(false);
   const [attachments, setAttachments] = useState<LessonAttachment[]>([]);
 
   // Video Upload State
@@ -121,6 +123,18 @@ export function LessonEditorModal({
       setVideoEmbedUrl(streamAuth.embedUrl);
     }
   }, [streamAuth, videoEmbedUrl]);
+
+  // Reflect the selected quiz's current attempt policy in the toggle (or reset when none).
+  useEffect(() => {
+    if (!lessonQuizId) {
+      setAllowMultipleAttempts(false);
+      return;
+    }
+    const selected = assessments.find((a: any) => a.id === lessonQuizId);
+    if (selected) {
+      setAllowMultipleAttempts(Boolean(selected.allowMultipleAttempts ?? false));
+    }
+  }, [lessonQuizId, assessments]);
 
   if (!isOpen) return null;
 
@@ -263,6 +277,16 @@ export function LessonEditorModal({
           }
         }
       }
+
+      // Persist the selected assessment's retake policy (single vs. multiple attempts).
+      if (lessonQuizId) {
+        try {
+          await updateAssessment(lessonQuizId, { allowMultipleAttempts });
+        } catch {
+          // Best-effort: a policy update failure must not block saving the lesson.
+        }
+      }
+
       onClose();
     } catch {
       // Handled by mutation toast
@@ -914,6 +938,55 @@ export function LessonEditorModal({
                         بالأعلى لفتح نموذج إنشاء الاختبارات وربطه تلقائياً بهذا
                         الكورس.
                       </p>
+                    </div>
+                  )}
+
+                  {/* Attempt Policy Selector (shown once a quiz is linked) */}
+                  {lessonQuizId && (
+                    <div className="mt-3 p-4 bg-white border border-slate-200 rounded-xl space-y-3">
+                      <label className="block text-xs font-bold text-slate-800">
+                        سياسة إعادة الاختبار للطالب:
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAllowMultipleAttempts(false)}
+                          className={`flex items-center gap-2.5 p-3 rounded-xl border text-right transition-all ${
+                            !allowMultipleAttempts
+                              ? "border-primary-500 bg-primary-50/60 ring-2 ring-primary-100"
+                              : "border-slate-200 bg-white hover:bg-slate-50"
+                          }`}
+                        >
+                          <span className="text-lg leading-none">🔒</span>
+                          <span>
+                            <span className="block text-xs font-bold text-slate-800">
+                              محاولة واحدة فقط
+                            </span>
+                            <span className="block text-[10px] text-slate-500 mt-0.5">
+                              لا يمكن للطالب إعادة الاختبار بعد تسليمه
+                            </span>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAllowMultipleAttempts(true)}
+                          className={`flex items-center gap-2.5 p-3 rounded-xl border text-right transition-all ${
+                            allowMultipleAttempts
+                              ? "border-primary-500 bg-primary-50/60 ring-2 ring-primary-100"
+                              : "border-slate-200 bg-white hover:bg-slate-50"
+                          }`}
+                        >
+                          <span className="text-lg leading-none">🔄</span>
+                          <span>
+                            <span className="block text-xs font-bold text-slate-800">
+                              إعادة غير محدودة
+                            </span>
+                            <span className="block text-[10px] text-slate-500 mt-0.5">
+                              يمكن للطالب التدرب وإعادة الاختبار عدة مرات
+                            </span>
+                          </span>
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

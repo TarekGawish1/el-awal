@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, BadRequestException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AssessmentsService } from '../services/assessments.service';
 import { PrismaService } from '../../../core/database/prisma.service';
@@ -247,7 +247,7 @@ describe('AssessmentsService', () => {
       expect(result.scoreObtained).toBeNull();
     });
 
-    it('should throw ConflictException on duplicate submission attempt', async () => {
+    it('should throw BadRequestException (SINGLE_ATTEMPT_ONLY) on a second attempt when allowMultipleAttempts is false', async () => {
       mockPrismaService.assessment.findUnique.mockResolvedValue(mockAssessmentWithMcq);
       mockPrismaService.assessmentSubmission.findMany.mockResolvedValue([
         { id: 'existing-sub-1', attemptNumber: 1 },
@@ -257,7 +257,18 @@ describe('AssessmentsService', () => {
         service.submitAssessment(assessmentId, studentUser, {
           answers: [{ questionId: 'q-1', answerGiven: 'خبر كان منصوب' }],
         }),
-      ).rejects.toThrow(ConflictException);
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.submitAssessment(assessmentId, studentUser, {
+          answers: [{ questionId: 'q-1', answerGiven: 'خبر كان منصوب' }],
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'SINGLE_ATTEMPT_ONLY',
+          message: 'غير مسموح بإعادة هذا الاختبار، تم استنفاد المحاولة الوحيدة المتاحة',
+        },
+      });
     });
 
     it('should allow a retake and increment attemptNumber when allowMultipleAttempts is true', async () => {
@@ -297,6 +308,59 @@ describe('AssessmentsService', () => {
           data: expect.objectContaining({ attemptNumber: 2 }),
         }),
       );
+    });
+  });
+
+  describe('getMyAssessmentStatus', () => {
+    const assessmentId = 'assessment-uuid-1';
+    const studentId = 'student-profile-1';
+    const studentUser: any = {
+      id: 'student-user-1',
+      studentProfileId: studentId,
+      role: UserRole.STUDENT,
+    };
+
+    it('should report no submission and preserve the attempt policy', async () => {
+      mockPrismaService.assessment.findUnique.mockResolvedValue({
+        id: assessmentId,
+        totalScore: 20.0,
+        allowMultipleAttempts: false,
+      });
+      mockPrismaService.assessmentSubmission.findMany.mockResolvedValue([]);
+
+      const result = await service.getMyAssessmentStatus(assessmentId, studentUser);
+
+      expect(result).toMatchObject({
+        hasSubmitted: false,
+        score: null,
+        totalScore: 20,
+        percentage: null,
+        attemptsCount: 0,
+        allowMultipleAttempts: false,
+      });
+    });
+
+    it('should surface the official (highest) score and percentage', async () => {
+      mockPrismaService.assessment.findUnique.mockResolvedValue({
+        id: assessmentId,
+        totalScore: 20.0,
+        allowMultipleAttempts: true,
+      });
+      mockPrismaService.assessmentSubmission.findMany.mockResolvedValue([
+        { attemptNumber: 1, status: SubmissionStatus.GRADED, scoreObtained: 10.0 },
+        { attemptNumber: 2, status: SubmissionStatus.GRADED, scoreObtained: 18.0 },
+      ]);
+
+      const result = await service.getMyAssessmentStatus(assessmentId, studentUser);
+
+      expect(result).toMatchObject({
+        hasSubmitted: true,
+        score: 18,
+        totalScore: 20,
+        percentage: 90,
+        attemptsCount: 2,
+        allowMultipleAttempts: true,
+      });
     });
   });
 

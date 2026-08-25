@@ -66,12 +66,23 @@ export class AssessmentsController {
     return this.assessmentsService.getAssessmentById(id, user);
   }
 
+  @Get(':id/my-status')
+  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.PARENT)
+  @ApiOperation({ summary: 'Get the authenticated student submission status and attempt policy for an assessment' })
+  @ApiResponse({ status: 200, description: 'Submission status, best/latest score, percentage and attempt policy' })
+  async getMyAssessmentStatus(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.assessmentsService.getMyAssessmentStatus(id, user);
+  }
+
   @Post(':id/submit')
   @HttpCode(HttpStatus.OK)
   @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.SECRETARIAT)
-  @ApiOperation({ summary: 'Submit student answers for synchronous auto-grading (Single attempt enforced)' })
+  @ApiOperation({ summary: 'Submit student answers for synchronous auto-grading (attempt policy enforced)' })
   @ApiResponse({ status: 200, description: 'Submission auto-graded or staged for manual review' })
-  @ApiResponse({ status: 409, description: 'Assessment already submitted' })
+  @ApiResponse({ status: 400, description: 'SINGLE_ATTEMPT_ONLY: the only allowed attempt was already used' })
   async submitAssessment(
     @Param('id') id: string,
     @Body() dto: SubmitAssessmentDto,

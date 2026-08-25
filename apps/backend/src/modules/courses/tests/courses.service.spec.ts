@@ -73,6 +73,9 @@ describe('CoursesService', () => {
     courseProgress: {
       findUnique: jest.fn(),
     },
+    assessmentSubmission: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
     studentProfile: {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
