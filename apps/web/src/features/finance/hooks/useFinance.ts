@@ -6,6 +6,7 @@ import {
   recordPayment,
   scanPaymentQr,
   deletePayment,
+  fetchMatrixLedger,
 } from '../api/finance.api';
 import { PaymentQuery, RecordPaymentPayload, ScanPaymentQrPayload, DefaultersResponse, ScanPaymentQrResponse, StudentPaymentRecord } from '../types/finance.types';
 import { offlineDb } from '@/lib/offline/db';
@@ -21,7 +22,24 @@ export const financeKeys = {
   studentHistory: (studentId: string) => [...financeKeys.all, 'student-history', studentId] as const,
   defaulters: (groupId: string, year: number, month: number) => 
     [...financeKeys.all, 'defaulters', groupId, year, month] as const,
+  matrixLedger: (query: Record<string, unknown>) => [...financeKeys.all, 'matrix-ledger', query] as const,
 };
+
+export function useMatrixLedger(query: {
+  gradeLevel?: string;
+  academicPeriodId?: string;
+  academicYear?: string;
+  academicTerm?: string;
+  groupId?: string;
+  stage?: string;
+  search?: string;
+}) {
+  return useQuery({
+    queryKey: financeKeys.matrixLedger(query),
+    queryFn: () => fetchMatrixLedger(query),
+    staleTime: 30_000,
+  });
+}
 
 export function usePayments(query: PaymentQuery) {
   return useInfiniteQuery({

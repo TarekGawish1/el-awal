@@ -7,6 +7,7 @@ import {
   ScanPaymentQrResponse,
   PaymentQuery,
   CursorPaginatedResponse,
+  MatrixLedgerResponse,
 } from '../types/finance.types';
 
 export async function fetchPayments(query: PaymentQuery = {}): Promise<CursorPaginatedResponse<StudentPaymentRecord>> {
@@ -42,5 +43,19 @@ export async function scanPaymentQr(payload: ScanPaymentQrPayload): Promise<Scan
 export async function deletePayment(id: string): Promise<{ success: boolean }> {
   return apiClient<{ success: boolean }>(`/subscriptions/${id}`, {
     method: 'DELETE',
+  });
+}
+
+export async function fetchMatrixLedger(query: {
+  gradeLevel?: string;
+  academicPeriodId?: string;
+  academicYear?: string;
+  academicTerm?: string;
+  groupId?: string;
+  stage?: string;
+  search?: string;
+}): Promise<MatrixLedgerResponse> {
+  return apiClient<MatrixLedgerResponse>('/payments/matrix-ledger', {
+    params: query as Record<string, string | number | boolean | undefined>,
   });
 }

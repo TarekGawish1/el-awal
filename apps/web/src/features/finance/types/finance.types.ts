@@ -134,3 +134,32 @@ export interface CursorPaginatedResponse<T> {
     totalCount?: number;
   };
 }
+
+export interface MatrixPaymentCell {
+  isPaid: boolean;
+  amountPaid: number;
+  paidAt?: string | Date;
+}
+
+export interface MatrixLedgerStudent {
+  id: string;
+  studentCode?: string | null;
+  fullName: string;
+  phone?: string | null;
+  gradeLevel: string;
+  groupId?: string | null;
+  groupName: string;
+  monthlyFee: number;
+  monthlyPayments: Record<number, MatrixPaymentCell>;
+  bookletPayments: Record<string, MatrixPaymentCell>;
+  totalPaid: number;
+  totalDue: number;
+}
+
+export interface MatrixLedgerResponse {
+  academicYear: string;
+  academicTerm: 'FIRST_TERM' | 'SECOND_TERM';
+  months: number[];
+  booklets: Array<{ id: string; title: string; price: number; gradeLevel: string }>;
+  students: MatrixLedgerStudent[];
+}

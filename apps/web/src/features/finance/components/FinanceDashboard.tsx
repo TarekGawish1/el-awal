@@ -22,13 +22,11 @@ import {
   Trash2, 
   Calendar, 
   Wallet, 
-  QrCode,
-  ClipboardList,
   CheckCircle2,
-  Sparkles,
-  BookOpen
 } from 'lucide-react';
 import { BookletManagementSection } from '@/features/booklets/components/BookletManagementSection';
+import { FinanceTabs, FinanceTab } from './FinanceTabs';
+import { FinancialMatrixLedger } from './FinancialMatrixLedger';
 import toast from 'react-hot-toast';
 
 const ARABIC_MONTHS = [
@@ -50,8 +48,8 @@ export function FinanceDashboard() {
   const [periodMonth, setPeriodMonth] = useState<number>(
     paramMonth && !isNaN(Number(paramMonth)) ? Number(paramMonth) : new Date().getMonth() + 1
   );
-  const [activeTab, setActiveTab] = useState<'QR' | 'MANUAL' | 'BOOKLETS'>(
-    paramTab === 'booklets' ? 'BOOKLETS' : 'QR'
+  const [activeTab, setActiveTab] = useState<FinanceTab>(
+    paramTab === 'booklets' ? 'BOOKLETS' : paramTab === 'matrix' ? 'MATRIX' : 'QR'
   );
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const [historyStudentId, setHistoryStudentId] = useState<string | null>(null);
@@ -68,6 +66,8 @@ export function FinanceDashboard() {
     }
     if (paramTab === 'booklets') {
       setActiveTab('BOOKLETS');
+    } else if (paramTab === 'matrix') {
+      setActiveTab('MATRIX');
     }
   }, [paramGroupId, paramYear, paramMonth, paramTab]);
 
@@ -137,36 +137,12 @@ export function FinanceDashboard() {
         </div>
       </div>
 
-      {/* Mode Navigation Tabs */}
-      <div className="flex flex-wrap gap-2 bg-white p-2 rounded-2xl border border-slate-100 shadow-sm">
-        <Button
-          variant={activeTab === 'QR' ? 'primary' : 'outline'}
-          onClick={() => setActiveTab('QR')}
-          className={`flex-1 sm:flex-none sm:w-48 rounded-xl ${activeTab === 'QR' ? 'shadow-md shadow-primary-500/20' : ''}`}
-        >
-          <QrCode className="w-4 h-4 ml-2" />
-          الماسح الذكي (QR)
-        </Button>
-        <Button
-          variant={activeTab === 'MANUAL' ? 'primary' : 'outline'}
-          onClick={() => setActiveTab('MANUAL')}
-          className={`flex-1 sm:flex-none sm:w-48 rounded-xl ${activeTab === 'MANUAL' ? 'shadow-md shadow-primary-500/20' : ''}`}
-        >
-          <ClipboardList className="w-4 h-4 ml-2" />
-          رصد يدوي للمصروفات
-        </Button>
-        <Button
-          variant={activeTab === 'BOOKLETS' ? 'primary' : 'outline'}
-          onClick={() => setActiveTab('BOOKLETS')}
-          className={`flex-1 sm:flex-none sm:w-56 rounded-xl ${activeTab === 'BOOKLETS' ? 'shadow-md shadow-purple-500/20 bg-purple-600 hover:bg-purple-700 text-white' : ''}`}
-        >
-          <BookOpen className="w-4 h-4 ml-2" />
-          المذكرات والملازم الدراسية
-        </Button>
-      </div>
+      <FinanceTabs activeTab={activeTab} onChange={setActiveTab} />
 
       {activeTab === 'BOOKLETS' ? (
         <BookletManagementSection groups={groups} />
+      ) : activeTab === 'MATRIX' ? (
+        <FinancialMatrixLedger groups={groups} />
       ) : (
         <>
           {/* Filters Toolbar */}

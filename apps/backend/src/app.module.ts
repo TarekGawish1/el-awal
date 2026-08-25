@@ -21,6 +21,7 @@ import { SyncModule } from './modules/sync/sync.module';
 import { HealthModule } from './modules/health/health.module';
 import { TeachersModule } from './modules/teachers/teachers.module';
 import { AcademicPeriodsModule } from './modules/academic-periods/academic-periods.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { AcademicPeriodsModule } from './modules/academic-periods/academic-perio
     GroupsModule,
     TeachersModule,
     AcademicPeriodsModule,
+    PaymentsModule,
     SchedulesModule,
     AttendanceModule,
     CoursesModule,
