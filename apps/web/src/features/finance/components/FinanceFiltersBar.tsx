@@ -1,0 +1,108 @@
+'use client';
+
+import { Search } from 'lucide-react';
+import { Input } from '@/components/ui/Input';
+
+export const GRADE_LEVELS_BY_STAGE: Record<string, string[]> = {
+  PRIMARY: [
+    'الصف الأول الابتدائي', 'الصف الثاني الابتدائي', 'الصف الثالث الابتدائي',
+    'الصف الرابع الابتدائي', 'الصف الخامس الابتدائي', 'الصف السادس الابتدائي',
+  ],
+  PREPARATORY: ['الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي'],
+  SECONDARY: ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي'],
+};
+
+export const TERM_MONTHS: Record<'FIRST_TERM' | 'SECOND_TERM', number[]> = {
+  FIRST_TERM: [8, 9, 10, 11, 12, 1],
+  SECOND_TERM: [2, 3, 4, 5, 6, 7],
+};
+
+interface FinanceFiltersBarProps {
+  groups: any[];
+  stage: string;
+  gradeLevel: string;
+  groupId: string;
+  academicYear: string;
+  academicTerm: 'FIRST_TERM' | 'SECOND_TERM';
+  search: string;
+  onStageChange: (value: string) => void;
+  onGradeChange: (value: string) => void;
+  onGroupChange: (value: string) => void;
+  onTermChange: (value: 'FIRST_TERM' | 'SECOND_TERM') => void;
+  onSearchChange: (value: string) => void;
+}
+
+function inferStage(gradeLevel?: string) {
+  if (!gradeLevel) return '';
+  return Object.entries(GRADE_LEVELS_BY_STAGE).find(([, grades]) => grades.includes(gradeLevel))?.[0] || '';
+}
+
+export function FinanceFiltersBar({
+  groups,
+  stage,
+  gradeLevel,
+  groupId,
+  academicYear,
+  academicTerm,
+  search,
+  onStageChange,
+  onGradeChange,
+  onGroupChange,
+  onTermChange,
+  onSearchChange,
+}: FinanceFiltersBarProps) {
+  const groupGrades = groups.map((group) => group.gradeLevel).filter(Boolean);
+  const stageGrades = stage === 'ALL' ? Object.values(GRADE_LEVELS_BY_STAGE).flat() : GRADE_LEVELS_BY_STAGE[stage] || [];
+  const grades = Array.from(new Set([...stageGrades, ...groupGrades.filter((grade) => !stage || inferStage(grade) === stage)]));
+  const availableGroups = groups.filter((group) => {
+    if (gradeLevel && group.gradeLevel !== gradeLevel) return false;
+    if (stage !== 'ALL' && stage && inferStage(group.gradeLevel) !== stage) return false;
+    return true;
+  });
+
+  return (
+    <div className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <label className="text-xs font-bold text-slate-700">
+        المرحلة الدراسية
+        <select aria-label="المرحلة الدراسية" value={stage} onChange={(event) => onStageChange(event.target.value)} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm">
+          <option value="ALL">كل المراحل</option>
+          <option value="SECONDARY">الثانوية</option>
+          <option value="PREPARATORY">الإعدادية</option>
+          <option value="PRIMARY">الابتدائية</option>
+        </select>
+      </label>
+
+      <label className="text-xs font-bold text-slate-700">
+        الصف الدراسي
+        <select aria-label="الصف الدراسي" value={gradeLevel} onChange={(event) => onGradeChange(event.target.value)} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm">
+          <option value="">كل الصفوف</option>
+          {grades.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
+        </select>
+      </label>
+
+      <label className="text-xs font-bold text-slate-700">
+        الفترة الدراسية
+        <select aria-label="الفترة الدراسية" value={academicTerm} onChange={(event) => onTermChange(event.target.value as 'FIRST_TERM' | 'SECOND_TERM')} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm">
+          <option value="FIRST_TERM">{academicYear} - ترم أول</option>
+          <option value="SECOND_TERM">{academicYear} - ترم ثان</option>
+        </select>
+      </label>
+
+      <label className="text-xs font-bold text-slate-700">
+        المجموعة الدراسية
+        <select aria-label="المجموعة الدراسية" value={groupId} onChange={(event) => onGroupChange(event.target.value)} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm">
+          <option value="">جميع المجموعات</option>
+          {availableGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+        </select>
+      </label>
+
+      <label className="text-xs font-bold text-slate-700 sm:col-span-2">
+        بحث سريع
+        <div className="relative mt-1.5">
+          <Search className="absolute right-3 top-3 h-4 w-4 text-slate-400" />
+          <Input aria-label="بحث سريع" value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="اسم الطالب أو STU-..." className="pr-9" />
+        </div>
+      </label>
+    </div>
+  );
+}

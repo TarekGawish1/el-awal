@@ -200,8 +200,25 @@ model TeacherProfile {
   assessments         Assessment[]
   studentEvaluations  StudentEvaluation[]
   booklets            Booklet[]
+  billingConfigurations TeacherBillingConfiguration[]
 
   @@map("teacher_profiles")
+}
+
+model TeacherBillingConfiguration {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  teacherId     String   @map("teacher_id") @db.Uuid
+  academicYear  String   @map("academic_year") @db.VarChar(30)
+  academicTerm  String   @map("academic_term") @db.VarChar(30)
+  excludedMonths Json    @default("[]") @map("excluded_months")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  teacher TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, academicYear, academicTerm], map: "uq_teacher_billing_period")
+  @@index([teacherId], map: "idx_teacher_billing_config_teacher")
+  @@map("teacher_billing_configurations")
 }
 
 model StudentProfile {

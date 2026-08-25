@@ -139,6 +139,7 @@ export interface MatrixPaymentCell {
   isPaid: boolean;
   amountPaid: number;
   paidAt?: string | Date;
+  isStarted?: boolean;
 }
 
 export interface MatrixLedgerStudent {
@@ -160,6 +161,19 @@ export interface MatrixLedgerResponse {
   academicYear: string;
   academicTerm: 'FIRST_TERM' | 'SECOND_TERM';
   months: number[];
+  availableMonths?: number[];
+  excludedMonths?: number[];
   booklets: Array<{ id: string; title: string; price: number; gradeLevel: string }>;
   students: MatrixLedgerStudent[];
+  totalStudents?: number;
+  currentPage?: number;
+  totalPages?: number;
+  limit?: number;
+}
+
+export interface BillingConfigurationResponse {
+  academicYear: string;
+  academicTerm: 'FIRST_TERM' | 'SECOND_TERM';
+  availableMonths: number[];
+  excludedMonths: number[];
 }

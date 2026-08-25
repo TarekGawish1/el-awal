@@ -5,7 +5,7 @@ import { AuthenticatedUser } from '../../core/security/decorators/current-user.d
 import { MatrixLedgerQueryDto } from './dto/matrix-ledger-query.dto';
 
 const FIRST_TERM_MONTHS = [8, 9, 10, 11, 12, 1];
-const SECOND_TERM_MONTHS = [2, 3, 4, 5];
+const SECOND_TERM_MONTHS = [2, 3, 4, 5, 6, 7];
 
 @Injectable()
 export class PaymentsService {
@@ -27,11 +27,11 @@ export class PaymentsService {
     academicTerm = academicTerm || 'FIRST_TERM';
 
     const startYear = Number(academicYear.split('-')[0]);
-    const months = academicTerm === 'SECOND_TERM' ? SECOND_TERM_MONTHS : FIRST_TERM_MONTHS;
+    const availableMonths = academicTerm === 'SECOND_TERM' ? SECOND_TERM_MONTHS : FIRST_TERM_MONTHS;
     const paymentYearForMonth = (month: number) =>
       academicTerm === 'FIRST_TERM' && month === 1 ? startYear + 1 : academicTerm === 'SECOND_TERM' ? startYear + 1 : startYear;
 
-    return { academicYear, academicTerm, months, paymentYearForMonth };
+    return { academicYear, academicTerm, availableMonths, paymentYearForMonth };
   }
 
   private async resolveTeacherId(user: AuthenticatedUser) {
@@ -45,13 +45,77 @@ export class PaymentsService {
     return teacher?.id || user.id;
   }
 
+  private normalizeExcludedMonths(value: unknown, availableMonths: number[]) {
+    if (!Array.isArray(value)) return [];
+    return value
+      .map((month) => Number(month))
+      .filter((month) => availableMonths.includes(month));
+  }
+
+  async getBillingConfiguration(user: AuthenticatedUser, academicYear?: string, academicTerm?: string) {
+    const teacherId = await this.resolveTeacherId(user);
+    const year = academicYear || '2026-2027';
+    const term = academicTerm === 'SECOND_TERM' ? 'SECOND_TERM' : 'FIRST_TERM';
+    const availableMonths = term === 'SECOND_TERM' ? SECOND_TERM_MONTHS : FIRST_TERM_MONTHS;
+    const configuration = teacherId
+      ? await this.prisma.teacherBillingConfiguration.findUnique({
+          where: { teacherId_academicYear_academicTerm: { teacherId, academicYear: year, academicTerm: term } },
+        })
+      : null;
+
+    return {
+      academicYear: year,
+      academicTerm: term,
+      availableMonths,
+      excludedMonths: this.normalizeExcludedMonths(configuration?.excludedMonths, availableMonths),
+    };
+  }
+
+  async updateBillingConfiguration(user: AuthenticatedUser, dto: { academicYear: string; academicTerm: string; excludedMonths: number[] }) {
+    const teacherId = await this.resolveTeacherId(user);
+    if (!teacherId) throw new ForbiddenException('A teacher profile is required to save billing configuration');
+
+    const availableMonths = dto.academicTerm === 'SECOND_TERM' ? SECOND_TERM_MONTHS : FIRST_TERM_MONTHS;
+    const excludedMonths = this.normalizeExcludedMonths(dto.excludedMonths, availableMonths);
+    const configuration = await this.prisma.teacherBillingConfiguration.upsert({
+      where: { teacherId_academicYear_academicTerm: { teacherId, academicYear: dto.academicYear, academicTerm: dto.academicTerm } },
+      create: { teacherId, academicYear: dto.academicYear, academicTerm: dto.academicTerm, excludedMonths },
+      update: { excludedMonths },
+    });
+
+    return {
+      academicYear: configuration.academicYear,
+      academicTerm: configuration.academicTerm,
+      availableMonths,
+      excludedMonths,
+    };
+  }
+
+  private isMonthStarted(academicYear: string, academicTerm: string, month: number) {
+    const startYear = Number(academicYear.split('-')[0]);
+    const actualYear = academicTerm === 'FIRST_TERM' && month === 1 ? startYear + 1 : academicTerm === 'SECOND_TERM' ? startYear + 1 : startYear;
+    const now = new Date();
+    const currentYear = now.getUTCFullYear();
+    const currentMonth = now.getUTCMonth() + 1;
+    return actualYear < currentYear || (actualYear === currentYear && month <= currentMonth);
+  }
+
   async getMatrixLedger(user: AuthenticatedUser, query: MatrixLedgerQueryDto) {
     if (user.role !== UserRole.TEACHER && user.role !== UserRole.SECRETARIAT) {
       throw new ForbiddenException('Only teachers and secretariat can view the financial matrix ledger');
     }
 
-    const { academicYear, academicTerm, months, paymentYearForMonth } = this.parsePeriod(query);
+    const { academicYear, academicTerm, availableMonths, paymentYearForMonth } = this.parsePeriod(query);
     const teacherId = await this.resolveTeacherId(user);
+    const billingConfiguration = teacherId
+      ? await this.prisma.teacherBillingConfiguration.findUnique({
+          where: { teacherId_academicYear_academicTerm: { teacherId, academicYear, academicTerm } },
+        })
+      : null;
+    const excludedMonths = this.normalizeExcludedMonths(billingConfiguration?.excludedMonths, availableMonths);
+    const months = availableMonths.filter((month) => !excludedMonths.includes(month));
+    const page = query.page || 1;
+    const limit = query.limit || 20;
     const groupScope: any = {
       isActive: true,
       academicYear,
@@ -76,10 +140,14 @@ export class PaymentsService {
       ];
     }
 
-    const students = await this.prisma.studentProfile.findMany({
-      where: studentWhere,
-      orderBy: { user: { fullName: 'asc' } },
-      select: {
+    const [totalStudents, students] = await Promise.all([
+      this.prisma.studentProfile.count({ where: studentWhere }),
+      this.prisma.studentProfile.findMany({
+        where: studentWhere,
+        orderBy: { user: { fullName: 'asc' } },
+        skip: (page - 1) * limit,
+        take: limit,
+        select: {
         id: true,
         studentCode: true,
         user: { select: { fullName: true, phone: true } },
@@ -92,8 +160,9 @@ export class PaymentsService {
             group: { select: { id: true, name: true, monthlyFee: true } },
           },
         },
-      },
-    });
+        },
+      }),
+    ]);
 
     const grades = Array.from(new Set(students.map((student) => student.gradeLevel)));
     const bookletWhere: any = {
@@ -114,19 +183,20 @@ export class PaymentsService {
     const studentIds = students.map((student) => student.id);
     const groupIds = Array.from(new Set(students.flatMap((student) => student.groupEnrollments.map((enrollment) => enrollment.groupId))));
     const paymentPeriods = months.map((month) => ({ periodYear: paymentYearForMonth(month), periodMonth: month }));
-    const payments = studentIds.length === 0
+    const allTermPaymentPeriods = availableMonths.map((month) => ({ periodYear: paymentYearForMonth(month), periodMonth: month }));
+    const paymentConditions: any[] = [];
+    if (groupIds.length > 0 && paymentPeriods.length > 0) {
+      paymentConditions.push({ paymentType: PaymentType.TUITION, groupId: { in: groupIds }, OR: paymentPeriods });
+    }
+    if (booklets.length > 0 && allTermPaymentPeriods.length > 0) {
+      paymentConditions.push({ paymentType: PaymentType.BOOKLET, bookletId: { in: booklets.map((booklet) => booklet.id) }, OR: allTermPaymentPeriods });
+    }
+    const payments = studentIds.length === 0 || paymentConditions.length === 0
       ? []
       : await this.prisma.studentPaymentRecord.findMany({
           where: {
             studentId: { in: studentIds },
-            OR: [
-              { paymentType: PaymentType.TUITION, groupId: { in: groupIds }, OR: paymentPeriods },
-              {
-                paymentType: PaymentType.BOOKLET,
-                bookletId: { in: booklets.map((booklet) => booklet.id) },
-                OR: paymentPeriods,
-              },
-            ],
+            OR: paymentConditions,
           },
           select: {
             studentId: true,
@@ -163,7 +233,7 @@ export class PaymentsService {
     const resultStudents = students.map((student) => {
       const enrollment = student.groupEnrollments[0];
       const monthlyFee = Number(enrollment?.group.monthlyFee || 0);
-      const monthlyPayments: Record<number, { isPaid: boolean; amountPaid: number; paidAt?: Date }> = {};
+      const monthlyPayments: Record<number, { isPaid: boolean; amountPaid: number; paidAt?: Date; isStarted: boolean }> = {};
       const bookletPayments: Record<string, { isPaid: boolean; amountPaid: number; paidAt?: Date }> = {};
       let totalDue = 0;
       let totalPaid = 0;
@@ -172,9 +242,11 @@ export class PaymentsService {
         const key = `${student.id}:TUITION:${month}:${paymentYearForMonth(month)}`;
         const payment = paymentMap.get(key);
         const isPaid = Boolean(payment && payment.isPaid && payment.amountPaid >= monthlyFee);
-        monthlyPayments[month] = { isPaid, amountPaid: payment?.amountPaid || 0, paidAt: payment?.paidAt };
+        monthlyPayments[month] = { isPaid, amountPaid: payment?.amountPaid || 0, paidAt: payment?.paidAt, isStarted: this.isMonthStarted(academicYear, academicTerm, month) };
         totalPaid += payment?.amountPaid || 0;
-        totalDue += Math.max(0, monthlyFee - (payment?.amountPaid || 0));
+        if (this.isMonthStarted(academicYear, academicTerm, month)) {
+          totalDue += Math.max(0, monthlyFee - (payment?.amountPaid || 0));
+        }
       }
 
       for (const booklet of booklets.filter((item) => item.gradeLevel === student.gradeLevel)) {
@@ -206,6 +278,12 @@ export class PaymentsService {
       academicYear,
       academicTerm,
       months,
+      availableMonths,
+      excludedMonths,
+      totalStudents,
+      currentPage: page,
+      totalPages: Math.ceil(totalStudents / limit),
+      limit,
       booklets: booklets.map((booklet) => ({ ...booklet, price: Number(booklet.price) })),
       students: resultStudents,
     };

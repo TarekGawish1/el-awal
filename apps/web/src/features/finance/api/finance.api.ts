@@ -8,6 +8,7 @@ import {
   PaymentQuery,
   CursorPaginatedResponse,
   MatrixLedgerResponse,
+  BillingConfigurationResponse,
 } from '../types/finance.types';
 
 export async function fetchPayments(query: PaymentQuery = {}): Promise<CursorPaginatedResponse<StudentPaymentRecord>> {
@@ -54,8 +55,27 @@ export async function fetchMatrixLedger(query: {
   groupId?: string;
   stage?: string;
   search?: string;
+  page?: number;
+  limit?: number;
 }): Promise<MatrixLedgerResponse> {
   return apiClient<MatrixLedgerResponse>('/payments/matrix-ledger', {
     params: query as Record<string, string | number | boolean | undefined>,
+  });
+}
+
+export async function fetchBillingConfiguration(query: { academicYear: string; academicTerm: string }): Promise<BillingConfigurationResponse> {
+  return apiClient<BillingConfigurationResponse>('/payments/billing-config', {
+    params: query as Record<string, string | number | boolean | undefined>,
+  });
+}
+
+export async function updateBillingConfiguration(payload: {
+  academicYear: string;
+  academicTerm: string;
+  excludedMonths: number[];
+}): Promise<BillingConfigurationResponse> {
+  return apiClient<BillingConfigurationResponse>('/payments/billing-config', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
   });
 }

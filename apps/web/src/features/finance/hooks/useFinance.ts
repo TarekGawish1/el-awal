@@ -7,6 +7,8 @@ import {
   scanPaymentQr,
   deletePayment,
   fetchMatrixLedger,
+  fetchBillingConfiguration,
+  updateBillingConfiguration,
 } from '../api/finance.api';
 import { PaymentQuery, RecordPaymentPayload, ScanPaymentQrPayload, DefaultersResponse, ScanPaymentQrResponse, StudentPaymentRecord } from '../types/finance.types';
 import { offlineDb } from '@/lib/offline/db';
@@ -23,6 +25,7 @@ export const financeKeys = {
   defaulters: (groupId: string, year: number, month: number) => 
     [...financeKeys.all, 'defaulters', groupId, year, month] as const,
   matrixLedger: (query: Record<string, unknown>) => [...financeKeys.all, 'matrix-ledger', query] as const,
+  billingConfiguration: (academicYear: string, academicTerm: string) => [...financeKeys.all, 'billing-configuration', academicYear, academicTerm] as const,
 };
 
 export function useMatrixLedger(query: {
@@ -33,11 +36,33 @@ export function useMatrixLedger(query: {
   groupId?: string;
   stage?: string;
   search?: string;
+  page?: number;
+  limit?: number;
 }) {
   return useQuery({
     queryKey: financeKeys.matrixLedger(query),
     queryFn: () => fetchMatrixLedger(query),
     staleTime: 30_000,
+  });
+}
+
+export function useBillingConfiguration(academicYear: string, academicTerm: string) {
+  return useQuery({
+    queryKey: financeKeys.billingConfiguration(academicYear, academicTerm),
+    queryFn: () => fetchBillingConfiguration({ academicYear, academicTerm }),
+    enabled: Boolean(academicYear && academicTerm),
+    staleTime: 60_000,
+  });
+}
+
+export function useUpdateBillingConfiguration() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateBillingConfiguration,
+    onSuccess: (data) => {
+      queryClient.setQueryData(financeKeys.billingConfiguration(data.academicYear, data.academicTerm), data);
+      queryClient.invalidateQueries({ queryKey: financeKeys.all });
+    },
   });
 }
 
