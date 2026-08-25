@@ -55,16 +55,16 @@ export function LessonQAPanel({
     }
 
     try {
-      const calculatedTimestamp =
-        currentPlaybackSeconds !== undefined
+      // Only attach a timestamp when the student explicitly opted in via the checkbox
+      // AND the player has reported a position.
+      const videoTimestamp =
+        includeTimestamp && currentPlaybackSeconds !== undefined
           ? Math.floor(currentPlaybackSeconds)
-          : includeTimestamp
-          ? 0
           : undefined;
 
       await createQuestionMutation.mutateAsync({
         content: questionContent.trim(),
-        videoTimestamp: calculatedTimestamp,
+        videoTimestamp,
       });
       setQuestionContent('');
       setIncludeTimestamp(false);
@@ -119,16 +119,29 @@ export function LessonQAPanel({
           />
 
           <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none">
+            <label
+              className={`flex items-center gap-2 text-xs cursor-pointer select-none ${
+                currentPlaybackSeconds !== undefined
+                  ? 'text-primary-700 font-semibold'
+                  : 'text-slate-400 cursor-not-allowed'
+              }`}
+              title={currentPlaybackSeconds === undefined ? 'شغّل الفيديو أولاً لتفعيل ربط الوقت' : undefined}
+            >
               <input
                 type="checkbox"
-                checked={includeTimestamp || currentPlaybackSeconds !== undefined}
+                checked={includeTimestamp}
+                disabled={currentPlaybackSeconds === undefined}
                 onChange={(e) => setIncludeTimestamp(e.target.checked)}
-                className="w-4 h-4 rounded text-primary-600 bg-white border-slate-300 cursor-pointer"
+                className="w-4 h-4 rounded text-primary-600 bg-white border-slate-300 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
               />
               <span className="flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5 text-primary-600" />
                 ربط السؤال بلحظة الفيديو الحالية
+                {currentPlaybackSeconds !== undefined && (
+                  <span className="font-mono text-[10px] bg-primary-50 text-primary-700 border border-primary-200 px-1.5 py-0.5 rounded-md ml-1">
+                    {formatTimestamp(currentPlaybackSeconds)}
+                  </span>
+                )}
               </span>
             </label>
 

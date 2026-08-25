@@ -198,6 +198,18 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
   const setActiveTabRef = useRef(setActiveTab);
   const refetchLessonRef = useRef(refetchLesson);
 
+  // ─── Live playback position — updated from every timeupdate ────────────────
+  // Stored in a ref so the stable handleVideoProgressOrEnd callback can update it
+  // without needing to be recreated; mirrored into state only for rendering (Q&A panel).
+  const currentPlaybackSecondsRef = useRef<number | undefined>(undefined);
+  const [currentPlaybackSeconds, setCurrentPlaybackSeconds] = useState<number | undefined>(undefined);
+
+  // Reset live position whenever the student navigates to a different lesson.
+  useEffect(() => {
+    currentPlaybackSecondsRef.current = undefined;
+    setCurrentPlaybackSeconds(undefined);
+  }, [selectedLessonId]);
+
   useEffect(() => { selectedLessonIdRef.current = selectedLessonId; }, [selectedLessonId]);
   useEffect(() => { isLessonCompletedRef.current = isLessonCompleted; }, [isLessonCompleted]);
   useEffect(() => { lessonViewerRef.current = lessonViewer; }, [lessonViewer]);
@@ -241,6 +253,16 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
   const handleVideoProgressOrEnd = useCallback(async (seconds?: number, duration?: number) => {
     const lessonId = selectedLessonIdRef.current;
     if (!lessonId) return;
+
+    // ── Track live playback position ────────────────────────────────────────────
+    if (typeof seconds === 'number') {
+      currentPlaybackSecondsRef.current = seconds;
+      // Throttle state updates to avoid excessive re-renders: only update React state
+      // when the value has moved by at least 1 full second from the last reported value.
+      setCurrentPlaybackSeconds((prev) =>
+        prev === undefined || Math.abs(seconds - prev) >= 1 ? Math.floor(seconds) : prev
+      );
+    }
 
     // A genuine end-of-video: a direct 'ended' event (no args) or playback that reached the
     // final second. Distinct from the 80% "most watched" threshold so we advance to the next
@@ -508,6 +530,24 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
       setIsMarkingComplete(false);
     }
   };
+
+  // Seek the Bunny Stream iframe to a specific timestamp (used by Q&A timestamp click-back)
+  const handleSeekToTimestamp = useCallback((seekSeconds: number) => {
+    if (iframeRef.current?.contentWindow) {
+      try {
+        // Player.js seek command
+        iframeRef.current.contentWindow.postMessage(
+          JSON.stringify({
+            context: 'player.js',
+            method: 'setCurrentTime',
+            value: seekSeconds,
+            version: '0.0.11',
+          }),
+          '*'
+        );
+      } catch {}
+    }
+  }, []);
 
   if (isCourseLoading) {
     return (
@@ -801,6 +841,8 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
               <LessonQAPanel
                 lessonId={selectedLessonId}
                 lessonTitle={activeLesson?.title || ''}
+                currentPlaybackSeconds={currentPlaybackSeconds}
+                onSeekToTimestamp={handleSeekToTimestamp}
               />
             )}
 
