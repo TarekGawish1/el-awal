@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useCourseDetail, useLessonViewer, useLessonStreamAuth } from '@/features/courses/hooks/useCourses';
 import { coursesApi } from '@/features/courses/api/courses.api';
+import { useAuth } from '@/features/auth';
 import { CourseModule, CourseLesson, LessonViewerData } from '@/features/courses/types/courses.types';
 import { LessonQAPanel } from './LessonQAPanel';
 import { LessonSummaryTab } from './LessonSummaryTab';
@@ -39,6 +40,13 @@ interface StudentCourseLearningRoomProps {
 
 export function StudentCourseLearningRoom({ courseId, initialLessonId }: StudentCourseLearningRoomProps) {
   const { data: course, isLoading: isCourseLoading } = useCourseDetail(courseId);
+  const { user } = useAuth();
+
+  // Per-student scope for every browser-persisted progress key. Without this the
+  // localStorage keys were shared by courseId only, so a browser used by more than one
+  // account (e.g. teacher previewing, then a student) leaked one account's completed
+  // lessons into another's — making a brand-new student see phantom progress on first open.
+  const progressScopeId = user?.studentProfileId || user?.id || 'anon';
 
   // Active Selected Lesson ID
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(initialLessonId || null);
@@ -57,11 +65,17 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     selectedLessonId || ''
   );
 
-  // Auto-select first available lesson on initial course load if not provided
+  // Apply a `?lessonId=` deep link once (and again only if it actually changes), so
+  // later navigation — advancing to the next lesson, or a manual sidebar click — is never
+  // snapped back to the initial lesson. Falls back to the first lesson when nothing is set.
+  const appliedInitialLessonRef = useRef<string | null>(null);
   useEffect(() => {
-    if (initialLessonId) {
+    if (initialLessonId && appliedInitialLessonRef.current !== initialLessonId) {
+      appliedInitialLessonRef.current = initialLessonId;
       setSelectedLessonId(initialLessonId);
-    } else if (course && course.modules && course.modules.length > 0 && !selectedLessonId) {
+      return;
+    }
+    if (!selectedLessonId && course?.modules?.length) {
       for (const mod of course.modules) {
         if (mod.lessons && mod.lessons.length > 0) {
           setSelectedLessonId(mod.lessons[0].id);
@@ -78,40 +92,61 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     refetch: refetchStreamAuth,
   } = useLessonStreamAuth(selectedLessonId || '');
 
-  // Completed lessons tracker with local storage persistence
-  const [completedLessonIds, setCompletedLessonIds] = useState<string[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(`el_awal_course_progress_${courseId}`);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) return parsed;
-        }
-      } catch {}
-    }
-    return [];
-  });
+  // ── Completed-lessons tracking ────────────────────────────────────────────────
+  // The server (course.completedLessonIds) is the single source of truth for what THIS
+  // student has completed. localStorage is only a per-student offline cache. We never
+  // blindly union stale local data over the server, so progress can no longer be inflated
+  // by leftover entries from an earlier session or a different account.
+  const progressStorageKey = `el_awal_course_progress_${courseId}_${progressScopeId}`;
+  const [completedLessonIds, setCompletedLessonIds] = useState<string[]>([]);
 
-  // Sync completed state from course details and localStorage
+  // Lessons completed during THIS session (optimistic — a server refetch may not reflect
+  // them yet). Preserved across server reconciliations so an optimistic tick never flickers.
+  const sessionCompletedRef = useRef<Set<string>>(new Set());
+
+  const markLessonCompletedLocally = useCallback((lessonId: string) => {
+    sessionCompletedRef.current.add(lessonId);
+    setCompletedLessonIds((prev) => Array.from(new Set([...prev, lessonId])));
+  }, []);
+
+  // Seed from the per-student local cache once (first paint / offline fallback).
   useEffect(() => {
-    if (course && Array.isArray((course as any).completedLessonIds)) {
-      setCompletedLessonIds((prev) =>
-        Array.from(new Set([...prev, ...(course as any).completedLessonIds]))
+    if (typeof window === 'undefined') return;
+    try {
+      const saved = localStorage.getItem(progressStorageKey);
+      const parsed = saved ? JSON.parse(saved) : null;
+      if (Array.isArray(parsed) && parsed.length) {
+        setCompletedLessonIds((prev) => Array.from(new Set([...prev, ...parsed])));
+      }
+    } catch {}
+  }, [progressStorageKey]);
+
+  // Reconcile with the server whenever course details load/refresh.
+  useEffect(() => {
+    if (!course) return;
+    const serverList: string[] = Array.isArray((course as any).completedLessonIds)
+      ? (course as any).completedLessonIds
+      : [];
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    if (isOnline) {
+      // Online: the server is authoritative. Keep only server-confirmed completions plus
+      // this session's optimistic ones — drop any stale/foreign entries from the cache.
+      setCompletedLessonIds(
+        Array.from(new Set([...serverList, ...Array.from(sessionCompletedRef.current)])),
       );
+    } else {
+      // Offline: server data may be a stale cache; union it with whatever we already have.
+      setCompletedLessonIds((prev) => Array.from(new Set([...prev, ...serverList])));
     }
-  }, [course, courseId]);
+  }, [course]);
 
-  // Persist completedLessonIds whenever it changes
+  // Persist (per-student) whenever it changes — write even when empty so clearing sticks.
   useEffect(() => {
-    if (typeof window !== 'undefined' && completedLessonIds.length > 0) {
-      try {
-        localStorage.setItem(
-          `el_awal_course_progress_${courseId}`,
-          JSON.stringify(completedLessonIds)
-        );
-      } catch {}
-    }
-  }, [completedLessonIds, courseId]);
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(progressStorageKey, JSON.stringify(completedLessonIds));
+    } catch {}
+  }, [completedLessonIds, progressStorageKey]);
 
   // Find active module and active lesson objects
   const activeModule = course?.modules?.find((m: CourseModule) =>
@@ -123,12 +158,30 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
   const allLessons: CourseLesson[] = (course?.modules || []).flatMap((m: CourseModule) => m.lessons || []);
   const totalLessonsCount = allLessons.length;
 
+  // Keep the flat, ordered lesson list in a ref so the stable video-completion callback can
+  // resolve "the next lesson" without being re-created on every render.
+  const allLessonsRef = useRef<CourseLesson[]>(allLessons);
+  useEffect(() => { allLessonsRef.current = allLessons; }, [allLessons]);
+
+  // Reveal (select) the lesson after the given one — without autoplaying it. Bunny embeds
+  // never autoplay unless autoplay=true is in the URL, so simply switching the selected
+  // lesson loads the next video paused. Resets to the summary tab for a clean landing.
+  const advanceToNextLesson = useCallback((currentLessonId: string) => {
+    const lessons = allLessonsRef.current;
+    const idx = lessons.findIndex((l) => l.id === currentLessonId);
+    if (idx === -1) return;
+    const next = lessons[idx + 1];
+    if (!next) return; // already at the final lesson — nothing to advance to
+    setSelectedLessonId(next.id);
+    setActiveTab('summary');
+  }, []);
+
   // Sync completed state from lessonViewer
   useEffect(() => {
     if (lessonViewer?.isCompleted && selectedLessonId) {
-      setCompletedLessonIds((prev) => Array.from(new Set([...prev, selectedLessonId])));
+      markLessonCompletedLocally(selectedLessonId);
     }
-  }, [lessonViewer?.isCompleted, selectedLessonId]);
+  }, [lessonViewer?.isCompleted, selectedLessonId, markLessonCompletedLocally]);
 
   const isLessonCompleted = selectedLessonId ? completedLessonIds.includes(selectedLessonId) : false;
 
@@ -151,15 +204,21 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
 
   const completionTriggeredRef = useRef<string | null>(null);
 
+  // De-dups the "advance to next lesson" jump so a burst of end-of-video events (Bunny fires
+  // both a player.js 'ended' and a final timeupdate) only advances once per lesson.
+  const advancedLessonRef = useRef<string | null>(null);
+
   // Persistent, per-course set of lessons whose "video completed" popup has already
   // been shown, so the popup (and the quiz-tab nudge) fires only on the FIRST
   // completion — surviving reloads, tab switches, and re-watches. The in-memory
   // completionTriggeredRef below still de-dups rapid timeupdate events within a session.
+  // Scoped per-student (like the progress cache) so one account's "already notified"
+  // flags never suppress another account's first-completion toast on a shared browser.
   const notifiedLessonIdsRef = useRef<string[]>([]);
-  const notifiedStorageKeyRef = useRef(`el_awal_video_notified_${courseId}`);
+  const notifiedStorageKeyRef = useRef(`el_awal_video_notified_${courseId}_${progressScopeId}`);
 
   useEffect(() => {
-    notifiedStorageKeyRef.current = `el_awal_video_notified_${courseId}`;
+    notifiedStorageKeyRef.current = `el_awal_video_notified_${courseId}_${progressScopeId}`;
     if (typeof window === 'undefined') return;
     try {
       const saved = localStorage.getItem(notifiedStorageKeyRef.current);
@@ -168,73 +227,87 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     } catch {
       notifiedLessonIdsRef.current = [];
     }
-  }, [courseId]);
+  }, [courseId, progressScopeId]);
 
   // Reset completion trigger state when changing lessons
   useEffect(() => {
     completionTriggeredRef.current = null;
+    advancedLessonRef.current = null;
   }, [selectedLessonId]);
 
   // Stable completion handler — reads from refs, never needs to be recreated
   const handleVideoProgressOrEnd = useCallback(async (seconds?: number, duration?: number) => {
     const lessonId = selectedLessonIdRef.current;
     if (!lessonId) return;
-    if (completionTriggeredRef.current === lessonId) return;
+
+    // A genuine end-of-video: a direct 'ended' event (no args) or playback that reached the
+    // final second. Distinct from the 80% "most watched" threshold so we advance to the next
+    // lesson only when the student actually finished — never yanking them away mid-watch.
+    const isHardEnd =
+      (seconds === undefined && duration === undefined) ||
+      (typeof seconds === 'number' && typeof duration === 'number' && duration > 0 && seconds >= duration - 1);
 
     // Check if watched most of the video (>= 80% or reached end)
     const isMostWatched =
+      isHardEnd ||
       (typeof seconds === 'number' && typeof duration === 'number' && duration > 0 && seconds >= duration * 0.8) ||
-      (typeof seconds === 'number' && typeof duration === 'number' && duration > 0 && seconds >= duration - 3) ||
-      (seconds === undefined && duration === undefined); // called from direct ended event
-
-    if (!isMostWatched) return;
-
-    completionTriggeredRef.current = lessonId;
+      (typeof seconds === 'number' && typeof duration === 'number' && duration > 0 && seconds >= duration - 3);
 
     const currentLessonViewer = lessonViewerRef.current;
     const currentActiveLesson = activeLessonRef.current;
     const currentIsCompleted = isLessonCompletedRef.current;
-
-    // First-completion-only gate: if this lesson's popup was already shown (persisted
-    // across reloads), or the lesson is already completed on the server, stay fully
-    // silent — no toast, no automatic switch to the quiz tab.
-    if (notifiedLessonIdsRef.current.includes(lessonId) || currentIsCompleted) {
-      return;
-    }
-
-    // Record (and persist) that we've now shown the completion popup for this lesson.
-    notifiedLessonIdsRef.current = [...notifiedLessonIdsRef.current, lessonId];
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(
-          notifiedStorageKeyRef.current,
-          JSON.stringify(notifiedLessonIdsRef.current)
-        );
-      } catch {}
-    }
-
     const hasQuiz = Boolean(
       currentLessonViewer?.lessonQuiz ||
       currentActiveLesson?.lessonQuizId
     );
 
-    if (hasQuiz) {
-      setActiveTabRef.current('quiz');
-      toast('أحسنت بمشاهدة شرح الدرس! يرجى حل اختبار الدرس لاحتساب إتمامه بنجاح 📝', { icon: '🎓' });
-    } else {
-      setCompletedLessonIds((prev) => Array.from(new Set([...prev, lessonId])));
-      try {
-        await coursesApi.updateLessonProgress(lessonId, {
-          isCompleted: true,
-          lastPositionSeconds: Math.round(seconds || 0),
-        });
-        await refetchLessonRef.current();
-        toast.success('أحسنت! تمت مشاهدة معظم شرح الدرس وتم رصد إتمامه بنجاح 🎯');
-      } catch {
-        // Ignore
+    // ── Record completion (once per lesson; may fire at the 80% mark) ──────────────
+    if (isMostWatched && completionTriggeredRef.current !== lessonId) {
+      completionTriggeredRef.current = lessonId;
+
+      // First-completion-only gate: if this lesson's popup was already shown (persisted
+      // across reloads), or the lesson is already completed on the server, stay fully
+      // silent — no toast, no automatic switch to the quiz tab.
+      if (!notifiedLessonIdsRef.current.includes(lessonId) && !currentIsCompleted) {
+        // Record (and persist) that we've now shown the completion popup for this lesson.
+        notifiedLessonIdsRef.current = [...notifiedLessonIdsRef.current, lessonId];
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(
+              notifiedStorageKeyRef.current,
+              JSON.stringify(notifiedLessonIdsRef.current)
+            );
+          } catch {}
+        }
+
+        if (hasQuiz) {
+          setActiveTabRef.current('quiz');
+          toast('أحسنت بمشاهدة شرح الدرس! يرجى حل اختبار الدرس لاحتساب إتمامه بنجاح 📝', { icon: '🎓' });
+        } else {
+          markLessonCompletedLocally(lessonId);
+          try {
+            await coursesApi.updateLessonProgress(lessonId, {
+              isCompleted: true,
+              lastPositionSeconds: Math.round(seconds || 0),
+            });
+            await refetchLessonRef.current();
+            toast.success('أحسنت! تمت مشاهدة معظم شرح الدرس وتم رصد إتمامه بنجاح 🎯');
+          } catch {
+            // Ignore
+          }
+        }
       }
     }
-  }, []); // ← stable: no dependencies, reads from refs
+
+    // ── Reveal the next lesson once the video genuinely finishes ───────────────────
+    // Only for lessons without a gating quiz (quiz lessons keep the student on the quiz
+    // tab until they solve it). Loads the next video paused — advanceToNextLesson only
+    // re-selects, and Bunny embeds never autoplay.
+    if (isHardEnd && !hasQuiz && advancedLessonRef.current !== lessonId) {
+      advancedLessonRef.current = lessonId;
+      advanceToNextLesson(lessonId);
+    }
+  }, [markLessonCompletedLocally, advanceToNextLesson]); // stable deps: both are memoized
 
   // Handshake Player.js event listeners on iframe load
   const initIframePlayer = useCallback(() => {
@@ -384,29 +457,34 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
   const [isMarkingComplete, setIsMarkingComplete] = useState(false);
   const handleToggleComplete = async () => {
     if (!selectedLessonId) return;
+    const lessonId = selectedLessonId;
     const nextCompleted = !isLessonCompleted;
 
     // Optimistic UI update
-    setCompletedLessonIds((prev) =>
-      nextCompleted
-        ? Array.from(new Set([...prev, selectedLessonId]))
-        : prev.filter((id) => id !== selectedLessonId)
-    );
+    if (nextCompleted) {
+      markLessonCompletedLocally(lessonId);
+    } else {
+      setCompletedLessonIds((prev) => prev.filter((id) => id !== lessonId));
+    }
 
     try {
       setIsMarkingComplete(true);
-      await coursesApi.updateLessonProgress(selectedLessonId, {
+      await coursesApi.updateLessonProgress(lessonId, {
         isCompleted: nextCompleted,
         lastPositionSeconds: lessonViewer?.lastPositionSeconds || 0,
       });
       await refetchLesson();
       toast.success(nextCompleted ? 'أحسنت! تم إتمام الدرس بنجاح 🎉' : 'تم إلغاء إتمام الدرس');
+      // On manual completion, reveal the next lesson immediately (paused — no autoplay).
+      if (nextCompleted) {
+        advanceToNextLesson(lessonId);
+      }
     } catch (err: any) {
       // Revert optimistic update on failure
       setCompletedLessonIds((prev) =>
         isLessonCompleted
-          ? Array.from(new Set([...prev, selectedLessonId]))
-          : prev.filter((id) => id !== selectedLessonId)
+          ? Array.from(new Set([...prev, lessonId]))
+          : prev.filter((id) => id !== lessonId)
       );
       toast.error(err?.message || 'تعذر تحديث حالة إتمام الدرس');
     } finally {

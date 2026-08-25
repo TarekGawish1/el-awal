@@ -26,18 +26,36 @@ describe('StudentDashboard', () => {
       isLoading: false,
     } as any);
 
+    // useStudentCourses returns a BARE ARRAY (/courses/my-courses is unwrapped by apiClient)
     vi.mocked(useStudentCourses).mockReturnValue({
-      data: { data: [{ id: 'c1', title: 'دورة الفيزياء', progressPercentage: 50 }] },
+      data: [{ courseId: 'c1', title: 'دورة الفيزياء', teacherName: 'أ. أحمد', progressPercentage: 50 }],
       isLoading: false,
     } as any);
 
+    // useStudentAssessments returns { data, meta } (cursor pagination; meta has NO totalItems)
     vi.mocked(useStudentAssessments).mockReturnValue({
-      data: { meta: { totalItems: 2 }, data: [{ id: 'a1', title: 'اختبار نصف العام', totalScore: 100 }] },
+      data: {
+        data: [
+          { id: 'a1', title: 'اختبار نصف العام', totalScore: 100, _count: { submissions: 0 } },
+          { id: 'a2', title: 'اختبار الشهر', totalScore: 50, _count: { submissions: 1 } },
+        ],
+        meta: { nextCursor: null, prevCursor: null, hasMore: false, limit: 20 },
+      },
       isLoading: false,
     } as any);
 
+    // useStudentAttendance returns { data, meta }; rate is derived client-side (present / total).
+    // 3 PRESENT of 4 records => 75%.
     vi.mocked(useStudentAttendance).mockReturnValue({
-      data: { meta: { attendanceRate: 95 } },
+      data: {
+        data: [
+          { id: 'r1', status: 'PRESENT' },
+          { id: 'r2', status: 'PRESENT' },
+          { id: 'r3', status: 'PRESENT' },
+          { id: 'r4', status: 'ABSENT' },
+        ],
+        meta: { nextCursor: null, prevCursor: null, hasMore: false, limit: 20 },
+      },
       isLoading: false,
     } as any);
 
@@ -51,9 +69,9 @@ describe('StudentDashboard', () => {
     expect(screen.getByText('المجموعة أ')).toBeInTheDocument();
     
     // KPIs
-    expect(screen.getByText('95%')).toBeInTheDocument(); // Attendance rate
-    expect(screen.getByText('2')).toBeInTheDocument(); // Assessment count
-    expect(screen.getByText('1')).toBeInTheDocument(); // Courses count
+    expect(screen.getByText('75%')).toBeInTheDocument(); // Attendance rate (3 present / 4 = 75%)
+    expect(screen.getByText('2')).toBeInTheDocument(); // Assessment count (data.length)
+    expect(screen.getByText('1')).toBeInTheDocument(); // Courses count (bare array length)
     
     // Content sections
     expect(screen.getByText('دورة الفيزياء')).toBeInTheDocument();

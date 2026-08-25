@@ -14,6 +14,19 @@ export function StudentDashboard() {
   const { data: assessments, isLoading: isAssessmentsLoading } = useStudentAssessments();
   const { data: attendance, isLoading: isAttendanceLoading } = useStudentAttendance();
 
+  // These hooks are dual-shape: online they return the cursor-paginated { data, meta } envelope,
+  // while their offline/error fallbacks return a bare array. Normalize to a plain list either way.
+  const assessmentList = Array.isArray(assessments) ? assessments : (assessments?.data || []);
+  const attendanceRecords = Array.isArray(attendance) ? attendance : (attendance?.data || []);
+
+  // Attendance rate is derived client-side from the student's visible records, mirroring the
+  // dedicated attendance page: present / total (present = PRESENT), defaulting to 100 when there
+  // are no records yet. The cursor-paginated API returns { data, meta } with no precomputed rate.
+  const attendancePresentCount = attendanceRecords.filter((r: any) => r.status === 'PRESENT').length;
+  const attendanceRate = attendanceRecords.length > 0
+    ? Math.round((attendancePresentCount / attendanceRecords.length) * 100)
+    : 100;
+
   const enrolledGroups = profile?.groupEnrollments || [];
   const primaryGroupId = enrolledGroups[0]?.group?.id;
 
@@ -153,7 +166,7 @@ export function StudentDashboard() {
             <div className="p-3 bg-blue-50 text-blue-600 rounded-xl"><BookOpen className="w-6 h-6" /></div>
             <div>
               <p className="text-sm font-medium text-slate-500">الدورات المسجلة</p>
-              <h4 className="text-2xl font-bold text-slate-800">{isCoursesLoading ? '-' : courses?.data?.length || 0}</h4>
+              <h4 className="text-2xl font-bold text-slate-800">{isCoursesLoading ? '-' : courses?.length || 0}</h4>
             </div>
           </CardContent>
         </Card>
@@ -163,7 +176,7 @@ export function StudentDashboard() {
             <div className="p-3 bg-purple-50 text-purple-600 rounded-xl"><FileText className="w-6 h-6" /></div>
             <div>
               <p className="text-sm font-medium text-slate-500">الاختبارات القادمة</p>
-              <h4 className="text-2xl font-bold text-slate-800">{isAssessmentsLoading ? '-' : assessments?.meta?.totalItems || 0}</h4>
+              <h4 className="text-2xl font-bold text-slate-800">{isAssessmentsLoading ? '-' : assessmentList.length || 0}</h4>
             </div>
           </CardContent>
         </Card>
@@ -174,7 +187,7 @@ export function StudentDashboard() {
             <div>
               <p className="text-sm font-medium text-slate-500">نسبة الحضور</p>
               <h4 className="text-2xl font-bold text-slate-800">
-                {isAttendanceLoading ? '-' : attendance?.meta?.attendanceRate ? `${attendance.meta.attendanceRate}%` : '100%'}
+                {isAttendanceLoading ? '-' : `${attendanceRate}%`}
               </h4>
             </div>
           </CardContent>
@@ -200,19 +213,19 @@ export function StudentDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
-            {!courses?.data?.length ? (
+            {!courses?.length ? (
               <div className="text-center py-8 text-slate-500 flex flex-col items-center">
                 <BookOpen className="w-10 h-10 text-slate-300 mb-3" />
                 <p>لا توجد دورات مسجلة حالياً</p>
               </div>
             ) : (
               <div className="space-y-4">
-                {courses.data.slice(0, 3).map((course: any) => (
-                  <Link key={course.id} href={`/student/courses/${course.id}`} className="block bg-slate-50 rounded-xl p-4 hover:bg-slate-100 transition-colors border border-slate-100">
+                {courses.slice(0, 3).map((course: any) => (
+                  <Link key={course.courseId} href={`/student/courses/${course.courseId}/learn`} className="block bg-slate-50 rounded-xl p-4 hover:bg-slate-100 transition-colors border border-slate-100">
                     <div className="flex justify-between items-center">
                       <div>
                         <h4 className="font-bold text-slate-800">{course.title}</h4>
-                        <p className="text-xs text-slate-500 mt-1">{course.teacher?.user?.fullName}</p>
+                        <p className="text-xs text-slate-500 mt-1">{course.teacherName}</p>
                       </div>
                       <Badge variant="outline" className="bg-white">نسبة الإنجاز: {course.progressPercentage || 0}%</Badge>
                     </div>
@@ -231,14 +244,14 @@ export function StudentDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
-            {!assessments?.data?.length ? (
+            {!assessmentList.length ? (
               <div className="text-center py-8 text-slate-500 flex flex-col items-center">
                 <FileText className="w-10 h-10 text-slate-300 mb-3" />
                 <p>لا توجد اختبارات متاحة حالياً</p>
               </div>
             ) : (
               <div className="space-y-4">
-                {assessments.data.slice(0, 3).map((assessment: any) => (
+                {assessmentList.slice(0, 3).map((assessment: any) => (
                   <Link key={assessment.id} href={`/student/assessments/${assessment.id}`} className="block bg-slate-50 rounded-xl p-4 hover:bg-slate-100 transition-colors border border-slate-100">
                     <div className="flex justify-between items-center">
                       <div>

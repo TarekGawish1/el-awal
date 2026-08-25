@@ -4,6 +4,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAssessments, useAssessment, useSubmitAssessment } from '@/features/assessments/hooks/use-assessments';
 import { coursesApi } from '@/features/courses/api/courses.api';
+import { useAuth } from '@/features/auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -288,6 +289,10 @@ function AssessmentWrapper({
   onBack: () => void;
 }) {
   const router = useRouter();
+  const { user } = useAuth();
+  // Same per-student scope the learning room uses, so the optimistic completion hint we
+  // write below lands in the key the room actually reads (and never bleeds across accounts).
+  const progressScopeId = user?.studentProfileId || user?.id || 'anon';
   const { data: assessment, isLoading, isError, refetch } = useAssessment(assessmentId);
   const { mutate: submit, isPending: isSubmitting } = useSubmitAssessment();
   const [answers, setAnswers] = useState<{ [questionId: string]: string }>({});
@@ -364,10 +369,11 @@ function AssessmentWrapper({
 
     if (targetCourseId && targetLessonId && typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem(`el_awal_course_progress_${targetCourseId}`);
+        const key = `el_awal_course_progress_${targetCourseId}_${progressScopeId}`;
+        const saved = localStorage.getItem(key);
         const list = saved ? JSON.parse(saved) : [];
         const updated = Array.isArray(list) ? Array.from(new Set([...list, targetLessonId])) : [targetLessonId];
-        localStorage.setItem(`el_awal_course_progress_${targetCourseId}`, JSON.stringify(updated));
+        localStorage.setItem(key, JSON.stringify(updated));
       } catch {}
     }
 
