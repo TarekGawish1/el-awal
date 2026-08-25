@@ -113,10 +113,9 @@ describe('FinanceDashboard', () => {
     // Group select label should be visible in manual tab
     expect(screen.getByText(/المجموعة الدراسية/i)).toBeInTheDocument();
 
-    const selects = screen.getAllByRole('combobox');
-    fireEvent.change(selects[0], { target: { value: 'group-1' } });
+    fireEvent.change(screen.getByLabelText('المجموعة الدراسية'), { target: { value: 'group-1' } });
 
-    expect(screen.getByText(/الطلاب المتأخرين - مجموعة الأوائل/i)).toBeInTheDocument();
+    expect(screen.getByText(/الطلاب المتأخرين عن السداد - مجموعة الأوائل/i)).toBeInTheDocument();
     expect(screen.getAllByText('طالب متأخر').length).toBeGreaterThan(0);
   });
 

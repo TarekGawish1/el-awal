@@ -15,7 +15,7 @@ export function FinanceTabs({ activeTab, onChange }: FinanceTabsProps) {
     { id: 'QR', label: 'الماسح الذكي (QR)', icon: QrCode },
     { id: 'MANUAL', label: 'رصد يدوي للمصروفات', icon: ClipboardList },
     { id: 'BOOKLETS', label: 'المذكرات والملازم الدراسية', icon: BookOpen, className: 'sm:w-56' },
-    { id: 'MATRIX', label: 'سجل المدفوعات الشامل (جديد)', icon: FileSpreadsheet, className: 'sm:w-64' },
+    { id: 'MATRIX', label: 'سجل المدفوعات الشامل', icon: FileSpreadsheet, className: 'sm:w-64' },
   ];
 
   return (

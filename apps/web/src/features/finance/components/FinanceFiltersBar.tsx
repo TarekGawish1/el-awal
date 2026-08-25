@@ -25,11 +25,13 @@ interface FinanceFiltersBarProps {
   academicYear: string;
   academicTerm: 'FIRST_TERM' | 'SECOND_TERM';
   search: string;
+  periodMonth?: number;
   onStageChange: (value: string) => void;
   onGradeChange: (value: string) => void;
   onGroupChange: (value: string) => void;
   onTermChange: (value: 'FIRST_TERM' | 'SECOND_TERM') => void;
   onSearchChange: (value: string) => void;
+  onMonthChange?: (value: number) => void;
 }
 
 function inferStage(gradeLevel?: string) {
@@ -45,11 +47,13 @@ export function FinanceFiltersBar({
   academicYear,
   academicTerm,
   search,
+  periodMonth,
   onStageChange,
   onGradeChange,
   onGroupChange,
   onTermChange,
   onSearchChange,
+  onMonthChange,
 }: FinanceFiltersBarProps) {
   const groupGrades = groups.map((group) => group.gradeLevel).filter(Boolean);
   const stageGrades = stage === 'ALL' ? Object.values(GRADE_LEVELS_BY_STAGE).flat() : GRADE_LEVELS_BY_STAGE[stage] || [];
@@ -95,6 +99,15 @@ export function FinanceFiltersBar({
           {availableGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
         </select>
       </label>
+
+      {onMonthChange && (
+        <label className="text-xs font-bold text-slate-700">
+          الشهر
+          <select aria-label="الشهر" value={periodMonth} onChange={(event) => onMonthChange(Number(event.target.value))} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm">
+            {TERM_MONTHS[academicTerm].map((month) => <option key={month} value={month}>{month} ({['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'][month - 1]})</option>)}
+          </select>
+        </label>
+      )}
 
       <label className="text-xs font-bold text-slate-700 sm:col-span-2">
         بحث سريع
