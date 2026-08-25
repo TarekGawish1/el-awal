@@ -316,8 +316,8 @@ function drawPlatformBadge(
 // ─── Main exports ──────────────────────────────────────────────────────────
 
 export function generateCertificate(data: CertificateData): { dataUrl: string; certNumber: string } {
-  const W = 1122; // A4 landscape @ 96 dpi
-  const H = 794;
+  const W = 1400;
+  const H = 990;
 
   const certNumber = generateCertificateNumber(data);
 
@@ -326,95 +326,80 @@ export function generateCertificate(data: CertificateData): { dataUrl: string; c
   canvas.height = H;
   const ctx = canvas.getContext('2d')!;
 
-  // Background gradient
+  // Clean navy, ivory and cyan palette keeps the certificate contemporary and printable.
   const bgGrad = ctx.createLinearGradient(0, 0, W, H);
-  bgGrad.addColorStop(0, '#fffde7');
-  bgGrad.addColorStop(0.45, '#fff8e1');
-  bgGrad.addColorStop(1, '#fff3e0');
+  bgGrad.addColorStop(0, '#f8fbff');
+  bgGrad.addColorStop(0.55, '#ffffff');
+  bgGrad.addColorStop(1, '#eef6fb');
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, W, H);
 
-  // Texture dots
-  ctx.fillStyle = 'rgba(180,140,60,0.07)';
-  for (let x = 20; x < W; x += 40) {
-    for (let y = 20; y < H; y += 40) {
+  // Restrained dot texture adds depth without competing with the content.
+  ctx.fillStyle = 'rgba(15, 118, 143, 0.06)';
+  for (let x = 30; x < W; x += 42) {
+    for (let y = 30; y < H; y += 42) {
       ctx.beginPath();
-      ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+      ctx.arc(x, y, 1.2, 0, Math.PI * 2);
       ctx.fill();
     }
   }
 
-  // Outer border
-  const borderPad = 22;
-  roundRect(ctx, borderPad, borderPad, W - borderPad * 2, H - borderPad * 2, 14);
-  const outerBorderGrad = ctx.createLinearGradient(borderPad, borderPad, W - borderPad, H - borderPad);
-  outerBorderGrad.addColorStop(0, '#b8860b');
-  outerBorderGrad.addColorStop(0.5, '#ffd700');
-  outerBorderGrad.addColorStop(1, '#b8860b');
-  ctx.strokeStyle = outerBorderGrad;
-  ctx.lineWidth = 3.5;
+  // Bold side rail and minimal frame.
+  ctx.fillStyle = '#0f3557';
+  ctx.fillRect(0, 0, 28, H);
+  ctx.fillStyle = '#1bb3c8';
+  ctx.fillRect(28, 0, 8, H);
+  roundRect(ctx, 58, 52, W - 116, H - 104, 20);
+  ctx.strokeStyle = '#d7e8ef';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.strokeStyle = '#1bb3c8';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(92, 112); ctx.lineTo(92, 260);
+  ctx.moveTo(W - 92, H - 260); ctx.lineTo(W - 92, H - 112);
   ctx.stroke();
 
-  // Inner border
-  const innerPad = 34;
-  roundRect(ctx, innerPad, innerPad, W - innerPad * 2, H - innerPad * 2, 10);
-  ctx.strokeStyle = 'rgba(184,134,11,0.35)';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  // Corners
-  const cornerSize = 38;
-  const goldColor = '#b8860b';
-  const cp = innerPad + 6;
-  drawCorner(ctx, cp, cp, 0, cornerSize, goldColor);
-  drawCorner(ctx, W - cp, cp, Math.PI / 2, cornerSize, goldColor);
-  drawCorner(ctx, cp, H - cp, -Math.PI / 2, cornerSize, goldColor);
-  drawCorner(ctx, W - cp, H - cp, Math.PI, cornerSize, goldColor);
-
-  // Header band
-  const headerY = 58;
-  const headerH = 64;
-  roundRect(ctx, 58, headerY, W - 116, headerH, 8);
-  const headerGrad = ctx.createLinearGradient(58, headerY, W - 58, headerY + headerH);
-  headerGrad.addColorStop(0, '#795548');
-  headerGrad.addColorStop(0.2, '#b8860b');
-  headerGrad.addColorStop(0.5, '#ffd700');
-  headerGrad.addColorStop(0.8, '#b8860b');
-  headerGrad.addColorStop(1, '#795548');
-  ctx.fillStyle = headerGrad;
-  ctx.fill();
+  // Brand mark.
+  ctx.save();
+  roundRect(ctx, 92, 92, 72, 72, 18);
+  ctx.fillStyle = '#0f3557'; ctx.fill();
+  ctx.fillStyle = '#70e1e8';
+  ctx.beginPath(); ctx.arc(128, 128, 18, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
 
   ctx.save();
   ctx.direction = 'rtl';
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#fff8e1';
-  ctx.font = "bold 26px 'Segoe UI', 'Arial', sans-serif";
-  ctx.shadowColor = 'rgba(0,0,0,0.3)';
-  ctx.shadowBlur = 4;
-  ctx.fillText('\u0645\u0646\u0635\u0629 \u0627\u0644\u0623\u0648\u0644 \u0644\u0644\u062a\u0639\u0644\u064a\u0645', W / 2, headerY + 41);
+  ctx.fillStyle = '#0f3557';
+  ctx.font = "bold 25px 'Segoe UI', 'Arial', sans-serif";
+  ctx.fillText('\u0645\u0646\u0635\u0629 \u0627\u0644\u0623\u0648\u0644 \u0644\u0644\u062a\u0639\u0644\u064a\u0645', 210, 137);
+  ctx.direction = 'ltr';
+  ctx.textAlign = 'right';
+  ctx.font = "600 17px 'Segoe UI', 'Arial', sans-serif";
+  ctx.fillStyle = '#648096';
+  ctx.fillText('CERTIFICATE OF COMPLETION', W - 92, 137);
   ctx.restore();
 
   // Main title
   ctx.save();
   ctx.direction = 'rtl';
   ctx.textAlign = 'center';
-  ctx.font = "bold 52px 'Segoe UI', 'Arial', sans-serif";
-  ctx.fillStyle = '#4e342e';
-  ctx.shadowColor = 'rgba(0,0,0,0.12)';
-  ctx.shadowBlur = 6;
-  ctx.fillText('\u0634\u0647\u0627\u062f\u0629 \u0625\u062a\u0645\u0627\u0645', W / 2, 195);
+  ctx.font = "bold 62px 'Segoe UI', 'Arial', sans-serif";
+  ctx.fillStyle = '#0f3557';
+  ctx.fillText('\u0634\u0647\u0627\u062f\u0629 \u0625\u062a\u0645\u0627\u0645', W / 2, 270);
   ctx.restore();
 
   // Decorative line
-  const lineY = 208;
-  const lineHalfW = 180;
+  const lineY = 292;
+  const lineHalfW = 220;
   const lineGrad = ctx.createLinearGradient(W / 2 - lineHalfW, lineY, W / 2 + lineHalfW, lineY);
   lineGrad.addColorStop(0, 'transparent');
-  lineGrad.addColorStop(0.3, '#b8860b');
-  lineGrad.addColorStop(0.7, '#b8860b');
+  lineGrad.addColorStop(0.3, '#1bb3c8');
+  lineGrad.addColorStop(0.7, '#1bb3c8');
   lineGrad.addColorStop(1, 'transparent');
   ctx.strokeStyle = lineGrad;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.moveTo(W / 2 - lineHalfW, lineY);
   ctx.lineTo(W / 2 + lineHalfW, lineY);
@@ -424,32 +409,26 @@ export function generateCertificate(data: CertificateData): { dataUrl: string; c
   ctx.save();
   ctx.direction = 'rtl';
   ctx.textAlign = 'center';
-  ctx.font = "18px 'Segoe UI', 'Arial', sans-serif";
-  ctx.fillStyle = '#6d4c41';
-  ctx.fillText('\u064a\u064f\u0634\u0647\u062f \u0644\u0640', W / 2, 248);
+  ctx.font = "20px 'Segoe UI', 'Arial', sans-serif";
+  ctx.fillStyle = '#648096';
+  ctx.fillText('\u064a\u064f\u0634\u0647\u062f \u0644\u0640', W / 2, 335);
   ctx.restore();
 
   // Student name
   ctx.save();
   ctx.direction = 'rtl';
   ctx.textAlign = 'center';
-  ctx.font = "bold 44px 'Segoe UI', 'Arial', sans-serif";
-  const nameGrad = ctx.createLinearGradient(W / 2 - 250, 0, W / 2 + 250, 0);
-  nameGrad.addColorStop(0, '#b8860b');
-  nameGrad.addColorStop(0.5, '#7b3f00');
-  nameGrad.addColorStop(1, '#b8860b');
-  ctx.fillStyle = nameGrad;
-  ctx.shadowColor = 'rgba(184,134,11,0.25)';
-  ctx.shadowBlur = 8;
+  ctx.font = "bold 50px 'Segoe UI', 'Arial', sans-serif";
+  ctx.fillStyle = '#102f4d';
   const nameLines = wrapText(ctx, data.studentName, W - 240);
   nameLines.forEach((line, i) => {
-    ctx.fillText(line, W / 2, 300 + i * 52);
+    ctx.fillText(line, W / 2, 420 + i * 58);
   });
   ctx.restore();
 
-  const afterNameY = 300 + nameLines.length * 52;
+  const afterNameY = 420 + nameLines.length * 58;
 
-  ctx.strokeStyle = 'rgba(184,134,11,0.6)';
+  ctx.strokeStyle = 'rgba(27,179,200,0.5)';
   ctx.lineWidth = 1.5;
   ctx.setLineDash([6, 4]);
   ctx.beginPath();
@@ -463,25 +442,23 @@ export function generateCertificate(data: CertificateData): { dataUrl: string; c
   ctx.direction = 'rtl';
   ctx.textAlign = 'center';
   ctx.font = "18px 'Segoe UI', 'Arial', sans-serif";
-  ctx.fillStyle = '#6d4c41';
-  ctx.fillText('\u0628\u0625\u062a\u0645\u0627\u0645\u0647/\u0647\u0627 \u0627\u0644\u062f\u0648\u0631\u0629 \u0627\u0644\u062a\u062f\u0631\u064a\u0628\u064a\u0629 \u0628\u0646\u062c\u0627\u062d', W / 2, afterNameY + 38);
+  ctx.fillStyle = '#648096';
+  ctx.fillText('\u0628\u0625\u062a\u0645\u0627\u0645\u0647/\u0647\u0627 \u0627\u0644\u062f\u0648\u0631\u0629 \u0627\u0644\u062a\u062f\u0631\u064a\u0628\u064a\u0629 \u0628\u0646\u062c\u0627\u062d', W / 2, afterNameY + 48);
   ctx.restore();
 
   // Course title
   ctx.save();
   ctx.direction = 'rtl';
   ctx.textAlign = 'center';
-  ctx.font = "bold 30px 'Segoe UI', 'Arial', sans-serif";
-  ctx.fillStyle = '#1a237e';
-  ctx.shadowColor = 'rgba(26,35,126,0.15)';
-  ctx.shadowBlur = 6;
+  ctx.font = "bold 34px 'Segoe UI', 'Arial', sans-serif";
+  ctx.fillStyle = '#0b7890';
   const courseLines = wrapText(ctx, `" ${data.courseTitle} "`, W - 300);
   courseLines.forEach((line, i) => {
-    ctx.fillText(line, W / 2, afterNameY + 80 + i * 38);
+    ctx.fillText(line, W / 2, afterNameY + 92 + i * 42);
   });
   ctx.restore();
 
-  const afterCourseY = afterNameY + 80 + courseLines.length * 38;
+  const afterCourseY = afterNameY + 92 + courseLines.length * 42;
 
   // Teacher name
   if (data.teacherName) {
@@ -489,18 +466,18 @@ export function generateCertificate(data: CertificateData): { dataUrl: string; c
     ctx.direction = 'rtl';
     ctx.textAlign = 'center';
     ctx.font = "16px 'Segoe UI', 'Arial', sans-serif";
-    ctx.fillStyle = '#555';
+    ctx.fillStyle = '#648096';
     ctx.fillText(`\u0628\u0625\u0634\u0631\u0627\u0641 \u0627\u0644\u0623\u0633\u062a\u0627\u0630/\u0629: ${data.teacherName}`, W / 2, afterCourseY + 12);
     ctx.restore();
   }
 
-  // Footer bar
-  const footerY = H - 90;
-  const footerGrad = ctx.createLinearGradient(58, footerY, W - 58, footerY + 50);
-  footerGrad.addColorStop(0, 'rgba(184,134,11,0.08)');
-  footerGrad.addColorStop(0.5, 'rgba(184,134,11,0.18)');
-  footerGrad.addColorStop(1, 'rgba(184,134,11,0.08)');
-  roundRect(ctx, 58, footerY, W - 116, 50, 8);
+  // Footer metadata strip
+  const footerY = H - 150;
+  const footerGrad = ctx.createLinearGradient(92, footerY, W - 92, footerY);
+  footerGrad.addColorStop(0, '#eef8fb');
+  footerGrad.addColorStop(0.5, '#dff2f5');
+  footerGrad.addColorStop(1, '#eef8fb');
+  roundRect(ctx, 92, footerY, W - 184, 70, 14);
   ctx.fillStyle = footerGrad;
   ctx.fill();
 
@@ -509,8 +486,8 @@ export function generateCertificate(data: CertificateData): { dataUrl: string; c
   ctx.direction = 'rtl';
   ctx.textAlign = 'right';
   ctx.font = "15px 'Segoe UI', 'Arial', sans-serif";
-  ctx.fillStyle = '#5d4037';
-  ctx.fillText(`\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0625\u062a\u0645\u0627\u0645: ${data.completedDate}`, W - 80, footerY + 30);
+  ctx.fillStyle = '#315d75';
+  ctx.fillText(`\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0625\u062a\u0645\u0627\u0645: ${data.completedDate}`, W - 120, footerY + 43);
   ctx.restore();
 
   // Website
@@ -518,36 +495,24 @@ export function generateCertificate(data: CertificateData): { dataUrl: string; c
   ctx.direction = 'ltr';
   ctx.textAlign = 'left';
   ctx.font = "14px 'Segoe UI', 'Arial', sans-serif";
-  ctx.fillStyle = '#5d4037';
-  ctx.fillText('al-awal.online', 80, footerY + 30);
+  ctx.fillStyle = '#315d75';
+  ctx.fillText('al-awal.online', 120, footerY + 43);
   ctx.restore();
 
   // Certificate number centered in footer
   ctx.save();
   ctx.textAlign = 'center';
   ctx.font = "bold 11px 'Courier New', 'Consolas', monospace";
-  ctx.fillStyle = 'rgba(93,64,55,0.70)';
-  ctx.fillText(certNumber, W / 2, footerY + 34);
+  ctx.fillStyle = 'rgba(49,93,117,0.80)';
+  ctx.fillText(certNumber, W / 2, footerY + 45);
   ctx.restore();
 
-  // Seal — left of center bottom
-  drawSeal(ctx, W / 2 - 120, H - 148, 52);
-
-  // Platform badge — bottom-right
-  const badgeSize = 90;
-  const badgeX = W - badgeSize - 60;
-  const badgeY = H - badgeSize - 58;
+  // Seal and platform mark sit above the metadata strip.
+  drawSeal(ctx, W - 180, H - 250, 52);
+  const badgeSize = 82;
+  const badgeX = 110;
+  const badgeY = H - badgeSize - 215;
   drawPlatformBadge(ctx, badgeX, badgeY, badgeSize);
-
-  // Cert number below badge
-  ctx.save();
-  ctx.textAlign = 'center';
-  ctx.font = "bold 9.5px 'Courier New', 'Consolas', monospace";
-  ctx.fillStyle = '#1E4BD9';
-  ctx.globalAlpha = 0.80;
-  ctx.fillText(certNumber, badgeX + badgeSize / 2, badgeY + badgeSize + 14);
-  ctx.globalAlpha = 1;
-  ctx.restore();
 
   return { dataUrl: canvas.toDataURL('image/png'), certNumber };
 }

@@ -30,6 +30,7 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
   const [coverImageKey, setCoverImageKey] = useState<string | null>(null);
   const [courseQuizId, setCourseQuizId] = useState('');
+  const [hasCertificate, setHasCertificate] = useState(true);
 
   const isSubmittedRef = useRef(false);
   const coverImageKeyRef = useRef<string | null>(null);
@@ -78,6 +79,7 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
         price: parseFloat(price) || 0,
         coverImageUrl: coverImageUrl || undefined,
         courseQuizId: courseQuizId || undefined,
+        hasCertificate,
       });
 
       onClose();
@@ -176,6 +178,27 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
               <DollarSign className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
             </div>
             <span className="text-[11px] text-slate-500 mt-1 block">ضع 0 إذا كان الكورس متاحاً ومجانياً</span>
+          </div>
+
+          <div className="flex items-start justify-between gap-4 rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
+            <div className="text-right">
+              <label htmlFor="course-certificate" className="block text-xs font-bold text-slate-800">
+                إصدار شهادة إتمام
+              </label>
+              <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                اسمح للطلاب بتحميل شهادة عند إكمال جميع دروس الكورس.
+              </p>
+            </div>
+            <button
+              id="course-certificate"
+              type="button"
+              role="switch"
+              aria-checked={hasCertificate}
+              onClick={() => setHasCertificate((value) => !value)}
+              className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors ${hasCertificate ? 'bg-cyan-600' : 'bg-slate-300'}`}
+            >
+              <span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${hasCertificate ? 'translate-x-1' : 'translate-x-6'}`} />
+            </button>
           </div>
 
           {/* Direct Presigned Cover Upload Dropzone */}

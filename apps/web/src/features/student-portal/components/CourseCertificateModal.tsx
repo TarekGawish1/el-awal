@@ -118,14 +118,14 @@ export function CourseCertificateModal({ isOpen, onClose, data }: CourseCertific
 
       {/* Modal panel */}
       <div
-        className="relative z-[102] bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col"
+        className="relative z-[102] bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col"
         style={{ animation: 'slideUp 0.3s cubic-bezier(0.34,1.56,0.64,1)' }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-amber-50 to-orange-50 rounded-t-2xl">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-cyan-100 bg-gradient-to-r from-slate-50 to-cyan-50 rounded-t-2xl">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-amber-100 rounded-xl">
-              <Award className="w-6 h-6 text-amber-600" />
+            <div className="p-2 bg-cyan-100 rounded-xl">
+              <Award className="w-6 h-6 text-cyan-700" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-900">شهادة الإتمام</h2>
@@ -152,13 +152,13 @@ export function CourseCertificateModal({ isOpen, onClose, data }: CourseCertific
             <div className="w-full">
               {/* Subtle celebration badge above preview */}
               <div className="text-center mb-4">
-                <span className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-1.5 rounded-full text-sm font-bold shadow-sm">
-                  🎉 تهانينا! أتممت الدورة بنجاح
+                <span className="inline-flex items-center gap-2 bg-cyan-50 text-cyan-800 border border-cyan-200 px-4 py-1.5 rounded-full text-sm font-bold shadow-sm">
+                  تهانينا، أتممت الدورة بنجاح
                 </span>
               </div>
 
               {/* Certificate image preview */}
-              <div className="rounded-xl overflow-hidden border-2 border-amber-200 shadow-lg shadow-amber-100/50">
+               <div className="rounded-xl overflow-hidden border-2 border-cyan-200 shadow-lg shadow-cyan-100/50">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={certDataUrl}
@@ -200,7 +200,7 @@ export function CourseCertificateModal({ isOpen, onClose, data }: CourseCertific
             type="button"
             onClick={() => downloadCertificate(data)}
             disabled={!certDataUrl || isGenerating}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm shadow-amber-200 hover:shadow-md hover:shadow-amber-200 hover:-translate-y-0.5 active:translate-y-0"
+             className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-cyan-600 to-blue-700 hover:from-cyan-700 hover:to-blue-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm shadow-cyan-200 hover:shadow-md hover:shadow-cyan-200 hover:-translate-y-0.5 active:translate-y-0"
           >
             <Download className="w-4 h-4" />
             تحميل الشهادة (PNG)

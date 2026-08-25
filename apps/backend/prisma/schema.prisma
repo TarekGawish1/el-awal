@@ -406,6 +406,7 @@ model Course {
   status        CourseStatus @default(DRAFT) @map("status")
   orderIndex                  Int          @default(0) @map("order_index")
   enforceSequentialLessons    Boolean      @default(false) @map("enforce_sequential_lessons")
+  hasCertificate               Boolean      @default(true) @map("has_certificate")
   courseQuizId  String?      @unique(map: "uq_course_quiz") @map("course_quiz_id") @db.Uuid
   createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)

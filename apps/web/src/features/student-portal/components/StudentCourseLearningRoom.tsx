@@ -617,7 +617,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
       />
 
       {/* 🎓 Course Completion Celebration Banner */}
-      {isCourseCompleted && (
+      {isCourseCompleted && course.hasCertificate !== false && (
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-400 p-1 shadow-lg shadow-amber-200/50">
           <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 rounded-xl px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-4">
             {/* Decorative shimmer strip */}

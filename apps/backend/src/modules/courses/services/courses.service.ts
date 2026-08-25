@@ -72,6 +72,7 @@ export class CoursesService {
         coverImageUrl: dto.coverImageUrl,
         courseQuizId: dto.courseQuizId || null,
         enforceSequentialLessons: dto.enforceSequentialLessons ?? false,
+        hasCertificate: dto.hasCertificate ?? true,
         teacherId,
         status: CourseStatus.DRAFT,
       },
@@ -336,6 +337,7 @@ export class CoursesService {
         ...(dto.status ? { status: dto.status } : {}),
         ...(dto.courseQuizId !== undefined ? { courseQuizId: dto.courseQuizId } : {}),
         ...(dto.enforceSequentialLessons !== undefined ? { enforceSequentialLessons: dto.enforceSequentialLessons } : {}),
+        ...(dto.hasCertificate !== undefined ? { hasCertificate: dto.hasCertificate } : {}),
       },
     });
   }

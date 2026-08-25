@@ -72,4 +72,9 @@ export class UpdateCourseDto {
   @IsOptional()
   @IsBoolean()
   enforceSequentialLessons?: boolean;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  hasCertificate?: boolean;
 }

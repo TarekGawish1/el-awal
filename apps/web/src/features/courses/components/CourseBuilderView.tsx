@@ -440,6 +440,33 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
             </button>
           </div>
 
+          <div className="bg-white border border-cyan-100 p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-700 flex items-center justify-center border border-cyan-100 shrink-0">
+                <Award className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-900">شهادة إتمام الكورس</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {course.hasCertificate !== false
+                    ? 'سيحصل الطالب على شهادة عند إكمال جميع الدروس'
+                    : 'لن يتم إصدار شهادة لهذا الكورس'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => updateCourseMutation.mutate({ hasCertificate: course.hasCertificate === false })}
+              disabled={updateCourseMutation.isPending}
+              className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 transition-colors duration-200 ease-in-out focus:outline-none ${course.hasCertificate !== false ? 'bg-cyan-600 border-cyan-600' : 'bg-slate-200 border-slate-200'}`}
+              role="switch"
+              aria-checked={course.hasCertificate !== false}
+              title={course.hasCertificate !== false ? 'إلغاء إصدار الشهادة' : 'تفعيل إصدار الشهادة'}
+            >
+              <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm transform transition-transform duration-200 ease-in-out mt-0.5 ${course.hasCertificate !== false ? '-translate-x-5' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
+
           {/* Modules Control Bar */}
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">

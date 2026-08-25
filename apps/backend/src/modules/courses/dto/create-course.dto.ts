@@ -102,4 +102,13 @@ export class CreateCourseDto {
   @IsOptional()
   @IsBoolean()
   enforceSequentialLessons?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Whether students receive a certificate after completing the course',
+    example: true,
+    default: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  hasCertificate?: boolean;
 }

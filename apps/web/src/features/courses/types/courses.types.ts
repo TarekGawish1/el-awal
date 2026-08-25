@@ -115,6 +115,7 @@ export interface CourseDetail {
   status: CourseStatus;
   orderIndex: number;
   enforceSequentialLessons?: boolean;
+  hasCertificate?: boolean;
   courseQuizId?: string | null;
   courseQuiz?: AssessmentSummary | null;
   modules: CourseModule[];
