@@ -42,6 +42,7 @@ function generateParticles(count: number): Particle[] {
 
 export function CourseCertificateModal({ isOpen, onClose, data }: CourseCertificateModalProps) {
   const [certDataUrl, setCertDataUrl] = useState<string | null>(null);
+  const [certNumber, setCertNumber] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [particles] = useState(() => generateParticles(40));
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -52,8 +53,9 @@ export function CourseCertificateModal({ isOpen, onClose, data }: CourseCertific
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         try {
-          const url = generateCertificate(data);
-          setCertDataUrl(url);
+          const { dataUrl, certNumber: cn } = generateCertificate(data);
+          setCertDataUrl(dataUrl);
+          setCertNumber(cn);
         } catch (e) {
           console.error('Certificate generation failed:', e);
         } finally {
@@ -66,6 +68,7 @@ export function CourseCertificateModal({ isOpen, onClose, data }: CourseCertific
   useEffect(() => {
     if (isOpen) {
       setCertDataUrl(null);
+      setCertNumber(null);
       generate();
     }
   }, [isOpen, generate]);
@@ -164,6 +167,16 @@ export function CourseCertificateModal({ isOpen, onClose, data }: CourseCertific
                   style={{ imageRendering: 'crisp-edges' }}
                 />
               </div>
+
+              {/* Certificate number display */}
+              {certNumber && (
+                <div className="flex items-center justify-center gap-2 mt-2">
+                  <span className="text-xs text-slate-500">رقم الشهادة:</span>
+                  <span className="font-mono text-xs font-bold tracking-widest text-primary-700 bg-primary-50 border border-primary-200 px-3 py-1 rounded-lg select-all">
+                    {certNumber}
+                  </span>
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex flex-col items-center gap-3 py-20 text-slate-400">
