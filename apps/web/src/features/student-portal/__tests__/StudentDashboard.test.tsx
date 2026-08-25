@@ -9,6 +9,10 @@ vi.mock('../hooks/useStudentPortal', () => ({
   useStudentAssessments: vi.fn(),
   useStudentAttendance: vi.fn(),
   useGroupSessions: vi.fn().mockReturnValue({ data: [] }),
+  useStudentGroup: vi.fn().mockReturnValue({ data: null }),
+  useStudentGroupSessions: vi.fn().mockReturnValue({ data: [], isLoading: false }),
+  useSendHomeworkUpload: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
+  useSubmitHomework: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
 }));
 
 describe('StudentDashboard', () => {
@@ -36,8 +40,8 @@ describe('StudentDashboard', () => {
     vi.mocked(useStudentAssessments).mockReturnValue({
       data: {
         data: [
-          { id: 'a1', title: 'اختبار نصف العام', totalScore: 100, _count: { submissions: 0 } },
-          { id: 'a2', title: 'اختبار الشهر', totalScore: 50, _count: { submissions: 1 } },
+          { id: 'a1', title: 'اختبار نصف العام', totalScore: 100, group: { id: 'g1', name: 'المجموعة أ' }, _count: { submissions: 0 } },
+          { id: 'a2', title: 'اختبار الشهر', totalScore: 50, group: { id: 'g1', name: 'المجموعة أ' }, _count: { submissions: 1 } },
         ],
         meta: { nextCursor: null, prevCursor: null, hasMore: false, limit: 20 },
       },
@@ -66,7 +70,7 @@ describe('StudentDashboard', () => {
     expect(screen.getByText(/الكود: STU-123/)).toBeInTheDocument();
     
     // Group Badge
-    expect(screen.getByText('المجموعة أ')).toBeInTheDocument();
+    expect(screen.getAllByText('المجموعة أ').length).toBeGreaterThan(0);
     
     // KPIs
     expect(screen.getByText('75%')).toBeInTheDocument(); // Attendance rate (3 present / 4 = 75%)

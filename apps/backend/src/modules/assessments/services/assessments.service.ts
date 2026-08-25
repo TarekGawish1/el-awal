@@ -10,6 +10,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { CreateAssessmentDto } from '../dto/create-assessment.dto';
 import { SubmitAssessmentDto } from '../dto/submit-assessment.dto';
+import { SubmitHomeworkDto } from '../dto/submit-homework.dto';
 import { GradeSubmissionDto } from '../dto/grade-submission.dto';
 import { AssessmentQueryDto } from '../dto/assessment-query.dto';
 import { UpdateAssessmentDto } from '../dto/update-assessment.dto';
@@ -173,10 +174,14 @@ export class AssessmentsService {
     if (user.role === UserRole.STUDENT) {
       where.isPublished = true;
       const studentId = user.studentProfileId || user.id;
+      // Students only see physical (onsite) group exams: strictly exclude
+      // online course / lesson quizzes and only surface assessments linked to a
+      // physical group the student is actively enrolled in.
+      where.lessonId = null;
+      where.courseId = null;
       where.OR = [
         { group: { enrollments: { some: { studentId, status: GroupEnrollmentStatus.ACTIVE } } } },
         { targetGroups: { some: { enrollments: { some: { studentId, status: GroupEnrollmentStatus.ACTIVE } } } } },
-        { course: { enrollments: { some: { studentId, status: CourseEnrollmentStatus.ACTIVE } } } },
       ];
     } else if (user.role === UserRole.PARENT) {
       where.isPublished = true;
@@ -669,6 +674,107 @@ export class AssessmentsService {
       isAutoGraded,
       submittedAt: result.submittedAt,
       gradedAt: result.gradedAt,
+    };
+  }
+
+  /**
+   * Records a student's homework answer (PDF/image) for a physical group
+   * session assessment. Links the submission to both the assessment and the
+   * lesson session and marks the per-session homework state as SUBMITTED.
+   */
+  async submitHomework(
+    assessmentId: string,
+    user: AuthenticatedUser,
+    dto: SubmitHomeworkDto,
+  ) {
+    const studentId = user.studentProfileId || user.id;
+
+    const assessment = await this.prisma.assessment.findUnique({
+      where: { id: assessmentId },
+      include: {
+        group: {
+          include: {
+            enrollments: {
+              where: { studentId, status: GroupEnrollmentStatus.ACTIVE },
+            },
+          },
+        },
+      },
+    });
+
+    if (!assessment || !assessment.isPublished) {
+      throw new NotFoundException(`Assessment [${assessmentId}] not found`);
+    }
+
+    // Homework is only allowed for physical group assessments.
+    if (assessment.courseId || assessment.lessonId) {
+      throw new BadRequestException(
+        'Homework submission is only supported for physical group assessments',
+      );
+    }
+
+    if (!assessment.group || assessment.group.enrollments.length === 0) {
+      throw new ForbiddenException(
+        'You are not enrolled in the physical group for this assessment',
+      );
+    }
+
+    const session = await this.prisma.lessonSession.findUnique({
+      where: { id: dto.sessionId },
+    });
+    if (!session) {
+      throw new NotFoundException(`Lesson session [${dto.sessionId}] not found`);
+    }
+    if (session.groupId !== assessment.groupId) {
+      throw new BadRequestException(
+        'The lesson session does not belong to the assessment group',
+      );
+    }
+
+    const submission = await this.prisma.assessmentSubmission.upsert({
+      where: {
+        assessmentId_studentId_attemptNumber: {
+          assessmentId,
+          studentId,
+          attemptNumber: 1,
+        },
+      },
+      create: {
+        assessmentId,
+        studentId,
+        attemptNumber: 1,
+        status: SubmissionStatus.SUBMITTED,
+        attachmentUrl: dto.fileUrl,
+        fileKey: dto.fileKey,
+        sessionId: dto.sessionId,
+        studentNotes: dto.studentNotes,
+        submittedAt: new Date(),
+      },
+      update: {
+        status: SubmissionStatus.SUBMITTED,
+        attachmentUrl: dto.fileUrl,
+        fileKey: dto.fileKey,
+        sessionId: dto.sessionId,
+        studentNotes: dto.studentNotes,
+        submittedAt: new Date(),
+        scoreObtained: null,
+        gradedAt: null,
+      },
+    });
+
+    this.logger.log(
+      `Homework [${assessmentId}] submitted by student [${studentId}] for session [${dto.sessionId}]`,
+    );
+
+    return {
+      submissionId: submission.id,
+      assessmentId,
+      sessionId: submission.sessionId,
+      status: submission.status,
+      fileUrl: submission.attachmentUrl,
+      fileKey: submission.fileKey,
+      studentNotes: submission.studentNotes,
+      submittedAt: submission.submittedAt,
     };
   }
 

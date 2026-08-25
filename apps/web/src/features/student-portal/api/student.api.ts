@@ -33,11 +33,18 @@ export interface StudentGroupSession {
   assessment?: {
     id: string;
     title: string;
+    description?: string | null;
+    type?: string | null;
     totalScore: number;
     dueDate?: string | null;
     submission?: {
       status: 'SUBMITTED' | 'GRADED' | 'UNSOLVED';
       scoreObtained?: number | null;
+      fileKey?: string | null;
+      attachmentUrl?: string | null;
+      studentNotes?: string | null;
+      submittedAt?: string;
+      teacherFeedback?: string | null;
     } | null;
   } | null;
   educationalContents: Array<{
@@ -103,5 +110,19 @@ export const studentApi = {
 
   getMyGroupSessions: async (params?: StudentGroupQuery) => {
     return apiClient<StudentGroupSession[]>('/students/my-group/sessions', { params: params as Record<string, string | number | boolean | undefined> });
+  },
+
+  generateHomeworkUploadUrl: async (payload: { fileName: string; contentType: string; fileSizeBytes: number }) => {
+    return apiClient<{ uploadUrl: string; fileKey: string; publicUrl: string; expiresInSeconds: number }>('/content/presigned-upload-url', {
+      method: 'POST',
+      body: JSON.stringify({ ...payload, folder: 'homework-submissions' }),
+    });
+  },
+
+  submitHomework: async (assessmentId: string, payload: { sessionId: string; fileKey: string; fileUrl: string; studentNotes?: string }) => {
+    return apiClient<any>(`/assessments/${assessmentId}/submit-homework`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   },
 };

@@ -111,10 +111,19 @@ export class ContentController {
 
   @Post('presigned-upload-url')
   @HttpCode(HttpStatus.OK)
-  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT)
   @ApiOperation({ summary: 'Generate presigned Cloudflare R2 direct upload URL' })
   @ApiResponse({ status: 200, description: 'Presigned upload URL generated' })
-  async getUploadUrl(@Body() dto: PresignedUploadDto) {
+  async getUploadUrl(
+    @Body() dto: PresignedUploadDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    // Students may only request a presigned upload for their own homework answers.
+    if (user.role === UserRole.STUDENT && dto.folder !== 'homework-submissions') {
+      throw new BadRequestException(
+        'Students can only generate upload URLs for homework submissions',
+      );
+    }
     return this.contentService.generatePresignedUpload(dto);
   }
 

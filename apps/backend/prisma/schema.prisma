@@ -376,6 +376,7 @@ model LessonSession {
 
   attendanceRecords   AttendanceRecord[]
   educationalContents EducationalContent[]
+  assessmentSubmissions AssessmentSubmission[]
 
   @@index([groupId, sessionDate, startTime], map: "idx_group_session_datetime")
   @@index([groupId, sessionDate], map: "idx_sessions_group_date")
@@ -744,6 +745,9 @@ model AssessmentSubmission {
   status          SubmissionStatus @default(SUBMITTED) @map("status")
   submittedAt     DateTime         @default(now()) @map("submitted_at") @db.Timestamptz(6)
   attachmentUrl   String?          @map("attachment_url") @db.Text
+  fileKey         String?          @map("file_key") @db.VarChar(500)
+  sessionId       String?          @map("session_id") @db.Uuid
+  studentNotes    String?          @map("student_notes") @db.Text
   scoreObtained   Decimal?         @map("score_obtained") @db.Decimal(6, 2)
   isAutoGraded    Boolean          @default(false) @map("is_auto_graded")
   gradedAt        DateTime?        @map("graded_at") @db.Timestamptz(6)
@@ -751,12 +755,14 @@ model AssessmentSubmission {
 
   assessment Assessment     @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
   student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  session    LessonSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
   answers StudentAnswer[]
 
   @@unique([assessmentId, studentId, attemptNumber], map: "uq_assessment_student_attempt")
   @@index([assessmentId, status], map: "idx_submissions_assessment_status")
   @@index([studentId], map: "idx_submissions_student")
+  @@index([sessionId], map: "idx_submissions_session")
   @@map("assessment_submissions")
 }
 

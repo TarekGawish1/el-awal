@@ -467,13 +467,23 @@ export class StudentsService {
         select: {
           id: true,
           title: true,
+          description: true,
           totalScore: true,
           dueDate: true,
           createdAt: true,
           submissions: {
             where: { studentId },
             orderBy: { attemptNumber: 'desc' },
-            select: { status: true, scoreObtained: true, attemptNumber: true },
+            select: {
+              status: true,
+              scoreObtained: true,
+              attemptNumber: true,
+              fileKey: true,
+              attachmentUrl: true,
+              studentNotes: true,
+              submittedAt: true,
+              teacherFeedback: true,
+            },
           },
         },
       }),
@@ -511,6 +521,8 @@ export class StudentsService {
           ? {
               id: assessment.id,
               title: assessment.title,
+              description: assessment.description,
+              type: (assessment as any).type,
               totalScore: Number(assessment.totalScore),
               dueDate: assessment.dueDate,
               submission: submission

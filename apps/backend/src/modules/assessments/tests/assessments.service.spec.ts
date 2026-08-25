@@ -30,6 +30,10 @@ describe('AssessmentsService', () => {
       findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      upsert: jest.fn(),
+    },
+    lessonSession: {
+      findUnique: jest.fn(),
     },
     studentAnswer: {
       updateMany: jest.fn(),
@@ -445,6 +449,113 @@ describe('AssessmentsService', () => {
           isPublished: false,
         })
       ).rejects.toThrow('Cannot unpublish an assessment that already has student submissions.');
+    });
+  });
+
+  describe('getAssessments (Student scope: physical groups only)', () => {
+    it('excludes online course/lesson quizzes from the student group exam list', async () => {
+      mockPrismaService.assessment.findMany.mockResolvedValue([]);
+
+      const studentUser: any = {
+        id: 'student-user-1',
+        studentProfileId: 'student-profile-1',
+        role: UserRole.STUDENT,
+      };
+
+      await service.getAssessments({}, studentUser);
+
+      expect(mockPrismaService.assessment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            lessonId: null,
+            courseId: null,
+            isPublished: true,
+          }),
+        }),
+      );
+      const whereArgs = mockPrismaService.assessment.findMany.mock.calls[0][0].where;
+      expect(whereArgs.OR).toHaveLength(2);
+      expect(whereArgs.OR.some((cond: any) => 'course' in cond)).toBe(false);
+    });
+  });
+
+  describe('submitHomework', () => {
+    const assessmentId = 'assessment-homework-1';
+    const sessionId = 'session-homework-1';
+    const studentUser: any = {
+      id: 'student-user-1',
+      studentProfileId: 'student-profile-1',
+      role: UserRole.STUDENT,
+    };
+    const dto = {
+      sessionId,
+      fileKey: 'uploads/homework-submissions/answer.pdf',
+      fileUrl: 'https://cdn/answer.pdf',
+      studentNotes: 'يرجى المراجعة',
+    };
+
+    it('persists a homework submission linked to the session and assessment', async () => {
+      mockPrismaService.assessment.findUnique.mockResolvedValue({
+        id: assessmentId,
+        isPublished: true,
+        courseId: null,
+        lessonId: null,
+        groupId: 'group-1',
+        group: {
+          enrollments: [{ studentId: 'student-profile-1', status: 'ACTIVE' }],
+        },
+      });
+      mockPrismaService.lessonSession.findUnique.mockResolvedValue({
+        id: sessionId,
+        groupId: 'group-1',
+      });
+      mockPrismaService.assessmentSubmission.upsert.mockResolvedValue({
+        id: 'submission-1',
+        assessmentId,
+        sessionId,
+        status: SubmissionStatus.SUBMITTED,
+        attachmentUrl: dto.fileUrl,
+        fileKey: dto.fileKey,
+        studentNotes: dto.studentNotes,
+        submittedAt: new Date('2026-08-24'),
+      });
+
+      const result = await service.submitHomework(assessmentId, studentUser, dto);
+
+      expect(result.sessionId).toBe(sessionId);
+      expect(result.status).toBe(SubmissionStatus.SUBMITTED);
+      expect(result.fileKey).toBe(dto.fileKey);
+      expect(mockPrismaService.assessmentSubmission.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            assessmentId_studentId_attemptNumber: {
+              assessmentId,
+              studentId: 'student-profile-1',
+              attemptNumber: 1,
+            },
+          },
+          create: expect.objectContaining({ sessionId, fileKey: dto.fileKey }),
+        }),
+      );
+    });
+
+    it('rejects a session that does not belong to the assessment group', async () => {
+      mockPrismaService.assessment.findUnique.mockResolvedValue({
+        id: assessmentId,
+        isPublished: true,
+        courseId: null,
+        lessonId: null,
+        groupId: 'group-1',
+        group: { enrollments: [{ studentId: 'student-profile-1' }] },
+      });
+      mockPrismaService.lessonSession.findUnique.mockResolvedValue({
+        id: sessionId,
+        groupId: 'group-2',
+      });
+
+      await expect(service.submitHomework(assessmentId, studentUser, dto)).rejects.toThrow(
+        'The lesson session does not belong to the assessment group',
+      );
     });
   });
 });

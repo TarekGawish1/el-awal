@@ -13,6 +13,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { AssessmentsService } from '../services/assessments.service';
 import { CreateAssessmentDto } from '../dto/create-assessment.dto';
 import { SubmitAssessmentDto } from '../dto/submit-assessment.dto';
+import { SubmitHomeworkDto } from '../dto/submit-homework.dto';
 import { GradeSubmissionDto } from '../dto/grade-submission.dto';
 import { AssessmentQueryDto } from '../dto/assessment-query.dto';
 import { UpdateAssessmentDto } from '../dto/update-assessment.dto';
@@ -93,6 +94,19 @@ export class AssessmentsController {
       user,
       dto,
     );
+  }
+
+  @Post(':id/submit-homework')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Submit a homework answer file (PDF/image) for a physical group session assessment' })
+  @ApiResponse({ status: 200, description: 'Homework answer submitted and session homework state updated' })
+  async submitHomework(
+    @Param('id') id: string,
+    @Body() dto: SubmitHomeworkDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.assessmentsService.submitHomework(id, user, dto);
   }
 
   @Patch('submissions/:submissionId/grade')

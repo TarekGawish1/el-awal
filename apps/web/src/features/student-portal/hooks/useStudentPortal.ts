@@ -103,6 +103,26 @@ export function useStudentGroupSessions(query: StudentGroupQuery) {
   });
 }
 
+export function useSendHomeworkUpload() {
+  return useMutation({
+    mutationFn: (payload: { fileName: string; contentType: string; fileSizeBytes: number }) =>
+      studentApi.generateHomeworkUploadUrl(payload),
+  });
+}
+
+export function useSubmitHomework() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ assessmentId, payload }: { assessmentId: string; payload: { sessionId: string; fileKey: string; fileUrl: string; studentNotes?: string } }) =>
+      studentApi.submitHomework(assessmentId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['student-group-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['student-assessments'] });
+      queryClient.invalidateQueries({ queryKey: ['student-group'] });
+    },
+  });
+}
+
 export function useCourseDetails(courseId: string) {
   return useQuery({
     queryKey: ['student-course-details', courseId],

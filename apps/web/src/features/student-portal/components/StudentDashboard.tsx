@@ -8,6 +8,8 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
 import Link from 'next/link';
 import { CourseCertificateModal } from './CourseCertificateModal';
+import { StudentRecentAssessments } from './StudentRecentAssessments';
+import { StudentLatestHomework } from './StudentLatestHomework';
 
 export function StudentDashboard() {
   const { data: profile, isLoading: isProfileLoading } = useStudentProfile();
@@ -243,6 +245,8 @@ export function StudentDashboard() {
         </Card>
       </div>
 
+      <StudentLatestHomework />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="border-slate-100 shadow-sm">
           <CardHeader className="border-b border-slate-50 bg-slate-50/50 pb-4">
@@ -300,64 +304,7 @@ export function StudentDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-slate-100 shadow-sm">
-          <CardHeader className="border-b border-slate-50 bg-slate-50/50 pb-4">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <FileText className="w-5 h-5 text-primary" />
-              أحدث الاختبارات
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
-            {!assessmentList.length ? (
-              <div className="text-center py-8 text-slate-500 flex flex-col items-center">
-                <FileText className="w-10 h-10 text-slate-300 mb-3" />
-                <p>لا توجد اختبارات متاحة حالياً</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {assessmentList.slice(0, 3).map((assessment: any) => {
-                  const isOnlineCourse = !!assessment.course && !assessment.group;
-                  const isOnsiteGroup = !!assessment.group;
-                  return (
-                    <Link key={assessment.id} href={`/student/assessments/${assessment.id}`} className="block bg-slate-50 rounded-xl p-4 hover:bg-slate-100 transition-colors border border-slate-100">
-                      <div className="flex justify-between items-start gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                            {isOnsiteGroup && (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
-                                <Users className="w-3 h-3" />
-                                مجموعة السنتر
-                              </span>
-                            )}
-                            {isOnlineCourse && (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
-                                <Monitor className="w-3 h-3" />
-                                دورة أونلاين
-                              </span>
-                            )}
-                          </div>
-                          <h4 className="font-bold text-slate-800 truncate">{assessment.title}</h4>
-                          <p className="text-xs text-slate-500 mt-0.5">
-                            {isOnsiteGroup && assessment.group?.name ? `${assessment.group.name} · ` : ''}
-                            {isOnlineCourse && assessment.course?.title ? `${assessment.course.title} · ` : ''}
-                            الدرجة: {assessment.totalScore}
-                          </p>
-                        </div>
-                        <div className="flex-shrink-0">
-                          {assessment._count?.submissions > 0 ? (
-                            <Badge variant="success">تم التسليم</Badge>
-                          ) : (
-                            <Badge variant="warning">مطلوب تسليمه</Badge>
-                          )}
-                        </div>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <StudentRecentAssessments />
       </div>
     </div>
   );
