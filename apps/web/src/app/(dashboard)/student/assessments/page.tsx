@@ -392,9 +392,10 @@ function AssessmentWrapper({
           setTimeLeft(null);
           setRetakeMode(false);
           const subData = result?.data || result;
+          const preview = Boolean(subData?.isPreview) || subData?.id === 'preview-submission';
           setLocalSubmission(subData);
           setShowResultModal(true);
-          notifyCourseLessonProgress(subData);
+          if (!preview) notifyCourseLessonProgress(subData);
           refetch();
         },
         onError: (err: any) => {
@@ -414,14 +415,20 @@ function AssessmentWrapper({
       { id: assessmentId, payload },
       {
         onSuccess: (result: any) => {
-          toast.success('تم تسليم الإجابات بنجاح وتم رصد النتيجة!');
+          const subData = result?.data || result;
+          const preview = Boolean(subData?.isPreview) || subData?.id === 'preview-submission';
+          toast.success(
+            preview
+              ? '👁️ معاينة المعلم: تم تقييم الإجابات مؤقتاً دون حفظ النتيجة أو احتساب محاولة.'
+              : 'تم تسليم الإجابات بنجاح وتم رصد النتيجة!',
+          );
           setIsConfirmOpen(false);
           setTimeLeft(null);
           setRetakeMode(false);
-          const subData = result?.data || result;
           setLocalSubmission(subData);
           setShowResultModal(true);
-          notifyCourseLessonProgress(subData);
+          // Never mark the lesson complete for a teacher preview.
+          if (!preview) notifyCourseLessonProgress(subData);
           refetch();
         },
         onError: (err: any) => {
@@ -457,6 +464,10 @@ function AssessmentWrapper({
 
   const isExam = assessment.type === 'EXAM';
   const mySubmission = localSubmission || assessment.mySubmission;
+  // A teacher/secretariat (non-student) submission is a preview: nothing is persisted,
+  // the attempt policy is not enforced, and no mark is stored. Surface that plainly.
+  const isPreviewResult =
+    Boolean(mySubmission?.isPreview) || mySubmission?.id === 'preview-submission';
   const isPastDue = assessment.dueDate ? new Date(assessment.dueDate) < new Date() : false;
   const allowMultipleAttempts = Boolean(assessment.allowMultipleAttempts);
   // Offer a retake when the quiz permits it, a prior attempt exists, and we're not
@@ -891,6 +902,16 @@ function AssessmentWrapper({
                   : 'تم استلام إجاباتك بنجاح وسيتم إشعارك فور اعتماد التصحيح من المعلم.'}
               </p>
             </div>
+
+            {isPreviewResult && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-3.5 text-right flex items-start gap-2.5">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                <p className="text-xs font-semibold leading-relaxed">
+                  وضع معاينة المعلم: هذه نتيجة تجريبية فورية لم يتم حفظها، ولا تُحتسب كمحاولة،
+                  ولن تظهر كدرجة للطالب. لاختبار سياسة المحاولات وظهور الدرجة، سجّل الدخول بحساب طالب.
+                </p>
+              </div>
+            )}
 
             {mySubmission.status === 'GRADED' && (
               <div className="bg-emerald-50/70 border border-emerald-200/60 rounded-2xl p-4 flex items-center justify-around">

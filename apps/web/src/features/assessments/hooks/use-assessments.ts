@@ -329,6 +329,11 @@ export function useSubmitAssessment() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: assessmentKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: assessmentKeys.submissions(variables.id) });
+      // The learning room renders the earned mark from the lesson-viewer / course-detail
+      // payloads (quiz.mySubmission), not the assessment query. Invalidate those too so the
+      // score + attempt lock refresh immediately when the student returns to the room.
+      queryClient.invalidateQueries({ queryKey: ['lesson-viewer'] });
+      queryClient.invalidateQueries({ queryKey: ['course-detail'] });
     },
   });
 }

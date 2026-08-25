@@ -489,6 +489,11 @@ export class AssessmentsService {
 
       return {
         id: 'preview-submission',
+        // Teacher/secretariat (or any non-student) submissions are a PREVIEW only:
+        // nothing is persisted, so the attempt policy is not enforced and no mark is
+        // stored against a student. The client uses this flag to label the result as a
+        // preview instead of masquerading as a real, saved grade.
+        isPreview: true,
         assessmentId,
         studentId: user.id,
         status,
