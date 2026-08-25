@@ -61,6 +61,10 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
 
   // Iframe ref for Bunny Stream Player.js integration
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  // Ref for native <video> fallback (non-Bunny content URLs)
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  // Ref to the player card — used to scroll into view when a Q&A timestamp is clicked
+  const videoContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Fetch lesson data when selectedLessonId is present
   const { data: lessonViewer, isLoading: isLessonLoading, refetch: refetchLesson } = useLessonViewer(
@@ -531,20 +535,46 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     }
   };
 
-  // Seek the Bunny Stream iframe to a specific timestamp (used by Q&A timestamp click-back)
+  // Seek the player to a specific timestamp (used by Q&A timestamp click-back).
+  // Handles both the Bunny Stream iframe (Player.js postMessage) and the native
+  // HTML5 <video> fallback.
   const handleSeekToTimestamp = useCallback((seekSeconds: number) => {
+    // ── Scroll the video container into view first ──────────────────────
+    videoContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    // ── Bunny Stream iframe (Player.js) ─────────────────────────────────
     if (iframeRef.current?.contentWindow) {
       try {
-        // Player.js seek command
-        iframeRef.current.contentWindow.postMessage(
+        const win = iframeRef.current.contentWindow;
+        // Player.js spec: method value must be an ARRAY of arguments
+        win.postMessage(
           JSON.stringify({
             context: 'player.js',
             method: 'setCurrentTime',
-            value: seekSeconds,
+            value: [seekSeconds],
             version: '0.0.11',
           }),
           '*'
         );
+        // Also send a play command so the video starts from that moment
+        win.postMessage(
+          JSON.stringify({
+            context: 'player.js',
+            method: 'play',
+            value: [],
+            version: '0.0.11',
+          }),
+          '*'
+        );
+      } catch {}
+      return;
+    }
+
+    // ── Native HTML5 <video> fallback ────────────────────────────────────
+    if (videoRef.current) {
+      try {
+        videoRef.current.currentTime = seekSeconds;
+        videoRef.current.play().catch(() => {});
       } catch {}
     }
   }, []);
@@ -674,7 +704,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         {/* Left Column: Player & Tab Content */}
         <div className="lg:col-span-8 space-y-6">
           {/* Strict 16:9 Aspect Ratio Video Player Card */}
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+          <div ref={videoContainerRef} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
             <div
               className="relative w-full aspect-video bg-black overflow-hidden flex items-center justify-center"
               style={{ aspectRatio: '16 / 9', width: '100%' }}
@@ -713,6 +743,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 />
               ) : lessonViewer?.contentUrl ? (
                 <video
+                  ref={videoRef}
                   src={lessonViewer.contentUrl}
                   playsInline
                   controls
