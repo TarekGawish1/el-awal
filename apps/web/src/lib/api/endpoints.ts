@@ -54,6 +54,7 @@ export const API_ENDPOINTS = {
     MANUAL: (sessionId: string) => `/attendance/sessions/${sessionId}/manual`,
     SCAN_QR: (sessionId: string) => `/attendance/sessions/${sessionId}/scan-qr`,
     REPORTS: (sessionId: string) => `/attendance/sessions/${sessionId}/report`,
+    HOMEWORK_ONSITE: (sessionId: string) => `/attendance/sessions/${sessionId}/homework-onsite`,
   },
   ASSESSMENTS: {
     LIST: '/assessments',
@@ -96,6 +97,7 @@ export const API_ENDPOINTS = {
     BOOTSTRAP: '/sync/bootstrap',
     DIFF: '/sync/diff',
     ATTENDANCE: '/sync/attendance',
+    HOMEWORK: '/sync/homework',
     PAYMENTS: '/sync/payments',
     PROGRESS: '/sync/progress',
     ASSESSMENTS: '/sync/assessments',

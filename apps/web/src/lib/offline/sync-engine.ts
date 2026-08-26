@@ -677,8 +677,68 @@ class OfflineSyncEngine {
         }
       }
 
+      // 4.1 Batch Onsite Homework Sync
+      const homeworkItems = pending.filter(
+        (m) =>
+          m.endpoint?.includes('/sync/homework') ||
+          m.payload?.type === 'RECORD_HOMEWORK_ONSITE' ||
+          (m as any).type === 'RECORD_HOMEWORK_ONSITE',
+      );
+      if (homeworkItems.length > 0) {
+        try {
+          const operations = homeworkItems.map((item) => ({
+            id: item.id,
+            assessmentId: item.payload.assessmentId,
+            sessionId: item.payload.sessionId,
+            studentId: item.payload.studentId,
+            qrCodeToken: item.payload.qrCodeToken,
+            status: item.payload.status || 'CHECKED_ONSITE',
+            recordedMethod: item.payload.recordedMethod || 'QR_SCAN',
+            score: item.payload.score,
+            feedback: item.payload.feedback,
+            clientTimestamp: item.clientTimestamp || Date.now(),
+          }));
+
+          const res = await apiClient<any>(API_ENDPOINTS.SYNC.HOMEWORK, {
+            method: 'POST',
+            body: JSON.stringify({ operations }),
+          });
+
+          if (res?.processedOperationIds) {
+            for (const id of res.processedOperationIds) {
+              await offlineDb.removeMutation(id);
+              syncedCount++;
+            }
+          }
+
+          if (res?.conflicts && res.conflicts.length > 0) {
+            for (const conf of res.conflicts) {
+              await offlineDb.recordConflict({
+                id: generateClientOperationId(),
+                operationId: conf.operationId,
+                domain: 'attendance',
+                reason: conf.reason,
+                payload: operations.find((o) => o.id === conf.operationId),
+                timestamp: Date.now(),
+                resolved: false,
+              });
+              await offlineDb.removeMutation(conf.operationId);
+              failedCount++;
+            }
+          }
+        } catch (err: any) {
+          console.error('Batch homework sync failed:', err);
+          for (const item of homeworkItems) {
+            await this.handleFailedMutation(item, err.message);
+            failedCount++;
+          }
+        }
+      }
+
       // 4. Batch Attendance Sync
-      const attendanceItems = pending.filter((m) => m.domain === 'attendance' && m.method === 'POST');
+      const attendanceItems = pending.filter(
+        (m) => m.domain === 'attendance' && m.method === 'POST' && !homeworkItems.includes(m),
+      );
       if (attendanceItems.length > 0) {
         try {
           const operations = attendanceItems.map((item) => ({
@@ -871,6 +931,7 @@ class OfflineSyncEngine {
           !groupCreations.includes(m) &&
           !studentCreations.includes(m) &&
           !groupEnrollments.includes(m) &&
+          !homeworkItems.includes(m) &&
           !attendanceItems.includes(m) &&
           !paymentItems.includes(m) &&
           !progressItems.includes(m) &&

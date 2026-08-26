@@ -14,6 +14,7 @@ import { BatchProgressSyncDto } from '../dto/batch-progress-sync.dto';
 import { SyncAttendanceBatchDto } from '../dto/sync-attendance.dto';
 import { SyncPaymentsBatchDto } from '../dto/sync-payments.dto';
 import { SyncAssessmentsBatchDto } from '../dto/sync-assessments.dto';
+import { SyncHomeworkBatchDto } from '../dto/sync-homework.dto';
 import { UnifiedSyncBatchDto } from '../dto/sync-batch.dto';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import {
@@ -25,6 +26,7 @@ import {
   QuestionType,
   GroupEnrollmentStatus,
   UserRole,
+  HomeworkSubmissionStatus,
 } from '@prisma/client';
 
 export interface DomainSyncResult {
@@ -1844,6 +1846,7 @@ export class SyncService {
       payments?: DomainSyncResult;
       progress?: any;
       assessments?: DomainSyncResult;
+      homework?: DomainSyncResult;
     } = {};
 
     if (dto.attendance && dto.attendance.length > 0) {
@@ -1878,11 +1881,182 @@ export class SyncService {
       });
     }
 
+    if (dto.homework && dto.homework.length > 0) {
+      results.homework = await this.syncHomeworkBatch(user, {
+        operations: dto.homework,
+      });
+    }
+
     return {
       success: true,
       timestamp: new Date().toISOString(),
       idMappings,
       results,
     };
+  }
+
+  /**
+   * Atomically reconciles offline-recorded onsite homework checks.
+   * Marks HomeworkRecord as CHECKED_ONSITE and automatically guarantees
+   * session attendance is recorded as PRESENT.
+   */
+  async syncHomeworkBatch(
+    user: AuthenticatedUser,
+    dto: SyncHomeworkBatchDto,
+  ): Promise<DomainSyncResult> {
+    const result: DomainSyncResult = {
+      syncedCount: 0,
+      duplicatesIgnored: 0,
+      failedCount: 0,
+      processedOperationIds: [],
+      conflicts: [],
+    };
+
+    if (!dto.operations || dto.operations.length === 0) {
+      return result;
+    }
+
+    const recorderId = user.id;
+
+    for (const op of dto.operations) {
+      try {
+        await this.prisma.$transaction(async (tx) => {
+          // 1. Verify session existence
+          const session = await tx.lessonSession.findUnique({
+            where: { id: op.sessionId },
+          });
+
+          if (!session) {
+            throw new NotFoundException(`Session [${op.sessionId}] not found`);
+          }
+
+          // 2. Verify assessment existence
+          const assessment = await tx.assessment.findUnique({
+            where: { id: op.assessmentId },
+          });
+
+          if (!assessment) {
+            throw new NotFoundException(`Assessment [${op.assessmentId}] not found`);
+          }
+
+          // 3. Resolve target student
+          let resolvedStudentId = op.studentId;
+          if (!resolvedStudentId && op.qrCodeToken) {
+            const student = await tx.studentProfile.findFirst({
+              where: {
+                OR: [
+                  { qrCodeToken: op.qrCodeToken.trim() },
+                  { id: op.qrCodeToken.trim() },
+                ],
+              },
+            });
+            if (student) {
+              resolvedStudentId = student.id;
+            }
+          }
+
+          if (!resolvedStudentId) {
+            result.conflicts.push({
+              operationId: op.id,
+              reason: 'Student could not be resolved from token or ID',
+            });
+            result.failedCount++;
+            return;
+          }
+
+          const clientDate = op.clientTimestamp ? new Date(op.clientTimestamp) : new Date();
+
+          // 4. Upsert Homework Record
+          const existingHomework = await tx.homeworkRecord.findUnique({
+            where: {
+              assessmentId_studentId_sessionId: {
+                assessmentId: op.assessmentId,
+                studentId: resolvedStudentId,
+                sessionId: op.sessionId,
+              },
+            },
+          });
+
+          if (existingHomework) {
+            await tx.homeworkRecord.update({
+              where: { id: existingHomework.id },
+              data: {
+                status: op.status || HomeworkSubmissionStatus.CHECKED_ONSITE,
+                recordedMethod: op.recordedMethod || RecordingMethod.QR_SCAN,
+                score: op.score !== undefined ? op.score : existingHomework.score,
+                feedback: op.feedback !== undefined ? op.feedback : existingHomework.feedback,
+                updatedAt: clientDate,
+              },
+            });
+            result.duplicatesIgnored++;
+          } else {
+            await tx.homeworkRecord.create({
+              data: {
+                assessmentId: op.assessmentId,
+                studentId: resolvedStudentId,
+                sessionId: op.sessionId,
+                status: op.status || HomeworkSubmissionStatus.CHECKED_ONSITE,
+                checkedByRole: user.role,
+                recordedMethod: op.recordedMethod || RecordingMethod.QR_SCAN,
+                score: op.score,
+                feedback: op.feedback,
+                clientTimestamp: clientDate,
+                createdAt: clientDate,
+                updatedAt: clientDate,
+              },
+            });
+            result.syncedCount++;
+          }
+
+          // 5. Automatic Attendance Roll-Call: Guarantee Attendance is set to PRESENT
+          const existingAttendance = await tx.attendanceRecord.findUnique({
+            where: {
+              sessionId_studentId: {
+                sessionId: op.sessionId,
+                studentId: resolvedStudentId,
+              },
+            },
+          });
+
+          if (existingAttendance) {
+            if (existingAttendance.status !== AttendanceStatus.PRESENT) {
+              await tx.attendanceRecord.update({
+                where: { id: existingAttendance.id },
+                data: {
+                  status: AttendanceStatus.PRESENT,
+                  recordingMethod: op.recordedMethod || existingAttendance.recordingMethod,
+                  recordedAt: clientDate,
+                },
+              });
+            }
+          } else {
+            await tx.attendanceRecord.create({
+              data: {
+                sessionId: op.sessionId,
+                studentId: resolvedStudentId,
+                status: AttendanceStatus.PRESENT,
+                recordingMethod: op.recordedMethod || RecordingMethod.QR_SCAN,
+                recordedById: recorderId,
+                recordedAt: clientDate,
+              },
+            });
+          }
+
+          result.processedOperationIds.push(op.id);
+        });
+      } catch (err: any) {
+        this.logger.error(
+          `Failed to process homework operation [${op.id}]: ${err.message}`,
+          err.stack,
+        );
+        result.failedCount++;
+        result.conflicts.push({
+          operationId: op.id,
+          reason: err.message || 'Database error processing homework operation',
+        });
+      }
+    }
+
+    return result;
   }
 }

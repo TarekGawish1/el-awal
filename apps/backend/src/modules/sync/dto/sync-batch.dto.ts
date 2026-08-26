@@ -5,6 +5,7 @@ import { SyncAttendanceItemDto } from './sync-attendance.dto';
 import { SyncPaymentItemDto } from './sync-payments.dto';
 import { SyncProgressItemDto } from './batch-progress-sync.dto';
 import { SyncAssessmentItemDto } from './sync-assessments.dto';
+import { SyncHomeworkItemDto } from './sync-homework.dto';
 
 export class SyncBatchGroupItemDto {
   @ApiPropertyOptional({
@@ -185,4 +186,11 @@ export class UnifiedSyncBatchDto {
   @ValidateNested({ each: true })
   @Type(() => SyncAssessmentItemDto)
   assessments?: SyncAssessmentItemDto[];
+
+  @ApiPropertyOptional({ type: [SyncHomeworkItemDto] })
+  @IsArray()
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => SyncHomeworkItemDto)
+  homework?: SyncHomeworkItemDto[];
 }

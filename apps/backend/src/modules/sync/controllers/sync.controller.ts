@@ -5,6 +5,7 @@ import { BatchProgressSyncDto } from '../dto/batch-progress-sync.dto';
 import { SyncAttendanceBatchDto } from '../dto/sync-attendance.dto';
 import { SyncPaymentsBatchDto } from '../dto/sync-payments.dto';
 import { SyncAssessmentsBatchDto } from '../dto/sync-assessments.dto';
+import { SyncHomeworkBatchDto } from '../dto/sync-homework.dto';
 import { UnifiedSyncBatchDto } from '../dto/sync-batch.dto';
 import { BootstrapQueryDto } from '../dto/sync-bootstrap.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
@@ -60,6 +61,20 @@ export class SyncController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.syncService.syncAttendanceBatch(user, dto);
+  }
+
+  @Post('homework')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({
+    summary: 'Atomically reconcile batch offline onsite homework delivery records and automatic attendance roll-call',
+  })
+  @ApiResponse({ status: 200, description: 'Homework batch successfully reconciled' })
+  async syncHomework(
+    @Body() dto: SyncHomeworkBatchDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.syncService.syncHomeworkBatch(user, dto);
   }
 
   @Post('payments')
