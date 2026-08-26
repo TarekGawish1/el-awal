@@ -6,23 +6,19 @@ import { FileText, Users } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { useStudentAssessments } from '@/features/student-portal/hooks/useStudentPortal';
+import { filterUpcomingGroupExams } from '../utils/assessments';
 
 /**
- * Renders only physical (onsite) group exams for the student. Any online course
- * or lesson quiz (courseId / lessonId set) is strictly excluded, mirroring the
- * backend `getAssessments` scope for the STUDENT role.
+ * Renders only upcoming physical (onsite) group exams for the student. Any
+ * online course / lesson quiz (courseId / lessonId set) and any homework
+ * (ASSIGNMENT type) are strictly excluded, and exams whose deadline has passed
+ * are hidden. Mirrors the backend `getAssessments` scope for the STUDENT role.
  */
 export function StudentRecentAssessments() {
   const { data: assessments, isLoading } = useStudentAssessments();
   const assessmentList = Array.isArray(assessments) ? assessments : (assessments?.data || []);
 
-  const groupAssessments = assessmentList.filter(
-    (assessment: any) =>
-      assessment &&
-      !assessment.courseId &&
-      !assessment.lessonId &&
-      (assessment.group || (assessment.targetGroups && assessment.targetGroups.length > 0)),
-  );
+  const groupAssessments = filterUpcomingGroupExams(assessmentList);
 
   return (
     <Card className="border-slate-100 shadow-sm">

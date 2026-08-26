@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { CourseCertificateModal } from './CourseCertificateModal';
 import { StudentRecentAssessments } from './StudentRecentAssessments';
 import { StudentLatestHomework } from './StudentLatestHomework';
+import { filterUpcomingGroupExams } from '../utils/assessments';
 
 export function StudentDashboard() {
   const { data: profile, isLoading: isProfileLoading } = useStudentProfile();
@@ -24,6 +25,8 @@ export function StudentDashboard() {
   // These hooks are dual-shape: online they return the cursor-paginated { data, meta } envelope,
   // while their offline/error fallbacks return a bare array. Normalize to a plain list either way.
   const assessmentList = Array.isArray(assessments) ? assessments : (assessments?.data || []);
+  // Only count upcoming group exams (no homework, no expired deadlines).
+  const upcomingExams = filterUpcomingGroupExams(assessmentList);
   const attendanceRecords = Array.isArray(attendance) ? attendance : (attendance?.data || []);
 
   // Attendance rate is derived client-side from the student's visible records, mirroring the
@@ -215,7 +218,7 @@ export function StudentDashboard() {
             <div className="p-3 bg-purple-50 text-purple-600 rounded-xl flex-shrink-0"><FileText className="w-5 h-5" /></div>
             <div className="min-w-0">
               <p className="text-xs font-medium text-slate-500 truncate">الاختبارات القادمة</p>
-              <h4 className="text-2xl font-bold text-slate-800">{isAssessmentsLoading ? '-' : assessmentList.length || 0}</h4>
+              <h4 className="text-2xl font-bold text-slate-800">{isAssessmentsLoading ? '-' : upcomingExams.length || 0}</h4>
             </div>
           </CardContent>
         </Card>

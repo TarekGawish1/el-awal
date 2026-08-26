@@ -40,8 +40,8 @@ describe('StudentDashboard', () => {
     vi.mocked(useStudentAssessments).mockReturnValue({
       data: {
         data: [
-          { id: 'a1', title: 'اختبار نصف العام', totalScore: 100, group: { id: 'g1', name: 'المجموعة أ' }, _count: { submissions: 0 } },
-          { id: 'a2', title: 'اختبار الشهر', totalScore: 50, group: { id: 'g1', name: 'المجموعة أ' }, _count: { submissions: 1 } },
+          { id: 'a1', title: 'اختبار نصف العام', type: 'EXAM', totalScore: 100, group: { id: 'g1', name: 'المجموعة أ' }, _count: { submissions: 0 } },
+          { id: 'a2', title: 'اختبار الشهر', type: 'EXAM', totalScore: 50, group: { id: 'g1', name: 'المجموعة أ' }, _count: { submissions: 1 } },
         ],
         meta: { nextCursor: null, prevCursor: null, hasMore: false, limit: 20 },
       },
