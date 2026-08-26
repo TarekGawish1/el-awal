@@ -78,4 +78,27 @@ describe('PaymentsService matrix ledger', () => {
     expect(result.limit).toBe(20);
     expect(prisma.studentProfile.findMany).toHaveBeenCalledWith(expect.objectContaining({ skip: 20, take: 20 }));
   });
+
+  it('does not charge a student for booklets from another grade', async () => {
+    const student = {
+      id: 'grade-10-student', studentCode: 'STU-10', gradeLevel: 'الصف الأول الثانوي', user: { fullName: 'طالب', phone: '' },
+      groupEnrollments: [{ groupId: 'group-1', group: { id: 'group-1', name: 'المجموعة أ', monthlyFee: 300 } }],
+    };
+    prisma.studentProfile.count.mockResolvedValue(1);
+    prisma.studentProfile.findMany.mockResolvedValue([student]);
+    prisma.booklet.findMany.mockResolvedValue([
+      { id: 'grade-10-booklet', title: 'مذكرة أولى', price: 50, gradeLevel: 'الصف الأول الثانوي' },
+      { id: 'grade-12-booklet', title: 'مذكرة ثالثة', price: 100, gradeLevel: 'الصف الثالث الثانوي' },
+    ]);
+    prisma.studentPaymentRecord.findMany.mockResolvedValue([]);
+
+    const result = await service.getMatrixLedger(
+      { id: 'teacher-user', teacherProfileId: 'teacher-1', role: UserRole.TEACHER },
+      { academicPeriodId: '2026-2027:FIRST_TERM' },
+    );
+
+    expect(result.students[0].totalDue).toBe(350);
+    expect(result.students[0].bookletPayments['grade-10-booklet']).toMatchObject({ isApplicable: true, isPaid: false });
+    expect(result.students[0].bookletPayments['grade-12-booklet']).toEqual({ isApplicable: false, isPaid: false, amountPaid: 0 });
+  });
 });

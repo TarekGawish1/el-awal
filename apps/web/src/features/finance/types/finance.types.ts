@@ -136,6 +136,7 @@ export interface CursorPaginatedResponse<T> {
 }
 
 export interface MatrixPaymentCell {
+  isApplicable?: boolean;
   isPaid: boolean;
   amountPaid: number;
   paidAt?: string | Date;

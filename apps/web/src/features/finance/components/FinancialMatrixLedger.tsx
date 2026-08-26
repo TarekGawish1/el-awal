@@ -45,6 +45,10 @@ function PaymentCell({ student, kind, month, bookletId, academicYear, academicTe
   const cell = kind === 'TUITION' ? student.monthlyPayments[month || 0] : student.bookletPayments[bookletId || ''];
   const started = kind === 'BOOKLET' || !month || isMonthStarted(academicYear, academicTerm, month);
 
+  if (kind === 'BOOKLET' && cell?.isApplicable === false) {
+    return <span className="text-slate-300 font-bold">—</span>;
+  }
+
   if (cell?.isPaid) {
     return <div className="flex min-w-24 flex-col items-center gap-1" title={`تاريخ السداد: ${formatPaidAt(cell.paidAt)} - ${formatAmount(cell.amountPaid)}`}><CheckCircle2 className="h-5 w-5 text-emerald-600" /><span className="text-[10px] font-bold text-emerald-700">مدفوع {formatAmount(cell.amountPaid)}</span></div>;
   }
@@ -66,8 +70,9 @@ function calculateTotals(student: MatrixLedgerStudent, months: number[], booklet
   });
   booklets.filter((booklet) => booklet.gradeLevel === student.gradeLevel).forEach((booklet) => {
     const payment = student.bookletPayments[booklet.id];
+    if (payment?.isApplicable === false) return;
     totalPaid += payment?.amountPaid || 0;
-    totalDue += Math.max(0, Number(booklet.price) - (payment?.amountPaid || 0));
+    if (!payment?.isPaid) totalDue += Number(booklet.price);
   });
   return { totalPaid, totalDue };
 }

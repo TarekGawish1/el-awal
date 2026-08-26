@@ -130,7 +130,7 @@ export class PaymentsService {
       groupEnrollments: { some: { status: GroupEnrollmentStatus.ACTIVE, group: groupScope } },
     };
 
-    if (query.gradeLevel) studentWhere.gradeLevel = query.gradeLevel;
+    if (query.gradeLevel && query.gradeLevel !== 'ALL') studentWhere.gradeLevel = query.gradeLevel;
     if (query.stage && query.stage !== 'ALL') studentWhere.academicStage = query.stage;
     if (query.search?.trim()) {
       const search = query.search.trim();
@@ -164,13 +164,12 @@ export class PaymentsService {
       }),
     ]);
 
-    const grades = Array.from(new Set(students.map((student) => student.gradeLevel)));
     const bookletWhere: any = {
       isActive: true,
       academicYear,
       academicTerm,
       ...(teacherId ? { teacherProfileId: teacherId } : {}),
-      ...(query.gradeLevel ? { gradeLevel: query.gradeLevel } : { gradeLevel: { in: grades } }),
+      ...(query.gradeLevel && query.gradeLevel !== 'ALL' ? { gradeLevel: query.gradeLevel } : {}),
       ...(query.groupId ? { OR: [{ groupId: null }, { groupId: query.groupId }] } : {}),
     };
 
@@ -234,7 +233,7 @@ export class PaymentsService {
       const enrollment = student.groupEnrollments[0];
       const monthlyFee = Number(enrollment?.group.monthlyFee || 0);
       const monthlyPayments: Record<number, { isPaid: boolean; amountPaid: number; paidAt?: Date; isStarted: boolean }> = {};
-      const bookletPayments: Record<string, { isPaid: boolean; amountPaid: number; paidAt?: Date }> = {};
+      const bookletPayments: Record<string, { isApplicable: boolean; isPaid: boolean; amountPaid: number; paidAt?: Date }> = {};
       let totalDue = 0;
       let totalPaid = 0;
 
@@ -249,13 +248,18 @@ export class PaymentsService {
         }
       }
 
-      for (const booklet of booklets.filter((item) => item.gradeLevel === student.gradeLevel)) {
+      for (const booklet of booklets) {
+        if (booklet.gradeLevel !== student.gradeLevel) {
+          bookletPayments[booklet.id] = { isApplicable: false, isPaid: false, amountPaid: 0 };
+          continue;
+        }
+
         const payment = paymentMap.get(`${student.id}:BOOKLET:${booklet.id}`);
         const price = Number(booklet.price);
         const isPaid = Boolean(payment && payment.isPaid && payment.amountPaid >= price);
-        bookletPayments[booklet.id] = { isPaid, amountPaid: payment?.amountPaid || 0, paidAt: payment?.paidAt };
+        bookletPayments[booklet.id] = { isApplicable: true, isPaid, amountPaid: payment?.amountPaid || 0, paidAt: payment?.paidAt };
         totalPaid += payment?.amountPaid || 0;
-        totalDue += Math.max(0, price - (payment?.amountPaid || 0));
+        if (!isPaid) totalDue += price;
       }
 
       return {
