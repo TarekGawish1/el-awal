@@ -171,9 +171,33 @@ export function CreateSessionModal({
     );
   };
 
+  const handleStageChange = (value: string) => {
+    setStage(value);
+    setGradeLevel('');
+    const current = groups.find((g) => g.id === selectedGroupId);
+    if (current && inferStageFromGrade(current.gradeLevel) !== value) {
+      setValue('groupId', '');
+    }
+  };
+
+  const handleGradeChange = (value: string) => {
+    setGradeLevel(value);
+    const current = groups.find((g) => g.id === selectedGroupId);
+    if (current && current.gradeLevel !== value) {
+      setValue('groupId', '');
+    }
+  };
+
+  const gradeOptions = Array.from(new Set([
+    ...(GRADE_LEVELS_BY_STAGE[stage] || []),
+    ...groups.filter((g) => stage && inferStageFromGrade(g.gradeLevel) === stage).map((g) => g.gradeLevel).filter(Boolean),
+  ]));
+
   const filteredGroups = groups.filter((g) => {
     if (activeYear && g.academicYear && g.academicYear !== activeYear) return false;
     if (activeTerm && g.academicTerm && g.academicTerm !== activeTerm) return false;
+    if (stage && inferStageFromGrade(g.gradeLevel) !== stage) return false;
+    if (gradeLevel && g.gradeLevel !== gradeLevel) return false;
     return true;
   });
 
@@ -202,6 +226,44 @@ export function CreateSessionModal({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+          {/* Stage & Grade Cascade Filters */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="mb-1 block text-xs font-bold text-slate-700">
+                المرحلة الدراسية <span className="text-red-500">*</span>
+              </Label>
+              <select
+                aria-label="المرحلة الدراسية"
+                value={stage}
+                disabled={isPending || isLoadingGroups}
+                onChange={(event) => handleStageChange(event.target.value)}
+                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium"
+              >
+                <option value="">اختر المرحلة</option>
+                <option value="SECONDARY">الثانوية</option>
+                <option value="PREPARATORY">الإعدادية</option>
+                <option value="PRIMARY">الابتدائية</option>
+              </select>
+            </div>
+            <div>
+              <Label className="mb-1 block text-xs font-bold text-slate-700">
+                الصف الدراسي <span className="text-red-500">*</span>
+              </Label>
+              <select
+                aria-label="الصف الدراسي"
+                value={gradeLevel}
+                disabled={isPending || isLoadingGroups || !stage}
+                onChange={(event) => handleGradeChange(event.target.value)}
+                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+              >
+                <option value="">اختر الصف</option>
+                {gradeOptions.map((grade) => (
+                  <option key={grade} value={grade}>{grade}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           {/* Group Select */}
           <div>
             <Label className="mb-1 block text-xs font-bold text-slate-700">
@@ -209,8 +271,8 @@ export function CreateSessionModal({
             </Label>
             <select
               {...register('groupId')}
-              disabled={isPending || isLoadingGroups}
-              className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium"
+              disabled={isPending || isLoadingGroups || !stage || !gradeLevel}
+              className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
             >
               <option value="">-- اختر المجموعة --</option>
               {(filteredGroups.length > 0 ? filteredGroups : groups).map((g) => (
