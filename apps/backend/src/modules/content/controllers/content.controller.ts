@@ -64,17 +64,23 @@ export class ContentController {
 
   @Post('upload-raw')
   @UseInterceptors(FileInterceptor('file'))
-  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT)
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Direct multipart raw file upload (image, pdf, cover, attachment)' })
   async uploadRaw(
     @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthenticatedUser,
     @Body('folder') folder?: string,
   ) {
     if (!file) {
       throw new BadRequestException('الملف مطلوب للرفع');
     }
-    return this.contentService.uploadRawFile(file, folder || 'assessments');
+    const targetFolder = folder || 'assessments';
+    const allowedStudentFolders = ['homework-submissions', 'essay-answers', 'assessment-submissions'];
+    if (user.role === UserRole.STUDENT && !allowedStudentFolders.includes(targetFolder)) {
+      throw new BadRequestException('غير مصرح للطالب بالرفع إلى هذا المجلد');
+    }
+    return this.contentService.uploadRawFile(file, targetFolder);
   }
 
   @Post('upload-direct')

@@ -217,6 +217,38 @@ export async function uploadRawFile(
   );
 }
 
+/**
+ * Resilient file upload helper that attempts direct presigned R2 upload first,
+ * and seamlessly falls back to backend multipart raw upload if direct upload
+ * encounters a network or CORS restriction from the bucket.
+ */
+export async function uploadFileResilient(
+  file: File,
+  folder = 'homework-submissions',
+  onProgress?: UploadProgressCallback,
+): Promise<{ fileUrl: string; fileKey: string }> {
+  try {
+    const presigned = await generatePresignedUrl({
+      fileName: file.name,
+      contentType: file.type || 'application/octet-stream',
+      fileSizeBytes: file.size,
+      folder,
+    });
+    await uploadFileToR2(presigned.uploadUrl, file, file.type, onProgress);
+    return {
+      fileUrl: presigned.publicUrl || presigned.uploadUrl,
+      fileKey: presigned.fileKey,
+    };
+  } catch (err) {
+    console.warn('Direct presigned upload failed (e.g. CORS/network), falling back to server-side upload:', err);
+    const rawRes = await uploadRawFile(file, folder, onProgress);
+    return {
+      fileUrl: rawRes.fileUrl,
+      fileKey: rawRes.fileKey,
+    };
+  }
+}
+
 export async function uploadContentDirectly(
   formData: FormData,
   onProgress?: UploadProgressCallback,

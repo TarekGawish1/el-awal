@@ -4,7 +4,7 @@ import React, { useState, useEffect, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAssessments, useAssessment, useSubmitAssessment } from '@/features/assessments/hooks/use-assessments';
 import { coursesApi } from '@/features/courses/api/courses.api';
-import { generatePresignedUrl, uploadFileToR2 } from '@/features/content/api/content.api';
+import { generatePresignedUrl, uploadFileToR2, uploadFileResilient } from '@/features/content/api/content.api';
 import { useAuth } from '@/features/auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -424,19 +424,12 @@ function AssessmentWrapper({
    */
   const uploadAnswerAttachment = async (): Promise<string | undefined> => {
     if (!answerFile) return undefined;
-    const presigned = await generatePresignedUrl({
-      fileName: answerFile.name,
-      contentType: answerFile.type || 'application/octet-stream',
-      fileSizeBytes: answerFile.size,
-      folder: 'homework-submissions',
-    });
-    await uploadFileToR2(
-      presigned.uploadUrl,
+    const res = await uploadFileResilient(
       answerFile,
-      answerFile.type || 'application/octet-stream',
+      'homework-submissions',
       (p) => setAnswerUploadProgress(p),
     );
-    return presigned.publicUrl || presigned.uploadUrl;
+    return res.fileUrl;
   };
 
   const buildSubmitPayload = async () => {
@@ -446,19 +439,11 @@ function AssessmentWrapper({
     for (const [questionId, imgData] of Object.entries(essayImages)) {
       if (imgData?.file) {
         try {
-          const presigned = await generatePresignedUrl({
-            fileName: imgData.file.name,
-            contentType: imgData.file.type || 'image/jpeg',
-            fileSizeBytes: imgData.file.size,
-            folder: 'homework-submissions',
-          });
-          await uploadFileToR2(
-            presigned.uploadUrl,
+          const res = await uploadFileResilient(
             imgData.file,
-            imgData.file.type || 'image/jpeg',
+            'homework-submissions',
           );
-          const uploadedUrl = presigned.publicUrl || presigned.uploadUrl;
-          finalAnswers[questionId] = formatEssayAnswer(finalAnswers[questionId], uploadedUrl);
+          finalAnswers[questionId] = formatEssayAnswer(finalAnswers[questionId], res.fileUrl);
         } catch (err) {
           console.error('Error uploading essay image for question', questionId, err);
           throw new Error('فشل رفع صورة إجابة أحد الأسئلة المقالية. يرجى المحاولة مرة أخرى.');
