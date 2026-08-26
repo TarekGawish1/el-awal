@@ -47,15 +47,14 @@ describe('StudentLatestHomework card', () => {
 
   afterEach(() => vi.restoreAllMocks());
 
-  it('renders the homework worksheet download and opens the upload modal', () => {
+  it('renders the homework details, worksheet download and solve link', () => {
     render(<StudentLatestHomework />);
     expect(screen.getByText('الحصة 4: قوانين نيوتن للحركة')).toBeInTheDocument();
     expect(screen.getByText(/مجموعة الصف الأول الثانوي/)).toBeInTheDocument();
     expect(screen.getByText('تحميل ملف أسئلة الواجب')).toBeInTheDocument();
     expect(screen.getByText(/بانتظار تسليم الحل/)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: /رفع إجابة الواجب/i }));
-    expect(screen.getAllByText('رفع إجابة الواجب').length).toBeGreaterThan(0);
+    const solveLink = screen.getByRole('link', { name: /حل واجب الحصة الآن/i });
+    expect(solveLink).toHaveAttribute('href', '/student/assessments?id=assessment-1');
   });
 
   it('shows the submitted badge when a submission exists', () => {
@@ -76,34 +75,5 @@ describe('StudentLatestHomework card', () => {
     render(<StudentLatestHomework />);
     expect(screen.getByText('الحصة 4: قوانين نيوتن للحركة')).toBeInTheDocument();
     expect(screen.getByText('⏰ انتهى موعد التسليم')).toBeInTheDocument();
-  });
-
-  it('offers a link to open and solve the homework from the dashboard', () => {
-    render(<StudentLatestHomework />);
-    const solveLink = screen.getByRole('link', { name: /حل واجب الحصة الآن/i });
-    expect(solveLink).toHaveAttribute('href', '/student/assessments?id=assessment-1');
-  });
-
-  it('uploads a PDF answer and calls submit-homework with the session and file', async () => {
-    const mutateAsync = vi.fn().mockResolvedValue({ submissionId: 'sub-1' });
-    vi.mocked(useSubmitHomework).mockReturnValue({ mutateAsync, isPending: false } as any);
-    render(<StudentLatestHomework />);
-    fireEvent.click(screen.getByRole('button', { name: /رفع إجابة الواجب/i }));
-
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-    const file = new File(['pdf-content'], 'answer.pdf', { type: 'application/pdf' });
-    Object.defineProperty(fileInput, 'files', { value: [file] });
-    fireEvent.change(fileInput);
-    await screen.findByText('answer.pdf');
-
-    fireEvent.click(screen.getAllByRole('button', { name: /رفع إجابة الواجب/i })[1]);
-    await vi.waitFor(() => expect(mutateAsync).toHaveBeenCalledWith({
-      assessmentId: 'assessment-1',
-      payload: {
-        sessionId: 'session-1',
-        fileKey: 'uploads/homework-submissions/answer.pdf',
-        fileUrl: 'https://cdn/answer.pdf',
-      },
-    }));
   });
 });

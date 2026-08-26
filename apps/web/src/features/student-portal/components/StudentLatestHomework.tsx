@@ -1,14 +1,13 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
-import { CalendarDays, Clock, Download, Edit3, FileText, MapPin, UploadCloud } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { CalendarDays, Clock, Download, Edit3, FileText, MapPin } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { useStudentGroup, useStudentGroupSessions } from '@/features/student-portal/hooks/useStudentPortal';
 import { formatArabicDate, formatArabicTime } from '@/lib/utils/formatters';
-import { UploadHomeworkModal } from './UploadHomeworkModal';
 
 const ARABIC_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 const DAY_NAMES = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
@@ -25,13 +24,12 @@ function formatDateTime(value: string) {
 
 /**
  * Renders the homework attached to the latest group lesson session and lets the
- * student upload a PDF/image answer.
+ * student open the assessment to submit their answers.
  */
 export function StudentLatestHomework() {
   const now = new Date();
   const { data: groupData } = useStudentGroup();
   const { data: sessions = [], isLoading } = useStudentGroupSessions({ month: now.getMonth() + 1, year: now.getFullYear() });
-  const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   const latestHomeworkSession = useMemo(() => {
     // Find sessions that have an assessment
@@ -137,16 +135,13 @@ export function StudentLatestHomework() {
               <Badge variant="warning" className="mb-2">⚠️ بانتظار تسليم الحل</Badge>
               <div className="flex flex-wrap items-center gap-2">
                 <Link href={`/student/assessments?id=${assessment.id}`}>
-                  <Button type="button" className="bg-primary-600 hover:bg-primary-700"><Edit3 className="h-4 w-4" />حل واجب الحصة الآن</Button>
+                  <Button type="button" className="bg-primary-600 hover:bg-primary-700 font-bold"><Edit3 className="h-4 w-4" />حل واجب الحصة الآن</Button>
                 </Link>
-                <Button type="button" variant="outline" onClick={() => setIsUploadOpen(true)}><UploadCloud className="h-4 w-4" />رفع إجابة الواجب</Button>
               </div>
             </div>
           )}
         </div>
       </CardContent>
-
-      {isUploadOpen && <UploadHomeworkModal assessmentId={assessment.id} sessionId={latestHomeworkSession.id} onClose={() => setIsUploadOpen(false)} />}
     </Card>
   );
 }
