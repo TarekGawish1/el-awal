@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAssessments, useAssessment, useSubmitAssessment } from '@/features/assessments/hooks/use-assessments';
 import { coursesApi } from '@/features/courses/api/courses.api';
+import { generatePresignedUrl, uploadFileToR2 } from '@/features/content/api/content.api';
 import { useAuth } from '@/features/auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -13,8 +14,12 @@ import { Alert } from '@/components/ui/Alert';
 import { Pagination } from '@/components/ui/Pagination';
 import {
   FileText, Calendar, Clock, CheckCircle2, XCircle, AlertCircle,
-  ChevronLeft, Award, Play, HelpCircle, Send, Check, AlertTriangle, ArrowLeft, RefreshCcw
+  ChevronLeft, Award, Play, HelpCircle, Send, Check, AlertTriangle, ArrowLeft, RefreshCcw,
+  UploadCloud,
 } from 'lucide-react';
+
+const ALLOWED_ANSWER_TYPES = ['application/pdf', 'image/png', 'image/jpeg'];
+const ANSWER_MAX_SIZE = 25 * 1024 * 1024; // 25 MB
 import { formatArabicDate, formatArabicTime } from '@/lib/utils/formatters';
 import { FeatureRequiresOnlineCard } from '@/components/offline/FeatureRequiresOnlineCard';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
@@ -309,6 +314,12 @@ function AssessmentWrapper({
   // Timer state
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
+  // Optional answer file upload (required for a homework with essay questions)
+  const [answerFile, setAnswerFile] = useState<File | null>(null);
+  const [answerFileError, setAnswerFileError] = useState('');
+  const [answerUploadProgress, setAnswerUploadProgress] = useState(0);
+  const answerFileInputRef = useRef<HTMLInputElement>(null);
+
   // Never allow retake UI for single-attempt quizzes (guards a hand-crafted &retake=1 URL).
   useEffect(() => {
     if (assessment && !assessment.allowMultipleAttempts) {
@@ -359,12 +370,53 @@ function AssessmentWrapper({
     setRetakeMode(true);
   };
 
-  const buildSubmitPayload = () => {
+  const handleAnswerFileSelect = (candidate?: File | null) => {
+    if (!candidate) return;
+    const ok = ALLOWED_ANSWER_TYPES.includes(candidate.type) || /\.(pdf|png|jpe?g)$/i.test(candidate.name);
+    if (!ok) {
+      setAnswerFileError('يُقبل فقط ملفات PDF أو صور PNG / JPG');
+      return;
+    }
+    if (candidate.size > ANSWER_MAX_SIZE) {
+      setAnswerFileError('حجم الملف يتجاوز الحد الأقصى المسموح (25 ميجابايت)');
+      return;
+    }
+    setAnswerFileError('');
+    setAnswerFile(candidate);
+  };
+
+  /**
+   * Uploads the answer file (if any) to storage and returns its public URL so it
+   * can be attached to the submission. Homework with essay (مقالي) questions needs
+   * an uploaded hand-written scan / PDF alongside the typed essays.
+   */
+  const uploadAnswerAttachment = async (): Promise<string | undefined> => {
+    if (!answerFile) return undefined;
+    const presigned = await generatePresignedUrl({
+      fileName: answerFile.name,
+      contentType: answerFile.type || 'application/octet-stream',
+      fileSizeBytes: answerFile.size,
+      folder: 'homework-submissions',
+    });
+    await uploadFileToR2(
+      presigned.uploadUrl,
+      answerFile,
+      answerFile.type || 'application/octet-stream',
+      (p) => setAnswerUploadProgress(p),
+    );
+    return presigned.publicUrl || presigned.uploadUrl;
+  };
+
+  const buildSubmitPayload = async () => {
     const formattedAnswers = Object.entries(answers).map(([qId, val]) => ({
       questionId: qId,
       answerGiven: val,
     }));
-    return { answers: formattedAnswers };
+    const attachmentUrl = await uploadAnswerAttachment();
+    return {
+      answers: formattedAnswers,
+      ...(attachmentUrl ? { attachmentUrl } : {}),
+    };
   };
 
   const notifyCourseLessonProgress = async (subData?: any) => {
@@ -391,9 +443,9 @@ function AssessmentWrapper({
     }
   };
 
-  const handleAutoSubmit = () => {
+  const handleAutoSubmit = async () => {
     toast.error('انتهى الوقت المحدد للاختبار! جاري تسليم إجاباتك تلقائياً...');
-    const payload = buildSubmitPayload();
+    const payload = await buildSubmitPayload();
     submit(
       { id: assessmentId, payload },
       {
@@ -419,8 +471,8 @@ function AssessmentWrapper({
     setIsConfirmOpen(true);
   };
 
-  const confirmSubmit = () => {
-    const payload = buildSubmitPayload();
+  const confirmSubmit = async () => {
+    const payload = await buildSubmitPayload();
     submit(
       { id: assessmentId, payload },
       {
@@ -474,6 +526,7 @@ function AssessmentWrapper({
 
   const isExam = assessment.type === 'EXAM';
   const mySubmission = localSubmission || assessment.mySubmission;
+  const hasEssayQuestions = (assessment.questions || []).some((q: any) => q.questionType === 'ESSAY');
   // A teacher/secretariat (non-student) submission is a preview: nothing is persisted,
   // the attempt policy is not enforced, and no mark is stored. Surface that plainly.
   const isPreviewResult =
@@ -700,6 +753,67 @@ function AssessmentWrapper({
               ))}
             </div>
 
+            {hasEssayQuestions && (
+              <div className="bg-white p-5 rounded-2xl border-2 border-dashed border-slate-200">
+                <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-2 mb-1">
+                  <UploadCloud className="w-4 h-4 text-primary-600" />
+                  رفع ملف إجابة الواجب (لأنه يحتوي أسئلة مقالية)
+                </h4>
+                <p className="text-xs text-slate-500 mb-3">اكتب إجاباتك في الخانات أعلاه، وارفع نسخة مصوّرة / PDF من حلولك على الورق (اختياري).</p>
+
+                <div
+                  className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/60 p-6 text-center transition-colors hover:border-primary-300 hover:bg-primary-50/40"
+                  onClick={() => answerFileInputRef.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); }}
+                  onDrop={(e) => { e.preventDefault(); handleAnswerFileSelect(e.dataTransfer.files?.[0]); }}
+                >
+                  <input
+                    ref={answerFileInputRef}
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+                    className="hidden"
+                    onChange={(e) => handleAnswerFileSelect(e.target.files?.[0])}
+                  />
+                  {answerFile ? (
+                    <div className="flex flex-col items-center">
+                      <CheckCircle2 className="mb-1.5 h-7 w-7 text-emerald-600" />
+                      <p className="text-sm font-bold text-slate-800">{answerFile.name}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">{(answerFile.size / 1024 / 1024).toFixed(2)} ميجابايت</p>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setAnswerFile(null); setAnswerUploadProgress(0); }}
+                        className="mt-2 text-xs font-bold text-rose-600 hover:text-rose-800 cursor-pointer"
+                      >
+                        إزالة الملف
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <UploadCloud className="mb-2 h-7 w-7 text-slate-400" />
+                      <p className="text-sm font-bold text-slate-700">اسحب ملف إجابتك هنا أو اضغط للاختيار</p>
+                      <p className="mt-1 text-xs text-slate-400">PDF / PNG / JPG حتى 25 ميجابايت</p>
+                    </>
+                  )}
+                </div>
+
+                {answerUploadProgress > 0 && answerUploadProgress < 100 && (
+                  <div className="mt-3">
+                    <div className="flex justify-between text-xs font-bold text-slate-600">
+                      <span>جاري رفع الملف إلى التخزين السحابي...</span>
+                      <span>{answerUploadProgress}%</span>
+                    </div>
+                    <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                      <div className="h-full rounded-full bg-primary-600 transition-all" style={{ width: `${answerUploadProgress}%` }} />
+                    </div>
+                  </div>
+                )}
+
+                {answerFileError && (
+                  <p className="mt-2 text-xs font-bold text-rose-600">{answerFileError}</p>
+                )}
+              </div>
+            )}
+
             {/* Submission triggers */}
             <div className="flex justify-end gap-4 mt-6">
               <Button
@@ -736,6 +850,18 @@ function AssessmentWrapper({
                 <p className="text-xs text-primary-700 mt-1 leading-relaxed">{mySubmission.teacherFeedback}</p>
               </div>
             </div>
+          )}
+
+          {mySubmission.attachmentUrl && (
+            <a
+              href={mySubmission.attachmentUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-xl border border-primary-200 bg-primary-50/60 px-4 py-2.5 text-sm font-bold text-primary-700 transition-colors hover:bg-primary-50"
+            >
+              <FileText className="h-4 w-4" />
+              تحميل ملف إجابتك المرفوعة
+            </a>
           )}
 
           {mySubmission.status === 'GRADED' ? (

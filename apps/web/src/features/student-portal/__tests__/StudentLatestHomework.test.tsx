@@ -10,6 +10,9 @@ vi.mock('../hooks/useStudentPortal', () => ({
   useSubmitHomework: vi.fn(),
 }));
 
+const FUTURE = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
+const PAST = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
+
 const session = {
   id: 'session-1',
   sessionDate: '2026-08-23T00:00:00.000Z',
@@ -21,7 +24,7 @@ const session = {
     title: 'واجب الحصة 4',
     description: 'حل التمارين من 1 إلى 5 صفحة 42',
     totalScore: 20,
-    dueDate: '2026-08-25T08:00:00.000Z',
+    dueDate: FUTURE,
     submission: null,
   },
   educationalContents: [{ id: 'content-1', title: 'ملف أسئلة الواجب', fileUrl: 'https://cdn/sheet.pdf', downloadUrl: 'https://cdn/sheet.pdf' }],
@@ -57,12 +60,28 @@ describe('StudentLatestHomework card', () => {
 
   it('shows the submitted badge when a submission exists', () => {
     vi.mocked(useStudentGroupSessions).mockReturnValue({
-      data: [{ ...session, assessment: { ...session.assessment, submission: { status: 'SUBMITTED', submittedAt: '2026-08-24T10:00:00.000Z', attachmentUrl: 'https://cdn/answer.pdf' } } }],
+      data: [{ ...session, assessment: { ...session.assessment, submission: { status: 'SUBMITTED', submittedAt: FUTURE, attachmentUrl: 'https://cdn/answer.pdf' } } }],
       isLoading: false,
     } as any);
     render(<StudentLatestHomework />);
     expect(screen.getByText('✅ تم تسليم الحل')).toBeInTheDocument();
     expect(screen.getByText(/بانتظار مراجعة الأستاذ/)).toBeInTheDocument();
+  });
+
+  it('hides the homework once its deadline has passed', () => {
+    vi.mocked(useStudentGroupSessions).mockReturnValue({
+      data: [{ ...session, assessment: { ...session.assessment, dueDate: PAST } }],
+      isLoading: false,
+    } as any);
+    render(<StudentLatestHomework />);
+    expect(screen.getByText('لا يوجد واجب مرتبط بحصص مجموعتك حالياً')).toBeInTheDocument();
+    expect(screen.queryByText('الحصة 4: قوانين نيوتن للحركة')).not.toBeInTheDocument();
+  });
+
+  it('offers a link to open and solve the homework from the dashboard', () => {
+    render(<StudentLatestHomework />);
+    const solveLink = screen.getByRole('link', { name: /حل واجب الحصة الآن/i });
+    expect(solveLink).toHaveAttribute('href', '/student/assessments?id=assessment-1');
   });
 
   it('uploads a PDF answer and calls submit-homework with the session and file', async () => {

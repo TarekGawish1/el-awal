@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { AlertCircle, CalendarDays, Clock, Download, FileText, MapPin, UploadCloud } from 'lucide-react';
+import { CalendarDays, Clock, Download, Edit3, FileText, MapPin, UploadCloud } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -33,7 +33,13 @@ export function StudentLatestHomework() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   const latestHomeworkSession = useMemo(() => {
-    const withHomework = sessions.filter((session: any) => session.assessment && session.assessment.id);
+    // Only show homework whose submission deadline has not passed yet.
+    const withHomework = sessions.filter((session: any) => {
+      const assessment = session.assessment;
+      if (!assessment || !assessment.id) return false;
+      if (assessment.dueDate && new Date(assessment.dueDate).getTime() < Date.now()) return false;
+      return true;
+    });
     if (withHomework.length === 0) return null;
     return withHomework.sort((a: any, b: any) => new Date(b.sessionDate).getTime() - new Date(a.sessionDate).getTime())[0];
   }, [sessions]);
@@ -73,11 +79,13 @@ export function StudentLatestHomework() {
       <CardContent className="p-6">
         <div className="space-y-4">
           <div>
-            <h3 className="text-base font-extrabold text-slate-800">{latestHomeworkSession.topic || assessment.title}</h3>
-            <p className="mt-1 text-xs text-slate-500 flex items-center gap-1.5 flex-wrap">
-              <CalendarDays className="w-3.5 h-3.5" />
-              {formatDate(latestHomeworkSession.sessionDate)} • {groupData?.group?.name || 'المجموعة الدراسية'}
-            </p>
+            <Link href={`/student/assessments?id=${assessment.id}`} className="block group/title">
+              <h3 className="text-base font-extrabold text-slate-800 group-hover/title:text-primary-700 transition-colors">{latestHomeworkSession.topic || assessment.title}</h3>
+              <p className="mt-1 text-xs text-slate-500 flex items-center gap-1.5 flex-wrap">
+                <CalendarDays className="w-3.5 h-3.5" />
+                {formatDate(latestHomeworkSession.sessionDate)} • {groupData?.group?.name || 'المجموعة الدراسية'}
+              </p>
+            </Link>
           </div>
 
           <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 text-sm leading-6 text-slate-600">
@@ -114,7 +122,12 @@ export function StudentLatestHomework() {
           ) : (
             <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
               <Badge variant="warning" className="mb-2">⚠️ بانتظار تسليم الحل</Badge>
-              <Button type="button" onClick={() => setIsUploadOpen(true)}><UploadCloud className="h-4 w-4" />رفع إجابة الواجب</Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Link href={`/student/assessments?id=${assessment.id}`}>
+                  <Button type="button" className="bg-primary-600 hover:bg-primary-700"><Edit3 className="h-4 w-4" />حل واجب الحصة الآن</Button>
+                </Link>
+                <Button type="button" variant="outline" onClick={() => setIsUploadOpen(true)}><UploadCloud className="h-4 w-4" />رفع إجابة الواجب</Button>
+              </div>
             </div>
           )}
         </div>

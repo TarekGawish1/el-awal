@@ -334,6 +334,9 @@ export function useSubmitAssessment() {
       // score + attempt lock refresh immediately when the student returns to the room.
       queryClient.invalidateQueries({ queryKey: ['lesson-viewer'] });
       queryClient.invalidateQueries({ queryKey: ['course-detail'] });
+      // The student dashboard homework tile reads the group-sessions payload, so it must
+      // refresh to reflect the newly submitted homework state.
+      queryClient.invalidateQueries({ queryKey: ['student-group-sessions'] });
     },
   });
 }
