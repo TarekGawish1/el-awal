@@ -24,6 +24,10 @@ import {
 } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
 import { resolveOfficialSubmission } from '../utils/submission-grade.util';
+import {
+  computeEffectiveDueDate,
+  SessionForDeadline,
+} from '../utils/effective-due-date.util';
 
 @Injectable()
 export class AssessmentsService {
@@ -211,7 +215,70 @@ export class AssessmentsService {
       },
     });
 
+    // Students see session-linked homework at its effective deadline (next
+    // session), so expired-by-record homework stays visible while actionable.
+    if (user.role === UserRole.STUDENT) {
+      await this.maybeApplyEffectiveDueDates(assessments as any[]);
+    }
+
     return CursorPaginationHelper.formatResponse(assessments, limit);
+  }
+
+  /**
+   * Overrides `dueDate` on session-linked homework (ASSIGNMENT) rows with the
+   * computed effective deadline. Batched per involved group to keep it cheap.
+   */
+  private async maybeApplyEffectiveDueDates(assessments: any[]) {
+    const groupIds = [
+      ...new Set(
+        assessments
+          .filter((a) => a?.type === 'ASSIGNMENT' && a.dueDate && a.groupId)
+          .map((a) => a.groupId),
+      ),
+    ];
+    if (groupIds.length === 0) return;
+
+    const sessions = await this.prisma.lessonSession.findMany({
+      where: { groupId: { in: groupIds } },
+      select: {
+        groupId: true,
+        sessionDate: true,
+        startTime: true,
+        endTime: true,
+        isCancelled: true,
+      },
+      orderBy: [{ sessionDate: 'asc' }, { startTime: 'asc' }],
+    });
+
+    for (const a of assessments) {
+      if (a?.type !== 'ASSIGNMENT' || !a.dueDate || !a.groupId) continue;
+      const groupSessions: SessionForDeadline[] = sessions.filter(
+        (s) => s.groupId === a.groupId,
+      );
+      a.dueDate = computeEffectiveDueDate(a.type, a.dueDate, groupSessions);
+    }
+  }
+
+  /**
+   * Resolves the effective deadline for a single student-visible assessment.
+   */
+  private async resolveEffectiveDueDate(
+    assessment: { type: string; dueDate: Date | null; groupId?: string | null },
+  ): Promise<Date | null> {
+    if (assessment.type !== 'ASSIGNMENT' || !assessment.dueDate || !assessment.groupId) {
+      return assessment.dueDate;
+    }
+    const sessions = await this.prisma.lessonSession.findMany({
+      where: { groupId: assessment.groupId },
+      select: {
+        sessionDate: true,
+        startTime: true,
+        endTime: true,
+        isCancelled: true,
+      },
+      orderBy: [{ sessionDate: 'asc' }, { startTime: 'asc' }],
+    });
+    return computeEffectiveDueDate(assessment.type, assessment.dueDate, sessions);
   }
 
   /**
@@ -289,6 +356,13 @@ export class AssessmentsService {
       return safeQuestion;
     });
 
+    // Session-linked homework is shown to students at its effective deadline
+    // (start of the next session), keeping it open while actionable.
+    const effectiveDueDate =
+      user.role === UserRole.STUDENT
+        ? await this.resolveEffectiveDueDate(assessment)
+        : assessment.dueDate;
+
     return {
       id: assessment.id,
       title: assessment.title,
@@ -299,7 +373,7 @@ export class AssessmentsService {
         ? Number(assessment.passingScore)
         : null,
       durationMinutes: assessment.durationMinutes,
-      dueDate: assessment.dueDate,
+      dueDate: effectiveDueDate,
       isPublished: assessment.isPublished,
       allowMultipleAttempts: assessment.allowMultipleAttempts,
       teacher: assessment.teacher,
@@ -546,8 +620,10 @@ export class AssessmentsService {
 
     const attemptNumber = (priorSubmissions[0]?.attemptNumber ?? 0) + 1;
 
-    // 2. Validate submission deadline
-    if (assessment.dueDate && new Date() > assessment.dueDate) {
+    // 2. Validate submission deadline (session-linked homework is accepted until
+    //    the start of the next session, not the stored record date).
+    const effectiveDueDate = await this.resolveEffectiveDueDate(assessment);
+    if (effectiveDueDate && new Date() > effectiveDueDate) {
       throw new BadRequestException(
         'Assessment submission deadline has already passed',
       );

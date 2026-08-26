@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { useStudentGroup, useStudentGroupSessions } from '@/features/student-portal/hooks/useStudentPortal';
+import { formatArabicDate, formatArabicTime } from '@/lib/utils/formatters';
 import { UploadHomeworkModal } from './UploadHomeworkModal';
 
 const ARABIC_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
@@ -68,7 +69,6 @@ export function StudentLatestHomework() {
   const submission = assessment.submission;
   const worksheet = latestHomeworkSession.educationalContents?.[0];
   const submitted = Boolean(submission && submission.status !== 'UNSOLVED');
-  const timeLabel = latestHomeworkSession.startTime ? `${latestHomeworkSession.startTime} ص` : '';
   const safeSubmission = submission || null;
 
   return (
@@ -103,7 +103,7 @@ export function StudentLatestHomework() {
 
           {assessment.dueDate && (
             <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-700">
-              <Clock className="w-3.5 h-3.5" />آخر موعد للتسليم: {formatDateTime(assessment.dueDate)}{timeLabel ? ` ${timeLabel}` : ''}
+              <Clock className="w-3.5 h-3.5" />آخر موعد للتسليم: {formatArabicDate(assessment.dueDate)} — الساعة {formatArabicTime(assessment.dueDate)}
             </p>
           )}
 

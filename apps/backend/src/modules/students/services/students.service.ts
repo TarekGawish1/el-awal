@@ -19,6 +19,7 @@ import { AuthenticatedUser } from '../../../core/security/decorators/current-use
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
 import { StudentGroupQueryDto } from '../dto/student-group-query.dto';
 import { StorageService } from '../../../integrations/storage/storage.service';
+import { computeEffectiveDueDate, SessionForDeadline } from '../../assessments/utils/effective-due-date.util';
 
 @Injectable()
 export class StudentsService {
@@ -492,10 +493,23 @@ export class StudentsService {
     const getDateKey = (value: Date | string | null | undefined) =>
       value ? new Date(value).toISOString().slice(0, 10) : null;
 
+    const deadlineSessions: SessionForDeadline[] = sessions.map((s) => ({
+      sessionDate: s.sessionDate,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      isCancelled: s.isCancelled,
+    }));
+
     return Promise.all(sessions.map(async (session) => {
       const sessionDateKey = getDateKey(session.sessionDate);
-      const assessment = assessments.find((item) => getDateKey(item.dueDate) === sessionDateKey);
+      let assessment = assessments.find((item) => getDateKey(item.dueDate) === sessionDateKey);
       const submission = assessment?.submissions[0];
+      // Legacy session homework may carry the session's own day as dueDate: the
+      // student-facing deadline is then the start of the next session instead.
+      const effectiveDueDate = assessment
+        ? computeEffectiveDueDate((assessment as any).type, assessment.dueDate as Date | null, deadlineSessions)
+        : null;
+      assessment = assessment ? { ...assessment, dueDate: effectiveDueDate } : assessment;
       const educationalContents = await Promise.all(session.educationalContents.map(async (content) => ({
         ...content,
         fileSize: content.fileSize === null ? null : Number(content.fileSize),
@@ -524,7 +538,7 @@ export class StudentsService {
               description: assessment.description,
               type: (assessment as any).type,
               totalScore: Number(assessment.totalScore),
-              dueDate: assessment.dueDate,
+              dueDate: effectiveDueDate,
               submission: submission
                 ? {
                     status: submission.status,
