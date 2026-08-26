@@ -12,6 +12,8 @@ on:
       - '.github/workflows/deploy-backend-heroku.yml'
   workflow_dispatch: # Allows manual trigger from GitHub Actions UI
 
+# Auto-trigger deployment for onsite homework tracking and cross-device sync
+
 jobs:
   deploy:
     name: Deploy Backend Subtree to Heroku
