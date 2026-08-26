@@ -14,6 +14,8 @@ const routeLabels: Record<string, string> = {
   attendance: 'رصد الحضور والغياب',
   students: 'سجل الطلاب',
   assessments: 'الواجبات والاختبارات',
+  homework: 'الواجبات المنزلية',
+  booklets: 'المذكرات والكتب',
   content: 'المحتوى والدروس',
   finance: 'الماليات والمصروفات',
   create: 'إنشاء جديد',
@@ -22,6 +24,7 @@ const routeLabels: Record<string, string> = {
   payments: 'المدفوعات',
   courses: 'الدورات الأونلاين',
   group: 'المجموعة الدراسية',
+  sessions: 'الحصص الدراسية',
   learn: 'قاعة المشاهدة والتعلم',
   schedules: 'جدول الحصص',
   submissions: 'تسليمات وإجابات الطلاب',
@@ -47,6 +50,9 @@ export function DashboardBreadcrumbs() {
     const isId = /^\d+$/.test(segment) || segment.length > 20;
     
     let label = routeLabels[segment] || segment;
+    if (segments[0] === 'student' && segment === 'assessments') {
+      label = 'الاختبارات';
+    }
     if (isId) {
       label = 'تفاصيل';
     }
