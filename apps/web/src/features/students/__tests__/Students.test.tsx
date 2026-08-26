@@ -10,6 +10,7 @@ import * as nextNavigation from 'next/navigation';
 vi.mock('next/navigation', () => ({
   useParams: vi.fn(),
   useRouter: vi.fn(),
+  usePathname: vi.fn(() => '/teacher/students'),
 }));
 
 vi.mock('@/lib/api/client', () => ({

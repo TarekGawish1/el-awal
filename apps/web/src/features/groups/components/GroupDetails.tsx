@@ -79,7 +79,30 @@ export function GroupDetails({ id }: GroupDetailsProps) {
     );
   }
 
-  if (!group) return null;
+  if (!group) {
+    return (
+      <div className="space-y-6 max-w-4xl mx-auto py-8">
+        <Link href="/teacher/groups" className="inline-flex items-center text-slate-500 hover:text-slate-800 transition-colors">
+          <ArrowRight className="w-4 h-4 ml-2" />
+          العودة للمجموعات
+        </Link>
+        <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center space-y-4 shadow-sm">
+          <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-800">لم يتم العثور على المجموعة الدراسية</h2>
+            <p className="text-sm text-slate-500 mt-1">تأكد من صحة الرابط أو تحقق من قائمة المجموعات المحفوظة محلياً.</p>
+          </div>
+          <Link href="/teacher/groups">
+            <Button variant="primary" size="sm" className="mt-2">
+              العودة لقائمة المجموعات
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

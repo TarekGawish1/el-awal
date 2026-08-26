@@ -626,6 +626,26 @@ export class SchedulesService {
       },
     });
 
+    // Prevent adding more than one session for the same group on the same day.
+    // The only exception is the exact same session (same date + start time) which gets updated instead.
+    if (!dto.isCancelled) {
+      const sameDaySession = await this.prisma.lessonSession.findFirst({
+        where: {
+          groupId: dto.groupId,
+          sessionDate: sessionDateOnly,
+          isCancelled: false,
+          ...(existing ? { id: { not: existing.id } } : {}),
+        },
+        select: { id: true, topic: true, startTime: true },
+      });
+
+      if (sameDaySession) {
+        throw new BadRequestException(
+          `لا يمكن إضافة أكثر من حصة لنفس المجموعة في نفس اليوم: توجد بالفعل حصة (${sameDaySession.topic}) تبدأ الساعة (${sameDaySession.startTime || ''})`,
+        );
+      }
+    }
+
     // Check for collisions with other non-cancelled sessions for this teacher on this day
     if (dto.startTime && !dto.isCancelled) {
       const teacherId = user.teacherProfileId || user.id;
@@ -728,6 +748,26 @@ export class SchedulesService {
     const targetStartTime = dto.startTime !== undefined ? dto.startTime : session.startTime;
     const targetEndTime = dto.endTime !== undefined ? dto.endTime : session.endTime;
     const targetIsCancelled = dto.isCancelled !== undefined ? dto.isCancelled : session.isCancelled;
+    const targetGroupId = dto.groupId || session.groupId;
+
+    // Prevent moving/keeping a session on a day where the same group already has another session.
+    if (!targetIsCancelled) {
+      const sameDaySession = await this.prisma.lessonSession.findFirst({
+        where: {
+          groupId: targetGroupId,
+          sessionDate: sessionDateOnly,
+          isCancelled: false,
+          id: { not: sessionId },
+        },
+        select: { id: true, topic: true, startTime: true },
+      });
+
+      if (sameDaySession) {
+        throw new BadRequestException(
+          `لا يمكن تعديل الحصة: توجد بالفعل حصة أخرى (${sameDaySession.topic}) لنفس المجموعة في نفس اليوم تبدأ الساعة (${sameDaySession.startTime || ''})`,
+        );
+      }
+    }
 
     // Check for collisions if active and moving or updating times
     if (targetStartTime && !targetIsCancelled) {

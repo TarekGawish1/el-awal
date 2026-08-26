@@ -89,19 +89,35 @@ export class AttendanceService {
     );
 
     if (!directEnrollment) {
-      const registeredGroup = student.groupEnrollments[0]?.group?.name;
-      const extraInfo = registeredGroup ? ` (مسجل في: ${registeredGroup})` : '';
+      if (!allowCrossGroup) {
+        const registeredGroup = student.groupEnrollments[0]?.group?.name;
+        const extraInfo = registeredGroup ? ` (مسجل في: ${registeredGroup})` : '';
 
-      throw new BadRequestException(
-        `عذراً، الطالب [${student.user.fullName}] غير مسجل في هذه المجموعة (${session.group.name})${extraInfo}. الماسح يقبل فقط طلاب المجموعة المحددة.`,
-      );
+        throw new BadRequestException({
+          statusCode: 400,
+          error: 'STUDENT_NOT_ENROLLED',
+          message: `عذراً، الطالب [${student.user.fullName}] غير مقيد في هذه المجموعة الدراسية (${session.group.name})${extraInfo}.`,
+          studentName: student.user.fullName,
+          studentId: student.id,
+          studentCode: student.studentCode,
+          gradeLevel: student.gradeLevel,
+          enrolledGroups: student.groupEnrollments.map((e) => e.group?.name).filter(Boolean),
+          originalGroupId: student.groupEnrollments[0]?.groupId || null,
+          originalGroupName: registeredGroup || null,
+        });
+      }
     }
 
     // 4. Atomic Record Creation (Handles race condition & idempotency)
+    const notes = !directEnrollment
+      ? `حضور استثنائي / تعويض (المجموعة الأصلية: ${student.groupEnrollments[0]?.group?.name || 'أخرى'})`
+      : undefined;
+
     const result = await this.attendanceRepository.recordQrScan(
       session.id,
       student.id,
       user.id,
+      notes,
     );
 
     // 5. Emit domain event if this was the first successful scan
@@ -127,11 +143,24 @@ export class AttendanceService {
 
     return {
       isDuplicate: result.isDuplicate,
+      isCrossGroupSuccess: !directEnrollment,
       student: {
         id: student.id,
         fullName: student.user.fullName,
         studentCode: student.studentCode,
         gradeLevel: student.gradeLevel,
+      },
+      studentGroup: student.groupEnrollments[0]?.group
+        ? {
+            id: student.groupEnrollments[0].groupId,
+            name: student.groupEnrollments[0].group.name,
+            gradeLevel: student.groupEnrollments[0].group.gradeLevel,
+          }
+        : undefined,
+      sessionGroup: {
+        id: session.groupId,
+        name: session.group.name,
+        gradeLevel: session.group.gradeLevel,
       },
       attendance: result.record,
       sessionStats: {
@@ -140,6 +169,8 @@ export class AttendanceService {
       },
       message: result.isDuplicate
         ? `⚠️ تم تسجيل حضور الطالب [${student.user.fullName}] لهذه الحصة مسبقاً ${recordedTimeStr ? `في تمام الساعة ${recordedTimeStr}` : ''}`
+        : !directEnrollment
+        ? `تم تسجيل حضور استثنائي للطالب [${student.user.fullName}] بنجاح (تعويض حصة)`
         : `تم تسجيل حضور الطالب [${student.user.fullName}] بنجاح`,
     };
   }

@@ -28,6 +28,23 @@ export class ScanPaymentQrDto {
   groupId?: string;
 
   @ApiPropertyOptional({
+    enum: ['TUITION', 'BOOKLET', 'OTHER'],
+    description: 'Type of payment (TUITION, BOOKLET, OTHER)',
+    default: 'TUITION',
+    example: 'BOOKLET',
+  })
+  @IsOptional()
+  paymentType?: 'TUITION' | 'BOOKLET' | 'OTHER';
+
+  @ApiPropertyOptional({
+    description: 'Booklet ID if payment is for a study booklet/notes (UUID)',
+    example: 'c3d4e5f6-a7b8-9c0d-1e2f-3a4b5c6d7e8f',
+  })
+  @IsOptional()
+  @IsUUID()
+  bookletId?: string;
+
+  @ApiPropertyOptional({
     description: 'Billing year (defaults to current year)',
     example: 2026,
   })

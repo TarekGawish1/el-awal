@@ -4,7 +4,6 @@ import {
   IsArray,
   IsEnum,
   IsInt,
-  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
@@ -16,37 +15,89 @@ import {
 import { PaymentStatus } from '@prisma/client';
 
 export class SyncPaymentItemDto {
-  @ApiProperty({ description: 'Client-generated UUIDv7 operation ID for idempotency' })
-  @IsUUID()
-  @IsNotEmpty()
-  id: string;
+  @ApiPropertyOptional({ description: 'Client-generated UUIDv7 operation ID for idempotency' })
+  @IsString()
+  @IsOptional()
+  id?: string;
 
-  @ApiProperty({ description: 'Student profile UUID' })
-  @IsUUID()
-  @IsNotEmpty()
-  studentId: string;
+  @ApiPropertyOptional({ description: 'Client temp ID for payment item' })
+  @IsString()
+  @IsOptional()
+  clientTempId?: string;
+
+  @ApiPropertyOptional({
+    enum: ['CREATE_PAYMENT', 'DELETE_PAYMENT'],
+    default: 'CREATE_PAYMENT',
+    description: 'Operation kind. Defaults to a payment creation/update when omitted.',
+  })
+  @IsString()
+  @IsOptional()
+  type?: 'CREATE_PAYMENT' | 'DELETE_PAYMENT';
+
+  @ApiPropertyOptional({ description: 'Target StudentPaymentRecord UUID when type is DELETE_PAYMENT' })
+  @IsString()
+  @IsOptional()
+  paymentId?: string;
+
+  @ApiPropertyOptional({ description: 'Student profile UUID (required unless type is DELETE_PAYMENT)' })
+  @IsString()
+  @IsOptional()
+  studentId?: string;
 
   @ApiPropertyOptional({ description: 'Academic group UUID' })
-  @IsUUID()
+  @IsString()
   @IsOptional()
   groupId?: string;
 
-  @ApiProperty({ description: 'Billing period year (e.g. 2026)' })
+  @ApiPropertyOptional({ enum: ['TUITION', 'BOOKLET', 'OTHER'], default: 'TUITION' })
+  @IsString()
+  @IsOptional()
+  paymentType?: 'TUITION' | 'BOOKLET' | 'OTHER';
+
+  @ApiPropertyOptional({ description: 'Booklet UUID if payment is for a study booklet' })
+  @IsString()
+  @IsOptional()
+  bookletId?: string;
+
+  @ApiPropertyOptional({ description: 'Billing period year (e.g. 2026)' })
   @IsInt()
   @Min(2020)
   @Max(2100)
-  periodYear: number;
+  @IsOptional()
+  periodYear?: number;
 
-  @ApiProperty({ description: 'Billing period month (1-12)' })
+  @ApiPropertyOptional({ description: 'Alternative field for billing period year' })
+  @IsInt()
+  @Min(2020)
+  @Max(2100)
+  @IsOptional()
+  billingPeriodYear?: number;
+
+  @ApiPropertyOptional({ description: 'Billing period month (1-12)' })
   @IsInt()
   @Min(1)
   @Max(12)
-  periodMonth: number;
+  @IsOptional()
+  periodMonth?: number;
 
-  @ApiProperty({ description: 'Amount paid by student' })
+  @ApiPropertyOptional({ description: 'Alternative field for billing period month' })
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  @IsOptional()
+  billingPeriodMonth?: number;
+
+  @ApiPropertyOptional({ description: 'Amount paid by student' })
   @IsNumber()
   @Min(0)
-  amountPaid: number;
+  @IsOptional()
+  amountPaid?: number;
+
+  @ApiPropertyOptional({ description: 'Amount paid by student (alias)' })
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  amount?: number;
 
   @ApiPropertyOptional({ description: 'Expected tuition amount' })
   @IsNumber()
@@ -54,10 +105,10 @@ export class SyncPaymentItemDto {
   @IsOptional()
   amountExpected?: number;
 
-  @ApiProperty({ default: 'CASH' })
+  @ApiPropertyOptional({ default: 'CASH' })
   @IsString()
-  @IsNotEmpty()
-  paymentMethod: string;
+  @IsOptional()
+  paymentMethod?: string;
 
   @ApiPropertyOptional({ default: 'EGP' })
   @IsString()
@@ -79,9 +130,14 @@ export class SyncPaymentItemDto {
   @IsOptional()
   notes?: string;
 
-  @ApiProperty({ description: 'Client timestamp in epoch ms' })
+  @ApiPropertyOptional({ description: 'Collected at timestamp' })
+  @IsOptional()
+  collectedAt?: string | Date;
+
+  @ApiPropertyOptional({ description: 'Client timestamp in epoch ms' })
   @IsNumber()
-  clientTimestamp: number;
+  @IsOptional()
+  clientTimestamp?: number;
 }
 
 export class SyncPaymentsBatchDto {

@@ -20,32 +20,73 @@ describe('CoursesService', () => {
       findUnique: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
+      delete: jest.fn(),
     },
     courseModule: {
       create: jest.fn(),
       findUnique: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
       count: jest.fn(),
     },
     courseLesson: {
       create: jest.fn(),
       findUnique: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
       count: jest.fn(),
+      findMany: jest.fn(),
+    },
+    lessonAttachment: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      delete: jest.fn(),
+    },
+    lessonQuestion: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+    },
+    lessonQuestionReply: {
+      create: jest.fn(),
+    },
+    user: {
+      findUnique: jest.fn(),
     },
     courseEnrollment: {
+      findUnique: jest.fn(),
       findMany: jest.fn(),
       upsert: jest.fn(),
+      deleteMany: jest.fn(),
     },
     courseAccess: {
       findFirst: jest.fn(),
       upsert: jest.fn(),
     },
+    groupCourseAccess: {
+      upsert: jest.fn(),
+    },
+    groupEnrollment: {
+      findMany: jest.fn(),
+      upsert: jest.fn(),
+    },
     courseProgress: {
       findUnique: jest.fn(),
     },
+    assessmentSubmission: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
     studentProfile: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      create: jest.fn(),
     },
-    $transaction: jest.fn(),
+    $transaction: jest.fn((callbackOrArray) => {
+      if (typeof callbackOrArray === 'function') {
+        return callbackOrArray(mockPrismaService);
+      }
+      return Promise.all(callbackOrArray);
+    }),
   };
 
   const mockProgressRepository = {
@@ -56,6 +97,9 @@ describe('CoursesService', () => {
 
   const mockBunnyVideoService = {
     generateSecurePlaybackUrl: jest.fn(),
+    generateDirectUploadCredentials: jest.fn(),
+    getEmbedUrl: jest.fn().mockReturnValue('https://iframe.mediadelivery.net/embed/12345/bunny-vid-123'),
+    getLibraryId: jest.fn().mockReturnValue('12345'),
   };
 
   const mockStorageService = {
@@ -82,8 +126,8 @@ describe('CoursesService', () => {
     jest.clearAllMocks();
   });
 
-  describe('createCourse', () => {
-    it('should create a course in DRAFT status assigned to teacher', async () => {
+  describe('createCourse with multi-level quiz linkage', () => {
+    it('should create a course in DRAFT status with optional course final quiz ID', async () => {
       const mockCreated = {
         id: 'course-uuid-1',
         title: 'دورة النحو والبلاغة',
@@ -91,6 +135,7 @@ describe('CoursesService', () => {
         gradeLevel: 'الصف الثالث الثانوي',
         status: CourseStatus.DRAFT,
         teacherId: 'teacher-uuid-1',
+        courseQuizId: 'quiz-final-uuid',
       };
 
       mockPrismaService.course.create.mockResolvedValue(mockCreated);
@@ -99,10 +144,223 @@ describe('CoursesService', () => {
         title: 'دورة النحو والبلاغة',
         subject: 'اللغة العربية',
         gradeLevel: 'الصف الثالث الثانوي',
+        courseQuizId: 'quiz-final-uuid',
       });
 
       expect(result.status).toBe(CourseStatus.DRAFT);
       expect(result.teacherId).toBe('teacher-uuid-1');
+      expect(result.courseQuizId).toBe('quiz-final-uuid');
+    });
+  });
+
+  describe('createModule & createLesson with Unit and Lesson Quizzes', () => {
+    it('should create a unit module linked to a unit comprehensive quiz', async () => {
+      mockPrismaService.course.findUnique.mockResolvedValue({
+        id: 'course-1',
+        teacherId: 'teacher-1',
+      });
+      mockPrismaService.courseModule.count.mockResolvedValue(0);
+      mockPrismaService.courseModule.create.mockResolvedValue({
+        id: 'module-1',
+        courseId: 'course-1',
+        title: 'الوحدة الأولى: قواعد النحو',
+        orderIndex: 1,
+        unitQuizId: 'quiz-unit-1',
+      });
+
+      const result = await service.createModule('course-1', 'teacher-1', false, {
+        title: 'الوحدة الأولى: قواعد النحو',
+        unitQuizId: 'quiz-unit-1',
+      });
+
+      expect(result.id).toBe('module-1');
+      expect(result.unitQuizId).toBe('quiz-unit-1');
+    });
+
+    it('should create a lesson with rich summary, Bunny video ID, and lesson quiz ID', async () => {
+      mockPrismaService.courseModule.findUnique.mockResolvedValue({
+        id: 'module-1',
+        course: { id: 'course-1', teacherId: 'teacher-1' },
+      });
+      mockPrismaService.courseLesson.count.mockResolvedValue(0);
+      mockPrismaService.courseLesson.create.mockResolvedValue({
+        id: 'lesson-1',
+        moduleId: 'module-1',
+        title: 'الدرس الأول: كان وأخواتها',
+        summary: '### ملخص كان وأخواتها',
+        bunnyVideoId: 'bunny-12345',
+        videoDurationSeconds: 1800,
+        lessonQuizId: 'quiz-lesson-1',
+        isPreview: true,
+      });
+
+      const result = await service.createLesson('module-1', 'teacher-1', false, {
+        title: 'الدرس الأول: كان وأخواتها',
+        summary: '### ملخص كان وأخواتها',
+        bunnyVideoId: 'bunny-12345',
+        videoDurationSeconds: 1800,
+        lessonQuizId: 'quiz-lesson-1',
+        isFreePreview: true,
+      });
+
+      expect(result.id).toBe('lesson-1');
+      expect(result.summary).toBe('### ملخص كان وأخواتها');
+      expect(result.lessonQuizId).toBe('quiz-lesson-1');
+    });
+  });
+
+  describe('Lesson Attachments & PDF Resources', () => {
+    it('should attach a downloadable PDF resource to a lesson', async () => {
+      mockPrismaService.courseLesson.findUnique.mockResolvedValue({
+        id: 'lesson-1',
+        module: { course: { teacherId: 'teacher-1' } },
+      });
+      mockPrismaService.lessonAttachment.create.mockResolvedValue({
+        id: 'att-1',
+        lessonId: 'lesson-1',
+        title: 'ملخص قوانين الدرس PDF',
+        fileUrl: 'https://assets.elawal.com/summary.pdf',
+        fileKey: 'courses/summary.pdf',
+        fileSize: 1048576,
+        fileType: 'application/pdf',
+      });
+
+      const result = await service.addLessonAttachment('lesson-1', 'teacher-1', false, {
+        title: 'ملخص قوانين الدرس PDF',
+        fileUrl: 'https://assets.elawal.com/summary.pdf',
+        fileKey: 'courses/summary.pdf',
+        fileSize: 1048576,
+        fileType: 'application/pdf',
+      });
+
+      expect(result.id).toBe('att-1');
+      expect(result.title).toBe('ملخص قوانين الدرس PDF');
+    });
+  });
+
+  describe('Timestamped Video Q&A Discussion', () => {
+    it('should submit a question with videoTimestamp in seconds', async () => {
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue({
+        id: 'stu-1',
+      });
+      mockPrismaService.lessonQuestion.create.mockResolvedValue({
+        id: 'q-1',
+        content: 'هل يجوز تقديم خبر كان في هذه الحالة؟',
+        videoTimestamp: 145,
+        lessonId: 'lesson-1',
+        studentId: 'stu-1',
+        student: { user: { fullName: 'أحمد محمد' } },
+        replies: [],
+      });
+
+      const user: any = {
+        id: 'user-1',
+        studentProfileId: 'stu-1',
+        role: UserRole.STUDENT,
+      };
+
+      const result = await service.createLessonQuestion('lesson-1', user, {
+        content: 'هل يجوز تقديم خبر كان في هذه الحالة؟',
+        videoTimestamp: 145,
+      });
+
+      expect(result.id).toBe('q-1');
+      expect(result.videoTimestamp).toBe(145);
+      expect(result.studentName).toBe('أحمد محمد');
+    });
+
+    it('should allow a teacher previewing the course to submit a question gracefully', async () => {
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue(null);
+      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'user-teacher-1', fullName: 'أ. طارق عبد الله' });
+      mockPrismaService.studentProfile.create.mockResolvedValue({
+        id: 'user-teacher-1',
+        user: { fullName: 'أ. طارق عبد الله' },
+      });
+      mockPrismaService.lessonQuestion.create.mockResolvedValue({
+        id: 'q-teacher-1',
+        content: 'سؤال تجريبي من المعلم أثناء المعاينة',
+        videoTimestamp: 0,
+        lessonId: 'lesson-1',
+        studentId: 'user-teacher-1',
+        student: { user: { fullName: 'أ. طارق عبد الله' } },
+        replies: [],
+      });
+
+      const teacherUser: any = {
+        id: 'user-teacher-1',
+        role: UserRole.TEACHER,
+      };
+
+      const result = await service.createLessonQuestion('lesson-1', teacherUser, {
+        content: 'سؤال تجريبي من المعلم أثناء المعاينة',
+        videoTimestamp: 0,
+      });
+
+      expect(result.id).toBe('q-teacher-1');
+      expect(result.videoTimestamp).toBe(0);
+      expect(result.studentName).toBe('أ. طارق عبد الله');
+    });
+
+    it('should create a reply to a question with author role and name', async () => {
+      mockPrismaService.lessonQuestion.findUnique.mockResolvedValue({
+        id: 'q-1',
+      });
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'user-teacher-1',
+        fullName: 'أ. طارق جاويش',
+      });
+      mockPrismaService.lessonQuestionReply.create.mockResolvedValue({
+        id: 'reply-1',
+        questionId: 'q-1',
+        content: 'نعم يجوز تقديم الخبر إذا كان شبه جملة.',
+        authorId: 'user-teacher-1',
+        authorRole: UserRole.TEACHER,
+        authorName: 'أ. طارق جاويش',
+      });
+
+      const teacherUser: any = {
+        id: 'user-teacher-1',
+        teacherProfileId: 'teacher-1',
+        role: UserRole.TEACHER,
+      };
+
+      const result = await service.createQuestionReply('q-1', teacherUser, {
+        content: 'نعم يجوز تقديم الخبر إذا كان شبه جملة.',
+      });
+
+      expect(result.id).toBe('reply-1');
+      expect(result.authorName).toBe('أ. طارق جاويش');
+    });
+  });
+
+  describe('Batch Group Course Access', () => {
+    it('should provision course enrollments and access for all students in group', async () => {
+      mockPrismaService.course.findUnique.mockResolvedValue({
+        id: 'course-1',
+        teacherId: 'teacher-1',
+      });
+      mockPrismaService.groupCourseAccess.upsert.mockResolvedValue({
+        id: 'gca-1',
+        courseId: 'course-1',
+        groupId: 'group-1',
+      });
+      mockPrismaService.groupEnrollment.findMany.mockResolvedValue([
+        { studentId: 'stu-1' },
+        { studentId: 'stu-2' },
+      ]);
+      mockPrismaService.courseEnrollment.upsert.mockResolvedValue({
+        id: 'enr-1',
+      });
+      mockPrismaService.courseAccess.upsert.mockResolvedValue({
+        id: 'acc-1',
+      });
+
+      const result = await service.grantGroupAccess('course-1', 'teacher-1', false, {
+        groupIds: ['group-1'],
+      });
+
+      expect(result.courseId).toBe('course-1');
+      expect(result.groupsGranted).toBe(1);
     });
   });
 
@@ -113,17 +371,22 @@ describe('CoursesService', () => {
       moduleId: 'module-1',
       title: 'الدرس الأول',
       description: 'شرح مبسط',
+      summary: 'ملخص الدرس',
       lessonType: 'VIDEO',
       bunnyVideoId: 'bunny-vid-123',
       contentUrl: null,
       isPreview: false,
       videoDurationSeconds: 1200,
+      attachments: [],
+      lessonQuiz: { id: 'quiz-1', title: 'اختبار الدرس' },
       module: {
+        unitQuiz: { id: 'quiz-unit-1', title: 'اختبار الوحدة' },
         courseId: 'course-1',
         course: {
           id: 'course-1',
           title: 'دورة النحو',
           teacherId: 'teacher-1',
+          courseQuiz: { id: 'quiz-course-1', title: 'الاختبار الشامل' },
         },
       },
     };
@@ -150,6 +413,7 @@ describe('CoursesService', () => {
         'https://video.bunnycdn.com/play/m3u8?token=signed-token',
       );
       expect(result.isPreview).toBe(true);
+      expect(result.lessonQuiz).toBeDefined();
     });
 
     it('should grant access to enrolled student with active CourseAccess', async () => {
@@ -194,6 +458,144 @@ describe('CoursesService', () => {
       await expect(service.getLessonViewer(lessonId, studentUser)).rejects.toThrow(
         ForbiddenException,
       );
+    });
+  });
+
+  describe('getLessonStreamAuth & Hybrid Enrollment', () => {
+    it('should return signed DRM stream and anti-piracy watermark for authorized student', async () => {
+      const mockLessonWithCourse = {
+        id: 'les-stream-1',
+        title: 'شرح الباب الأول',
+        bunnyVideoId: 'bunny-vid-123',
+        contentUrl: null,
+        isPreview: false,
+        module: {
+          course: {
+            id: 'course-1',
+            teacherId: 'teacher-1',
+            groupAccess: [],
+          },
+        },
+      };
+
+      mockPrismaService.courseLesson.findUnique.mockResolvedValue(mockLessonWithCourse);
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue({
+        id: 'stu-profile-1',
+        studentCode: 'STU-2026-0001',
+        user: { fullName: 'عاصم طارق', phone: '01012345678' },
+        groupEnrollments: [],
+      });
+      mockPrismaService.courseEnrollment.findUnique.mockResolvedValue({
+        id: 'enr-1',
+        status: 'ACTIVE',
+      });
+      mockBunnyVideoService.generateSecurePlaybackUrl.mockReturnValue(
+        'https://video.bunnycdn.com/bunny-vid-123/playlist.m3u8?token=sig&expires=12345',
+      );
+
+      const studentUser: any = {
+        id: 'user-1',
+        studentProfileId: 'stu-profile-1',
+        role: UserRole.STUDENT,
+      };
+
+      const result = await service.getLessonStreamAuth('les-stream-1', studentUser);
+
+      expect(result.videoId).toBe('bunny-vid-123');
+      expect(result.watermark).toEqual({
+        studentName: 'عاصم طارق',
+        studentPhone: '01012345678',
+        studentCode: 'STU-2026-0001',
+      });
+    });
+
+    it('should throw ForbiddenException if student is not enrolled and lesson is not preview', async () => {
+      const mockLessonLocked = {
+        id: 'les-locked',
+        title: 'درس مقفل',
+        bunnyVideoId: 'bunny-locked',
+        isPreview: false,
+        module: {
+          course: {
+            id: 'course-1',
+            teacherId: 'teacher-1',
+            groupAccess: [],
+          },
+        },
+      };
+
+      mockPrismaService.courseLesson.findUnique.mockResolvedValue(mockLessonLocked);
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue({
+        id: 'stu-unauthorized',
+        studentCode: 'STU-2026-9999',
+        user: { fullName: 'طالب غير مشترك', phone: '01099999999' },
+        groupEnrollments: [],
+      });
+      mockPrismaService.courseEnrollment.findUnique.mockResolvedValue(null);
+
+      const studentUser: any = {
+        id: 'user-2',
+        studentProfileId: 'stu-unauthorized',
+        role: UserRole.STUDENT,
+      };
+
+      await expect(service.getLessonStreamAuth('les-locked', studentUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('should batch enroll students into course', async () => {
+      mockPrismaService.course.findUnique.mockResolvedValue({
+        id: 'course-1',
+        teacherId: 'teacher-1',
+      });
+      mockPrismaService.courseEnrollment.upsert.mockResolvedValue({
+        id: 'enr-new-1',
+        courseId: 'course-1',
+        studentId: 'stu-1',
+      });
+      mockPrismaService.courseAccess.upsert.mockResolvedValue({
+        id: 'acc-new-1',
+      });
+
+      const result = await service.enrollStudentsBatch(
+        'course-1',
+        'teacher-1',
+        false,
+        { studentIds: ['stu-1', 'stu-2'] },
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.enrolledCount).toBe(2);
+    });
+
+    it('should enroll student via QR code token', async () => {
+      mockPrismaService.course.findUnique.mockResolvedValue({
+        id: 'course-1',
+        teacherId: 'teacher-1',
+      });
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue({
+        id: 'stu-qr-1',
+        studentCode: 'STU-2026-QR01',
+        user: { fullName: 'طالب مسح QR', phone: '01122334455' },
+        gradeLevel: 'الصف الأول الثانوي',
+      });
+      mockPrismaService.courseEnrollment.upsert.mockResolvedValue({
+        id: 'enr-qr-1',
+      });
+      mockPrismaService.courseAccess.upsert.mockResolvedValue({
+        id: 'acc-qr-1',
+      });
+
+      const result = await service.enrollByQrToken(
+        'course-1',
+        'teacher-1',
+        false,
+        { qrToken: 'qr_tok_valid_student_123' },
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.student.fullName).toBe('طالب مسح QR');
     });
   });
 });

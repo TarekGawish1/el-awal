@@ -13,10 +13,23 @@ import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
 import { EditAssessmentMetadataModal } from './EditAssessmentMetadataModal';
+import { FeatureRequiresOnlineCard } from '@/components/offline/FeatureRequiresOnlineCard';
+import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import toast from 'react-hot-toast';
 
 export function AssessmentDetails({ assessmentId }: { assessmentId: string }) {
+  const isOnline = useOnlineStatus();
   const { data: assessment, isLoading, isError, error } = useAssessment(assessmentId);
+
+  if (!isOnline) {
+    return (
+      <FeatureRequiresOnlineCard
+        featureName="تفاصيل الاختبار"
+        description="عرض وتعديل تفاصيل الاختبارات والواجبات يتطلب اتصالاً نشطاً بالخادم."
+        backHref="/teacher/dashboard"
+      />
+    );
+  }
   const { mutate: updateAssessment, isPending: isUpdating } = useUpdateAssessment();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 

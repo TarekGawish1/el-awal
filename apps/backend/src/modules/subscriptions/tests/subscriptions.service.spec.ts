@@ -23,10 +23,19 @@ describe('SubscriptionsService', () => {
     academicGroup: {
       findUnique: jest.fn(),
     },
+    booklet: {
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      update: jest.fn(),
+    },
     studentPaymentRecord: {
       upsert: jest.fn(),
       findMany: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
     },
     groupEnrollment: {
       findUnique: jest.fn(),
@@ -86,7 +95,8 @@ describe('SubscriptionsService', () => {
         paymentStatus: PaymentStatus.PAID,
       };
 
-      mockPrismaService.studentPaymentRecord.upsert.mockResolvedValue(mockPayment);
+      mockPrismaService.studentPaymentRecord.findFirst.mockResolvedValue(null);
+      mockPrismaService.studentPaymentRecord.create.mockResolvedValue(mockPayment);
 
       const result = await service.recordStudentPayment(mockUser, {
         studentId,
@@ -107,6 +117,207 @@ describe('SubscriptionsService', () => {
           periodMonth: 9,
         }),
       );
+    });
+
+    it('should record booklet payment when paymentType is BOOKLET', async () => {
+      const studentId = 'stu-1';
+      const bookletId = 'booklet-1';
+
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue({
+        id: studentId,
+        user: { fullName: 'محمود أحمد' },
+      });
+
+      mockPrismaService.booklet.findUnique.mockResolvedValue({
+        id: bookletId,
+        title: 'مذكرة الشرح',
+        price: 85.0,
+        stockCount: 10,
+        groupId: null,
+      });
+
+      mockPrismaService.studentPaymentRecord.findFirst.mockResolvedValue(null);
+      mockPrismaService.studentPaymentRecord.create.mockResolvedValue({
+        id: 'pay-booklet-1',
+        studentId,
+        bookletId,
+        amountPaid: 85.0,
+        amountExpected: 85.0,
+        paymentStatus: PaymentStatus.PAID,
+      });
+
+      const result = await service.recordStudentPayment(mockUser, {
+        studentId,
+        paymentType: 'BOOKLET',
+        bookletId,
+        amountPaid: 85.0,
+      });
+
+      expect(result.id).toBe('pay-booklet-1');
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'payment.recorded',
+        expect.objectContaining({
+          studentId,
+          paymentType: 'BOOKLET',
+          bookletTitle: 'مذكرة الشرح',
+          amountPaid: 85.0,
+        }),
+      );
+    });
+
+    it('should throw BadRequestException when booklet gradeLevel does not match student gradeLevel', async () => {
+      const studentId = 'stu-1';
+      const bookletId = 'booklet-diff-grade';
+
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue({
+        id: studentId,
+        gradeLevel: 'الصف الأول الثانوي',
+        user: { fullName: 'محمود أحمد' },
+        groupEnrollments: [{ groupId: 'grp-1' }],
+      });
+
+      mockPrismaService.booklet.findUnique.mockResolvedValue({
+        id: bookletId,
+        title: 'مذكرة كيمياء تالتة ثانوي',
+        gradeLevel: 'الصف الثالث الثانوي',
+        price: 90.0,
+        stockCount: 10,
+        groupId: null,
+      });
+
+      await expect(
+        service.recordStudentPayment(mockUser, {
+          studentId,
+          paymentType: 'BOOKLET',
+          bookletId,
+          amountPaid: 90.0,
+        }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          code: 'BOOKLET_GRADE_MISMATCH',
+          details: {
+            studentId,
+            studentGradeLevel: 'الصف الأول الثانوي',
+            bookletId,
+            bookletGradeLevel: 'الصف الثالث الثانوي',
+          },
+        }),
+      });
+    });
+
+    it('should throw BadRequestException when student is not enrolled in booklet group', async () => {
+      const studentId = 'stu-1';
+      const bookletId = 'booklet-diff-group';
+
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue({
+        id: studentId,
+        gradeLevel: 'الصف الأول الثانوي',
+        user: { fullName: 'محمود أحمد' },
+        groupEnrollments: [{ groupId: 'grp-1' }],
+      });
+
+      mockPrismaService.booklet.findUnique.mockResolvedValue({
+        id: bookletId,
+        title: 'مذكرة مجموعة المتفوقين',
+        gradeLevel: 'الصف الأول الثانوي',
+        price: 70.0,
+        stockCount: 10,
+        groupId: 'grp-special-2',
+      });
+
+      await expect(
+        service.recordStudentPayment(mockUser, {
+          studentId,
+          paymentType: 'BOOKLET',
+          bookletId,
+          amountPaid: 70.0,
+        }),
+      ).rejects.toThrow('INVALID_BOOKLET_FOR_STUDENT');
+    });
+  });
+
+  describe('deleteStudentPayment', () => {
+    it('should delete the StudentPaymentRecord in PostgreSQL', async () => {
+      mockPrismaService.studentPaymentRecord.findUnique.mockResolvedValue({
+        id: 'payment-to-delete',
+        studentId: 'stu-1',
+        group: { teacherId: 'staff-1' },
+      });
+      mockPrismaService.studentPaymentRecord.delete.mockResolvedValue({ id: 'payment-to-delete' });
+
+      const result = await service.deleteStudentPayment('payment-to-delete', mockUser);
+
+      expect(mockPrismaService.studentPaymentRecord.delete).toHaveBeenCalledWith({
+        where: { id: 'payment-to-delete' },
+      });
+      expect(result).toEqual({ success: true });
+    });
+
+    it('should throw NotFoundException when the payment record does not exist', async () => {
+      mockPrismaService.studentPaymentRecord.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.deleteStudentPayment('missing-id', mockUser),
+      ).rejects.toThrow('not found');
+      expect(mockPrismaService.studentPaymentRecord.delete).not.toHaveBeenCalled();
+    });
+
+    it('should forbid a teacher from deleting a payment belonging to a group they do not own', async () => {
+      const teacherUser: AuthenticatedUser = {
+        id: 'teacher-1',
+        role: UserRole.TEACHER,
+        teacherProfileId: 'teacher-profile-1',
+      } as any;
+
+      mockPrismaService.studentPaymentRecord.findUnique.mockResolvedValue({
+        id: 'payment-1',
+        studentId: 'stu-1',
+        group: { teacherId: 'someone-else' },
+      });
+
+      await expect(
+        service.deleteStudentPayment('payment-1', teacherUser),
+      ).rejects.toThrow('You do not own the academic group for this payment');
+      expect(mockPrismaService.studentPaymentRecord.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getStudentPaymentHistory (cross-device financial ledger verification)', () => {
+    it('surfaces a booklet purchase synced from another device in the student transaction history', async () => {
+      const studentId = 'stu-cross-device-1';
+
+      // Simulates a booklet payment that was persisted to PostgreSQL by a DIFFERENT
+      // device/session (e.g. via SyncService.syncPaymentsBatch while offline elsewhere).
+      mockPrismaService.studentPaymentRecord.findMany.mockResolvedValue([
+        {
+          id: 'pay-cross-device-1',
+          studentId,
+          groupId: null,
+          paymentType: 'BOOKLET',
+          bookletId: 'booklet-cross-1',
+          periodYear: 2026,
+          periodMonth: 9,
+          amountExpected: 95,
+          amountPaid: 95,
+          currency: 'EGP',
+          paymentStatus: PaymentStatus.PAID,
+          paymentMethod: 'CASH',
+          createdAt: new Date().toISOString(),
+          group: null,
+          booklet: { id: 'booklet-cross-1', title: 'مذكرة الرياضيات الشاملة', price: 95 },
+          recordedBy: { fullName: 'مدرس آخر' },
+        },
+      ]);
+
+      const history = await service.getStudentPaymentHistory(studentId, mockUser);
+
+      expect(mockPrismaService.studentPaymentRecord.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { studentId } }),
+      );
+      expect(history).toHaveLength(1);
+      expect(history[0].paymentType).toBe('BOOKLET');
+      expect(history[0].booklet?.title).toBe('مذكرة الرياضيات الشاملة');
+      expect(history[0].amountPaid).toBe(95);
     });
   });
 
@@ -176,7 +387,7 @@ describe('SubscriptionsService', () => {
         ],
       });
 
-      mockPrismaService.studentPaymentRecord.findUnique.mockResolvedValue(null);
+      mockPrismaService.studentPaymentRecord.findFirst.mockResolvedValue(null);
 
       const mockPayment = {
         id: 'payment-qr-1',
@@ -191,7 +402,7 @@ describe('SubscriptionsService', () => {
         notes: 'تم السداد عبر مسح رمز الـ QR',
       };
 
-      mockPrismaService.studentPaymentRecord.upsert.mockResolvedValue(mockPayment);
+      mockPrismaService.studentPaymentRecord.create.mockResolvedValue(mockPayment);
 
       const result = await service.scanPaymentQr(mockUser, {
         qrCodeToken,
@@ -212,6 +423,78 @@ describe('SubscriptionsService', () => {
           periodMonth: 8,
         }),
       );
+    });
+
+    it('should throw a structured validation error when booklet gradeLevel does not match student in scanPaymentQr', async () => {
+      const qrCodeToken = 'qr_tok_student_grade_1';
+      const studentId = 'stu-grade-1';
+      const bookletId = 'booklet-grade-2';
+
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue({
+        id: studentId,
+        qrCodeToken,
+        gradeLevel: 'الصف الأول الثانوي',
+        user: { fullName: 'طالب أولى ثانوي', phone: '01012345678', isActive: true },
+        groupEnrollments: [],
+      });
+
+      mockPrismaService.booklet.findUnique.mockResolvedValue({
+        id: bookletId,
+        title: 'مذكرة تانية ثانوي',
+        gradeLevel: 'الصف الثاني الثانوي',
+        price: 70.0,
+        stockCount: 5,
+        groupId: null,
+      });
+
+      await expect(
+        service.scanPaymentQr(mockUser, {
+          qrCodeToken,
+          paymentType: 'BOOKLET',
+          bookletId,
+        }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          code: 'BOOKLET_GRADE_MISMATCH',
+          details: {
+            studentId,
+            studentGradeLevel: 'الصف الأول الثانوي',
+            bookletId,
+            bookletGradeLevel: 'الصف الثاني الثانوي',
+          },
+        }),
+      });
+    });
+
+    it('should throw BadRequestException when student is not enrolled in booklet group in scanPaymentQr', async () => {
+      const qrCodeToken = 'qr_tok_student_grp_1';
+      const studentId = 'stu-grp-1';
+      const bookletId = 'booklet-grp-target';
+
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue({
+        id: studentId,
+        qrCodeToken,
+        gradeLevel: 'الصف الأول الثانوي',
+        user: { fullName: 'طالب مجموعة 1', phone: '01012345678', isActive: true },
+        groupEnrollments: [{ groupId: 'grp-actual-1' }],
+      });
+
+      mockPrismaService.booklet.findUnique.mockResolvedValue({
+        id: bookletId,
+        title: 'مذكرة مجموعة 2 فقط',
+        gradeLevel: 'الصف الأول الثانوي',
+        price: 50.0,
+        stockCount: 5,
+        groupId: 'grp-target-2',
+      });
+
+      await expect(
+        service.scanPaymentQr(mockUser, {
+          qrCodeToken,
+          paymentType: 'BOOKLET',
+          bookletId,
+        }),
+      ).rejects.toThrow('INVALID_BOOKLET_FOR_STUDENT');
     });
 
     it('should throw BadRequestException for invalid or inactive student QR code', async () => {

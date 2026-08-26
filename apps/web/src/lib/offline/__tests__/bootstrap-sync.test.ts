@@ -14,6 +14,8 @@ describe('Zero Cold-Start Bootstrap & Offline Repository Layer', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    // Reset the cooldown so each test starts fresh
+    (bootstrapManager as any).lastBootstrapAt = 0;
   });
 
   it('downloads tenant snapshot and populates all relational IndexedDB stores', async () => {
@@ -102,5 +104,76 @@ describe('Zero Cold-Start Bootstrap & Offline Repository Layer', () => {
 
     const assessments = await offlineDb.getAssessmentsOffline();
     expect(assessments.find((a) => a.id === 'exam-101')?.title).toBe('اختبار تجريبي');
+  });
+
+  it('delta response uses bulkPut (upsert-only) and does NOT prune existing students', async () => {
+    // Seed 3 students as if from a previous full bootstrap
+    await offlineDb.bulkPutStudents([
+      { id: 'stu-A', fullName: 'علي', studentCode: 'STU-A', qrCodeToken: 'qr-A' },
+      { id: 'stu-B', fullName: 'سارة', studentCode: 'STU-B', qrCodeToken: 'qr-B' },
+      { id: 'stu-C', fullName: 'محمد', studentCode: 'STU-C', qrCodeToken: 'qr-C' },
+    ]);
+
+    // Delta response returns only 1 changed student
+    const deltaSnapshot = {
+      snapshotVersion: 'v1-2026',
+      timestamp: Date.now(),
+      isDelta: true,
+      role: 'TEACHER',
+      data: {
+        students: [
+          { id: 'stu-A', fullName: 'علي المحدّث', studentCode: 'STU-A', qrCodeToken: 'qr-A' },
+        ],
+        groups: [],
+        sessions: [],
+        schedules: [],
+        payments: [],
+        assessments: [],
+        courses: [],
+        booklets: [],
+        attendance: [],
+      },
+    };
+
+    vi.mocked(client.apiClient).mockResolvedValueOnce(deltaSnapshot);
+
+    await bootstrapManager.performBootstrap({ forceFull: false, skipCooldown: true, queryClient });
+
+    const studentsAfter = await offlineDb.getStudentsOffline();
+    // stu-B and stu-C must still exist (not pruned by delta)
+    expect(studentsAfter.find((s) => s.id === 'stu-B')).toBeDefined();
+    expect(studentsAfter.find((s) => s.id === 'stu-C')).toBeDefined();
+    // stu-A must be updated
+    expect(studentsAfter.find((s) => s.id === 'stu-A')?.fullName).toBe('علي المحدّث');
+  });
+
+  it('respects the 3-minute cooldown and skips the network call', async () => {
+    (bootstrapManager as any).lastBootstrapAt = Date.now();
+    vi.mocked(client.apiClient).mockResolvedValueOnce({});
+
+    const result = await bootstrapManager.performBootstrap({ queryClient });
+
+    // Should skip — no network call made
+    expect(client.apiClient).not.toHaveBeenCalled();
+    expect(result.success).toBe(true);
+    expect(result.isDelta).toBe(true);
+  });
+
+  it('forceFull bypasses cooldown and always fetches', async () => {
+    (bootstrapManager as any).lastBootstrapAt = Date.now();
+    const fullSnapshot = {
+      snapshotVersion: 'v1-2026',
+      timestamp: Date.now(),
+      isDelta: false,
+      role: 'TEACHER',
+      data: { students: [], groups: [], sessions: [], schedules: [], payments: [],
+              assessments: [], courses: [], booklets: [], attendance: [] },
+    };
+    vi.mocked(client.apiClient).mockResolvedValueOnce(fullSnapshot);
+
+    const result = await bootstrapManager.performBootstrap({ forceFull: true, queryClient });
+
+    expect(client.apiClient).toHaveBeenCalledTimes(1);
+    expect(result.success).toBe(true);
   });
 });

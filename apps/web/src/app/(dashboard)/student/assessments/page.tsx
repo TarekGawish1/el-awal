@@ -1,32 +1,91 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAssessments, useAssessment, useSubmitAssessment } from '@/features/assessments/hooks/use-assessments';
+import { coursesApi } from '@/features/courses/api/courses.api';
+import { generatePresignedUrl, uploadFileToR2 } from '@/features/content/api/content.api';
+import { useAuth } from '@/features/auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
 import { Pagination } from '@/components/ui/Pagination';
-import { 
-  FileText, Calendar, Clock, CheckCircle2, XCircle, AlertCircle, 
-  ChevronLeft, Award, Play, HelpCircle, Send, Check, AlertTriangle 
+import {
+  FileText, Calendar, Clock, CheckCircle2, XCircle, AlertCircle,
+  ChevronLeft, Award, Play, HelpCircle, Send, Check, AlertTriangle, ArrowLeft, RefreshCcw,
+  UploadCloud,
 } from 'lucide-react';
+
+const ALLOWED_ANSWER_TYPES = ['application/pdf', 'image/png', 'image/jpeg'];
+const ANSWER_MAX_SIZE = 25 * 1024 * 1024; // 25 MB
 import { formatArabicDate, formatArabicTime } from '@/lib/utils/formatters';
+import { FeatureRequiresOnlineCard } from '@/components/offline/FeatureRequiresOnlineCard';
+import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import toast from 'react-hot-toast';
 
 export default function StudentAssessmentsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-6">
+          <Skeleton className="h-10 w-48" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Skeleton className="h-44 w-full rounded-2xl" />
+            <Skeleton className="h-44 w-full rounded-2xl" />
+          </div>
+        </div>
+      }
+    >
+      <StudentAssessmentsContent />
+    </Suspense>
+  );
+}
+
+function StudentAssessmentsContent() {
+  const isOnline = useOnlineStatus();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const paramId = searchParams.get('id') || searchParams.get('assessmentId');
+  const returnUrl = searchParams.get('returnUrl');
+  const courseId = searchParams.get('courseId');
+  const lessonId = searchParams.get('lessonId');
+  const retakeParam = searchParams.get('retake') === '1';
+
   const [filterType, setFilterType] = useState<'ALL' | 'EXAM' | 'ASSIGNMENT'>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const { data: assessmentsData, isLoading, isError } = useAssessments();
-  const [activeAssessmentId, setActiveAssessmentId] = useState<string | null>(null);
-  const [activeMode, setActiveMode] = useState<'NONE' | 'SOLVE' | 'REVIEW'>('NONE');
+  const [activeAssessmentId, setActiveAssessmentId] = useState<string | null>(paramId || null);
+  const [activeMode, setActiveMode] = useState<'NONE' | 'SOLVE' | 'REVIEW'>(paramId ? 'SOLVE' : 'NONE');
+
+  useEffect(() => {
+    if (paramId) {
+      setActiveAssessmentId(paramId);
+      setActiveMode('SOLVE');
+    }
+  }, [paramId]);
+
+  if (!isOnline) {
+    return (
+      <FeatureRequiresOnlineCard
+        featureName="الواجبات والاختبارات"
+        description="حل الواجبات والاختبارات التفاعلية ومتابعة الدرجات تتطلب اتصالاً نشطاً بالخادم."
+        backHref="/student/dashboard"
+      />
+    );
+  }
 
   const PAGE_SIZE = 6;
 
   const assessments = assessmentsData?.data || [];
 
   const filteredAssessments = assessments.filter((item: any) => {
+    // This page lists only group exams and homework. Course-linked quizzes (lesson/unit/final
+    // tests) are taken inside the course learning room, which deep-links here by assessment id
+    // and bypasses this list — so exclude anything tied to a course.
+    if (item.courseId || item.lessonId) return false;
     if (filterType === 'ALL') return true;
     return item.type === filterType;
   });
@@ -203,11 +262,19 @@ export default function StudentAssessmentsPage() {
           )}
         </>
       ) : (
-        <AssessmentWrapper 
-          assessmentId={activeAssessmentId!} 
+        <AssessmentWrapper
+          assessmentId={activeAssessmentId!}
+          returnUrl={returnUrl}
+          courseId={courseId}
+          lessonId={lessonId}
+          initialRetake={retakeParam}
           onBack={() => {
-            setActiveAssessmentId(null);
-            setActiveMode('NONE');
+            if (returnUrl) {
+              router.push(returnUrl);
+            } else {
+              setActiveAssessmentId(null);
+              setActiveMode('NONE');
+            }
           }} 
         />
       )}
@@ -215,21 +282,65 @@ export default function StudentAssessmentsPage() {
   );
 }
 
-function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onBack: () => void }) {
+function AssessmentWrapper({
+  assessmentId,
+  returnUrl,
+  courseId,
+  lessonId,
+  initialRetake,
+  onBack
+}: {
+  assessmentId: string;
+  returnUrl?: string | null;
+  courseId?: string | null;
+  lessonId?: string | null;
+  initialRetake?: boolean;
+  onBack: () => void;
+}) {
+  const router = useRouter();
+  const { user } = useAuth();
+  // Same per-student scope the learning room uses, so the optimistic completion hint we
+  // write below lands in the key the room actually reads (and never bleeds across accounts).
+  const progressScopeId = user?.studentProfileId || user?.id || 'anon';
   const { data: assessment, isLoading, isError, refetch } = useAssessment(assessmentId);
   const { mutate: submit, isPending: isSubmitting } = useSubmitAssessment();
   const [answers, setAnswers] = useState<{ [questionId: string]: string }>({});
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  
+  const [localSubmission, setLocalSubmission] = useState<any>(null);
+  const [showResultModal, setShowResultModal] = useState(false);
+  // When true, the student is (re)taking the quiz even though a prior attempt exists.
+  const [retakeMode, setRetakeMode] = useState<boolean>(Boolean(initialRetake));
+
   // Timer state
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
+  // Optional answer file upload (required for a homework with essay questions)
+  const [answerFile, setAnswerFile] = useState<File | null>(null);
+  const [answerFileError, setAnswerFileError] = useState('');
+  const [answerUploadProgress, setAnswerUploadProgress] = useState(0);
+  const answerFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Never allow retake UI for single-attempt quizzes (guards a hand-crafted &retake=1 URL).
   useEffect(() => {
-    if (assessment && assessment.durationMinutes && !assessment.mySubmission) {
-      const minutes = Number(assessment.durationMinutes);
-      setTimeLeft(minutes * 60);
+    if (assessment && !assessment.allowMultipleAttempts) {
+      setRetakeMode(false);
     }
   }, [assessment]);
+
+  useEffect(() => {
+    // Arm the timer for a fresh attempt: no prior submission, OR an in-progress retake.
+    if (
+      assessment &&
+      assessment.durationMinutes &&
+      !localSubmission &&
+      (retakeMode || !assessment.mySubmission)
+    ) {
+      const minutes = Number(assessment.durationMinutes);
+      setTimeLeft(minutes * 60);
+    } else {
+      setTimeLeft(null);
+    }
+  }, [assessment, localSubmission, retakeMode]);
 
   useEffect(() => {
     if (timeLeft === null) return;
@@ -251,22 +362,102 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
     setAnswers(prev => ({ ...prev, [questionId]: text }));
   };
 
-  const buildSubmitPayload = () => {
+  // Begin a new attempt: drop the prior result locally, clear answers, re-arm the timer.
+  const startRetake = () => {
+    setLocalSubmission(null);
+    setAnswers({});
+    setShowResultModal(false);
+    setRetakeMode(true);
+  };
+
+  const handleAnswerFileSelect = (candidate?: File | null) => {
+    if (!candidate) return;
+    const ok = ALLOWED_ANSWER_TYPES.includes(candidate.type) || /\.(pdf|png|jpe?g)$/i.test(candidate.name);
+    if (!ok) {
+      setAnswerFileError('يُقبل فقط ملفات PDF أو صور PNG / JPG');
+      return;
+    }
+    if (candidate.size > ANSWER_MAX_SIZE) {
+      setAnswerFileError('حجم الملف يتجاوز الحد الأقصى المسموح (25 ميجابايت)');
+      return;
+    }
+    setAnswerFileError('');
+    setAnswerFile(candidate);
+  };
+
+  /**
+   * Uploads the answer file (if any) to storage and returns its public URL so it
+   * can be attached to the submission. Homework with essay (مقالي) questions needs
+   * an uploaded hand-written scan / PDF alongside the typed essays.
+   */
+  const uploadAnswerAttachment = async (): Promise<string | undefined> => {
+    if (!answerFile) return undefined;
+    const presigned = await generatePresignedUrl({
+      fileName: answerFile.name,
+      contentType: answerFile.type || 'application/octet-stream',
+      fileSizeBytes: answerFile.size,
+      folder: 'homework-submissions',
+    });
+    await uploadFileToR2(
+      presigned.uploadUrl,
+      answerFile,
+      answerFile.type || 'application/octet-stream',
+      (p) => setAnswerUploadProgress(p),
+    );
+    return presigned.publicUrl || presigned.uploadUrl;
+  };
+
+  const buildSubmitPayload = async () => {
     const formattedAnswers = Object.entries(answers).map(([qId, val]) => ({
       questionId: qId,
       answerGiven: val,
     }));
-    return { answers: formattedAnswers };
+    const attachmentUrl = await uploadAnswerAttachment();
+    return {
+      answers: formattedAnswers,
+      ...(attachmentUrl ? { attachmentUrl } : {}),
+    };
   };
 
-  const handleAutoSubmit = () => {
+  const notifyCourseLessonProgress = async (subData?: any) => {
+    const targetLessonId = lessonId || (assessment as any)?.lessonId || subData?.lessonId;
+    const targetCourseId = courseId || (assessment as any)?.courseId || subData?.courseId;
+
+    if (targetCourseId && targetLessonId && typeof window !== 'undefined') {
+      try {
+        const key = `el_awal_course_progress_${targetCourseId}_${progressScopeId}`;
+        const saved = localStorage.getItem(key);
+        const list = saved ? JSON.parse(saved) : [];
+        const updated = Array.isArray(list) ? Array.from(new Set([...list, targetLessonId])) : [targetLessonId];
+        localStorage.setItem(key, JSON.stringify(updated));
+      } catch {}
+    }
+
+    if (targetLessonId) {
+      try {
+        await coursesApi.updateLessonProgress(targetLessonId, {
+          isCompleted: true,
+          lastPositionSeconds: 0,
+        });
+      } catch {}
+    }
+  };
+
+  const handleAutoSubmit = async () => {
     toast.error('انتهى الوقت المحدد للاختبار! جاري تسليم إجاباتك تلقائياً...');
-    const payload = buildSubmitPayload();
+    const payload = await buildSubmitPayload();
     submit(
       { id: assessmentId, payload },
       {
-        onSuccess: () => {
+        onSuccess: (result: any) => {
           toast.success('تم تسليم إجاباتك بنجاح.');
+          setTimeLeft(null);
+          setRetakeMode(false);
+          const subData = result?.data || result;
+          const preview = Boolean(subData?.isPreview) || subData?.id === 'preview-submission';
+          setLocalSubmission(subData);
+          setShowResultModal(true);
+          if (!preview) notifyCourseLessonProgress(subData);
           refetch();
         },
         onError: (err: any) => {
@@ -280,14 +471,26 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
     setIsConfirmOpen(true);
   };
 
-  const confirmSubmit = () => {
-    const payload = buildSubmitPayload();
+  const confirmSubmit = async () => {
+    const payload = await buildSubmitPayload();
     submit(
       { id: assessmentId, payload },
       {
-        onSuccess: () => {
-          toast.success('تم تسليم الإجابات بنجاح وتم رصد النتيجة!');
+        onSuccess: (result: any) => {
+          const subData = result?.data || result;
+          const preview = Boolean(subData?.isPreview) || subData?.id === 'preview-submission';
+          toast.success(
+            preview
+              ? '👁️ معاينة المعلم: تم تقييم الإجابات مؤقتاً دون حفظ النتيجة أو احتساب محاولة.'
+              : 'تم تسليم الإجابات بنجاح وتم رصد النتيجة!',
+          );
           setIsConfirmOpen(false);
+          setTimeLeft(null);
+          setRetakeMode(false);
+          setLocalSubmission(subData);
+          setShowResultModal(true);
+          // Never mark the lesson complete for a teacher preview.
+          if (!preview) notifyCourseLessonProgress(subData);
           refetch();
         },
         onError: (err: any) => {
@@ -322,8 +525,17 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
   }
 
   const isExam = assessment.type === 'EXAM';
-  const mySubmission = assessment.mySubmission;
+  const mySubmission = localSubmission || assessment.mySubmission;
+  const hasEssayQuestions = (assessment.questions || []).some((q: any) => q.questionType === 'ESSAY');
+  // A teacher/secretariat (non-student) submission is a preview: nothing is persisted,
+  // the attempt policy is not enforced, and no mark is stored. Surface that plainly.
+  const isPreviewResult =
+    Boolean(mySubmission?.isPreview) || mySubmission?.id === 'preview-submission';
   const isPastDue = assessment.dueDate ? new Date(assessment.dueDate) < new Date() : false;
+  const allowMultipleAttempts = Boolean(assessment.allowMultipleAttempts);
+  // Offer a retake when the quiz permits it, a prior attempt exists, and we're not
+  // already mid-retake or past the due date.
+  const canRetake = allowMultipleAttempts && Boolean(mySubmission) && !retakeMode && !isPastDue;
 
   return (
     <div className="space-y-6 pb-20 relative">
@@ -331,7 +543,7 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
       <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-100 shadow-2xs">
         <button onClick={onBack} className="flex items-center text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors cursor-pointer">
           <ChevronLeft className="w-5 h-5 ml-1" />
-          الرجوع لقائمة الاختبارات
+          {returnUrl ? 'العودة لقاعة الدرس في الكورس' : 'الرجوع لقائمة الاختبارات'}
         </button>
 
         {timeLeft !== null && !mySubmission && (
@@ -360,7 +572,7 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
           </div>
 
           <div className="flex flex-col gap-2 shrink-0 w-full md:w-auto">
-            {mySubmission ? (
+            {mySubmission && !retakeMode ? (
               mySubmission.status === 'GRADED' ? (
                 <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl flex items-center gap-4">
                   <div className="p-2.5 bg-emerald-500 text-white rounded-xl">
@@ -391,6 +603,14 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
                   <span className="text-xs text-slate-500 mt-0.5 block">لم تعد قادراً على تسليم هذا الاختبار.</span>
                 </div>
               </div>
+            ) : retakeMode ? (
+              <div className="bg-primary-50 border border-primary-100 p-4 rounded-2xl flex items-center gap-3">
+                <RefreshCcw className="w-5 h-5 text-primary-600" />
+                <div>
+                  <span className="text-sm font-bold text-primary-700 block">محاولة جديدة قيد التقدم</span>
+                  <span className="text-xs text-slate-500 mt-0.5 block">تُحتسب أعلى درجة بين محاولاتك كدرجة رسمية.</span>
+                </div>
+              </div>
             ) : (
               <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl flex items-center gap-3">
                 <Clock className="w-5 h-5 text-amber-600" />
@@ -400,12 +620,24 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
                 </div>
               </div>
             )}
+
+            {canRetake && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={startRetake}
+                className="rounded-xl font-bold text-primary-700 border-primary-200 hover:bg-primary-50 flex items-center justify-center gap-1.5"
+              >
+                <RefreshCcw className="w-4 h-4" />
+                إعادة المحاولة
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
 
       {/* Solver or Review Board */}
-      {!mySubmission ? (
+      {(!mySubmission || retakeMode) ? (
         isPastDue ? (
           <Card className="border-slate-100 shadow-2xs">
             <CardContent className="p-8 text-center flex flex-col items-center justify-center">
@@ -521,6 +753,67 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
               ))}
             </div>
 
+            {hasEssayQuestions && (
+              <div className="bg-white p-5 rounded-2xl border-2 border-dashed border-slate-200">
+                <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-2 mb-1">
+                  <UploadCloud className="w-4 h-4 text-primary-600" />
+                  رفع ملف إجابة الواجب (لأنه يحتوي أسئلة مقالية)
+                </h4>
+                <p className="text-xs text-slate-500 mb-3">اكتب إجاباتك في الخانات أعلاه، وارفع نسخة مصوّرة / PDF من حلولك على الورق (اختياري).</p>
+
+                <div
+                  className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/60 p-6 text-center transition-colors hover:border-primary-300 hover:bg-primary-50/40"
+                  onClick={() => answerFileInputRef.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); }}
+                  onDrop={(e) => { e.preventDefault(); handleAnswerFileSelect(e.dataTransfer.files?.[0]); }}
+                >
+                  <input
+                    ref={answerFileInputRef}
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+                    className="hidden"
+                    onChange={(e) => handleAnswerFileSelect(e.target.files?.[0])}
+                  />
+                  {answerFile ? (
+                    <div className="flex flex-col items-center">
+                      <CheckCircle2 className="mb-1.5 h-7 w-7 text-emerald-600" />
+                      <p className="text-sm font-bold text-slate-800">{answerFile.name}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">{(answerFile.size / 1024 / 1024).toFixed(2)} ميجابايت</p>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setAnswerFile(null); setAnswerUploadProgress(0); }}
+                        className="mt-2 text-xs font-bold text-rose-600 hover:text-rose-800 cursor-pointer"
+                      >
+                        إزالة الملف
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <UploadCloud className="mb-2 h-7 w-7 text-slate-400" />
+                      <p className="text-sm font-bold text-slate-700">اسحب ملف إجابتك هنا أو اضغط للاختيار</p>
+                      <p className="mt-1 text-xs text-slate-400">PDF / PNG / JPG حتى 25 ميجابايت</p>
+                    </>
+                  )}
+                </div>
+
+                {answerUploadProgress > 0 && answerUploadProgress < 100 && (
+                  <div className="mt-3">
+                    <div className="flex justify-between text-xs font-bold text-slate-600">
+                      <span>جاري رفع الملف إلى التخزين السحابي...</span>
+                      <span>{answerUploadProgress}%</span>
+                    </div>
+                    <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                      <div className="h-full rounded-full bg-primary-600 transition-all" style={{ width: `${answerUploadProgress}%` }} />
+                    </div>
+                  </div>
+                )}
+
+                {answerFileError && (
+                  <p className="mt-2 text-xs font-bold text-rose-600">{answerFileError}</p>
+                )}
+              </div>
+            )}
+
             {/* Submission triggers */}
             <div className="flex justify-end gap-4 mt-6">
               <Button
@@ -557,6 +850,18 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
                 <p className="text-xs text-primary-700 mt-1 leading-relaxed">{mySubmission.teacherFeedback}</p>
               </div>
             </div>
+          )}
+
+          {mySubmission.attachmentUrl && (
+            <a
+              href={mySubmission.attachmentUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-xl border border-primary-200 bg-primary-50/60 px-4 py-2.5 text-sm font-bold text-primary-700 transition-colors hover:bg-primary-50"
+            >
+              <FileText className="h-4 w-4" />
+              تحميل ملف إجابتك المرفوعة
+            </a>
           )}
 
           {mySubmission.status === 'GRADED' ? (
@@ -688,7 +993,9 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
               )}
               
               <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                بمجرد تأكيد التسليم، سيتم رصد النتيجة ولا يمكنك تعديل الإجابات أو إعادة المحاولة مرة أخرى.
+                {allowMultipleAttempts
+                  ? 'بمجرد تأكيد التسليم، سيتم رصد النتيجة. يمكنك إعادة المحاولة لاحقاً، وتُحتسب أعلى درجة بين محاولاتك كدرجة رسمية.'
+                  : 'بمجرد تأكيد التسليم، سيتم رصد النتيجة ولا يمكنك تعديل الإجابات أو إعادة المحاولة مرة أخرى.'}
               </p>
 
               <div className="flex gap-2.5 pt-2">
@@ -714,6 +1021,93 @@ function AssessmentWrapper({ assessmentId, onBack }: { assessmentId: string; onB
           </div>
         );
       })()}
+
+      {/* Result Celebration Modal */}
+      {showResultModal && mySubmission && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full text-center shadow-2xl border border-slate-150 space-y-5 animate-in zoom-in-95 duration-200" dir="rtl">
+            <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+              <Award className="w-8 h-8" />
+            </div>
+
+            <div>
+              <h3 className="text-xl font-black text-slate-800">تم تسليم إجاباتك بنجاح!</h3>
+              <p className="text-sm text-slate-500 mt-1">
+                {mySubmission.status === 'GRADED'
+                  ? 'تم تصحيح إجاباتك ورصد النتيجة الفورية بنجاح.'
+                  : 'تم استلام إجاباتك بنجاح وسيتم إشعارك فور اعتماد التصحيح من المعلم.'}
+              </p>
+            </div>
+
+            {isPreviewResult && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-3.5 text-right flex items-start gap-2.5">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                <p className="text-xs font-semibold leading-relaxed">
+                  وضع معاينة المعلم: هذه نتيجة تجريبية فورية لم يتم حفظها، ولا تُحتسب كمحاولة،
+                  ولن تظهر كدرجة للطالب. لاختبار سياسة المحاولات وظهور الدرجة، سجّل الدخول بحساب طالب.
+                </p>
+              </div>
+            )}
+
+            {mySubmission.status === 'GRADED' && (
+              <div className="bg-emerald-50/70 border border-emerald-200/60 rounded-2xl p-4 flex items-center justify-around">
+                <div>
+                  <span className="text-xs text-emerald-700 block font-medium">الدرجة المحصلة</span>
+                  <span className="text-3xl font-extrabold text-emerald-800 font-mono">
+                    {mySubmission.scoreObtained ?? 0}
+                  </span>
+                </div>
+                <div className="w-px h-8 bg-emerald-200"></div>
+                <div>
+                  <span className="text-xs text-slate-500 block font-medium">الدرجة الكلية</span>
+                  <span className="text-2xl font-bold text-slate-700 font-mono">
+                    {assessment.totalScore}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2 pt-2">
+              {returnUrl && (
+                <Button
+                  onClick={() => {
+                    setShowResultModal(false);
+                    router.push(returnUrl);
+                  }}
+                  className="w-full rounded-xl py-3.5 font-bold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 text-sm"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>العودة للدرس ومتابعة إتمام الكورس 🎓</span>
+                </Button>
+              )}
+              <Button
+                onClick={() => setShowResultModal(false)}
+                className={`w-full rounded-xl py-3 font-bold ${returnUrl ? 'bg-primary-50 text-primary-700 hover:bg-primary-100 border border-primary-200' : 'bg-primary-600 hover:bg-primary-700 text-white'} cursor-pointer`}
+              >
+                <CheckCircle2 className="w-4 h-4 ml-2" />
+                عرض ومراجعة تفاصيل الإجابات
+              </Button>
+              {allowMultipleAttempts && !isPastDue && (
+                <Button
+                  variant="outline"
+                  onClick={startRetake}
+                  className="w-full rounded-xl py-3 font-bold text-primary-700 border-primary-200 hover:bg-primary-50 cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <RefreshCcw className="w-4 h-4" />
+                  إعادة المحاولة لتحسين درجتك
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                onClick={onBack}
+                className="w-full rounded-xl py-3 font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                {returnUrl ? 'العودة للدرس في الكورس' : 'الرجوع لقائمة الاختبارات'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

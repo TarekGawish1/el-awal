@@ -59,7 +59,7 @@ describe('Offline Authentication & Credentials Vault', () => {
   it('securely stores salted hash and retrieves credentials across phone formats', async () => {
     await saveOfflineCredentials('teacher@elawal.com', 'SecretPassword123', mockSession);
 
-    const creds = getOfflineCredentials('teacher@elawal.com');
+    const creds = await getOfflineCredentials('teacher@elawal.com');
     expect(creds).not.toBeNull();
     expect(creds?.identifier).toBe('teacher@elawal.com');
     expect(creds?.user.fullName).toBe('أستاذ محمد علي');
@@ -67,12 +67,12 @@ describe('Offline Authentication & Credentials Vault', () => {
     expect(creds?.hash).toBeDefined();
 
     // Verify lookup by national phone format
-    const credsByPhone = getOfflineCredentials('01012345678');
+    const credsByPhone = await getOfflineCredentials('01012345678');
     expect(credsByPhone).not.toBeNull();
     expect(credsByPhone?.user.id).toBe('teacher-user-1');
 
     // Verify lookup by international format with +20
-    const credsByIntlPhone = getOfflineCredentials('+201012345678');
+    const credsByIntlPhone = await getOfflineCredentials('+201012345678');
     expect(credsByIntlPhone).not.toBeNull();
     expect(credsByIntlPhone?.user.id).toBe('teacher-user-1');
   });
@@ -118,7 +118,7 @@ describe('Offline Authentication & Credentials Vault', () => {
         identifier: 'unknown@elawal.com',
         password: 'SomePassword',
       }),
-    ).rejects.toThrow('لم يتم تسجيل الدخول من هذا الجهاز مسبقاً');
+    ).rejects.toThrow('بيانات الدخول غير مسجلة للعمل بدون إنترنت على هذا الجهاز');
   });
 
   it('loginUser transparently resolves offline when navigator.onLine is false', async () => {

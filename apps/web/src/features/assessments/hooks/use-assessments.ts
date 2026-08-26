@@ -12,6 +12,8 @@ import {
 import {
   AssessmentListItem,
   AssessmentDetail,
+  AssessmentSubmissionListItem,
+  SubmissionStatus,
   CreateAssessmentPayload,
   UpdateAssessmentPayload,
   GradeSubmissionPayload,
@@ -182,20 +184,23 @@ export function useUpdateAssessment() {
 }
 
 export function useAssessmentSubmissions(id: string) {
-  return useQuery({
+  return useQuery<AssessmentSubmissionListItem[]>({
     queryKey: assessmentKeys.submissions(id),
-    queryFn: async () => {
+    queryFn: async (): Promise<AssessmentSubmissionListItem[]> => {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       if (!isOnline) {
         const draft = await offlineDb.getAssessmentDraft(id);
         if (draft && draft.isSubmitted) {
           return [{
             id: `offline-sub-${id}`,
-            assessmentId: id,
-            status: 'SUBMITTED',
+            studentId: 'current',
+            status: SubmissionStatus.SUBMITTED,
             submittedAt: new Date(draft.submittedAt || Date.now()).toISOString(),
+            gradedAt: null,
             scoreObtained: draft.localScore ?? null,
-            student: { id: 'current', fullName: 'الطالب' },
+            isPassed: (draft.localScore ?? 0) >= ((draft.totalScore || 100) * 0.5),
+            isAutoGraded: false,
+            student: { user: { fullName: 'الطالب' } },
           }];
         }
         return [];
@@ -207,11 +212,14 @@ export function useAssessmentSubmissions(id: string) {
         if (draft && draft.isSubmitted) {
           return [{
             id: `offline-sub-${id}`,
-            assessmentId: id,
-            status: 'SUBMITTED',
+            studentId: 'current',
+            status: SubmissionStatus.SUBMITTED,
             submittedAt: new Date(draft.submittedAt || Date.now()).toISOString(),
+            gradedAt: null,
             scoreObtained: draft.localScore ?? null,
-            student: { id: 'current', fullName: 'الطالب' },
+            isPassed: (draft.localScore ?? 0) >= ((draft.totalScore || 100) * 0.5),
+            isAutoGraded: false,
+            student: { user: { fullName: 'الطالب' } },
           }];
         }
         return [];
@@ -321,6 +329,14 @@ export function useSubmitAssessment() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: assessmentKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: assessmentKeys.submissions(variables.id) });
+      // The learning room renders the earned mark from the lesson-viewer / course-detail
+      // payloads (quiz.mySubmission), not the assessment query. Invalidate those too so the
+      // score + attempt lock refresh immediately when the student returns to the room.
+      queryClient.invalidateQueries({ queryKey: ['lesson-viewer'] });
+      queryClient.invalidateQueries({ queryKey: ['course-detail'] });
+      // The student dashboard homework tile reads the group-sessions payload, so it must
+      // refresh to reflect the newly submitted homework state.
+      queryClient.invalidateQueries({ queryKey: ['student-group-sessions'] });
     },
   });
 }

@@ -18,12 +18,33 @@ interface AuthActions {
 
 export type AuthStore = AuthState & AuthActions;
 
+const getInitialState = (): AuthState => {
+  if (typeof window === 'undefined') {
+    return {
+      user: null,
+      accessToken: null,
+      refreshToken: null,
+      isAuthenticated: false,
+      isInitialized: false,
+    };
+  }
+
+  const token = getStoredAccessToken();
+  const user = getStoredUser();
+  const refreshToken = getStoredRefreshToken();
+  const isAuthenticated = !!(user && (token || refreshToken));
+
+  return {
+    user: isAuthenticated ? user : null,
+    accessToken: isAuthenticated ? token : null,
+    refreshToken: isAuthenticated ? refreshToken : null,
+    isAuthenticated,
+    isInitialized: true,
+  };
+};
+
 export const useAuthStore = create<AuthStore>((set, get) => ({
-  user: null,
-  accessToken: null,
-  refreshToken: null,
-  isAuthenticated: false,
-  isInitialized: false,
+  ...getInitialState(),
 
   setSession: (session: AuthTokensResponse) => {
     setStoredTokens(session);
@@ -57,8 +78,6 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   },
 
   initialize: () => {
-    if (get().isInitialized) return;
-
     const token = getStoredAccessToken();
     const user = getStoredUser();
     const refreshToken = getStoredRefreshToken();

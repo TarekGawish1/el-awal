@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { 
   useStudentCourses, 
   useCourseDetails, 
@@ -17,13 +18,26 @@ import {
   BookOpen, Video, FileText, ChevronLeft, ChevronRight, Play, 
   CheckCircle2, AlertTriangle, ArrowRight, Download, Award, Clock, User
 } from 'lucide-react';
+import { FeatureRequiresOnlineCard } from '@/components/offline/FeatureRequiresOnlineCard';
+import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import toast from 'react-hot-toast';
 
 export default function StudentCoursesPage() {
+  const isOnline = useOnlineStatus();
   const { data: courses = [], isLoading, isError } = useStudentCourses();
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+
+  if (!isOnline) {
+    return (
+      <FeatureRequiresOnlineCard
+        featureName="الدورات الأونلاين"
+        description="مشاهدة الدورات والدروس الرقمية وتحميل الملخصات تتطلب اتصالاً نشطاً بالخادم."
+        backHref="/student/dashboard"
+      />
+    );
+  }
 
   const PAGE_SIZE = 6;
   const totalPages = Math.ceil(courses.length / PAGE_SIZE);
@@ -79,7 +93,7 @@ export default function StudentCoursesPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">الدورات والمحاضرات الرقمية</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">الدورات الأونلاين</h1>
         <p className="text-sm text-slate-500 mt-1">شاهد الدروس الرقمية، وحمل الملخصات، وتابع تقدمك الأكاديمي أولاً بأول</p>
       </div>
 
@@ -146,13 +160,13 @@ export default function StudentCoursesPage() {
                       <span>{c.totalLessons} دروس رقمية</span>
                     </div>
 
-                    <Button
-                      onClick={() => setSelectedCourseId(c.courseId)}
-                      className="w-full rounded-xl py-5 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer mt-2"
+                    <Link
+                      href={`/student/courses/${c.courseId}/learn`}
+                      className="w-full bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl py-3 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer mt-2 transition-colors shadow-lg shadow-indigo-600/20"
                     >
-                      <Play className="w-3 h-3" />
-                      {c.progressPercentage > 0 ? 'استئناف التعلم' : 'دخول الدورة وبدء الدراسة'}
-                    </Button>
+                      <Play className="w-3.5 h-3.5 fill-current" />
+                      <span>{c.progressPercentage > 0 ? 'استئناف التعلم' : 'دخول غرفة التعلم والمشاهدة'}</span>
+                    </Link>
                   </div>
                 </CardContent>
               </Card>
@@ -461,17 +475,19 @@ function LessonViewer({ courseId, lessonId, onClose, onSelectLesson }: { courseI
         </button>
 
         {/* Media screen box */}
-        <div className="bg-slate-950 rounded-2xl overflow-hidden aspect-video relative flex items-center justify-center shadow-lg border border-slate-900">
+        <div className="bg-slate-950 rounded-2xl overflow-hidden aspect-video max-h-[70vh] relative flex items-center justify-center shadow-lg border border-slate-900">
           {isVideo ? (
             lesson.videoPlayerUrl ? (
               <video
                 ref={videoRef}
                 src={lesson.videoPlayerUrl}
+                playsInline
                 controls
+                onContextMenu={(e) => e.preventDefault()}
                 onPlay={handleVideoPlay}
                 onPause={handleVideoPause}
                 onEnded={handleVideoEnded}
-                className="w-full h-full object-contain"
+                className="w-full h-full object-contain max-h-full max-w-full"
                 controlsList="nodownload"
               />
             ) : (

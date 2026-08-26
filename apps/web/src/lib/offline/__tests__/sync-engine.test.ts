@@ -11,6 +11,7 @@ vi.mock('../../api/client', () => ({
 describe('Offline Storage & Sync Engine', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    await offlineDb.wipeAllOfflineData();
   });
 
   it('enqueues mutations into IndexedDB outbox queue', async () => {
@@ -37,6 +38,40 @@ describe('Offline Storage & Sync Engine', () => {
 
     const result = await syncEngine.flushOutbox();
     expect(result).toBeDefined();
+  });
+
+  it('undoes offline group and student edits using their rollback snapshots', async () => {
+    const originalGroup = { id: 'group-1', name: 'المجموعة الأصلية', monthlyFee: 100 };
+    const originalStudent = {
+      id: 'student-1',
+      fullName: 'الطالب الأصلي',
+      studentCode: 'STU-1',
+      qrCodeToken: 'qr-1',
+    };
+    await offlineDb.bulkPutGroups([{ ...originalGroup, monthlyFee: 250 }]);
+    await offlineDb.bulkPutStudents([{ ...originalStudent, fullName: 'الطالب المعدل' }]);
+
+    const groupMutationId = await syncEngine.enqueue(
+      'groups',
+      '/groups/group-1',
+      'PATCH',
+      { name: 'المجموعة المعدلة', monthlyFee: 250 },
+      { rollbackData: originalGroup },
+    );
+    const studentMutationId = await syncEngine.enqueue(
+      'students',
+      '/students/student-1',
+      'PATCH',
+      { fullName: 'الطالب المعدل' },
+      { rollbackData: originalStudent },
+    );
+
+    await syncEngine.undoMutation(groupMutationId);
+    await syncEngine.undoMutation(studentMutationId);
+
+    expect(await offlineDb.getGroupByIdOffline('group-1')).toMatchObject(originalGroup);
+    expect(await offlineDb.getStudentByIdOffline('student-1')).toMatchObject(originalStudent);
+    expect(await offlineDb.getPendingMutations()).toHaveLength(0);
   });
 
   it('provides online/offline state querying', () => {

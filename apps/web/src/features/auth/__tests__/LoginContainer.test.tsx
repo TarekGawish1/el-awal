@@ -47,6 +47,32 @@ describe('LoginContainer Component', () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
+  it('omits the JWT & Argon2 security badge while keeping the copyright footer', () => {
+    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      isInitialized: true,
+      login: vi.fn(),
+      loginAsync: vi.fn(),
+      isLoading: false,
+      isSuccess: false,
+      isError: false,
+      error: null,
+      rawError: null,
+      resetError: vi.fn(),
+      logout: vi.fn(),
+    });
+
+    render(<LoginContainer />);
+
+    // Security subtitle + shield badge must be gone
+    expect(screen.queryByText(/JWT & Argon2/i)).toBeNull();
+    expect(screen.queryByText(/نظام تسجيل دخول مشفر وآمن/)).toBeNull();
+    // Copyright line is retained
+    expect(screen.getByText(/جميع الحقوق محفوظة/)).toBeInTheDocument();
+    expect(screen.getByText(/منصة الأول لإدارة التعليم/)).toBeInTheDocument();
+  });
+
   it('redirects already authenticated TEACHER user away from /login to /teacher/dashboard', () => {
     vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
       user: {

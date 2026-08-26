@@ -10,6 +10,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { CreateAssessmentDto } from '../dto/create-assessment.dto';
 import { SubmitAssessmentDto } from '../dto/submit-assessment.dto';
+import { SubmitHomeworkDto } from '../dto/submit-homework.dto';
 import { GradeSubmissionDto } from '../dto/grade-submission.dto';
 import { AssessmentQueryDto } from '../dto/assessment-query.dto';
 import { UpdateAssessmentDto } from '../dto/update-assessment.dto';
@@ -22,6 +23,11 @@ import {
   CourseEnrollmentStatus,
 } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
+import { resolveOfficialSubmission } from '../utils/submission-grade.util';
+import {
+  computeEffectiveDueDate,
+  SessionForDeadline,
+} from '../utils/effective-due-date.util';
 
 @Injectable()
 export class AssessmentsService {
@@ -111,6 +117,7 @@ export class AssessmentsService {
           lessonId: dto.lessonId,
           isAutoGraded,
           isPublished: dto.isPublished ?? true,
+          allowMultipleAttempts: dto.allowMultipleAttempts ?? false,
           teacherId,
           targetGroups: dto.targetGroupIds?.length ? {
             connect: dto.targetGroupIds.map(id => ({ id }))
@@ -171,10 +178,14 @@ export class AssessmentsService {
     if (user.role === UserRole.STUDENT) {
       where.isPublished = true;
       const studentId = user.studentProfileId || user.id;
+      // Students only see physical (onsite) group exams: strictly exclude
+      // online course / lesson quizzes and only surface assessments linked to a
+      // physical group the student is actively enrolled in.
+      where.lessonId = null;
+      where.courseId = null;
       where.OR = [
         { group: { enrollments: { some: { studentId, status: GroupEnrollmentStatus.ACTIVE } } } },
         { targetGroups: { some: { enrollments: { some: { studentId, status: GroupEnrollmentStatus.ACTIVE } } } } },
-        { course: { enrollments: { some: { studentId, status: CourseEnrollmentStatus.ACTIVE } } } },
       ];
     } else if (user.role === UserRole.PARENT) {
       where.isPublished = true;
@@ -204,7 +215,72 @@ export class AssessmentsService {
       },
     });
 
+    // Students see session-linked homework at its effective deadline (next
+    // session), so expired-by-record homework stays visible while actionable.
+    if (user.role === UserRole.STUDENT) {
+      await this.maybeApplyEffectiveDueDates(assessments as any[]);
+    }
+
     return CursorPaginationHelper.formatResponse(assessments, limit);
+  }
+
+  /**
+   * Overrides `dueDate` on session-linked homework (ASSIGNMENT) rows with the
+   * computed effective deadline. Batched per involved group to keep it cheap.
+   */
+  private async maybeApplyEffectiveDueDates(assessments: any[]) {
+    const groupIds = [
+      ...new Set(
+        assessments
+          .filter((a) => a?.type === 'ASSIGNMENT' && a.dueDate && (a.groupId || a.targetGroups?.[0]?.id))
+          .map((a) => a.groupId || a.targetGroups?.[0]?.id),
+      ),
+    ];
+    if (groupIds.length === 0) return;
+
+    const sessions = await this.prisma.lessonSession.findMany({
+      where: { groupId: { in: groupIds } },
+      select: {
+        groupId: true,
+        sessionDate: true,
+        startTime: true,
+        endTime: true,
+        isCancelled: true,
+      },
+      orderBy: [{ sessionDate: 'asc' }, { startTime: 'asc' }],
+    });
+
+    for (const a of assessments) {
+      const gId = a?.groupId || a?.targetGroups?.[0]?.id;
+      if (a?.type !== 'ASSIGNMENT' || !a.dueDate || !gId) continue;
+      const groupSessions: SessionForDeadline[] = sessions.filter(
+        (s) => s.groupId === gId,
+      );
+      a.dueDate = computeEffectiveDueDate(a.type, a.dueDate, groupSessions);
+    }
+  }
+
+  /**
+   * Resolves the effective deadline for a single student-visible assessment.
+   */
+  private async resolveEffectiveDueDate(
+    assessment: { type: string; dueDate: Date | null; groupId?: string | null; targetGroups?: any[] },
+  ): Promise<Date | null> {
+    const effectiveGroupId = assessment.groupId || assessment.targetGroups?.[0]?.id;
+    if (assessment.type !== 'ASSIGNMENT' || !assessment.dueDate || !effectiveGroupId) {
+      return assessment.dueDate;
+    }
+    const sessions = await this.prisma.lessonSession.findMany({
+      where: { groupId: effectiveGroupId },
+      select: {
+        sessionDate: true,
+        startTime: true,
+        endTime: true,
+        isCancelled: true,
+      },
+      orderBy: [{ sessionDate: 'asc' }, { startTime: 'asc' }],
+    });
+    return computeEffectiveDueDate(assessment.type, assessment.dueDate, sessions);
   }
 
   /**
@@ -240,6 +316,7 @@ export class AssessmentsService {
         },
         submissions: {
           where: { studentId },
+          orderBy: { attemptNumber: 'asc' },
           include: {
             answers: true,
           },
@@ -267,7 +344,7 @@ export class AssessmentsService {
       }
     }
 
-    const mySubmission = assessment.submissions[0] || null;
+    const mySubmission = resolveOfficialSubmission(assessment.submissions);
     const isGraded = mySubmission?.status === SubmissionStatus.GRADED;
     const isPrivileged =
       user.role === UserRole.TEACHER || user.role === UserRole.SECRETARIAT;
@@ -281,6 +358,13 @@ export class AssessmentsService {
       return safeQuestion;
     });
 
+    // Session-linked homework is shown to students at its effective deadline
+    // (start of the next session), keeping it open while actionable.
+    const effectiveDueDate =
+      user.role === UserRole.STUDENT
+        ? await this.resolveEffectiveDueDate(assessment)
+        : assessment.dueDate;
+
     return {
       id: assessment.id,
       title: assessment.title,
@@ -291,20 +375,36 @@ export class AssessmentsService {
         ? Number(assessment.passingScore)
         : null,
       durationMinutes: assessment.durationMinutes,
-      dueDate: assessment.dueDate,
+      dueDate: effectiveDueDate,
       isPublished: assessment.isPublished,
+      allowMultipleAttempts: assessment.allowMultipleAttempts,
       teacher: assessment.teacher,
       group: assessment.group,
       targetGroups: assessment.targetGroups,
       course: assessment.course,
       questions: sanitizedQuestions,
+      attemptCount: assessment.submissions.length,
+      bestScore:
+        mySubmission?.scoreObtained != null
+          ? Number(mySubmission.scoreObtained)
+          : null,
+      attempts: assessment.submissions.map((s) => ({
+        id: s.id,
+        attemptNumber: s.attemptNumber,
+        status: s.status,
+        scoreObtained: s.scoreObtained != null ? Number(s.scoreObtained) : null,
+        submittedAt: s.submittedAt,
+        gradedAt: s.gradedAt,
+      })),
       mySubmission: mySubmission
         ? {
             id: mySubmission.id,
+            attemptNumber: mySubmission.attemptNumber,
             status: mySubmission.status,
-            scoreObtained: mySubmission.scoreObtained
-              ? Number(mySubmission.scoreObtained)
-              : null,
+            scoreObtained:
+              mySubmission.scoreObtained != null
+                ? Number(mySubmission.scoreObtained)
+                : null,
             submittedAt: mySubmission.submittedAt,
             gradedAt: mySubmission.gradedAt,
             teacherFeedback: mySubmission.teacherFeedback,
@@ -315,31 +415,93 @@ export class AssessmentsService {
   }
 
   /**
+   * Lightweight attempt-status summary for the authenticated student.
+   * Returns the official (highest-scoring) result plus the attempt policy so the
+   * learning-room assessment card can render without pulling the full question bank.
+   */
+  async getMyAssessmentStatus(assessmentId: string, user: AuthenticatedUser) {
+    const studentId =
+      user.studentProfileId ||
+      (user.role === UserRole.STUDENT ? user.id : null);
+
+    const assessment = await this.prisma.assessment.findUnique({
+      where: { id: assessmentId },
+      select: {
+        id: true,
+        totalScore: true,
+        allowMultipleAttempts: true,
+      },
+    });
+
+    if (!assessment) {
+      throw new NotFoundException(`Assessment [${assessmentId}] not found`);
+    }
+
+    const totalScore = Number(assessment.totalScore);
+
+    if (!studentId) {
+      return {
+        hasSubmitted: false,
+        score: null,
+        totalScore,
+        percentage: null,
+        attemptsCount: 0,
+        allowMultipleAttempts: assessment.allowMultipleAttempts,
+      };
+    }
+
+    const submissions = await this.prisma.assessmentSubmission.findMany({
+      where: { assessmentId, studentId },
+      orderBy: { attemptNumber: 'asc' },
+      select: { attemptNumber: true, status: true, scoreObtained: true },
+    });
+
+    const official = resolveOfficialSubmission(submissions);
+    const score =
+      official?.scoreObtained != null ? Number(official.scoreObtained) : null;
+    const percentage =
+      score != null && totalScore > 0
+        ? Math.round((score / totalScore) * 100)
+        : null;
+
+    return {
+      hasSubmitted: submissions.length > 0,
+      score,
+      totalScore,
+      percentage,
+      attemptsCount: submissions.length,
+      allowMultipleAttempts: assessment.allowMultipleAttempts,
+    };
+  }
+
+  /**
    * Synchronous Auto-Grading Submission Engine.
    * Handles MCQ/True-False automatic evaluation and marks essay exams for teacher review.
    */
   async submitAssessment(
     assessmentId: string,
-    studentId: string,
+    user: AuthenticatedUser,
     dto: SubmitAssessmentDto,
   ) {
+    const studentId = user.studentProfileId || (user.role === UserRole.STUDENT ? user.id : null);
+
     const assessment = await this.prisma.assessment.findUnique({
       where: { id: assessmentId },
       include: {
         questions: true,
         group: {
           include: {
-            enrollments: { where: { studentId, status: GroupEnrollmentStatus.ACTIVE } },
+            enrollments: studentId ? { where: { studentId, status: GroupEnrollmentStatus.ACTIVE } } : false,
           },
         },
         targetGroups: {
           include: {
-            enrollments: { where: { studentId, status: GroupEnrollmentStatus.ACTIVE } },
+            enrollments: studentId ? { where: { studentId, status: GroupEnrollmentStatus.ACTIVE } } : false,
           },
         },
         course: {
           include: {
-            enrollments: { where: { studentId, status: CourseEnrollmentStatus.ACTIVE } },
+            enrollments: studentId ? { where: { studentId, status: CourseEnrollmentStatus.ACTIVE } } : false,
           },
         },
       },
@@ -347,6 +509,84 @@ export class AssessmentsService {
 
     if (!assessment) {
       throw new NotFoundException(`Assessment [${assessmentId}] not found`);
+    }
+
+    // If teacher/secretariat previewing or student profile is absent, perform instant preview evaluation
+    if (user.role === UserRole.TEACHER || user.role === UserRole.SECRETARIAT || !studentId) {
+      const questionMap = new Map(assessment.questions.map((q) => [q.id, q]));
+      let totalScoreObtained = 0;
+      let hasPendingEssay = false;
+      const answersToCreate = [];
+
+      for (const ans of dto.answers) {
+        const question = questionMap.get(ans.questionId);
+        if (!question) continue;
+
+        if (
+          question.questionType === QuestionType.MULTIPLE_CHOICE ||
+          question.questionType === QuestionType.TRUE_FALSE
+        ) {
+          const isCorrect =
+            ans.answerGiven.trim().toLowerCase() ===
+            question.correctAnswer.trim().toLowerCase();
+
+          const pointsEarned = isCorrect ? Number(question.points) : 0;
+          totalScoreObtained += pointsEarned;
+
+          answersToCreate.push({
+            id: 'preview-ans-' + question.id,
+            questionId: question.id,
+            selectedAnswer: ans.answerGiven,
+            isCorrect,
+            pointsEarned,
+            maxPointsSnapshot: question.points,
+          });
+        } else if (question.questionType === QuestionType.ESSAY) {
+          hasPendingEssay = true;
+          answersToCreate.push({
+            id: 'preview-ans-' + question.id,
+            questionId: question.id,
+            selectedAnswer: ans.answerGiven,
+            isCorrect: null,
+            pointsEarned: null,
+            maxPointsSnapshot: question.points,
+          });
+        }
+      }
+
+      const status = hasPendingEssay
+        ? SubmissionStatus.SUBMITTED
+        : SubmissionStatus.GRADED;
+      const finalScore = hasPendingEssay ? null : totalScoreObtained;
+      const isAutoGraded = !hasPendingEssay;
+      const gradedAt = hasPendingEssay ? null : new Date();
+
+      const linkedLesson = this.prisma.courseLesson?.findFirst
+        ? await this.prisma.courseLesson.findFirst({
+            where: { lessonQuizId: assessmentId },
+            include: { module: true },
+          })
+        : null;
+
+      return {
+        id: 'preview-submission',
+        // Teacher/secretariat (or any non-student) submissions are a PREVIEW only:
+        // nothing is persisted, so the attempt policy is not enforced and no mark is
+        // stored against a student. The client uses this flag to label the result as a
+        // preview instead of masquerading as a real, saved grade.
+        isPreview: true,
+        assessmentId,
+        studentId: user.id,
+        status,
+        scoreObtained: finalScore,
+        isAutoGraded,
+        gradedAt,
+        attachmentUrl: dto.attachmentUrl,
+        submittedAt: new Date(),
+        answers: answersToCreate,
+        lessonId: linkedLesson?.id,
+        courseId: linkedLesson?.module.courseId,
+      };
     }
 
     if (!assessment.isPublished) {
@@ -364,24 +604,28 @@ export class AssessmentsService {
       throw new ForbiddenException('You are not enrolled in the course for this assessment');
     }
 
-    // 1. Check for single attempt duplicate submission
-    const existingSubmission = await this.prisma.assessmentSubmission.findUnique({
-      where: {
-        assessmentId_studentId: {
-          assessmentId,
-          studentId,
-        },
-      },
+    // 1. Enforce the attempt policy and compute the next attempt number.
+    //    (The single-submission unique constraint was replaced by a per-attempt
+    //     one, so we resolve the history explicitly instead of a compound findUnique.)
+    const priorSubmissions = await this.prisma.assessmentSubmission.findMany({
+      where: { assessmentId, studentId },
+      orderBy: { attemptNumber: 'desc' },
     });
 
-    if (existingSubmission) {
-      throw new ConflictException(
-        'You have already submitted this assessment (Single attempt policy enforced)',
-      );
+    if (priorSubmissions.length > 0 && !assessment.allowMultipleAttempts) {
+      throw new BadRequestException({
+        code: 'SINGLE_ATTEMPT_ONLY',
+        message:
+          'غير مسموح بإعادة هذا الاختبار، تم استنفاد المحاولة الوحيدة المتاحة',
+      });
     }
 
-    // 2. Validate submission deadline
-    if (assessment.dueDate && new Date() > assessment.dueDate) {
+    const attemptNumber = (priorSubmissions[0]?.attemptNumber ?? 0) + 1;
+
+    // 2. Validate submission deadline (session-linked homework is accepted until
+    //    the start of the next session, not the stored record date).
+    const effectiveDueDate = await this.resolveEffectiveDueDate(assessment);
+    if (effectiveDueDate && new Date() > effectiveDueDate) {
       throw new BadRequestException(
         'Assessment submission deadline has already passed',
       );
@@ -439,6 +683,7 @@ export class AssessmentsService {
         data: {
           assessmentId,
           studentId,
+          attemptNumber,
           status,
           scoreObtained: finalScore,
           isAutoGraded,
@@ -449,6 +694,37 @@ export class AssessmentsService {
           },
         },
       });
+
+      // Auto-mark associated course lesson as completed if linked
+      if (tx.courseLesson?.findFirst && tx.courseProgress?.upsert) {
+        const linkedLesson = await tx.courseLesson.findFirst({
+          where: { lessonQuizId: assessmentId },
+          include: { module: true },
+        });
+
+        if (linkedLesson && studentId) {
+          await tx.courseProgress.upsert({
+            where: {
+              lessonId_studentId: {
+                lessonId: linkedLesson.id,
+                studentId,
+              },
+            },
+            update: {
+              isCompleted: true,
+              completedAt: new Date(),
+            },
+            create: {
+              studentId,
+              lessonId: linkedLesson.id,
+              courseId: linkedLesson.module.courseId,
+              lastPositionSeconds: 0,
+              isCompleted: true,
+              completedAt: new Date(),
+            },
+          });
+        }
+      }
 
       return submission;
     });
@@ -476,6 +752,107 @@ export class AssessmentsService {
       isAutoGraded,
       submittedAt: result.submittedAt,
       gradedAt: result.gradedAt,
+    };
+  }
+
+  /**
+   * Records a student's homework answer (PDF/image) for a physical group
+   * session assessment. Links the submission to both the assessment and the
+   * lesson session and marks the per-session homework state as SUBMITTED.
+   */
+  async submitHomework(
+    assessmentId: string,
+    user: AuthenticatedUser,
+    dto: SubmitHomeworkDto,
+  ) {
+    const studentId = user.studentProfileId || user.id;
+
+    const assessment = await this.prisma.assessment.findUnique({
+      where: { id: assessmentId },
+      include: {
+        group: {
+          include: {
+            enrollments: {
+              where: { studentId, status: GroupEnrollmentStatus.ACTIVE },
+            },
+          },
+        },
+      },
+    });
+
+    if (!assessment || !assessment.isPublished) {
+      throw new NotFoundException(`Assessment [${assessmentId}] not found`);
+    }
+
+    // Homework is only allowed for physical group assessments.
+    if (assessment.courseId || assessment.lessonId) {
+      throw new BadRequestException(
+        'Homework submission is only supported for physical group assessments',
+      );
+    }
+
+    if (!assessment.group || assessment.group.enrollments.length === 0) {
+      throw new ForbiddenException(
+        'You are not enrolled in the physical group for this assessment',
+      );
+    }
+
+    const session = await this.prisma.lessonSession.findUnique({
+      where: { id: dto.sessionId },
+    });
+    if (!session) {
+      throw new NotFoundException(`Lesson session [${dto.sessionId}] not found`);
+    }
+    if (session.groupId !== assessment.groupId) {
+      throw new BadRequestException(
+        'The lesson session does not belong to the assessment group',
+      );
+    }
+
+    const submission = await this.prisma.assessmentSubmission.upsert({
+      where: {
+        assessmentId_studentId_attemptNumber: {
+          assessmentId,
+          studentId,
+          attemptNumber: 1,
+        },
+      },
+      create: {
+        assessmentId,
+        studentId,
+        attemptNumber: 1,
+        status: SubmissionStatus.SUBMITTED,
+        attachmentUrl: dto.fileUrl,
+        fileKey: dto.fileKey,
+        sessionId: dto.sessionId,
+        studentNotes: dto.studentNotes,
+        submittedAt: new Date(),
+      },
+      update: {
+        status: SubmissionStatus.SUBMITTED,
+        attachmentUrl: dto.fileUrl,
+        fileKey: dto.fileKey,
+        sessionId: dto.sessionId,
+        studentNotes: dto.studentNotes,
+        submittedAt: new Date(),
+        scoreObtained: null,
+        gradedAt: null,
+      },
+    });
+
+    this.logger.log(
+      `Homework [${assessmentId}] submitted by student [${studentId}] for session [${dto.sessionId}]`,
+    );
+
+    return {
+      submissionId: submission.id,
+      assessmentId,
+      sessionId: submission.sessionId,
+      status: submission.status,
+      fileUrl: submission.attachmentUrl,
+      fileKey: submission.fileKey,
+      studentNotes: submission.studentNotes,
+      submittedAt: submission.submittedAt,
     };
   }
 
@@ -610,18 +987,36 @@ export class AssessmentsService {
       },
     });
 
+    // Under the retake policy a student can have several attempts. Group by student
+    // and flag the official (highest) attempt so the gradebook can highlight the
+    // counting grade, while still listing every attempt for review.
+    const attemptsByStudent = new Map<string, typeof submissions>();
+    for (const s of submissions) {
+      const existing = attemptsByStudent.get(s.studentId);
+      if (existing) existing.push(s);
+      else attemptsByStudent.set(s.studentId, [s]);
+    }
+    const officialSubmissionIds = new Set<string>();
+    for (const [, attempts] of attemptsByStudent) {
+      const official = resolveOfficialSubmission(attempts);
+      if (official) officialSubmissionIds.add(official.id);
+    }
+
     return {
       assessmentId,
       assessmentTitle: assessment.title,
       totalScore: Number(assessment.totalScore),
       totalSubmissions: submissions.length,
+      totalStudents: attemptsByStudent.size,
       submissions: submissions.map((s) => ({
         id: s.id,
         studentId: s.studentId,
         studentName: s.student.user.fullName,
         studentPhone: s.student.user.phone,
+        attemptNumber: s.attemptNumber,
+        isOfficial: officialSubmissionIds.has(s.id),
         status: s.status,
-        scoreObtained: s.scoreObtained ? Number(s.scoreObtained) : null,
+        scoreObtained: s.scoreObtained != null ? Number(s.scoreObtained) : null,
         submittedAt: s.submittedAt,
         gradedAt: s.gradedAt,
         isAutoGraded: s.isAutoGraded,
@@ -668,8 +1063,9 @@ export class AssessmentsService {
 
     return {
       id: submission.id,
+      attemptNumber: submission.attemptNumber,
       status: submission.status,
-      scoreObtained: submission.scoreObtained ? Number(submission.scoreObtained) : null,
+      scoreObtained: submission.scoreObtained != null ? Number(submission.scoreObtained) : null,
       isAutoGraded: submission.isAutoGraded,
       submittedAt: submission.submittedAt,
       gradedAt: submission.gradedAt,
@@ -695,7 +1091,7 @@ export class AssessmentsService {
         correctAnswer: ans.question.correctAnswer,
         selectedAnswer: ans.selectedAnswer,
         isCorrect: ans.isCorrect,
-        pointsEarned: ans.pointsEarned ? Number(ans.pointsEarned) : null,
+        pointsEarned: ans.pointsEarned != null ? Number(ans.pointsEarned) : null,
         maxPointsSnapshot: Number(ans.maxPointsSnapshot),
         teacherFeedback: ans.teacherFeedback,
       }))
@@ -741,6 +1137,8 @@ export class AssessmentsService {
         ...(dto.durationMinutes !== undefined && { durationMinutes: dto.durationMinutes }),
         ...(dto.dueDate !== undefined && { dueDate: dto.dueDate ? new Date(dto.dueDate) : null }),
         ...(dto.isPublished !== undefined && { isPublished: dto.isPublished }),
+        ...(dto.allowMultipleAttempts !== undefined && { allowMultipleAttempts: dto.allowMultipleAttempts }),
+        ...(dto.courseId !== undefined && { courseId: dto.courseId || null }),
       },
     });
 

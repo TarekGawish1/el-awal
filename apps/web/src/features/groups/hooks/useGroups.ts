@@ -17,25 +17,31 @@ import { generateUUIDv7 } from '@/lib/offline/uuid';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
 import toast from 'react-hot-toast';
 
-export function useGroups() {
+export function useGroups(filters?: {
+  academicYear?: string;
+  academicTerm?: string;
+  gradeLevel?: string;
+}) {
   return useQuery<Group[]>({
-    queryKey: ['groups'],
+    queryKey: ['groups', filters],
     queryFn: async (): Promise<Group[]> => {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       if (!isOnline) {
-        return (await offlineDb.getGroupsOffline()) as unknown as Group[];
+        return (await offlineDb.getGroupsOffline(filters)) as unknown as Group[];
       }
 
       try {
-        const groups = await fetchGroups();
+        const groups = await fetchGroups(filters);
         if (groups && groups.length > 0) {
           offlineDb.bulkPutGroups(groups as any);
         }
         return groups;
       } catch {
-        return (await offlineDb.getGroupsOffline()) as unknown as Group[];
+        return (await offlineDb.getGroupsOffline(filters)) as unknown as Group[];
       }
     },
+    networkMode: 'offlineFirst',
+    staleTime: 60 * 1000,
   });
 }
 
@@ -43,17 +49,24 @@ export function useGroup(id: string) {
   return useQuery<Group | null>({
     queryKey: ['groups', id],
     queryFn: async (): Promise<Group | null> => {
+      if (!id) return null;
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       if (!isOnline) {
         return (await getGroupDetailsOffline(id)) as unknown as Group | null;
       }
       try {
-        return await fetchGroup(id);
+        const group = await fetchGroup(id);
+        if (group?.id) {
+          offlineDb.bulkPutGroups([group as any]);
+        }
+        return group;
       } catch {
         return (await getGroupDetailsOffline(id)) as unknown as Group | null;
       }
     },
     enabled: !!id,
+    networkMode: 'offlineFirst',
+    staleTime: 60 * 1000,
   });
 }
 
@@ -114,19 +127,20 @@ export function useGroupStudents(id: string) {
             groupName: group?.name || 'المجموعة الدراسية',
             gradeLevel: group?.gradeLevel,
             monthlyFee: group?.monthlyFee,
-            students: students.map((enrollment) => ({
-              id: enrollment.student.id,
-              fullName: enrollment.student.user.name,
-              studentCode: enrollment.student.code,
-              qrCodeToken: enrollment.student.id,
-              gradeLevel: enrollment.student.gradeLevel,
-              academicStatus: enrollment.student.academicStatus,
+            students: students.map((enrollment: any) => ({
+              id: enrollment?.student?.id || enrollment?.id,
+              fullName: enrollment?.student?.user?.name || enrollment?.student?.fullName || enrollment?.student?.user?.fullName || 'طالب',
+              studentCode: enrollment?.student?.code || enrollment?.student?.studentCode || `STU-${(enrollment?.student?.id || enrollment?.id || '').slice(0, 6)}`,
+              qrCodeToken: enrollment?.student?.qrCodeToken || enrollment?.student?.id || enrollment?.id,
+              gradeLevel: enrollment?.student?.gradeLevel || group?.gradeLevel || '',
+              academicStatus: enrollment?.student?.academicStatus || 'ACTIVE',
             })),
             updatedAt: Date.now(),
           });
         }
-        return students;
-      } catch {
+        return students || [];
+      } catch (err) {
+        console.warn('Failed to fetch online group roster, checking offline database:', err);
         const roster = await offlineDb.getRoster(id);
         if (roster && roster.students?.length > 0) {
           return roster.students.map((s) => ({
@@ -169,6 +183,8 @@ export function useGroupStudents(id: string) {
       }
     },
     enabled: !!id,
+    networkMode: 'offlineFirst',
+    staleTime: 60 * 1000,
   });
 }
 
@@ -198,6 +214,13 @@ export function useCreateGroup() {
 
         await offlineDb.bulkPutGroups([groupEntity]);
 
+        queryClient.setQueryData(['groups'], (old: Group[] | undefined) => {
+          const list = old || [];
+          const exists = list.some((g) => g.id === groupEntity.id);
+          return exists ? list : [groupEntity as unknown as Group, ...list];
+        });
+        queryClient.setQueryData(['groups', newId], groupEntity as unknown as Group);
+
         await syncEngine.enqueue(
           'groups',
           API_ENDPOINTS.GROUPS.CREATE,
@@ -212,7 +235,12 @@ export function useCreateGroup() {
       }
 
       try {
-        return await createGroup(payload);
+        const created = await createGroup(payload);
+        if (created) {
+          await offlineDb.bulkPutGroups([created as any]);
+          queryClient.setQueryData(['groups', created.id], created);
+        }
+        return created;
       } catch (error) {
         if (typeof navigator !== 'undefined' && !navigator.onLine) {
           const newId = generateUUIDv7();
@@ -231,6 +259,12 @@ export function useCreateGroup() {
             updatedAt: Date.now(),
           };
           await offlineDb.bulkPutGroups([groupEntity]);
+          queryClient.setQueryData(['groups'], (old: Group[] | undefined) => {
+            const list = old || [];
+            const exists = list.some((g) => g.id === groupEntity.id);
+            return exists ? list : [groupEntity as unknown as Group, ...list];
+          });
+          queryClient.setQueryData(['groups', newId], groupEntity as unknown as Group);
           await syncEngine.enqueue(
             'groups',
             API_ENDPOINTS.GROUPS.CREATE,
@@ -244,8 +278,16 @@ export function useCreateGroup() {
         throw error;
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['groups'] });
+    onSuccess: (data) => {
+      if (data?.id) {
+        queryClient.setQueryData(['groups'], (old: Group[] | undefined) => {
+          const list = old || [];
+          const exists = list.some((g) => g.id === data.id);
+          return exists ? list.map((g) => (g.id === data.id ? data : g)) : [data, ...list];
+        });
+        queryClient.setQueryData(['groups', data.id], data);
+      }
+      queryClient.invalidateQueries({ queryKey: ['groups'], exact: true });
     },
   });
 }
@@ -273,17 +315,37 @@ export function useUpdateGroup() {
             updatedAt: Date.now(),
           };
           await offlineDb.bulkPutGroups([updated]);
+
+          const roster = await offlineDb.getRoster(id);
+          if (roster) {
+            await offlineDb.cacheRoster({
+              ...roster,
+              groupName: updated.name,
+              gradeLevel: updated.gradeLevel,
+              monthlyFee: updated.monthlyFee,
+              sessions: updated.schedules ?? roster.sessions,
+              updatedAt: Date.now(),
+            });
+          }
+
+          queryClient.setQueryData(['groups', id], updated as unknown as Group);
+          queryClient.setQueriesData({ queryKey: ['groups'] }, (old: Group[] | undefined) =>
+            Array.isArray(old) ? old.map((group) => (group.id === id ? updated as unknown as Group : group)) : old,
+          );
+
+          await syncEngine.enqueue(
+            'groups',
+            API_ENDPOINTS.GROUPS.UPDATE(id),
+            'PATCH',
+            payload,
+            { rollbackData: existing },
+          );
+
+          toast.success('تم تعديل المجموعة محلياً بنجاح وسيتم إرسال التعديل فور الاتصال 💾');
+          return updated as unknown as Group;
         }
 
-        await syncEngine.enqueue(
-          'groups',
-          API_ENDPOINTS.GROUPS.UPDATE(id),
-          'PATCH',
-          payload,
-        );
-
-        toast.success('تم تعديل المجموعة محلياً بنجاح وسيتم إرسال التعديل فور الاتصال 💾');
-        return { id, ...payload } as unknown as Group;
+        throw new Error('تعذر العثور على بيانات المجموعة المخزنة محلياً');
       }
 
       return updateGroup(id, payload);

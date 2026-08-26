@@ -36,21 +36,27 @@ export async function fetchTeacherGroups(): Promise<GroupOption[]> {
 
 async function buildOfflineDashboardData(filters: DashboardFilterState): Promise<TeacherDashboardData> {
   const [students, groups, sessions, assessments] = await Promise.all([
-    offlineDb.getStudentsOffline(),
-    offlineDb.getGroupsOffline(),
-    offlineDb.getSessionsOffline(),
-    offlineDb.getAssessmentsOffline(),
+    offlineDb.getStudentsOffline().catch(() => []),
+    offlineDb.getGroupsOffline().catch(() => []),
+    offlineDb.getSessionsOffline().catch(() => []),
+    offlineDb.getAssessmentsOffline().catch(() => []),
   ]);
 
+  const safeGroups = Array.isArray(groups) ? groups : [];
+  const safeStudents = Array.isArray(students) ? students : [];
+  const safeSessions = Array.isArray(sessions) ? sessions : [];
+  const safeAssessments = Array.isArray(assessments) ? assessments : [];
+
   const filteredGroups = filters.groupId && filters.groupId !== 'ALL'
-    ? groups.filter((g) => g.id === filters.groupId)
-    : groups;
+    ? safeGroups.filter((g) => g.id === filters.groupId)
+    : safeGroups;
 
   const todayStr = new Date().toISOString().split('T')[0];
-  const todaySessions = sessions
+  const todaySessions = safeSessions
     .filter((s) => s.sessionDate?.startsWith(todayStr))
     .map((s) => {
-      const g = groups.find((grp) => grp.id === s.groupId);
+      const g = safeGroups.find((grp) => grp.id === s.groupId);
+      const enrolled = Number(g?._count?.enrollments ?? 0);
       return {
         id: s.id,
         groupId: s.groupId,
@@ -60,31 +66,34 @@ async function buildOfflineDashboardData(filters: DashboardFilterState): Promise
         endTime: s.endTime || '19:00',
         roomLocation: 'القاعة الرئيسية',
         status: (s.isCancelled ? 'COMPLETED' : 'UPCOMING') as any,
-        enrolledCount: g?._count?.enrollments || 15,
+        enrolledCount: enrolled,
         presentCount: 0,
-        sessionDate: s.sessionDate,
+        sessionDate: s.sessionDate || todayStr,
       };
     });
 
-  const groupPerformance = filteredGroups.map((g) => ({
-    groupId: g.id,
-    groupName: g.name,
-    gradeLevel: g.gradeLevel || 'عام',
-    enrolledCount: g._count?.enrollments || 0,
-    attendanceRate: 94.5,
-    averageExamScore: 88.0,
-  }));
+  const groupPerformance = filteredGroups.map((g) => {
+    const enrolled = Number(g._count?.enrollments ?? 0);
+    return {
+      groupId: g.id,
+      groupName: g.name || 'المجموعة الدراسية',
+      gradeLevel: g.gradeLevel || 'عام',
+      enrolledCount: enrolled,
+      attendanceRate: 94.5,
+      averageExamScore: 88.0,
+    };
+  });
 
   return {
     kpis: {
       todaySessionsCount: todaySessions.length,
       activeSessionsCount: todaySessions.length,
-      totalActiveStudents: students.length,
+      totalActiveStudents: safeStudents.length,
       totalActiveGroups: filteredGroups.length,
       weeklyAttendanceRate: 92.5,
       attendanceRateDelta: 1.2,
       pendingGradingCount: 0,
-      pendingGradingAssessmentsCount: assessments.length,
+      pendingGradingAssessmentsCount: safeAssessments.length,
     },
     todaySessions,
     attendanceTrends: [

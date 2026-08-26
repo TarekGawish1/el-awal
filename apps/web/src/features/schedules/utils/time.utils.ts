@@ -123,6 +123,7 @@ export function doTimeIntervalsOverlap(
 
 export interface MinimalSessionLike {
   id?: string;
+  groupId?: string | null;
   sessionDate: Date | string;
   startTime?: string | null;
   endTime?: string | null;
@@ -167,6 +168,29 @@ export function findSessionConflict<T extends MinimalSessionLike>(
     if (doTimeIntervalsOverlap(targetStartTime, targetEndTime, session.startTime, session.endTime)) {
       return session;
     }
+  }
+
+  return null;
+}
+
+/**
+ * Finds any existing active (non-cancelled) session for the same group on the same day,
+ * regardless of the time slot. Canceled sessions are completely ignored.
+ */
+export function findSameDayGroupSession<T extends MinimalSessionLike>(
+  sessions: T[],
+  targetDateStr: string,
+  targetGroupId: string,
+  excludeSessionId?: string,
+): T | null {
+  if (!targetDateStr || !targetGroupId) return null;
+
+  for (const session of sessions) {
+    if (excludeSessionId && session.id === excludeSessionId) continue;
+    if (isSessionCancelled(session)) continue;
+    if (session.groupId && session.groupId !== targetGroupId) continue;
+    if (toLocalDateStr(session.sessionDate) !== targetDateStr) continue;
+    return session;
   }
 
   return null;

@@ -67,7 +67,7 @@ export function StudentQrBadge({
           ctx.fillStyle = '#0f172a';
           ctx.font = 'bold 26px sans-serif';
           ctx.textAlign = 'center';
-          ctx.fillText(data.fullName, 250, 450);
+          ctx.fillText(data.fullName || '', 250, 450);
 
           // Student Code
           ctx.fillStyle = '#2563eb';

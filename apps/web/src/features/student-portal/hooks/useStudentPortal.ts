@@ -1,53 +1,28 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { studentApi } from '../api/student.api';
+import { studentApi, StudentGroupQuery } from '../api/student.api';
 import { useAuth } from '@/features/auth';
 import { apiClient } from '@/lib/api/client';
-import { offlineDb } from '@/lib/offline/db';
+import { offlineDb, getStudentDetailsOffline } from '@/lib/offline/db';
 import { syncEngine } from '@/lib/offline/sync-engine';
+import { StudentDetail } from '@/features/students/types/students.types';
 import toast from 'react-hot-toast';
 
 export function useStudentProfile() {
   const { user } = useAuth();
   const studentId = user?.studentProfileId || user?.id;
 
-  return useQuery({
+  return useQuery<StudentDetail | null>({
     queryKey: ['student-profile', studentId],
-    queryFn: async () => {
+    queryFn: async (): Promise<StudentDetail | null> => {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       if (!isOnline && studentId) {
-        const student = await offlineDb.getStudentByIdOffline(studentId);
-        if (student) {
-          return {
-            id: student.id,
-            studentCode: student.studentCode,
-            qrCodeToken: student.qrCodeToken,
-            gradeLevel: student.gradeLevel,
-            user: {
-              fullName: student.fullName || student.user?.fullName || user?.fullName || 'طالب',
-              phone: student.phone || student.user?.phone,
-              email: student.email || student.user?.email,
-            },
-          };
-        }
+        return (await getStudentDetailsOffline(studentId)) as unknown as StudentDetail | null;
       }
       try {
         return await studentApi.getProfile(studentId!);
       } catch {
         if (studentId) {
-          const student = await offlineDb.getStudentByIdOffline(studentId);
-          if (student) {
-            return {
-              id: student.id,
-              studentCode: student.studentCode,
-              qrCodeToken: student.qrCodeToken,
-              gradeLevel: student.gradeLevel,
-              user: {
-                fullName: student.fullName || student.user?.fullName || user?.fullName || 'طالب',
-                phone: student.phone || student.user?.phone,
-                email: student.email || student.user?.email,
-              },
-            };
-          }
+          return (await getStudentDetailsOffline(studentId)) as unknown as StudentDetail | null;
         }
         return null;
       }
@@ -108,6 +83,42 @@ export function useStudentCourses() {
       } catch {
         return offlineDb.getCoursesOffline();
       }
+    },
+  });
+}
+
+export function useStudentGroup() {
+  return useQuery({
+    queryKey: ['student-group'],
+    queryFn: () => studentApi.getMyGroup(),
+    retry: false,
+  });
+}
+
+export function useStudentGroupSessions(query: StudentGroupQuery) {
+  return useQuery({
+    queryKey: ['student-group-sessions', query.year, query.month],
+    queryFn: () => studentApi.getMyGroupSessions(query),
+    staleTime: 30_000,
+  });
+}
+
+export function useSendHomeworkUpload() {
+  return useMutation({
+    mutationFn: (payload: { fileName: string; contentType: string; fileSizeBytes: number }) =>
+      studentApi.generateHomeworkUploadUrl(payload),
+  });
+}
+
+export function useSubmitHomework() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ assessmentId, payload }: { assessmentId: string; payload: { sessionId: string; fileKey: string; fileUrl: string; studentNotes?: string } }) =>
+      studentApi.submitHomework(assessmentId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['student-group-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['student-assessments'] });
+      queryClient.invalidateQueries({ queryKey: ['student-group'] });
     },
   });
 }

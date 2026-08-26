@@ -199,6 +199,24 @@ export function uploadFileToR2(
   });
 }
 
+export async function uploadRawFile(
+  file: File,
+  folder = 'assessments',
+  onProgress?: UploadProgressCallback,
+): Promise<{ fileUrl: string; fileKey: string; fileSize: number; fileType: string; fileName: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('folder', folder);
+
+  return uploadWithProgress<{ fileUrl: string; fileKey: string; fileSize: number; fileType: string; fileName: string }>(
+    '/content/upload-raw',
+    'POST',
+    formData,
+    undefined,
+    onProgress,
+  );
+}
+
 export async function uploadContentDirectly(
   formData: FormData,
   onProgress?: UploadProgressCallback,
@@ -249,4 +267,21 @@ export async function deleteContent(id: string): Promise<{ success: boolean }> {
   return apiClient<{ success: boolean }>(`/content/${id}`, {
     method: 'DELETE',
   });
+}
+
+export async function deleteFileFromStorage(fileKeyOrUrl?: string | null): Promise<{ success: boolean }> {
+  if (!fileKeyOrUrl) return { success: true };
+  try {
+    return await apiClient('/content/file', {
+      method: 'DELETE',
+      body: JSON.stringify(
+        fileKeyOrUrl.startsWith('http') || fileKeyOrUrl.startsWith('/')
+          ? { fileUrl: fileKeyOrUrl }
+          : { fileKey: fileKeyOrUrl }
+      ),
+    });
+  } catch (err) {
+    console.warn('Failed to delete file from storage:', err);
+    return { success: false };
+  }
 }

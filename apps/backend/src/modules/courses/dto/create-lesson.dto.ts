@@ -7,8 +7,12 @@ import {
   Min,
   IsBoolean,
   IsIn,
+  IsArray,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { CreateAttachmentDto } from './lesson-attachment.dto';
 
 export class CreateLessonDto {
   @ApiProperty({
@@ -82,4 +86,38 @@ export class CreateLessonDto {
   @IsOptional()
   @IsBoolean()
   isFreePreview?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Alias for isFreePreview',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isPreview?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Detailed study notes / markdown summary of the lesson',
+    example: '### ملخص درس كان وأخواتها\n- ترفع المبتدأ ويسمى اسمها\n- تنصب الخبر ويسمى خبرها',
+  })
+  @IsOptional()
+  @IsString()
+  summary?: string;
+
+  @ApiPropertyOptional({
+    description: 'Linked lesson interactive quiz / checkpoint assessment ID',
+    example: 'd933cc98-532e-4940-a1b6-ba121ff5a697',
+  })
+  @IsOptional()
+  @IsString()
+  lessonQuizId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Initial lesson attachments to create atomically with the lesson',
+    type: () => [CreateAttachmentDto],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateAttachmentDto)
+  attachments?: CreateAttachmentDto[];
 }

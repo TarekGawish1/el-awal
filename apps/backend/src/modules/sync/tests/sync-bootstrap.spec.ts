@@ -126,6 +126,18 @@ describe('SyncService - Bootstrap Hydration Engine', () => {
       expect(result.data.students?.[0].fullName).toBe('محمود أحمد');
       expect(result.data.students?.[0].qrCodeToken).toBe('qr_token_stu_1');
       expect(result.data.assessments?.[0].questions[0].correctAnswer).toBe('المسافة/الزمن');
+
+      expect(mockPrismaService.groupEnrollment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            status: GroupEnrollmentStatus.ACTIVE,
+            student: expect.objectContaining({
+              academicStatus: 'ACTIVE',
+              user: { isActive: true },
+            }),
+          }),
+        }),
+      );
     });
 
     it('should filter by delta timestamp when since parameter is provided', async () => {

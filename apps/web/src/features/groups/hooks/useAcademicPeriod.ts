@@ -15,11 +15,43 @@ export interface AcademicPeriodResponse {
   activeAcademicTerm: string;
 }
 
+import { offlineDb } from '@/lib/offline/db';
+import { bootstrapManager } from '@/lib/offline/bootstrap-manager';
+
+export interface SwitchAcademicPeriodPayload {
+  academicYear: string;
+  academicTerm: string;
+  password: string;
+}
+
 /**
- * Fetch academic period directly from database
+ * Fetch academic period directly from database or offline IndexedDB store
  */
 export async function fetchAcademicPeriod(): Promise<AcademicPeriodResponse> {
-  return apiClient<AcademicPeriodResponse>(API_ENDPOINTS.TEACHER.ACADEMIC_PERIOD);
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  if (!isOnline) {
+    const cached = await offlineDb.getMetadata<AcademicPeriodResponse>('academicPeriod');
+    if (cached?.activeAcademicYear) {
+      return cached;
+    }
+  }
+
+  try {
+    const res = await apiClient<AcademicPeriodResponse>(API_ENDPOINTS.TEACHER.ACADEMIC_PERIOD);
+    if (res?.activeAcademicYear) {
+      await offlineDb.setMetadata('academicPeriod', res);
+    }
+    return res;
+  } catch {
+    const cached = await offlineDb.getMetadata<AcademicPeriodResponse>('academicPeriod');
+    if (cached?.activeAcademicYear) {
+      return cached;
+    }
+    return {
+      activeAcademicYear: DEFAULT_ACADEMIC_YEAR,
+      activeAcademicTerm: DEFAULT_ACADEMIC_TERM,
+    };
+  }
 }
 
 /**
@@ -29,9 +61,37 @@ export async function updateAcademicPeriodInDb(payload: {
   activeAcademicYear: string;
   activeAcademicTerm: string;
 }): Promise<AcademicPeriodResponse> {
-  return apiClient<AcademicPeriodResponse>(API_ENDPOINTS.TEACHER.ACADEMIC_PERIOD, {
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  if (!isOnline) {
+    await offlineDb.setMetadata('academicPeriod', payload);
+    return payload;
+  }
+
+  const res = await apiClient<AcademicPeriodResponse>(API_ENDPOINTS.TEACHER.ACADEMIC_PERIOD, {
     method: 'PUT',
     body: JSON.stringify(payload),
+  });
+
+  if (res?.activeAcademicYear) {
+    await offlineDb.setMetadata('academicPeriod', res);
+  }
+  return res;
+}
+
+/**
+ * Password-gated, online-only switch of the active academic year/term.
+ * Posts to the dedicated switch endpoint which re-verifies the account password
+ * server-side before mutating the active period. Uses `skipAuthRefresh` so a
+ * 401 (wrong password) surfaces immediately as a business error instead of
+ * triggering a silent token refresh + re-submit of the wrong password.
+ */
+export async function switchAcademicPeriodInDb(
+  payload: SwitchAcademicPeriodPayload,
+): Promise<AcademicPeriodResponse> {
+  return apiClient<AcademicPeriodResponse>(API_ENDPOINTS.ACADEMIC_PERIODS.SWITCH, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    skipAuthRefresh: true,
   });
 }
 
@@ -60,10 +120,11 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
   const { data: dbPeriod, isLoading: isLoadingDb } = useQuery({
     queryKey: ['teacher', 'academic-period'],
     queryFn: fetchAcademicPeriod,
-    staleTime: 5000,
-    refetchInterval: 15000, // Background polling every 15s so all assistants & teachers stay automatically updated
-    refetchOnWindowFocus: true, // Immediately syncs whenever the user focuses the browser tab
+    staleTime: 10000,
+    refetchInterval: () => (typeof navigator !== 'undefined' && !navigator.onLine ? false : 30000),
+    refetchOnWindowFocus: typeof navigator !== 'undefined' ? navigator.onLine : true,
     retry: 1,
+    networkMode: 'offlineFirst',
   });
 
   // Local state initialized with cached / stored / default value
@@ -108,6 +169,48 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
       queryClient.invalidateQueries({ queryKey: ['assessments'] });
       queryClient.invalidateQueries({ queryKey: ['finance'] });
       queryClient.invalidateQueries({ queryKey: ['students'] });
+    },
+  });
+
+  // 2b. Password-gated switch mutation with full period re-hydration.
+  // On success we update local state/localStorage, purge the period-scoped
+  // offline caches, pull a fresh full bootstrap for the new period, and
+  // invalidate every cached view so dashboards/stats recompute.
+  const switchMutation = useMutation({
+    mutationFn: switchAcademicPeriodInDb,
+    onSuccess: async (data, variables) => {
+      const nextYear = data?.activeAcademicYear || variables.academicYear;
+      const nextTerm = data?.activeAcademicTerm || variables.academicTerm;
+
+      setSelectedYearsState([nextYear]);
+      setSelectedTermsState([nextTerm]);
+
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(STORAGE_YEAR_KEY, JSON.stringify([nextYear]));
+          localStorage.setItem(STORAGE_TERM_KEY, JSON.stringify([nextTerm]));
+          window.dispatchEvent(new Event('el_awal_academic_period_changed'));
+        } catch {}
+      }
+
+      queryClient.setQueryData(['teacher', 'academic-period'], {
+        activeAcademicYear: nextYear,
+        activeAcademicTerm: nextTerm,
+      });
+      await offlineDb.setMetadata('academicPeriod', {
+        activeAcademicYear: nextYear,
+        activeAcademicTerm: nextTerm,
+      });
+
+      // Clear only the period-scoped caches (roster/students/groups/sessions);
+      // outbox + offline credentials are preserved.
+      await offlineDb.clearPeriodScopedData();
+
+      // Re-download the full workspace for the newly selected period.
+      await bootstrapManager.performBootstrap({ forceFull: true, skipCooldown: true, queryClient });
+
+      // Recompute every dependent view.
+      queryClient.invalidateQueries();
     },
   });
 
@@ -220,6 +323,8 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
     dbPeriod,
     isLoading: isLoadingDb,
     isSyncingWithDb: mutation.isPending,
+    switchPeriod: switchMutation.mutateAsync,
+    isSwitching: switchMutation.isPending,
   };
 }
 

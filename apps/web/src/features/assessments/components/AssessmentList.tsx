@@ -10,11 +10,14 @@ import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
 import { Pagination } from '@/components/ui/Pagination';
+import { useOnlineStatus } from '@/lib/offline/use-online-status';
 
 const PAGE_SIZE = 9;
 
 export function AssessmentList() {
+  const isOnline = useOnlineStatus();
   const { data, isLoading, isError, error, refetch } = useAssessments();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'ALL' | 'EXAM' | 'ASSIGNMENT'>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
@@ -54,18 +57,36 @@ export function AssessmentList() {
           <p className="text-slate-500 mt-1">قم بإنشاء وإدارة امتحاناتك وتقييم طلابك</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-          <Link href="/teacher/assessments/new?type=EXAM" className="w-full sm:w-auto">
-            <Button variant="primary" className="w-full sm:w-auto">
-              <Plus className="w-4 h-4 ml-2" />
-              اختبار جديد
-            </Button>
-          </Link>
-          <Link href="/teacher/assessments/new?type=ASSIGNMENT" className="w-full sm:w-auto">
-            <Button variant="outline" className="w-full sm:w-auto bg-white">
-              <Plus className="w-4 h-4 ml-2" />
-              واجب جديد
-            </Button>
-          </Link>
+          {isOnline ? (
+            <Link href="/teacher/assessments/new?type=EXAM" className="w-full sm:w-auto">
+              <Button variant="primary" className="w-full sm:w-auto">
+                <Plus className="w-4 h-4 ml-2" />
+                اختبار جديد
+              </Button>
+            </Link>
+          ) : (
+            <span title="يتطلب إنشاء الاختبارات والواجبات اتصالاً بالإنترنت" className="w-full sm:w-auto">
+              <Button variant="primary" className="w-full sm:w-auto" disabled>
+                <Plus className="w-4 h-4 ml-2" />
+                اختبار جديد
+              </Button>
+            </span>
+          )}
+          {isOnline ? (
+            <Link href="/teacher/assessments/new?type=ASSIGNMENT" className="w-full sm:w-auto">
+              <Button variant="outline" className="w-full sm:w-auto bg-white">
+                <Plus className="w-4 h-4 ml-2" />
+                واجب جديد
+              </Button>
+            </Link>
+          ) : (
+            <span title="يتطلب إنشاء الاختبارات والواجبات اتصالاً بالإنترنت" className="w-full sm:w-auto">
+              <Button variant="outline" className="w-full sm:w-auto bg-white" disabled>
+                <Plus className="w-4 h-4 ml-2" />
+                واجب جديد
+              </Button>
+            </span>
+          )}
         </div>
       </div>
 
@@ -140,18 +161,36 @@ export function AssessmentList() {
             قم بإنشاء اختبارك أو واجبك الأول لتبدأ في تقييم طلابك ومتابعة مستواهم الدراسي.
           </p>
           <div className="flex justify-center gap-3">
-            <Link href="/teacher/assessments/new?type=EXAM">
-              <Button variant="primary">
-                <Plus className="w-4 h-4 ml-2" />
-                إنشاء اختبار جديد
-              </Button>
-            </Link>
-            <Link href="/teacher/assessments/new?type=ASSIGNMENT">
-              <Button variant="outline" className="bg-white">
-                <Plus className="w-4 h-4 ml-2" />
-                إنشاء واجب جديد
-              </Button>
-            </Link>
+            {isOnline ? (
+              <Link href="/teacher/assessments/new?type=EXAM">
+                <Button variant="primary">
+                  <Plus className="w-4 h-4 ml-2" />
+                  إنشاء اختبار جديد
+                </Button>
+              </Link>
+            ) : (
+              <span title="يتطلب إنشاء الاختبارات والواجبات اتصالاً بالإنترنت">
+                <Button variant="primary" disabled>
+                  <Plus className="w-4 h-4 ml-2" />
+                  إنشاء اختبار جديد
+                </Button>
+              </span>
+            )}
+            {isOnline ? (
+              <Link href="/teacher/assessments/new?type=ASSIGNMENT">
+                <Button variant="outline" className="bg-white">
+                  <Plus className="w-4 h-4 ml-2" />
+                  إنشاء واجب جديد
+                </Button>
+              </Link>
+            ) : (
+              <span title="يتطلب إنشاء الاختبارات والواجبات اتصالاً بالإنترنت">
+                <Button variant="outline" className="bg-white" disabled>
+                  <Plus className="w-4 h-4 ml-2" />
+                  إنشاء واجب جديد
+                </Button>
+              </span>
+            )}
           </div>
         </div>
       ) : filteredAssessments.length === 0 ? (

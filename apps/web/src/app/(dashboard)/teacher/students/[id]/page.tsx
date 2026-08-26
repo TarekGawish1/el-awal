@@ -1,22 +1,34 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useStudent } from '@/features/students/hooks/use-students';
+import { useStudentPaymentHistory } from '@/features/finance/hooks/useFinance';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { StudentQrBadge } from '@/features/students/components/StudentQrBadge';
+import { StudentHistoryModal } from '@/features/finance/components/StudentHistoryModal';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { Phone } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowRight, AlertCircle, RefreshCw, Phone, DollarSign, BookOpen, CreditCard, History } from 'lucide-react';
 import { formatWhatsAppNumber } from '@/lib/utils/formatters';
 
-export default function StudentDetailPage() {
-  const params = useParams();
-  const router = useRouter();
-  const studentId = params?.id as string;
+interface PageProps {
+  params: {
+    id: string;
+  };
+  searchParams?: { [key: string]: string | string[] | undefined };
+}
 
-  const { data: student, isLoading, isError } = useStudent(studentId);
+export default function StudentDetailPage({ params }: PageProps) {
+  const routeParams = useParams();
+  const router = useRouter();
+  const studentId = (params?.id || routeParams?.id) as string;
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+
+  const { data: student, isLoading, isError, error, refetch } = useStudent(studentId);
+  const { data: payments = [], isLoading: isPaymentsLoading } = useStudentPaymentHistory(studentId);
 
   if (isLoading) {
     return (
@@ -37,8 +49,9 @@ export default function StudentDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
             <Skeleton className="h-64 rounded-3xl" />
+            <Skeleton className="h-64 rounded-3xl" />
           </div>
-          <div className="space-y-8">
+          <div className="lg:col-span-1">
             <Skeleton className="h-64 rounded-3xl" />
           </div>
         </div>
@@ -48,13 +61,31 @@ export default function StudentDetailPage() {
 
   if (isError || !student) {
     return (
-      <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="p-4 bg-red-50 text-red-600 rounded-lg">
-          تعذر تحميل بيانات الطالب أو لم يتم العثور على السجل.
+      <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6">
+        <Link href="/teacher/students" className="inline-flex items-center text-slate-500 hover:text-slate-800 transition-colors">
+          <ArrowRight className="w-4 h-4 ml-2" />
+          العودة لسجل الطلاب
+        </Link>
+        <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center space-y-4 shadow-sm">
+          <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-800">لم يتم العثور على سجل الطالب</h2>
+            <p className="text-sm text-slate-500 mt-1">تأكد من صحة الرابط أو تحقق من قائمة الطلاب المسجلين محلياً.</p>
+          </div>
+          <div className="flex justify-center gap-3 mt-2">
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="w-4 h-4 ml-1.5" />
+              إعادة المحاولة
+            </Button>
+            <Link href="/teacher/students">
+              <Button variant="primary" size="sm">
+                العودة لقائمة الطلاب
+              </Button>
+            </Link>
+          </div>
         </div>
-        <Button className="mt-4" onClick={() => router.back()}>
-          العودة للخلف
-        </Button>
       </div>
     );
   }
@@ -149,6 +180,77 @@ export default function StudentDetailPage() {
                   <dd className="text-base font-semibold text-slate-900" dir="ltr">{studentPhone || 'غير متوفر'}</dd>
                 </div>
               </dl>
+            </CardContent>
+          </Card>
+
+          {/* Payments & Booklets Ledger Card */}
+          <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
+            <CardHeader className="border-b border-slate-100 bg-slate-50/50 px-6 py-5 flex justify-between items-center">
+              <CardTitle className="text-lg font-bold flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-emerald-600" />
+                السجل المالي والمذكرات الدراسية
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsHistoryModalOpen(true)}
+                className="text-xs rounded-xl"
+              >
+                <History className="w-3.5 h-3.5 ml-1" />
+                عرض السجل الكامل
+              </Button>
+            </CardHeader>
+            <CardContent className="p-0">
+              {isPaymentsLoading ? (
+                <div className="p-6 space-y-3">
+                  <Skeleton className="h-12 w-full rounded-xl" />
+                  <Skeleton className="h-12 w-full rounded-xl" />
+                </div>
+              ) : payments.length === 0 ? (
+                <div className="p-8 text-center text-slate-500">
+                  <p>لا توجد مدفوعات أو مذكرات مسجلة لهذا الطالب.</p>
+                </div>
+              ) : (
+                <ul className="divide-y divide-slate-100">
+                  {payments.slice(0, 5).map((record: any) => {
+                    const isBooklet = record.paymentType === 'BOOKLET' || Boolean(record.bookletId);
+                    return (
+                      <li key={record.id} className="p-4 sm:p-5 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
+                            isBooklet ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                          }`}>
+                            {isBooklet ? <BookOpen className="w-4 h-4" /> : <CreditCard className="w-4 h-4" />}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-900 text-sm">
+                                {isBooklet ? record.booklet?.title || 'مذكرة دراسية' : `اشتراك شهر ${record.periodMonth}/${record.periodYear}`}
+                              </span>
+                              {isBooklet ? (
+                                <Badge variant="default" className="text-[10px] bg-purple-100 text-purple-800 border-purple-200">
+                                  مذكرة
+                                </Badge>
+                              ) : (
+                                <Badge variant="default" className="text-[10px] bg-blue-100 text-blue-800 border-blue-200">
+                                  اشتراك شهري
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              {new Date(record.createdAt).toLocaleDateString('ar-EG')} • {record.group?.name || 'عام'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-left">
+                          <span className="font-extrabold text-emerald-700 text-sm">{record.amountPaid} ج.م</span>
+                          <span className="block text-[10px] text-slate-400">مسدد</span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </CardContent>
           </Card>
 
@@ -257,6 +359,14 @@ export default function StudentDetailPage() {
           <StudentQrBadge studentId={student.id} studentPhone={studentPhone} />
         </div>
       </div>
+
+      {isHistoryModalOpen && (
+        <StudentHistoryModal
+          isOpen={isHistoryModalOpen}
+          onClose={() => setIsHistoryModalOpen(false)}
+          studentId={student.id}
+        />
+      )}
     </div>
   );
 }

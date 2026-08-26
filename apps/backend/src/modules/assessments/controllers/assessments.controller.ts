@@ -13,6 +13,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { AssessmentsService } from '../services/assessments.service';
 import { CreateAssessmentDto } from '../dto/create-assessment.dto';
 import { SubmitAssessmentDto } from '../dto/submit-assessment.dto';
+import { SubmitHomeworkDto } from '../dto/submit-homework.dto';
 import { GradeSubmissionDto } from '../dto/grade-submission.dto';
 import { AssessmentQueryDto } from '../dto/assessment-query.dto';
 import { UpdateAssessmentDto } from '../dto/update-assessment.dto';
@@ -66,12 +67,23 @@ export class AssessmentsController {
     return this.assessmentsService.getAssessmentById(id, user);
   }
 
+  @Get(':id/my-status')
+  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.PARENT)
+  @ApiOperation({ summary: 'Get the authenticated student submission status and attempt policy for an assessment' })
+  @ApiResponse({ status: 200, description: 'Submission status, best/latest score, percentage and attempt policy' })
+  async getMyAssessmentStatus(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.assessmentsService.getMyAssessmentStatus(id, user);
+  }
+
   @Post(':id/submit')
   @HttpCode(HttpStatus.OK)
-  @Roles(UserRole.STUDENT)
-  @ApiOperation({ summary: 'Submit student answers for synchronous auto-grading (Single attempt enforced)' })
+  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Submit student answers for synchronous auto-grading (attempt policy enforced)' })
   @ApiResponse({ status: 200, description: 'Submission auto-graded or staged for manual review' })
-  @ApiResponse({ status: 409, description: 'Assessment already submitted' })
+  @ApiResponse({ status: 400, description: 'SINGLE_ATTEMPT_ONLY: the only allowed attempt was already used' })
   async submitAssessment(
     @Param('id') id: string,
     @Body() dto: SubmitAssessmentDto,
@@ -79,9 +91,22 @@ export class AssessmentsController {
   ) {
     return this.assessmentsService.submitAssessment(
       id,
-      user.studentProfileId || user.id,
+      user,
       dto,
     );
+  }
+
+  @Post(':id/submit-homework')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Submit a homework answer file (PDF/image) for a physical group session assessment' })
+  @ApiResponse({ status: 200, description: 'Homework answer submitted and session homework state updated' })
+  async submitHomework(
+    @Param('id') id: string,
+    @Body() dto: SubmitHomeworkDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.assessmentsService.submitHomework(id, user, dto);
   }
 
   @Patch('submissions/:submissionId/grade')

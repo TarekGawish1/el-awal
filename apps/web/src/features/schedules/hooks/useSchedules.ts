@@ -271,7 +271,10 @@ export function useGenerateSessions() {
         );
 
         toast.success(`تم توليد ${newSessions.length} حصة محلياً بنجاح ووضعها في قائمة المزامنة 💾`);
-        return { count: newSessions.length, isOfflineGenerated: true };
+        return {
+          generatedCount: newSessions.length,
+          sessions: newSessions as unknown as LessonSessionItem[],
+        };
       }
 
       return generateSessions(groupId, payload);

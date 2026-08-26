@@ -21,18 +21,31 @@ export const API_ENDPOINTS = {
     DASHBOARD_OVERVIEW: '/teachers/dashboard/overview', // Recommended server aggregation contract
     ACADEMIC_PERIOD: '/teachers/academic-period',
   },
+  ACADEMIC_PERIODS: {
+    SWITCH: '/academic-periods/switch', // Password-gated switch of the active academic year/term
+  },
   GROUPS: {
     LIST: '/groups',
+    CREATE: '/groups',
     DETAIL: (id: string) => `/groups/${id}`,
+    UPDATE: (id: string) => `/groups/${id}`,
+    DELETE: (id: string) => `/groups/${id}`,
     STUDENTS: (id: string) => `/groups/${id}/students`,
+    ENROLL: (id: string) => `/groups/${id}/students`,
+    REMOVE_STUDENT: (groupId: string, studentId: string) => `/groups/${groupId}/students/${studentId}`,
     SCHEDULES: (id: string) => `/schedules/group/${id}`,
     SESSIONS: (id: string) => `/schedules/group/${id}/sessions`,
   },
   SCHEDULES: {
     TODAY_SESSIONS: '/schedules/today-sessions',
+    CREATE_SESSION: '/schedules/session',
+    UPDATE_SESSION: (id: string) => `/schedules/session/${id}`,
+    DELETE_SESSION: (id: string) => `/schedules/session/${id}`,
+    GENERATE_SESSIONS: (groupId: string) => `/schedules/group/${groupId}/generate-sessions`,
   },
   STUDENTS: {
     LIST: '/students',
+    CREATE: '/students',
     DETAIL: (id: string) => `/students/${id}`,
     QR_CODE: (id: string) => `/students/${id}/qr-code`,
     REGENERATE_QR: (id: string) => `/students/${id}/regenerate-qr-token`,
@@ -49,6 +62,7 @@ export const API_ENDPOINTS = {
     UPDATE: (id: string) => `/assessments/${id}`,
     SUBMISSIONS: (id: string) => `/assessments/${id}/submissions`,
     SUBMISSION_DETAIL: (submissionId: string) => `/assessments/submissions/${submissionId}`,
+    GRADE_SUBMISSION: (submissionId: string) => `/assessments/submissions/${submissionId}/grade`,
     SUBMIT: (id: string) => `/assessments/${id}/submit`,
   },
   COURSES: {
@@ -65,6 +79,13 @@ export const API_ENDPOINTS = {
     STUDENT_HISTORY: (studentId: string) => `/subscriptions/student/${studentId}`,
     SCAN_QR: '/subscriptions/scan-qr',
   },
+  BOOKLETS: {
+    LIST: '/booklets',
+    CREATE: '/booklets',
+    DETAIL: (id: string) => `/booklets/${id}`,
+    UPDATE: (id: string) => `/booklets/${id}`,
+    DELETE: (id: string) => `/booklets/${id}`,
+  },
   NOTIFICATIONS: {
     LIST: '/notifications',
     UNREAD_COUNT: '/notifications/unread-count',
@@ -73,6 +94,7 @@ export const API_ENDPOINTS = {
   },
   SYNC: {
     BOOTSTRAP: '/sync/bootstrap',
+    DIFF: '/sync/diff',
     ATTENDANCE: '/sync/attendance',
     PAYMENTS: '/sync/payments',
     PROGRESS: '/sync/progress',

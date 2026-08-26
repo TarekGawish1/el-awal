@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -38,15 +39,23 @@ export class GroupsController {
   @Get()
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Get all physical academic groups' })
-  async getGroups(@CurrentUser() user: AuthenticatedUser) {
-    return this.groupsService.getTeacherGroups(user.teacherProfileId || user.id);
+  async getGroups(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('academicYear') academicYear?: string,
+    @Query('academicTerm') academicTerm?: string,
+  ) {
+    return this.groupsService.getTeacherGroups(user.teacherProfileId || user.id, academicYear, academicTerm);
   }
 
   @Get('my-groups')
   @Roles(UserRole.TEACHER)
   @ApiOperation({ summary: 'Get all physical academic groups managed by the authenticated teacher' })
-  async getMyGroups(@CurrentUser() user: AuthenticatedUser) {
-    return this.groupsService.getTeacherGroups(user.teacherProfileId || user.id);
+  async getMyGroups(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('academicYear') academicYear?: string,
+    @Query('academicTerm') academicTerm?: string,
+  ) {
+    return this.groupsService.getTeacherGroups(user.teacherProfileId || user.id, academicYear, academicTerm);
   }
 
   @Get(':id')

@@ -8,6 +8,7 @@ import { ChevronLeft, Home } from 'lucide-react';
 const routeLabels: Record<string, string> = {
   teacher: 'الرئيسية',
   student: 'الرئيسية',
+  parent: 'الرئيسية',
   dashboard: 'لوحة التحكم',
   groups: 'المجموعات الدراسية',
   attendance: 'رصد الحضور والغياب',
@@ -19,7 +20,12 @@ const routeLabels: Record<string, string> = {
   edit: 'تعديل',
   view: 'عرض التفاصيل',
   payments: 'المدفوعات',
-  courses: 'الدورات',
+  courses: 'الدورات الأونلاين',
+  group: 'المجموعة الدراسية',
+  learn: 'قاعة المشاهدة والتعلم',
+  schedules: 'جدول الحصص',
+  submissions: 'تسليمات وإجابات الطلاب',
+  new: 'إضافة جديد',
 };
 
 export function DashboardBreadcrumbs() {

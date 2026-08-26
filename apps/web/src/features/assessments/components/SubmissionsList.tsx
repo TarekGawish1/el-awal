@@ -13,21 +13,34 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
 import { Input } from '@/components/ui/Input';
 import { Pagination } from '@/components/ui/Pagination';
+import { FeatureRequiresOnlineCard } from '@/components/offline/FeatureRequiresOnlineCard';
+import { useOnlineStatus } from '@/lib/offline/use-online-status';
 
 const PAGE_SIZE = 10;
 
 export function SubmissionsList({ assessmentId }: { assessmentId: string }) {
+  const isOnline = useOnlineStatus();
   const { data: assessment, isLoading: isAssessmentLoading } = useAssessment(assessmentId);
   const { data: submissions = [], isLoading, isError, error } = useAssessmentSubmissions(assessmentId);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+
+  if (!isOnline) {
+    return (
+      <FeatureRequiresOnlineCard
+        featureName="تسليمات الطلاب"
+        description="عرض وتصحيح تسليمات الطلاب يتطلب اتصالاً نشطاً بالخادم."
+        backHref="/teacher/dashboard"
+      />
+    );
+  }
 
   const filteredSubmissions = useMemo(() => {
     if (!submissions) return [];
     if (!searchQuery.trim()) return submissions;
     const q = searchQuery.toLowerCase().trim();
     return submissions.filter((s) => {
-      const name = s.student?.user?.fullName?.toLowerCase() || '';
+      const name = s.student?.user?.fullName?.toLowerCase() || (s.student as any)?.fullName?.toLowerCase() || '';
       return name.includes(q);
     });
   }, [submissions, searchQuery]);

@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Select } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
-import { generatePresignedUrl, uploadFileToR2 } from '@/features/content/api/content.api';
+import { generatePresignedUrl, uploadFileToR2, uploadRawFile } from '@/features/content/api/content.api';
 import toast from 'react-hot-toast';
 
 interface AssessmentQuestionEditorProps {
@@ -63,19 +63,27 @@ export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestion
 
     setIsUploading(true);
     try {
-      const presigned = await generatePresignedUrl({
-        fileName: file.name,
-        contentType: file.type || 'image/jpeg',
-        fileSizeBytes: file.size,
-        folder: 'assessments',
-      });
-
-      await uploadFileToR2(presigned.uploadUrl, file);
-      
-      setValue(`questions.${index}.imageUrl`, presigned.publicUrl, { shouldValidate: true });
+      // Primary: Direct multipart upload
+      const res = await uploadRawFile(file, 'assessments');
+      setValue(`questions.${index}.imageUrl`, res.fileUrl, { shouldValidate: true });
       toast.success('تم رفع الصورة بنجاح');
-    } catch (error) {
-      toast.error('حدث خطأ أثناء رفع الصورة');
+    } catch {
+      try {
+        // Fallback: Presigned URL
+        const presigned = await generatePresignedUrl({
+          fileName: file.name,
+          contentType: file.type || 'image/jpeg',
+          fileSizeBytes: file.size,
+          folder: 'assessments',
+        });
+
+        await uploadFileToR2(presigned.uploadUrl, file);
+        
+        setValue(`questions.${index}.imageUrl`, presigned.publicUrl, { shouldValidate: true });
+        toast.success('تم رفع الصورة بنجاح');
+      } catch (error: any) {
+        toast.error(error?.message || 'حدث خطأ أثناء رفع الصورة');
+      }
     } finally {
       setIsUploading(false);
     }

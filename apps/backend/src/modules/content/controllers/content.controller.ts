@@ -32,6 +32,51 @@ import { UserRole, ContentType } from '@prisma/client';
 export class ContentController {
   constructor(private readonly contentService: ContentService) { }
 
+  @Post('upload-file')
+  @UseInterceptors(FileInterceptor('file'))
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload binary file with automatic storage' })
+  async uploadFile(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('folder') folder?: string,
+  ) {
+    if (!file) {
+      throw new BadRequestException('الملف مطلوب للرفع');
+    }
+    return this.contentService.uploadRawFile(file, folder);
+  }
+
+  @Delete('file')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Delete an unlinked uploaded file from storage bucket' })
+  async deleteUploadedFile(
+    @Body('fileKey') fileKey?: string,
+    @Body('fileUrl') fileUrl?: string,
+    @Query('fileKey') queryFileKey?: string,
+    @Query('fileUrl') queryFileUrl?: string,
+  ) {
+    const key = fileKey || queryFileKey;
+    const url = fileUrl || queryFileUrl;
+    return this.contentService.deleteFileFromStorage({ fileKey: key, fileUrl: url });
+  }
+
+  @Post('upload-raw')
+  @UseInterceptors(FileInterceptor('file'))
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Direct multipart raw file upload (image, pdf, cover, attachment)' })
+  async uploadRaw(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('folder') folder?: string,
+  ) {
+    if (!file) {
+      throw new BadRequestException('الملف مطلوب للرفع');
+    }
+    return this.contentService.uploadRawFile(file, folder || 'assessments');
+  }
+
   @Post('upload-direct')
   @UseInterceptors(FileInterceptor('file'))
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
@@ -66,10 +111,19 @@ export class ContentController {
 
   @Post('presigned-upload-url')
   @HttpCode(HttpStatus.OK)
-  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT)
   @ApiOperation({ summary: 'Generate presigned Cloudflare R2 direct upload URL' })
   @ApiResponse({ status: 200, description: 'Presigned upload URL generated' })
-  async getUploadUrl(@Body() dto: PresignedUploadDto) {
+  async getUploadUrl(
+    @Body() dto: PresignedUploadDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    // Students may only request a presigned upload for their own homework answers.
+    if (user.role === UserRole.STUDENT && dto.folder !== 'homework-submissions') {
+      throw new BadRequestException(
+        'Students can only generate upload URLs for homework submissions',
+      );
+    }
     return this.contentService.generatePresignedUpload(dto);
   }
 

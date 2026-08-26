@@ -3,7 +3,7 @@
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { GraduationCap, ShieldCheck, UserPlus, UserRound } from 'lucide-react';
+import { GraduationCap, UserPlus, UserRound } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui';
 import { LoginForm } from './LoginForm';
 import { useAuth } from '../hooks/useAuth';
@@ -85,13 +85,8 @@ export function LoginContainer() {
           </CardContent>
         </Card>
 
-        {/* Security & System Note Footer */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center gap-1.5 text-xs text-neutral-500">
-            <ShieldCheck className="w-4 h-4 text-primary-600" />
-            <span>نظام تسجيل دخول مشفر وآمن عبر معايير JWT & Argon2</span>
-          </div>
-
+        {/* Copyright Footer */}
+        <div className="text-center">
           <p className="text-[11px] text-neutral-400">
             جميع الحقوق محفوظة © {new Date().getFullYear()} منصة الأول لإدارة التعليم
           </p>

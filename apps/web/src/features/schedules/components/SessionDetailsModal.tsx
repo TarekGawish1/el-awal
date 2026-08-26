@@ -28,7 +28,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { LessonSessionItem } from '../types/schedules.types';
-import { useDeleteSession, useUpdateSession } from '../hooks/useSchedules';
+import { useDeleteSession, useGroupSessions, useUpdateSession } from '../hooks/useSchedules';
 import { useAssessments } from '@/features/assessments/hooks/use-assessments';
 import { formatArabicTime12H } from '../utils/time.utils';
 import { VideoPlayerModal } from '@/features/content/components/VideoPlayerModal';
@@ -64,6 +64,8 @@ export function SessionDetailsModal({
   );
   const groupAssessments = Array.isArray(assessmentsData) ? assessmentsData : [];
 
+  const { data: groupSessions = [] } = useGroupSessions(session?.groupId);
+
   if (!isOpen || !session) return null;
 
   const formatArabicFullDate = (dateStr: string) => {
@@ -86,6 +88,35 @@ export function SessionDetailsModal({
   const cleanSessionDate = session.sessionDate.includes('T')
     ? session.sessionDate.split('T')[0]
     : session.sessionDate;
+
+  /**
+   * Homework/exam created for this session is due at the START TIME of the NEXT
+   * session of the same group, so students submit their answers before the
+   * following lesson (not at the same moment they received the assignment).
+   */
+  const getSessionTime = (s: LessonSessionItem): number => {
+    const date = new Date(
+      (s.sessionDate || '').includes('T') ? s.sessionDate : `${s.sessionDate || ''}T00:00:00`,
+    );
+    const time = s.startTime || s.endTime;
+    if (time) {
+      const [h, m] = time.split(':').map(Number);
+      if (!isNaN(h)) date.setHours(h, m, 0, 0);
+    }
+    return date.getTime();
+  };
+
+  const currentSessionTime = getSessionTime(session);
+  const nextSession = (groupSessions || [])
+    .filter((s: LessonSessionItem) => !s.isCancelled && getSessionTime(s) > currentSessionTime)
+    .sort((a: LessonSessionItem, b: LessonSessionItem) => getSessionTime(a) - getSessionTime(b))[0] || null;
+
+  const hwDueDateParam = nextSession
+    ? `&dueDate=${nextSession.sessionDate.split('T')[0]}T${nextSession.startTime || nextSession.endTime || '23:59'}`
+    : '';
+
+  const buildAssessmentLink = (type: 'ASSIGNMENT' | 'EXAM') =>
+    `/teacher/assessments/new?type=${type}&groupId=${session.groupId}&topic=${encodeURIComponent(session.topic || '')}${hwDueDateParam}`;
 
   const isToday = cleanSessionDate === todayStr;
   const isUpcoming = cleanSessionDate > todayStr;
@@ -503,14 +534,14 @@ export function SessionDetailsModal({
 
                 <div className="flex items-center gap-1.5">
                   <Link
-                    href={`/teacher/assessments/new?type=ASSIGNMENT&groupId=${session.groupId}&topic=${encodeURIComponent(session.topic || '')}&dueDate=${cleanSessionDate}`}
+                    href={buildAssessmentLink('ASSIGNMENT')}
                     className="text-[11px] text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2 py-1 rounded-lg font-bold inline-flex items-center gap-1 transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     واجب جديد
                   </Link>
                   <Link
-                    href={`/teacher/assessments/new?type=EXAM&groupId=${session.groupId}&topic=${encodeURIComponent(session.topic || '')}&dueDate=${cleanSessionDate}`}
+                    href={buildAssessmentLink('EXAM')}
                     className="text-[11px] text-purple-800 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200/80 px-2 py-1 rounded-lg font-bold inline-flex items-center gap-1 transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -582,7 +613,7 @@ export function SessionDetailsModal({
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3.5 bg-slate-50/70 rounded-2xl border border-dashed border-slate-200">
                   <Link
-                    href={`/teacher/assessments/new?type=ASSIGNMENT&groupId=${session.groupId}&topic=${encodeURIComponent(session.topic || '')}&dueDate=${cleanSessionDate}`}
+                    href={buildAssessmentLink('ASSIGNMENT')}
                     className="p-3 bg-white rounded-xl border border-slate-200 hover:border-amber-300 hover:shadow-xs transition-all flex items-center gap-2.5 text-right group"
                   >
                     <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 group-hover:bg-amber-100 transition-colors">
@@ -595,7 +626,7 @@ export function SessionDetailsModal({
                   </Link>
 
                   <Link
-                    href={`/teacher/assessments/new?type=EXAM&groupId=${session.groupId}&topic=${encodeURIComponent(session.topic || '')}&dueDate=${cleanSessionDate}`}
+                    href={buildAssessmentLink('EXAM')}
                     className="p-3 bg-white rounded-xl border border-slate-200 hover:border-purple-300 hover:shadow-xs transition-all flex items-center gap-2.5 text-right group"
                   >
                     <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 group-hover:bg-purple-100 transition-colors">

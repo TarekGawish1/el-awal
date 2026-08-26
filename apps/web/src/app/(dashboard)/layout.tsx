@@ -25,6 +25,11 @@ import { AcademicPeriodSwitcher } from '@/features/groups/components/AcademicPer
 import { PwaInstallButton } from '@/components/pwa';
 import { BootstrapProgressIndicator } from '@/components/pwa/BootstrapProgressIndicator';
 import { MobileBottomNav } from '@/components/navigation';
+import { SyncReviewModal, SyncConfirmationModal, OfflineActivityDrawer } from '@/components/sync';
+import { getNavigationItemsForRole } from '@/config/navigation';
+import { useOnlineStatus } from '@/lib/offline/use-online-status';
+import { syncEngine } from '@/lib/offline/sync-engine';
+import { RefreshCw, ListChecks } from 'lucide-react';
 
 export default function DashboardLayout({
   children,
@@ -32,17 +37,40 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isSyncReviewOpen, setIsSyncReviewOpen] = useState(false);
+  const [isSyncConfirmationOpen, setIsSyncConfirmationOpen] = useState(false);
+  const [isActivityDrawerOpen, setIsActivityDrawerOpen] = useState(false);
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [isMounted, setIsMounted] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const { user, isAuthenticated, isInitialized, logout } = useAuth();
+  const isOnline = useOnlineStatus();
+
+  useEffect(() => {
+    setIsMounted(true);
+    const unsubscribe = syncEngine.subscribe((event) => {
+      setPendingSyncCount(event.pendingCount);
+      if (event.type === 'SYNC_REVIEW_REQUIRED') {
+        // Reconnection with pending offline actions: silent auto-sync is disabled,
+        // require explicit user confirmation before dispatching anything to the server.
+        setIsSyncConfirmationOpen(true);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Authentication Route Protection
   useEffect(() => {
-    if (isInitialized && !isAuthenticated) {
+    if (isMounted && isInitialized && !isAuthenticated) {
+      // Do not redirect to login when offline if a stored user exists
+      if (!isOnline && user) {
+        return;
+      }
       const redirectParam = pathname ? `?redirect=${encodeURIComponent(pathname)}` : '';
       router.replace(`/login${redirectParam}`);
     }
-  }, [isInitialized, isAuthenticated, pathname, router]);
+  }, [isMounted, isInitialized, isAuthenticated, pathname, router, user, isOnline]);
 
   const getRoleLabel = (role?: string) => {
     switch (role) {
@@ -59,37 +87,10 @@ export default function DashboardLayout({
     }
   };
 
-  const teacherNavigationItems = [
-    { label: 'لوحة التحكم', href: '/teacher/dashboard', icon: LayoutDashboard },
-    { label: 'المجموعات الدراسية', href: '/teacher/groups', icon: Users },
-    { label: 'جدول وحصص المعلم', href: '/teacher/schedules', icon: Calendar },
-    { label: 'رصد الحضور والـ QR', href: '/teacher/attendance', icon: QrCode },
-    { label: 'سجل الطلاب', href: '/teacher/students', icon: GraduationCap },
-    { label: 'الواجبات والاختبارات', href: '/teacher/assessments', icon: FileText },
-    { label: 'المحتوى والدروس', href: '/teacher/content', icon: BookOpen },
-    { label: 'الماليات والمصروفات', href: '/teacher/finance', icon: DollarSign },
-  ];
+  const navigationItems = getNavigationItemsForRole(user?.role, isOnline);
 
-  const studentNavigationItems = [
-    { label: 'الرئيسية', href: '/student/dashboard', icon: LayoutDashboard },
-    { label: 'الدورات', href: '/student/courses', icon: BookOpen },
-    { label: 'الاختبارات', href: '/student/assessments', icon: FileText },
-    { label: 'الحضور', href: '/student/attendance', icon: QrCode },
-    { label: 'المدفوعات', href: '/student/payments', icon: DollarSign },
-  ];
-
-  const parentNavigationItems = [
-    { label: 'أبنائي', href: '/parent/dashboard', icon: LayoutDashboard },
-  ];
-
-  const navigationItems = user?.role === 'STUDENT'
-    ? studentNavigationItems
-    : user?.role === 'PARENT'
-      ? parentNavigationItems
-      : teacherNavigationItems;
-
-  // Hydration-safe initial loading screen before auth initialization
-  if (!isInitialized) {
+  // Hydration-safe initial loading screen before auth initialization & client mount
+  if (!isMounted || !isInitialized) {
     return (
       <div className="min-h-screen bg-neutral-50 flex items-center justify-center text-sm text-neutral-500">
         جاري التحقق من بيانات الدخول...
@@ -98,7 +99,7 @@ export default function DashboardLayout({
   }
 
   // If not authenticated, keep showing redirecting state while router pushes to /login
-  if (!isAuthenticated) {
+  if (!isAuthenticated && (typeof navigator === 'undefined' || navigator.onLine || !user)) {
     return (
       <div className="min-h-screen bg-neutral-50 flex items-center justify-center text-sm text-neutral-500">
         جاري التوجيه إلى تسجيل الدخول...
@@ -220,6 +221,42 @@ export default function DashboardLayout({
               <AcademicPeriodSwitcher />
             )}
 
+            {/* Pending Actions Button - visible while offline with queued mutations */}
+            {!isOnline && pendingSyncCount > 0 && (
+              <button
+                onClick={() => setIsActivityDrawerOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border bg-purple-50 border-purple-200 text-purple-800 hover:bg-purple-100 shadow-xs"
+                title="عرض العمليات المعلقة"
+                aria-label="عرض العمليات المعلقة"
+              >
+                <ListChecks className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">عرض العمليات المعلقة</span>
+                <span className="bg-purple-600 text-white rounded-full px-1.5 py-0.2 text-[10px] font-mono font-black">
+                  {pendingSyncCount}
+                </span>
+              </button>
+            )}
+
+            {/* Sync Review Button (shows when online with pending items or on click) */}
+            <button
+              onClick={() => setIsSyncReviewOpen(true)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                pendingSyncCount > 0
+                  ? 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 shadow-xs animate-pulse'
+                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+              }`}
+              title="مراجعة المزامنة السحابية"
+              aria-label="مراجعة المزامنة السحابية"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">المزامنة</span>
+              {pendingSyncCount > 0 && (
+                <span className="bg-amber-600 text-white rounded-full px-1.5 py-0.2 text-[10px] font-mono font-black">
+                  {pendingSyncCount}
+                </span>
+              )}
+            </button>
+
             <div className="h-8 w-px bg-neutral-200 mx-1 hidden sm:block"></div>
 
             <div className="flex items-center gap-3">
@@ -275,6 +312,27 @@ export default function DashboardLayout({
 
         {/* Floating Offline Bootstrap Hydration Indicator */}
         <BootstrapProgressIndicator />
+
+        {/* Bi-Directional Sync Review Modal (manual, on-demand review) */}
+        <SyncReviewModal
+          isOpen={isSyncReviewOpen}
+          onClose={() => setIsSyncReviewOpen(false)}
+          onSuccess={() => {
+            setIsSyncReviewOpen(false);
+          }}
+        />
+
+        {/* Reconnection Confirmation Modal - blocks silent auto-syncing until the user decides */}
+        <SyncConfirmationModal
+          isOpen={isSyncConfirmationOpen}
+          onClose={() => setIsSyncConfirmationOpen(false)}
+        />
+
+        {/* Offline Pending Activity Drawer */}
+        <OfflineActivityDrawer
+          isOpen={isActivityDrawerOpen}
+          onClose={() => setIsActivityDrawerOpen(false)}
+        />
       </div>
     </div>
   );

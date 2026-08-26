@@ -84,6 +84,8 @@ describe('ParentPortalService', () => {
       mockPrismaService.assessmentSubmission.findMany.mockResolvedValue([
         {
           id: 'sub-1',
+          assessmentId: 'exam-a',
+          attemptNumber: 1,
           scoreObtained: 18.0,
           status: SubmissionStatus.GRADED,
           assessment: { totalScore: 20.0 },

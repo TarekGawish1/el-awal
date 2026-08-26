@@ -4,6 +4,7 @@ import {
   MinLength,
   IsOptional,
   IsNumber,
+  IsBoolean,
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -69,4 +70,45 @@ export class CreateCourseDto {
   @IsOptional()
   @IsString()
   coverImageUrl?: string;
+
+  @ApiPropertyOptional({
+    description: 'Academic year, e.g. 2026-2027',
+    example: '2026-2027',
+  })
+  @IsOptional()
+  @IsString()
+  academicYear?: string;
+
+  @ApiPropertyOptional({
+    description: 'Academic term, e.g. FIRST_TERM',
+    example: 'FIRST_TERM',
+  })
+  @IsOptional()
+  @IsString()
+  academicTerm?: string;
+
+  @ApiPropertyOptional({
+    description: 'Linked course final exam / comprehensive quiz ID',
+    example: 'd933cc98-532e-4940-a1b6-ba121ff5a697',
+  })
+  @IsOptional()
+  @IsString()
+  courseQuizId?: string;
+
+  @ApiPropertyOptional({
+    description: 'If true, students must complete lessons sequentially in order',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  enforceSequentialLessons?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Whether students receive a certificate after completing the course',
+    example: true,
+    default: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  hasCertificate?: boolean;
 }

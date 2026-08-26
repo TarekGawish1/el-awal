@@ -1,18 +1,41 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useStudentProfile, useStudentCourses, useStudentAssessments, useStudentAttendance, useGroupSessions } from '../hooks/useStudentPortal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { BookOpen, FileText, QrCode, TrendingUp, Calendar, AlertTriangle, Clock } from 'lucide-react';
+import { BookOpen, FileText, QrCode, TrendingUp, Calendar, AlertTriangle, Clock, Users, Monitor, Award } from 'lucide-react';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
 import Link from 'next/link';
+import { CourseCertificateModal } from './CourseCertificateModal';
+import { StudentRecentAssessments } from './StudentRecentAssessments';
+import { StudentLatestHomework } from './StudentLatestHomework';
+import { filterUpcomingGroupExams } from '../utils/assessments';
 
 export function StudentDashboard() {
   const { data: profile, isLoading: isProfileLoading } = useStudentProfile();
   const { data: courses, isLoading: isCoursesLoading } = useStudentCourses();
   const { data: assessments, isLoading: isAssessmentsLoading } = useStudentAssessments();
   const { data: attendance, isLoading: isAttendanceLoading } = useStudentAttendance();
+
+  // Certificate modal state
+  const [certCourse, setCertCourse] = useState<{ title: string; teacherName?: string } | null>(null);
+  const isCertOpen = certCourse !== null;
+
+  // These hooks are dual-shape: online they return the cursor-paginated { data, meta } envelope,
+  // while their offline/error fallbacks return a bare array. Normalize to a plain list either way.
+  const assessmentList = Array.isArray(assessments) ? assessments : (assessments?.data || []);
+  // Only count upcoming group exams (no homework, no expired deadlines).
+  const upcomingExams = filterUpcomingGroupExams(assessmentList);
+  const attendanceRecords = Array.isArray(attendance) ? attendance : (attendance?.data || []);
+
+  // Attendance rate is derived client-side from the student's visible records, mirroring the
+  // dedicated attendance page: present / total (present = PRESENT), defaulting to 100 when there
+  // are no records yet. The cursor-paginated API returns { data, meta } with no precomputed rate.
+  const attendancePresentCount = attendanceRecords.filter((r: any) => r.status === 'PRESENT').length;
+  const attendanceRate = attendanceRecords.length > 0
+    ? Math.round((attendancePresentCount / attendanceRecords.length) * 100)
+    : 100;
 
   const enrolledGroups = profile?.groupEnrollments || [];
   const primaryGroupId = enrolledGroups[0]?.group?.id;
@@ -78,8 +101,27 @@ export function StudentDashboard() {
 
   const studentName = profile?.user?.fullName || 'طالب';
 
+  const certData = certCourse ? {
+    studentName,
+    courseTitle: certCourse.title,
+    teacherName: certCourse.teacherName,
+    completedDate: new Date().toLocaleDateString('ar-EG', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    }),
+  } : null;
+
   return (
     <div className="space-y-6">
+      {/* Certificate Modal (Dashboard entry point) */}
+      {certData && (
+        <CourseCertificateModal
+          isOpen={isCertOpen}
+          onClose={() => setCertCourse(null)}
+          data={certData}
+        />
+      )}
       {/* Header Profile Section */}
       <div className="bg-gradient-to-r from-primary-600 to-primary-800 rounded-2xl p-6 md:p-8 text-white shadow-lg flex flex-col md:flex-row items-center md:items-start justify-between gap-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
@@ -147,49 +189,66 @@ export function StudentDashboard() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        {/* مجموعات السنتر */}
         <Card className="border-none shadow-sm shadow-slate-200/50 hover:shadow-md transition-shadow">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl"><BookOpen className="w-6 h-6" /></div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">الدورات المسجلة</p>
-              <h4 className="text-2xl font-bold text-slate-800">{isCoursesLoading ? '-' : courses?.data?.length || 0}</h4>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="border-none shadow-sm shadow-slate-200/50 hover:shadow-md transition-shadow">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-purple-50 text-purple-600 rounded-xl"><FileText className="w-6 h-6" /></div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">الاختبارات القادمة</p>
-              <h4 className="text-2xl font-bold text-slate-800">{isAssessmentsLoading ? '-' : assessments?.meta?.totalItems || 0}</h4>
+          <CardContent className="p-5 flex items-center gap-3">
+            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl flex-shrink-0"><Users className="w-5 h-5" /></div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-slate-500 truncate">مجموعات السنتر</p>
+              <h4 className="text-2xl font-bold text-slate-800">{isProfileLoading ? '-' : enrolledGroups.length}</h4>
             </div>
           </CardContent>
         </Card>
 
+        {/* دورات أونلاين */}
         <Card className="border-none shadow-sm shadow-slate-200/50 hover:shadow-md transition-shadow">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><TrendingUp className="w-6 h-6" /></div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">نسبة الحضور</p>
+          <CardContent className="p-5 flex items-center gap-3">
+            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl flex-shrink-0"><Monitor className="w-5 h-5" /></div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-slate-500 truncate">دورات أونلاين</p>
+              <h4 className="text-2xl font-bold text-slate-800">{isCoursesLoading ? '-' : courses?.length || 0}</h4>
+            </div>
+          </CardContent>
+        </Card>
+        
+        {/* الاختبارات القادمة */}
+        <Card className="border-none shadow-sm shadow-slate-200/50 hover:shadow-md transition-shadow">
+          <CardContent className="p-5 flex items-center gap-3">
+            <div className="p-3 bg-purple-50 text-purple-600 rounded-xl flex-shrink-0"><FileText className="w-5 h-5" /></div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-slate-500 truncate">الاختبارات القادمة</p>
+              <h4 className="text-2xl font-bold text-slate-800">{isAssessmentsLoading ? '-' : upcomingExams.length || 0}</h4>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* نسبة الحضور */}
+        <Card className="border-none shadow-sm shadow-slate-200/50 hover:shadow-md transition-shadow">
+          <CardContent className="p-5 flex items-center gap-3">
+            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl flex-shrink-0"><TrendingUp className="w-5 h-5" /></div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-slate-500 truncate">نسبة الحضور</p>
               <h4 className="text-2xl font-bold text-slate-800">
-                {isAttendanceLoading ? '-' : attendance?.meta?.attendanceRate ? `${attendance.meta.attendanceRate}%` : '100%'}
+                {isAttendanceLoading ? '-' : `${attendanceRate}%`}
               </h4>
             </div>
           </CardContent>
         </Card>
 
+        {/* المدفوعات */}
         <Card className="border-none shadow-sm shadow-slate-200/50 hover:shadow-md transition-shadow cursor-pointer" onClick={() => window.location.href = '/student/payments'}>
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-amber-50 text-amber-600 rounded-xl"><Calendar className="w-6 h-6" /></div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">المدفوعات</p>
-              <h4 className="text-sm font-bold text-slate-800 mt-1">الاطلاع على السجل</h4>
+          <CardContent className="p-5 flex items-center gap-3">
+            <div className="p-3 bg-amber-50 text-amber-600 rounded-xl flex-shrink-0"><Calendar className="w-5 h-5" /></div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-slate-500 truncate">المدفوعات</p>
+              <h4 className="text-xs font-bold text-slate-800 mt-1">الاطلاع على السجل</h4>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      <StudentLatestHomework />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="border-slate-100 shadow-sm">
@@ -200,63 +259,55 @@ export function StudentDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
-            {!courses?.data?.length ? (
+            {!courses?.length ? (
               <div className="text-center py-8 text-slate-500 flex flex-col items-center">
                 <BookOpen className="w-10 h-10 text-slate-300 mb-3" />
                 <p>لا توجد دورات مسجلة حالياً</p>
               </div>
             ) : (
               <div className="space-y-4">
-                {courses.data.slice(0, 3).map((course: any) => (
-                  <Link key={course.id} href={`/student/courses/${course.id}`} className="block bg-slate-50 rounded-xl p-4 hover:bg-slate-100 transition-colors border border-slate-100">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <h4 className="font-bold text-slate-800">{course.title}</h4>
-                        <p className="text-xs text-slate-500 mt-1">{course.teacher?.user?.fullName}</p>
+                {courses.slice(0, 3).map((course: any) => (
+                  <div key={course.courseId} className="bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition-colors">
+                    <div className="flex items-center justify-between p-4">
+                      <Link href={`/student/courses/${course.courseId}/learn`} className="flex-1 min-w-0">
+                        <h4 className="font-bold text-slate-800 truncate">{course.title}</h4>
+                        <p className="text-xs text-slate-500 mt-1">{course.teacherName}</p>
+                      </Link>
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                        {course.progressPercentage >= 100 ? (
+                          <button
+                            type="button"
+                            onClick={() => setCertCourse({ title: course.title, teacherName: course.teacherName })}
+                            title="تحميل شهادة الإتمام"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-500 hover:to-orange-500 text-white shadow-sm shadow-amber-200 hover:shadow-md hover:-translate-y-0.5 transition-all"
+                          >
+                            <Award className="w-3.5 h-3.5" />
+                            شهادتي
+                          </button>
+                        ) : (
+                          <Badge variant="outline" className="bg-white">نسبة الإنجاز: {course.progressPercentage || 0}%</Badge>
+                        )}
                       </div>
-                      <Badge variant="outline" className="bg-white">نسبة الإنجاز: {course.progressPercentage || 0}%</Badge>
                     </div>
-                  </Link>
+                    {/* Progress bar */}
+                    {course.progressPercentage < 100 && (
+                      <div className="px-4 pb-3">
+                        <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary-500 rounded-full transition-all"
+                            style={{ width: `${Math.min(course.progressPercentage || 0, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="border-slate-100 shadow-sm">
-          <CardHeader className="border-b border-slate-50 bg-slate-50/50 pb-4">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <FileText className="w-5 h-5 text-primary" />
-              أحدث الاختبارات
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
-            {!assessments?.data?.length ? (
-              <div className="text-center py-8 text-slate-500 flex flex-col items-center">
-                <FileText className="w-10 h-10 text-slate-300 mb-3" />
-                <p>لا توجد اختبارات متاحة حالياً</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {assessments.data.slice(0, 3).map((assessment: any) => (
-                  <Link key={assessment.id} href={`/student/assessments/${assessment.id}`} className="block bg-slate-50 rounded-xl p-4 hover:bg-slate-100 transition-colors border border-slate-100">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <h4 className="font-bold text-slate-800">{assessment.title}</h4>
-                        <p className="text-xs text-slate-500 mt-1">الدرجة النهائية: {assessment.totalScore}</p>
-                      </div>
-                      {assessment._count?.submissions > 0 ? (
-                        <Badge variant="success">تم التسليم</Badge>
-                      ) : (
-                        <Badge variant="warning">مطلوب تسليمه</Badge>
-                      )}
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <StudentRecentAssessments />
       </div>
     </div>
   );

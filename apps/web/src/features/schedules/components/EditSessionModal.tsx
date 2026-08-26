@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { X, Calendar, Clock, BookOpen, Loader2, Edit3, Trash2, AlertTriangle } from 'lucide-react';
 import { useUpdateSession, useDeleteSession, useSessionTopics } from '../hooks/useSchedules';
 import { LessonSessionItem } from '../types/schedules.types';
-import { findSessionConflict, formatArabicTimeRange12H } from '../utils/time.utils';
+import { findSameDayGroupSession, findSessionConflict, formatArabicTimeRange12H } from '../utils/time.utils';
 import { ArabicTimeSelect } from './ArabicTimeSelect';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -60,6 +60,11 @@ export function EditSessionModal({ isOpen, session, onClose, sessions = [] }: Ed
     return findSessionConflict(sessions, watchDate, watchStartTime, watchEndTime, session.id);
   }, [isOpen, session, isCancelledVal, sessions, watchDate, watchStartTime, watchEndTime]);
 
+  const sameDayGroupSession = useMemo(() => {
+    if (!isOpen || !session || isCancelledVal || !watchDate) return null;
+    return findSameDayGroupSession(sessions, watchDate, session.groupId, session.id);
+  }, [isOpen, session, isCancelledVal, sessions, watchDate]);
+
   useEffect(() => {
     if (isOpen && session) {
       const dateStr = session.sessionDate.includes('T')
@@ -85,6 +90,11 @@ export function EditSessionModal({ isOpen, session, onClose, sessions = [] }: Ed
   };
 
   const onSubmit = (data: EditSessionFormData) => {
+    if (!data.isCancelled && sameDayGroupSession) {
+      toast.error(`لا يمكن تعديل الحصة: توجد بالفعل حصة أخرى لنفس المجموعة في نفس اليوم (${sameDayGroupSession.topic || ''})`);
+      return;
+    }
+
     if (!data.isCancelled && conflictingSession) {
       toast.error('لا يمكن حفظ التعديل لوجود تعارض زمني مع حصة أخرى');
       return;

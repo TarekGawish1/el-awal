@@ -9,19 +9,26 @@ export enum PaymentStatus {
 export interface StudentPaymentRecord {
   id: string;
   studentId: string;
-  groupId: string | null;
+  groupId?: string | null;
+  paymentType?: 'TUITION' | 'BOOKLET' | 'OTHER' | string;
+  bookletId?: string | null;
+  booklet?: {
+    id: string;
+    title: string;
+    price: number;
+  } | null;
   periodYear: number;
   periodMonth: number;
   amountExpected: number;
   amountPaid: number;
   currency: string;
-  paymentStatus: PaymentStatus;
+  paymentStatus: PaymentStatus | string;
   paymentMethod: string;
-  receiptNumber: string | null;
-  recordedById: string;
-  notes: string | null;
+  receiptNumber?: string | null;
+  recordedById?: string | null;
+  notes?: string | null;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
   student?: {
     id: string;
     user: {
@@ -63,6 +70,8 @@ export interface DefaultersResponse {
 export interface RecordPaymentPayload {
   studentId: string;
   groupId?: string;
+  paymentType?: 'TUITION' | 'BOOKLET' | 'OTHER' | string;
+  bookletId?: string;
   periodYear: number;
   periodMonth: number;
   amountPaid: number;
@@ -76,6 +85,8 @@ export interface RecordPaymentPayload {
 export interface ScanPaymentQrPayload {
   qrCodeToken: string;
   groupId?: string;
+  paymentType?: 'TUITION' | 'BOOKLET' | 'OTHER' | string;
+  bookletId?: string;
   periodYear?: number;
   periodMonth?: number;
   amountPaid?: number;
@@ -89,6 +100,11 @@ export interface ScanPaymentQrResponse {
   isDuplicate: boolean;
   message: string;
   payment: StudentPaymentRecord;
+  booklet?: {
+    id: string;
+    title: string;
+    price: number;
+  } | null;
   student: {
     id: string;
     fullName: string;
@@ -117,4 +133,48 @@ export interface CursorPaginatedResponse<T> {
     nextCursor: string | null;
     totalCount?: number;
   };
+}
+
+export interface MatrixPaymentCell {
+  isApplicable?: boolean;
+  isPaid: boolean;
+  amountPaid: number;
+  paidAt?: string | Date;
+  isStarted?: boolean;
+}
+
+export interface MatrixLedgerStudent {
+  id: string;
+  studentCode?: string | null;
+  fullName: string;
+  phone?: string | null;
+  gradeLevel: string;
+  groupId?: string | null;
+  groupName: string;
+  monthlyFee: number;
+  monthlyPayments: Record<number, MatrixPaymentCell>;
+  bookletPayments: Record<string, MatrixPaymentCell>;
+  totalPaid: number;
+  totalDue: number;
+}
+
+export interface MatrixLedgerResponse {
+  academicYear: string;
+  academicTerm: 'FIRST_TERM' | 'SECOND_TERM';
+  months: number[];
+  availableMonths?: number[];
+  excludedMonths?: number[];
+  booklets: Array<{ id: string; title: string; price: number; gradeLevel: string }>;
+  students: MatrixLedgerStudent[];
+  totalStudents?: number;
+  currentPage?: number;
+  totalPages?: number;
+  limit?: number;
+}
+
+export interface BillingConfigurationResponse {
+  academicYear: string;
+  academicTerm: 'FIRST_TERM' | 'SECOND_TERM';
+  availableMonths: number[];
+  excludedMonths: number[];
 }

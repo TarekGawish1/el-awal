@@ -29,4 +29,12 @@ export class CreateModuleDto {
   @IsInt()
   @Min(1)
   orderIndex?: number;
+
+  @ApiPropertyOptional({
+    description: 'Linked unit / chapter comprehensive quiz ID',
+    example: 'd933cc98-532e-4940-a1b6-ba121ff5a697',
+  })
+  @IsOptional()
+  @IsString()
+  unitQuizId?: string;
 }

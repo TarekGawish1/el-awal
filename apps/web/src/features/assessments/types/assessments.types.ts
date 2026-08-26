@@ -38,6 +38,15 @@ export interface AssessmentListItem {
   };
 }
 
+export interface AssessmentAttemptSummary {
+  id: string;
+  attemptNumber: number;
+  status: SubmissionStatus;
+  scoreObtained: number | null;
+  submittedAt: string | null;
+  gradedAt: string | null;
+}
+
 export interface AssessmentDetail {
   id: string;
   title: string;
@@ -50,10 +59,14 @@ export interface AssessmentDetail {
   passingScore: number;
   isPublished: boolean;
   isAutoGraded: boolean;
+  allowMultipleAttempts: boolean;
   dueDate: string | null;
   durationMinutes: number | null;
   questions: AssessmentQuestion[];
   mySubmission?: any;
+  attemptCount?: number;
+  bestScore?: number | null;
+  attempts?: AssessmentAttemptSummary[];
   _count?: {
     submissions: number;
     questions: number;
@@ -72,15 +85,19 @@ export interface CreateAssessmentPayload {
   durationMinutes?: number;
   isPublished: boolean;
   isAutoGraded: boolean;
+  allowMultipleAttempts?: boolean;
   questions: Omit<AssessmentQuestion, 'id'>[];
 }
 
 export interface UpdateAssessmentPayload {
   title?: string;
   description?: string;
+  totalScore?: number;
+  passingScore?: number;
   durationMinutes?: number;
   dueDate?: string;
   isPublished?: boolean;
+  allowMultipleAttempts?: boolean;
 }
 
 export interface AssessmentSubmissionListItem {
@@ -91,6 +108,8 @@ export interface AssessmentSubmissionListItem {
       fullName: string;
     };
   };
+  attemptNumber?: number;
+  isOfficial?: boolean;
   status: SubmissionStatus;
   scoreObtained: number | null;
   isPassed: boolean;

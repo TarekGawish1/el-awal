@@ -26,9 +26,10 @@ export class ContentService {
     const sanitizedFileName = dto.fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
     const fileKey = `uploads/${folder}/${Date.now()}-${randomUUID().slice(0, 8)}-${sanitizedFileName}`;
 
+    const rawContentType = dto.contentType || dto.fileType || 'application/octet-stream';
     const presigned = await this.storageService.generatePresignedUploadUrl(
       fileKey,
-      dto.contentType,
+      rawContentType,
       900, // 15 minutes
     );
 
@@ -45,6 +46,66 @@ export class ContentService {
    */
   async generatePresignedVideoUpload(title: string) {
     return this.bunnyVideoService.generateDirectUploadCredentials(title);
+  }
+
+  /**
+   * Uploads a raw binary file (image, cover, pdf, etc.) directly with automatic R2 storage / fallback.
+   */
+  async uploadRawFile(file: Express.Multer.File, folder = 'courses') {
+    const sanitizedFileName = (file.originalname || 'file.bin').replace(/[^a-zA-Z0-9._-]/g, '_');
+    const uniqueKey = `uploads/${folder}/${Date.now()}-${randomUUID().slice(0, 8)}-${sanitizedFileName}`;
+    const mimeType = file.mimetype || 'application/octet-stream';
+
+    const uploadRes = await this.storageService.uploadBuffer(uniqueKey, file.buffer, mimeType);
+
+    return {
+      fileUrl: uploadRes.publicUrl,
+      fileKey: uploadRes.fileKey,
+      fileSize: file.size,
+      fileType: mimeType,
+      fileName: file.originalname,
+    };
+  }
+
+  /**
+   * Deletes an unlinked asset directly from Cloudflare R2, Bunny Stream, or local storage.
+   */
+  async deleteFileFromStorage(params: { fileKey?: string; fileUrl?: string }) {
+    let key = params.fileKey;
+
+    if (!key && params.fileUrl) {
+      const url = params.fileUrl;
+      if (url.includes('/uploads/')) {
+        key = url.substring(url.indexOf('/uploads/') + 1);
+      } else if (url.includes('bunny:') || url.includes('b-cdn.net')) {
+        const match = url.match(/([a-f0-9\-]{36})/i);
+        if (match) key = `bunny:${match[1]}`;
+      } else {
+        try {
+          const parsed = new URL(url);
+          key = parsed.pathname.replace(/^\/+/, '');
+        } catch {
+          key = url.replace(/^\/+/, '');
+        }
+      }
+    }
+
+    if (!key) {
+      return { success: false, message: 'No file key or URL provided' };
+    }
+
+    if (key.startsWith('bunny:')) {
+      const videoId = key.replace('bunny:', '');
+      await this.bunnyVideoService.deleteVideo(videoId).catch((err) => {
+        this.logger.warn(`Failed to delete Bunny video [${videoId}]`, err);
+      });
+    } else {
+      await this.storageService.deleteObject(key).catch((err) => {
+        this.logger.warn(`Failed to delete object [${key}] from storage`, err);
+      });
+    }
+
+    return { success: true, fileKey: key };
   }
 
   /**

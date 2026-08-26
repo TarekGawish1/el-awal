@@ -36,6 +36,7 @@ import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { Pagination } from '@/components/ui/Pagination';
+import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import toast from 'react-hot-toast';
 
 const BASE_YEARS = ['2026-2027', '2025-2026', '2024-2025', '2027-2028', '2028-2029', '2023-2024'];
@@ -86,6 +87,7 @@ function getAcademicStage(gradeLevel?: string | null): string {
 }
 
 export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void }) {
+  const isOnline = useOnlineStatus();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedYear, setSelectedYear] = useState<string>('ALL');
   const [selectedTerm, setSelectedTerm] = useState<string>('ALL');
@@ -259,10 +261,12 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          <Button onClick={onUploadClick} className="shadow-md shadow-primary/20 w-full sm:w-auto">
-            <Plus className="w-4 h-4 ml-2" />
-            رفع مرفق / ملزمة جديدة
-          </Button>
+          <span title={!isOnline ? 'يتطلب رفع المرفقات اتصالاً بالإنترنت' : undefined} className="w-full sm:w-auto">
+            <Button onClick={onUploadClick} disabled={!isOnline} className="shadow-md shadow-primary/20 w-full sm:w-auto">
+              <Plus className="w-4 h-4 ml-2" />
+              رفع مرفق / ملزمة جديدة
+            </Button>
+          </span>
         </div>
       </div>
 
@@ -398,10 +402,12 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
           <p className="text-slate-500 max-w-md mx-auto mb-6 text-sm">
             يمكنك رفع مذكرات وملفات الحصص الآن وستظهر لجميع طلاب المجموعات التابعة لهذا الصف تلقائياً.
           </p>
-          <Button onClick={onUploadClick} className="shadow-md shadow-primary/20">
-            <Plus className="w-4 h-4 ml-2" />
-            رفع أول مرفق للحصة
-          </Button>
+          <span title={!isOnline ? 'يتطلب رفع المرفقات اتصالاً بالإنترنت' : undefined}>
+            <Button onClick={onUploadClick} disabled={!isOnline} className="shadow-md shadow-primary/20">
+              <Plus className="w-4 h-4 ml-2" />
+              رفع أول مرفق للحصة
+            </Button>
+          </span>
         </div>
       ) : filteredContents.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-2xl border border-slate-100">

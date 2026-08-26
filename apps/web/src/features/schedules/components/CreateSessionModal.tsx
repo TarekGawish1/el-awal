@@ -8,11 +8,12 @@ import { X, Calendar, Clock, BookOpen, Layers, Loader2, Plus, Sparkles, AlertTri
 import { useCreateSession, useSessionTopics } from '../hooks/useSchedules';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
+import { GRADE_LEVELS_BY_STAGE, inferStageFromGrade } from '@/lib/constants/grades';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { LessonSessionItem } from '../types/schedules.types';
-import { findSessionConflict, formatArabicTimeRange12H, toLocalDateStr } from '../utils/time.utils';
+import { findSameDayGroupSession, findSessionConflict, formatArabicTimeRange12H, toLocalDateStr } from '../utils/time.utils';
 import { ArabicTimeSelect } from './ArabicTimeSelect';
 import toast from 'react-hot-toast';
 
@@ -46,6 +47,8 @@ export function CreateSessionModal({
   const { data: groups = [], isLoading: isLoadingGroups } = useGroups();
   const { activeYear, activeTerm } = useStoredAcademicPeriod(groups as any);
   const { mutate: createSessionMutate, isPending } = useCreateSession();
+  const [stage, setStage] = useState('');
+  const [gradeLevel, setGradeLevel] = useState('');
 
   const defaultStart = initialTime || '16:00';
   const calculateDefaultEndTime = (sTime: string) => {
@@ -88,6 +91,11 @@ export function CreateSessionModal({
     return findSessionConflict(sessions, watchDate, watchStartTime, watchEndTime);
   }, [isOpen, sessions, watchDate, watchStartTime, watchEndTime]);
 
+  const sameDayGroupSession = useMemo(() => {
+    if (!isOpen || !watchDate || !selectedGroupId) return null;
+    return findSameDayGroupSession(sessions, watchDate, selectedGroupId);
+  }, [isOpen, sessions, watchDate, selectedGroupId]);
+
   useEffect(() => {
     if (isOpen) {
       const todayStr = toLocalDateStr(new Date());
@@ -104,8 +112,13 @@ export function CreateSessionModal({
         startT = availableHour || '16:00';
       }
 
+      const preselectedGroupId = initialGroupId || '';
+      const preselectedGroup = groups.find((g) => g.id === preselectedGroupId);
+      setStage(preselectedGroup ? inferStageFromGrade(preselectedGroup.gradeLevel) : '');
+      setGradeLevel(preselectedGroup?.gradeLevel || '');
+
       reset({
-        groupId: initialGroupId || (groups[0]?.id ?? ''),
+        groupId: preselectedGroupId || '',
         sessionDate: targetDate,
         startTime: startT,
         endTime: calculateDefaultEndTime(startT),
@@ -123,6 +136,11 @@ export function CreateSessionModal({
   };
 
   const onSubmit = (data: SessionFormData) => {
+    if (sameDayGroupSession) {
+      toast.error(`لا يمكن إضافة أكثر من حصة لنفس المجموعة في نفس اليوم: توجد بالفعل حصة (${sameDayGroupSession.topic || ''})`);
+      return;
+    }
+
     if (conflictingSession) {
       toast.error('لا يمكن حفظ الحصة لوجود تعارض في الموعد مع حصة أخرى مسجلة');
       return;
@@ -153,9 +171,33 @@ export function CreateSessionModal({
     );
   };
 
+  const handleStageChange = (value: string) => {
+    setStage(value);
+    setGradeLevel('');
+    const current = groups.find((g) => g.id === selectedGroupId);
+    if (current && inferStageFromGrade(current.gradeLevel) !== value) {
+      setValue('groupId', '');
+    }
+  };
+
+  const handleGradeChange = (value: string) => {
+    setGradeLevel(value);
+    const current = groups.find((g) => g.id === selectedGroupId);
+    if (current && current.gradeLevel !== value) {
+      setValue('groupId', '');
+    }
+  };
+
+  const gradeOptions = Array.from(new Set([
+    ...(GRADE_LEVELS_BY_STAGE[stage] || []),
+    ...groups.filter((g) => stage && inferStageFromGrade(g.gradeLevel) === stage).map((g) => g.gradeLevel).filter(Boolean),
+  ]));
+
   const filteredGroups = groups.filter((g) => {
     if (activeYear && g.academicYear && g.academicYear !== activeYear) return false;
     if (activeTerm && g.academicTerm && g.academicTerm !== activeTerm) return false;
+    if (stage && inferStageFromGrade(g.gradeLevel) !== stage) return false;
+    if (gradeLevel && g.gradeLevel !== gradeLevel) return false;
     return true;
   });
 
@@ -184,6 +226,44 @@ export function CreateSessionModal({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+          {/* Stage & Grade Cascade Filters */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="mb-1 block text-xs font-bold text-slate-700">
+                المرحلة الدراسية <span className="text-red-500">*</span>
+              </Label>
+              <select
+                aria-label="المرحلة الدراسية"
+                value={stage}
+                disabled={isPending || isLoadingGroups}
+                onChange={(event) => handleStageChange(event.target.value)}
+                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium"
+              >
+                <option value="">اختر المرحلة</option>
+                <option value="SECONDARY">الثانوية</option>
+                <option value="PREPARATORY">الإعدادية</option>
+                <option value="PRIMARY">الابتدائية</option>
+              </select>
+            </div>
+            <div>
+              <Label className="mb-1 block text-xs font-bold text-slate-700">
+                الصف الدراسي <span className="text-red-500">*</span>
+              </Label>
+              <select
+                aria-label="الصف الدراسي"
+                value={gradeLevel}
+                disabled={isPending || isLoadingGroups || !stage}
+                onChange={(event) => handleGradeChange(event.target.value)}
+                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+              >
+                <option value="">اختر الصف</option>
+                {gradeOptions.map((grade) => (
+                  <option key={grade} value={grade}>{grade}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           {/* Group Select */}
           <div>
             <Label className="mb-1 block text-xs font-bold text-slate-700">
@@ -191,8 +271,8 @@ export function CreateSessionModal({
             </Label>
             <select
               {...register('groupId')}
-              disabled={isPending || isLoadingGroups}
-              className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium"
+              disabled={isPending || isLoadingGroups || !stage || !gradeLevel}
+              className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
             >
               <option value="">-- اختر المجموعة --</option>
               {(filteredGroups.length > 0 ? filteredGroups : groups).map((g) => (

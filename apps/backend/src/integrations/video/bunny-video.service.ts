@@ -48,6 +48,10 @@ export class BunnyVideoService {
     this.tokenSecurityKey = this.configService.get<string>('BUNNY_TOKEN_SECURITY_KEY', '');
   }
 
+  getLibraryId(): string {
+    return this.libraryId;
+  }
+
   /**
    * Creates a video object in Bunny Stream and returns video ID and direct upload URL.
    */
@@ -93,7 +97,7 @@ export class BunnyVideoService {
     const rawAuth = `${this.libraryId}${this.apiKey}${expirationTime}${videoId}`;
     const authorizationSignature = createHash('sha256').update(rawAuth).digest('hex');
 
-    const embedUrl = `https://iframe.mediadelivery.net/embed/${this.libraryId}/${videoId}`;
+    const embedUrl = this.getEmbedUrl(videoId);
     const playbackUrl = this.tokenSecurityKey
       ? this.generateSecurePlaybackUrl(videoId)
       : `https://${this.cdnHostname}/${videoId}/playlist.m3u8`;
@@ -145,7 +149,7 @@ export class BunnyVideoService {
     const { videoId } = await this.createDirectUploadVideo(title);
     await this.uploadVideoBuffer(videoId, buffer);
 
-    const embedUrl = `https://iframe.mediadelivery.net/embed/${this.libraryId}/${videoId}`;
+    const embedUrl = this.getEmbedUrl(videoId);
     const playbackUrl = this.tokenSecurityKey
       ? this.generateSecurePlaybackUrl(videoId)
       : `https://${this.cdnHostname}/${videoId}/playlist.m3u8`;
@@ -171,9 +175,15 @@ export class BunnyVideoService {
   }
 
   /**
-   * Returns iframe embed URL for Bunny Stream player.
+   * Returns iframe embed URL for Bunny Stream player with optional token signing.
    */
-  getEmbedUrl(videoId: string): string {
+  getEmbedUrl(videoId: string, expiresInSeconds = 7200): string {
+    if (this.tokenSecurityKey) {
+      const expires = Math.floor(Date.now() / 1000) + expiresInSeconds;
+      const rawSignature = `${this.tokenSecurityKey}${videoId}${expires}`;
+      const token = createHash('sha256').update(rawSignature).digest('hex');
+      return `https://iframe.mediadelivery.net/embed/${this.libraryId}/${videoId}?token=${token}&expires=${expires}`;
+    }
     return `https://iframe.mediadelivery.net/embed/${this.libraryId}/${videoId}`;
   }
 

@@ -13,6 +13,13 @@ interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
   token?: string;
   _isRetry?: boolean;
+  /**
+   * When true, a 401 response is thrown immediately as an ApiError without
+   * attempting a silent token refresh/retry or logging the user out. Used for
+   * re-authentication endpoints (e.g. password-gated academic period switch)
+   * where a 401 means "wrong password", not "expired session".
+   */
+  skipAuthRefresh?: boolean;
 }
 
 // Concurrency mutex: In-flight refresh promise shared across all simultaneous 401 requests
@@ -41,6 +48,10 @@ async function executeRefreshToken(): Promise<string | null> {
     });
 
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        // Genuine refresh token invalidation from server
+        handleAuthFailure(true);
+      }
       return null;
     }
 
@@ -78,9 +89,43 @@ async function getRefreshedAccessToken(): Promise<string | null> {
   return refreshPromise;
 }
 
-function handleAuthFailure(): void {
-  // Prevent logging user out if device is offline
+/**
+ * Decodes the stored JWT access token (without verifying the signature) and
+ * returns true when it is already expired or will expire within `bufferSeconds`.
+ * Returns true (treat as expired) when no token is present or the token is malformed.
+ */
+export function isAccessTokenExpiredOrExpiring(bufferSeconds = 90): boolean {
+  const token = getStoredAccessToken();
+  if (!token) return true;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    // base64url → base64 → JSON
+    const padded = parts[1].replace(/-/g, '+').replace(/_/g, '/') + '=='.slice((parts[1].length % 4) || 4);
+    const payload = JSON.parse(atob(padded));
+    if (!payload.exp) return false;
+    return payload.exp - bufferSeconds < Math.floor(Date.now() / 1000);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Public wrapper around the internal refresh mutex, usable by the sync engine
+ * to proactively acquire a fresh access token before starting a batch flush.
+ */
+export async function refreshAccessToken(): Promise<string | null> {
+  return getRefreshedAccessToken();
+}
+
+function handleAuthFailure(isExplicitRejection: boolean = false): void {
+  // Never log user out if device is offline or when network failure prevents verification
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return;
+  }
+
+  // If not explicitly rejected with 401/403 by server, don't clear offline-compatible session
+  if (!isExplicitRejection) {
     return;
   }
 
@@ -99,7 +144,7 @@ function handleAuthFailure(): void {
  * Wraps native fetch with JWT authorization, silent token refresh on 401, response unwrapping, and error normalization
  */
 export async function apiClient<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-  const { params, token, headers, _isRetry = false, ...customConfig } = options;
+  const { params, token, headers, _isRetry = false, skipAuthRefresh = false, ...customConfig } = options;
 
   let url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
 
@@ -159,9 +204,11 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
 
     // Intercept 401 Unauthorized for automatic token refresh & request retry
     if (response.status === 401) {
-      // If it's a login/refresh/logout request or already retried once, do not refresh again
-      if (isAuthEndpoint || _isRetry) {
-        if (!isAuthEndpoint) {
+      // If it's a login/refresh/logout request, an explicit re-auth call, or already
+      // retried once, do not refresh again. skipAuthRefresh also avoids logging out —
+      // the 401 is a business error (wrong password), not an expired session.
+      if (isAuthEndpoint || _isRetry || skipAuthRefresh) {
+        if (!isAuthEndpoint && !skipAuthRefresh) {
           handleAuthFailure();
         }
       } else if (isInternalApi) {

@@ -109,6 +109,98 @@ describe('SchedulesService', () => {
     });
   });
 
+  describe('createSingleSession (same-day group uniqueness)', () => {
+    it('rejects adding a second session for the same group on the same day', async () => {
+      mockPrismaService.academicGroup.findUnique.mockResolvedValue({
+        id: 'group-1',
+        teacherId: 'teacher-1',
+      });
+      mockPrismaService.lessonSession.findFirst
+        .mockResolvedValueOnce(null) // no exact same-date+startTime session
+        .mockResolvedValueOnce({
+          id: 'other-session',
+          topic: 'حصة الجبر',
+          startTime: '18:00',
+        }); // same group already has a session that day
+
+      await expect(
+        service.createSingleSession(
+          {
+            groupId: 'group-1',
+            sessionDate: '2026-08-20',
+            startTime: '16:00',
+            endTime: '18:00',
+            topic: 'حصة الفيزياء',
+          },
+          mockTeacherUser,
+        ),
+      ).rejects.toThrow('لا يمكن إضافة أكثر من حصة لنفس المجموعة في نفس اليوم');
+    });
+
+    it('allows creating a session when the group has no session that day', async () => {
+      mockPrismaService.academicGroup.findUnique.mockResolvedValue({
+        id: 'group-1',
+        teacherId: 'teacher-1',
+      });
+      mockPrismaService.lessonSession.findFirst.mockResolvedValue(null);
+      mockPrismaService.lessonSession.findMany.mockResolvedValue([]);
+      mockPrismaService.lessonSession.create.mockResolvedValue({
+        id: 'new-session',
+        groupId: 'group-1',
+        sessionDate: new Date('2026-08-20T00:00:00.000Z'),
+        startTime: '16:00',
+        topic: 'حصة الفيزياء',
+      });
+
+      const created = await service.createSingleSession(
+        {
+          groupId: 'group-1',
+          sessionDate: '2026-08-20',
+          startTime: '16:00',
+          endTime: '18:00',
+          topic: 'حصة الفيزياء',
+        },
+        mockTeacherUser,
+      );
+
+      expect(created.id).toBe('new-session');
+      expect(mockPrismaService.lessonSession.create).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('updateSession (same-day group uniqueness)', () => {
+    it('rejects moving a session to a day where the group already has another session', async () => {
+      mockPrismaService.lessonSession.findUnique.mockResolvedValue({
+        id: 'session-1',
+        groupId: 'group-1',
+        topic: 'حصة النحو',
+        sessionDate: new Date('2026-08-20'),
+        startTime: '16:00',
+        endTime: '18:00',
+        isCancelled: false,
+        cancellationReason: null,
+        group: { id: 'group-1', teacherId: 'teacher-1' },
+      });
+      mockPrismaService.academicGroup.findUnique.mockResolvedValue({
+        id: 'group-1',
+        teacherId: 'teacher-1',
+      });
+      mockPrismaService.lessonSession.findFirst.mockResolvedValueOnce({
+        id: 'other-session',
+        topic: 'حصة البلاغة',
+        startTime: '10:00',
+      });
+
+      await expect(
+        service.updateSession(
+          'session-1',
+          { sessionDate: '2026-08-21' },
+          mockTeacherUser,
+        ),
+      ).rejects.toThrow('لنفس المجموعة في نفس اليوم تبدأ الساعة');
+    });
+  });
+
   describe('updateSession (Session Cancellation)', () => {
     it('marks a session as cancelled with optional reason', async () => {
       const mockSession = {
