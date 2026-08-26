@@ -56,7 +56,7 @@ export function FinanceFiltersBar({
   onMonthChange,
 }: FinanceFiltersBarProps) {
   const groupGrades = groups.map((group) => group.gradeLevel).filter(Boolean);
-  const stageGrades = stage === 'ALL' ? Object.values(GRADE_LEVELS_BY_STAGE).flat() : GRADE_LEVELS_BY_STAGE[stage] || [];
+  const stageGrades = GRADE_LEVELS_BY_STAGE[stage] || [];
   const grades = Array.from(new Set([...stageGrades, ...groupGrades.filter((grade) => !stage || inferStage(grade) === stage)]));
   const availableGroups = groups.filter((group) => {
     if (gradeLevel && group.gradeLevel !== gradeLevel) return false;
@@ -69,7 +69,7 @@ export function FinanceFiltersBar({
       <label className="text-xs font-bold text-slate-700">
         المرحلة الدراسية
         <select aria-label="المرحلة الدراسية" value={stage} onChange={(event) => onStageChange(event.target.value)} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm">
-          <option value="ALL">كل المراحل</option>
+          <option value="">اختر المرحلة</option>
           <option value="SECONDARY">الثانوية</option>
           <option value="PREPARATORY">الإعدادية</option>
           <option value="PRIMARY">الابتدائية</option>
@@ -78,8 +78,8 @@ export function FinanceFiltersBar({
 
       <label className="text-xs font-bold text-slate-700">
         الصف الدراسي
-        <select aria-label="الصف الدراسي" value={gradeLevel} onChange={(event) => onGradeChange(event.target.value)} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm">
-          <option value="">كل الصفوف</option>
+        <select aria-label="الصف الدراسي" value={gradeLevel} disabled={!stage} onChange={(event) => onGradeChange(event.target.value)} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400">
+          <option value="">اختر الصف</option>
           {grades.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
         </select>
       </label>

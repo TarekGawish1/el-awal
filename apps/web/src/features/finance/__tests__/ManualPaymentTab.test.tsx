@@ -37,6 +37,7 @@ describe('ManualPaymentTab unified filters', () => {
 
   it('updates group options after selecting a grade', () => {
     render(<ManualPaymentTab groups={groups} initialPeriodYear={2026} initialPeriodMonth={8} />);
+    fireEvent.change(screen.getByLabelText('المرحلة الدراسية'), { target: { value: 'SECONDARY' } });
     fireEvent.change(screen.getByLabelText('الصف الدراسي'), { target: { value: 'الصف الأول الثانوي' } });
 
     const groupSelect = screen.getByLabelText('المجموعة الدراسية') as HTMLSelectElement;

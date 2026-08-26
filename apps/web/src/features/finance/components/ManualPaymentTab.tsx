@@ -44,7 +44,7 @@ export function ManualPaymentTab({ groups, initialPeriodYear, initialPeriodMonth
   const defaultYear = `${initialPeriodYear}-${initialPeriodYear + 1}`;
   const [academicYear, setAcademicYear] = useState(() => readStoredValue(STORAGE_YEAR_KEY, defaultYear));
   const [academicTerm, setAcademicTerm] = useState<'FIRST_TERM' | 'SECOND_TERM'>(() => readStoredValue(STORAGE_TERM_KEY, DEFAULT_ACADEMIC_TERM) as 'FIRST_TERM' | 'SECOND_TERM');
-  const [stage, setStage] = useState('ALL');
+  const [stage, setStage] = useState('');
   const [gradeLevel, setGradeLevel] = useState('');
   const [groupId, setGroupId] = useState(initialGroupId);
   const [periodMonth, setPeriodMonth] = useState(initialPeriodMonth);

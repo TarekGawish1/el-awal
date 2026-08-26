@@ -46,6 +46,7 @@ describe('FinancialMatrixLedger', () => {
 
   it('renders only booklets for the selected grade', () => {
     render(<FinancialMatrixLedger groups={[]} />);
+    fireEvent.change(screen.getByLabelText('المرحلة الدراسية'), { target: { value: 'SECONDARY' } });
     fireEvent.change(screen.getByLabelText('الصف الدراسي'), { target: { value: 'الصف الأول الثانوي' } });
 
     expect(screen.getByText('مذكرة الصف الأول')).toBeInTheDocument();
@@ -54,12 +55,16 @@ describe('FinancialMatrixLedger', () => {
 
   it('does not render the removed quick-payment action', () => {
     render(<FinancialMatrixLedger groups={[]} />);
+    fireEvent.change(screen.getByLabelText('المرحلة الدراسية'), { target: { value: 'SECONDARY' } });
+    fireEvent.change(screen.getByLabelText('الصف الدراسي'), { target: { value: 'الصف الأول الثانوي' } });
     expect(screen.queryByText('سداد سريع')).not.toBeInTheDocument();
     expect(screen.getAllByText('كشف حساب').length).toBeGreaterThan(0);
   });
 
   it('filters the matrix by student name or code', () => {
     render(<FinancialMatrixLedger groups={[]} />);
+    fireEvent.change(screen.getByLabelText('المرحلة الدراسية'), { target: { value: 'SECONDARY' } });
+    fireEvent.change(screen.getByLabelText('الصف الدراسي'), { target: { value: 'الصف الثاني الثانوي' } });
     fireEvent.change(screen.getByPlaceholderText('اسم الطالب أو STU-...'), { target: { value: 'سارة' } });
 
     expect(screen.getByText('سارة محمد')).toBeInTheDocument();
@@ -68,6 +73,8 @@ describe('FinancialMatrixLedger', () => {
 
   it('restricts month columns to the selected term and blanks future months', () => {
     render(<FinancialMatrixLedger groups={[]} />);
+    fireEvent.change(screen.getByLabelText('المرحلة الدراسية'), { target: { value: 'SECONDARY' } });
+    fireEvent.change(screen.getByLabelText('الصف الدراسي'), { target: { value: 'الصف الأول الثانوي' } });
     expect(screen.getByText('اشتراك 8')).toBeInTheDocument();
     expect(screen.getByText('اشتراك 1')).toBeInTheDocument();
     expect(screen.queryByText('اشتراك 2')).not.toBeInTheDocument();
@@ -78,6 +85,15 @@ describe('FinancialMatrixLedger', () => {
     expect(screen.getByText('اشتراك 2')).toBeInTheDocument();
     expect(screen.getByText('اشتراك 7')).toBeInTheDocument();
     expect(screen.queryByText('اشتراك 8')).not.toBeInTheDocument();
+  });
+
+  it('requires a stage and grade before showing students', () => {
+    render(<FinancialMatrixLedger groups={[]} />);
+
+    expect(screen.getByText('اختر المرحلة والصف لعرض سجل المدفوعات.')).toBeInTheDocument();
+    expect(screen.queryByText('كل المراحل')).not.toBeInTheDocument();
+    expect(screen.queryByText('كل الصفوف')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('الصف الدراسي')).toBeDisabled();
   });
 
   it('cascades stage, grade, and group filters', () => {
