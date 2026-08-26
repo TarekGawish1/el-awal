@@ -450,7 +450,7 @@ function AssessmentWrapper({
             fileName: imgData.file.name,
             contentType: imgData.file.type || 'image/jpeg',
             fileSizeBytes: imgData.file.size,
-            folder: 'essay-answers',
+            folder: 'homework-submissions',
           });
           await uploadFileToR2(
             presigned.uploadUrl,

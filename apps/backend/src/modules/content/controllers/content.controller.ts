@@ -118,10 +118,11 @@ export class ContentController {
     @Body() dto: PresignedUploadDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    // Students may only request a presigned upload for their own homework answers.
-    if (user.role === UserRole.STUDENT && dto.folder !== 'homework-submissions') {
+    // Students may request a presigned upload for homework and assessment essay submissions.
+    const allowedStudentFolders = ['homework-submissions', 'essay-answers', 'assessment-submissions'];
+    if (user.role === UserRole.STUDENT && !allowedStudentFolders.includes(dto.folder || '')) {
       throw new BadRequestException(
-        'Students can only generate upload URLs for homework submissions',
+        'Students can only generate upload URLs for homework and assessment submissions',
       );
     }
     return this.contentService.generatePresignedUpload(dto);
