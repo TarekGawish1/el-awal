@@ -189,18 +189,7 @@ export function StudentDashboard() {
         </Card>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        {/* مجموعات السنتر */}
-        <Card className="border-none shadow-sm shadow-slate-200/50 hover:shadow-md transition-shadow">
-          <CardContent className="p-5 flex items-center gap-3">
-            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl flex-shrink-0"><Users className="w-5 h-5" /></div>
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-slate-500 truncate">مجموعات السنتر</p>
-              <h4 className="text-2xl font-bold text-slate-800">{isProfileLoading ? '-' : enrolledGroups.length}</h4>
-            </div>
-          </CardContent>
-        </Card>
-
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* دورات أونلاين */}
         <Card className="border-none shadow-sm shadow-slate-200/50 hover:shadow-md transition-shadow">
           <CardContent className="p-5 flex items-center gap-3">

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Users, UserPlus, FileText, AlertCircle, CalendarDays, Settings, Trash2, Loader2, MapPin } from 'lucide-react';
+import { ArrowRight, Users, UserPlus, FileText, AlertCircle, CalendarDays, Settings, Trash2, Loader2, MapPin, ClipboardCheck } from 'lucide-react';
 import { useGroup, useDeleteGroup } from '../hooks/useGroups';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -211,7 +211,15 @@ export function GroupDetails({ id }: GroupDetailsProps) {
               <UserPlus className="w-4 h-4 ml-2" />
               إضافة طالب
             </Button>
-            <Button variant="outline" onClick={() => router.push('/teacher/attendance')}>
+            <Button
+              variant="outline"
+              onClick={() => router.push(`/teacher/attendance?groupId=${group.id}`)}
+              className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+            >
+              <ClipboardCheck className="w-4 h-4 ml-2" />
+              تسليم الواجب والحضور
+            </Button>
+            <Button variant="outline" onClick={() => router.push(`/teacher/attendance?groupId=${group.id}`)}>
               <FileText className="w-4 h-4 ml-2" />
               كشف الحضور
             </Button>

@@ -97,6 +97,23 @@ enum AssessmentType {
   @@map("assessment_type")
 }
 
+enum HomeworkDeliveryType {
+  ONLINE
+  ONSITE
+  HYBRID
+
+  @@map("homework_delivery_type")
+}
+
+enum HomeworkSubmissionStatus {
+  NOT_SUBMITTED
+  SUBMITTED_ONLINE
+  CHECKED_ONSITE
+  EXCUSED
+
+  @@map("homework_submission_status")
+}
+
 enum QuestionType {
   MULTIPLE_CHOICE
   TRUE_FALSE
@@ -246,6 +263,7 @@ model StudentProfile {
   studentEvaluations    StudentEvaluation[]
   paymentRecords        StudentPaymentRecord[]
   lessonQuestions       LessonQuestion[]
+  homeworkRecords       HomeworkRecord[]
 
   @@index([qrCodeToken], map: "idx_students_qr_code")
   @@index([gradeLevel], map: "idx_students_grade_level")
@@ -377,6 +395,7 @@ model LessonSession {
   attendanceRecords   AttendanceRecord[]
   educationalContents EducationalContent[]
   assessmentSubmissions AssessmentSubmission[]
+  homeworkRecords     HomeworkRecord[]
 
   @@index([groupId, sessionDate, startTime], map: "idx_group_session_datetime")
   @@index([groupId, sessionDate], map: "idx_sessions_group_date")
@@ -691,6 +710,7 @@ model Assessment {
   isAutoGraded    Boolean        @default(false) @map("is_auto_graded")
   isPublished     Boolean        @default(true) @map("is_published")
   allowMultipleAttempts Boolean  @default(false) @map("allow_multiple_attempts")
+  homeworkDeliveryType HomeworkDeliveryType @default(ONSITE) @map("homework_delivery_type")
   startDate       DateTime?      @map("start_date") @db.Timestamptz(6)
   dueDate         DateTime?      @map("due_date") @db.Timestamptz(6)
   createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -706,8 +726,9 @@ model Assessment {
   unitQuizOf        CourseModule? @relation("UnitQuiz")
   lessonQuizOf      CourseLesson? @relation("LessonQuiz")
 
-  questions   AssessmentQuestion[]
-  submissions AssessmentSubmission[]
+  questions       AssessmentQuestion[]
+  submissions     AssessmentSubmission[]
+  homeworkRecords HomeworkRecord[]
 
   @@index([groupId, type], map: "idx_assessments_group_type")
   @@index([courseId, type], map: "idx_assessments_course_type")
@@ -783,6 +804,30 @@ model StudentAnswer {
   @@index([questionId], map: "idx_answers_question")
   @@index([submissionId], map: "idx_answers_submission")
   @@map("student_answers")
+}
+
+model HomeworkRecord {
+  id               String                    @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  assessmentId     String                    @map("assessment_id") @db.Uuid
+  studentId        String                    @map("student_id") @db.Uuid
+  sessionId        String                    @map("session_id") @db.Uuid
+  status           HomeworkSubmissionStatus  @default(NOT_SUBMITTED) @map("status")
+  checkedByRole    UserRole                  @default(TEACHER) @map("checked_by_role")
+  recordedMethod   RecordingMethod           @default(QR_SCAN) @map("recorded_method")
+  score            Decimal?                  @map("score") @db.Decimal(6, 2)
+  feedback         String?                   @map("feedback") @db.Text
+  clientTimestamp  DateTime                  @default(now()) @map("client_timestamp") @db.Timestamptz(6)
+  createdAt        DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  assessment Assessment     @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  session    LessonSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([assessmentId, studentId, sessionId], map: "uq_homework_records_assessment_student_session")
+  @@index([sessionId, studentId], map: "idx_homework_records_session_student")
+  @@index([studentId], map: "idx_homework_records_student")
+  @@map("homework_records")
 }
 
 // ==========================================

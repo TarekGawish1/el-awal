@@ -4,13 +4,7 @@ on:
   push:
     branches:
       - main
-    paths:
-      # Only trigger when changes are made to the backend or root dependencies
-      - 'apps/backend/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/deploy-backend-heroku.yml'
-  workflow_dispatch: # Allows manual trigger from GitHub Actions UI
+  workflow_dispatch:
 
 jobs:
   deploy:

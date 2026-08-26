@@ -4,7 +4,7 @@ import React, { Suspense } from 'react';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { StudentAssessmentsContent } from '@/features/student-portal/components/StudentAssessmentsContent';
 
-export default function StudentAssessmentsPage() {
+export default function StudentHomeworkPage() {
   return (
     <Suspense
       fallback={
@@ -17,7 +17,7 @@ export default function StudentAssessmentsPage() {
         </div>
       }
     >
-      <StudentAssessmentsContent fixedType="EXAM" />
+      <StudentAssessmentsContent fixedType="ASSIGNMENT" />
     </Suspense>
   );
 }

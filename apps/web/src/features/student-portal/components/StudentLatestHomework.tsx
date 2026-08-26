@@ -85,7 +85,7 @@ export function StudentLatestHomework() {
       <CardContent className="p-6">
         <div className="space-y-4">
           <div>
-            <Link href={`/student/assessments?id=${assessment.id}`} className="block group/title">
+            <Link href={`/student/homework?id=${assessment.id}`} className="block group/title">
               <h3 className="text-base font-extrabold text-slate-800 group-hover/title:text-primary-700 transition-colors">{latestHomeworkSession.topic || assessment.title}</h3>
               <p className="mt-1 text-xs text-slate-500 flex items-center gap-1.5 flex-wrap">
                 <CalendarDays className="w-3.5 h-3.5" />
@@ -134,7 +134,7 @@ export function StudentLatestHomework() {
             <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
               <Badge variant="warning" className="mb-2">⚠️ بانتظار تسليم الحل</Badge>
               <div className="flex flex-wrap items-center gap-2">
-                <Link href={`/student/assessments?id=${assessment.id}`}>
+                <Link href={`/student/homework?id=${assessment.id}`}>
                   <Button type="button" className="bg-primary-600 hover:bg-primary-700 font-bold"><Edit3 className="h-4 w-4" />حل واجب الحصة الآن</Button>
                 </Link>
               </div>

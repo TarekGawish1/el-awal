@@ -246,8 +246,24 @@ export interface SyncConflictRecord {
   resolutionNote?: string;
 }
 
+export interface HomeworkRecordEntity {
+  id: string;
+  assessmentId: string;
+  studentId: string;
+  sessionId: string;
+  status: 'NOT_SUBMITTED' | 'SUBMITTED_ONLINE' | 'CHECKED_ONSITE' | 'EXCUSED';
+  checkedByRole?: 'TEACHER' | 'SECRETARIAT' | string;
+  recordedMethod?: 'QR_SCAN' | 'MANUAL' | string;
+  score?: number | null;
+  feedback?: string | null;
+  clientTimestamp: number;
+  syncStatus?: 'PENDING' | 'SYNCED' | 'FAILED';
+  studentName?: string;
+  studentCode?: string;
+}
+
 const DB_NAME = 'el_awal_offline_db';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 class OfflineDatabase {
   private dbPromise: Promise<IDBDatabase> | null = null;
@@ -268,6 +284,7 @@ class OfflineDatabase {
   private memoryCredentials: Map<string, OfflineCredentialsRecord> = new Map();
   private memoryReports: Map<string, any> = new Map();
   private memoryBooklets: Map<string, BookletEntity> = new Map();
+  private memoryHomeworkRecords: Map<string, HomeworkRecordEntity> = new Map();
 
   private isSupported(): boolean {
     return typeof window !== 'undefined' && 'indexedDB' in window && typeof indexedDB?.open === 'function';
@@ -377,6 +394,14 @@ class OfflineDatabase {
             const store = db.createObjectStore('offline_credentials', { keyPath: 'identifier' });
             store.createIndex('idx_user_email', 'user.email', { unique: false });
             store.createIndex('idx_user_phone', 'user.phone', { unique: false });
+          }
+
+          if (!db.objectStoreNames.contains('homework_records')) {
+            const store = db.createObjectStore('homework_records', { keyPath: 'id' });
+            store.createIndex('idx_session_student', ['sessionId', 'studentId'], { unique: false });
+            store.createIndex('idx_studentId', 'studentId', { unique: false });
+            store.createIndex('idx_syncStatus', 'syncStatus', { unique: false });
+            store.createIndex('idx_assessmentId', 'assessmentId', { unique: false });
           }
         };
 
@@ -2258,6 +2283,255 @@ class OfflineDatabase {
     } catch (e) {
       console.warn('Failed to clear period-scoped IndexedDB stores:', e);
     }
+  }
+
+  // ==========================================
+  // Onsite Homework & Store Proxies
+  // ==========================================
+
+  public homework_records = {
+    put: async (record: HomeworkRecordEntity): Promise<void> => {
+      return this.putHomeworkRecord(record);
+    },
+    get: async (id: string): Promise<HomeworkRecordEntity | null> => {
+      return this.getHomeworkRecordById(id);
+    },
+    getAll: async (): Promise<HomeworkRecordEntity[]> => {
+      return this.getAllHomeworkRecords();
+    },
+    delete: async (id: string): Promise<void> => {
+      return this.deleteHomeworkRecord(id);
+    },
+  };
+
+  public sessions_attendance = {
+    get: async (key: [string, string] | string): Promise<any | null> => {
+      const [sessionId, studentId] = Array.isArray(key) ? key : String(key).split('_');
+      return this.getSessionAttendanceRecord(sessionId, studentId);
+    },
+    put: async (record: any): Promise<void> => {
+      const { sessionId, studentId, status, recordingMethod, markedAt, studentName, studentCode } = record;
+      await this.recordAttendanceOffline(sessionId, {
+        studentId,
+        status: status || 'PRESENT',
+        recordingMethod: recordingMethod || 'QR_SCAN',
+        recordedAt: markedAt ? new Date(markedAt).toISOString() : new Date().toISOString(),
+        studentName,
+        studentCode,
+      });
+    },
+  };
+
+  public outbox_mutations = {
+    add: async (mutation: any): Promise<string> => {
+      const fullMutation: OutboxMutationRecord = {
+        id: mutation.id || crypto.randomUUID(),
+        domain: mutation.domain || (mutation.type?.includes('HOMEWORK') ? 'attendance' : 'attendance'),
+        endpoint: mutation.endpoint || (mutation.type?.includes('HOMEWORK') ? '/sync/homework' : '/sync/attendance'),
+        method: mutation.method || 'POST',
+        payload: mutation.payload || mutation,
+        clientTimestamp: mutation.clientTimestamp || Date.now(),
+        retryCount: 0,
+        status: 'PENDING',
+        conflictStrategy: mutation.conflictStrategy || 'CLIENT_WINS',
+      };
+      await this.enqueueMutation(fullMutation);
+      return fullMutation.id;
+    },
+    put: async (mutation: any): Promise<string> => {
+      return this.outbox_mutations.add(mutation);
+    },
+    get: async (id: string): Promise<OutboxMutationRecord | null> => {
+      const mutations = await this.getPendingMutations();
+      return mutations.find((m) => m.id === id) || null;
+    },
+    getAll: async (): Promise<OutboxMutationRecord[]> => {
+      return this.getPendingMutations();
+    },
+  };
+
+  public async putHomeworkRecord(record: HomeworkRecordEntity): Promise<void> {
+    this.memoryHomeworkRecords.set(record.id, { ...record });
+    if (!this.isSupported()) return;
+    try {
+      const { store } = await this.getStore('homework_records', 'readwrite');
+      return new Promise<void>((resolve, reject) => {
+        const req = store.put(record);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    } catch {}
+  }
+
+  public async getHomeworkRecordById(id: string): Promise<HomeworkRecordEntity | null> {
+    if (!this.isSupported()) {
+      return this.memoryHomeworkRecords.get(id) || null;
+    }
+    try {
+      const { store } = await this.getStore('homework_records', 'readonly');
+      return new Promise((resolve) => {
+        const req = store.get(id);
+        req.onsuccess = () => resolve(req.result || this.memoryHomeworkRecords.get(id) || null);
+        req.onerror = () => resolve(this.memoryHomeworkRecords.get(id) || null);
+      });
+    } catch {
+      return this.memoryHomeworkRecords.get(id) || null;
+    }
+  }
+
+  public async getAllHomeworkRecords(): Promise<HomeworkRecordEntity[]> {
+    if (!this.isSupported()) {
+      return Array.from(this.memoryHomeworkRecords.values());
+    }
+    try {
+      const { store } = await this.getStore('homework_records', 'readonly');
+      return new Promise((resolve) => {
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || Array.from(this.memoryHomeworkRecords.values()));
+        req.onerror = () => resolve(Array.from(this.memoryHomeworkRecords.values()));
+      });
+    } catch {
+      return Array.from(this.memoryHomeworkRecords.values());
+    }
+  }
+
+  public async deleteHomeworkRecord(id: string): Promise<void> {
+    this.memoryHomeworkRecords.delete(id);
+    if (!this.isSupported()) return;
+    try {
+      const { store } = await this.getStore('homework_records', 'readwrite');
+      store.delete(id);
+    } catch {}
+  }
+
+  public async getSessionAttendanceRecord(sessionId: string, studentId: string): Promise<any | null> {
+    const report = await this.getSessionReport(sessionId);
+    if (!report || !Array.isArray(report.records)) return null;
+    const rec = report.records.find((r: any) => String(r.studentId).trim() === String(studentId).trim());
+    return rec || null;
+  }
+
+  public async getHomeworkRecordsForSession(sessionId: string, assessmentId?: string): Promise<HomeworkRecordEntity[]> {
+    const all = await this.getAllHomeworkRecords();
+    return all.filter((r) => {
+      const matchSession = String(r.sessionId).trim().toLowerCase() === String(sessionId).trim().toLowerCase();
+      if (!matchSession) return false;
+      if (assessmentId) {
+        return String(r.assessmentId).trim().toLowerCase() === String(assessmentId).trim().toLowerCase();
+      }
+      return true;
+    });
+  }
+
+  public async recordHomeworkOnsiteOffline(data: {
+    assessmentId: string;
+    studentId: string;
+    sessionId: string;
+    status?: 'CHECKED_ONSITE' | 'NOT_SUBMITTED' | 'SUBMITTED_ONLINE' | 'EXCUSED';
+    recordedMethod?: 'QR_SCAN' | 'MANUAL';
+    score?: number | null;
+    feedback?: string | null;
+    studentName?: string;
+    studentCode?: string;
+  }): Promise<{ homeworkRecord: HomeworkRecordEntity; attendanceRecord: any }> {
+    const status = data.status || 'CHECKED_ONSITE';
+    const recordedMethod = data.recordedMethod || 'QR_SCAN';
+    const now = Date.now();
+    const cleanSessionId = String(data.sessionId).trim();
+    const cleanStudentId = String(data.studentId).trim();
+
+    // 1. Check existing homework record for (assessmentId, studentId, sessionId)
+    const allHw = await this.getAllHomeworkRecords();
+    const existing = allHw.find(
+      (h) =>
+        h.assessmentId === data.assessmentId &&
+        h.studentId === cleanStudentId &&
+        h.sessionId === cleanSessionId,
+    );
+
+    const hwId = existing?.id || crypto.randomUUID();
+    const homeworkRecord: HomeworkRecordEntity = {
+      id: hwId,
+      assessmentId: data.assessmentId,
+      studentId: cleanStudentId,
+      sessionId: cleanSessionId,
+      status,
+      checkedByRole: 'TEACHER',
+      recordedMethod,
+      score: data.score !== undefined ? data.score : existing?.score || null,
+      feedback: data.feedback !== undefined ? data.feedback : existing?.feedback || null,
+      clientTimestamp: now,
+      syncStatus: 'PENDING',
+      studentName: data.studentName,
+      studentCode: data.studentCode,
+    };
+
+    await this.homework_records.put(homeworkRecord);
+
+    // 2. Queue homework mutation
+    await this.outbox_mutations.add({
+      id: crypto.randomUUID(),
+      type: 'RECORD_HOMEWORK_ONSITE',
+      domain: 'attendance',
+      endpoint: '/sync/homework',
+      method: 'POST',
+      payload: {
+        assessmentId: data.assessmentId,
+        studentId: cleanStudentId,
+        sessionId: cleanSessionId,
+        status,
+        recordedMethod,
+        score: homeworkRecord.score,
+        feedback: homeworkRecord.feedback,
+        clientTimestamp: now,
+      },
+      status: 'PENDING',
+      clientTimestamp: now,
+    });
+
+    // 3. AUTOMATIC ATTENDANCE TRIGGER
+    const existingAttendance = await this.sessions_attendance.get([cleanSessionId, cleanStudentId]);
+    let attendanceRecord = existingAttendance;
+
+    if (!existingAttendance || existingAttendance.status !== 'PRESENT') {
+      const updatedReport = await this.recordAttendanceOffline(cleanSessionId, {
+        studentId: cleanStudentId,
+        status: 'PRESENT',
+        recordingMethod: recordedMethod,
+        recordedAt: new Date(now).toISOString(),
+        studentName: data.studentName,
+        studentCode: data.studentCode,
+      });
+
+      attendanceRecord = updatedReport?.records?.find(
+        (r: any) => String(r.studentId).trim() === cleanStudentId,
+      ) || {
+        sessionId: cleanSessionId,
+        studentId: cleanStudentId,
+        status: 'PRESENT',
+        recordingMethod: recordedMethod,
+        markedAt: now,
+      };
+
+      await this.outbox_mutations.add({
+        id: crypto.randomUUID(),
+        type: 'RECORD_ATTENDANCE',
+        domain: 'attendance',
+        endpoint: `/attendance/sessions/${cleanSessionId}/scan-qr`,
+        method: 'POST',
+        payload: {
+          sessionId: cleanSessionId,
+          studentId: cleanStudentId,
+          status: 'PRESENT',
+          recordingMethod: recordedMethod,
+          clientTimestamp: now,
+        },
+        status: 'PENDING',
+        clientTimestamp: now,
+      });
+    }
+
+    return { homeworkRecord, attendanceRecord };
   }
 }
 
