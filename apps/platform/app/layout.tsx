@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter, Cairo } from 'next/font/google';
+import { Navbar } from '@/components/navigation/Navbar';
 import '../styles/globals.css';
 
 const inter = Inter({
@@ -69,6 +70,7 @@ export default function RootLayout({
       className={`${inter.variable} ${cairo.variable} antialiased`}
     >
       <body className="min-h-dvh flex flex-col bg-neutral-50 text-neutral-900 font-sans">
+        <Navbar />
         {children}
       </body>
     </html>
