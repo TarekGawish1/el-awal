@@ -12,7 +12,7 @@ function IntroSequence({ onComplete }: { onComplete: () => void }) {
   }, [onComplete]);
 
   return (
-    <motion.div 
+    <motion.div
       className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0a0f1c] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)]" dir="rtl"
       initial={{ y: "0%" }}
       exit={{ y: "-100%" }}
@@ -20,9 +20,9 @@ function IntroSequence({ onComplete }: { onComplete: () => void }) {
     >
       {/* Background Cinematic Effects */}
       <div className="absolute inset-0 w-full h-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/10 via-[#0a0f1c] to-[#0a0f1c]"></div>
-      
+
       {/* Subtle Grid or Stars effect */}
-      <motion.div 
+      <motion.div
         className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"
         initial={{ opacity: 0 }}
         animate={{ opacity: 0.15 }}
@@ -56,7 +56,7 @@ function IntroSequence({ onComplete }: { onComplete: () => void }) {
       </div>
 
       {/* Cinematic subtle light at the bottom */}
-      <motion.div 
+      <motion.div
         className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full md:w-3/4 h-32 bg-blue-600/10 blur-[120px] rounded-full pointer-events-none"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -68,7 +68,7 @@ function IntroSequence({ onComplete }: { onComplete: () => void }) {
 
 function Navbar() {
   return (
-    <motion.nav 
+    <motion.nav
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.8, delay: 0.5, ease: "easeOut" }}
@@ -76,7 +76,7 @@ function Navbar() {
     >
       {/* Glass Background */}
       <div className="absolute inset-0 bg-white/70 backdrop-blur-md border-b border-white/20 shadow-sm" />
-      
+
       {/* Content */}
       <div className="relative z-10 container mx-auto flex items-center justify-between">
         {/* Logo */}
@@ -136,9 +136,9 @@ function HeroImageSequence() {
 
   return (
     <div className="absolute inset-0 z-0 opacity-10">
-      <img 
+      <img
         src={`/hero-animation/frame_${String(frameIndex).padStart(6, '0')}.webp`}
-        alt="خلفية متحركة" 
+        alt="خلفية متحركة"
         className="w-full h-full object-cover"
       />
     </div>
@@ -150,12 +150,12 @@ function HeroSection() {
     <div className="min-h-screen bg-slate-50 flex flex-col relative overflow-hidden" dir="rtl">
       <HeroImageSequence />
       <Navbar />
-      
+
       {/* Background decorations for a Math theme */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-[20%] -right-[10%] w-[50%] h-[50%] rounded-full bg-blue-100/50 blur-[100px]" />
         <div className="absolute top-[40%] -left-[10%] w-[40%] h-[40%] rounded-full bg-blue-200/40 blur-[120px]" />
-        
+
         {/* Math symbols floating */}
         <div className="absolute top-[20%] right-[40%] text-blue-200 text-6xl opacity-40 rotate-12 select-none">∑</div>
         <div className="absolute top-[60%] left-[20%] text-blue-200 text-6xl opacity-40 -rotate-12 select-none">π</div>
@@ -164,9 +164,9 @@ function HeroSection() {
       </div>
 
       <div className="flex-1 relative z-10 container mx-auto px-6 pt-32 pb-16 flex flex-col lg:flex-row items-center justify-between gap-12 lg:gap-8">
-        
+
         {/* Right side: Teacher Image */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, x: 50 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.8, delay: 0.2 }}
@@ -174,21 +174,21 @@ function HeroSection() {
         >
           <div className="relative w-full max-w-[500px] h-[500px] flex items-end justify-center mt-10 lg:mt-0">
             {/* Decorative Math Elements around the teacher */}
-            <motion.div 
+            <motion.div
               animate={{ y: [0, -10, 0] }}
               transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
               className="absolute top-10 right-10 text-slate-800 text-3xl font-bold opacity-30 -rotate-12"
             >
               x² + y²
             </motion.div>
-            <motion.div 
+            <motion.div
               animate={{ y: [0, 15, 0] }}
               transition={{ repeat: Infinity, duration: 5, ease: "easeInOut", delay: 1 }}
               className="absolute top-32 left-4 text-slate-800 text-4xl font-bold opacity-30 rotate-12"
             >
               f(x)
             </motion.div>
-            <motion.div 
+            <motion.div
               animate={{ y: [0, -15, 0] }}
               transition={{ repeat: Infinity, duration: 6, ease: "easeInOut", delay: 2 }}
               className="absolute bottom-32 right-0 text-slate-800 text-5xl font-bold opacity-30 rotate-45"
@@ -197,16 +197,16 @@ function HeroSection() {
             </motion.div>
 
             {/* The Cutout Image with Bottom Fade */}
-            <div 
+            <div
               className="relative w-full h-full z-10 flex items-end justify-center"
               style={{
                 WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 60%, rgba(0,0,0,0) 100%)',
                 maskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 60%, rgba(0,0,0,0) 100%)'
               }}
             >
-              <img 
-                src="https://images.unsplash.com/photo-1531427186611-ecfd6d936c79?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" 
-                alt="صورة الأستاذ" 
+              <img
+                src="/teacherPhoto.webp"
+                alt="صورة الأستاذ"
                 className="w-full h-full object-cover object-top drop-shadow-2xl rounded-t-[3rem]"
               />
             </div>
@@ -214,23 +214,22 @@ function HeroSection() {
         </motion.div>
 
         {/* Left side: Text & CTA */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, x: -50 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.8, delay: 0.4 }}
           className="w-full lg:w-1/2 flex flex-col items-center lg:items-start text-center lg:text-right"
         >
           <h1 className="flex flex-col gap-4 text-4xl sm:text-5xl lg:text-6xl font-black text-slate-900 mb-8 leading-normal">
-            <span>استمتع بفهم الرياضيات مع</span>
             <span className="text-blue-600">
-              أ/ أحمد محمد
+              ألاستاذ/ أحمد غريب
             </span>
           </h1>
-          
+
           <p className="text-lg sm:text-xl text-slate-600 mb-12 leading-loose max-w-lg font-medium">
-            منهجية مبسطة وتدريبات مكثفة تضمن لك التفوق وفهم الرياضيات بكل سهولة. انضم الآن وشاهد الفيديوهات المجانية لتجربة الشرح.
+            منهجية مبسطة وتدريبات مكثفة تضمن لك التفوق وفهم الرياضيات بكل سهولة. انضم الآن.
           </p>
-          
+
           <div className="flex flex-wrap items-center justify-center lg:justify-start gap-5 w-full">
             <button className="bg-blue-600 hover:bg-blue-700 text-white px-10 py-4 rounded-full font-bold text-lg shadow-lg shadow-blue-500/30 transition-transform hover:-translate-y-1">
               ابدأ التعلم الآن
@@ -243,7 +242,7 @@ function HeroSection() {
               شاهد الفيديوهات المجانية
             </button>
           </div>
-          
+
           <div className="mt-14 flex flex-wrap justify-center lg:justify-start items-center gap-8 text-slate-500">
             <div className="flex items-center gap-3">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-500" viewBox="0 0 20 20" fill="currentColor">
@@ -288,7 +287,7 @@ export default function RootPage() {
           <IntroSequence key="intro" onComplete={() => setShowIntro(false)} />
         )}
       </AnimatePresence>
-      
+
       {!showIntro && (
         <motion.div
           initial={{ opacity: 0 }}
