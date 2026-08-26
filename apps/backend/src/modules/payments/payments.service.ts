@@ -131,7 +131,15 @@ export class PaymentsService {
     };
 
     if (query.gradeLevel && query.gradeLevel !== 'ALL') studentWhere.gradeLevel = query.gradeLevel;
-    if (query.stage && query.stage !== 'ALL') studentWhere.academicStage = query.stage;
+    if (query.stage && query.stage !== 'ALL') {
+      const stageLabels: Record<string, string> = {
+        PRIMARY: 'المرحلة الابتدائية',
+        PREPARATORY: 'المرحلة الإعدادية',
+        SECONDARY: 'المرحلة الثانوية',
+      };
+      const stageValues = [query.stage, stageLabels[query.stage]].filter(Boolean);
+      studentWhere.academicStage = { in: stageValues };
+    }
     if (query.search?.trim()) {
       const search = query.search.trim();
       studentWhere.OR = [

@@ -48,7 +48,7 @@ describe('PaymentsService matrix ledger', () => {
 
     const result = await service.getMatrixLedger(
       { id: 'teacher-user', teacherProfileId: 'teacher-1', role: UserRole.TEACHER },
-      { academicPeriodId: '2026-2027:FIRST_TERM', gradeLevel: 'الصف الأول الثانوي' },
+      { academicPeriodId: '2026-2027:FIRST_TERM', stage: 'SECONDARY', gradeLevel: 'الصف الأول الثانوي' },
     );
 
     expect(result.months).toEqual([8, 9, 10, 11, 12, 1]);
