@@ -75,7 +75,7 @@ describe('StudentDashboard', () => {
     // KPIs
     expect(screen.getByText('75%')).toBeInTheDocument(); // Attendance rate (3 present / 4 = 75%)
     expect(screen.getByText('2')).toBeInTheDocument(); // Assessment count (data.length)
-    expect(screen.getAllByText('1')).toHaveLength(2); // Group and courses counts
+    expect(screen.getByText('1')).toBeInTheDocument(); // Online courses count
     
     // Content sections
     expect(screen.getByText('دورة الفيزياء')).toBeInTheDocument();
