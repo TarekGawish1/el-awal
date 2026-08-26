@@ -457,6 +457,9 @@ class OfflineSyncEngine {
 
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : this.isOnlineState;
     if (isOnline && !this.isSyncingState) {
+      if (this.isAutoSyncEnabled()) {
+        this.syncConfirmationRequired = false;
+      }
       this.triggerSync();
     }
 
@@ -1205,7 +1208,8 @@ class OfflineSyncEngine {
 
     onProgress?.(35, 'رفع العمليات والبيانات المحلية إلى السحابة...');
     this.notify('SYNC_PROGRESS', { progress: 35, step: 'PUSHING_OUTBOX' });
-    const pushResult = await this.flushOutbox();
+    this.syncConfirmationRequired = false;
+    const pushResult = await this.flushOutbox({ force: true });
 
     onProgress?.(70, 'تحديث المعرفات ومطابقة السجلات...');
     this.notify('SYNC_PROGRESS', { progress: 70, step: 'RECONCILING' });
