@@ -27,6 +27,8 @@ import {
   GroupEnrollmentStatus,
   UserRole,
   HomeworkSubmissionStatus,
+  HomeworkDeliveryType,
+  AssessmentType,
 } from '@prisma/client';
 
 export interface DomainSyncResult {
@@ -63,6 +65,7 @@ export interface BootstrapSnapshotResponse {
     attendance?: any[];
     attendanceHistory?: any[];
     children?: any[];
+    homework?: any[];
   };
 }
 
@@ -608,6 +611,26 @@ export class SyncService {
       booklets = [];
     }
 
+    // 11. Homework Records
+    let homeworkRecords: any[] = [];
+    try {
+      if (typeof this.prisma.homeworkRecord?.findMany === 'function') {
+        homeworkRecords = await this.prisma.homeworkRecord.findMany({
+          where: {
+            session: {
+              groupId: { in: groupIds },
+            },
+            ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
+          },
+          orderBy: { updatedAt: 'desc' },
+          take: 1000,
+        });
+      }
+    } catch (err) {
+      this.logger.warn('Failed to fetch homework records in bootstrap snapshot:', err);
+      homeworkRecords = [];
+    }
+
     return {
       snapshotVersion,
       timestamp,
@@ -624,6 +647,7 @@ export class SyncService {
         assessments: assessments || [],
         courses: courses || [],
         booklets: booklets || [],
+        homework: homeworkRecords || [],
       },
     };
   }
@@ -1930,14 +1954,67 @@ export class SyncService {
             throw new NotFoundException(`Session [${op.sessionId}] not found`);
           }
 
-          // 2. Verify assessment existence
-          const assessment = await tx.assessment.findUnique({
-            where: { id: op.assessmentId },
-          });
+          let assessment: any = null;
+          if (op.assessmentId && typeof tx.assessment?.findUnique === 'function') {
+            try {
+              assessment = await tx.assessment.findUnique({
+                where: { id: op.assessmentId.trim() },
+              });
+            } catch {}
+          }
+
+          // If not found or dummy id, try to find an existing homework assessment for this group
+          if (!assessment && session.groupId && typeof tx.assessment?.findFirst === 'function') {
+            try {
+              assessment = await tx.assessment.findFirst({
+                where: {
+                  groupId: session.groupId,
+                  type: AssessmentType.ASSIGNMENT,
+                },
+                orderBy: { createdAt: 'desc' },
+              });
+            } catch {}
+          }
+
+          // If still no assessment exists, auto-provision a session homework assessment
+          if (!assessment && session.groupId && typeof tx.assessment?.create === 'function') {
+            const group =
+              typeof tx.academicGroup?.findUnique === 'function'
+                ? await tx.academicGroup.findUnique({
+                    where: { id: session.groupId },
+                    select: { teacherId: true, gradeLevel: true, name: true },
+                  })
+                : null;
+            if (group) {
+              const formattedDate =
+                session.sessionDate instanceof Date
+                  ? session.sessionDate.toISOString().slice(0, 10)
+                  : String(session.sessionDate).slice(0, 10);
+              assessment = await tx.assessment.create({
+                data: {
+                  title: session.topic ? `واجب: ${session.topic}` : `واجب حصة ${formattedDate}`,
+                  type: AssessmentType.ASSIGNMENT,
+                  teacherId: group.teacherId,
+                  groupId: session.groupId,
+                  gradeLevel: group.gradeLevel,
+                  homeworkDeliveryType: HomeworkDeliveryType.ONSITE,
+                  totalScore: 10.0,
+                  isPublished: true,
+                },
+              });
+            }
+          }
 
           if (!assessment) {
-            throw new NotFoundException(`Assessment [${op.assessmentId}] not found`);
+            result.conflicts.push({
+              operationId: op.id,
+              reason: `Unable to associate homework with an assessment for session [${op.sessionId}]`,
+            });
+            result.failedCount++;
+            return;
           }
+
+          const targetAssessmentId = assessment.id;
 
           // 3. Resolve target student
           let resolvedStudentId = op.studentId;
@@ -1967,20 +2044,31 @@ export class SyncService {
           const clientDate = op.clientTimestamp ? new Date(op.clientTimestamp) : new Date();
 
           // 4. Upsert Homework Record
-          const existingHomework = await tx.homeworkRecord.findUnique({
-            where: {
-              assessmentId_studentId_sessionId: {
-                assessmentId: op.assessmentId,
-                studentId: resolvedStudentId,
+          let existingHomework: any = null;
+          if (typeof tx.homeworkRecord?.findFirst === 'function') {
+            existingHomework = await tx.homeworkRecord.findFirst({
+              where: {
                 sessionId: op.sessionId,
+                studentId: resolvedStudentId,
               },
-            },
-          });
+            });
+          } else if (typeof tx.homeworkRecord?.findUnique === 'function') {
+            existingHomework = await tx.homeworkRecord.findUnique({
+              where: {
+                assessmentId_studentId_sessionId: {
+                  assessmentId: targetAssessmentId,
+                  studentId: resolvedStudentId,
+                  sessionId: op.sessionId,
+                },
+              },
+            });
+          }
 
           if (existingHomework) {
             await tx.homeworkRecord.update({
               where: { id: existingHomework.id },
               data: {
+                assessmentId: targetAssessmentId,
                 status: op.status || HomeworkSubmissionStatus.CHECKED_ONSITE,
                 recordedMethod: op.recordedMethod || RecordingMethod.QR_SCAN,
                 score: op.score !== undefined ? op.score : existingHomework.score,
@@ -1992,7 +2080,7 @@ export class SyncService {
           } else {
             await tx.homeworkRecord.create({
               data: {
-                assessmentId: op.assessmentId,
+                assessmentId: targetAssessmentId,
                 studentId: resolvedStudentId,
                 sessionId: op.sessionId,
                 status: op.status || HomeworkSubmissionStatus.CHECKED_ONSITE,

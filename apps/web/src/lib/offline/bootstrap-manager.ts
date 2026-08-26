@@ -134,6 +134,7 @@ class BootstrapManager {
         courses: Array.isArray(rootData.courses) ? rootData.courses : Array.isArray(response?.courses) ? response.courses : [],
         booklets: Array.isArray(rootData.booklets) ? rootData.booklets : Array.isArray(response?.booklets) ? response.booklets : [],
         attendance: Array.isArray(rootData.attendance) ? rootData.attendance : Array.isArray(response?.attendance) ? response.attendance : [],
+        homework: Array.isArray(rootData.homework) ? rootData.homework : Array.isArray(response?.homework) ? response.homework : [],
         academicPeriod: rootData.academicPeriod || response?.academicPeriod || {
           academicYear: '2026-2027',
           academicTerm: 'FIRST_TERM',
@@ -231,7 +232,25 @@ class BootstrapManager {
         }
       }
 
-      // 9. Ingest Academic Period
+      // 9. Ingest Homework Records
+      if (payload.homework.length > 0) {
+        for (const hw of payload.homework) {
+          await offlineDb.homework_records.put({
+            id: hw.id,
+            assessmentId: hw.assessmentId,
+            studentId: hw.studentId,
+            sessionId: hw.sessionId,
+            status: hw.status,
+            score: hw.score !== null && hw.score !== undefined ? Number(hw.score) : undefined,
+            feedback: hw.feedback,
+            recordedMethod: hw.recordedMethod,
+            clientTimestamp: hw.clientTimestamp ? new Date(hw.clientTimestamp).getTime() : Date.now(),
+            syncStatus: 'SYNCED',
+          });
+        }
+      }
+
+      // 10. Ingest Academic Period
       if (payload.academicPeriod) {
         await offlineDb.setMetadata('academicPeriod', payload.academicPeriod);
         if (qc) {

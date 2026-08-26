@@ -82,6 +82,24 @@ export function ManualHomeworkChecklist({
         }
       }
 
+      // 1.5 Hydrate offline database if server returned homework records
+      if (sessionReport?.homeworkRecords && Array.isArray(sessionReport.homeworkRecords)) {
+        for (const hr of sessionReport.homeworkRecords) {
+          await offlineDb.homework_records.put({
+            id: hr.id,
+            assessmentId: hr.assessmentId,
+            studentId: hr.studentId,
+            sessionId: hr.sessionId,
+            status: hr.status,
+            score: hr.score !== null && hr.score !== undefined ? Number(hr.score) : undefined,
+            feedback: hr.feedback,
+            recordedMethod: hr.recordedMethod,
+            clientTimestamp: hr.clientTimestamp ? new Date(hr.clientTimestamp).getTime() : Date.now(),
+            syncStatus: 'SYNCED',
+          });
+        }
+      }
+
       // 2. Get existing homework records
       const hwRecords = await offlineDb.getHomeworkRecordsForSession(sessionId, assessmentId);
       const hwMap = new Map<string, HomeworkRecordEntity>(hwRecords.map((h) => [h.studentId, h]));
@@ -96,22 +114,30 @@ export function ManualHomeworkChecklist({
 
       const items: StudentChecklistItem[] = candidateStudents.map((stu) => {
         const hw = hwMap.get(stu.id);
-        const attStatus = attendanceMap.get(stu.id) || (hw?.status === 'CHECKED_ONSITE' ? 'PRESENT' : null);
+        const serverRec = sessionReport?.records?.find(
+          (r: any) => String(r.studentId).trim() === String(stu.id).trim(),
+        );
+        const isChecked =
+          hw?.status === 'CHECKED_ONSITE' || serverRec?.homeworkStatus === 'CHECKED_ONSITE';
+        const attStatus = attendanceMap.get(stu.id) || (isChecked ? 'PRESENT' : null);
+
+        const checkedTimestamp = hw?.clientTimestamp || serverRec?.homeworkCheckedAt;
+        const checkedAt = checkedTimestamp
+          ? new Date(checkedTimestamp).toLocaleTimeString('ar-EG', {
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : null;
 
         return {
           studentId: stu.id,
-          studentCode: stu.studentCode || '',
-          fullName: stu.fullName || 'طالب',
-          isChecked: hw?.status === 'CHECKED_ONSITE',
-          score: hw?.score,
-          feedback: hw?.feedback,
+          studentCode: stu.studentCode || serverRec?.studentCode || '',
+          fullName: stu.fullName || serverRec?.fullName || 'طالب',
+          isChecked,
+          score: hw?.score ?? serverRec?.homeworkScore,
+          feedback: hw?.feedback ?? serverRec?.homeworkFeedback,
           attendanceStatus: attStatus as any,
-          checkedAt: hw?.clientTimestamp
-            ? new Date(hw.clientTimestamp).toLocaleTimeString('ar-EG', {
-                hour: '2-digit',
-                minute: '2-digit',
-              })
-            : null,
+          checkedAt,
         };
       });
 

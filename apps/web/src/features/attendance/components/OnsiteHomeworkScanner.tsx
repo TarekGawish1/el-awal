@@ -19,6 +19,7 @@ import {
   VolumeX,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useSessionReport } from '../hooks/use-attendance';
 
 interface OnsiteHomeworkScannerProps {
   sessionId: string;
@@ -55,22 +56,49 @@ export function OnsiteHomeworkScanner({
     attendanceRecorded?: boolean;
   } | null>(null);
   const [checkedCount, setCheckedCount] = useState<number>(0);
+  const { data: sessionReport } = useSessionReport(sessionId);
 
-  // Load initial checked homework count
+  // Load initial checked homework count & hydrate from report
   useEffect(() => {
     let isMounted = true;
+
+    // Hydrate local store from session report if available
+    if (sessionReport?.homeworkRecords && Array.isArray(sessionReport.homeworkRecords)) {
+      for (const hr of sessionReport.homeworkRecords) {
+        offlineDb.homework_records
+          .put({
+            id: hr.id,
+            assessmentId: hr.assessmentId,
+            studentId: hr.studentId,
+            sessionId: hr.sessionId,
+            status: hr.status,
+            score: hr.score !== null && hr.score !== undefined ? Number(hr.score) : undefined,
+            feedback: hr.feedback,
+            recordedMethod: hr.recordedMethod,
+            clientTimestamp: hr.clientTimestamp ? new Date(hr.clientTimestamp).getTime() : Date.now(),
+            syncStatus: 'SYNCED',
+          })
+          .catch(() => {});
+      }
+    }
+
     offlineDb
       .getHomeworkRecordsForSession(sessionId, assessmentId)
       .then((records) => {
         if (isMounted) {
-          setCheckedCount(records.filter((r) => r.status === 'CHECKED_ONSITE').length);
+          const localCount = records.filter((r) => r.status === 'CHECKED_ONSITE').length;
+          const serverCount =
+            sessionReport?.metrics?.homeworkCheckedCount ??
+            sessionReport?.records?.filter((r: any) => r.homeworkStatus === 'CHECKED_ONSITE').length ??
+            0;
+          setCheckedCount(Math.max(localCount, serverCount));
         }
       })
       .catch(() => {});
     return () => {
       isMounted = false;
     };
-  }, [sessionId, assessmentId]);
+  }, [sessionId, assessmentId, sessionReport]);
 
   // Pure Web Audio API Synthesizer (Crystal Clear Chimes & Buzzers)
   const playBeep = useCallback(
@@ -199,11 +227,15 @@ export function OnsiteHomeworkScanner({
         return;
       }
 
-      // Check if homework is already checked
+      // Check if homework is already checked locally or on server
       const existingHw = await offlineDb.getHomeworkRecordsForSession(sessionId, assessmentId);
-      const isAlreadyChecked = existingHw.some(
+      const isAlreadyCheckedLocal = existingHw.some(
         (h) => h.studentId === student.id && h.status === 'CHECKED_ONSITE',
       );
+      const isAlreadyCheckedServer = sessionReport?.records?.some(
+        (r: any) => r.studentId === student.id && r.homeworkStatus === 'CHECKED_ONSITE',
+      );
+      const isAlreadyChecked = isAlreadyCheckedLocal || !!isAlreadyCheckedServer;
 
       // Record homework onsite + automated attendance roll-call
       const studentName = student.fullName || student.name || 'طالب';

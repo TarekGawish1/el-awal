@@ -308,6 +308,20 @@ export class AttendanceService {
             recordedBy: { select: { id: true, fullName: true } },
           },
         },
+        homeworkRecords: {
+          select: {
+            id: true,
+            assessmentId: true,
+            studentId: true,
+            sessionId: true,
+            status: true,
+            checkedByRole: true,
+            recordedMethod: true,
+            score: true,
+            feedback: true,
+            clientTimestamp: true,
+          },
+        },
       },
     });
 
@@ -328,6 +342,7 @@ export class AttendanceService {
     const absentCount = session.attendanceRecords.filter((r) => r.status === AttendanceStatus.ABSENT).length;
     const excusedCount = session.attendanceRecords.filter((r) => r.status === AttendanceStatus.EXCUSED).length;
     const attendanceRate = totalEnrolled > 0 ? Math.round((presentCount / totalEnrolled) * 100) : 0;
+    const homeworkCheckedCount = session.homeworkRecords?.filter((h) => h.status === 'CHECKED_ONSITE').length || 0;
 
     return {
       sessionId: session.id,
@@ -341,9 +356,12 @@ export class AttendanceService {
         absentCount,
         excusedCount,
         attendanceRatePercentage: attendanceRate,
+        homeworkCheckedCount,
       },
+      homeworkRecords: session.homeworkRecords || [],
       records: session.group.enrollments.map((e) => {
         const r = session.attendanceRecords.find((ar) => ar.studentId === e.studentId);
+        const hw = session.homeworkRecords?.find((hr) => hr.studentId === e.studentId);
         return {
           id: r?.id || `unrecorded-${e.studentId}`,
           studentId: e.studentId,
@@ -355,6 +373,10 @@ export class AttendanceService {
           recordedAt: r?.recordedAt || null,
           recordedBy: r?.recordedBy?.fullName || null,
           notes: r?.notes || null,
+          homeworkStatus: hw?.status || 'NOT_SUBMITTED',
+          homeworkScore: hw?.score ? Number(hw.score) : null,
+          homeworkFeedback: hw?.feedback || null,
+          homeworkCheckedAt: hw?.clientTimestamp || null,
         };
       }),
     };
