@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { LessonSessionItem } from '../types/schedules.types';
-import { findSessionConflict, formatArabicTimeRange12H, toLocalDateStr } from '../utils/time.utils';
+import { findSameDayGroupSession, findSessionConflict, formatArabicTimeRange12H, toLocalDateStr } from '../utils/time.utils';
 import { ArabicTimeSelect } from './ArabicTimeSelect';
 import toast from 'react-hot-toast';
 
@@ -88,6 +88,11 @@ export function CreateSessionModal({
     return findSessionConflict(sessions, watchDate, watchStartTime, watchEndTime);
   }, [isOpen, sessions, watchDate, watchStartTime, watchEndTime]);
 
+  const sameDayGroupSession = useMemo(() => {
+    if (!isOpen || !watchDate || !selectedGroupId) return null;
+    return findSameDayGroupSession(sessions, watchDate, selectedGroupId);
+  }, [isOpen, sessions, watchDate, selectedGroupId]);
+
   useEffect(() => {
     if (isOpen) {
       const todayStr = toLocalDateStr(new Date());
@@ -123,6 +128,11 @@ export function CreateSessionModal({
   };
 
   const onSubmit = (data: SessionFormData) => {
+    if (sameDayGroupSession) {
+      toast.error(`لا يمكن إضافة أكثر من حصة لنفس المجموعة في نفس اليوم: توجد بالفعل حصة (${sameDayGroupSession.topic || ''})`);
+      return;
+    }
+
     if (conflictingSession) {
       toast.error('لا يمكن حفظ الحصة لوجود تعارض في الموعد مع حصة أخرى مسجلة');
       return;

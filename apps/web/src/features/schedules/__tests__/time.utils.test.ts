@@ -6,6 +6,7 @@ import {
   parseTimeToMinutes,
   doTimeIntervalsOverlap,
   findSessionConflict,
+  findSameDayGroupSession,
   calculateOverlappingColumns,
   getGradeLevelTheme,
   toLocalDateStr,
@@ -122,6 +123,71 @@ describe('time.utils', () => {
       // s1 updating its own time within 15:00 - 16:30 should not conflict with itself
       const conflict = findSessionConflict(sampleSessions, '2026-10-31', '15:00', '16:30', 's1');
       expect(conflict).toBeNull();
+    });
+  });
+
+  describe('findSameDayGroupSession', () => {
+    const sampleSessions = [
+      {
+        id: 'g1',
+        groupId: 'group-1',
+        sessionDate: '2026-10-31',
+        startTime: '15:00',
+        endTime: '17:00',
+        topic: 'حصة أولى ثانوي',
+        isCancelled: false,
+      },
+      {
+        id: 'g2',
+        groupId: 'group-2',
+        sessionDate: '2026-10-31',
+        startTime: '18:00',
+        endTime: '20:00',
+        topic: 'حصة تانية ثانوي',
+        isCancelled: false,
+      },
+      {
+        id: 'g3',
+        groupId: 'group-1',
+        sessionDate: '2026-10-31',
+        startTime: '10:00',
+        topic: 'حصة ملغاة',
+        isCancelled: true,
+      },
+      {
+        id: 'g4',
+        groupId: 'group-1',
+        sessionDate: '2026-11-01',
+        startTime: '15:00',
+        topic: 'حصة اليوم التالي',
+        isCancelled: false,
+      },
+    ];
+
+    it('finds an existing session for the same group on the same day regardless of time', () => {
+      const found = findSameDayGroupSession(sampleSessions, '2026-10-31', 'group-1');
+      expect(found?.id).toBe('g1');
+    });
+
+    it('ignores sessions of other groups and other days', () => {
+      const found = findSameDayGroupSession(sampleSessions, '2026-10-31', 'group-2');
+      expect(found?.id).toBe('g2');
+      const nextDay = findSameDayGroupSession(sampleSessions, '2026-11-01', 'group-1');
+      expect(nextDay?.id).toBe('g4');
+    });
+
+    it('ignores cancelled sessions', () => {
+      const found = findSameDayGroupSession(
+        [sampleSessions[2]],
+        '2026-10-31',
+        'group-1',
+      );
+      expect(found).toBeNull();
+    });
+
+    it('excludes the current session id during updates', () => {
+      const found = findSameDayGroupSession(sampleSessions, '2026-10-31', 'group-1', 'g1');
+      expect(found).toBeNull();
     });
   });
 
