@@ -60,7 +60,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="الأول" />
       </head>
-      <body className="bg-neutral-50 text-neutral-900 min-h-screen flex flex-col antialiased">
+      <body className="bg-neutral-50 text-neutral-900 min-h-screen flex flex-col antialiased no-scrollbar">
         <Providers>
           {children}
           <PwaRegister />

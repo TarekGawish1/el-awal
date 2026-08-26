@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { Download, X, Share, PlusSquare, Smartphone, CheckCircle2 } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -14,6 +15,9 @@ export function PwaInstallPrompt() {
   const [isStandalone, setIsStandalone] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [showIOSGuide, setShowIOSGuide] = useState(false);
+  
+  const pathname = usePathname();
+  const isDashboardPath = pathname?.startsWith('/student') || pathname?.startsWith('/teacher') || pathname?.startsWith('/parent');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -97,7 +101,7 @@ export function PwaInstallPrompt() {
     localStorage.setItem('el_awal_pwa_dismissed', Date.now().toString());
   };
 
-  if (isStandalone || !isVisible) {
+  if (isStandalone || !isVisible || !isDashboardPath) {
     return null;
   }
 

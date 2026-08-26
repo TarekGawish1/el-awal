@@ -68,14 +68,14 @@ export function MobileMenu({ navItems }: MobileMenuProps) {
             
             <div className="border-t border-neutral-100 mt-4 pt-4 flex flex-col space-y-3 px-3">
               <Link
-                href="/login"
+                href={`${process.env.NEXT_PUBLIC_DASHBOARD_URL || 'http://localhost:3000'}/login`}
                 onClick={closeMenu}
                 className="block text-center px-4 py-2 text-base font-medium text-neutral-700 hover:text-primary-600 border border-neutral-300 rounded-md hover:bg-neutral-50 transition-colors"
               >
                 تسجيل الدخول
               </Link>
               <Link
-                href="/register"
+                href={`${process.env.NEXT_PUBLIC_DASHBOARD_URL || 'http://localhost:3000'}/register/student`}
                 onClick={closeMenu}
                 className="block text-center px-4 py-2 text-base font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 transition-colors"
               >

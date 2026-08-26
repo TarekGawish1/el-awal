@@ -61,13 +61,13 @@ export function Navbar() {
           {/* Desktop Authentication Actions */}
           <div className="hidden md:flex md:items-center md:gap-x-4">
             <Link
-              href="/login"
+              href={`${process.env.NEXT_PUBLIC_DASHBOARD_URL || 'http://localhost:3000'}/login`}
               className="text-sm font-medium text-neutral-700 hover:text-primary-600 px-3 py-2 rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
             >
               تسجيل الدخول
             </Link>
             <Link
-              href="/register"
+              href={`${process.env.NEXT_PUBLIC_DASHBOARD_URL || 'http://localhost:3000'}/register/student`}
               className="text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 px-4 py-2 rounded-md transition-colors shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
             >
               إنشاء حساب
