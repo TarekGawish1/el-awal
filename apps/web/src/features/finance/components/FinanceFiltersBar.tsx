@@ -2,15 +2,9 @@
 
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
+import { GRADE_LEVELS_BY_STAGE, inferStageFromGrade } from '@/lib/constants/grades';
 
-export const GRADE_LEVELS_BY_STAGE: Record<string, string[]> = {
-  PRIMARY: [
-    'الصف الأول الابتدائي', 'الصف الثاني الابتدائي', 'الصف الثالث الابتدائي',
-    'الصف الرابع الابتدائي', 'الصف الخامس الابتدائي', 'الصف السادس الابتدائي',
-  ],
-  PREPARATORY: ['الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي'],
-  SECONDARY: ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي'],
-};
+export { GRADE_LEVELS_BY_STAGE };
 
 export const TERM_MONTHS: Record<'FIRST_TERM' | 'SECOND_TERM', number[]> = {
   FIRST_TERM: [8, 9, 10, 11, 12, 1],
@@ -35,8 +29,7 @@ interface FinanceFiltersBarProps {
 }
 
 function inferStage(gradeLevel?: string) {
-  if (!gradeLevel) return '';
-  return Object.entries(GRADE_LEVELS_BY_STAGE).find(([, grades]) => grades.includes(gradeLevel))?.[0] || '';
+  return inferStageFromGrade(gradeLevel);
 }
 
 export function FinanceFiltersBar({

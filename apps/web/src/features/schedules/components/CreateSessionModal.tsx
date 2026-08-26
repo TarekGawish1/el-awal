@@ -8,6 +8,7 @@ import { X, Calendar, Clock, BookOpen, Layers, Loader2, Plus, Sparkles, AlertTri
 import { useCreateSession, useSessionTopics } from '../hooks/useSchedules';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
+import { GRADE_LEVELS_BY_STAGE, inferStageFromGrade } from '@/lib/constants/grades';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
@@ -46,6 +47,8 @@ export function CreateSessionModal({
   const { data: groups = [], isLoading: isLoadingGroups } = useGroups();
   const { activeYear, activeTerm } = useStoredAcademicPeriod(groups as any);
   const { mutate: createSessionMutate, isPending } = useCreateSession();
+  const [stage, setStage] = useState('');
+  const [gradeLevel, setGradeLevel] = useState('');
 
   const defaultStart = initialTime || '16:00';
   const calculateDefaultEndTime = (sTime: string) => {
@@ -109,8 +112,13 @@ export function CreateSessionModal({
         startT = availableHour || '16:00';
       }
 
+      const preselectedGroupId = initialGroupId || '';
+      const preselectedGroup = groups.find((g) => g.id === preselectedGroupId);
+      setStage(preselectedGroup ? inferStageFromGrade(preselectedGroup.gradeLevel) : '');
+      setGradeLevel(preselectedGroup?.gradeLevel || '');
+
       reset({
-        groupId: initialGroupId || (groups[0]?.id ?? ''),
+        groupId: preselectedGroupId || '',
         sessionDate: targetDate,
         startTime: startT,
         endTime: calculateDefaultEndTime(startT),
