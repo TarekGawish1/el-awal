@@ -54,7 +54,7 @@ describe('StudentLatestHomework card', () => {
     expect(screen.getByText('تحميل ملف أسئلة الواجب')).toBeInTheDocument();
     expect(screen.getByText(/بانتظار تسليم الحل/)).toBeInTheDocument();
     const solveLink = screen.getByRole('link', { name: /حل واجب الحصة الآن/i });
-    expect(solveLink).toHaveAttribute('href', '/student/assessments?id=assessment-1');
+    expect(solveLink).toHaveAttribute('href', '/student/homework?id=assessment-1');
   });
 
   it('shows the submitted badge when a submission exists', () => {

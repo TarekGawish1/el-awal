@@ -39,12 +39,16 @@ export default function StudentAssessmentsPage() {
         </div>
       }
     >
-      <StudentAssessmentsContent />
+      <StudentAssessmentsContent fixedType="EXAM" />
     </Suspense>
   );
 }
 
-function StudentAssessmentsContent() {
+export function StudentAssessmentsContent({
+  fixedType = 'EXAM',
+}: {
+  fixedType?: 'EXAM' | 'ASSIGNMENT' | 'ALL';
+}) {
   const isOnline = useOnlineStatus();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -55,7 +59,7 @@ function StudentAssessmentsContent() {
   const lessonId = searchParams.get('lessonId');
   const retakeParam = searchParams.get('retake') === '1';
 
-  const [filterType, setFilterType] = useState<'ALL' | 'EXAM' | 'ASSIGNMENT'>('ALL');
+  const [filterType, setFilterType] = useState<'ALL' | 'EXAM' | 'ASSIGNMENT'>(fixedType);
   const [currentPage, setCurrentPage] = useState(1);
   const { data: assessmentsData, isLoading, isError } = useAssessments();
   const [activeAssessmentId, setActiveAssessmentId] = useState<string | null>(paramId || null);
@@ -68,11 +72,14 @@ function StudentAssessmentsContent() {
     }
   }, [paramId]);
 
+  const isHomeworkPage = fixedType === 'ASSIGNMENT';
+  const isExamPage = fixedType === 'EXAM';
+
   if (!isOnline) {
     return (
       <FeatureRequiresOnlineCard
-        featureName="الواجبات والاختبارات"
-        description="حل الواجبات والاختبارات التفاعلية ومتابعة الدرجات تتطلب اتصالاً نشطاً بالخادم."
+        featureName={isHomeworkPage ? 'الواجبات المنزلية' : isExamPage ? 'الاختبارات' : 'الواجبات والاختبارات'}
+        description="حل التقييمات التفاعلية ومتابعة الدرجات تتطلب اتصالاً نشطاً بالخادم."
         backHref="/student/dashboard"
       />
     );
@@ -82,21 +89,19 @@ function StudentAssessmentsContent() {
 
   const assessments = assessmentsData?.data || [];
 
+  const effectiveFilter = fixedType !== 'ALL' ? fixedType : filterType;
+
   const filteredAssessments = assessments.filter((item: any) => {
-    // This page lists only group exams and homework. Course-linked quizzes (lesson/unit/final
-    // tests) are taken inside the course learning room, which deep-links here by assessment id
-    // and bypasses this list — so exclude anything tied to a course.
+    // Exclude course-linked quizzes (taken inside learning room)
     if (item.courseId || item.lessonId) return false;
-    if (filterType === 'ALL') return true;
-    return item.type === filterType;
+    if (effectiveFilter === 'ALL') return true;
+    return item.type === effectiveFilter;
   });
 
   const totalPages = Math.ceil(filteredAssessments.length / PAGE_SIZE);
   const paginatedAssessments = filteredAssessments.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const getStatus = (item: any) => {
-    // In nextjs api, we can fetch the detailed assessment to check user submission.
-    // For list rendering, we can fallback to checking target metadata or dueDate.
     const isPastDue = item.dueDate ? new Date(item.dueDate) < new Date() : false;
     return {
       isPastDue,
@@ -124,7 +129,7 @@ function StudentAssessmentsContent() {
     return (
       <Alert variant="error">
         <AlertTriangle className="w-5 h-5 ml-2" />
-        <p>حدث خطأ أثناء تحميل الاختبارات والواجبات. يرجى المحاولة لاحقاً.</p>
+        <p>حدث خطأ أثناء تحميل البيانات. يرجى المحاولة لاحقاً.</p>
       </Alert>
     );
   }
@@ -135,52 +140,68 @@ function StudentAssessmentsContent() {
         <>
           {/* Header */}
           <div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">الواجبات والاختبارات</h1>
-            <p className="text-sm text-slate-500 mt-1">حل الواجبات المدرسية والاختبارات المخصصة لك ومتابعة الدرجات والنتائج</p>
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
+              {isHomeworkPage ? 'الواجبات المنزلية' : isExamPage ? 'الاختبارات والتقييمات' : 'الواجبات والاختبارات'}
+            </h1>
+            <p className="text-sm text-slate-500 mt-1">
+              {isHomeworkPage
+                ? 'حل ومتابعة واجبات الحصص المدرسية المسندة إليك ومراجعة الحلول'
+                : isExamPage
+                ? 'حل الاختبارات الدورية الشاملة ومتابعة الدرجات والنتائج'
+                : 'حل الواجبات المدرسية والاختبارات المخصصة لك ومتابعة الدرجات والنتائج'}
+            </p>
           </div>
 
-          {/* Filters */}
-          <div className="flex bg-slate-100 p-1 rounded-xl max-w-sm">
-            <button
-              onClick={() => {
-                setFilterType('ALL');
-                setCurrentPage(1);
-              }}
-              className={`flex-1 text-center py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
-                filterType === 'ALL' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              الكل
-            </button>
-            <button
-              onClick={() => {
-                setFilterType('EXAM');
-                setCurrentPage(1);
-              }}
-              className={`flex-1 text-center py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
-                filterType === 'EXAM' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              الاختبارات
-            </button>
-            <button
-              onClick={() => {
-                setFilterType('ASSIGNMENT');
-                setCurrentPage(1);
-              }}
-              className={`flex-1 text-center py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
-                filterType === 'ASSIGNMENT' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              الواجبات
-            </button>
-          </div>
+          {/* Filters (only when not fixed to a specific single type) */}
+          {fixedType === 'ALL' && (
+            <div className="flex bg-slate-100 p-1 rounded-xl max-w-sm">
+              <button
+                onClick={() => {
+                  setFilterType('ALL');
+                  setCurrentPage(1);
+                }}
+                className={`flex-1 text-center py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
+                  filterType === 'ALL' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                الكل
+              </button>
+              <button
+                onClick={() => {
+                  setFilterType('EXAM');
+                  setCurrentPage(1);
+                }}
+                className={`flex-1 text-center py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
+                  filterType === 'EXAM' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                الاختبارات
+              </button>
+              <button
+                onClick={() => {
+                  setFilterType('ASSIGNMENT');
+                  setCurrentPage(1);
+                }}
+                className={`flex-1 text-center py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
+                  filterType === 'ASSIGNMENT' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                الواجبات
+              </button>
+            </div>
+          )}
 
           {/* Grid list */}
           {filteredAssessments.length === 0 ? (
             <div className="text-center py-16 bg-white rounded-2xl shadow-sm border border-slate-200/60">
               <FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <p className="text-slate-500 font-medium">لا توجد واجبات أو اختبارات مضافة حالياً.</p>
+              <p className="text-slate-500 font-medium">
+                {isHomeworkPage
+                  ? 'لا توجد واجبات منزلية مسندة إليك حالياً.'
+                  : isExamPage
+                  ? 'لا توجد اختبارات مضافة حالياً.'
+                  : 'لا توجد واجبات أو اختبارات مضافة حالياً.'}
+              </p>
             </div>
           ) : (
             <div className="space-y-6">

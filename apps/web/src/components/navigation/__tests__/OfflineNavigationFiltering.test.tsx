@@ -78,13 +78,14 @@ describe('Offline Navigation Filtering & Route Guards', () => {
 
     it('filters out online-only student items when offline', () => {
       const onlineItems = getNavigationItemsForRole('STUDENT', true);
-      expect(onlineItems).toHaveLength(6);
+      expect(onlineItems).toHaveLength(7);
 
       const offlineItems = getNavigationItemsForRole('STUDENT', false);
       expect(offlineItems).toHaveLength(4);
       const labels = offlineItems.map((i) => i.label);
       expect(labels).not.toContain('الدورات');
       expect(labels).toContain('المجموعة الدراسية');
+      expect(labels).not.toContain('الواجبات المنزلية');
       expect(labels).not.toContain('الاختبارات');
       expect(labels).toContain('الرئيسية');
       expect(labels).toContain('الحضور');
