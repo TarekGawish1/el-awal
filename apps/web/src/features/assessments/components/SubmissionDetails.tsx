@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
-import { Check, X, Save, AlertCircle, MessageSquare } from 'lucide-react';
+import { Check, X, Save, AlertCircle, MessageSquare, ExternalLink, ImageIcon } from 'lucide-react';
 import { useSubmissionDetail, useGradeSubmission } from '../hooks/use-assessments';
 import { QuestionType, SubmissionStatus } from '../types/assessments.types';
+import { parseEssayAnswer } from '../utils/answer-parser';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
@@ -179,16 +180,66 @@ export function SubmissionDetails({ submissionId }: { submissionId: string }) {
                 <div className="mr-11 mt-4">
                   <span className="text-sm font-bold text-slate-600 block mb-2">إجابة الطالب:</span>
                   {answer?.answerGiven ? (
-                    <div className={`p-4 rounded-lg border ${
+                    <div className={`p-4 rounded-xl border ${
                       isAutoGradedType 
                         ? (answer.isCorrect ? 'bg-green-50/50 border-green-200 text-green-900' : 'bg-red-50/50 border-red-200 text-red-900')
                         : 'bg-white border-slate-200 text-slate-800'
                     }`}>
-                      <div className="whitespace-pre-wrap font-medium">
-                        {question.questionType === QuestionType.TRUE_FALSE && answer.answerGiven === 'true' && 'صحيحة'}
-                        {question.questionType === QuestionType.TRUE_FALSE && answer.answerGiven === 'false' && 'خاطئة'}
-                        {question.questionType !== QuestionType.TRUE_FALSE && answer.answerGiven}
-                      </div>
+                      {question.questionType === QuestionType.TRUE_FALSE && (
+                        <div className="font-bold text-base">
+                          {answer.answerGiven === 'true' ? 'صحيحة' : 'خاطئة'}
+                        </div>
+                      )}
+                      {question.questionType === QuestionType.MULTIPLE_CHOICE && (
+                        <div className="font-medium text-slate-800">
+                          {answer.answerGiven}
+                        </div>
+                      )}
+                      {question.questionType === QuestionType.ESSAY && (
+                        (() => {
+                          const { text, imageUrl } = parseEssayAnswer(answer.answerGiven);
+                          return (
+                            <div className="space-y-4">
+                              {text ? (
+                                <div className="whitespace-pre-wrap font-medium text-slate-800 leading-relaxed">
+                                  {text}
+                                </div>
+                              ) : null}
+                              {imageUrl ? (
+                                <div className="pt-2">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                                      <ImageIcon className="w-4 h-4 text-primary-600" />
+                                      صورة الحل المرفقة من الطالب:
+                                    </span>
+                                    <a
+                                      href={imageUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-xs font-bold text-primary-600 hover:text-primary-800 flex items-center gap-1 bg-primary-50 px-2.5 py-1 rounded-lg transition-colors"
+                                    >
+                                      <ExternalLink className="w-3.5 h-3.5" />
+                                      فتح في نافذة جديدة
+                                    </a>
+                                  </div>
+                                  <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50 max-w-lg p-1.5 shadow-2xs">
+                                    <a href={imageUrl} target="_blank" rel="noreferrer" className="block cursor-zoom-in">
+                                      <img
+                                        src={imageUrl}
+                                        alt="إجابة الطالب"
+                                        className="max-h-80 w-auto rounded-lg object-contain mx-auto"
+                                      />
+                                    </a>
+                                  </div>
+                                </div>
+                              ) : null}
+                              {!text && !imageUrl && (
+                                <span className="text-slate-400 italic">لم يتم إدخال إجابة</span>
+                              )}
+                            </div>
+                          );
+                        })()
+                      )}
                     </div>
                   ) : (
                     <div className="p-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 text-slate-400 italic">

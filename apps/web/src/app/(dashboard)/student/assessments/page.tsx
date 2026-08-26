@@ -15,8 +15,9 @@ import { Pagination } from '@/components/ui/Pagination';
 import {
   FileText, Calendar, Clock, CheckCircle2, XCircle, AlertCircle,
   ChevronLeft, Award, Play, HelpCircle, Send, Check, AlertTriangle, ArrowLeft, RefreshCcw,
-  UploadCloud,
+  UploadCloud, Camera, ImageIcon, Trash2, Maximize2, ExternalLink, X,
 } from 'lucide-react';
+import { parseEssayAnswer, formatEssayAnswer } from '@/features/assessments/utils/answer-parser';
 
 const ALLOWED_ANSWER_TYPES = ['application/pdf', 'image/png', 'image/jpeg'];
 const ANSWER_MAX_SIZE = 25 * 1024 * 1024; // 25 MB
@@ -314,7 +315,12 @@ function AssessmentWrapper({
   // Timer state
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
-  // Optional answer file upload (required for a homework with essay questions)
+  // Per-question essay image uploads
+  const [essayImages, setEssayImages] = useState<Record<string, { file: File; previewUrl: string }>>({});
+  const [previewModalImg, setPreviewModalImg] = useState<string | null>(null);
+  const essayFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  // Optional answer file upload (attachment for submission)
   const [answerFile, setAnswerFile] = useState<File | null>(null);
   const [answerFileError, setAnswerFileError] = useState('');
   const [answerUploadProgress, setAnswerUploadProgress] = useState(0);
@@ -362,10 +368,37 @@ function AssessmentWrapper({
     setAnswers(prev => ({ ...prev, [questionId]: text }));
   };
 
+  const handleEssayImageSelect = (questionId: string, candidate?: File | null) => {
+    if (!candidate) return;
+    const ok = /\.(png|jpe?g|webp|gif)$/i.test(candidate.name) || candidate.type.startsWith('image/');
+    if (!ok) {
+      toast.error('يُقبل فقط صور بصيغة PNG أو JPG أو WEBP');
+      return;
+    }
+    if (candidate.size > 15 * 1024 * 1024) {
+      toast.error('حجم الصورة يتجاوز الحد الأقصى (15 ميجابايت)');
+      return;
+    }
+    const previewUrl = URL.createObjectURL(candidate);
+    setEssayImages(prev => ({
+      ...prev,
+      [questionId]: { file: candidate, previewUrl }
+    }));
+  };
+
+  const handleRemoveEssayImage = (questionId: string) => {
+    setEssayImages(prev => {
+      const updated = { ...prev };
+      delete updated[questionId];
+      return updated;
+    });
+  };
+
   // Begin a new attempt: drop the prior result locally, clear answers, re-arm the timer.
   const startRetake = () => {
     setLocalSubmission(null);
     setAnswers({});
+    setEssayImages({});
     setShowResultModal(false);
     setRetakeMode(true);
   };
@@ -387,8 +420,7 @@ function AssessmentWrapper({
 
   /**
    * Uploads the answer file (if any) to storage and returns its public URL so it
-   * can be attached to the submission. Homework with essay (مقالي) questions needs
-   * an uploaded hand-written scan / PDF alongside the typed essays.
+   * can be attached to the submission.
    */
   const uploadAnswerAttachment = async (): Promise<string | undefined> => {
     if (!answerFile) return undefined;
@@ -408,7 +440,33 @@ function AssessmentWrapper({
   };
 
   const buildSubmitPayload = async () => {
-    const formattedAnswers = Object.entries(answers).map(([qId, val]) => ({
+    const finalAnswers: Record<string, string> = { ...answers };
+
+    // Upload per-question essay images if present
+    for (const [questionId, imgData] of Object.entries(essayImages)) {
+      if (imgData?.file) {
+        try {
+          const presigned = await generatePresignedUrl({
+            fileName: imgData.file.name,
+            contentType: imgData.file.type || 'image/jpeg',
+            fileSizeBytes: imgData.file.size,
+            folder: 'essay-answers',
+          });
+          await uploadFileToR2(
+            presigned.uploadUrl,
+            imgData.file,
+            imgData.file.type || 'image/jpeg',
+          );
+          const uploadedUrl = presigned.publicUrl || presigned.uploadUrl;
+          finalAnswers[questionId] = formatEssayAnswer(finalAnswers[questionId], uploadedUrl);
+        } catch (err) {
+          console.error('Error uploading essay image for question', questionId, err);
+          throw new Error('فشل رفع صورة إجابة أحد الأسئلة المقالية. يرجى المحاولة مرة أخرى.');
+        }
+      }
+    }
+
+    const formattedAnswers = Object.entries(finalAnswers).map(([qId, val]) => ({
       questionId: qId,
       answerGiven: val,
     }));
@@ -739,14 +797,100 @@ function AssessmentWrapper({
 
                   {/* Essay rendering */}
                   {question.questionType === 'ESSAY' && (
-                    <div className="mr-11 mt-4">
-                      <textarea
-                        rows={4}
-                        placeholder="اكتب إجابتك المقالية بالتفصيل هنا..."
-                        value={answers[question.id] || ''}
-                        onChange={(e) => handleTextChange(question.id, e.target.value)}
-                        className="w-full p-4 border border-slate-200 rounded-xl focus:border-primary-500 focus:ring-1 focus:ring-primary-400 text-sm placeholder:text-slate-400"
-                      />
+                    <div className="mr-11 mt-4 space-y-3">
+                      <div>
+                        <span className="text-xs font-bold text-slate-600 block mb-1.5">
+                          اكتب إجابتك النصية (أو ارفع صورة للحل من الكشكول / الورقة):
+                        </span>
+                        <textarea
+                          rows={4}
+                          placeholder="اكتب إجابتك المقالية بالتفصيل هنا..."
+                          value={answers[question.id] || ''}
+                          onChange={(e) => handleTextChange(question.id, e.target.value)}
+                          className="w-full p-4 border border-slate-200 rounded-xl focus:border-primary-500 focus:ring-1 focus:ring-primary-400 text-sm placeholder:text-slate-400 bg-white"
+                        />
+                      </div>
+
+                      {/* Attached Essay Image */}
+                      <div>
+                        {essayImages[question.id] ? (
+                          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div
+                                onClick={() => setPreviewModalImg(essayImages[question.id].previewUrl)}
+                                className="w-14 h-14 rounded-lg bg-white border border-slate-200 overflow-hidden shrink-0 cursor-pointer relative group"
+                                title="اضغط لتكبير الصورة"
+                              >
+                                <img
+                                  src={essayImages[question.id].previewUrl}
+                                  alt="صورة الإجابة"
+                                  className="w-full h-full object-cover"
+                                />
+                                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
+                                  <Maximize2 className="w-4 h-4" />
+                                </div>
+                              </div>
+                              <div className="min-w-0">
+                                <span className="text-xs font-bold text-slate-800 flex items-center gap-1">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                  تم إرفاق صورة الحل
+                                </span>
+                                <p className="text-[11px] text-slate-500 truncate max-w-xs mt-0.5">
+                                  {essayImages[question.id].file.name} ({(essayImages[question.id].file.size / 1024 / 1024).toFixed(2)} MB)
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewModalImg(essayImages[question.id].previewUrl)}
+                                className="text-xs font-bold text-slate-600 hover:text-primary-700 bg-white border border-slate-200 hover:border-primary-300 px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                              >
+                                <Maximize2 className="w-3.5 h-3.5" />
+                                عرض
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => essayFileInputRefs.current[question.id]?.click()}
+                                className="text-xs font-bold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 hover:border-slate-300 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                              >
+                                تغيير
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveEssayImage(question.id)}
+                                className="text-xs font-bold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                حذف
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => essayFileInputRefs.current[question.id]?.click()}
+                              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-slate-300 bg-slate-50 hover:bg-primary-50/60 hover:border-primary-400 text-xs font-bold text-slate-700 hover:text-primary-700 transition-all cursor-pointer"
+                            >
+                              <Camera className="w-4 h-4 text-primary-600" />
+                              إرفاق صورة لإجابة هذا السؤال (من الكشكول أو الورقة)
+                            </button>
+                          </div>
+                        )}
+
+                        <input
+                          ref={(el) => { essayFileInputRefs.current[question.id] = el; }}
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg,image/webp"
+                          className="hidden"
+                          onChange={(e) => {
+                            handleEssayImageSelect(question.id, e.target.files?.[0]);
+                            e.target.value = '';
+                          }}
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -917,15 +1061,50 @@ function AssessmentWrapper({
 
                       {/* Display given answer vs correct answer */}
                       <div className="mr-11 space-y-3 mt-4 text-sm">
-                        <div className="flex flex-col gap-1 p-3 bg-slate-50 rounded-xl">
+                        <div className="flex flex-col gap-1.5 p-3.5 bg-slate-50 rounded-xl">
                           <span className="text-xs text-slate-500 font-semibold">إجابتك المسلَّمة:</span>
-                          <span className="font-semibold text-slate-800">
-                            {studentAns?.selectedAnswer ? (
-                              question.questionType === 'TRUE_FALSE' 
-                                ? studentAns.selectedAnswer === 'true' ? 'صح' : 'خطأ'
-                                : studentAns.selectedAnswer
-                            ) : '— لم يتم الإجابة على السؤال'}
-                          </span>
+                          {isEssay ? (
+                            (() => {
+                              const { text, imageUrl } = parseEssayAnswer(studentAns?.selectedAnswer);
+                              if (!text && !imageUrl) {
+                                return <span className="text-slate-400 italic text-xs">لم يتم الإجابة على السؤال</span>;
+                              }
+                              return (
+                                <div className="space-y-3">
+                                  {text && (
+                                    <p className="font-semibold text-slate-800 whitespace-pre-wrap leading-relaxed">{text}</p>
+                                  )}
+                                  {imageUrl && (
+                                    <div className="pt-1">
+                                      <span className="text-xs text-slate-500 font-medium block mb-1.5 flex items-center gap-1">
+                                        <ImageIcon className="w-3.5 h-3.5 text-primary-600" />
+                                        صورة الحل المرفقة:
+                                      </span>
+                                      <div
+                                        onClick={() => setPreviewModalImg(imageUrl)}
+                                        className="relative group cursor-pointer inline-block rounded-xl overflow-hidden border border-slate-200 bg-white hover:border-primary-400 transition-all max-w-xs shadow-2xs"
+                                        title="اضغط لتكبير الصورة"
+                                      >
+                                        <img src={imageUrl} alt="إجابة الطالب" className="max-h-44 w-auto object-contain" />
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                                          <Maximize2 className="w-4 h-4" />
+                                          عرض الصورة
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()
+                          ) : (
+                            <span className="font-semibold text-slate-800">
+                              {studentAns?.selectedAnswer ? (
+                                question.questionType === 'TRUE_FALSE' 
+                                  ? studentAns.selectedAnswer === 'true' ? 'صح' : 'خطأ'
+                                  : studentAns.selectedAnswer
+                              ) : '— لم يتم الإجابة على السؤال'}
+                            </span>
+                          )}
                         </div>
 
                         {!isEssay && (
@@ -963,6 +1142,37 @@ function AssessmentWrapper({
               </CardContent>
             </Card>
           )}
+        </div>
+      )}
+
+      {/* Full Image Preview Modal */}
+      {previewModalImg && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setPreviewModalImg(null)}
+        >
+          <div
+            className="relative max-w-4xl max-h-[90vh] bg-white rounded-2xl overflow-hidden shadow-2xl p-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center px-4 py-2 border-b border-slate-100">
+              <span className="text-xs font-bold text-slate-700">معاينة صورة الإجابة</span>
+              <button
+                type="button"
+                onClick={() => setPreviewModalImg(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-2 flex items-center justify-center overflow-auto max-h-[80vh]">
+              <img
+                src={previewModalImg}
+                alt="صورة الإجابة"
+                className="max-w-full max-h-[75vh] object-contain rounded-lg"
+              />
+            </div>
+          </div>
         </div>
       )}
 
