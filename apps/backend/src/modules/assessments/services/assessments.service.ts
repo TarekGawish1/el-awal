@@ -232,8 +232,8 @@ export class AssessmentsService {
     const groupIds = [
       ...new Set(
         assessments
-          .filter((a) => a?.type === 'ASSIGNMENT' && a.dueDate && a.groupId)
-          .map((a) => a.groupId),
+          .filter((a) => a?.type === 'ASSIGNMENT' && a.dueDate && (a.groupId || a.targetGroups?.[0]?.id))
+          .map((a) => a.groupId || a.targetGroups?.[0]?.id),
       ),
     ];
     if (groupIds.length === 0) return;
@@ -251,9 +251,10 @@ export class AssessmentsService {
     });
 
     for (const a of assessments) {
-      if (a?.type !== 'ASSIGNMENT' || !a.dueDate || !a.groupId) continue;
+      const gId = a?.groupId || a?.targetGroups?.[0]?.id;
+      if (a?.type !== 'ASSIGNMENT' || !a.dueDate || !gId) continue;
       const groupSessions: SessionForDeadline[] = sessions.filter(
-        (s) => s.groupId === a.groupId,
+        (s) => s.groupId === gId,
       );
       a.dueDate = computeEffectiveDueDate(a.type, a.dueDate, groupSessions);
     }
@@ -263,13 +264,14 @@ export class AssessmentsService {
    * Resolves the effective deadline for a single student-visible assessment.
    */
   private async resolveEffectiveDueDate(
-    assessment: { type: string; dueDate: Date | null; groupId?: string | null },
+    assessment: { type: string; dueDate: Date | null; groupId?: string | null; targetGroups?: any[] },
   ): Promise<Date | null> {
-    if (assessment.type !== 'ASSIGNMENT' || !assessment.dueDate || !assessment.groupId) {
+    const effectiveGroupId = assessment.groupId || assessment.targetGroups?.[0]?.id;
+    if (assessment.type !== 'ASSIGNMENT' || !assessment.dueDate || !effectiveGroupId) {
       return assessment.dueDate;
     }
     const sessions = await this.prisma.lessonSession.findMany({
-      where: { groupId: assessment.groupId },
+      where: { groupId: effectiveGroupId },
       select: {
         sessionDate: true,
         startTime: true,

@@ -469,6 +469,7 @@ export class StudentsService {
           id: true,
           title: true,
           description: true,
+          type: true,
           totalScore: true,
           dueDate: true,
           createdAt: true,
@@ -502,12 +503,17 @@ export class StudentsService {
 
     return Promise.all(sessions.map(async (session) => {
       const sessionDateKey = getDateKey(session.sessionDate);
-      let assessment = assessments.find((item) => getDateKey(item.dueDate) === sessionDateKey);
+      let assessment = assessments.find((item) => {
+        if (session.topic && item.title && item.title.includes(session.topic)) return true;
+        if (sessionDateKey && item.title && item.title.includes(sessionDateKey)) return true;
+        if (getDateKey(item.createdAt) === sessionDateKey) return true;
+        if (getDateKey(item.dueDate) === sessionDateKey) return true;
+        return false;
+      });
       const submission = assessment?.submissions[0];
-      // Legacy session homework may carry the session's own day as dueDate: the
-      // student-facing deadline is then the start of the next session instead.
+      // Session homework carries the next session start time as effective deadline.
       const effectiveDueDate = assessment
-        ? computeEffectiveDueDate((assessment as any).type, assessment.dueDate as Date | null, deadlineSessions)
+        ? computeEffectiveDueDate(assessment.type, assessment.dueDate as Date | null, deadlineSessions)
         : null;
       assessment = assessment ? { ...assessment, dueDate: effectiveDueDate } : assessment;
       const educationalContents = await Promise.all(session.educationalContents.map(async (content) => ({

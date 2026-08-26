@@ -68,14 +68,14 @@ describe('StudentLatestHomework card', () => {
     expect(screen.getByText(/بانتظار مراجعة الأستاذ/)).toBeInTheDocument();
   });
 
-  it('hides the homework once its deadline has passed', () => {
+  it('shows expired status if deadline has passed and homework is unsolved', () => {
     vi.mocked(useStudentGroupSessions).mockReturnValue({
       data: [{ ...session, assessment: { ...session.assessment, dueDate: PAST } }],
       isLoading: false,
     } as any);
     render(<StudentLatestHomework />);
-    expect(screen.getByText('لا يوجد واجب مرتبط بحصص مجموعتك حالياً')).toBeInTheDocument();
-    expect(screen.queryByText('الحصة 4: قوانين نيوتن للحركة')).not.toBeInTheDocument();
+    expect(screen.getByText('الحصة 4: قوانين نيوتن للحركة')).toBeInTheDocument();
+    expect(screen.getByText('⏰ انتهى موعد التسليم')).toBeInTheDocument();
   });
 
   it('offers a link to open and solve the homework from the dashboard', () => {

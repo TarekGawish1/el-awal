@@ -34,15 +34,23 @@ export function StudentLatestHomework() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   const latestHomeworkSession = useMemo(() => {
-    // Only show homework whose submission deadline has not passed yet.
+    // Find sessions that have an assessment
     const withHomework = sessions.filter((session: any) => {
       const assessment = session.assessment;
-      if (!assessment || !assessment.id) return false;
-      if (assessment.dueDate && new Date(assessment.dueDate).getTime() < Date.now()) return false;
-      return true;
+      return Boolean(assessment && assessment.id);
     });
     if (withHomework.length === 0) return null;
-    return withHomework.sort((a: any, b: any) => new Date(b.sessionDate).getTime() - new Date(a.sessionDate).getTime())[0];
+
+    // Prioritize active or submitted homework, otherwise show the latest session homework
+    const active = withHomework.filter((session: any) => {
+      const assessment = session.assessment;
+      if (assessment.submission && assessment.submission.status !== 'UNSOLVED') return true;
+      if (assessment.dueDate && new Date(assessment.dueDate).getTime() >= Date.now()) return true;
+      return false;
+    });
+
+    const candidates = active.length > 0 ? active : withHomework;
+    return candidates.sort((a: any, b: any) => new Date(b.sessionDate).getTime() - new Date(a.sessionDate).getTime())[0];
   }, [sessions]);
 
   if (isLoading) {
@@ -68,7 +76,7 @@ export function StudentLatestHomework() {
   const assessment = latestHomeworkSession.assessment;
   const submission = assessment.submission;
   const worksheet = latestHomeworkSession.educationalContents?.[0];
-  const submitted = Boolean(submission && submission.status !== 'UNSOLVED');
+  const isExpired = Boolean(assessment.dueDate && new Date(assessment.dueDate).getTime() < Date.now());
   const safeSubmission = submission || null;
 
   return (
@@ -102,7 +110,7 @@ export function StudentLatestHomework() {
           )}
 
           {assessment.dueDate && (
-            <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-700">
+            <p className={`flex items-center gap-1.5 text-xs font-semibold ${isExpired ? 'text-rose-600' : 'text-amber-700'}`}>
               <Clock className="w-3.5 h-3.5" />آخر موعد للتسليم: {formatArabicDate(assessment.dueDate)} — الساعة {formatArabicTime(assessment.dueDate)}
             </p>
           )}
@@ -118,6 +126,11 @@ export function StudentLatestHomework() {
                 {safeSubmission.status === 'GRADED' ? `درجتك: ${safeSubmission.scoreObtained ?? 0}/${assessment.totalScore}` : safeSubmission.status === 'SUBMITTED' ? 'بانتظار مراجعة الأستاذ' : 'قيد المعالجة'}
               </p>
               {safeSubmission.teacherFeedback && <p className="mt-1 text-xs text-emerald-800">ملاحظة الأستاذ: {safeSubmission.teacherFeedback}</p>}
+            </div>
+          ) : isExpired ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-4">
+              <Badge variant="error" className="mb-2">⏰ انتهى موعد التسليم</Badge>
+              <p className="text-xs text-rose-700 font-medium">انتهت المدة المحددة لتسليم هذا الواجب. يرجى مراجعة المعلم.</p>
             </div>
           ) : (
             <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">

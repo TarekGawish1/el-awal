@@ -30,10 +30,10 @@ import { Group, GroupSchedule } from '../../groups/types/groups.types';
 
 function getGroupNextSessionDate(group: Group): Date | null {
   if (!group.schedules || group.schedules.length === 0) {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(15, 0, 0, 0); // 3:00 PM
-    return tomorrow;
+    const nextWeek = new Date();
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    nextWeek.setHours(15, 0, 0, 0); // 3:00 PM
+    return nextWeek;
   }
   
   const now = new Date();
@@ -63,12 +63,9 @@ function getGroupNextSessionDate(group: Group): Date | null {
     const currentDay = now.getDay();
     let daysDiff = (schedDay - currentDay + 7) % 7;
     
+    // For homework given in a session, the deadline is the subsequent session occurrence
     if (daysDiff === 0) {
-      const sessionToday = new Date(now);
-      sessionToday.setHours(hours, minutes, 0, 0);
-      if (sessionToday.getTime() <= now.getTime()) {
-        daysDiff = 7;
-      }
+      daysDiff = 7;
     }
     
     const targetDate = new Date(now);
@@ -76,7 +73,7 @@ function getGroupNextSessionDate(group: Group): Date | null {
     targetDate.setHours(hours, minutes, 0, 0);
     
     const diffTime = targetDate.getTime() - now.getTime();
-    if (diffTime < minDiff) {
+    if (diffTime > 0 && diffTime < minDiff) {
       minDiff = diffTime;
       nextSessionDate = targetDate;
     }

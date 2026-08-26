@@ -41,11 +41,29 @@ export function computeEffectiveDueDate(
   if (!attached) return rawDueDate;
 
   const attachedStart = getSessionStartMillis(attached);
-  if (rawDueDate.getTime() >= attachedStart) return rawDueDate;
+
+  // If rawDueDate is already set to the start time of a future session, keep it
+  const isFutureSessionStart =
+    rawDueDate.getTime() === attachedStart &&
+    groupSessions.some((s) => getSessionStartMillis(s) < attachedStart);
+  if (isFutureSessionStart) {
+    return rawDueDate;
+  }
 
   const next = groupSessions
     .filter((s) => !s.isCancelled && getSessionStartMillis(s) > attachedStart)
     .sort((a, b) => getSessionStartMillis(a) - getSessionStartMillis(b))[0];
 
-  return next ? new Date(getSessionStartMillis(next)) : rawDueDate;
+  if (next) {
+    return new Date(getSessionStartMillis(next));
+  }
+
+  if (rawDueDate.getTime() > attachedStart) {
+    return rawDueDate;
+  }
+
+  // If no future session exists in the schedule, default to 7 days after the attached session
+  const fallbackDate = new Date(attachedStart);
+  fallbackDate.setDate(fallbackDate.getDate() + 7);
+  return fallbackDate;
 }
