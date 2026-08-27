@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../core/database/prisma.service';
 import { usePgAuthState } from './pg-auth';
+import * as QRCode from 'qrcode';
 
 type ConnectionStatus = 'connecting' | 'open' | 'close' | 'qr';
 
@@ -270,13 +271,12 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
 
         if (qr) {
           this.connectionStatus = 'qr';
-          // Convert QR string to a base64 PNG data URL
           try {
-            const QRCode = await import('qrcode');
-            this.qrCode = await QRCode.default.toDataURL(qr);
-            this.logger.log('📱 New WhatsApp QR code generated. Scan to pair.');
-          } catch {
-            this.qrCode = qr; // fallback: raw QR string
+            this.qrCode = await QRCode.toDataURL(qr, { margin: 2, scale: 8 });
+            this.logger.log('📱 New WhatsApp QR code generated as Data URL. Scan to pair.');
+          } catch (qrErr) {
+            this.logger.error('Failed to convert QR to Data URL, fallback to raw string', qrErr);
+            this.qrCode = qr;
           }
         }
 
