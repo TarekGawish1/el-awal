@@ -65,6 +65,7 @@ export function PaymentQrScannerModal({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [cameraKey, setCameraKey] = useState(0);
 
   const { data: groups = [] } = useGroups();
   const { booklets = [] } = useBooklets();
@@ -487,18 +488,34 @@ export function PaymentQrScannerModal({
               }`}
             >
               <Scanner
+                key={cameraKey}
                 onScan={handleScan}
                 onError={handleCameraError}
                 formats={['qr_code']}
                 startTimeoutMs={30000}
-                constraints={{ facingMode }}
-                styles={{ video: { transform: facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)' } }}
+                constraints={{
+                  facingMode: { ideal: facingMode },
+                  width: { ideal: 1280 },
+                  height: { ideal: 720 },
+                }}
+                styles={{
+                  container: { width: '100%', height: '100%', position: 'relative' },
+                  video: {
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
+                  },
+                }}
               />
 
               <button
-                onClick={() => setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'))}
+                onClick={() => {
+                  setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
+                  setCameraKey((prev) => prev + 1);
+                }}
                 className="absolute top-3 right-3 z-20 bg-black/40 hover:bg-black/60 text-white backdrop-blur-md p-2 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 shadow-sm"
-                title="تبديل الكاميرا"
+                title="تبديل / إعادة تشغيل الكاميرا"
               >
                 <RefreshCcw className="w-4 h-4" />
               </button>
