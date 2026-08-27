@@ -7,6 +7,7 @@ import { useBooklets } from '@/features/booklets/hooks/useBooklets';
 import { Alert } from '@/components/ui/Alert';
 import { RefreshCcw, CreditCard, BookOpen } from 'lucide-react';
 import { parseStudentQr } from '@/lib/qr/qr-parser';
+import { initQrDetector } from '@/lib/qr/qr-detector-init';
 import toast from 'react-hot-toast';
 
 interface FinanceQrScannerProps {
@@ -232,12 +233,18 @@ export function FinanceQrScanner({
 
   const handleError = (error: any) => {
     console.error('Finance QR Scanner Error:', error);
-    if (error?.name === 'NotAllowedError' || error?.message?.includes('Permission')) {
+    const msg = error?.message || '';
+    if (msg.includes('Barcode detection service unavailable') || msg.includes('detect')) {
+      // Re-initialize local WASM engine silently
+      initQrDetector();
+      return;
+    }
+    if (error?.name === 'NotAllowedError' || msg.includes('Permission')) {
       setCameraError('تم رفض صلاحية استخدام الكاميرا. يرجى تفعيلها من إعدادات المتصفح.');
-    } else if (error?.name === 'NotSupportedError' || error?.message?.includes('secure context')) {
+    } else if (error?.name === 'NotSupportedError' || msg.includes('secure context')) {
       setCameraError('لا يمكن الوصول للكاميرا. تأكد من استخدام اتصال آمن (HTTPS) أو أنك تستخدم localhost.');
     } else {
-      setCameraError(error?.message || 'حدث خطأ في تشغيل الكاميرا.');
+      setCameraError(msg || 'حدث خطأ في تشغيل الكاميرا.');
     }
   };
 
