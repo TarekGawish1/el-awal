@@ -87,9 +87,10 @@ export async function fetchPendingReservations(): Promise<any[]> {
   return await apiClient<any[]>('/groups/reservations/pending');
 }
 
-export async function acceptReservation(enrollmentId: string): Promise<void> {
+export async function acceptReservation(enrollmentId: string, payload?: { paymentStatus?: 'PAID' | 'LATER' }): Promise<void> {
   return await apiClient<void>(`/groups/reservations/${enrollmentId}/accept`, {
     method: 'POST',
+    body: payload ? JSON.stringify(payload) : undefined,
   });
 }
 

@@ -136,8 +136,9 @@ export class GroupsController {
   async acceptReservation(
     @Param('enrollmentId') enrollmentId: string,
     @CurrentUser() user: AuthenticatedUser,
+    @Body() body?: { paymentStatus?: 'PAID' | 'LATER' },
   ) {
-    return this.groupsService.acceptReservation(enrollmentId, user);
+    return this.groupsService.acceptReservation(enrollmentId, user, body?.paymentStatus || 'LATER');
   }
 
   @Post('reservations/:enrollmentId/reject')
