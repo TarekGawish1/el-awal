@@ -184,8 +184,27 @@ export function useWebPush(): UseWebPushReturn {
       return true;
     } catch (error: any) {
       console.error('[useWebPush] Subscribe failed:', error);
-      const msg = error?.message || 'تعذر تفعيل الإشعارات';
-      toast.error(msg);
+      let msg = error?.message || 'تعذر تفعيل الإشعارات';
+
+      const isBrave =
+        typeof window !== 'undefined' &&
+        (Boolean((navigator as any).brave) ||
+          navigator.userAgent.includes('Brave'));
+
+      if (
+        msg.includes('push service error') ||
+        msg.includes('Registration failed')
+      ) {
+        if (isBrave) {
+          msg =
+            'في متصفح Brave: يرجى تفعيل "Use Google services for push messaging" من إعدادات الخصوصية (brave://settings/privacy) ثم إعادة تشغيل المتصفح.';
+        } else {
+          msg =
+            'تعذر الاتصال بخدمة الإشعارات الفورية في المتصفح. تأكد من اتصال الإنترنت وعدم حظر خدمات الإشعارات.';
+        }
+      }
+
+      toast.error(msg, { duration: 6000 });
       return false;
     } finally {
       setIsLoading(false);
