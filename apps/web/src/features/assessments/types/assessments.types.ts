@@ -105,7 +105,9 @@ export interface UpdateAssessmentPayload {
 export interface AssessmentSubmissionListItem {
   id: string;
   studentId: string;
-  student: {
+  studentName?: string;
+  studentPhone?: string;
+  student?: {
     user: {
       fullName: string;
     };

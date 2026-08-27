@@ -40,7 +40,7 @@ export function SubmissionsList({ assessmentId }: { assessmentId: string }) {
     if (!searchQuery.trim()) return submissions;
     const q = searchQuery.toLowerCase().trim();
     return submissions.filter((s) => {
-      const name = s.student?.user?.fullName?.toLowerCase() || (s.student as any)?.fullName?.toLowerCase() || '';
+      const name = s.studentName?.toLowerCase() || s.student?.user?.fullName?.toLowerCase() || (s.student as any)?.fullName?.toLowerCase() || '';
       return name.includes(q);
     });
   }, [submissions, searchQuery]);
@@ -152,10 +152,10 @@ export function SubmissionsList({ assessmentId }: { assessmentId: string }) {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
-                            {submission.student?.user?.fullName?.charAt(0) || 'ط'}
+                            {(submission.studentName || submission.student?.user?.fullName || 'ط').charAt(0)}
                           </div>
                           <span className="font-semibold text-slate-800">
-                            {submission.student?.user?.fullName || 'طالب غير معروف'}
+                            {submission.studentName || submission.student?.user?.fullName || 'طالب غير معروف'}
                           </span>
                         </div>
                       </td>
@@ -213,10 +213,10 @@ export function SubmissionsList({ assessmentId }: { assessmentId: string }) {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
-                        {submission.student?.user?.fullName?.charAt(0) || 'ط'}
+                        {(submission.studentName || submission.student?.user?.fullName || 'ط').charAt(0)}
                       </div>
                       <span className="font-bold text-sm text-slate-800">
-                        {submission.student?.user?.fullName || 'طالب غير معروف'}
+                        {submission.studentName || submission.student?.user?.fullName || 'طالب غير معروف'}
                       </span>
                     </div>
                     {submission.status === SubmissionStatus.GRADED ? (
