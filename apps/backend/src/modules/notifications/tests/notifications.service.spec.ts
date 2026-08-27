@@ -1,11 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotificationsService } from '../services/notifications.service';
 import { PrismaService } from '../../../core/database/prisma.service';
+import { WebPushService } from '../../../services/webpush.service';
 import { AttendanceStatus } from '@prisma/client';
 
 describe('NotificationsService', () => {
   let service: NotificationsService;
   let prisma: PrismaService;
+
+  const mockWebPushService = {
+    sendPush: jest.fn(),
+  };
 
   const mockPrismaService = {
     notification: {
@@ -30,6 +35,7 @@ describe('NotificationsService', () => {
       providers: [
         NotificationsService,
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: WebPushService, useValue: mockWebPushService },
       ],
     }).compile();
 
@@ -43,7 +49,17 @@ describe('NotificationsService', () => {
       mockPrismaService.studentProfile.findUnique.mockResolvedValue({
         id: 'stu-1',
         user: { fullName: 'محمود أحمد' },
-        parentLinks: [{ parentId: 'parent-1' }],
+        parentLinks: [
+          {
+            parentId: 'parent-1',
+            parent: {
+              user: {
+                id: 'parent-1',
+                phone: '201012345678',
+              },
+            },
+          },
+        ],
       });
 
       mockPrismaService.notification.create.mockResolvedValue({ id: 'notif-1' });
@@ -59,7 +75,7 @@ describe('NotificationsService', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             recipientId: 'parent-1',
-            type: 'STUDENT_ABSENCE',
+            type: 'ABSENCE_ALERT_PARENT',
           }),
         }),
       );
@@ -77,7 +93,17 @@ describe('NotificationsService', () => {
       mockPrismaService.studentProfile.findUnique.mockResolvedValue({
         id: 'stu-1',
         user: { fullName: 'محمود أحمد' },
-        parentLinks: [{ parentId: 'parent-1' }],
+        parentLinks: [
+          {
+            parentId: 'parent-1',
+            parent: {
+              user: {
+                id: 'parent-1',
+                phone: '201012345678',
+              },
+            },
+          },
+        ],
       });
 
       await service.handleAssessmentGradedEvent({

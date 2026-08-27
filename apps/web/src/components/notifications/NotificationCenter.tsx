@@ -24,6 +24,7 @@ import {
   type Notification,
 } from '@/hooks/useNotifications';
 import { useWebPush } from '@/hooks/useWebPush';
+import toast from 'react-hot-toast';
 
 // ─── Type Icons Map ───────────────────────────────────────────────────────────
 
@@ -172,6 +173,11 @@ function PushToggle() {
   if (!isSupported) return null;
 
   const handleToggle = async () => {
+    if (permission === 'denied') {
+      toast.error('تم حظر الإشعارات من إعدادات المتصفح. يرجى تفعيلها من إعدادات المتصفح.');
+      return;
+    }
+    if (isLoading) return;
     if (isSubscribed) {
       await unsubscribe();
     } else {
@@ -180,7 +186,21 @@ function PushToggle() {
   };
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 rounded-xl">
+    <div
+      onClick={handleToggle}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleToggle();
+        }
+      }}
+      className={`
+        flex items-center gap-3 px-4 py-3 bg-slate-50 rounded-xl transition-all duration-150 select-none
+        ${isLoading || permission === 'denied' ? 'cursor-not-allowed opacity-75' : 'cursor-pointer hover:bg-slate-100/80 active:scale-[0.99]'}
+      `}
+    >
       <div className="flex-1">
         <p className="text-xs font-medium text-slate-700">الإشعارات الفورية</p>
         <p className="text-[11px] text-slate-400 mt-0.5">
@@ -191,13 +211,10 @@ function PushToggle() {
             : 'اضغط لتفعيل الإشعارات'}
         </p>
       </div>
-      <button
-        onClick={handleToggle}
-        disabled={isLoading || permission === 'denied'}
+      <div
         className={`
-          relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 focus:outline-none
+          relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 pointer-events-none
           ${isSubscribed ? 'bg-blue-500' : 'bg-slate-300'}
-          ${isLoading || permission === 'denied' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
         `}
         id="push-toggle"
         aria-label="تفعيل إشعارات المتصفح"
@@ -212,7 +229,7 @@ function PushToggle() {
             `}
           />
         )}
-      </button>
+      </div>
     </div>
   );
 }

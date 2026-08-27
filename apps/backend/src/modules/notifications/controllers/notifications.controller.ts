@@ -28,6 +28,7 @@ import {
   AuthenticatedUser,
 } from '../../../core/security/decorators/current-user.decorator';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
+import { Public } from '../../../core/security/decorators/public.decorator';
 import { UserRole } from '@prisma/client';
 
 @ApiTags('Notifications')
@@ -75,6 +76,7 @@ export class NotificationsController {
 
   // ─── Web Push Subscription Management ────────────────────────────────────
 
+  @Public()
   @Get('push-vapid-key')
   @ApiOperation({ summary: 'Get VAPID public key for client-side push subscription' })
   getVapidPublicKey() {

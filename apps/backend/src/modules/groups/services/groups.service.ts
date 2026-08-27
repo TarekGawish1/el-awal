@@ -544,23 +544,40 @@ export class GroupsService {
       const studentPassword = pendingCreds?.studentPassword;
       const parentPassword = pendingCreds?.parentPassword;
 
-      const messageBody = formatStudentApprovalMessage({
-        parentName,
-        studentName,
-        studentPhoneOrCode,
-        studentPassword,
-        parentPhoneOrCode: parentPhone || undefined,
-        parentPassword,
-        platformUrl,
-        centerName,
-        groupName,
-      });
-
-      const recipientId = parentUser?.id || studentUser?.id;
-
-      if (recipientId) {
+      if (studentUser?.id) {
         await this.notificationsService.sendNotification({
-          recipientId,
+          recipientId: studentUser.id,
+          type: 'STUDENT_APPROVAL_CREDENTIALS',
+          notificationType: NotificationType.STUDENT_APPROVAL_CREDENTIALS,
+          title: `تم تأكيد وقبول انضمام ${studentName}`,
+          body: `تم قبول طلب انضمامك إلى ${groupName || 'المجموعة'}. يمكنك الآن الدخول إلى منصة الأوّل.`,
+          channels: [NotificationChannel.WEB_PUSH],
+          data: {
+            studentId: student.id,
+            studentName,
+            groupName,
+            platformUrl,
+          },
+          referenceEntityId: student.id,
+        });
+      }
+
+      const parentRecipientId = parentUser?.id || studentUser?.id;
+      if (parentRecipientId) {
+        const messageBody = formatStudentApprovalMessage({
+          parentName,
+          studentName,
+          studentPhoneOrCode,
+          studentPassword,
+          parentPhoneOrCode: parentPhone || undefined,
+          parentPassword,
+          platformUrl,
+          centerName,
+          groupName,
+        });
+
+        await this.notificationsService.sendNotification({
+          recipientId: parentRecipientId,
           type: 'STUDENT_APPROVAL_CREDENTIALS',
           notificationType: NotificationType.STUDENT_APPROVAL_CREDENTIALS,
           title: `تم تأكيد وقبول انضمام ${studentName}`,
@@ -579,8 +596,9 @@ export class GroupsService {
             groupName,
             centerName,
             platformUrl,
-            phone: parentPhone || studentUser?.phone || undefined,
+            phone: parentPhone || undefined,
           },
+          referenceEntityId: student.id,
         });
 
         // Clear pendingCredentials after successful dispatch
@@ -590,7 +608,7 @@ export class GroupsService {
         });
 
         this.logger.log(
-          `📩 Student approval notification dispatched with credentials for student ${studentName} (recipient: ${recipientId}, phone: ${parentPhone || 'none'})`,
+          `📩 Student approval notifications dispatched for ${studentName} (student push: ${studentUser?.id ? 'yes' : 'no'}, parent WhatsApp: ${parentPhone || 'none'})`,
         );
       }
     } catch (notifErr) {

@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { API_BASE_URL } from '@/lib/api/endpoints';
+import toast from 'react-hot-toast';
+import { apiClient } from '@/lib/api/client';
+import { API_ENDPOINTS } from '@/lib/api/endpoints';
 
 export type PushPermissionState = 'default' | 'granted' | 'denied';
 
@@ -18,19 +20,16 @@ interface UseWebPushReturn {
  * Fetches the VAPID public key from the backend.
  */
 async function fetchVapidPublicKey(): Promise<string> {
-  const token = typeof window !== 'undefined'
-    ? document.cookie.match(/access_token=([^;]+)/)?.[1] ||
-      sessionStorage.getItem('access_token') ||
-      localStorage.getItem('access_token')
-    : null;
+  const res = await apiClient<{ publicKey: string }>(
+    API_ENDPOINTS.NOTIFICATIONS.PUSH_VAPID_KEY,
+    { method: 'GET' },
+  );
 
-  const res = await fetch(`${API_BASE_URL}/notifications/push-vapid-key`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    credentials: 'include',
-  });
-  if (!res.ok) throw new Error('Failed to fetch VAPID key');
-  const data = await res.json();
-  return data.data?.publicKey || data.publicKey;
+  const key = res?.publicKey ? res.publicKey.trim() : '';
+  if (!key) {
+    throw new Error('مفتاح الإشعارات (VAPID) غير متوفر على الخادم حالياً');
+  }
+  return key;
 }
 
 /**
@@ -38,29 +37,47 @@ async function fetchVapidPublicKey(): Promise<string> {
  * Required for PushManager.subscribe({ applicationServerKey }).
  */
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const clean = base64String.trim();
+  const padding = '='.repeat((4 - (clean.length % 4)) % 4);
+  const base64 = (clean + padding).replace(/-/g, '+').replace(/_/g, '/');
   const rawData = atob(base64);
-  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+/**
+ * Ensures a service worker is registered and returns its registration.
+ */
+async function getOrRegisterServiceWorker(): Promise<ServiceWorkerRegistration> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+    throw new Error('المتصفح لا يدعم تقنية Service Worker');
+  }
+
+  let registration = await navigator.serviceWorker.getRegistration();
+  if (!registration) {
+    registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+  }
+
+  // Await ready with a 3-second safety timeout to avoid hanging indefinitely
+  const readyRegistration = await Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise<ServiceWorkerRegistration>((resolve) => {
+      setTimeout(() => resolve(registration!), 3000);
+    }),
+  ]);
+
+  return readyRegistration || registration;
 }
 
 /**
  * Posts a subscription to the backend.
  */
 async function postSubscription(subscription: PushSubscriptionJSON): Promise<void> {
-  const token = typeof window !== 'undefined'
-    ? document.cookie.match(/access_token=([^;]+)/)?.[1] ||
-      sessionStorage.getItem('access_token') ||
-      localStorage.getItem('access_token')
-    : null;
-
-  const res = await fetch(`${API_BASE_URL}/notifications/push-subscribe`, {
+  await apiClient(API_ENDPOINTS.NOTIFICATIONS.PUSH_SUBSCRIBE, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    credentials: 'include',
     body: JSON.stringify({
       endpoint: subscription.endpoint,
       keys: {
@@ -69,26 +86,14 @@ async function postSubscription(subscription: PushSubscriptionJSON): Promise<voi
       },
     }),
   });
-  if (!res.ok) throw new Error('Failed to save push subscription');
 }
 
 /**
  * Deletes a subscription from the backend.
  */
 async function deleteSubscription(endpoint: string): Promise<void> {
-  const token = typeof window !== 'undefined'
-    ? document.cookie.match(/access_token=([^;]+)/)?.[1] ||
-      sessionStorage.getItem('access_token') ||
-      localStorage.getItem('access_token')
-    : null;
-
-  await fetch(`${API_BASE_URL}/notifications/push-unsubscribe`, {
+  await apiClient(API_ENDPOINTS.NOTIFICATIONS.PUSH_UNSUBSCRIBE, {
     method: 'DELETE',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    credentials: 'include',
     body: JSON.stringify({ endpoint }),
   });
 }
@@ -99,7 +104,7 @@ async function deleteSubscription(endpoint: string): Promise<void> {
  * Handles:
  * - Browser support detection
  * - Permission state tracking
- * - Subscribe: requests permission → SW subscription → backend sync
+ * - Subscribe: requests permission → SW registration → VAPID key → PushManager → backend sync
  * - Unsubscribe: removes from browser + backend
  */
 export function useWebPush(): UseWebPushReturn {
@@ -121,43 +126,66 @@ export function useWebPush(): UseWebPushReturn {
 
     setPermission(Notification.permission as PushPermissionState);
 
-    // Check if already subscribed
-    navigator.serviceWorker.ready
-      .then((reg) => reg.pushManager.getSubscription())
+    // Check if already subscribed safely without hanging
+    navigator.serviceWorker
+      ?.getRegistration()
+      .then((reg) => {
+        if (!reg) return null;
+        return reg.pushManager.getSubscription();
+      })
       .then((sub) => setIsSubscribed(!!sub))
       .catch(() => setIsSubscribed(false));
   }, []);
 
   const subscribe = useCallback(async (): Promise<boolean> => {
-    if (!isSupported) return false;
+    if (!isSupported) {
+      toast.error('الإشعارات غير مدعومة في هذا المتصفح');
+      return false;
+    }
     setIsLoading(true);
 
     try {
-      // Request notification permission
-      const result = await Notification.requestPermission();
-      setPermission(result as PushPermissionState);
+      // 1. Request notification permission
+      let perm = Notification.permission;
+      if (perm !== 'granted') {
+        perm = await Notification.requestPermission();
+        setPermission(perm as PushPermissionState);
+      }
 
-      if (result !== 'granted') return false;
+      if (perm !== 'granted') {
+        if (perm === 'denied') {
+          toast.error('تم رفض إذن الإشعارات في المتصفح. يرجى تفعيلها من إعدادات الموقع بالمتصفح.');
+        } else {
+          toast.error('لم يتم منح إذن تفعيل الإشعارات');
+        }
+        return false;
+      }
 
-      // Get service worker registration
-      const registration = await navigator.serviceWorker.ready;
+      // 2. Ensure Service Worker registration is active
+      const registration = await getOrRegisterServiceWorker();
 
-      // Fetch VAPID public key
+      // 3. Fetch VAPID public key from backend
       const vapidKey = await fetchVapidPublicKey();
       const applicationServerKey = urlBase64ToUint8Array(vapidKey);
 
-      // Subscribe via PushManager
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: applicationServerKey.buffer as ArrayBuffer,
-      });
+      // 4. Subscribe via PushManager (reuse existing if already subscribed)
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: applicationServerKey as unknown as BufferSource,
+        });
+      }
 
-      // Sync subscription with backend
+      // 5. Sync subscription with backend
       await postSubscription(subscription.toJSON());
       setIsSubscribed(true);
+      toast.success('تم تفعيل الإشعارات الفورية بنجاح');
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('[useWebPush] Subscribe failed:', error);
+      const msg = error?.message || 'تعذر تفعيل الإشعارات';
+      toast.error(msg);
       return false;
     } finally {
       setIsLoading(false);
@@ -169,19 +197,26 @@ export function useWebPush(): UseWebPushReturn {
     setIsLoading(true);
 
     try {
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
-
-      if (subscription) {
-        const endpoint = subscription.endpoint;
-        await subscription.unsubscribe();
-        await deleteSubscription(endpoint);
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (registration) {
+        const subscription = await registration.pushManager.getSubscription();
+        if (subscription) {
+          const endpoint = subscription.endpoint;
+          await subscription.unsubscribe();
+          try {
+            await deleteSubscription(endpoint);
+          } catch (err) {
+            console.warn('[useWebPush] Failed to remove subscription on backend:', err);
+          }
+        }
       }
 
       setIsSubscribed(false);
+      toast.success('تم إيقاف الإشعارات الفورية');
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('[useWebPush] Unsubscribe failed:', error);
+      toast.error('تعذر إيقاف الإشعارات');
       return false;
     } finally {
       setIsLoading(false);
