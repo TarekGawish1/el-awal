@@ -2621,6 +2621,7 @@ class OfflineDatabase {
     feedback?: string | null;
     studentName?: string;
     studentCode?: string;
+    qrCodeToken?: string;
   }): Promise<{ homeworkRecord: HomeworkRecordEntity; attendanceRecord: any }> {
     const status = data.status || 'CHECKED_ONSITE';
     const recordedMethod = data.recordedMethod || 'QR_SCAN';
@@ -2657,7 +2658,7 @@ class OfflineDatabase {
     await this.homework_records.put(homeworkRecord);
 
     // 2. Queue homework mutation
-    await this.outbox_mutations.add({
+    await this.enqueueMutation({
       id: crypto.randomUUID(),
       type: 'RECORD_HOMEWORK_ONSITE',
       domain: 'attendance',
@@ -2666,6 +2667,7 @@ class OfflineDatabase {
       payload: {
         assessmentId: data.assessmentId,
         studentId: cleanStudentId,
+        qrCodeToken: data.qrCodeToken,
         sessionId: cleanSessionId,
         status,
         recordedMethod,
@@ -2675,6 +2677,8 @@ class OfflineDatabase {
       },
       status: 'PENDING',
       clientTimestamp: now,
+      retryCount: 0,
+      conflictStrategy: 'CLIENT_WINS',
     });
 
     // 3. AUTOMATIC ATTENDANCE TRIGGER
@@ -2701,7 +2705,7 @@ class OfflineDatabase {
         markedAt: now,
       };
 
-      await this.outbox_mutations.add({
+      await this.enqueueMutation({
         id: crypto.randomUUID(),
         type: 'RECORD_ATTENDANCE',
         domain: 'attendance',
@@ -2710,12 +2714,15 @@ class OfflineDatabase {
         payload: {
           sessionId: cleanSessionId,
           studentId: cleanStudentId,
+          qrCodeToken: data.qrCodeToken,
           status: 'PRESENT',
           recordingMethod: recordedMethod,
           clientTimestamp: now,
         },
         status: 'PENDING',
         clientTimestamp: now,
+        retryCount: 0,
+        conflictStrategy: 'CLIENT_WINS',
       });
     }
 

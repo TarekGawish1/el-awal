@@ -1967,16 +1967,55 @@ export class SyncService {
       try {
         switch (mutation.type) {
           case 'RECORD_HOMEWORK_ONSITE': {
+            let { studentId } = mutation.payload || {};
             const {
               assessmentId,
-              studentId,
               sessionId,
               status,
               recordedMethod,
               score,
               feedback,
               clientTimestamp,
+              qrCodeToken,
+              allowCrossGroup,
             } = mutation.payload || {};
+
+            if (!studentId && qrCodeToken) {
+              const student = await this.prisma.studentProfile.findFirst({
+                where: {
+                  OR: [
+                    { id: qrCodeToken },
+                    { qrCodeToken: qrCodeToken },
+                    { studentCode: qrCodeToken },
+                  ],
+                  user: { isActive: true },
+                },
+                include: { groupEnrollments: true },
+              });
+
+              if (!student) {
+                throw new BadRequestException('INVALID_QR_CODE');
+              }
+
+              // Check group enrollment vs session's group if cross-group not allowed
+              if (allowCrossGroup !== true && sessionId) {
+                const session = await this.prisma.lessonSession.findUnique({
+                  where: { id: sessionId },
+                  select: { groupId: true },
+                });
+                
+                if (session && session.groupId) {
+                  const isEnrolled = student.groupEnrollments.some(
+                    (enrollment) => enrollment.groupId === session.groupId,
+                  );
+                  if (!isEnrolled) {
+                    throw new BadRequestException('STUDENT_NOT_ENROLLED');
+                  }
+                }
+              }
+
+              studentId = student.id;
+            }
 
             if (!studentId || !sessionId) {
               throw new BadRequestException(

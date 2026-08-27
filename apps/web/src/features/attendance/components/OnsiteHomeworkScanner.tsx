@@ -280,18 +280,30 @@ export function OnsiteHomeworkScanner({
       }
 
       if (!student) {
-        playBeep('error');
-        setFlashType('error');
-        setLastScanResult({
-          success: false,
-          message: 'تعذر العثور على بيانات الطالب. يرجى التحقق من الكود أو تحديث البيانات.',
-        });
-        toast.error('طالب غير مسجل في النظام أو تعذر العثور عليه');
-        setTimeout(() => {
-          setLocked(false);
-          setFlashType(null);
-        }, 2000);
-        return;
+        const isQueued = await offlineDb.isAttendanceRecordedOffline(sessionId, '', cleanToken);
+        if (isQueued) {
+          playBeep('duplicate');
+          setFlashType('duplicate');
+          setLastScanResult({
+            success: true,
+            message: 'تم تسجيل الواجب مسبقاً (قيد الانتظار للتحقق)',
+          });
+          toast('تم تسجيل الواجب مسبقاً', { icon: '⚠️' });
+          setTimeout(() => {
+            setLocked(false);
+            setFlashType(null);
+          }, 1800);
+          return;
+        }
+
+        student = {
+          id: '',
+          fullName: 'طالب غير متزامن',
+          studentCode: '',
+          qrCodeToken: cleanToken,
+          groupId: '',
+          gradeLevel: '',
+        };
       }
 
       // Check if homework is already checked locally or on server
@@ -316,6 +328,7 @@ export function OnsiteHomeworkScanner({
         recordedMethod: 'QR_SCAN',
         studentName,
         studentCode,
+        qrCodeToken: student.qrCodeToken,
       });
 
       if (isAlreadyChecked) {
