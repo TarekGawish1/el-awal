@@ -588,7 +588,13 @@ class OfflineSyncEngine {
     }
     // ─────────────────────────────────────────────────────────────────────────
 
-    let pending = await offlineDb.getPendingMutations();
+    const { useAuthStore } = await import('@/features/auth/store/auth.store');
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser?.id) {
+      return { synced: 0, failed: 0 };
+    }
+
+    let pending = await offlineDb.getPendingMutations(currentUser.id);
     if (options?.mutationIds) {
       const allowed = new Set(options.mutationIds);
       pending = pending.filter((m) => allowed.has(m.id));
