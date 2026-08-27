@@ -184,6 +184,7 @@ export interface OutboxMutationRecord {
   conflictStrategy?: 'CLIENT_WINS' | 'SERVER_WINS' | 'MONOTONIC' | 'MANUAL_REVIEW';
   lastError?: string;
   optimisticId?: string;
+  type?: string;
   /** Local-only snapshot used to restore IndexedDB when a pending edit is undone. */
   rollbackData?: unknown;
 }
@@ -2326,13 +2327,14 @@ class OfflineDatabase {
     add: async (mutation: any): Promise<string> => {
       const fullMutation: OutboxMutationRecord = {
         id: mutation.id || crypto.randomUUID(),
+        type: mutation.type || mutation.payload?.type || undefined,
         domain: mutation.domain || (mutation.type?.includes('HOMEWORK') ? 'attendance' : 'attendance'),
         endpoint: mutation.endpoint || (mutation.type?.includes('HOMEWORK') ? '/sync/homework' : '/sync/attendance'),
         method: mutation.method || 'POST',
         payload: mutation.payload || mutation,
         clientTimestamp: mutation.clientTimestamp || Date.now(),
         retryCount: 0,
-        status: 'PENDING',
+        status: mutation.status || 'PENDING',
         conflictStrategy: mutation.conflictStrategy || 'CLIENT_WINS',
       };
       await this.enqueueMutation(fullMutation);
@@ -2348,6 +2350,17 @@ class OfflineDatabase {
     getAll: async (): Promise<OutboxMutationRecord[]> => {
       return this.getPendingMutations();
     },
+    toArray: async (): Promise<OutboxMutationRecord[]> => {
+      return this.getPendingMutations();
+    },
+    where: (field: string) => ({
+      equals: (val: any) => ({
+        toArray: async (): Promise<OutboxMutationRecord[]> => {
+          const all = await this.getPendingMutations();
+          return all.filter((m: any) => m[field] === val);
+        },
+      }),
+    }),
   };
 
   public async putHomeworkRecord(record: HomeworkRecordEntity): Promise<void> {

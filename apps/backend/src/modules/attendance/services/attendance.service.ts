@@ -374,6 +374,7 @@ export class AttendanceService {
           recordedBy: r?.recordedBy?.fullName || null,
           notes: r?.notes || null,
           homeworkStatus: hw?.status || 'NOT_SUBMITTED',
+          isHomeworkSubmitted: !!hw && (hw.status === 'CHECKED_ONSITE' || hw.status === 'SUBMITTED_ONLINE'),
           homeworkScore: hw?.score ? Number(hw.score) : null,
           homeworkFeedback: hw?.feedback || null,
           homeworkCheckedAt: hw?.clientTimestamp || null,

@@ -144,6 +144,24 @@ export class SyncBatchStudentItemDto {
   initialGroupId?: string;
 }
 
+export class SyncMutationItemDto {
+  @ApiPropertyOptional({ example: '018d39f4-6a8b-7000-8000-000000000099' })
+  @IsString()
+  id: string;
+
+  @ApiPropertyOptional({ example: 'RECORD_HOMEWORK_ONSITE' })
+  @IsString()
+  type: string;
+
+  @ApiPropertyOptional()
+  payload: Record<string, any>;
+
+  @ApiPropertyOptional()
+  @IsNumber()
+  @IsOptional()
+  clientTimestamp?: number;
+}
+
 export class UnifiedSyncBatchDto {
   @ApiPropertyOptional({ type: [SyncBatchGroupItemDto] })
   @IsArray()
@@ -193,4 +211,12 @@ export class UnifiedSyncBatchDto {
   @ValidateNested({ each: true })
   @Type(() => SyncHomeworkItemDto)
   homework?: SyncHomeworkItemDto[];
+
+  @ApiPropertyOptional({ type: [SyncMutationItemDto] })
+  @IsArray()
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => SyncMutationItemDto)
+  mutations?: SyncMutationItemDto[];
 }
+

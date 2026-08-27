@@ -127,9 +127,25 @@ export class SyncController {
   })
   @ApiResponse({ status: 200, description: 'Unified batch sync results' })
   async syncBatch(
-    @Body() dto: UnifiedSyncBatchDto,
+    @Body() dto: UnifiedSyncBatchDto | any,
     @CurrentUser() user: AuthenticatedUser,
   ) {
+    if (Array.isArray(dto)) {
+      const mutationResults = await this.syncService.processMutationBatch(user, dto);
+      return {
+        success: true,
+        timestamp: new Date().toISOString(),
+        results: mutationResults,
+      };
+    }
+    if (dto?.mutations && Array.isArray(dto.mutations) && !dto.groups && !dto.students && !dto.attendance && !dto.payments && !dto.homework) {
+      const mutationResults = await this.syncService.processMutationBatch(user, dto.mutations);
+      return {
+        success: true,
+        timestamp: new Date().toISOString(),
+        results: mutationResults,
+      };
+    }
     return this.syncService.syncUnifiedBatch(user, dto);
   }
 }

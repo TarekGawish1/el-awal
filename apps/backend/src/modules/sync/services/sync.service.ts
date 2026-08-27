@@ -15,7 +15,7 @@ import { SyncAttendanceBatchDto } from '../dto/sync-attendance.dto';
 import { SyncPaymentsBatchDto } from '../dto/sync-payments.dto';
 import { SyncAssessmentsBatchDto } from '../dto/sync-assessments.dto';
 import { SyncHomeworkBatchDto } from '../dto/sync-homework.dto';
-import { UnifiedSyncBatchDto } from '../dto/sync-batch.dto';
+import { UnifiedSyncBatchDto, SyncMutationItemDto } from '../dto/sync-batch.dto';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import {
   AttendanceStatus,
@@ -1871,6 +1871,7 @@ export class SyncService {
       progress?: any;
       assessments?: DomainSyncResult;
       homework?: DomainSyncResult;
+      mutations?: Array<{ mutationId: string; status: 'SUCCESS' | 'FAILED'; error?: string }>;
     } = {};
 
     if (dto.attendance && dto.attendance.length > 0) {
@@ -1911,12 +1912,244 @@ export class SyncService {
       });
     }
 
+    if (dto.mutations && dto.mutations.length > 0) {
+      results.mutations = await this.processMutationBatch(user, dto.mutations);
+    }
+
     return {
       success: true,
       timestamp: new Date().toISOString(),
       idMappings,
       results,
     };
+  }
+
+  /**
+   * Processes an outbox batch of typed mutations (e.g. RECORD_HOMEWORK_ONSITE, RECORD_ATTENDANCE).
+   * Ensures atomic database updates with per-mutation success/failure reporting.
+   */
+  async processMutationBatch(
+    user: AuthenticatedUser,
+    mutations: SyncMutationItemDto[] | any[],
+  ): Promise<Array<{ mutationId: string; status: 'SUCCESS' | 'FAILED'; error?: string }>> {
+    const results: Array<{ mutationId: string; status: 'SUCCESS' | 'FAILED'; error?: string }> = [];
+
+    if (!Array.isArray(mutations) || mutations.length === 0) {
+      return results;
+    }
+
+    const recorderId = user?.id || 'system';
+
+    for (const mutation of mutations) {
+      try {
+        switch (mutation.type) {
+          case 'RECORD_HOMEWORK_ONSITE': {
+            const {
+              assessmentId,
+              studentId,
+              sessionId,
+              status,
+              recordedMethod,
+              score,
+              feedback,
+              clientTimestamp,
+            } = mutation.payload || {};
+
+            if (!studentId || !sessionId) {
+              throw new BadRequestException(
+                `Missing required parameters for RECORD_HOMEWORK_ONSITE in mutation ${mutation.id}`,
+              );
+            }
+
+            // If assessmentId is missing, resolve the default homework linked to this session
+            let targetAssessmentId = assessmentId;
+            if (!targetAssessmentId) {
+              try {
+                const sessionWithHomework = await this.prisma.lessonSession.findUnique({
+                  where: { id: sessionId },
+                  include: {
+                    homeworkRecords: { take: 1 },
+                    group: {
+                      include: {
+                        assessments: {
+                          where: { type: AssessmentType.ASSIGNMENT },
+                          take: 1,
+                        },
+                      },
+                    },
+                  },
+                });
+                targetAssessmentId =
+                  sessionWithHomework?.group?.assessments?.[0]?.id ||
+                  sessionWithHomework?.homeworkRecords?.[0]?.assessmentId;
+
+                if (!targetAssessmentId && sessionWithHomework?.groupId) {
+                  const fallbackAssessment = await this.prisma.assessment.findFirst({
+                    where: {
+                      groupId: sessionWithHomework.groupId,
+                      type: AssessmentType.ASSIGNMENT,
+                    },
+                    orderBy: { createdAt: 'desc' },
+                  });
+                  targetAssessmentId = fallbackAssessment?.id;
+                }
+
+                if (!targetAssessmentId && sessionWithHomework?.groupId) {
+                  const group = await this.prisma.academicGroup.findUnique({
+                    where: { id: sessionWithHomework.groupId },
+                    select: { teacherId: true, gradeLevel: true, name: true },
+                  });
+                  if (group) {
+                    const formattedDate =
+                      sessionWithHomework.sessionDate instanceof Date
+                        ? sessionWithHomework.sessionDate.toISOString().slice(0, 10)
+                        : String(sessionWithHomework.sessionDate).slice(0, 10);
+                    const autoAssessment = await this.prisma.assessment.create({
+                      data: {
+                        title: sessionWithHomework.topic
+                          ? `واجب: ${sessionWithHomework.topic}`
+                          : `واجب حصة ${formattedDate}`,
+                        type: AssessmentType.ASSIGNMENT,
+                        teacherId: group.teacherId,
+                        groupId: sessionWithHomework.groupId,
+                        gradeLevel: group.gradeLevel,
+                        homeworkDeliveryType: HomeworkDeliveryType.ONSITE,
+                        totalScore: 10.0,
+                        isPublished: true,
+                      },
+                    });
+                    targetAssessmentId = autoAssessment.id;
+                  }
+                }
+              } catch (resErr) {
+                this.logger.warn(`Could not resolve assessment for session [${sessionId}]:`, resErr);
+              }
+            }
+
+            const recordDate = new Date(clientTimestamp || Date.now());
+
+            await this.prisma.$transaction(async (tx) => {
+              // 1. Upsert Homework Record
+              if (targetAssessmentId) {
+                await tx.homeworkRecord.upsert({
+                  where: {
+                    assessmentId_studentId_sessionId: {
+                      assessmentId: targetAssessmentId,
+                      studentId,
+                      sessionId,
+                    },
+                  },
+                  update: {
+                    status: (status as HomeworkSubmissionStatus) || HomeworkSubmissionStatus.CHECKED_ONSITE,
+                    recordedMethod: (recordedMethod as RecordingMethod) || RecordingMethod.QR_SCAN,
+                    score: score !== undefined ? score : undefined,
+                    feedback: feedback !== undefined ? feedback : undefined,
+                    updatedAt: recordDate,
+                  },
+                  create: {
+                    assessmentId: targetAssessmentId,
+                    studentId,
+                    sessionId,
+                    status: (status as HomeworkSubmissionStatus) || HomeworkSubmissionStatus.CHECKED_ONSITE,
+                    checkedByRole: user?.role || UserRole.TEACHER,
+                    recordedMethod: (recordedMethod as RecordingMethod) || RecordingMethod.QR_SCAN,
+                    score: score ?? null,
+                    feedback: feedback ?? null,
+                    clientTimestamp: recordDate,
+                    createdAt: recordDate,
+                    updatedAt: recordDate,
+                  },
+                });
+              }
+
+              // 2. Guarantee Attendance Record is set to PRESENT
+              await tx.attendanceRecord.upsert({
+                where: {
+                  sessionId_studentId: {
+                    sessionId,
+                    studentId,
+                  },
+                },
+                update: {
+                  status: AttendanceStatus.PRESENT,
+                },
+                create: {
+                  sessionId,
+                  studentId,
+                  status: AttendanceStatus.PRESENT,
+                  recordingMethod: (recordedMethod as RecordingMethod) || RecordingMethod.QR_SCAN,
+                  recordedById: recorderId,
+                  recordedAt: recordDate,
+                },
+              });
+            });
+
+            results.push({ mutationId: mutation.id, status: 'SUCCESS' });
+            break;
+          }
+
+          case 'RECORD_ATTENDANCE': {
+            const { sessionId, studentId, status, recordingMethod, clientTimestamp } =
+              mutation.payload || {};
+
+            if (!studentId || !sessionId) {
+              throw new BadRequestException(
+                `Missing required parameters for RECORD_ATTENDANCE in mutation ${mutation.id}`,
+              );
+            }
+
+            const recordDate = new Date(clientTimestamp || Date.now());
+
+            await this.prisma.attendanceRecord.upsert({
+              where: {
+                sessionId_studentId: {
+                  sessionId,
+                  studentId,
+                },
+              },
+              update: {
+                status: (status as AttendanceStatus) || AttendanceStatus.PRESENT,
+                recordingMethod: (recordingMethod as RecordingMethod) || RecordingMethod.QR_SCAN,
+                recordedAt: recordDate,
+              },
+              create: {
+                sessionId,
+                studentId,
+                status: (status as AttendanceStatus) || AttendanceStatus.PRESENT,
+                recordingMethod: (recordingMethod as RecordingMethod) || RecordingMethod.QR_SCAN,
+                recordedById: recorderId,
+                recordedAt: recordDate,
+              },
+            });
+
+            results.push({ mutationId: mutation.id, status: 'SUCCESS' });
+            break;
+          }
+
+          default: {
+            this.logger.warn(`Unhandled mutation type: ${mutation.type} in mutation ${mutation.id}`);
+            results.push({
+              mutationId: mutation.id,
+              status: 'FAILED',
+              error: `Unhandled mutation type: ${mutation.type}`,
+            });
+            break;
+          }
+        }
+      } catch (err: any) {
+        this.logger.error(
+          `Mutation ${mutation.id} [${mutation.type}] failed: ${err.message}`,
+          err.stack,
+        );
+        results.push({
+          mutationId: mutation.id,
+          status: 'FAILED',
+          error: err.message || 'Error processing mutation',
+        });
+      }
+    }
+
+    return results;
   }
 
   /**

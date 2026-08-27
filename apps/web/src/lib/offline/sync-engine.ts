@@ -680,112 +680,85 @@ class OfflineSyncEngine {
         }
       }
 
-      // 4.1 Batch Onsite Homework Sync
-      const homeworkItems = pending.filter(
+      // 4. Batch Onsite Homework and Attendance Sync via API_ENDPOINTS.SYNC.BATCH
+      const pendingMutations = await offlineDb.outbox_mutations
+        .where('status')
+        .equals('PENDING')
+        .toArray();
+
+      const attendanceAndHomeworkItems = pending.filter(
         (m) =>
-          m.endpoint?.includes('/sync/homework') ||
+          m.type === 'RECORD_HOMEWORK_ONSITE' ||
+          m.type === 'RECORD_ATTENDANCE' ||
           m.payload?.type === 'RECORD_HOMEWORK_ONSITE' ||
-          (m as any).type === 'RECORD_HOMEWORK_ONSITE',
+          m.payload?.type === 'RECORD_ATTENDANCE' ||
+          m.endpoint?.includes('/sync/homework') ||
+          (m.domain === 'attendance' && m.method === 'POST'),
       );
-      if (homeworkItems.length > 0) {
-        try {
-          const operations = homeworkItems.map((item) => ({
-            id: item.id,
-            assessmentId: item.payload.assessmentId,
-            sessionId: item.payload.sessionId,
-            studentId: item.payload.studentId,
-            qrCodeToken: item.payload.qrCodeToken,
-            status: item.payload.status || 'CHECKED_ONSITE',
-            recordedMethod: item.payload.recordedMethod || 'QR_SCAN',
-            score: item.payload.score,
-            feedback: item.payload.feedback,
-            clientTimestamp: item.clientTimestamp || Date.now(),
-          }));
 
-          const res = await apiClient<any>(API_ENDPOINTS.SYNC.HOMEWORK, {
+      if (attendanceAndHomeworkItems.length > 0) {
+        // Verify all mutations retain full payload integrity
+        const batchPayload = attendanceAndHomeworkItems.map((m) => {
+          const mutationType =
+            m.type ||
+            m.payload?.type ||
+            (m.endpoint?.includes('/sync/homework') ? 'RECORD_HOMEWORK_ONSITE' : 'RECORD_ATTENDANCE');
+
+          return {
+            id: m.id,
+            type: mutationType,
+            payload: {
+              assessmentId: m.payload?.assessmentId,
+              studentId: m.payload?.studentId,
+              sessionId: m.payload?.sessionId,
+              qrCodeToken: m.payload?.qrCodeToken,
+              status:
+                m.payload?.status ||
+                (mutationType === 'RECORD_HOMEWORK_ONSITE' ? 'CHECKED_ONSITE' : 'PRESENT'),
+              recordedMethod:
+                m.payload?.recordedMethod || m.payload?.recordingMethod || 'QR_SCAN',
+              score: m.payload?.score ?? null,
+              feedback: m.payload?.feedback,
+              clientTimestamp: m.payload?.clientTimestamp || m.clientTimestamp,
+            },
+            clientTimestamp: m.clientTimestamp,
+          };
+        });
+
+        try {
+          const res = await apiClient<any>(API_ENDPOINTS.SYNC.BATCH, {
             method: 'POST',
-            body: JSON.stringify({ operations }),
+            body: JSON.stringify(batchPayload),
           });
 
-          if (res?.processedOperationIds) {
+          // Only mark an outbox item as SYNCED or delete it from IndexedDB if the backend explicitly returns success (status: 'SUCCESS')
+          if (res?.results && Array.isArray(res.results)) {
+            for (const itemResult of res.results) {
+              if (itemResult.status === 'SUCCESS') {
+                await offlineDb.removeMutation(itemResult.mutationId);
+                syncedCount++;
+              } else {
+                const target = attendanceAndHomeworkItems.find((m) => m.id === itemResult.mutationId);
+                if (target) {
+                  await this.handleFailedMutation(target, itemResult.error || 'Server rejected mutation');
+                }
+                failedCount++;
+              }
+            }
+          } else if (res?.processedOperationIds && Array.isArray(res.processedOperationIds)) {
             for (const id of res.processedOperationIds) {
               await offlineDb.removeMutation(id);
               syncedCount++;
             }
-          }
-
-          if (res?.conflicts && res.conflicts.length > 0) {
-            for (const conf of res.conflicts) {
-              await offlineDb.recordConflict({
-                id: generateClientOperationId(),
-                operationId: conf.operationId,
-                domain: 'attendance',
-                reason: conf.reason,
-                payload: operations.find((o) => o.id === conf.operationId),
-                timestamp: Date.now(),
-                resolved: false,
-              });
-              await offlineDb.removeMutation(conf.operationId);
-              failedCount++;
-            }
-          }
-        } catch (err: any) {
-          console.error('Batch homework sync failed:', err);
-          for (const item of homeworkItems) {
-            await this.handleFailedMutation(item, err.message);
-            failedCount++;
-          }
-        }
-      }
-
-      // 4. Batch Attendance Sync
-      const attendanceItems = pending.filter(
-        (m) => m.domain === 'attendance' && m.method === 'POST' && !homeworkItems.includes(m),
-      );
-      if (attendanceItems.length > 0) {
-        try {
-          const operations = attendanceItems.map((item) => ({
-            id: item.id,
-            sessionId: item.payload.sessionId,
-            qrCodeToken: item.payload.qrCodeToken,
-            studentId: item.payload.studentId,
-            status: item.payload.status || 'PRESENT',
-            recordingMethod: item.payload.recordingMethod || 'QR_SCAN',
-            clientTimestamp: item.clientTimestamp,
-            allowCrossGroup: item.payload.allowCrossGroup,
-            notes: item.payload.notes,
-          }));
-
-          const res = await apiClient<any>(API_ENDPOINTS.SYNC.ATTENDANCE, {
-            method: 'POST',
-            body: JSON.stringify({ operations }),
-          });
-
-          if (res?.processedOperationIds) {
-            for (const id of res.processedOperationIds) {
-              await offlineDb.removeMutation(id);
+          } else if (res?.syncedCount !== undefined || res?.success) {
+            for (const item of attendanceAndHomeworkItems) {
+              await offlineDb.removeMutation(item.id);
               syncedCount++;
             }
           }
-
-          if (res?.conflicts && res.conflicts.length > 0) {
-            for (const conf of res.conflicts) {
-              await offlineDb.recordConflict({
-                id: generateClientOperationId(),
-                operationId: conf.operationId,
-                domain: 'attendance',
-                reason: conf.reason,
-                payload: operations.find((o) => o.id === conf.operationId),
-                timestamp: Date.now(),
-                resolved: false,
-              });
-              await offlineDb.removeMutation(conf.operationId);
-              failedCount++;
-            }
-          }
         } catch (err: any) {
-          console.error('Batch attendance sync failed:', err);
-          for (const item of attendanceItems) {
+          console.error('Batch sync failed:', err);
+          for (const item of attendanceAndHomeworkItems) {
             await this.handleFailedMutation(item, err.message);
             failedCount++;
           }
@@ -934,8 +907,7 @@ class OfflineSyncEngine {
           !groupCreations.includes(m) &&
           !studentCreations.includes(m) &&
           !groupEnrollments.includes(m) &&
-          !homeworkItems.includes(m) &&
-          !attendanceItems.includes(m) &&
+          !attendanceAndHomeworkItems.includes(m) &&
           !paymentItems.includes(m) &&
           !progressItems.includes(m) &&
           !assessmentItems.includes(m),
@@ -973,6 +945,13 @@ class OfflineSyncEngine {
         this.queryClient.invalidateQueries({ queryKey: ['payments'] });
         this.queryClient.invalidateQueries({ queryKey: ['student-payments'] });
         this.queryClient.invalidateQueries({ queryKey: ['group-defaulters'] });
+        this.queryClient.invalidateQueries({ queryKey: ['session-details'] });
+        this.queryClient.invalidateQueries({ queryKey: ['homework-records'] });
+        this.queryClient.invalidateQueries({ queryKey: ['attendance-records'] });
+        this.queryClient.invalidateQueries({ queryKey: ['student-group-sessions'] });
+        if (typeof this.queryClient.refetchQueries === 'function') {
+          this.queryClient.refetchQueries({ type: 'active' });
+        }
       }
 
       // 8. Downstream Pull: fetch the delta snapshot from the server and merge it
