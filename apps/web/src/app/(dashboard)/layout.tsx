@@ -45,7 +45,7 @@ export default function DashboardLayout({
   const [isMounted, setIsMounted] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isAuthenticated, isInitialized, logout } = useAuth();
+  const { user, isAuthenticated, isInitialized, logout, LogoutConfirmation } = useAuth();
   const isOnline = useOnlineStatus();
 
   useEffect(() => {
@@ -337,6 +337,7 @@ export default function DashboardLayout({
           isOpen={isActivityDrawerOpen}
           onClose={() => setIsActivityDrawerOpen(false)}
         />
+        {LogoutConfirmation}
       </div>
     </div>
   );

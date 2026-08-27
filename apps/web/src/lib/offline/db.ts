@@ -1606,6 +1606,72 @@ class OfflineDatabase {
     return pending.length;
   }
 
+  public async getUserPendingCount(userId: string): Promise<number> {
+    if (!this.isSupported()) {
+      let count = 0;
+      for (const m of this.memoryOutbox.values()) {
+        if (m.userId === userId && (m.status === 'PENDING' || m.status === 'FAILED')) count++;
+      }
+      return count;
+    }
+    try {
+      const { store } = await this.getStore('outbox_mutations', 'readonly');
+      const index = store.index('idx_userId');
+      return new Promise((resolve) => {
+        const req = index.count(IDBKeyRange.only(userId));
+        req.onsuccess = () => resolve(req.result || 0);
+        req.onerror = () => {
+          let count = 0;
+          for (const m of this.memoryOutbox.values()) {
+            if (m.userId === userId && (m.status === 'PENDING' || m.status === 'FAILED')) count++;
+          }
+          resolve(count);
+        };
+      });
+    } catch {
+      let count = 0;
+      for (const m of this.memoryOutbox.values()) {
+        if (m.userId === userId && (m.status === 'PENDING' || m.status === 'FAILED')) count++;
+      }
+      return count;
+    }
+  }
+
+  public async clearUserPendingMutations(userId: string): Promise<number> {
+    let deletedCount = 0;
+    // Clear memory outbox first
+    for (const [id, m] of this.memoryOutbox.entries()) {
+      if (m.userId === userId) {
+        this.memoryOutbox.delete(id);
+        deletedCount++;
+      }
+    }
+
+    if (!this.isSupported()) return deletedCount;
+    
+    try {
+      const { store } = await this.getStore('outbox_mutations', 'readwrite');
+      const index = store.index('idx_userId');
+      return new Promise((resolve, reject) => {
+        const req = index.openCursor(IDBKeyRange.only(userId));
+        let dbDeletedCount = 0;
+        req.onsuccess = (e: any) => {
+          const cursor = e.target.result;
+          if (cursor) {
+            cursor.delete();
+            dbDeletedCount++;
+            cursor.continue();
+          } else {
+            resolve(dbDeletedCount > 0 ? dbDeletedCount : deletedCount);
+          }
+        };
+        req.onerror = () => reject(new Error('Failed to delete user mutations'));
+      });
+    } catch (e) {
+      throw new Error('Failed to open database for deletion: ' + String(e));
+    }
+  }
+
   // ==========================================
   // Offline Roster Operations
   // ==========================================
