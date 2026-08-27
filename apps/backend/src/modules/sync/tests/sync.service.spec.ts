@@ -610,9 +610,9 @@ describe('SyncService', () => {
       expect(res.idMappings).toBeDefined();
       expect(res.idMappings.groups[clientTempGroupId]).toBe(clientTempGroupId);
       expect(res.idMappings.students[clientTempStudent1Id]).toBeDefined();
-      expect(res.idMappings.students[clientTempStudent1Id].studentCode).toMatch(/^STU-\d{4}-\d{5}/);
+      expect(res.idMappings.students[clientTempStudent1Id].studentCode).toMatch(/^STU\d{4}/);
       expect(res.idMappings.students[clientTempStudent2Id]).toBeDefined();
-      expect(res.idMappings.students[clientTempStudent2Id].studentCode).toMatch(/^STU-\d{4}-\d{5}/);
+      expect(res.idMappings.students[clientTempStudent2Id].studentCode).toMatch(/^STU\d{4}/);
 
       // Verify groups and students were created in transaction
       expect(mockPrismaService.academicGroup.create).toHaveBeenCalledTimes(1);

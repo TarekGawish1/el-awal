@@ -15,6 +15,7 @@ describe('RegisterStudentDto (server-side validation)', () => {
     parentPhone: '01098765432',
     academicStage: 'SECONDARY',
     gradeLevel: 'الصف الثالث الثانوي',
+    attendanceMode: 'CENTER',
   };
 
   it('accepts a well-formed registration request', async () => {

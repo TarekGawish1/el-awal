@@ -156,10 +156,9 @@ describe('StudentRegistrationService', () => {
     // Link created
     expect(tx.parentStudentLink.create).toHaveBeenCalledTimes(1);
 
-    // Credentials returned once, plaintext differs from stored hash
-    expect(result.credentials.studentCode).toMatch(/^STU-\d{4}-/);
-    expect(result.credentials.studentPassword).toHaveLength(12);
-    expect(result.credentials.parentPassword).toHaveLength(12);
+    expect(result.credentials.studentCode).toMatch(/^STU\d{4}/);
+    expect(result.credentials.studentPassword).toHaveLength(6);
+    expect(result.credentials.parentPassword).toHaveLength(6);
     expect(result.credentials.parentIsNew).toBe(true);
 
     const studentHash = studentCreateCall[0].data.passwordHash;

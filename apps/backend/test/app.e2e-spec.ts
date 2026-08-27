@@ -404,7 +404,7 @@ describe('El Awal Backend E2E Integration Suite (e2e)', () => {
 
       expect(response.body.data).toHaveProperty('studentCode');
       expect(response.body.data).toHaveProperty('qrCodeToken');
-      expect(response.body.data.studentCode).toMatch(/^STU-/);
+      expect(response.body.data.studentCode).toMatch(/^STU\d{4}/);
     });
   });
 

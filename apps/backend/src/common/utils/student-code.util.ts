@@ -16,7 +16,7 @@ export async function generateUniqueStudentCode(
 
   for (let attempt = 0; attempt < 5; attempt++) {
     const sequenceNumber = count + 1 + attempt;
-    const candidate = `STU-${year}-${String(sequenceNumber).padStart(5, '0')}`;
+    const candidate = `STU${year}${String(sequenceNumber).padStart(5, '0')}`;
     const existing = await tx.studentProfile.findUnique({
       where: { studentCode: candidate },
       select: { id: true },
@@ -27,5 +27,5 @@ export async function generateUniqueStudentCode(
   }
 
   const suffix = randomBytes(3).toString('hex').toUpperCase();
-  return `STU-${year}-${suffix}`;
+  return `STU${year}${suffix}`;
 }
