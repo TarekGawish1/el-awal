@@ -437,3 +437,102 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   }
 });
+
+// =========================================================================
+// WEB PUSH NOTIFICATION HANDLERS
+// =========================================================================
+
+const PUSH_APP_NAME = 'منصة الأول التعليمية';
+const PUSH_ICON = '/icons/icon-192x192.png';
+const PUSH_BADGE = '/icons/badge-72x72.png';
+
+/**
+ * Push Event: Display notification to user.
+ * Payload format: { title, body, icon?, badge?, url?, tag?, data? }
+ */
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+
+  let payload;
+  try {
+    payload = event.data.json();
+  } catch {
+    payload = { title: PUSH_APP_NAME, body: event.data.text() };
+  }
+
+  const title = payload.title || PUSH_APP_NAME;
+  const options = {
+    body: payload.body || '',
+    icon: payload.icon || PUSH_ICON,
+    badge: payload.badge || PUSH_BADGE,
+    dir: 'rtl',
+    lang: 'ar',
+    vibrate: [200, 100, 200],
+    tag: payload.tag || 'el-awal-notification',
+    renotify: true,
+    requireInteraction: false,
+    data: {
+      url: payload.url || '/',
+      ...payload.data,
+    },
+    actions: [
+      { action: 'open', title: 'فتح' },
+      { action: 'dismiss', title: 'تجاهل' },
+    ],
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+/**
+ * Notification Click: Navigate user to the relevant page.
+ */
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  if (event.action === 'dismiss') return;
+
+  const targetUrl = event.notification.data?.url || '/';
+
+  event.waitUntil(
+    clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((windowClients) => {
+        // Focus existing tab if already open
+        for (const client of windowClients) {
+          if (client.url.includes(self.location.origin) && 'focus' in client) {
+            client.navigate(targetUrl);
+            return client.focus();
+          }
+        }
+        // Otherwise open a new tab
+        if (clients.openWindow) {
+          return clients.openWindow(targetUrl);
+        }
+      }),
+  );
+});
+
+/**
+ * Push Subscription Change: Re-subscribe when browser rotates the subscription.
+ */
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(
+    self.registration.pushManager
+      .subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: event.oldSubscription?.options?.applicationServerKey,
+      })
+      .then((newSubscription) => {
+        return fetch('/api/v1/notifications/push-subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newSubscription.toJSON()),
+          credentials: 'include',
+        });
+      })
+      .catch((err) => {
+        console.error('[SW] pushsubscriptionchange failed:', err);
+      }),
+  );
+});
