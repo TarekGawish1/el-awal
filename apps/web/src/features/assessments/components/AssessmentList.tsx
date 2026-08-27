@@ -37,20 +37,17 @@ export function AssessmentList() {
     });
   }, [assessments, searchQuery, filterType, filterStage, filterGrade]);
 
-  const availableStages = useMemo(() => {
-    const stages = new Set<string>();
-    assessments.forEach(a => {
-      if (a.academicStage) stages.add(a.academicStage);
-    });
-    return Array.from(stages);
-  }, [assessments]);
+  const availableStages = ['PRIMARY', 'MIDDLE', 'SECONDARY'];
 
   const availableGrades = useMemo(() => {
+    if (filterStage === 'PRIMARY') return ['الصف الأول الابتدائي', 'الصف الثاني الابتدائي', 'الصف الثالث الابتدائي', 'الصف الرابع الابتدائي', 'الصف الخامس الابتدائي', 'الصف السادس الابتدائي'];
+    if (filterStage === 'MIDDLE') return ['الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي'];
+    if (filterStage === 'SECONDARY') return ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي'];
+    
+    // If 'ALL' is selected, show grades dynamically from the existing ones, or just all grades
     const grades = new Set<string>();
     assessments.forEach(a => {
-      if (a.gradeLevel && (filterStage === 'ALL' || a.academicStage === filterStage)) {
-        grades.add(a.gradeLevel);
-      }
+      if (a.gradeLevel) grades.add(a.gradeLevel);
     });
     return Array.from(grades);
   }, [assessments, filterStage]);
