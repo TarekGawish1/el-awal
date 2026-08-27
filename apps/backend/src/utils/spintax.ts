@@ -62,6 +62,18 @@ export interface StudentApprovalCredentialsData {
   groupName?: string;
 }
 
+export function formatLocalEgyptianPhone(phone: string): string {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('20') && digits.length === 12) {
+    return '0' + digits.slice(2);
+  }
+  if (digits.startsWith('0') && digits.length === 11) {
+    return digits;
+  }
+  return phone;
+}
+
 /**
  * Generates an automated welcome message with login credentials for parent and student
  * sent via WhatsApp when student registration/enrollment is approved by teacher.
@@ -79,6 +91,9 @@ export function formatStudentApprovalMessage(data: StudentApprovalCredentialsDat
     groupName,
   } = data;
 
+  const displayStudentPhone = formatLocalEgyptianPhone(studentPhoneOrCode);
+  const displayParentPhone = parentPhoneOrCode ? formatLocalEgyptianPhone(parentPhoneOrCode) : '';
+
   const greetings = [
     `السلام عليكم ورحمة الله وبركاته،\nأهلاً بحضرتك ${parentName} 🌸`,
     `تحية طيبة وبعد، أهلاً بحضرتك ${parentName} الكريم 🌸`,
@@ -93,15 +108,15 @@ export function formatStudentApprovalMessage(data: StudentApprovalCredentialsDat
     `تم تأكيد وقبول انضمام الطالب/ة: *${studentName}*${groupInfo} إلى *${centerName}* بنجاح. ✅`,
   ];
 
-  const studentCreds = `📌 *بيانات حساب الطالب:*
-- اسم المستخدم/الهاتف: \`${studentPhoneOrCode}\`
-${studentPassword ? `- كلمة المرور: \`${studentPassword}\`` : '- كلمة المرور: كلمة المرور المحددة أثناء التسجيل'}`;
+  const studentCreds = `📌 *بيانات دخول الطالب:*
+- اسم المستخدم / الهاتف: \`${displayStudentPhone}\`
+${studentPassword ? `- كلمة المرور: \`${studentPassword}\`` : '- كلمة المرور: كلمة المرور التي اختارها الطالب أثناء التسجيل'}
+🔗 رابط دخول الطالب: ${platformUrl.replace(/\/parent-access$/, '')}/login`;
 
-  const parentCreds = parentPhoneOrCode
-    ? `\n\n📌 *بيانات حساب ولي الأمر (لمتابعة الحضور والدرجات والغياب):*
-- اسم المستخدم/الهاتف: \`${parentPhoneOrCode}\`
-${parentPassword ? `- كلمة المرور: \`${parentPassword}\`` : '- كلمة المرور: نفس كلمة المرور المحددة أو رقم هاتف ولي الأمر'}`
-    : '';
+  const parentCreds = `📌 *بوابة ولي الأمر (لمتابعة الحضور، الغياب، والدرجات):*
+- يمكن لولي الأمر الدخول مباشرة وبكل سهولة بإدخال رقم هاتف الطالب \`${displayStudentPhone}\`${displayParentPhone && displayParentPhone !== displayStudentPhone ? ` (أو رقم هاتف ولي الأمر \`${displayParentPhone}\`)` : ''}.
+${parentPassword ? `- كلمة المرور: \`${parentPassword}\`\n` : ''}🔗 رابط دخول ولي الأمر السريع:
+https://al-awal.online/parent-access`;
 
   const closings = [
     'يرجى الاحتفاظ بهذه الرسالة للرجوع إليها دائماً. نتمنى لطالبنا دوام التوفيق والنجاح 🌟',
@@ -120,10 +135,8 @@ ${parentPassword ? `- كلمة المرور: \`${parentPassword}\`` : '- كلم�
     intro,
     '',
     studentCreds,
-    parentCreds,
     '',
-    `🌐 *رابط تسجيل الدخول للمنصة:*`,
-    platformUrl,
+    parentCreds,
     '',
     closing,
   ];

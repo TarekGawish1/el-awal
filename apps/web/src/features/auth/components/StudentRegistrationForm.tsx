@@ -455,63 +455,56 @@ function CredentialsScreen({
   onContinue: () => void;
 }) {
   const header = `🌟 منصة الأول / الأستاذ أحمد غريب 🌟\n\n`;
-  const studentBlock = `${header}بيانات دخول الطالب:\nكود الطالب: ${credentials.studentCode}\nكلمة المرور: ${credentials.studentPassword}\nرقم الهاتف: ${credentials.studentPhone}`;
-  const parentBlock = credentials.parentIsNew
-    ? `${header}بيانات دخول ولي الأمر:\nرقم هاتف ولي الأمر: ${credentials.parentPhone}\nكلمة المرور: ${credentials.parentPassword}`
-    : `${header}بيانات دخول ولي الأمر:\nرقم هاتف ولي الأمر: ${credentials.parentPhone}\n(حساب ولي الأمر موجود مسبقاً)`;
+  const studentBlock = `${header}بيانات تسجيل الطالب:\nكود الطالب: ${credentials.studentCode}\nرقم الهاتف: ${credentials.studentPhone}`;
+  const parentBlock = `${header}بيانات تسجيل ولي الأمر:\nرقم هاتف ولي الأمر: ${credentials.parentPhone}`;
 
   return (
     <div className="space-y-5 animate-in fade-in-50 duration-200" aria-live="polite">
       <div className="space-y-2 text-center">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-success-100">
-          <CheckCircle2 className="h-9 w-9 text-success-600" />
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 ring-8 ring-emerald-50">
+          <CheckCircle2 className="h-9 w-9 text-emerald-600" />
         </div>
         <div>
-          <h3 className="text-lg font-bold text-neutral-900">تم إنشاء الحساب بنجاح</h3>
+          <h3 className="text-xl font-extrabold text-neutral-900">تم تسجيل الحساب بنجاح!</h3>
           <p className="mt-1 text-sm text-neutral-500">
-            {credentials.parentPhone ? 'تم إنشاء حساب الطالب وحساب ولي الأمر' : 'تم إنشاء حساب الطالب'}
+            طلبك قيد المراجعة لدى المعلم
           </p>
         </div>
       </div>
 
-      <div className="flex items-start gap-2 rounded-lg border border-warning-200 bg-warning-50 p-3">
-        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-warning-600" />
-        <p className="text-xs leading-relaxed text-warning-800">
-          احتفظ بهذه البيانات في مكان آمن — لن تظهر كلمات المرور مرة أخرى بعد مغادرة هذه الصفحة.
+      <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 shadow-sm">
+        <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.888-.788-1.489-1.761-1.663-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
+          </svg>
+        </div>
+        <p className="text-xs sm:text-sm leading-relaxed text-emerald-900 font-semibold">
+          📲 سيتم إرسال بيانات الدخول وكلمات المرور الخاصة بالطالب وولي الأمر في رسالة عبر واتساب بمجرد قبول وتأكيد تسجيلك من قِبل المعلم.
         </p>
       </div>
 
       <CredentialCard
-        title="بيانات دخول الطالب"
+        title="بيانات حساب الطالب"
         icon={<GraduationCap className="h-4 w-4 text-primary-600" />}
         rows={[
           { label: 'كود الطالب', value: credentials.studentCode, mono: true },
-          { label: 'كلمة المرور', value: credentials.studentPassword, mono: true },
           { label: 'رقم الهاتف', value: credentials.studentPhone, mono: true },
         ]}
-        copyLabel="نسخ بيانات الطالب"
+        copyLabel="نسخ كود الطالب"
         copied={copied === 'student'}
         onCopy={() => onCopy(studentBlock, 'student')}
-        whatsappText={studentBlock}
       />
 
       {credentials.parentPhone && (
         <CredentialCard
-          title="بيانات دخول ولي الأمر"
+          title="بيانات حساب ولي الأمر"
           icon={<UserRound className="h-4 w-4 text-secondary-600" />}
-          rows={
-            credentials.parentIsNew
-              ? [
-                { label: 'رقم الهاتف', value: credentials.parentPhone, mono: true },
-                { label: 'كلمة المرور', value: credentials.parentPassword ?? '', mono: true },
-              ]
-              : [{ label: 'رقم الهاتف', value: credentials.parentPhone, mono: true }]
-          }
-          copyLabel={credentials.parentIsNew ? 'نسخ بيانات ولي الأمر' : 'نسخ رقم ولي الأمر'}
+          rows={[
+            { label: 'رقم هاتف ولي الأمر', value: credentials.parentPhone, mono: true },
+          ]}
+          copyLabel="نسخ رقم ولي الأمر"
           copied={copied === 'parent'}
           onCopy={() => onCopy(parentBlock, 'parent')}
-          whatsappText={parentBlock}
-          whatsappPhone={credentials.parentPhone}
         />
       )}
 
@@ -519,7 +512,7 @@ function CredentialsScreen({
         type="button"
         variant="primary"
         size="lg"
-        className="w-full font-bold shadow-sm"
+        className="w-full font-bold shadow-sm rounded-xl py-3.5"
         onClick={onContinue}
         aria-label="الانتقال إلى لوحة التحكم"
       >

@@ -1,13 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { useStudent } from '../hooks/use-students';
+import { useStudent, useUpdateStudentStatus, useDeleteStudent } from '../hooks/use-students';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { StudentQrBadge } from './StudentQrBadge';
-import { X, Phone, User, Users, Calendar, AlertCircle, ExternalLink } from 'lucide-react';
+import { X, Phone, User, Users, Calendar, AlertCircle, ExternalLink, Trash2, UserX, CheckCircle, ShieldAlert } from 'lucide-react';
 import { formatWhatsAppNumber } from '@/lib/utils/formatters';
 
 interface StudentDetailsModalProps {
@@ -18,6 +18,9 @@ interface StudentDetailsModalProps {
 
 export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetailsModalProps) {
   const { data: student, isLoading, isError } = useStudent(studentId || '');
+  const updateStatusMutation = useUpdateStudentStatus();
+  const deleteStudentMutation = useDeleteStudent();
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
   if (!isOpen || !studentId) return null;
 
@@ -183,6 +186,118 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
               </div>
             )}
 
+            {/* Student Status Management Section */}
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <UserX className="w-4 h-4 text-amber-600" />
+                  حالة قيد الطالب في السنتر
+                </span>
+                <span className="text-xs text-slate-500">
+                  الحالة الحالية: <strong className="text-slate-800 font-bold">{student.academicStatus || 'نشط'}</strong>
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={student.academicStatus === 'ACTIVE' ? 'primary' : 'outline'}
+                  disabled={updateStatusMutation.isPending}
+                  onClick={() => updateStatusMutation.mutate({ id: student.id, status: 'ACTIVE' })}
+                  className="text-xs rounded-xl py-1"
+                >
+                  <CheckCircle className="w-3.5 h-3.5 ml-1" />
+                  نشط
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={student.academicStatus === 'LEFT' ? 'secondary' : 'outline'}
+                  disabled={updateStatusMutation.isPending}
+                  onClick={() => updateStatusMutation.mutate({ id: student.id, status: 'LEFT' })}
+                  className={`text-xs rounded-xl py-1 ${student.academicStatus === 'LEFT' ? 'bg-amber-600 text-white hover:bg-amber-700' : 'text-amber-700 border-amber-200 hover:bg-amber-50'}`}
+                >
+                  <UserX className="w-3.5 h-3.5 ml-1" />
+                  غادر السنتر
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={student.academicStatus === 'SUSPENDED' ? 'secondary' : 'outline'}
+                  disabled={updateStatusMutation.isPending}
+                  onClick={() => updateStatusMutation.mutate({ id: student.id, status: 'SUSPENDED' })}
+                  className="text-xs rounded-xl py-1 text-red-600 border-red-200 hover:bg-red-50"
+                >
+                  موقوف مؤقتاً
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={student.academicStatus === 'ARCHIVED' ? 'secondary' : 'outline'}
+                  disabled={updateStatusMutation.isPending}
+                  onClick={() => updateStatusMutation.mutate({ id: student.id, status: 'ARCHIVED' })}
+                  className="text-xs rounded-xl py-1 text-slate-600 border-slate-200 hover:bg-slate-100"
+                >
+                  مؤرشف
+                </Button>
+              </div>
+            </div>
+
+            {/* Danger Zone: Delete Student */}
+            <div className="p-4 rounded-2xl border border-red-100 bg-red-50/50 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-red-900 flex items-center gap-1.5">
+                    <Trash2 className="w-4 h-4 text-red-600" />
+                    حذف الطالب نهائياً من النظام
+                  </h4>
+                  <p className="text-[11px] text-red-700 mt-0.5">
+                    سيتم حذف سجل الطالب وكافة بياناته المرتبطة.
+                  </p>
+                </div>
+                {!isConfirmingDelete ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setIsConfirmingDelete(true)}
+                    className="text-xs border-red-200 text-red-600 hover:bg-red-100 rounded-xl"
+                  >
+                    حذف الطالب
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="primary"
+                      disabled={deleteStudentMutation.isPending}
+                      onClick={() => {
+                        deleteStudentMutation.mutate(student.id, {
+                          onSuccess: () => {
+                            setIsConfirmingDelete(false);
+                            onClose();
+                          },
+                        });
+                      }}
+                      className="text-xs bg-red-600 hover:bg-red-700 text-white rounded-xl"
+                    >
+                      {deleteStudentMutation.isPending ? 'جاري الحذف...' : 'تأكيد الحذف'}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setIsConfirmingDelete(false)}
+                      className="text-xs rounded-xl"
+                    >
+                      إلغاء
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* QR Badge in Modal */}
             <div className="pt-2">
               <StudentQrBadge studentId={student.id} studentPhone={studentPhone} />
@@ -193,12 +308,12 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
         {/* Modal Footer */}
         <div className="flex justify-between items-center pt-4 border-t border-slate-100">
           <Link href={`/teacher/students/${studentId}`} onClick={onClose}>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" className="rounded-xl">
               <ExternalLink className="w-4 h-4 ml-1.5" />
               عرض الصفحة الكاملة
             </Button>
           </Link>
-          <Button variant="primary" size="sm" onClick={onClose}>
+          <Button variant="primary" size="sm" onClick={onClose} className="rounded-xl px-6">
             إغلاق
           </Button>
         </div>

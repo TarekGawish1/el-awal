@@ -30,6 +30,8 @@ enum StudentAcademicStatus {
   SUSPENDED
   GRADUATED
   ARCHIVED
+  DROPPED_OUT
+  LEFT
 
   @@map("student_academic_status")
 }
@@ -293,6 +295,7 @@ model StudentProfile {
   attendanceMode AttendanceMode        @default(CENTER) @map("attendance_mode")
   dateOfBirth    DateTime?             @map("date_of_birth") @db.Date
   emergencyPhone String?               @map("emergency_phone") @db.VarChar(30)
+  pendingCredentials Json?            @map("pending_credentials")
   createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
 

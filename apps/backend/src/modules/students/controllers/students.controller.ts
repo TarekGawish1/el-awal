@@ -2,6 +2,8 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -16,7 +18,7 @@ import { StudentQrCodeResponseDto } from '../dto/qr-code-response.dto';
 import { StudentGroupQueryDto } from '../dto/student-group-query.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
-import { UserRole } from '@prisma/client';
+import { UserRole, StudentAcademicStatus } from '@prisma/client';
 
 @ApiTags('Students')
 @ApiBearerAuth()
@@ -112,5 +114,26 @@ export class StudentsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.studentsService.reserveGroup(groupId, user);
+  }
+
+  @Patch(':id/status')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Update student academic status (ACTIVE, LEFT, DROPPED_OUT, SUSPENDED, GRADUATED, ARCHIVED)' })
+  async updateStudentStatus(
+    @Param('id') id: string,
+    @Body('status') status: StudentAcademicStatus,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.studentsService.updateStudentStatus(id, status, user);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Delete / remove student from system' })
+  async deleteStudent(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.studentsService.deleteStudent(id, user);
   }
 }

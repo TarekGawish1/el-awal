@@ -1,4 +1,4 @@
-export type AcademicStatus = 'ACTIVE' | 'GRADUATED' | 'DROPPED_OUT' | 'SUSPENDED';
+export type AcademicStatus = 'ACTIVE' | 'GRADUATED' | 'DROPPED_OUT' | 'SUSPENDED' | 'LEFT' | 'ARCHIVED';
 
 export interface StudentListItem {
   id: string;

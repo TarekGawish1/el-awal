@@ -302,10 +302,12 @@ export function StudentList() {
     setCurrentPage(1);
   };
 
-  const getStatusColor = (status: AcademicStatus) => {
+  const getStatusColor = (status: AcademicStatus | string) => {
     switch (status) {
       case 'ACTIVE':
         return 'success';
+      case 'LEFT':
+        return 'warning';
       case 'GRADUATED':
         return 'info';
       case 'DROPPED_OUT':
@@ -317,16 +319,20 @@ export function StudentList() {
     }
   };
 
-  const getStatusText = (status: AcademicStatus) => {
+  const getStatusText = (status: AcademicStatus | string) => {
     switch (status) {
       case 'ACTIVE':
         return 'نشط';
+      case 'LEFT':
+        return 'غادر السنتر';
       case 'GRADUATED':
         return 'خريج';
       case 'DROPPED_OUT':
         return 'منسحب';
       case 'SUSPENDED':
         return 'موقوف';
+      case 'ARCHIVED':
+        return 'مؤرشف';
       default:
         return status;
     }

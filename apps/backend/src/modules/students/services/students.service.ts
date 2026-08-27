@@ -13,7 +13,7 @@ import { PrismaService } from '../../../core/database/prisma.service';
 import { CreateStudentDto } from '../dto/create-student.dto';
 import { StudentQueryDto } from '../dto/student-query.dto';
 import { StudentQrCodeResponseDto } from '../dto/qr-code-response.dto';
-import { UserRole, GroupEnrollmentStatus, PaymentStatus, PaymentType } from '@prisma/client';
+import { UserRole, GroupEnrollmentStatus, PaymentStatus, PaymentType, StudentAcademicStatus } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
@@ -721,7 +721,52 @@ export class StudentsService {
         groupId,
         studentId,
         status: 'PENDING' as GroupEnrollmentStatus,
-      }
+      },
     });
+  }
+
+  /**
+   * Updates student academic status (e.g. ACTIVE, LEFT, DROPPED_OUT, SUSPENDED, GRADUATED, ARCHIVED)
+   */
+  async updateStudentStatus(id: string, status: StudentAcademicStatus, user: AuthenticatedUser) {
+    const student = await this.prisma.studentProfile.findUnique({
+      where: { id },
+      include: { user: true },
+    });
+
+    if (!student) throw new NotFoundException('Student profile not found');
+
+    const updated = await this.prisma.studentProfile.update({
+      where: { id },
+      data: { academicStatus: status },
+      include: {
+        user: true,
+        parentLinks: { include: { parent: { include: { user: true } } } },
+        groupEnrollments: { include: { group: true } },
+      },
+    });
+
+    this.logger.log(`Student [${id}] ${student.user.fullName} status updated to: ${status}`);
+    return updated;
+  }
+
+  /**
+   * Removes / deletes a student from the system.
+   */
+  async deleteStudent(id: string, user: AuthenticatedUser) {
+    const student = await this.prisma.studentProfile.findUnique({
+      where: { id },
+      include: { user: true },
+    });
+
+    if (!student) throw new NotFoundException('Student profile not found');
+
+    // Delete student user (cascades to studentProfile and related records)
+    await this.prisma.user.delete({
+      where: { id },
+    });
+
+    this.logger.log(`Student [${id}] ${student.user.fullName} successfully deleted from system`);
+    return { success: true, message: 'تم حذف الطالب من النظام بنجاح' };
   }
 }
