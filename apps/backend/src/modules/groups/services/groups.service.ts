@@ -406,4 +406,84 @@ export class GroupsService {
       roster,
     };
   }
+
+  /**
+   * Retrieves all pending group reservations.
+   * If teacherId is provided, filters for that teacher's groups only.
+   */
+  async getPendingReservations(user: AuthenticatedUser) {
+    let teacherId = undefined;
+    if (user.role === UserRole.TEACHER) {
+      teacherId = user.teacherProfileId || user.id;
+    }
+
+    return this.prisma.groupEnrollment.findMany({
+      where: {
+        status: 'PENDING' as GroupEnrollmentStatus,
+        ...(teacherId ? {
+          group: {
+            OR: [
+              { teacherId: teacherId },
+              { teacher: { id: teacherId } },
+              { teacher: { user: { id: teacherId } } }
+            ]
+          }
+        } : {})
+      },
+      orderBy: { enrolledAt: 'desc' },
+      include: {
+        group: { select: { id: true, name: true, maxCapacity: true, gradeLevel: true, _count: { select: { enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } } } } } },
+        student: {
+          include: {
+            user: { select: { fullName: true, phone: true } }
+          }
+        }
+      }
+    });
+  }
+
+  /**
+   * Accepts a pending group reservation
+   */
+  async acceptReservation(enrollmentId: string, user: AuthenticatedUser) {
+    const enrollment = await this.prisma.groupEnrollment.findUnique({
+      where: { id: enrollmentId },
+      include: { group: { include: { _count: { select: { enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } } } } } } }
+    });
+
+    if (!enrollment || enrollment.status !== 'PENDING' as GroupEnrollmentStatus) {
+      throw new NotFoundException('Pending reservation not found');
+    }
+
+    await this.checkTeacherOwnership(enrollment.group, user);
+
+    if (enrollment.group._count.enrollments >= enrollment.group.maxCapacity) {
+      throw new BadRequestException('هذه المجموعة مكتملة العدد');
+    }
+
+    return this.prisma.groupEnrollment.update({
+      where: { id: enrollmentId },
+      data: { status: GroupEnrollmentStatus.ACTIVE }
+    });
+  }
+
+  /**
+   * Rejects a pending group reservation
+   */
+  async rejectReservation(enrollmentId: string, user: AuthenticatedUser) {
+    const enrollment = await this.prisma.groupEnrollment.findUnique({
+      where: { id: enrollmentId },
+      include: { group: true }
+    });
+
+    if (!enrollment || enrollment.status !== 'PENDING' as GroupEnrollmentStatus) {
+      throw new NotFoundException('Pending reservation not found');
+    }
+
+    await this.checkTeacherOwnership(enrollment.group, user);
+
+    return this.prisma.groupEnrollment.delete({
+      where: { id: enrollmentId }
+    });
+  }
 }

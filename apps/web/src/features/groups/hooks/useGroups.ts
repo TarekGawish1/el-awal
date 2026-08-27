@@ -518,3 +518,32 @@ export function useSearchStudents(query: string) {
     staleTime: 60 * 1000,
   });
 }
+
+export function usePendingReservations() {
+  return useQuery<any[]>({
+    queryKey: ['pending-reservations'],
+    queryFn: () => import('../api/groups.api').then(m => m.fetchPendingReservations()),
+  });
+}
+
+export function useAcceptReservation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (enrollmentId: string) => import('../api/groups.api').then(m => m.acceptReservation(enrollmentId)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pending-reservations'] });
+      queryClient.invalidateQueries({ queryKey: ['groups'] });
+    },
+  });
+}
+
+export function useRejectReservation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (enrollmentId: string) => import('../api/groups.api').then(m => m.rejectReservation(enrollmentId)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pending-reservations'] });
+      queryClient.invalidateQueries({ queryKey: ['groups'] });
+    },
+  });
+}

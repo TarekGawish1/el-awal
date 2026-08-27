@@ -55,6 +55,15 @@ export function LoginContainer() {
 
             <LoginForm />
 
+            <div className="mt-6 pt-4 border-t border-neutral-100 text-center">
+              <button
+                type="button"
+                onClick={() => router.push('/')}
+                className="text-sm font-medium text-neutral-500 hover:text-primary-600 transition-colors"
+              >
+                ← العودة للصفحة الرئيسية
+              </button>
+            </div>
           </CardContent>
         </Card>
 

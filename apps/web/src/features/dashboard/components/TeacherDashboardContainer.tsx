@@ -15,6 +15,7 @@ import { AttentionSection } from './AttentionSection';
 import { DashboardOfflineBanner } from './DashboardOfflineBanner';
 import { DashboardErrorState } from './DashboardErrorState';
 import { DashboardEmptyState } from './DashboardEmptyState';
+import { PendingReservationsSection } from './PendingReservationsSection';
 
 export function TeacherDashboardContainer() {
   const router = useRouter();
@@ -128,6 +129,11 @@ export function TeacherDashboardContainer() {
         <div className="w-full bg-neutral-100 h-1 overflow-hidden rounded-full">
           <div className="bg-primary-600 h-full w-1/3 animate-pulse rounded-full" />
         </div>
+      )}
+
+      {/* 4.5 Pending Reservations */}
+      {!isForbidden && !isError && (
+        <PendingReservationsSection />
       )}
 
       {/* 5. Permission Denied State (403) */}
