@@ -41,6 +41,7 @@ export function OnsiteHomeworkScanner({
 }: OnsiteHomeworkScannerProps) {
   const [locked, setLocked] = useState(false);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [cameraKey, setCameraKey] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [flashType, setFlashType] = useState<'success' | 'duplicate' | 'error' | null>(null);
   const [recentChecked, setRecentChecked] = useState<
@@ -428,6 +429,7 @@ export function OnsiteHomeworkScanner({
             }`}
           >
             <Scanner
+              key={cameraKey}
               onScan={handleScan}
               onError={(err: any) => {
                 const msg = err?.message || '';
@@ -441,16 +443,31 @@ export function OnsiteHomeworkScanner({
               scanDelay={350}
               startTimeoutMs={30000}
               formats={['qr_code']}
-              constraints={{ facingMode }}
-              styles={{ video: { transform: facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)' } }}
+              constraints={{
+                facingMode: { ideal: facingMode },
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+              }}
+              styles={{
+                container: { width: '100%', height: '100%', position: 'relative' },
+                video: {
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
+                },
+              }}
             />
 
-            {/* Camera Switch Button */}
+            {/* Camera Switch & Reload Button */}
             <button
               type="button"
-              onClick={() => setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'))}
+              onClick={() => {
+                setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
+                setCameraKey((prev) => prev + 1);
+              }}
               className="absolute top-4 right-4 z-20 bg-black/40 hover:bg-black/60 text-white backdrop-blur-md p-2.5 rounded-full transition-colors focus:outline-none shadow-sm cursor-pointer"
-              title="تبديل الكاميرا"
+              title="تبديل / إعادة تشغيل الكاميرا"
             >
               <RefreshCcw className="w-5 h-5" />
             </button>

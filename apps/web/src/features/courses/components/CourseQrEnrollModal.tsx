@@ -102,8 +102,13 @@ export function CourseQrEnrollModal({
               onScan={handleScan}
               startTimeoutMs={30000}
               formats={['qr_code']}
+              constraints={{
+                facingMode: { ideal: 'environment' },
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+              }}
               styles={{
-                container: { width: '100%', height: '100%' },
+                container: { width: '100%', height: '100%', position: 'relative' },
                 video: { width: '100%', height: '100%', objectFit: 'cover' },
               }}
             />

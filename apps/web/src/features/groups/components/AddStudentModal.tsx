@@ -142,8 +142,15 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
                   startTimeoutMs={30000}
                   formats={['qr_code']}
                   components={{}}
-                  constraints={{ facingMode }}
-                  styles={{ container: { width: '100%', height: '100%' }, video: { objectFit: 'cover', transform: facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)' } }}
+                  constraints={{
+                    facingMode: { ideal: facingMode },
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                  }}
+                  styles={{
+                    container: { width: '100%', height: '100%', position: 'relative' },
+                    video: { width: '100%', height: '100%', objectFit: 'cover', transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' },
+                  }}
                 />
                 
                 <button
