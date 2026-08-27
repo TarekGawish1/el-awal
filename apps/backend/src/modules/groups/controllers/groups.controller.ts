@@ -123,4 +123,30 @@ export class GroupsController {
   ) {
     return this.groupsService.getGroupRoster(groupId, user);
   }
+  @Get('reservations/pending')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Get all pending reservations' })
+  async getPendingReservations(@CurrentUser() user: AuthenticatedUser) {
+    return this.groupsService.getPendingReservations(user);
+  }
+
+  @Post('reservations/:enrollmentId/accept')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Accept a pending reservation' })
+  async acceptReservation(
+    @Param('enrollmentId') enrollmentId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.groupsService.acceptReservation(enrollmentId, user);
+  }
+
+  @Post('reservations/:enrollmentId/reject')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Reject a pending reservation' })
+  async rejectReservation(
+    @Param('enrollmentId') enrollmentId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.groupsService.rejectReservation(enrollmentId, user);
+  }
 }
