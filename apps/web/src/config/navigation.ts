@@ -23,6 +23,7 @@ export interface NavItemConfig {
 export const TEACHER_NAVIGATION_ITEMS: NavItemConfig[] = [
   { label: 'لوحة التحكم', href: '/teacher/dashboard', icon: LayoutDashboard, onlineOnly: false },
   { label: 'المجموعات الدراسية', href: '/teacher/groups', icon: Users, onlineOnly: false },
+  { label: 'طلبات الانضمام', href: '/teacher/reservations', icon: ClipboardList, onlineOnly: false },
   { label: 'جدول وحصص المعلم', href: '/teacher/schedules', icon: Calendar, onlineOnly: false },
   { label: 'رصد الحضور والـ QR', href: '/teacher/attendance', icon: QrCode, onlineOnly: false },
   { label: 'سجل الطلاب', href: '/teacher/students', icon: GraduationCap, onlineOnly: false },
