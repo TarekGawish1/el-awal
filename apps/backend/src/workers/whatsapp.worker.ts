@@ -15,6 +15,7 @@ import {
   formatPaymentMessage,
   formatTeacherAgendaMessage,
   formatGenericMessage,
+  formatStudentApprovalMessage,
 } from '../utils/spintax';
 
 /**
@@ -235,6 +236,19 @@ export class WhatsAppWorker implements OnModuleInit, OnModuleDestroy {
     const notifType = (notification.notificationType as NotificationType | null) ?? null;
 
     switch (notifType) {
+      case NotificationType.STUDENT_APPROVAL_CREDENTIALS:
+        return formatStudentApprovalMessage({
+          parentName: (data?.parentName as string) || 'ولي الأمر المحترم',
+          studentName: (data?.studentName as string) || 'الطالب',
+          studentPhoneOrCode: (data?.studentPhoneOrCode as string) || (data?.studentPhone as string) || (data?.studentCode as string) || '',
+          studentPassword: data?.studentPassword as string | undefined,
+          parentPhoneOrCode: (data?.parentPhoneOrCode as string) || (data?.parentPhone as string) || undefined,
+          parentPassword: data?.parentPassword as string | undefined,
+          platformUrl: (data?.platformUrl as string) || process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online/login',
+          centerName: (data?.centerName as string) || 'منصة الأوّل التعليمية',
+          groupName: data?.groupName as string | undefined,
+        });
+
       case NotificationType.ABSENCE_ALERT_PARENT:
         return formatAbsenceMessage(
           (data?.studentName as string) || 'الطالب',

@@ -9,14 +9,19 @@ import {
 import { PrismaService } from '../../../core/database/prisma.service';
 import { CreateGroupDto } from '../dto/create-group.dto';
 import { UpdateGroupDto } from '../dto/update-group.dto';
-import { GroupEnrollmentStatus, AttendanceStatus, UserRole } from '@prisma/client';
+import { GroupEnrollmentStatus, AttendanceStatus, UserRole, NotificationChannel, NotificationType } from '@prisma/client';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
+import { NotificationsService } from '../../notifications/services/notifications.service';
+import { formatStudentApprovalMessage } from '../../../utils/spintax';
 
 @Injectable()
 export class GroupsService {
   private readonly logger = new Logger(GroupsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   /**
    * Helper: Validates that a teacher owns the target group (Secretariat/Admin bypasses).
@@ -448,10 +453,29 @@ export class GroupsService {
   async acceptReservation(enrollmentId: string, user: AuthenticatedUser, paymentStatus: 'PAID' | 'LATER' = 'LATER') {
     const enrollment = await this.prisma.groupEnrollment.findUnique({
       where: { id: enrollmentId },
-      include: { group: { include: { _count: { select: { enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } } } } } } }
+      include: {
+        group: {
+          include: {
+            _count: { select: { enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } } } },
+            teacher: { include: { user: true } },
+          },
+        },
+        student: {
+          include: {
+            user: true,
+            parentLinks: {
+              include: {
+                parent: {
+                  include: { user: true },
+                },
+              },
+            },
+          },
+        },
+      },
     });
 
-    if (!enrollment || enrollment.status !== 'PENDING' as GroupEnrollmentStatus) {
+    if (!enrollment || enrollment.status !== ('PENDING' as GroupEnrollmentStatus)) {
       throw new NotFoundException('Pending reservation not found');
     }
 
@@ -464,11 +488,11 @@ export class GroupsService {
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth() + 1; // JavaScript months are 0-indexed
-    
-    return this.prisma.$transaction(async (tx) => {
-      const updatedEnrollment = await tx.groupEnrollment.update({
+
+    const updatedEnrollment = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.groupEnrollment.update({
         where: { id: enrollmentId },
-        data: { status: GroupEnrollmentStatus.ACTIVE }
+        data: { status: GroupEnrollmentStatus.ACTIVE },
       });
 
       const amount = enrollment.group.monthlyFee || 0;
@@ -481,16 +505,80 @@ export class GroupsService {
           periodMonth: currentMonth,
           amountExpected: amount,
           amountPaid: paymentStatus === 'PAID' ? amount : 0,
-          paymentStatus: paymentStatus === 'PAID' ? 'PAID' as any : 'PENDING' as any,
+          paymentStatus: paymentStatus === 'PAID' ? ('PAID' as any) : ('PENDING' as any),
           paymentType: 'TUITION' as any,
           paymentMethod: 'CASH',
           recordedById: user.id,
-          notes: paymentStatus === 'PAID' ? 'تم الدفع وقت تأكيد الانضمام عبر QR' : 'تم تأكيد الانضمام وسيتم الدفع لاحقاً',
-        }
+          notes:
+            paymentStatus === 'PAID'
+              ? 'تم الدفع وقت تأكيد الانضمام عبر QR'
+              : 'تم تأكيد الانضمام وسيتم الدفع لاحقاً',
+        },
       });
 
-      return updatedEnrollment;
+      return updated;
     });
+
+    // ── Dispatch WhatsApp & In-App notification on Student Approval ─────────
+    try {
+      const student = enrollment.student;
+      const studentUser = student?.user;
+      const parentLink = student?.parentLinks?.[0];
+      const parentUser = parentLink?.parent?.user;
+
+      const parentPhone = parentUser?.phone || student?.emergencyPhone;
+      const parentName = parentUser?.fullName || 'ولي الأمر المحترم';
+      const studentName = studentUser?.fullName || 'الطالب';
+      const studentPhoneOrCode = studentUser?.phone || student?.studentCode || '';
+      const groupName = enrollment.group?.name || '';
+      const teacherName = enrollment.group?.teacher?.user?.fullName;
+      const centerName = teacherName ? `مجموعة الأستاذ ${teacherName}` : 'منصة الأوّل التعليمية';
+      const platformUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online/login';
+
+      const messageBody = formatStudentApprovalMessage({
+        parentName,
+        studentName,
+        studentPhoneOrCode,
+        parentPhoneOrCode: parentPhone || undefined,
+        platformUrl,
+        centerName,
+        groupName,
+      });
+
+      const recipientId = parentUser?.id || studentUser?.id;
+
+      if (recipientId) {
+        await this.notificationsService.sendNotification({
+          recipientId,
+          type: 'STUDENT_APPROVAL_CREDENTIALS',
+          notificationType: NotificationType.STUDENT_APPROVAL_CREDENTIALS,
+          title: `تم تأكيد وقبول انضمام ${studentName}`,
+          body: messageBody,
+          channels: parentPhone
+            ? [NotificationChannel.WHATSAPP, NotificationChannel.IN_APP]
+            : [NotificationChannel.IN_APP],
+          data: {
+            studentId: student.id,
+            studentName,
+            studentPhoneOrCode,
+            parentPhone,
+            parentName,
+            groupName,
+            centerName,
+            platformUrl,
+            phone: parentPhone || studentUser?.phone || undefined,
+          },
+        });
+
+        this.logger.log(
+          `📩 Student approval notification dispatched for student ${studentName} (recipient: ${recipientId}, phone: ${parentPhone || 'none'})`,
+        );
+      }
+    } catch (notifErr) {
+      this.logger.error('Failed to dispatch student approval notification', notifErr);
+    }
+
+    return updatedEnrollment;
   }
 
   /**
