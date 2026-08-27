@@ -32,6 +32,7 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   private socket: unknown = null;
   private qrCode: string | null = null;
   private connectionStatus: ConnectionStatus = 'connecting';
+  private connectedNumber: string | null = null;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private isDestroyed = false;
 
@@ -68,14 +69,46 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   // ─── Public API ────────────────────────────────────────────────────────────
 
   /**
-   * Returns the current connection status and QR code (base64 PNG) if available.
-   * Used by the admin dashboard to display the pairing QR.
+   * Returns the current connection status, connected number, and QR code (base64 PNG) if available.
+   * Used by the admin dashboard to display the pairing QR and status.
    */
-  getStatus(): { connected: boolean; status: string; qr?: string } {
+  getStatus(): { connected: boolean; status: string; qr?: string | null; connectedNumber?: string | null } {
     return {
       connected: this.connectionStatus === 'open',
       status: this.connectionStatus,
-      ...(this.qrCode ? { qr: this.qrCode } : {}),
+      qr: this.qrCode,
+      connectedNumber: this.connectedNumber,
+    };
+  }
+
+  /**
+   * Disconnects existing WhatsApp session, clears PostgreSQL auth credentials,
+   * and reinitializes socket to immediately generate a fresh QR code for pairing a new number.
+   */
+  async resetSession(): Promise<{ success: boolean; message: string }> {
+    this.logger.warn('🔄 Manually resetting WhatsApp session & clearing credentials for new number pairing...');
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+
+    this.closeSocket();
+    await this.clearAuthSession();
+
+    this.connectionStatus = 'connecting';
+    this.qrCode = null;
+    this.connectedNumber = null;
+
+    // Small pause then spin up fresh socket
+    setTimeout(() => {
+      if (!this.isDestroyed) {
+        this.initSocket();
+      }
+    }, 1000);
+
+    return {
+      success: true,
+      message: 'تمت إعادة ضبط جلسة الواتساب ومسح بيانات الاعتماد بنجاح. جاري توليد كود QR جديد للربط.',
     };
   }
 
@@ -250,11 +283,14 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
         if (connection === 'open') {
           this.connectionStatus = 'open';
           this.qrCode = null;
-          this.logger.log('✅ WhatsApp connected and ready');
+          const user = (sock as any)?.user;
+          this.connectedNumber = user?.id ? user.id.split(':')[0].replace(/[^0-9]/g, '') : 'Active';
+          this.logger.log(`✅ WhatsApp connected and ready (Number: ${this.connectedNumber})`);
         }
 
         if (connection === 'close') {
           this.connectionStatus = 'close';
+          this.connectedNumber = null;
           const statusCode = lastDisconnect?.error?.output?.statusCode;
           const { DisconnectReason: DR } = this.baileys as { DisconnectReason: Record<string, unknown> };
           const isLoggedOut = statusCode === (DR.loggedOut as number);

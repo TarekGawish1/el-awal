@@ -222,6 +222,77 @@ export function formatExamFailedMessage(
   return parts.join('\n');
 }
 
+export interface PaymentNotificationData {
+  parentName?: string;
+  studentName: string;
+  amount: number;
+  currency?: string;
+  paymentType: string;
+  invoiceNumber?: string;
+  paymentMethod?: string;
+  remainingBalance?: number;
+  centerName?: string;
+}
+
+/**
+ * Generates an automated payment receipt message for a parent sent via WhatsApp & Push.
+ */
+export function formatPaymentReceivedMessage(data: PaymentNotificationData): string {
+  const {
+    parentName = 'ولي الأمر المحترم',
+    studentName,
+    amount,
+    currency = 'جنيه',
+    paymentType,
+    invoiceNumber,
+    paymentMethod = 'نقدي / السنتر',
+    remainingBalance = 0,
+    centerName = 'منصة الأوّل التعليمية',
+  } = data;
+
+  const dateStr = new Date().toLocaleDateString('ar-EG', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+  const timeStr = arabicTime();
+
+  const greetings = [
+    `السلام عليكم ورحمة الله وبركاته،\nأهلاً بحضرتك ${parentName} 🌸`,
+    `تحية طيبة وبعد، أهلاً بحضرتك ${parentName} الكريم 🌸`,
+    `السلام عليكم ورحمة الله،\nمرحباً بحضرتك ${parentName} 🌟`,
+  ];
+
+  const intros = [
+    `تم بنجاح تأكيد استلام دفعة مالية جديدة للطالب/ة: *${studentName}* لدى *${centerName}*. ✅`,
+    `يسعدنا إفادتكم بتسجيل إيصال سداد للطالب/ة: *${studentName}* لدى *${centerName}* بنجاح. 🧾`,
+    `تم استلام وتأكيد سداد الرسوم للطالب/ة: *${studentName}* في *${centerName}*. 🌟`,
+  ];
+
+  const receiptBlock = `🧾 *تفاصيل عملية الدفع:*
+- البند: *${paymentType}*
+- المبلغ المدفوع: *${amount} ${currency}*
+${invoiceNumber ? `- رقم الإيصال: \`#${invoiceNumber}\`\n` : ''}- طريقة الدفع: ${paymentMethod}
+- التاريخ والوقت: ${dateStr} (${timeStr})
+${remainingBalance > 0 ? `- المتبقي: *${remainingBalance} ${currency}*` : '- حالة الحساب: *مسدد بالكامل* ✅'}`;
+
+  const closings = [
+    'شاكرين لثقتكم وحرصكم الدائم. للرجوع إلى سجل المدفوعات الكامل يمكنكم زيارة لوحة تحكم ولي الأمر 📚',
+    'نتمنى لأبنائنا دوام التوفيق والتفوق، نسعد دائماً بخدمتكم 🌟',
+    'شاكرين لكم تعاونكم الدائم، متمنين لأبنائنا دوام النجاح والتميز ✨',
+  ];
+
+  const greeting = pickRandom(greetings);
+  const intro = pickRandom(intros);
+  const closing = pickRandom(closings);
+  const sig = pickRandom(SIGNATURES);
+
+  const parts = [greeting, '', intro, '', receiptBlock, '', closing];
+  if (sig) parts.push('', sig);
+  return parts.join('\n');
+}
+
 /**
  * Generates a varied payment confirmation message.
  */
