@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { AlertCircle, ArrowRight, Phone, UserRound } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { AlertCircle, ArrowRight, Loader2, Phone, UserRound } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle, Button, Input } from '@/components/ui';
 import { useParentAccess } from '../hooks/useParentAccess';
 
@@ -13,9 +14,33 @@ function normalizePhone(value: string): string {
 }
 
 export function ParentAccessForm() {
+  const searchParams = useSearchParams();
   const [identifier, setIdentifier] = useState('');
   const [fieldError, setFieldError] = useState<string>();
   const { accessParent, isLoading, isError, error, resetError } = useParentAccess();
+  const autoLoginAttempted = useRef(false);
+
+  // Auto-login if phone or student code is present in URL search params (e.g. from WhatsApp magic link)
+  useEffect(() => {
+    if (autoLoginAttempted.current) return;
+
+    const queryParam =
+      searchParams?.get('phone') ||
+      searchParams?.get('p') ||
+      searchParams?.get('studentPhone') ||
+      searchParams?.get('studentCode') ||
+      searchParams?.get('code') ||
+      searchParams?.get('id');
+
+    if (queryParam) {
+      const normalized = normalizePhone(queryParam);
+      if (normalized) {
+        autoLoginAttempted.current = true;
+        setIdentifier(normalized);
+        accessParent(normalized);
+      }
+    }
+  }, [searchParams, accessParent]);
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -38,6 +63,21 @@ export function ParentAccessForm() {
     setFieldError(undefined);
     accessParent(normalized);
   };
+
+  // If auto-logging in with query parameter, render smooth auto-redirect screen
+  if (isLoading && !isError && autoLoginAttempted.current) {
+    return (
+      <div className="py-6 text-center space-y-4 animate-in fade-in-50 duration-200">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary-50 text-primary-600 ring-8 ring-primary-50/50">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+        <div className="space-y-1">
+          <h3 className="text-base font-bold text-neutral-900">جاري تسجيل دخول ولي الأمر تلقائياً...</h3>
+          <p className="text-xs text-neutral-500">يرجى الانتظار لحظات، جاري تحويلك إلى لوحة المتابعة 📲</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5" noValidate aria-label="نموذج دخول ولي الأمر">
