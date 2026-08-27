@@ -1640,28 +1640,82 @@ class OfflineDatabase {
       return null;
     }
 
-    const parsed = parseStudentQr(qrCodeToken);
-    if (!parsed.isValid) {
+    const cleanToken = qrCodeToken.trim();
+    if (!cleanToken) {
       return null;
     }
 
-    const cleanToken = qrCodeToken.trim();
+    const parsed = parseStudentQr(cleanToken);
     const candidateIds = new Set<string>();
-    if (parsed.studentId) candidateIds.add(parsed.studentId);
-    if (parsed.studentCode) candidateIds.add(parsed.studentCode);
-    if (parsed.token) candidateIds.add(parsed.token);
+
     candidateIds.add(cleanToken);
+    candidateIds.add(cleanToken.toLowerCase());
+    candidateIds.add(cleanToken.toUpperCase());
+
+    if (parsed.studentId) {
+      candidateIds.add(parsed.studentId);
+      candidateIds.add(parsed.studentId.toLowerCase());
+      candidateIds.add(parsed.studentId.toUpperCase());
+    }
+    if (parsed.studentCode) {
+      candidateIds.add(parsed.studentCode);
+      candidateIds.add(parsed.studentCode.toLowerCase());
+      candidateIds.add(parsed.studentCode.toUpperCase());
+    }
+    if (parsed.token) {
+      candidateIds.add(parsed.token);
+      candidateIds.add(parsed.token.toLowerCase());
+      candidateIds.add(parsed.token.toUpperCase());
+    }
+
+    // Strip common prefixes for resilient lookup
+    const unPrefixed = cleanToken
+      .replace(/^qr_tok_/i, '')
+      .replace(/^qr_token_/i, '')
+      .replace(/^qr[-_]/i, '')
+      .replace(/^stu[-_]/i, '');
+    if (unPrefixed) {
+      candidateIds.add(unPrefixed);
+      candidateIds.add(unPrefixed.toLowerCase());
+      candidateIds.add(unPrefixed.toUpperCase());
+    }
+
+    const norm = (v?: string) => (v ? String(v).trim().toLowerCase().replace(/[^a-z0-9]/gi, '') : '');
+    const cleanNorm = norm(cleanToken);
+
+    const matchesStudent = (s: any): boolean => {
+      if (!s) return false;
+      const sQr = s.qrCodeToken ? String(s.qrCodeToken).trim() : '';
+      const sCode = s.studentCode ? String(s.studentCode).trim() : '';
+      const sId = String((s as any).studentId || s.id || '').trim();
+      const sPhone = s.phone || s.user?.phone || '';
+      const sEmergency = s.emergencyPhone || s.parentPhone || '';
+
+      if (candidateIds.has(sQr) || candidateIds.has(sCode) || (sId && candidateIds.has(sId))) {
+        return true;
+      }
+      if (
+        (sQr && candidateIds.has(sQr.toLowerCase())) ||
+        (sCode && candidateIds.has(sCode.toLowerCase())) ||
+        (sId && candidateIds.has(sId.toLowerCase()))
+      ) {
+        return true;
+      }
+      if (cleanNorm) {
+        if (sQr && norm(sQr) === cleanNorm) return true;
+        if (sCode && norm(sCode) === cleanNorm) return true;
+        if (sId && norm(sId) === cleanNorm) return true;
+        if (sPhone && norm(sPhone) === cleanNorm) return true;
+        if (sEmergency && norm(sEmergency) === cleanNorm) return true;
+      }
+      return false;
+    };
 
     // 0. If preferredGroupId is passed, check that group's roster first for instant cohort match
     if (preferredGroupId) {
       const preferredRoster = await this.getRoster(preferredGroupId);
       if (preferredRoster?.students) {
-        const foundInPreferred = preferredRoster.students.find((s) => {
-          const sQr = s.qrCodeToken ? String(s.qrCodeToken).trim() : '';
-          const sCode = s.studentCode ? String(s.studentCode).trim() : '';
-          const sId = String((s as any).studentId || s.id || '').trim();
-          return candidateIds.has(sQr) || candidateIds.has(sCode) || (sId && candidateIds.has(sId));
-        });
+        const foundInPreferred = preferredRoster.students.find(matchesStudent);
         if (foundInPreferred) {
           return {
             student: foundInPreferred,
@@ -1695,14 +1749,9 @@ class OfflineDatabase {
       }
     }
 
-    // 2. Search all students by qrCodeToken, studentCode, or id
+    // 2. Search all students by qrCodeToken, studentCode, id, or phone
     const allStudents = await this.getStudentsOffline();
-    const foundDirect = allStudents.find((s) => {
-      const sQr = s.qrCodeToken ? String(s.qrCodeToken).trim() : '';
-      const sCode = s.studentCode ? String(s.studentCode).trim() : '';
-      const sId = s.id ? String(s.id).trim() : '';
-      return candidateIds.has(sQr) || candidateIds.has(sCode) || candidateIds.has(sId);
-    });
+    const foundDirect = allStudents.find(matchesStudent);
 
     if (foundDirect) {
       const studentGroupIds: string[] = Array.isArray(foundDirect.groupIds)
@@ -1725,12 +1774,7 @@ class OfflineDatabase {
     // 3. Offline roster cache fallback
     const rosters = await this.getAllCachedRosters();
     for (const roster of rosters) {
-      const found = roster.students.find((s) => {
-        const sQr = s.qrCodeToken ? String(s.qrCodeToken).trim() : '';
-        const sCode = s.studentCode ? String(s.studentCode).trim() : '';
-        const sId = String((s as any).studentId || s.id || '').trim();
-        return candidateIds.has(sQr) || candidateIds.has(sCode) || (sId && candidateIds.has(sId));
-      });
+      const found = roster.students.find(matchesStudent);
       if (found) {
         return { student: found, groupId: roster.groupId, groupName: roster.groupName };
       }

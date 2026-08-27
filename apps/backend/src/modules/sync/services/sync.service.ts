@@ -335,19 +335,27 @@ export class SyncService {
 
     // 2. Groups
     let groups: any[] = [];
+    let allTeacherGroupIds: string[] = [];
     try {
+      const allGroups = await this.prisma.academicGroup.findMany({
+        where: {
+          ...(user.role === UserRole.TEACHER && effectiveTeacherId
+            ? {
+                OR: [
+                  { teacherId: effectiveTeacherId },
+                  { teacher: { id: effectiveTeacherId } },
+                ],
+              }
+            : {}),
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      allTeacherGroupIds = allGroups.map((g) => g.id).filter(Boolean);
+
       const groupsWhere: any = {
-        ...(user.role === UserRole.TEACHER && effectiveTeacherId
-          ? {
-              OR: [
-                { teacherId: effectiveTeacherId },
-                { teacher: { id: effectiveTeacherId } },
-              ],
-            }
-          : {}),
+        id: { in: allTeacherGroupIds },
         isActive: true,
-        academicYear: academicPeriod.activeAcademicYear,
-        academicTerm: academicPeriod.activeAcademicTerm,
         ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
       };
 
@@ -367,17 +375,18 @@ export class SyncService {
     const groupIds = (groups || []).map((g) => g.id).filter(Boolean);
 
     // 3. Students
-    // 3. Students
     let students: any[] = [];
     try {
-      if (groupIds.length > 0) {
+      const targetGroupIds = allTeacherGroupIds.length > 0 ? allTeacherGroupIds : groupIds;
+      if (targetGroupIds.length > 0) {
         const enrollments = await this.prisma.groupEnrollment.findMany({
           where: {
-            groupId: { in: groupIds },
+            groupId: { in: targetGroupIds },
             status: GroupEnrollmentStatus.ACTIVE,
             student: {
               academicStatus: 'ACTIVE',
               user: { isActive: true },
+              ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
             },
           },
           include: {

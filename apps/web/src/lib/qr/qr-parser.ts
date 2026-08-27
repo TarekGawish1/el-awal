@@ -46,8 +46,32 @@ export function parseStudentQr(rawInput: unknown): ParsedQrPayload {
     };
   }
 
-  // 1. Reject generic external URLs and protocols
+  // 1. Check if URL and extract student token/code/id from query params or path
   if (/^(https?:\/\/|ftp:\/\/|mailto:|tel:|www\.)/i.test(raw)) {
+    try {
+      const urlStr = raw.startsWith('www.') ? `https://${raw}` : raw;
+      const url = new URL(urlStr);
+      const token =
+        url.searchParams.get('token') ||
+        url.searchParams.get('qrCodeToken') ||
+        url.searchParams.get('qr');
+
+      if (token && token.trim()) {
+        const cleanToken = token.trim();
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanToken);
+        return {
+          isValid: true,
+          raw,
+          type: 'STUDENT_QR',
+          token: cleanToken,
+          studentId: isUuid ? cleanToken : undefined,
+          studentCode: /^STU[-_]/i.test(cleanToken) ? cleanToken : undefined,
+        };
+      }
+    } catch {
+      // Fall through to rejection
+    }
+
     return {
       isValid: false,
       raw,
@@ -121,10 +145,6 @@ export function parseStudentQr(rawInput: unknown): ParsedQrPayload {
   }
 
   // 4. Check standard platform token and studentCode prefixes
-  // Backend generated UUID tokens: 'qr_tok_...' or 'qr_token_...'
-  // Offline & platform tokens: 'QR-STU-...', 'QR-OFFLINE-...', 'QR-...', 'qr-...'
-  // Student codes: 'STU-...', 'stu-...'
-  // Standard UUID tokens: '018f...', 'd9b2d63d-...'
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw);
 
   if (
@@ -146,9 +166,6 @@ export function parseStudentQr(rawInput: unknown): ParsedQrPayload {
     };
   }
 
-  // Any other random barcode / arbitrary string (e.g. "LENOVO-SN-12345", "123456789")
-
-  // Any other random barcode / arbitrary string (e.g. "LENOVO-SN-12345", "123456789")
   return {
     isValid: false,
     raw,
