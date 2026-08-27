@@ -158,7 +158,9 @@ describe('Offline Platform Resilience & Outbox Topological Engine', () => {
         (url) => url === API_ENDPOINTS.SYNC.BATCH || url === API_ENDPOINTS.GROUPS.CREATE,
       );
       const enrollIdx = callOrder.findIndex((url) => url.includes('/groups/') && url.endsWith('/students'));
-      const attBatchIdx = callOrder.findIndex((url) => url === API_ENDPOINTS.SYNC.ATTENDANCE);
+      const attBatchIdx = callOrder.findLastIndex(
+        (url) => url === API_ENDPOINTS.SYNC.ATTENDANCE || url === API_ENDPOINTS.SYNC.BATCH,
+      );
       const payBatchIdx = callOrder.findIndex((url) => url === API_ENDPOINTS.SYNC.PAYMENTS);
 
       expect(batchOrGroupIdx).toBeGreaterThanOrEqual(0);

@@ -1015,13 +1015,25 @@ class OfflineSyncEngine {
 
     let count = 0;
     for (const conflict of targets) {
-      const mapping = domainEndpointMap[conflict.domain as OutboxMutationRecord['domain']];
-      if (!mapping || !conflict.payload) continue;
+      let endpoint = domainEndpointMap[conflict.domain as OutboxMutationRecord['domain']]?.endpoint;
+      const method = domainEndpointMap[conflict.domain as OutboxMutationRecord['domain']]?.method || 'POST';
+
+      if (
+        conflict.domain === 'attendance' &&
+        (conflict.payload?.assessmentId ||
+          conflict.payload?.type === 'RECORD_HOMEWORK_ONSITE' ||
+          conflict.payload?.feedback !== undefined ||
+          conflict.payload?.score !== undefined)
+      ) {
+        endpoint = API_ENDPOINTS.SYNC.HOMEWORK;
+      }
+
+      if (!endpoint || !conflict.payload) continue;
 
       await this.enqueue(
         conflict.domain as OutboxMutationRecord['domain'],
-        mapping.endpoint,
-        mapping.method,
+        endpoint,
+        method,
         conflict.payload,
       );
       await offlineDb.resolveConflict(conflict.id, 'إعادة المحاولة التلقائية');

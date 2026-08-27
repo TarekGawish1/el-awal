@@ -19,12 +19,13 @@ export class SyncHomeworkItemDto {
   @IsString()
   id: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Assessment identifier (homework assignment)',
     example: 'd9b2d63d-a233-4f9e-a0f5-e0f6c2f0f4a2',
   })
-  @IsUUID()
-  assessmentId: string;
+  @IsOptional()
+  @IsString()
+  assessmentId?: string;
 
   @ApiPropertyOptional({
     description: 'Target student profile ID (UUID)',
