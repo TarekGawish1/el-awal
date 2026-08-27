@@ -13,7 +13,7 @@ describe('LoginForm Component', () => {
   });
 
   it('renders all required login form fields and submit button', () => {
-    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
+    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({ LogoutConfirmation: <></>, 
       user: null,
       isAuthenticated: false,
       isInitialized: true,
@@ -36,7 +36,7 @@ describe('LoginForm Component', () => {
   });
 
   it('validates empty inputs and displays client-side validation errors', async () => {
-    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
+    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({ LogoutConfirmation: <></>, 
       user: null,
       isAuthenticated: false,
       isInitialized: true,
@@ -62,7 +62,7 @@ describe('LoginForm Component', () => {
   });
 
   it('validates minimum password length requirement', async () => {
-    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
+    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({ LogoutConfirmation: <></>, 
       user: null,
       isAuthenticated: false,
       isInitialized: true,
@@ -93,7 +93,7 @@ describe('LoginForm Component', () => {
   });
 
   it('toggles password visibility when clicking eye button', () => {
-    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
+    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({ LogoutConfirmation: <></>, 
       user: null,
       isAuthenticated: false,
       isInitialized: true,
@@ -125,7 +125,7 @@ describe('LoginForm Component', () => {
   });
 
   it('submits valid credentials to auth login mutation', async () => {
-    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
+    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({ LogoutConfirmation: <></>, 
       user: null,
       isAuthenticated: false,
       isInitialized: true,
@@ -163,7 +163,7 @@ describe('LoginForm Component', () => {
   });
 
   it('renders loading spinner and disables submit button during login', () => {
-    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
+    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({ LogoutConfirmation: <></>, 
       user: null,
       isAuthenticated: false,
       isInitialized: true,
@@ -186,7 +186,7 @@ describe('LoginForm Component', () => {
   });
 
   it('renders error alert banner when authentication fails', () => {
-    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
+    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({ LogoutConfirmation: <></>, 
       user: null,
       isAuthenticated: false,
       isInitialized: true,

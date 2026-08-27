@@ -175,6 +175,7 @@ export type MutationStatus = 'PENDING' | 'SYNCING' | 'FAILED' | 'RESOLVED';
 
 export interface OutboxMutationRecord {
   id: string;
+  userId?: string;
   domain: 'attendance' | 'finance' | 'progress' | 'assessments' | 'students' | 'groups' | 'generic';
   endpoint: string;
   method: 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -265,7 +266,7 @@ export interface HomeworkRecordEntity {
 }
 
 const DB_NAME = 'el_awal_offline_db';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 class OfflineDatabase {
   private dbPromise: Promise<IDBDatabase> | null = null;
@@ -370,11 +371,17 @@ class OfflineDatabase {
             store.createIndex('idx_query_user', ['queryKey', 'userId'], { unique: false });
           }
 
+          let outboxStore: IDBObjectStore;
           if (!db.objectStoreNames.contains('outbox_mutations')) {
-            const store = db.createObjectStore('outbox_mutations', { keyPath: 'id' });
-            store.createIndex('idx_status', 'status', { unique: false });
-            store.createIndex('idx_domain_status', ['domain', 'status'], { unique: false });
-            store.createIndex('idx_clientTimestamp', 'clientTimestamp', { unique: false });
+            outboxStore = db.createObjectStore('outbox_mutations', { keyPath: 'id' });
+            outboxStore.createIndex('idx_status', 'status', { unique: false });
+            outboxStore.createIndex('idx_domain_status', ['domain', 'status'], { unique: false });
+            outboxStore.createIndex('idx_clientTimestamp', 'clientTimestamp', { unique: false });
+          } else {
+            outboxStore = (event.target as IDBOpenDBRequest).transaction!.objectStore('outbox_mutations');
+          }
+          if (!outboxStore.indexNames.contains('idx_userId')) {
+            outboxStore.createIndex('idx_userId', 'userId', { unique: false });
           }
 
           if (!db.objectStoreNames.contains('offline_roster_cache')) {
@@ -1477,6 +1484,15 @@ class OfflineDatabase {
   // ==========================================
 
   public async enqueueMutation(mutation: OutboxMutationRecord): Promise<void> {
+    const { useAuthStore } = await import('@/features/auth/store/auth.store');
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser?.id) {
+      console.error('CRITICAL: Attempted to enqueue offline mutation without an authenticated user.', mutation);
+      throw new Error('Authentication required to save offline changes.');
+    }
+    
+    mutation.userId = currentUser.id;
+
     this.memoryOutbox.set(mutation.id, { ...mutation });
     if (!this.isSupported()) return;
     try {
@@ -1485,17 +1501,24 @@ class OfflineDatabase {
     } catch {}
   }
 
-  public async getPendingMutations(): Promise<OutboxMutationRecord[]> {
+  public async getPendingMutations(userId?: string): Promise<OutboxMutationRecord[]> {
     if (!this.isSupported()) {
       const all = Array.from(this.memoryOutbox.values());
       return all
-        .filter((m) => m.status === 'PENDING' || m.status === 'FAILED')
+        .filter((m) => (m.status === 'PENDING' || m.status === 'FAILED') && (userId === undefined || m.userId === userId))
         .sort((a, b) => a.clientTimestamp - b.clientTimestamp);
     }
     try {
       const { store } = await this.getStore('outbox_mutations', 'readonly');
       return new Promise((resolve) => {
-        const req = store.getAll();
+        let req: IDBRequest;
+        if (userId) {
+          const index = store.index('idx_userId');
+          req = index.getAll(IDBKeyRange.only(userId));
+        } else {
+          req = store.getAll();
+        }
+        
         req.onsuccess = () => {
           const all = (req.result || []) as OutboxMutationRecord[];
           const pending = all
@@ -1505,12 +1528,12 @@ class OfflineDatabase {
         };
         req.onerror = () => {
           const all = Array.from(this.memoryOutbox.values());
-          resolve(all.filter((m) => m.status === 'PENDING' || m.status === 'FAILED'));
+          resolve(all.filter((m) => (m.status === 'PENDING' || m.status === 'FAILED') && (userId === undefined || m.userId === userId)));
         };
       });
     } catch {
       const all = Array.from(this.memoryOutbox.values());
-      return all.filter((m) => m.status === 'PENDING' || m.status === 'FAILED');
+      return all.filter((m) => (m.status === 'PENDING' || m.status === 'FAILED') && (userId === undefined || m.userId === userId));
     }
   }
 
@@ -1581,6 +1604,72 @@ class OfflineDatabase {
   public async getPendingCount(): Promise<number> {
     const pending = await this.getPendingMutations();
     return pending.length;
+  }
+
+  public async getUserPendingCount(userId: string): Promise<number> {
+    if (!this.isSupported()) {
+      let count = 0;
+      for (const m of this.memoryOutbox.values()) {
+        if (m.userId === userId && (m.status === 'PENDING' || m.status === 'FAILED')) count++;
+      }
+      return count;
+    }
+    try {
+      const { store } = await this.getStore('outbox_mutations', 'readonly');
+      const index = store.index('idx_userId');
+      return new Promise((resolve) => {
+        const req = index.count(IDBKeyRange.only(userId));
+        req.onsuccess = () => resolve(req.result || 0);
+        req.onerror = () => {
+          let count = 0;
+          for (const m of this.memoryOutbox.values()) {
+            if (m.userId === userId && (m.status === 'PENDING' || m.status === 'FAILED')) count++;
+          }
+          resolve(count);
+        };
+      });
+    } catch {
+      let count = 0;
+      for (const m of this.memoryOutbox.values()) {
+        if (m.userId === userId && (m.status === 'PENDING' || m.status === 'FAILED')) count++;
+      }
+      return count;
+    }
+  }
+
+  public async clearUserPendingMutations(userId: string): Promise<number> {
+    let deletedCount = 0;
+    // Clear memory outbox first
+    for (const [id, m] of this.memoryOutbox.entries()) {
+      if (m.userId === userId) {
+        this.memoryOutbox.delete(id);
+        deletedCount++;
+      }
+    }
+
+    if (!this.isSupported()) return deletedCount;
+    
+    try {
+      const { store } = await this.getStore('outbox_mutations', 'readwrite');
+      const index = store.index('idx_userId');
+      return new Promise((resolve, reject) => {
+        const req = index.openCursor(IDBKeyRange.only(userId));
+        let dbDeletedCount = 0;
+        req.onsuccess = (e: any) => {
+          const cursor = e.target.result;
+          if (cursor) {
+            cursor.delete();
+            dbDeletedCount++;
+            cursor.continue();
+          } else {
+            resolve(dbDeletedCount > 0 ? dbDeletedCount : deletedCount);
+          }
+        };
+        req.onerror = () => reject(new Error('Failed to delete user mutations'));
+      });
+    } catch (e) {
+      throw new Error('Failed to open database for deletion: ' + String(e));
+    }
   }
 
   // ==========================================

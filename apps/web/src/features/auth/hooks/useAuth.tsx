@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { loginUser, logoutUser } from '../api/auth.api';
@@ -8,6 +8,9 @@ import { useAuthStore } from '../store/auth.store';
 import { LoginCredentials, AuthTokensResponse } from '../types/auth.types';
 import { getRoleLandingRoute, sanitizeRedirectUrl } from '../utils/role-routing';
 import { ApiError } from '@/lib/api/errors';
+import { offlineDb } from '@/lib/offline/db';
+import toast from 'react-hot-toast';
+import { LogoutConfirmationModal } from '@/components/auth/LogoutConfirmationModal';
 
 /**
  * Normalizes HTTP & API errors into localized user-friendly Arabic messages
@@ -60,6 +63,8 @@ export function useAuth() {
   const queryClient = useQueryClient();
 
   const { user, isAuthenticated, isInitialized, setSession, clearSession, initialize } = useAuthStore();
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [logoutPendingCount, setLogoutPendingCount] = useState(0);
 
   useEffect(() => {
     initialize();
@@ -92,12 +97,52 @@ export function useAuth() {
     },
   });
 
-  const logout = async () => {
-    await logoutUser();
+  const safeLogout = async () => {
+    const currentUserId = user?.id || useAuthStore.getState().user?.id;
+    if (!currentUserId) {
+      return performLogout(0);
+    }
+    const pendingCount = await offlineDb.getUserPendingCount(currentUserId);
+    if (pendingCount === 0) {
+      return performLogout(0);
+    }
+    setLogoutPendingCount(pendingCount);
+    setIsLogoutModalOpen(true);
+  };
+
+  const performLogout = async (pendingCountOverride?: number) => {
+    const currentUserId = user?.id || useAuthStore.getState().user?.id;
+    const count = pendingCountOverride !== undefined ? pendingCountOverride : logoutPendingCount;
+
+    if (currentUserId && count > 0) {
+      try {
+        await offlineDb.clearUserPendingMutations(currentUserId);
+      } catch (e) {
+        toast.error('فشل حذف البيانات المحلية. لا يمكن تسجيل الخروج بأمان.');
+        setIsLogoutModalOpen(false);
+        return;
+      }
+    }
+
+    setIsLogoutModalOpen(false);
+    try {
+      await logoutUser();
+    } catch (e) {
+      // Ignore API failure, force local logout
+    }
     clearSession();
     queryClient.clear();
     router.push('/login');
   };
+
+  const LogoutConfirmation = (
+    <LogoutConfirmationModal
+      isOpen={isLogoutModalOpen}
+      pendingCount={logoutPendingCount}
+      onConfirm={() => performLogout()}
+      onCancel={() => setIsLogoutModalOpen(false)}
+    />
+  );
 
   return {
     user,
@@ -111,6 +156,7 @@ export function useAuth() {
     error: loginMutation.error ? normalizeAuthErrorMessage(loginMutation.error) : null,
     rawError: loginMutation.error,
     resetError: loginMutation.reset,
-    logout,
+    logout: safeLogout,
+    LogoutConfirmation,
   };
 }

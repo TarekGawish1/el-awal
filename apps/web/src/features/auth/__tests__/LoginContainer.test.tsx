@@ -21,7 +21,7 @@ describe('LoginContainer Component', () => {
   });
 
   it('renders branding header, titles, and login form for unauthenticated visitor', () => {
-    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
+    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({ LogoutConfirmation: <></>, 
       user: null,
       isAuthenticated: false,
       isInitialized: true,
@@ -48,7 +48,7 @@ describe('LoginContainer Component', () => {
   });
 
   it('omits the JWT & Argon2 security badge while keeping the copyright footer', () => {
-    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
+    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({ LogoutConfirmation: <></>, 
       user: null,
       isAuthenticated: false,
       isInitialized: true,
@@ -74,7 +74,7 @@ describe('LoginContainer Component', () => {
   });
 
   it('redirects already authenticated TEACHER user away from /login to /teacher/dashboard', () => {
-    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
+    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({ LogoutConfirmation: <></>, 
       user: {
         id: 'usr-1',
         fullName: 'أ. طارق عبد الله',
@@ -99,7 +99,7 @@ describe('LoginContainer Component', () => {
   });
 
   it('redirects already authenticated SECRETARIAT user to /secretariat/dashboard', () => {
-    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
+    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({ LogoutConfirmation: <></>, 
       user: {
         id: 'usr-2',
         fullName: 'سارة إبراهيم',

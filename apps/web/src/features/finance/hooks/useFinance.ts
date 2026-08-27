@@ -16,6 +16,7 @@ import { syncEngine } from '@/lib/offline/sync-engine';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
 import { formatBookletMismatchError } from '../utils/bookletEligibility';
 import { parseStudentQr } from '@/lib/qr/qr-parser';
+import { useAuthStore } from '@/features/auth/store/auth.store';
 
 export const financeKeys = {
   all: ['finance'] as const,
@@ -677,7 +678,9 @@ export function useDeletePayment() {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
       if (!isOnline) {
-        const pendingMutations = await offlineDb.getPendingMutations();
+        const currentUserId = useAuthStore.getState().user?.id;
+        if (!currentUserId) throw new Error('Authentication required');
+        const pendingMutations = await offlineDb.getPendingMutations(currentUserId);
         const pendingCreation = pendingMutations.find(
           (m) =>
             m.domain === 'finance' &&

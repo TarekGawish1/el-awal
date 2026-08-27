@@ -19,6 +19,7 @@ import { syncEngine } from '@/lib/offline/sync-engine';
 import { generateUUIDv7 } from '@/lib/offline/uuid';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
 import toast from 'react-hot-toast';
+import { useAuthStore } from '@/features/auth/store/auth.store';
 
 export function useStudents(query: StudentQuery) {
   return useQuery<CursorPaginatedResponse<StudentListItem>>({
@@ -79,7 +80,9 @@ export function useStudents(query: StudentQuery) {
 
       try {
         const result = await fetchStudents(query);
-        const pending = await offlineDb.getPendingMutations();
+        const currentUserId = useAuthStore.getState().user?.id;
+        if (!currentUserId) throw new Error('Authentication required');
+        const pending = await offlineDb.getPendingMutations(currentUserId);
         const pendingStudentMutations = pending.filter(
           (m) => m.domain === 'students' && m.method === 'POST',
         );

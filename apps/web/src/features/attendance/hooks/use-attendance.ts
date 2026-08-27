@@ -11,6 +11,7 @@ import { offlineDb } from '@/lib/offline/db';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
 import { parseStudentQr } from '@/lib/qr/qr-parser';
+import { useAuthStore } from '@/features/auth/store/auth.store';
 
 export function useGroupSessions(groupId: string | null) {
   return useQuery({
@@ -149,7 +150,9 @@ export function useSessionReport(sessionId: string | null) {
             }));
 
         // 4. Collect pending attendance mutations for this session
-        const pendingMutations = await offlineDb.getPendingMutations();
+        const currentUserId = useAuthStore.getState().user?.id;
+        if (!currentUserId) throw new Error('Authentication required');
+        const pendingMutations = await offlineDb.getPendingMutations(currentUserId);
         const sessionMutations = pendingMutations.filter(
           (m) =>
             m.domain === 'attendance' &&

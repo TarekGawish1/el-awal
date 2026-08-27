@@ -29,7 +29,7 @@ describe('Dashboard Route Protection & Authentication Guard', () => {
   });
 
   it('shows loading state while auth state is initializing', () => {
-    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
+    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({ LogoutConfirmation: <></>, 
       user: null,
       isAuthenticated: false,
       isInitialized: false,
@@ -55,7 +55,7 @@ describe('Dashboard Route Protection & Authentication Guard', () => {
   });
 
   it('redirects unauthenticated user to /login with redirect query param', () => {
-    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
+    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({ LogoutConfirmation: <></>, 
       user: null,
       isAuthenticated: false,
       isInitialized: true,
@@ -82,7 +82,7 @@ describe('Dashboard Route Protection & Authentication Guard', () => {
   });
 
   it('renders protected layout and children when user is authenticated', () => {
-    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
+    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({ LogoutConfirmation: <></>, 
       user: {
         id: 'usr-1',
         fullName: 'أ. طارق عبد الله',
