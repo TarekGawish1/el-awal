@@ -454,10 +454,11 @@ function CredentialsScreen({
   onCopy: (text: string, key: string) => void;
   onContinue: () => void;
 }) {
-  const studentBlock = `كود الطالب: ${credentials.studentCode}\nكلمة المرور: ${credentials.studentPassword}\nرقم الهاتف: ${credentials.studentPhone}`;
+  const header = `🌟 منصة الأول / الأستاذ أحمد غريب 🌟\n\n`;
+  const studentBlock = `${header}بيانات دخول الطالب:\nكود الطالب: ${credentials.studentCode}\nكلمة المرور: ${credentials.studentPassword}\nرقم الهاتف: ${credentials.studentPhone}`;
   const parentBlock = credentials.parentIsNew
-    ? `رقم هاتف ولي الأمر: ${credentials.parentPhone}\nكلمة المرور: ${credentials.parentPassword}`
-    : `رقم هاتف ولي الأمر: ${credentials.parentPhone}\n(حساب ولي الأمر موجود مسبقاً)`;
+    ? `${header}بيانات دخول ولي الأمر:\nرقم هاتف ولي الأمر: ${credentials.parentPhone}\nكلمة المرور: ${credentials.parentPassword}`
+    : `${header}بيانات دخول ولي الأمر:\nرقم هاتف ولي الأمر: ${credentials.parentPhone}\n(حساب ولي الأمر موجود مسبقاً)`;
 
   return (
     <div className="space-y-5 animate-in fade-in-50 duration-200" aria-live="polite">
