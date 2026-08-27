@@ -563,7 +563,11 @@ export function useDeleteStudent() {
       toast.success('تم حذف الطالب من النظام بنجاح 🗑️');
     },
     onError: (err: any) => {
-      toast.error(err.message || 'حدث خطأ أثناء حذف الطالب');
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        'تعذر حذف الطالب، يرجى المحاولة مرة أخرى';
+      toast.error(typeof msg === 'string' && msg.includes('Referenced') ? 'تعذر حذف الطالب لوجود سجلات مرتبطة به' : msg);
     },
   });
 }
