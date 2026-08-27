@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { offlineDb, OutboxMutationRecord } from '@/lib/offline/db';
+import { useAuthStore } from '@/features/auth/store/auth.store';
 
 export interface UseSyncQueueOptions {
   sessionId?: string;
@@ -92,7 +93,9 @@ export function useSyncQueue(options?: UseSyncQueueOptions) {
   );
 
   const getPendingMutations = useCallback(async (): Promise<OutboxMutationRecord[]> => {
-    return offlineDb.outbox_mutations.where('status').equals('PENDING').toArray();
+    const currentUserId = useAuthStore.getState().user?.id;
+    if (!currentUserId) return [];
+    return offlineDb.getPendingMutations(currentUserId);
   }, []);
 
   return {

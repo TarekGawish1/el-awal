@@ -293,7 +293,11 @@ class OfflineSyncEngine {
    * student/group/booklet names from local IndexedDB caches.
    */
   public async getDetailedPendingActivity(): Promise<PendingActivityItem[]> {
-    const pending = await offlineDb.getPendingMutations();
+    const { useAuthStore } = await import('@/features/auth/store/auth.store');
+    const currentUserId = useAuthStore.getState().user?.id;
+    if (!currentUserId) return [];
+
+    const pending = await offlineDb.getPendingMutations(currentUserId);
     const items: PendingActivityItem[] = [];
 
     for (const m of pending) {
@@ -1112,7 +1116,11 @@ class OfflineSyncEngine {
    * to PENDING with retryCount = 0, making them eligible for the next flush.
    */
   public async resetFailedMutations(): Promise<number> {
-    const all = await offlineDb.getPendingMutations();
+    const { useAuthStore } = await import('@/features/auth/store/auth.store');
+    const currentUserId = useAuthStore.getState().user?.id;
+    if (!currentUserId) return 0;
+
+    const all = await offlineDb.getPendingMutations(currentUserId);
     const failed = all.filter((m) => m.status === 'FAILED');
     for (const m of failed) {
       await offlineDb.resetMutationForRetry(m.id);
@@ -1135,7 +1143,11 @@ class OfflineSyncEngine {
    * "Undo" action in <OfflineActivityDrawer /> and <SyncConfirmationModal />.
    */
   public async undoMutation(mutationId: string): Promise<void> {
-    const pending = await offlineDb.getPendingMutations();
+    const { useAuthStore } = await import('@/features/auth/store/auth.store');
+    const currentUserId = useAuthStore.getState().user?.id;
+    if (!currentUserId) return;
+
+    const pending = await offlineDb.getPendingMutations(currentUserId);
     const mutation = pending.find((m) => m.id === mutationId);
     if (!mutation) return;
 
@@ -1226,7 +1238,11 @@ class OfflineSyncEngine {
    * from the remote database via a full bootstrap pull.
    */
   public async discardAllLocalChanges(): Promise<{ discardedCount: number }> {
-    const pending = await offlineDb.getPendingMutations();
+    const { useAuthStore } = await import('@/features/auth/store/auth.store');
+    const currentUserId = useAuthStore.getState().user?.id;
+    if (!currentUserId) return { discardedCount: 0 };
+
+    const pending = await offlineDb.getPendingMutations(currentUserId);
     for (const m of pending) {
       await this.undoMutation(m.id);
     }

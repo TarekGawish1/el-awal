@@ -66,6 +66,30 @@ describe('P0-001 User Isolation & Sync Filtering', () => {
     expect(aMutations[0].userId).toBe('user-a');
   });
 
+  it('Test 4 — User B cannot undo User A mutation', async () => {
+    useAuthStore.setState({ user: { id: 'user-a' }, isAuthenticated: true });
+    const mutId = await syncEngine.enqueue('finance', '/payment', 'POST', { amount: 100 });
+
+    useAuthStore.setState({ user: { id: 'user-b' }, isAuthenticated: true });
+    await syncEngine.undoMutation(mutId); // User B attempts to undo A's mutation
+
+    const aMutations = await offlineDb.getPendingMutations('user-a');
+    expect(aMutations.length).toBe(1); // Still exists
+    expect(aMutations[0].id).toBe(mutId);
+  });
+
+  it('Test 5 — User B cannot discard User A mutation', async () => {
+    useAuthStore.setState({ user: { id: 'user-a' }, isAuthenticated: true });
+    const mutId = await syncEngine.enqueue('finance', '/payment', 'POST', { amount: 100 });
+
+    useAuthStore.setState({ user: { id: 'user-b' }, isAuthenticated: true });
+    await syncEngine.discardAllLocalChanges(); // User B attempts to discard
+
+    const aMutations = await offlineDb.getPendingMutations('user-a');
+    expect(aMutations.length).toBe(1); // Still exists
+    expect(aMutations[0].id).toBe(mutId);
+  });
+
   it('Test 6 — No authenticated user aborts flushOutbox', async () => {
     useAuthStore.getState().clearSession(); // No user
     
@@ -74,5 +98,26 @@ describe('P0-001 User Isolation & Sync Filtering', () => {
     
     expect(result.synced).toBe(0);
     expect(result.failed).toBe(0);
+  });
+
+  it('Test 7 — Existing same-user Undo still works', async () => {
+    useAuthStore.setState({ user: { id: 'user-a' }, isAuthenticated: true });
+    const mutId = await syncEngine.enqueue('finance', '/payment', 'POST', { amount: 100 });
+
+    await syncEngine.undoMutation(mutId);
+
+    const aMutations = await offlineDb.getPendingMutations('user-a');
+    expect(aMutations.length).toBe(0); // Successfully undone
+  });
+
+  it('Test 8 — Existing same-user Discard still works', async () => {
+    useAuthStore.setState({ user: { id: 'user-a' }, isAuthenticated: true });
+    await syncEngine.enqueue('finance', '/payment', 'POST', { amount: 100 });
+    await syncEngine.enqueue('finance', '/payment', 'POST', { amount: 200 });
+
+    await syncEngine.discardAllLocalChanges();
+
+    const aMutations = await offlineDb.getPendingMutations('user-a');
+    expect(aMutations.length).toBe(0); // Successfully discarded
   });
 });
