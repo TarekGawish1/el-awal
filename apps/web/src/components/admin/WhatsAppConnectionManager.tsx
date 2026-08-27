@@ -17,6 +17,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import QRCode from 'react-qr-code';
 
 interface WhatsAppStatusResponse {
   connected: boolean;
@@ -170,11 +171,22 @@ export function WhatsAppConnectionManager({ isOpen, onClose }: WhatsAppConnectio
               </p>
             </div>
             <div className="inline-block p-4 bg-white rounded-2xl border-2 border-emerald-500/30 shadow-lg ring-8 ring-emerald-50">
-              <img
-                src={statusData.qr}
-                alt="WhatsApp QR Code"
-                className="w-56 h-56 mx-auto rounded-lg object-contain"
-              />
+              {statusData.qr.startsWith('data:image') ? (
+                <img
+                  src={statusData.qr}
+                  alt="WhatsApp QR Code"
+                  className="w-56 h-56 mx-auto rounded-lg object-contain"
+                />
+              ) : (
+                <div className="p-1 bg-white rounded-lg flex items-center justify-center">
+                  <QRCode
+                    value={statusData.qr}
+                    size={220}
+                    style={{ height: 'auto', maxWidth: '100%', width: '100%' }}
+                    viewBox="0 0 256 256"
+                  />
+                </div>
+              )}
             </div>
             <p className="text-[11px] text-slate-400">
               يتجدد الرمز تلقائياً كل 20 ثانية للحفاظ على الأمان.
