@@ -43,5 +43,13 @@ describe('Role Routing Utilities', () => {
       expect(sanitizeRedirectUrl('/login')).toBeNull();
       expect(sanitizeRedirectUrl('/login?redirect=/foo')).toBeNull();
     });
+
+    it('should reject redirect URLs that do not belong to the authenticated role', () => {
+      expect(sanitizeRedirectUrl('/student/dashboard', 'TEACHER')).toBeNull();
+      expect(sanitizeRedirectUrl('/teacher/dashboard', 'STUDENT')).toBeNull();
+      expect(sanitizeRedirectUrl('/teacher/finance', 'PARENT')).toBeNull();
+      expect(sanitizeRedirectUrl('/teacher/finance', 'TEACHER')).toBe('/teacher/finance');
+      expect(sanitizeRedirectUrl('/student/dashboard', 'STUDENT')).toBe('/student/dashboard');
+    });
   });
 });

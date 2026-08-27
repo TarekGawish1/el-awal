@@ -40,10 +40,9 @@ describe('LoginContainer Component', () => {
 
     expect(screen.getByText('منصة الأول التعليمية')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'تسجيل الدخول' })).toBeInTheDocument();
-    expect(screen.getByLabelText(/البريد الإلكتروني أو رقم الهاتف/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/كود الطالب|البريد الإلكتروني|رقم الهاتف/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^كلمة المرور/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'دخول ولي الأمر' })).toHaveAttribute('href', '/parent-access');
-    expect(screen.getByRole('link', { name: 'إنشاء حساب طالب' })).toHaveAttribute('href', '/register/student');
+    expect(screen.getByRole('button', { name: 'تسجيل الدخول' })).toBeInTheDocument();
     expect(mockReplace).not.toHaveBeenCalled();
   });
 

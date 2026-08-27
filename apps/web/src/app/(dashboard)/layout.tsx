@@ -33,6 +33,7 @@ import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { NotificationCenter } from '@/components/notifications/NotificationCenter';
 import { WhatsAppConnectionManager } from '@/components/admin/WhatsAppConnectionManager';
+import { isRouteAllowedForRole, getRoleLandingRoute } from '@/features/auth/utils/role-routing';
 
 export default function DashboardLayout({
   children,
@@ -75,6 +76,22 @@ export default function DashboardLayout({
       router.replace(`/login${redirectParam}`);
     }
   }, [isMounted, isInitialized, isAuthenticated, pathname, router, user, isOnline]);
+
+  // Role-Based Boundary Protection Guard (prevents cross-role flash)
+  useEffect(() => {
+    if (isMounted && isInitialized && isAuthenticated && user && pathname) {
+      const isRoleSpecificPath =
+        pathname.startsWith('/teacher') ||
+        pathname.startsWith('/student') ||
+        pathname.startsWith('/parent') ||
+        pathname.startsWith('/secretariat');
+
+      if (isRoleSpecificPath && !isRouteAllowedForRole(pathname, user.role)) {
+        const correctRoute = getRoleLandingRoute(user.role);
+        router.replace(correctRoute);
+      }
+    }
+  }, [isMounted, isInitialized, isAuthenticated, user, pathname, router]);
 
   const getRoleLabel = (role?: string) => {
     switch (role) {

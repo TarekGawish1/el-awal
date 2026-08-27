@@ -89,7 +89,7 @@ export function useAuth() {
       // 4. Determine redirect path (query param or role-based landing)
       const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
       const requestedRedirect = searchParams?.get('redirect');
-      const safeRedirect = sanitizeRedirectUrl(requestedRedirect);
+      const safeRedirect = sanitizeRedirectUrl(requestedRedirect, data.user.role);
       const destination = safeRedirect || getRoleLandingRoute(data.user.role);
 
       // 5. Navigate to destination
@@ -132,7 +132,12 @@ export function useAuth() {
     }
     clearSession();
     queryClient.clear();
-    router.push('/login');
+
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    } else {
+      router.push('/login');
+    }
   };
 
   const LogoutConfirmation = (
