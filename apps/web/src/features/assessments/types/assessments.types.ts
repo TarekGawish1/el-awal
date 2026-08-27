@@ -32,6 +32,8 @@ export interface AssessmentListItem {
   isPublished: boolean;
   dueDate: string | null;
   durationMinutes: number | null;
+  academicStage?: string | null;
+  gradeLevel?: string | null;
   _count?: {
     submissions: number;
     questions: number;

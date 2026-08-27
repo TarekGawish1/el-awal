@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
 import { Pagination } from '@/components/ui/Pagination';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
+import { Select } from '@/components/ui/Select';
 
 const PAGE_SIZE = 9;
 
@@ -20,6 +21,8 @@ export function AssessmentList() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'ALL' | 'EXAM' | 'ASSIGNMENT'>('ALL');
+  const [filterStage, setFilterStage] = useState<string>('ALL');
+  const [filterGrade, setFilterGrade] = useState<string>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
 
   const assessments = data?.data || [];
@@ -28,9 +31,29 @@ export function AssessmentList() {
     return assessments.filter((assessment) => {
       const matchesSearch = assessment.title.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesType = filterType === 'ALL' || assessment.type === filterType;
-      return matchesSearch && matchesType;
+      const matchesStage = filterStage === 'ALL' || assessment.academicStage === filterStage;
+      const matchesGrade = filterGrade === 'ALL' || assessment.gradeLevel === filterGrade;
+      return matchesSearch && matchesType && matchesStage && matchesGrade;
     });
-  }, [assessments, searchQuery, filterType]);
+  }, [assessments, searchQuery, filterType, filterStage, filterGrade]);
+
+  const availableStages = useMemo(() => {
+    const stages = new Set<string>();
+    assessments.forEach(a => {
+      if (a.academicStage) stages.add(a.academicStage);
+    });
+    return Array.from(stages);
+  }, [assessments]);
+
+  const availableGrades = useMemo(() => {
+    const grades = new Set<string>();
+    assessments.forEach(a => {
+      if (a.gradeLevel && (filterStage === 'ALL' || a.academicStage === filterStage)) {
+        grades.add(a.gradeLevel);
+      }
+    });
+    return Array.from(grades);
+  }, [assessments, filterStage]);
 
   const totalPages = Math.ceil(filteredAssessments.length / PAGE_SIZE);
 
@@ -47,6 +70,26 @@ export function AssessmentList() {
   const handleFilterTypeChange = (type: 'ALL' | 'EXAM' | 'ASSIGNMENT') => {
     setFilterType(type);
     setCurrentPage(1);
+  };
+
+  const handleStageChange = (val: string) => {
+    setFilterStage(val);
+    setFilterGrade('ALL'); // Reset grade when stage changes
+    setCurrentPage(1);
+  };
+
+  const handleGradeChange = (val: string) => {
+    setFilterGrade(val);
+    setCurrentPage(1);
+  };
+
+  const formatStageName = (stage: string) => {
+    switch(stage) {
+      case 'PRIMARY': return 'ابتدائي';
+      case 'MIDDLE': return 'إعدادي';
+      case 'SECONDARY': return 'ثانوي';
+      default: return stage;
+    }
   };
 
   return (
@@ -101,6 +144,32 @@ export function AssessmentList() {
             value={searchQuery}
             onChange={(e) => handleSearchChange(e.target.value)}
           />
+        </div>
+
+        <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+          {availableStages.length > 0 && (
+            <Select
+              className="w-full md:w-40 bg-slate-50 border-slate-200"
+              value={filterStage}
+              onChange={(e) => handleStageChange(e.target.value)}
+              options={[
+                { label: 'كل المراحل', value: 'ALL' },
+                ...availableStages.map(stage => ({ label: formatStageName(stage), value: stage }))
+              ]}
+            />
+          )}
+
+          {availableGrades.length > 0 && (
+            <Select
+              className="w-full md:w-48 bg-slate-50 border-slate-200"
+              value={filterGrade}
+              onChange={(e) => handleGradeChange(e.target.value)}
+              options={[
+                { label: 'كل الصفوف', value: 'ALL' },
+                ...availableGrades.map(grade => ({ label: grade, value: grade }))
+              ]}
+            />
+          )}
         </div>
 
         {/* Filter Toggle */}
