@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
-import { GraduationCap, ShieldCheck } from 'lucide-react';
+import { GraduationCap } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui';
 import { ParentAccessForm } from '@/features/auth';
 
@@ -21,7 +21,7 @@ export default function ParentAccessPage() {
             <div className="space-y-1">
               <h1 className="text-2xl font-extrabold tracking-tight text-neutral-900 sm:text-3xl">منصة الأول التعليمية</h1>
               <p className="mx-auto max-w-xs text-xs font-medium text-neutral-500 sm:text-sm">
-                تابع تقدم أبنائك واطّلع على مستواهم الأكاديمي بسهولة
+                تابع تقدم أبنائك واطّلع على مستواهم الدراسي بسهولة
               </p>
             </div>
           </div>
@@ -35,11 +35,6 @@ export default function ParentAccessPage() {
               <ParentAccessForm />
             </CardContent>
           </Card>
-
-          <div className="flex items-center justify-center gap-1.5 text-center text-xs text-neutral-500">
-            <ShieldCheck className="h-4 w-4 text-primary-600" />
-            <span>بياناتك محفوظة وآمنة</span>
-          </div>
         </div>
       </main>
     </Suspense>

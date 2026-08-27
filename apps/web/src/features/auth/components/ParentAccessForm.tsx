@@ -82,11 +82,11 @@ export function ParentAccessForm() {
       </Button>
 
       <Link
-        href="/login"
+        href="/"
         className="flex items-center justify-center gap-1.5 text-xs font-semibold text-neutral-500 transition-colors hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
       >
         <ArrowRight className="h-3.5 w-3.5" />
-        <span>العودة إلى تسجيل الدخول</span>
+        <span>العودة إلي الصفحة الرئيسية</span>
       </Link>
     </form>
   );
