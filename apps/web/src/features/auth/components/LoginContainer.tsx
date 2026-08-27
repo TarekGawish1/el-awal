@@ -17,7 +17,7 @@ export function LoginContainer() {
     if (isInitialized && isAuthenticated && user) {
       const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
       const requestedRedirect = searchParams?.get('redirect');
-      const safeRedirect = sanitizeRedirectUrl(requestedRedirect);
+      const safeRedirect = sanitizeRedirectUrl(requestedRedirect, user.role);
       const destination = safeRedirect || getRoleLandingRoute(user.role);
       router.replace(destination);
     }

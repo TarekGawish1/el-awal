@@ -89,6 +89,7 @@ export function clearStoredTokens(): void {
     localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
     localStorage.removeItem(STORAGE_KEYS.USER_PROFILE);
     localStorage.removeItem(STORAGE_KEYS.USER_SESSION);
+    sessionStorage.clear();
   } catch (error) {
     console.error('Failed to clear authentication tokens from storage:', error);
   }
