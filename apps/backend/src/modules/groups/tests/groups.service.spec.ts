@@ -3,6 +3,7 @@ import { ForbiddenException, NotFoundException, ConflictException } from '@nestj
 import { GroupsService } from '../services/groups.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { NotificationsService } from '../../notifications/services/notifications.service';
+import { RealtimeGateway } from '../../../realtime/realtime.gateway';
 import {
   GroupEnrollmentStatus,
   NotificationChannel,
@@ -42,12 +43,17 @@ describe('GroupsService', () => {
     sendNotification: jest.fn(),
   };
 
+  const mockRealtimeGateway = {
+    notifyReservationsChanged: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         GroupsService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: NotificationsService, useValue: mockNotificationsService },
+        { provide: RealtimeGateway, useValue: mockRealtimeGateway },
       ],
     }).compile();
 

@@ -204,8 +204,10 @@ export class PaymentsService {
           where: {
             studentId: { in: studentIds },
             OR: paymentConditions,
+            paymentStatus: { in: [PaymentStatus.PAID, PaymentStatus.EXEMPT] },
           },
           select: {
+            id: true,
             studentId: true,
             groupId: true,
             bookletId: true,
@@ -219,7 +221,7 @@ export class PaymentsService {
           },
         });
 
-    const paymentMap = new Map<string, { amountPaid: number; amountExpected: number; isPaid: boolean; paidAt?: Date }>();
+    const paymentMap = new Map<string, { paymentId?: string; amountPaid: number; amountExpected: number; isPaid: boolean; paidAt?: Date }>();
     for (const payment of payments) {
       const key = payment.paymentType === PaymentType.BOOKLET
         ? `${payment.studentId}:BOOKLET:${payment.bookletId}`
@@ -229,6 +231,7 @@ export class PaymentsService {
       const amountExpected = Number(payment.amountExpected || 0);
       const paidAt = !previous?.paidAt || payment.createdAt > previous.paidAt ? payment.createdAt : previous.paidAt;
       paymentMap.set(key, {
+        paymentId: payment.id,
         amountPaid,
         amountExpected: Math.max(previous?.amountExpected || 0, amountExpected),
         isPaid: (previous?.isPaid || payment.paymentStatus === PaymentStatus.PAID || payment.paymentStatus === PaymentStatus.EXEMPT) &&
@@ -240,8 +243,8 @@ export class PaymentsService {
     const resultStudents = students.map((student) => {
       const enrollment = student.groupEnrollments[0];
       const monthlyFee = Number(enrollment?.group.monthlyFee || 0);
-      const monthlyPayments: Record<number, { isPaid: boolean; amountPaid: number; paidAt?: Date; isStarted: boolean }> = {};
-      const bookletPayments: Record<string, { isApplicable: boolean; isPaid: boolean; amountPaid: number; paidAt?: Date }> = {};
+      const monthlyPayments: Record<number, { paymentId?: string; isPaid: boolean; amountPaid: number; paidAt?: Date; isStarted: boolean }> = {};
+      const bookletPayments: Record<string, { paymentId?: string; isApplicable: boolean; isPaid: boolean; amountPaid: number; paidAt?: Date }> = {};
       let totalDue = 0;
       let totalPaid = 0;
 
@@ -249,7 +252,7 @@ export class PaymentsService {
         const key = `${student.id}:TUITION:${month}:${paymentYearForMonth(month)}`;
         const payment = paymentMap.get(key);
         const isPaid = Boolean(payment && payment.isPaid && payment.amountPaid >= monthlyFee);
-        monthlyPayments[month] = { isPaid, amountPaid: payment?.amountPaid || 0, paidAt: payment?.paidAt, isStarted: this.isMonthStarted(academicYear, academicTerm, month) };
+        monthlyPayments[month] = { paymentId: payment?.paymentId, isPaid, amountPaid: payment?.amountPaid || 0, paidAt: payment?.paidAt, isStarted: this.isMonthStarted(academicYear, academicTerm, month) };
         totalPaid += payment?.amountPaid || 0;
         if (this.isMonthStarted(academicYear, academicTerm, month)) {
           totalDue += Math.max(0, monthlyFee - (payment?.amountPaid || 0));
@@ -265,7 +268,7 @@ export class PaymentsService {
         const payment = paymentMap.get(`${student.id}:BOOKLET:${booklet.id}`);
         const price = Number(booklet.price);
         const isPaid = Boolean(payment && payment.isPaid && payment.amountPaid >= price);
-        bookletPayments[booklet.id] = { isApplicable: true, isPaid, amountPaid: payment?.amountPaid || 0, paidAt: payment?.paidAt };
+        bookletPayments[booklet.id] = { paymentId: payment?.paymentId, isApplicable: true, isPaid, amountPaid: payment?.amountPaid || 0, paidAt: payment?.paidAt };
         totalPaid += payment?.amountPaid || 0;
         if (!isPaid) totalDue += price;
       }

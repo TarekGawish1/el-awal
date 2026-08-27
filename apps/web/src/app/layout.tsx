@@ -4,15 +4,12 @@ import { Providers } from './providers';
 import { PwaRegister, PwaInstallPrompt } from '@/components/pwa';
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#1E4BD9' },
-    { media: '(prefers-color-scheme: dark)', color: '#0B1E63' },
-  ],
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  viewportFit: 'cover',
+  viewportFit: 'cover', // Handles notch / safe area insets on iOS & Android
+  themeColor: '#1e40af',
 };
 
 export const metadata: Metadata = {

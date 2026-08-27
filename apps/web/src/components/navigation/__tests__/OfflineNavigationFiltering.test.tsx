@@ -50,9 +50,9 @@ describe('Offline Navigation Filtering & Route Guards', () => {
   });
 
   describe('getNavigationItemsForRole', () => {
-    it('returns all 9 teacher navigation items when online', () => {
+    it('returns all 10 teacher navigation items when online', () => {
       const items = getNavigationItemsForRole('TEACHER', true);
-      expect(items).toHaveLength(9);
+      expect(items).toHaveLength(10);
       const labels = items.map((i) => i.label);
       expect(labels).toContain('الكورسات أونلاين');
       expect(labels).toContain('الواجبات والاختبارات');
@@ -61,9 +61,9 @@ describe('Offline Navigation Filtering & Route Guards', () => {
       expect(labels).toContain('سجل الطلاب');
     });
 
-    it('filters out online-only teacher items (leaving 6 offline-supported items) when offline', () => {
+    it('filters out online-only teacher items (leaving 7 offline-supported items) when offline', () => {
       const items = getNavigationItemsForRole('TEACHER', false);
-      expect(items).toHaveLength(6);
+      expect(items).toHaveLength(7);
       const labels = items.map((i) => i.label);
       expect(labels).not.toContain('الكورسات أونلاين');
       expect(labels).not.toContain('الواجبات والاختبارات');

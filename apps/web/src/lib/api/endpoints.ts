@@ -79,6 +79,8 @@ export const API_ENDPOINTS = {
     RECORD_PAYMENT: '/subscriptions/record',
     STUDENT_HISTORY: (studentId: string) => `/subscriptions/student/${studentId}`,
     SCAN_QR: '/subscriptions/scan-qr',
+    DELETE_PAYMENT: (paymentId: string) => `/subscriptions/${paymentId}`,
+    REFUND_PAYMENT: (paymentId: string) => `/subscriptions/${paymentId}/refund`,
   },
   BOOKLETS: {
     LIST: '/booklets',

@@ -133,7 +133,7 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
   return (
     <div
       id="sync-review-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200 overflow-hidden"
       role="dialog"
       aria-modal="true"
       aria-labelledby="sync-review-modal-title"
@@ -141,7 +141,7 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-150 overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="w-full max-w-2xl bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-150 overflow-hidden flex flex-col max-h-[88dvh] sm:max-h-[90vh] pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-0">
         {/* Header */}
         <div className="p-5 sm:p-6 bg-gradient-to-r from-primary-900 via-primary-800 to-primary-900 text-white flex items-center justify-between">
           <div className="flex items-center gap-3">

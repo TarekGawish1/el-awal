@@ -110,19 +110,19 @@ export function PwaInstallPrompt() {
       {/* Mobile Floating Bottom Install Prompt */}
       <aside
         aria-label="تثبيت تطبيق منصة الأول"
-        className="fixed bottom-4 start-4 end-4 md:start-auto md:end-6 md:max-w-md z-50 animate-in fade-in slide-in-from-bottom-4 duration-300"
+        className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] inset-x-3 sm:inset-x-auto sm:left-4 z-30 max-w-sm rounded-2xl bg-white p-3.5 shadow-2xl border border-slate-200 dark:bg-slate-900 dark:border-slate-800 animate-in fade-in slide-in-from-bottom-4 duration-300"
       >
-        <div className="bg-white/95 backdrop-blur-md border border-primary-200/80 rounded-2xl p-4 shadow-xl shadow-primary-950/10 flex flex-col gap-3">
+        <div className="flex flex-col gap-3">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white shadow-md shadow-primary-500/20 shrink-0">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white shadow-md shadow-primary-500/20 shrink-0">
                 <Smartphone className="w-6 h-6" />
               </div>
               <div className="text-start">
-                <h3 className="font-bold text-neutral-900 text-sm leading-snug">
+                <h3 className="font-bold text-neutral-900 dark:text-slate-100 text-sm leading-snug">
                   تطبيق منصة الأول التعليمية
                 </h3>
-                <p className="text-xs text-neutral-500 mt-0.5">
+                <p className="text-xs text-neutral-500 dark:text-slate-400 mt-0.5">
                   ثبّت التطبيق على هاتفك للوصول السريع بدون متصفح وتجربة أسرع
                 </p>
               </div>
@@ -130,24 +130,24 @@ export function PwaInstallPrompt() {
 
             <button
               onClick={handleDismiss}
-              className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 transition-colors"
+              className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-slate-800 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
               aria-label="إغلاق الإشعار"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="flex items-center gap-2 pt-1 border-t border-neutral-100">
+          <div className="flex items-center gap-2 pt-1 border-t border-neutral-100 dark:border-slate-800">
             <button
               onClick={handleInstallClick}
-              className="flex-1 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white text-xs font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all"
+              className="flex-1 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white text-xs font-bold min-h-[44px] px-4 rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
             >
               <Download className="w-4 h-4" />
               <span>تثبيت التطبيق الآن</span>
             </button>
             <button
               onClick={handleDismiss}
-              className="text-xs text-neutral-500 hover:text-neutral-800 px-3 py-2.5 rounded-xl hover:bg-neutral-100 transition-colors font-medium"
+              className="text-xs text-neutral-500 dark:text-slate-400 hover:text-neutral-800 dark:hover:text-slate-200 min-h-[44px] px-3.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-slate-800 transition-colors font-medium flex items-center justify-center cursor-pointer"
             >
               لاحقاً
             </button>

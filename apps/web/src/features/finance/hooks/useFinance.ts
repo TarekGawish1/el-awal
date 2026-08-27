@@ -6,6 +6,7 @@ import {
   recordPayment,
   scanPaymentQr,
   deletePayment,
+  refundPayment,
   fetchMatrixLedger,
   fetchBillingConfiguration,
   updateBillingConfiguration,
@@ -735,9 +736,51 @@ export function useDeletePayment() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: financeKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.invalidateQueries({ queryKey: ['booklets'] });
       queryClient.invalidateQueries({ queryKey: ['students'] });
       queryClient.invalidateQueries({ queryKey: ['group-defaulters'] });
+      queryClient.invalidateQueries({ queryKey: ['matrix-ledger'] });
+    },
+  });
+}
+
+export function useRefundPayment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        // Offline: delete locally from paid status and queue refund operation
+        const removed = await offlineDb.deletePaymentLocally(id);
+        await syncEngine.enqueue(
+          'finance',
+          API_ENDPOINTS.SUBSCRIPTIONS.REFUND_PAYMENT(id),
+          'POST',
+          {
+            type: 'REFUND_PAYMENT',
+            paymentId: id,
+            reason,
+            clientTimestamp: Date.now(),
+          },
+        );
+        return {
+          success: true,
+          message: 'تم تسجيل استرداد المبلغ محلياً وجدولة المزامنة 💾',
+          payment: removed,
+        };
+      }
+
+      return refundPayment(id, reason);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: financeKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['booklets'] });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['group-defaulters'] });
+      queryClient.invalidateQueries({ queryKey: ['matrix-ledger'] });
     },
   });
 }

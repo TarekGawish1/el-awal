@@ -12,6 +12,7 @@ import { UpdateGroupDto } from '../dto/update-group.dto';
 import { GroupEnrollmentStatus, AttendanceStatus, UserRole, NotificationChannel, NotificationType } from '@prisma/client';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { NotificationsService } from '../../notifications/services/notifications.service';
+import { RealtimeGateway } from '../../../realtime/realtime.gateway';
 import { formatStudentApprovalMessage } from '../../../utils/spintax';
 
 @Injectable()
@@ -21,6 +22,7 @@ export class GroupsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly realtimeGateway: RealtimeGateway,
   ) {}
 
   /**
@@ -615,6 +617,10 @@ export class GroupsService {
       this.logger.error('Failed to dispatch student approval notification', notifErr);
     }
 
+    // Push a realtime "reservations changed" signal so the teacher's open
+    // tabs refresh the pending list & sidebar counter without polling.
+    this.realtimeGateway.notifyReservationsChanged([user.id]);
+
     return updatedEnrollment;
   }
 
@@ -632,6 +638,8 @@ export class GroupsService {
     }
 
     await this.checkTeacherOwnership(enrollment.group, user);
+
+    this.realtimeGateway.notifyReservationsChanged([user.id]);
 
     return this.prisma.groupEnrollment.delete({
       where: { id: enrollmentId }

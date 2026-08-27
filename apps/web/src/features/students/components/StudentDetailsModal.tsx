@@ -31,11 +31,11 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 overflow-hidden bg-slate-900/50 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4"
       onClick={onClose}
     >
       <div
-        className="relative bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto space-y-6"
+        className="relative bg-white rounded-t-3xl sm:rounded-3xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-slate-100 max-h-[88dvh] overflow-y-auto space-y-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-6"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}

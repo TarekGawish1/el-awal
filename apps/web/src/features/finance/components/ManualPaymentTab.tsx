@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, History, Users, Wallet } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, History, Users, Wallet, Trash2 } from 'lucide-react';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { FinanceFiltersBar, TERM_MONTHS } from './FinanceFiltersBar';
 import { RecordPaymentModal } from './RecordPaymentModal';
 import { StudentHistoryModal } from './StudentHistoryModal';
+import { CancelPaymentModal, PaymentSummaryInfo } from './CancelPaymentModal';
 import { useGroupDefaulters, usePayments } from '../hooks/useFinance';
 import { DEFAULT_ACADEMIC_TERM, STORAGE_TERM_KEY, STORAGE_YEAR_KEY } from '@/features/groups/hooks/useAcademicPeriod';
 
@@ -51,6 +52,7 @@ export function ManualPaymentTab({ groups, initialPeriodYear, initialPeriodMonth
   const [search, setSearch] = useState('');
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const [historyStudentId, setHistoryStudentId] = useState<string | null>(null);
+  const [paymentToCancel, setPaymentToCancel] = useState<PaymentSummaryInfo | null>(null);
 
   useEffect(() => {
     const sync = () => {
@@ -109,9 +111,16 @@ export function ManualPaymentTab({ groups, initialPeriodYear, initialPeriodMonth
         {!groupId ? <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center"><Users className="mx-auto mb-2 h-8 w-8 text-slate-400" /><p className="text-sm font-bold text-slate-700">اختر مجموعة لعرض الطلاب المتأخرين</p><p className="mt-1 text-xs text-slate-500">يمكنك تصفية المرحلة والصف أولاً، ثم اختيار المجموعة المناسبة.</p></div> : isDefaultersLoading ? <div className="space-y-2"><div className="h-12 animate-pulse rounded-xl bg-slate-100" /><div className="h-12 animate-pulse rounded-xl bg-slate-100" /></div> : isDefaultersError ? <Alert variant="error">حدث خطأ أثناء تحميل قائمة المتأخرين.</Alert> : overdueStudents.length === 0 ? <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-8 text-center"><CheckCircle2 className="mx-auto mb-2 h-8 w-8 text-emerald-600" /><p className="text-sm font-bold text-emerald-800">جميع طلاب هذه المجموعة قاموا بسداد اشتراك هذا الشهر بالكامل.</p></div> : <div className="divide-y divide-slate-100 rounded-xl border border-slate-100">{overdueStudents.map((student) => <div key={student.studentId} className="flex items-center justify-between gap-3 p-3.5"><div><p className="text-sm font-bold text-slate-800">{student.fullName}</p><p className="mt-1 font-mono text-xs text-slate-400">{student.studentCode || 'بدون كود'}</p></div><div className="flex items-center gap-3"><span className="text-sm font-bold text-rose-600">{student.monthlyFeeExpected} ج.م</span><Button type="button" size="sm" variant="outline" onClick={() => setHistoryStudentId(student.studentId)}><History className="h-3.5 w-3.5" />كشف حساب</Button></div></div>)}</div>}
       </CardContent></Card>
 
-      <Card><CardHeader><CardTitle className="flex items-center gap-2"><Wallet className="h-5 w-5 text-emerald-600" />سجل المدفوعات المسجلة ({recentPayments.length})</CardTitle></CardHeader><CardContent>{isPaymentsLoading ? <div className="h-24 animate-pulse rounded-xl bg-slate-100" /> : recentPayments.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">لا توجد دفعات مسجلة لهذه المجموعة وهذا الشهر.</p> : <div className="space-y-2">{recentPayments.map((payment: any) => <div key={payment.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 p-3"><div><p className="text-sm font-bold text-slate-800">{payment.student?.user?.fullName || 'طالب'}</p><p className="mt-1 text-xs text-slate-500">{payment.paymentMethod || 'CASH'} • {new Date(payment.createdAt).toLocaleDateString('ar-EG')}</p></div><Badge variant="success">تم الدفع {payment.amountPaid} ج.م</Badge></div>)}</div>}</CardContent></Card>
+      <Card><CardHeader><CardTitle className="flex items-center gap-2"><Wallet className="h-5 w-5 text-emerald-600" />سجل المدفوعات المسجلة ({recentPayments.length})</CardTitle></CardHeader><CardContent>{isPaymentsLoading ? <div className="h-24 animate-pulse rounded-xl bg-slate-100" /> : recentPayments.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">لا توجد دفعات مسجلة لهذه المجموعة وهذا الشهر.</p> : <div className="space-y-2">{recentPayments.map((payment: any) => <div key={payment.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 p-3"><div><p className="text-sm font-bold text-slate-800">{payment.student?.user?.fullName || 'طالب'}</p><p className="mt-1 text-xs text-slate-500">{payment.paymentMethod || 'CASH'} • {new Date(payment.createdAt).toLocaleDateString('ar-EG')}</p></div><div className="flex items-center gap-2">{payment.paymentStatus === 'REFUNDED' ? <Badge variant="error">مسترد / ملغي</Badge> : <Badge variant="success">تم الدفع {payment.amountPaid} ج.م</Badge>}<Button type="button" size="sm" variant="outline" className="h-8 text-xs border-rose-200 text-rose-600 hover:bg-rose-50" onClick={() => setPaymentToCancel({ id: payment.id, studentName: payment.student?.user?.fullName, amountPaid: payment.amountPaid, paymentType: payment.paymentType as any, periodMonth: payment.periodMonth, periodYear: payment.periodYear, groupName: selectedGroup?.name, bookletTitle: payment.booklet?.title, notes: payment.notes || undefined })} title="إلغاء أو حذف الدفعة"><Trash2 className="h-3.5 w-3.5 ml-1" />إلغاء / حذف</Button></div></div>)}</div>}</CardContent></Card>
 
       {groupId && isRecordModalOpen && <RecordPaymentModal isOpen onClose={() => setIsRecordModalOpen(false)} groupId={groupId} periodYear={periodYear} periodMonth={periodMonth} allStudents={allStudents} />}
+      {paymentToCancel && (
+        <CancelPaymentModal
+          isOpen={Boolean(paymentToCancel)}
+          payment={paymentToCancel}
+          onClose={() => setPaymentToCancel(null)}
+        />
+      )}
       {historyStudentId && <StudentHistoryModal isOpen={!!historyStudentId} studentId={historyStudentId} onClose={() => setHistoryStudentId(null)} />}
     </div>
   );

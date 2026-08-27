@@ -72,6 +72,16 @@ const typeConfig: Record<
     color: 'text-emerald-600',
     bg: 'bg-emerald-50',
   },
+  TEACHER_JOIN_REQUEST: {
+    icon: <ClipboardList size={16} />,
+    color: 'text-amber-600',
+    bg: 'bg-amber-50',
+  },
+  GENERAL_ANNOUNCEMENT: {
+    icon: <BellIcon size={16} />,
+    color: 'text-slate-600',
+    bg: 'bg-slate-100',
+  },
   STUDENT_ABSENCE: {
     icon: <AlertTriangle size={16} />,
     color: 'text-amber-600',

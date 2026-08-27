@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, act } from '@testing-library/react';
 import { useRecordPayment, useDeletePayment } from '../hooks/useFinance';
 import { offlineDb } from '@/lib/offline/db';
+import { useAuthStore } from '@/features/auth/store/auth.store';
 
 describe('Offline Payment Deletion (Tuition & Booklet)', () => {
   let queryClient: QueryClient;
@@ -15,6 +16,14 @@ describe('Offline Payment Deletion (Tuition & Booklet)', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    useAuthStore.setState({
+      user: {
+        id: 'teacher-del-1',
+        fullName: 'المعلم التجريبي',
+        role: 'TEACHER' as any,
+      } as any,
+      isAuthenticated: true,
+    });
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },

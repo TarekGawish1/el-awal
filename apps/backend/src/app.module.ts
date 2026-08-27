@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { CoreModule } from './core/core.module';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { RealtimeModule } from './realtime/realtime.module';
 
 // Domain Feature Modules
 import { AuthModule } from './modules/auth/auth.module';
@@ -33,6 +34,9 @@ import { PaymentsModule } from './modules/payments/payments.module';
 
     // External Cloud Integrations (Cloudflare R2, Bunny Stream)
     IntegrationsModule,
+
+    // Realtime WebSocket transport (Socket.IO)
+    RealtimeModule,
 
     // 15 Domain Feature Modules + Health
     AuthModule,

@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { X, History, Trash2, BookOpen, CreditCard, Printer } from 'lucide-react';
-import { useStudentPaymentHistory, useDeletePayment } from '../hooks/useFinance';
+import { X, History, Trash2, BookOpen, CreditCard, Printer, RotateCcw } from 'lucide-react';
+import { useStudentPaymentHistory } from '../hooks/useFinance';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { CancelPaymentModal, PaymentSummaryInfo } from './CancelPaymentModal';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -16,26 +16,8 @@ interface Props {
 }
 
 export function StudentHistoryModal({ isOpen, onClose, studentId }: Props) {
-  const [recordToDelete, setRecordToDelete] = useState<string | null>(null);
+  const [paymentToCancel, setPaymentToCancel] = useState<PaymentSummaryInfo | null>(null);
   const { data: history, isLoading } = useStudentPaymentHistory(studentId);
-  const { mutate: deletePayment, isPending: isDeleting } = useDeletePayment();
-
-  if (!isOpen) return null;
-
-  const handleDelete = (id: string) => {
-    setRecordToDelete(id);
-  };
-
-  const handleConfirmDelete = () => {
-    if (!recordToDelete) return;
-    deletePayment(recordToDelete, {
-      onSuccess: () => {
-        toast.success('تم حذف الدفعة بنجاح');
-        setRecordToDelete(null);
-      },
-      onError: (err: any) => toast.error(err.message || 'حدث خطأ أثناء الحذف'),
-    });
-  };
 
   const handlePrintReceipt = (record: any) => {
     const isBooklet = record.paymentType === 'BOOKLET' || Boolean(record.bookletId);
@@ -130,10 +112,16 @@ export function StudentHistoryModal({ isOpen, onClose, studentId }: Props) {
                   >
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-slate-900 text-lg">{record.amountPaid} ج.م</span>
-                        <Badge variant="success" className="h-5 text-[10px]">
-                          مسدد
-                        </Badge>
+                        <span className={`font-bold text-lg ${record.paymentStatus === 'REFUNDED' ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{record.amountPaid} ج.م</span>
+                        {record.paymentStatus === 'REFUNDED' ? (
+                          <Badge variant="error" className="h-5 text-[10px] bg-rose-100 text-rose-700 border-rose-200">
+                            مسترد / ملغي
+                          </Badge>
+                        ) : (
+                          <Badge variant="success" className="h-5 text-[10px]">
+                            مسدد
+                          </Badge>
+                        )}
                         {isBooklet ? (
                           <span className="inline-flex items-center gap-1 text-xs text-purple-700 font-bold bg-purple-100 px-2 py-0.5 rounded-md border border-purple-200">
                             <BookOpen className="w-3.5 h-3.5" />
@@ -179,12 +167,24 @@ export function StudentHistoryModal({ isOpen, onClose, studentId }: Props) {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-7 text-xs border-red-200 text-red-500 hover:bg-red-50"
-                          onClick={() => handleDelete(record.id)}
-                          disabled={isDeleting}
+                          className="h-7 text-xs border-rose-200 text-rose-600 hover:bg-rose-50"
+                          onClick={() =>
+                            setPaymentToCancel({
+                              id: record.id,
+                              studentName,
+                              amountPaid: record.amountPaid,
+                              paymentType: record.paymentType as any,
+                              periodMonth: record.periodMonth,
+                              periodYear: record.periodYear,
+                              groupName: record.group?.name,
+                              bookletTitle: record.booklet?.title,
+                              notes: record.notes || undefined,
+                            })
+                          }
+                          title="إلغاء أو حذف الدفعة"
                         >
                           <Trash2 className="w-3 h-3 ml-1" />
-                          حذف
+                          إلغاء / حذف
                         </Button>
                       </div>
                     </div>
@@ -196,16 +196,10 @@ export function StudentHistoryModal({ isOpen, onClose, studentId }: Props) {
         </div>
       </div>
 
-      <ConfirmModal
-        isOpen={!!recordToDelete}
-        onClose={() => setRecordToDelete(null)}
-        onConfirm={handleConfirmDelete}
-        title="تأكيد حذف الدفعة"
-        message="هل أنت متأكد من حذف هذه الدفعة من سجل الطالب نهائياً؟"
-        confirmText="حذف الدفعة"
-        cancelText="تراجع"
-        variant="danger"
-        isLoading={isDeleting}
+      <CancelPaymentModal
+        isOpen={Boolean(paymentToCancel)}
+        onClose={() => setPaymentToCancel(null)}
+        payment={paymentToCancel}
       />
     </div>
   );

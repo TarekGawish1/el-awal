@@ -29,6 +29,8 @@ import { BootstrapProgressIndicator } from '@/components/pwa/BootstrapProgressIn
 import { MobileBottomNav } from '@/components/navigation';
 import { SyncReviewModal, SyncConfirmationModal, OfflineActivityDrawer } from '@/components/sync';
 import { getNavigationItemsForRole } from '@/config/navigation';
+import { usePendingReservations } from '@/features/groups';
+import { useRealtimeReservations } from '@/lib/realtime/useRealtimeReservations';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { NotificationCenter } from '@/components/notifications/NotificationCenter';
@@ -110,6 +112,12 @@ export default function DashboardLayout({
 
   const navigationItems = getNavigationItemsForRole(user?.role, isOnline);
 
+  // Pending join-request count badge (teacher/secretariat only) — pushed live via WebSocket
+  const isReservationsRole = user?.role === 'TEACHER' || user?.role === 'SECRETARIAT';
+  const { data: pendingReservations } = usePendingReservations(isReservationsRole);
+  const pendingReservationsCount = pendingReservations?.length ?? 0;
+  useRealtimeReservations(isReservationsRole);
+
   // Hydration-safe initial loading screen before auth initialization & client mount
   if (!isMounted || !isInitialized) {
     return (
@@ -186,6 +194,11 @@ export default function DashboardLayout({
                 >
                   <Icon className={`w-4 h-4 ${isActive ? 'text-primary-600' : 'text-neutral-400'}`} />
                   <span>{item.label}</span>
+                  {item.href === '/teacher/reservations' && pendingReservationsCount > 0 && (
+                    <span className="ms-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold leading-none" aria-label={`${pendingReservationsCount} طلب انضمام قيد الانتظار`}>
+                      {pendingReservationsCount > 99 ? '99+' : pendingReservationsCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -226,7 +239,7 @@ export default function DashboardLayout({
       {/* Main Page Workspace & Header Wrapper */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         {/* Global Navigation Header */}
-        <header className="bg-white border-b border-neutral-200 h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 z-30 shadow-xs shrink-0">
+        <header className="pt-[env(safe-area-inset-top,0px)] bg-white/95 dark:bg-slate-900/95 border-b border-neutral-200 sticky top-0 z-40 shadow-xs shrink-0 flex items-center justify-between px-4 sm:px-6 lg:px-8 min-h-[4rem]">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
@@ -353,7 +366,7 @@ export default function DashboardLayout({
         </header>
 
         {/* Main Content Area */}
-        <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 pb-28 lg:pb-8 overflow-y-auto w-full">
+        <main className="flex-1 min-h-screen w-full overflow-x-hidden overflow-y-auto pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] pt-3 px-3 sm:px-6">
           <div className="max-w-7xl mx-auto w-full min-h-full">
             {children}
           </div>

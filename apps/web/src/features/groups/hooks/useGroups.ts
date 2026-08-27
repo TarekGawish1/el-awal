@@ -519,10 +519,11 @@ export function useSearchStudents(query: string) {
   });
 }
 
-export function usePendingReservations() {
+export function usePendingReservations(enabled = true) {
   return useQuery<any[]>({
     queryKey: ['pending-reservations'],
     queryFn: () => import('../api/groups.api').then(m => m.fetchPendingReservations()),
+    enabled,
   });
 }
 

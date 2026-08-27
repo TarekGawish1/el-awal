@@ -13,6 +13,7 @@ import { SubscriptionsService } from '../services/subscriptions.service';
 import { RecordPaymentDto } from '../dto/record-payment.dto';
 import { ScanPaymentQrDto } from '../dto/scan-payment-qr.dto';
 import { PaymentQueryDto } from '../dto/payment-query.dto';
+import { CancelPaymentDto } from '../dto/cancel-payment.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
 import {
   CurrentUser,
@@ -83,6 +84,17 @@ export class SubscriptionsController {
       periodMonth,
       user,
     );
+  }
+
+  @Post(':id/refund')
+  @Roles(UserRole.SECRETARIAT, UserRole.TEACHER)
+  @ApiOperation({ summary: 'Cancel and refund a recorded payment' })
+  async refundStudentPayment(
+    @Param('id') id: string,
+    @Body() dto: CancelPaymentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.subscriptionsService.refundStudentPayment(id, dto, user);
   }
 
   @Delete(':id')

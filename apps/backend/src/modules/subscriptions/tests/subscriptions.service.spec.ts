@@ -505,5 +505,82 @@ describe('SubscriptionsService', () => {
       ).rejects.toThrow('رمز الـ QR غير صالح أو أن حساب الطالب غير مفعّل.');
     });
   });
+
+  describe('deleteStudentPayment', () => {
+    it('should successfully delete a payment record and emit payment.deleted', async () => {
+      const paymentId = 'pay-to-delete-1';
+      mockPrismaService.studentPaymentRecord.findUnique.mockResolvedValue({
+        id: paymentId,
+        studentId: 'stu-1',
+        amountPaid: 350,
+        periodYear: 2026,
+        periodMonth: 9,
+        paymentType: 'TUITION',
+        group: { id: 'grp-1', teacherId: 'staff-1' },
+        student: { user: { fullName: 'طالب للتجربة' } },
+      });
+      mockPrismaService.studentPaymentRecord.delete.mockResolvedValue({ id: paymentId });
+
+      const result = await service.deleteStudentPayment(paymentId, mockUser);
+      expect(result.success).toBe(true);
+      expect(mockPrismaService.studentPaymentRecord.delete).toHaveBeenCalledWith({
+        where: { id: paymentId },
+      });
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'payment.deleted',
+        expect.objectContaining({ paymentId, studentId: 'stu-1' }),
+      );
+    });
+
+    it('should throw NotFoundException if payment to delete does not exist', async () => {
+      mockPrismaService.studentPaymentRecord.findUnique.mockResolvedValue(null);
+
+      await expect(service.deleteStudentPayment('non-existent', mockUser)).rejects.toThrow(
+        'Payment record [non-existent] not found',
+      );
+    });
+  });
+
+  describe('refundStudentPayment', () => {
+    it('should mark paymentStatus as REFUNDED and emit payment.refunded', async () => {
+      const paymentId = 'pay-to-refund-1';
+      mockPrismaService.studentPaymentRecord.findUnique.mockResolvedValue({
+        id: paymentId,
+        studentId: 'stu-1',
+        amountPaid: 350,
+        periodYear: 2026,
+        periodMonth: 9,
+        paymentType: 'TUITION',
+        group: { id: 'grp-1', teacherId: 'staff-1' },
+        student: { user: { fullName: 'طالب للتجربة', phone: '01012345678' } },
+      });
+      mockPrismaService.studentPaymentRecord.update.mockResolvedValue({
+        id: paymentId,
+        paymentStatus: PaymentStatus.REFUNDED,
+        notes: '[تم استرداد المبلغ]: الطالب يريد استرجاع المصروفات',
+      });
+
+      const result = await service.refundStudentPayment(
+        paymentId,
+        { reason: 'الطالب يريد استرجاع المصروفات' },
+        mockUser,
+      );
+      expect(result.success).toBe(true);
+      expect(mockPrismaService.studentPaymentRecord.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: paymentId },
+          data: expect.objectContaining({ paymentStatus: PaymentStatus.REFUNDED }),
+        }),
+      );
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'payment.refunded',
+        expect.objectContaining({
+          paymentId,
+          amountRefunded: 350,
+          reason: 'الطالب يريد استرجاع المصروفات',
+        }),
+      );
+    });
+  });
 });
 

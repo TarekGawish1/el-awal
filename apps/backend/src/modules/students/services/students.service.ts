@@ -13,13 +13,15 @@ import { PrismaService } from '../../../core/database/prisma.service';
 import { CreateStudentDto } from '../dto/create-student.dto';
 import { StudentQueryDto } from '../dto/student-query.dto';
 import { StudentQrCodeResponseDto } from '../dto/qr-code-response.dto';
-import { UserRole, GroupEnrollmentStatus, PaymentStatus, PaymentType, StudentAcademicStatus } from '@prisma/client';
+import { UserRole, GroupEnrollmentStatus, PaymentStatus, PaymentType, StudentAcademicStatus, NotificationChannel, NotificationType } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
 import { StudentGroupQueryDto } from '../dto/student-group-query.dto';
 import { StorageService } from '../../../integrations/storage/storage.service';
 import { computeEffectiveDueDate, SessionForDeadline } from '../../assessments/utils/effective-due-date.util';
+import { NotificationsService } from '../../notifications/services/notifications.service';
+import { RealtimeGateway } from '../../../realtime/realtime.gateway';
 
 @Injectable()
 export class StudentsService {
@@ -27,6 +29,8 @@ export class StudentsService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+    private readonly realtimeGateway: RealtimeGateway,
     @Optional() private readonly storageService?: StorageService,
   ) {}
 
@@ -678,6 +682,7 @@ export class StudentsService {
 
   /**
    * Allows a student to reserve a spot (PENDING enrollment) in a group.
+   * Dispatches an in-app + web push notification to the group's teacher.
    */
   async reserveGroup(groupId: string, user: AuthenticatedUser) {
     const studentId = this.resolveStudentId(user);
@@ -688,7 +693,8 @@ export class StudentsService {
           select: {
             enrollments: { where: { status: { in: [GroupEnrollmentStatus.ACTIVE, 'PENDING' as GroupEnrollmentStatus] } } }
           }
-        }
+        },
+        teacher: { include: { user: { select: { id: true, fullName: true } } } },
       }
     });
 
@@ -697,10 +703,16 @@ export class StudentsService {
       throw new BadRequestException('هذه المجموعة مكتملة العدد');
     }
 
+    const student = await this.prisma.studentProfile.findUnique({
+      where: { id: studentId },
+      include: { user: { select: { id: true, fullName: true } } },
+    });
+
     const existingEnrollment = await this.prisma.groupEnrollment.findUnique({
       where: { groupId_studentId: { groupId, studentId } }
     });
 
+    let enrollment;
     if (existingEnrollment) {
       if (existingEnrollment.status === 'PENDING' as GroupEnrollmentStatus) {
         throw new BadRequestException('لديك حجز قيد الانتظار بالفعل في هذه المجموعة');
@@ -708,21 +720,58 @@ export class StudentsService {
       if (existingEnrollment.status === GroupEnrollmentStatus.ACTIVE) {
         throw new BadRequestException('أنت منضم بالفعل لهذه المجموعة');
       }
-      
+
       // If DROPPED or TRANSFERRED, we can reactivate it as PENDING
-      return this.prisma.groupEnrollment.update({
+      enrollment = await this.prisma.groupEnrollment.update({
         where: { id: existingEnrollment.id },
         data: { status: 'PENDING' as GroupEnrollmentStatus }
       });
+    } else {
+      enrollment = await this.prisma.groupEnrollment.create({
+        data: {
+          groupId,
+          studentId,
+          status: 'PENDING' as GroupEnrollmentStatus,
+        },
+      });
     }
 
-    return this.prisma.groupEnrollment.create({
-      data: {
-        groupId,
-        studentId,
-        status: 'PENDING' as GroupEnrollmentStatus,
-      },
-    });
+    // ── Notify the group's teacher about the new join request ─────────────
+    const teacherUserId = group?.teacher?.user?.id;
+    // Push a realtime "reservations changed" signal so the teacher's open
+    // tabs refresh the pending list & sidebar counter without polling.
+    this.realtimeGateway.notifyReservationsChanged([teacherUserId]);
+
+    if (teacherUserId) {
+      const studentName = student?.user?.fullName || 'طالب';
+      const groupName = group?.name || 'المجموعة';
+
+      try {
+        await this.notificationsService.sendNotification({
+          recipientId: teacherUserId,
+          type: 'TEACHER_JOIN_REQUEST',
+          notificationType: NotificationType.GENERAL_ANNOUNCEMENT,
+          title: '🔔 طلب انضمام جديد',
+          body: `طلب الطالب ${studentName} الانضمام إلى مجموعة ${groupName} بانتظار تأكيدك.`,
+          channels: [NotificationChannel.WEB_PUSH, NotificationChannel.IN_APP],
+          data: {
+            url: '/teacher/reservations',
+            enrollmentId: enrollment.id,
+            studentName,
+            groupName,
+            groupId: group.id,
+          },
+          referenceEntityId: enrollment.id,
+        });
+        this.logger.log(
+          `Dispatched join-request notification to teacher [${teacherUserId}] for student [${studentId}]`,
+        );
+      } catch (notifErr) {
+        this.logger.error('Failed to notify teacher of join request', notifErr);
+      }
+    }
+
+    return enrollment;
   }
 
   /**

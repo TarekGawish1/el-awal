@@ -455,7 +455,8 @@ export class NotificationsService {
       case NotificationType.ABSENCE_ALERT_PARENT:
         return data?.studentId ? `${base}/students/${data.studentId}` : base;
       default:
-        return base;
+        // Allow domain events to provide an explicit target URL (e.g. teacher join requests)
+        return data?.url ? String(data.url) : base;
     }
   }
 }

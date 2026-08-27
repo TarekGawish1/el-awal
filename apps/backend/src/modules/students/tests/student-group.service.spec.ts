@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { StudentsService } from '../services/students.service';
 import { PrismaService } from '../../../core/database/prisma.service';
+import { NotificationsService } from '../../notifications/services/notifications.service';
+import { RealtimeGateway } from '../../../realtime/realtime.gateway';
 import { GroupEnrollmentStatus, UserRole } from '@prisma/client';
 
 describe('StudentsService student group hub', () => {
@@ -13,9 +15,23 @@ describe('StudentsService student group hub', () => {
     assessment: { findMany: jest.fn() },
   };
 
+  const notificationsService = {
+    sendNotification: jest.fn(),
+    createNotification: jest.fn(),
+  };
+
+  const realtimeGateway = {
+    notifyReservationsChanged: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [StudentsService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        StudentsService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationsService, useValue: notificationsService },
+        { provide: RealtimeGateway, useValue: realtimeGateway },
+      ],
     }).compile();
     service = module.get(StudentsService);
     jest.clearAllMocks();

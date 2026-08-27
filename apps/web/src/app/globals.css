@@ -56,6 +56,19 @@
   body::-webkit-scrollbar {
     display: none;
   }
+
+  /* Disable elastic pull-to-refresh conflict with custom pull gestures */
+  html, body {
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  /* Prevent text selection during fast taps on interactive chips & buttons */
+  button, a, [role="button"] {
+    user-select: none;
+    -webkit-user-select: none;
+  }
 }
 
 /* Mobile PWA Safe Area Utilities */

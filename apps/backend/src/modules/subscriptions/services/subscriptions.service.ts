@@ -10,6 +10,7 @@ import { PrismaService } from '../../../core/database/prisma.service';
 import { RecordPaymentDto } from '../dto/record-payment.dto';
 import { ScanPaymentQrDto } from '../dto/scan-payment-qr.dto';
 import { PaymentQueryDto } from '../dto/payment-query.dto';
+import { CancelPaymentDto } from '../dto/cancel-payment.dto';
 import { PaymentStatus, PaymentType, GroupEnrollmentStatus, UserRole } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
@@ -823,12 +824,18 @@ export class SubscriptionsService {
   }
 
   /**
-   * Deletes a payment record.
+   * Deletes a payment record completely (e.g. recorded by mistake).
    */
   async deleteStudentPayment(id: string, user: AuthenticatedUser) {
     const payment = await this.prisma.studentPaymentRecord.findUnique({
       where: { id },
-      include: { group: true },
+      include: {
+        group: true,
+        booklet: true,
+        student: {
+          include: { user: { select: { fullName: true } } },
+        },
+      },
     });
 
     if (!payment) {
@@ -840,13 +847,91 @@ export class SubscriptionsService {
       if (payment.group && payment.group.teacherId !== teacherId && payment.group.teacherId !== user.id) {
         throw new ForbiddenException('You do not own the academic group for this payment');
       }
+      if (payment.booklet && payment.booklet.teacherProfileId !== teacherId) {
+        throw new ForbiddenException('You do not own the academic group or booklet for this payment');
+      }
     }
 
     await this.prisma.studentPaymentRecord.delete({
       where: { id },
     });
 
+    this.eventEmitter.emit('payment.deleted', {
+      paymentId: id,
+      studentId: payment.studentId,
+      studentName: payment.student?.user?.fullName,
+      amountPaid: Number(payment.amountPaid),
+      periodYear: payment.periodYear,
+      periodMonth: payment.periodMonth,
+      paymentType: payment.paymentType,
+    });
+
     this.logger.log(`Payment [${id}] deleted by User [${user.id}]`);
     return { success: true };
+  }
+
+  /**
+   * Refunds/cancels a recorded payment (e.g. student wanted money back).
+   */
+  async refundStudentPayment(id: string, dto: CancelPaymentDto, user: AuthenticatedUser) {
+    const payment = await this.prisma.studentPaymentRecord.findUnique({
+      where: { id },
+      include: {
+        group: true,
+        booklet: true,
+        student: {
+          include: { user: { select: { fullName: true, phone: true } } },
+        },
+      },
+    });
+
+    if (!payment) {
+      throw new NotFoundException(`Payment record [${id}] not found`);
+    }
+
+    if (user.role === UserRole.TEACHER) {
+      const teacherId = user.teacherProfileId || user.id;
+      if (payment.group && payment.group.teacherId !== teacherId && payment.group.teacherId !== user.id) {
+        throw new ForbiddenException('You do not own the academic group for this payment');
+      }
+      if (payment.booklet && payment.booklet.teacherProfileId !== teacherId) {
+        throw new ForbiddenException('You do not own the academic group or booklet for this payment');
+      }
+    }
+
+    const updatedPayment = await this.prisma.studentPaymentRecord.update({
+      where: { id },
+      data: {
+        paymentStatus: PaymentStatus.REFUNDED,
+        notes: dto?.reason ? `[تم استرداد المبلغ]: ${dto.reason}` : (payment.notes ? `${payment.notes} - [مسترد]` : 'تم استرداد المبلغ وإلغاء المعاملة'),
+        updatedAt: new Date(),
+      },
+      include: {
+        student: {
+          include: { user: { select: { fullName: true, phone: true } } },
+        },
+        group: { select: { id: true, name: true } },
+        booklet: { select: { id: true, title: true, price: true } },
+      },
+    });
+
+    this.eventEmitter.emit('payment.refunded', {
+      paymentId: id,
+      studentId: payment.studentId,
+      studentName: payment.student?.user?.fullName,
+      parentPhone: payment.student?.user?.phone,
+      amountRefunded: Number(payment.amountPaid),
+      periodYear: payment.periodYear,
+      periodMonth: payment.periodMonth,
+      paymentType: payment.paymentType,
+      reason: dto?.reason,
+    });
+
+    this.logger.log(`Payment [${id}] marked as REFUNDED by User [${user.id}]`);
+    return {
+      success: true,
+      message: 'تم تسجيل استرداد المبلغ وإلغاء الدفعة بنجاح',
+      payment: updatedPayment,
+    };
   }
 }

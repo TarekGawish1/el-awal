@@ -47,6 +47,13 @@ export async function deletePayment(id: string): Promise<{ success: boolean }> {
   });
 }
 
+export async function refundPayment(id: string, reason?: string): Promise<{ success: boolean; message: string; payment?: any }> {
+  return apiClient<{ success: boolean; message: string; payment?: any }>(`/subscriptions/${id}/refund`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+
 export async function fetchMatrixLedger(query: {
   gradeLevel?: string;
   academicPeriodId?: string;

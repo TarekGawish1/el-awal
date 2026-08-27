@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { StudentQrBadge } from '@/features/students/components/StudentQrBadge';
 import { StudentHistoryModal } from '@/features/finance/components/StudentHistoryModal';
+import { CancelPaymentModal, PaymentSummaryInfo } from '@/features/finance/components/CancelPaymentModal';
 import { Skeleton } from '@/components/ui/Skeleton';
 import Link from 'next/link';
 import { ArrowRight, AlertCircle, RefreshCw, Phone, DollarSign, BookOpen, CreditCard, History, UserX, Trash2, CheckCircle } from 'lucide-react';
@@ -26,6 +27,7 @@ export default function StudentDetailPage({ params }: PageProps) {
   const router = useRouter();
   const studentId = (params?.id || routeParams?.id) as string;
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [paymentToCancel, setPaymentToCancel] = useState<PaymentSummaryInfo | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
   const { data: student, isLoading, isError, error, refetch } = useStudent(studentId);
@@ -333,9 +335,38 @@ export default function StudentDetailPage({ params }: PageProps) {
                             </p>
                           </div>
                         </div>
-                        <div className="text-left">
-                          <span className="font-extrabold text-emerald-700 text-sm">{record.amountPaid} ج.م</span>
-                          <span className="block text-[10px] text-slate-400">مسدد</span>
+                        <div className="flex items-center gap-3">
+                          <div className="text-left">
+                            <span className={`font-extrabold text-sm ${record.paymentStatus === 'REFUNDED' ? 'text-slate-400 line-through' : 'text-emerald-700'}`}>
+                              {record.amountPaid} ج.م
+                            </span>
+                            <span className="block text-[10px] text-slate-400">
+                              {record.paymentStatus === 'REFUNDED' ? 'مسترد' : 'مسدد'}
+                            </span>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs border-rose-200 text-rose-600 hover:bg-rose-50"
+                            onClick={() =>
+                              setPaymentToCancel({
+                                id: record.id,
+                                studentName: student.user?.fullName,
+                                amountPaid: record.amountPaid,
+                                paymentType: record.paymentType as any,
+                                periodMonth: record.periodMonth,
+                                periodYear: record.periodYear,
+                                groupName: record.group?.name,
+                                bookletTitle: record.booklet?.title,
+                                notes: record.notes || undefined,
+                              })
+                            }
+                            title="إلغاء أو حذف الدفعة"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 ml-1" />
+                            إلغاء / حذف
+                          </Button>
                         </div>
                       </li>
                     );
@@ -451,6 +482,14 @@ export default function StudentDetailPage({ params }: PageProps) {
         </div>
       </div>
 
+      {paymentToCancel && (
+        <CancelPaymentModal
+          isOpen={Boolean(paymentToCancel)}
+          payment={paymentToCancel}
+          onClose={() => setPaymentToCancel(null)}
+          onSuccess={() => refetch()}
+        />
+      )}
       {isHistoryModalOpen && (
         <StudentHistoryModal
           isOpen={isHistoryModalOpen}
