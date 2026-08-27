@@ -11,6 +11,7 @@ import {
   GraduationCap,
   Hash,
   KeyRound,
+  Laptop,
   Phone,
   ShieldCheck,
   User,
@@ -29,7 +30,7 @@ import {
 
 const EGYPTIAN_PHONE_REGEX = /^(?:\+20|0020|0)?1[0125]\d{8}$/;
 
-type Step = 'info' | 'review';
+type Step = 'mode' | 'info' | 'review';
 
 interface FieldErrors {
   fullName?: string;
@@ -53,12 +54,13 @@ export function StudentRegistrationForm() {
     redirectToDashboard,
   } = useStudentRegistration();
 
-  const [step, setStep] = useState<Step>('info');
+  const [step, setStep] = useState<Step>('mode');
   const [fullName, setFullName] = useState('');
   const [studentPhone, setStudentPhone] = useState('');
   const [parentPhone, setParentPhone] = useState('');
   const [academicStage, setAcademicStage] = useState<AcademicStage | ''>('');
   const [gradeLevel, setGradeLevel] = useState('');
+  const [attendanceMode, setAttendanceMode] = useState<'CENTER' | 'ONLINE' | ''>('');
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -77,12 +79,14 @@ export function StudentRegistrationForm() {
     }
 
     const pPhone = normalizePhone(parentPhone);
-    if (!pPhone) {
-      errors.parentPhone = 'يرجى إدخال رقم هاتف ولي الأمر';
-    } else if (!EGYPTIAN_PHONE_REGEX.test(pPhone)) {
-      errors.parentPhone = 'رقم الهاتف غير صحيح';
-    } else if (sPhone && pPhone && sPhone === pPhone) {
-      errors.parentPhone = 'رقم هاتف ولي الأمر يجب أن يختلف عن رقم هاتف الطالب';
+    if (attendanceMode === 'CENTER') {
+      if (!pPhone) {
+        errors.parentPhone = 'يرجى إدخال رقم هاتف ولي الأمر';
+      } else if (!EGYPTIAN_PHONE_REGEX.test(pPhone)) {
+        errors.parentPhone = 'رقم الهاتف غير صحيح';
+      } else if (sPhone && pPhone && sPhone === pPhone) {
+        errors.parentPhone = 'رقم هاتف ولي الأمر يجب أن يختلف عن رقم هاتف الطالب';
+      }
     }
 
     if (!academicStage) {
@@ -108,9 +112,10 @@ export function StudentRegistrationForm() {
     registerStudent({
       fullName,
       studentPhone: normalizePhone(studentPhone),
-      parentPhone: normalizePhone(parentPhone),
+      parentPhone: attendanceMode === 'CENTER' ? normalizePhone(parentPhone) : undefined,
       academicStage,
       gradeLevel,
+      attendanceMode: attendanceMode as 'CENTER' | 'ONLINE',
     });
   };
 
@@ -127,22 +132,26 @@ export function StudentRegistrationForm() {
   // ==================== STEP 3 — Success / Credentials ====================
   if (isRegistered && credentials) {
     return (
-      <CredentialsScreen
-        credentials={credentials}
-        copied={copied}
-        onCopy={copyText}
-        onContinue={redirectToDashboard}
-      />
+      <div className="space-y-5">
+        <StepIndicator current={4} />
+        <CredentialsScreen
+          credentials={credentials}
+          copied={copied}
+          onCopy={copyText}
+          onContinue={redirectToDashboard}
+        />
+      </div>
     );
   }
 
-  // ==================== STEP 2 — Review & Confirm ====================
+  // ==================== STEP 2.5 — Review & Confirm ====================
   if (step === 'review') {
     const stageLabel = ACADEMIC_STAGES.find((s) => s.id === academicStage)?.label ?? '';
+    const attendanceModeLabel = attendanceMode === 'CENTER' ? 'سنتر' : 'أونلاين فقط';
 
     return (
       <div className="space-y-5" aria-label="خطوة مراجعة وتأكيد البيانات">
-        <StepIndicator current={2} />
+        <StepIndicator current={3} />
 
         {registerError && (
           <Alert variant="error" className="animate-in fade-in-50 duration-200">
@@ -168,9 +177,12 @@ export function StudentRegistrationForm() {
           <dl className="space-y-2 text-sm">
             <Row label="الاسم بالكامل" value={fullName.trim()} />
             <Row label="رقم هاتف الطالب" value={normalizePhone(studentPhone)} ltr />
-            <Row label="رقم هاتف ولي الأمر" value={normalizePhone(parentPhone)} ltr />
+            {attendanceMode === 'CENTER' && (
+              <Row label="رقم هاتف ولي الأمر" value={normalizePhone(parentPhone)} ltr />
+            )}
             <Row label="المرحلة الدراسية" value={stageLabel} />
             <Row label="الصف الدراسي" value={gradeLevel} />
+            <Row label="نظام الحضور" value={attendanceModeLabel} />
           </dl>
         </div>
 
@@ -201,10 +213,73 @@ export function StudentRegistrationForm() {
     );
   }
 
-  // ==================== STEP 1 — Student Information ====================
+  // ==================== STEP 1 — Mode Selection ====================
+  if (step === 'mode') {
+    return (
+      <div className="space-y-5" aria-label="اختيار نظام الحضور">
+        <StepIndicator current={1} />
+
+        <div className="space-y-3">
+          <p className="text-sm font-semibold text-neutral-800 text-center mb-4">
+            كيف ستتابع دراستك معنا؟
+          </p>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAttendanceMode('CENTER');
+              setStep('info');
+            }}
+            className="flex w-full items-center justify-between rounded-xl border-2 border-neutral-200 bg-white p-4 transition-all hover:border-primary-500 hover:bg-primary-50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-100 text-primary-600">
+                <UserRound className="h-6 w-6" />
+              </div>
+              <div className="text-right">
+                <div className="font-bold text-neutral-900">طالب سنتر</div>
+                <div className="text-xs text-neutral-500 mt-1">أحضر الحصص في السنتر فقط</div>
+              </div>
+            </div>
+            <ArrowRight className="h-5 w-5 text-neutral-400 rtl:rotate-180" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAttendanceMode('ONLINE');
+              setStep('info');
+            }}
+            className="flex w-full items-center justify-between rounded-xl border-2 border-neutral-200 bg-white p-4 transition-all hover:border-primary-500 hover:bg-primary-50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary-100 text-secondary-600">
+                <Laptop className="h-6 w-6" />
+              </div>
+              <div className="text-right">
+                <div className="font-bold text-neutral-900">أونلاين فقط</div>
+                <div className="text-xs text-neutral-500 mt-1">أتابع الحصص والمحتوى عبر المنصة فقط</div>
+              </div>
+            </div>
+            <ArrowRight className="h-5 w-5 text-neutral-400 rtl:rotate-180" />
+          </button>
+        </div>
+
+        <Link
+          href="/login"
+          className="mt-6 flex items-center justify-center gap-1.5 text-xs font-semibold text-neutral-500 transition-colors hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+        >
+          <ArrowRight className="h-3.5 w-3.5" />
+          <span>العودة إلى تسجيل الدخول</span>
+        </Link>
+      </div>
+    );
+  }
+
+  // ==================== STEP 2 — Student Information ====================
   return (
     <form onSubmit={handleInfoSubmit} className="space-y-5" noValidate aria-label="نموذج إنشاء حساب الطالب">
-      <StepIndicator current={1} />
+      <StepIndicator current={2} />
 
       <Input
         id="reg-full-name"
@@ -244,26 +319,28 @@ export function StudentRegistrationForm() {
         startIcon={<Phone className="h-4 w-4" />}
       />
 
-      <Input
-        id="reg-parent-phone"
-        name="parentPhone"
-        type="tel"
-        label="رقم هاتف ولي الأمر"
-        placeholder="01098765432"
-        value={parentPhone}
-        onChange={(e) => {
-          setParentPhone(e.target.value);
-          if (fieldErrors.parentPhone) setFieldErrors((prev) => ({ ...prev, parentPhone: undefined }));
-        }}
-        error={fieldErrors.parentPhone}
-        helperText="سيتم إنشاء حساب لولي الأمر بهذا الرقم"
-        disabled={isRegistering}
-        required
-        autoComplete="tel"
-        inputMode="tel"
-        dir="ltr"
-        startIcon={<UserRound className="h-4 w-4" />}
-      />
+      {attendanceMode === 'CENTER' && (
+        <Input
+          id="reg-parent-phone"
+          name="parentPhone"
+          type="tel"
+          label="رقم هاتف ولي الأمر"
+          placeholder="01098765432"
+          value={parentPhone}
+          onChange={(e) => {
+            setParentPhone(e.target.value);
+            if (fieldErrors.parentPhone) setFieldErrors((prev) => ({ ...prev, parentPhone: undefined }));
+          }}
+          error={fieldErrors.parentPhone}
+          helperText="سيتم إنشاء حساب لولي الأمر بهذا الرقم"
+          disabled={isRegistering}
+          required
+          autoComplete="tel"
+          inputMode="tel"
+          dir="ltr"
+          startIcon={<UserRound className="h-4 w-4" />}
+        />
+      )}
 
       <Select
         id="reg-stage"
@@ -310,19 +387,20 @@ export function StudentRegistrationForm() {
         <span>متابعة</span>
       </Button>
 
-      <Link
-        href="/login"
-        className="flex items-center justify-center gap-1.5 text-xs font-semibold text-neutral-500 transition-colors hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+      <button
+        type="button"
+        onClick={() => setStep('mode')}
+        className="flex w-full items-center justify-center gap-1.5 text-xs font-semibold text-neutral-500 transition-colors hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
       >
         <ArrowRight className="h-3.5 w-3.5" />
-        <span>العودة إلى تسجيل الدخول</span>
-      </Link>
+        <span>العودة لتعديل نظام الحضور</span>
+      </button>
     </form>
   );
 }
 
 function StepIndicator({ current }: { current: number }) {
-  const steps = ['بيانات الطالب', 'التأكيد', 'بيانات الدخول'];
+  const steps = ['الحضور', 'البيانات', 'التأكيد', 'الدخول'];
   return (
     <div className="flex items-center justify-center gap-2" aria-label={`الخطوة ${current} من ${steps.length}`}>
       {steps.map((label, index) => {
@@ -333,13 +411,12 @@ function StepIndicator({ current }: { current: number }) {
           <React.Fragment key={label}>
             <div className="flex items-center gap-1.5">
               <span
-                className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
-                  isDone
-                    ? 'bg-success-500 text-white'
-                    : isActive
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-neutral-200 text-neutral-500'
-                }`}
+                className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${isDone
+                  ? 'bg-success-500 text-white'
+                  : isActive
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-neutral-200 text-neutral-500'
+                  }`}
               >
                 {isDone ? <Check className="h-3.5 w-3.5" /> : stepNumber}
               </span>
@@ -390,7 +467,9 @@ function CredentialsScreen({
         </div>
         <div>
           <h3 className="text-lg font-bold text-neutral-900">تم إنشاء الحساب بنجاح</h3>
-          <p className="mt-1 text-sm text-neutral-500">تم إنشاء حساب الطالب وحساب ولي الأمر</p>
+          <p className="mt-1 text-sm text-neutral-500">
+            {credentials.parentPhone ? 'تم إنشاء حساب الطالب وحساب ولي الأمر' : 'تم إنشاء حساب الطالب'}
+          </p>
         </div>
       </div>
 
@@ -414,21 +493,23 @@ function CredentialsScreen({
         onCopy={() => onCopy(studentBlock, 'student')}
       />
 
-      <CredentialCard
-        title="بيانات دخول ولي الأمر"
-        icon={<UserRound className="h-4 w-4 text-secondary-600" />}
-        rows={
-          credentials.parentIsNew
-            ? [
+      {credentials.parentPhone && (
+        <CredentialCard
+          title="بيانات دخول ولي الأمر"
+          icon={<UserRound className="h-4 w-4 text-secondary-600" />}
+          rows={
+            credentials.parentIsNew
+              ? [
                 { label: 'رقم الهاتف', value: credentials.parentPhone, mono: true },
                 { label: 'كلمة المرور', value: credentials.parentPassword ?? '', mono: true },
               ]
-            : [{ label: 'رقم الهاتف', value: credentials.parentPhone, mono: true }]
-        }
-        copyLabel={credentials.parentIsNew ? 'نسخ بيانات ولي الأمر' : 'نسخ رقم ولي الأمر'}
-        copied={copied === 'parent'}
-        onCopy={() => onCopy(parentBlock, 'parent')}
-      />
+              : [{ label: 'رقم الهاتف', value: credentials.parentPhone, mono: true }]
+          }
+          copyLabel={credentials.parentIsNew ? 'نسخ بيانات ولي الأمر' : 'نسخ رقم ولي الأمر'}
+          copied={copied === 'parent'}
+          onCopy={() => onCopy(parentBlock, 'parent')}
+        />
+      )}
 
       <Button
         type="button"

@@ -59,10 +59,10 @@ export class StudentRegistrationService {
    */
   async registerStudent(dto: RegisterStudentDto): Promise<StudentRegistrationResult> {
     const studentPhone = normalizeEgyptianPhone(dto.studentPhone);
-    const parentPhone = normalizeEgyptianPhone(dto.parentPhone);
+    const parentPhone = dto.parentPhone ? normalizeEgyptianPhone(dto.parentPhone) : null;
     const fullName = dto.fullName.trim();
 
-    if (studentPhone === parentPhone) {
+    if (parentPhone && studentPhone === parentPhone) {
       throw new ConflictException({
         code: 'PHONES_MUST_DIFFER',
         message: 'رقم هاتف ولي الأمر يجب أن يختلف عن رقم هاتف الطالب',
@@ -109,6 +109,7 @@ export class StudentRegistrationService {
                 qrCodeToken,
                 gradeLevel: dto.gradeLevel,
                 academicStage: dto.academicStage,
+                attendanceMode: dto.attendanceMode as any,
                 emergencyPhone: parentPhone,
               },
             },
@@ -117,56 +118,59 @@ export class StudentRegistrationService {
         });
 
         // 4. Resolve parent: reuse an existing parent by phone or create one
-        let parentUserId: string;
-        const existingParent = await tx.user.findFirst({
-          where: { phone: { in: getPhoneVariants(parentPhone) } },
-          select: { id: true, role: true, deletedAt: true },
-        });
-
-        if (existingParent) {
-          if (existingParent.role !== UserRole.PARENT || existingParent.deletedAt) {
-            throw new ConflictException({
-              code: 'PARENT_PHONE_CONFLICT',
-              message: 'رقم هاتف ولي الأمر مسجل بحساب آخر، يرجى استخدام رقم مختلف',
-            });
-          }
-          parentUserId = existingParent.id;
-
-          const parentProfile = await tx.parentProfile.findUnique({
-            where: { id: existingParent.id },
-            select: { id: true },
+        let parentUserId: string | null = null;
+        
+        if (parentPhone) {
+          const existingParent = await tx.user.findFirst({
+            where: { phone: { in: getPhoneVariants(parentPhone) } },
+            select: { id: true, role: true, deletedAt: true },
           });
-          if (!parentProfile) {
-            await tx.parentProfile.create({
-              data: { id: existingParent.id, relationshipType: 'ولي أمر' },
+
+          if (existingParent) {
+            if (existingParent.role !== UserRole.PARENT || existingParent.deletedAt) {
+              throw new ConflictException({
+                code: 'PARENT_PHONE_CONFLICT',
+                message: 'رقم هاتف ولي الأمر مسجل بحساب آخر، يرجى استخدام رقم مختلف',
+              });
+            }
+            parentUserId = existingParent.id;
+
+            const parentProfile = await tx.parentProfile.findUnique({
+              where: { id: existingParent.id },
+              select: { id: true },
             });
-          }
-        } else {
-          parentPassword = generateSecurePassword();
-          const parentPasswordHash = await bcrypt.hash(parentPassword, 10);
-          const newParentUser = await tx.user.create({
-            data: {
-              fullName: `ولي أمر ${fullName}`,
-              phone: parentPhone,
-              passwordHash: parentPasswordHash,
-              role: UserRole.PARENT,
-              isActive: true,
-              parentProfile: {
-                create: { relationshipType: 'ولي أمر' },
+            if (!parentProfile) {
+              await tx.parentProfile.create({
+                data: { id: existingParent.id, relationshipType: 'ولي أمر' },
+              });
+            }
+          } else {
+            parentPassword = generateSecurePassword();
+            const parentPasswordHash = await bcrypt.hash(parentPassword, 10);
+            const newParentUser = await tx.user.create({
+              data: {
+                fullName: `ولي أمر ${fullName}`,
+                phone: parentPhone,
+                passwordHash: parentPasswordHash,
+                role: UserRole.PARENT,
+                isActive: true,
+                parentProfile: {
+                  create: { relationshipType: 'ولي أمر' },
+                },
               },
+            });
+            parentUserId = newParentUser.id;
+            parentIsNew = true;
+          }
+
+          // 5. Link parent ↔ student
+          await tx.parentStudentLink.create({
+            data: {
+              parentId: parentUserId,
+              studentId: createdStudentUser.id,
             },
           });
-          parentUserId = newParentUser.id;
-          parentIsNew = true;
         }
-
-        // 5. Link parent ↔ student
-        await tx.parentStudentLink.create({
-          data: {
-            parentId: parentUserId,
-            studentId: createdStudentUser.id,
-          },
-        });
 
         return { studentUser: createdStudentUser };
       });
@@ -203,7 +207,7 @@ export class StudentRegistrationService {
         studentCode,
         studentPhone,
         studentPassword,
-        parentPhone,
+        parentPhone: parentPhone || '',
         parentPassword: parentIsNew ? parentPassword : null,
         parentIsNew,
       },

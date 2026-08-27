@@ -70,9 +70,10 @@ export async function registerStudent(
     body: JSON.stringify({
       fullName: payload.fullName.trim(),
       studentPhone: payload.studentPhone.trim(),
-      parentPhone: payload.parentPhone.trim(),
+      parentPhone: payload.parentPhone?.trim(),
       academicStage: payload.academicStage,
       gradeLevel: payload.gradeLevel,
+      attendanceMode: payload.attendanceMode,
     }),
   });
 }

@@ -41,10 +41,6 @@ export default function StudentRegistrationPage() {
             </CardContent>
           </Card>
 
-          <div className="flex items-center justify-center gap-1.5 text-center text-xs text-neutral-500">
-            <ShieldCheck className="h-4 w-4 text-primary-600" />
-            <span>بياناتك محفوظة وآمنة ولا يمكن لأي طالب آخر الوصول إليها</span>
-          </div>
         </div>
       </main>
     </Suspense>

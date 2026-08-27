@@ -14,9 +14,10 @@ export type AcademicStage = 'PRIMARY' | 'MIDDLE' | 'SECONDARY';
 export interface StudentRegistrationPayload {
   fullName: string;
   studentPhone: string;
-  parentPhone: string;
+  parentPhone?: string;
   academicStage: AcademicStage;
   gradeLevel: string;
+  attendanceMode: 'CENTER' | 'ONLINE';
 }
 
 export interface StudentRegistrationCredentials {

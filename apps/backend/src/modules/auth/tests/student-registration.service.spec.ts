@@ -103,6 +103,7 @@ describe('StudentRegistrationService', () => {
     parentPhone: '01099999999',
     academicStage: 'SECONDARY',
     gradeLevel: 'الصف الثالث الثانوي',
+    attendanceMode: 'CENTER',
   };
 
   beforeEach(async () => {
