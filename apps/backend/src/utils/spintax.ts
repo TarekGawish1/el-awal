@@ -112,15 +112,22 @@ export function formatStudentApprovalMessage(data: StudentApprovalCredentialsDat
     .replace(/\/+$/, '')
     .replace(/\/(login|parent-access)$/, '');
 
+  const directParam = displayStudentPhone || studentPhoneOrCode;
+  const parentDirectAccessUrl = `${baseUrl}/parent-access?phone=${encodeURIComponent(directParam)}`;
+
   const studentCreds = `📌 *بيانات دخول الطالب:*
 - اسم المستخدم / الهاتف: \`${displayStudentPhone}\`
 ${studentPassword ? `- كلمة المرور: \`${studentPassword}\`` : '- كلمة المرور: كلمة المرور التي اختارها الطالب أثناء التسجيل'}
 🔗 رابط دخول الطالب: ${baseUrl}/login`;
 
   const parentCreds = `📌 *بوابة ولي الأمر (لمتابعة الحضور، الغياب، والدرجات):*
-- يمكن لولي الأمر الدخول مباشرة وبكل سهولة بإدخال رقم هاتف الطالب \`${displayStudentPhone}\`${displayParentPhone && displayParentPhone !== displayStudentPhone ? ` (أو رقم هاتف ولي الأمر \`${displayParentPhone}\`)` : ''}.
-${parentPassword ? `- كلمة المرور: \`${parentPassword}\`\n` : ''}🔗 رابط دخول ولي الأمر السريع:
-${baseUrl}/parent-access`;
+- يمكن لولي الأمر الدخول مباشرة وبضغطة واحدة دون الحاجة لكتابة أي بيانات عبر الرابط التالي:
+🔗 رابط دخول ولي الأمر المباشر:
+${parentDirectAccessUrl}
+
+📌 *أو الدخول ببيانات الحساب عبر صفحة الدخول:*
+- رقم هاتف الحساب: \`${displayParentPhone || displayStudentPhone}\`
+${parentPassword ? `- كلمة المرور: \`${parentPassword}\`\n` : ''}`;
 
   const closings = [
     'يرجى الاحتفاظ بهذه الرسالة للرجوع إليها دائماً. نتمنى لطالبنا دوام التوفيق والنجاح 🌟',
