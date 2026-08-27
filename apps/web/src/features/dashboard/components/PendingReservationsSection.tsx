@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { CheckCircle2, XCircle, Clock, User, Phone, MapPin, QrCode, Banknote, CalendarClock, AlertCircle, X } from 'lucide-react';
+import { Input } from '@/components/ui/Input';
+import { CheckCircle2, XCircle, Clock, User, Phone, MapPin, QrCode, Banknote, CalendarClock, AlertCircle, X, Search } from 'lucide-react';
 import { usePendingReservations, useAcceptReservation, useRejectReservation } from '@/features/groups';
 import toast from 'react-hot-toast';
 import { Scanner } from '@yudiel/react-qr-scanner';
@@ -16,6 +17,20 @@ export function PendingReservationsSection() {
   
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [acceptModalData, setAcceptModalData] = useState<{ id: string; studentName: string } | null>(null);
+
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredReservations = useMemo(() => {
+    if (!reservations) return [];
+    if (!searchQuery.trim()) return reservations;
+    const lowerQuery = searchQuery.toLowerCase();
+    return reservations.filter(r => 
+      r.student?.user?.fullName?.toLowerCase().includes(lowerQuery) ||
+      r.student?.user?.phone?.includes(lowerQuery) ||
+      r.student?.studentCode?.toLowerCase().includes(lowerQuery) ||
+      r.group?.name?.toLowerCase().includes(lowerQuery)
+    );
+  }, [reservations, searchQuery]);
 
   if (isLoading) {
     return (
@@ -89,28 +104,47 @@ export function PendingReservationsSection() {
       <Card className="shadow-sm border-amber-200 bg-gradient-to-br from-amber-50 to-white overflow-hidden relative">
         <div className="absolute top-0 right-0 w-2 h-full bg-amber-500" />
         <CardHeader className="pb-3 border-b border-amber-100/50">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <CardTitle className="text-lg flex items-center gap-2 text-amber-900">
-                <Clock className="w-5 h-5 text-amber-600" />
-                طلبات الانضمام قيد الانتظار ({reservations.length})
-              </CardTitle>
-              <CardDescription className="text-amber-700 mt-1">
-                طلاب حجزوا أماكن في المجموعات وينتظرون التأكيد (الدفع أو القبول اليدوي)
-              </CardDescription>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2 text-amber-900">
+              <Clock className="w-5 h-5 text-amber-600" />
+              طلبات الانضمام قيد الانتظار ({reservations.length})
+            </CardTitle>
+            <CardDescription className="text-amber-700 mt-1">
+              طلاب حجزوا أماكن في المجموعات وينتظرون التأكيد (الدفع أو القبول اليدوي)
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none" />
+              <Input
+                placeholder="ابحث بالاسم أو الرقم أو المجموعة..."
+                className="pl-3 pr-9 py-2 border-neutral-200 focus:border-amber-300 focus:ring-amber-200"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
             <Button 
-              className="bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-200 shrink-0" 
+              className="bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-200 shrink-0 hidden sm:flex" 
               onClick={() => setIsScannerOpen(true)}
+              title="مسح QR لتأكيد القبول"
             >
               <QrCode className="w-4 h-4 me-2" />
-              مسح QR لتأكيد القبول
+              مسح QR
+            </Button>
+            <Button 
+              className="bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-200 shrink-0 sm:hidden" 
+              onClick={() => setIsScannerOpen(true)}
+              title="مسح QR لتأكيد القبول"
+            >
+              <QrCode className="w-4 h-4" />
             </Button>
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="divide-y divide-amber-100">
-            {reservations.map((reservation) => (
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="divide-y divide-amber-100">
+          {filteredReservations.length > 0 ? filteredReservations.map((reservation) => (
               <div key={reservation.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-amber-100/20 transition-colors">
                 <div className="flex items-start sm:items-center gap-4">
                   <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
@@ -155,7 +189,11 @@ export function PendingReservationsSection() {
                   </Button>
                 </div>
               </div>
-            ))}
+            )) : (
+              <div className="p-8 text-center text-neutral-500">
+                <p>لم يتم العثور على أي حجز مطابق للبحث</p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -173,12 +211,14 @@ export function PendingReservationsSection() {
             <div className="p-6 bg-neutral-50 flex flex-col items-center">
               <div className="w-full max-w-[300px] aspect-square rounded-xl overflow-hidden shadow-inner border border-neutral-200 relative bg-black">
                 <Scanner
-                  onResult={(text) => handleScan(text)}
-                  onError={(error) => console.error(error?.message)}
-                  options={{
-                    delayBetweenScanSuccess: 2000,
-                    delayBetweenScanAttempts: 200,
+                  onScan={(detectedCodes) => {
+                    if (detectedCodes && detectedCodes.length > 0) {
+                      handleScan(detectedCodes[0].rawValue);
+                    }
                   }}
+                  onError={(error) => console.error(error?.message)}
+                  scanDelay={2000}
+                  retryDelay={200}
                 />
               </div>
               <p className="mt-4 text-center text-sm text-neutral-500">
