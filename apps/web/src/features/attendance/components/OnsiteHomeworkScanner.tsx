@@ -72,7 +72,6 @@ export function OnsiteHomeworkScanner({
           offlineDb.putStudent({
             id: r.studentId,
             fullName: r.fullName || r.studentName || 'طالب',
-            name: r.fullName || r.studentName || 'طالب',
             studentCode: r.studentCode || '',
             qrCodeToken: r.qrCodeToken || '',
             groupId: sessionReport.groupId || groupId || '',
@@ -229,7 +228,6 @@ export function OnsiteHomeworkScanner({
           student = {
             id: match.studentId,
             fullName: match.fullName || match.studentName || 'طالب',
-            name: match.fullName || match.studentName || 'طالب',
             studentCode: match.studentCode || '',
             qrCodeToken: match.qrCodeToken || cleanToken,
             groupId: sessionReport.groupId || groupId || '',
@@ -268,7 +266,6 @@ export function OnsiteHomeworkScanner({
             student = {
               id: onlineStudent.id,
               fullName: onlineStudent.fullName || onlineStudent.user?.fullName || 'طالب',
-              name: onlineStudent.fullName || onlineStudent.user?.fullName || 'طالب',
               studentCode: onlineStudent.studentCode || '',
               qrCodeToken: onlineStudent.qrCodeToken || cleanToken,
               groupId: onlineStudent.groupId || groupId || '',
