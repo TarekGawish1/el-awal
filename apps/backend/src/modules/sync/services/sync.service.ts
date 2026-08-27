@@ -390,8 +390,7 @@ export class SyncService {
             ...(sinceDate
               ? {
                   OR: [
-                    { createdAt: { gte: sinceDate } },
-                    { updatedAt: { gte: sinceDate } },
+                    { enrolledAt: { gte: sinceDate } },
                     { student: { updatedAt: { gte: sinceDate } } },
                   ],
                 }
@@ -415,7 +414,7 @@ export class SyncService {
         });
 
         const studentMap = new Map<string, any>();
-        for (const enrollment of (enrollments || [])) {
+        for (const enrollment of ((enrollments as any[]) || [])) {
           if (
             enrollment?.student &&
             enrollment.student.user?.isActive !== false &&
