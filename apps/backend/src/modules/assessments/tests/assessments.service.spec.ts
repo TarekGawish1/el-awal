@@ -402,7 +402,7 @@ describe('AssessmentsService', () => {
       const result = await service.getSubmissionById(submissionId, teacherId, false);
       expect(result.id).toBe(submissionId);
       expect(result.assessment.title).toBe('Title');
-      expect(result.student.fullName).toBe('Student');
+      expect(result.student.user.fullName).toBe('Student');
     });
 
     it('should throw ForbiddenException for non-owning teacher', async () => {
