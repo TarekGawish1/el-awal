@@ -41,8 +41,10 @@ const baseEnvSchema = z.object({
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().default('mailto:admin@elawal.com'),
 
-  // WhatsApp (Baileys)
+  // WhatsApp (Baileys & Anti-Ban Rate Limiting)
   WHATSAPP_ENABLED: z.string().optional().default('true'),
+  WHATSAPP_HOURLY_LIMIT: z.string().optional().default('25'),
+  WHATSAPP_DAILY_LIMIT: z.string().optional().default('80'),
 
   // Frontend app URL (used for push notification deep links)
   NEXT_PUBLIC_APP_URL: z.string().url().optional(),

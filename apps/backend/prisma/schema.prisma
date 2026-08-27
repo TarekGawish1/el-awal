@@ -919,6 +919,7 @@ model Notification {
   pushStatus        NotificationStatus?   @map("push_status")
   scheduledFor      DateTime              @default(now()) @map("scheduled_for") @db.Timestamptz(6)
   createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   recipient User @relation("UserNotifications", fields: [recipientId], references: [id], onDelete: Cascade)
 

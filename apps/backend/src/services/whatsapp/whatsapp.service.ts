@@ -6,13 +6,12 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../core/database/prisma.service';
-
 import { usePgAuthState } from './pg-auth';
 
 type ConnectionStatus = 'connecting' | 'open' | 'close' | 'qr';
 
 /**
- * WhatsAppService — manages the Baileys WA socket lifecycle.
+ * WhatsAppService — manages the Baileys WA socket lifecycle with anti-ban hardening.
  *
  * Architecture notes:
  * - Initializes on module startup via onModuleInit()
@@ -20,6 +19,11 @@ type ConnectionStatus = 'connecting' | 'open' | 'close' | 'qr';
  *   so sessions survive Heroku Eco dyno restarts and cold deploys
  * - The socket is auto-reconnected on transient disconnections
  * - On LOGOUT the session is cleared from the DB and a new QR is generated
+ *
+ * Anti-ban measures built into sendProtectedMessage():
+ * - Contact existence validation (sock.onWhatsApp)
+ * - Human typing/composing presence simulation
+ * - Randomized pre-send typing delay (2.0s – 4.5s)
  */
 @Injectable()
 export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
@@ -37,6 +41,7 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
     DisconnectReason: Record<string, unknown>;
     fetchLatestBaileysVersion: () => Promise<{ version: [number, number, number] }>;
     makeCacheableSignalKeyStore: (keys: unknown, logger: unknown) => unknown;
+    delay: (ms: number) => Promise<void>;
     useMultiFileAuthState?: unknown;
   } | null = null;
 
@@ -75,8 +80,9 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Sends a WhatsApp text message to a given phone number.
+   * Simple legacy send — used only for direct one-off sends.
    * Normalizes Egyptian numbers: 01XXXXXXXXX → 201XXXXXXXXX@s.whatsapp.net
+   * For queue processing use sendProtectedMessage() instead.
    *
    * @returns true if sent successfully, false otherwise
    */
@@ -99,6 +105,74 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       this.logger.error(`❌ Failed to send WhatsApp message to ${phone}`, error);
       return false;
+    }
+  }
+
+  /**
+   * Anti-ban protected message delivery.
+   *
+   * Steps:
+   * 1. Validates number exists on WhatsApp (avoids dead-number delivery flags)
+   * 2. Subscribes to presence for the JID
+   * 3. Sends "composing" presence (human typing simulation)
+   * 4. Waits a randomized typing delay (2,000 – 4,500ms)
+   * 5. Clears composing presence ("paused")
+   * 6. Sends the actual message
+   *
+   * @returns 'sent' | 'not_registered' | 'not_connected' | 'error'
+   */
+  async sendProtectedMessage(
+    phone: string,
+    text: string,
+  ): Promise<'sent' | 'not_registered' | 'not_connected' | 'error'> {
+    if (this.connectionStatus !== 'open' || !this.socket) {
+      this.logger.warn(
+        `WhatsApp not connected (status=${this.connectionStatus}). Cannot send to ${phone}`,
+      );
+      return 'not_connected';
+    }
+
+    const jid = this.normalizePhoneToJid(phone);
+
+    const sock = this.socket as {
+      onWhatsApp: (jid: string) => Promise<Array<{ exists: boolean; jid: string }>>;
+      presenceSubscribe: (jid: string) => Promise<void>;
+      sendPresenceUpdate: (type: string, jid: string) => Promise<void>;
+      sendMessage: (jid: string, content: unknown) => Promise<unknown>;
+    };
+
+    try {
+      // ── Step 1: Verify number exists on WhatsApp ──────────────────────────
+      const [result] = await sock.onWhatsApp(jid).catch(() => [{ exists: false, jid }]);
+      if (!result?.exists) {
+        this.logger.warn(
+          `[AntiBan] Number ${phone} is NOT registered on WhatsApp — skipping`,
+        );
+        return 'not_registered';
+      }
+
+      // ── Step 2: Subscribe to presence (required before update) ───────────
+      await sock.presenceSubscribe(jid).catch(() => undefined);
+
+      // ── Step 3: Simulate typing presence ─────────────────────────────────
+      await sock.sendPresenceUpdate('composing', jid).catch(() => undefined);
+
+      // ── Step 4: Random typing duration (2.0s – 4.5s) ─────────────────────
+      const typingDelay = this.randomBetween(2_000, 4_500);
+      await this.sleep(typingDelay);
+
+      // ── Step 5: Clear presence ────────────────────────────────────────────
+      await sock.sendPresenceUpdate('paused', jid).catch(() => undefined);
+
+      // ── Step 6: Send the message ──────────────────────────────────────────
+      await sock.sendMessage(jid, { text });
+      this.logger.log(
+        `✅ [AntiBan] Protected message sent to ${jid} (typing delay: ${typingDelay}ms)`,
+      );
+      return 'sent';
+    } catch (error) {
+      this.logger.error(`❌ Failed to send protected WhatsApp message to ${phone}`, error);
+      return 'error';
     }
   }
 
@@ -142,6 +216,9 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
           removeAllListeners: (event?: string) => void;
         };
         logout: () => Promise<void>;
+        onWhatsApp: (jid: string) => Promise<Array<{ exists: boolean; jid: string }>>;
+        presenceSubscribe: (jid: string) => Promise<void>;
+        sendPresenceUpdate: (type: string, jid: string) => Promise<void>;
         sendMessage: (jid: string, content: unknown) => Promise<unknown>;
       };
 
@@ -227,7 +304,7 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
    * Normalizes various Egyptian phone formats to a WhatsApp JID.
    * Handles: 01XXXXXXXXX, 201XXXXXXXXX, +201XXXXXXXXX
    */
-  private normalizePhoneToJid(phone: string): string {
+  normalizePhoneToJid(phone: string): string {
     // Strip all non-digits
     let digits = phone.replace(/\D/g, '');
 
@@ -239,5 +316,15 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
     }
 
     return `${digits}@s.whatsapp.net`;
+  }
+
+  /** Returns a random integer between min and max (inclusive). */
+  randomBetween(min: number, max: number): number {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  /** Promise-based sleep. */
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
