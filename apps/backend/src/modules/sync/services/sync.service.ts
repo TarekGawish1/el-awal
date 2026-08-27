@@ -2116,10 +2116,56 @@ export class SyncService {
           }
 
           case 'RECORD_ATTENDANCE': {
-            const { sessionId, studentId, status, recordingMethod, clientTimestamp } =
+            const { sessionId, studentId, qrCodeToken, status, recordingMethod, clientTimestamp, allowCrossGroup } =
               mutation.payload || {};
 
-            if (!studentId || !sessionId) {
+            let targetStudentId = studentId;
+
+            // 1. Resolve uncached QR codes
+            if (!targetStudentId && qrCodeToken) {
+              const trimmedToken = qrCodeToken.trim();
+              const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmedToken);
+              
+              const student = await this.prisma.studentProfile.findFirst({
+                where: {
+                  OR: [
+                    { qrCodeToken: trimmedToken },
+                    { studentCode: trimmedToken },
+                    ...(isUuid ? [{ id: trimmedToken }] : []),
+                  ],
+                },
+                include: {
+                  user: { select: { isActive: true } },
+                  groupEnrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
+                }
+              });
+
+              if (!student || !student.user.isActive) {
+                results.push({ mutationId: mutation.id, status: 'FAILED', error: 'INVALID_QR_CODE' });
+                continue;
+              }
+
+              // 2. Enforce Cross-Group Authorization Rules
+              const session = await this.prisma.lessonSession.findUnique({
+                where: { id: sessionId },
+                select: { groupId: true },
+              });
+
+              if (!session) {
+                results.push({ mutationId: mutation.id, status: 'FAILED', error: 'SESSION_NOT_FOUND' });
+                continue;
+              }
+
+              const directEnrollment = student.groupEnrollments.some((e: any) => e.groupId === session.groupId);
+              if (!directEnrollment && !allowCrossGroup) {
+                results.push({ mutationId: mutation.id, status: 'FAILED', error: 'STUDENT_NOT_ENROLLED' });
+                continue;
+              }
+
+              targetStudentId = student.id;
+            }
+
+            if (!targetStudentId || !sessionId) {
               throw new BadRequestException(
                 `Missing required parameters for RECORD_ATTENDANCE in mutation ${mutation.id}`,
               );
@@ -2131,7 +2177,7 @@ export class SyncService {
               where: {
                 sessionId_studentId: {
                   sessionId,
-                  studentId,
+                  studentId: targetStudentId,
                 },
               },
               update: {
@@ -2141,7 +2187,7 @@ export class SyncService {
               },
               create: {
                 sessionId,
-                studentId,
+                studentId: targetStudentId,
                 status: (status as AttendanceStatus) || AttendanceStatus.PRESENT,
                 recordingMethod: (recordingMethod as RecordingMethod) || RecordingMethod.QR_SCAN,
                 recordedById: recorderId,
