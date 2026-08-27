@@ -405,8 +405,6 @@ export class GroupsService {
       maxCapacity: group.maxCapacity,
       roster,
     };
-  }
-
   /**
    * Retrieves all pending group reservations.
    * If teacherId is provided, filters for that teacher's groups only.

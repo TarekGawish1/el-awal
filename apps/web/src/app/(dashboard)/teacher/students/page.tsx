@@ -7,6 +7,7 @@ import { CreateStudentForm } from '@/features/students/components/CreateStudentF
 import { StudentQrBadge } from '@/features/students/components/StudentQrBadge';
 import StudentDetailPage from './[id]/page';
 import { Button } from '@/components/ui/Button';
+import { PendingReservationsSection } from '@/features/dashboard/components/PendingReservationsSection';
 
 export default function TeacherStudentsPage() {
   const pathname = usePathname();
@@ -42,6 +43,12 @@ export default function TeacherStudentsPage() {
           )}
         </div>
       </div>
+
+      {!isCreating && !createdStudent && (
+        <div className="mb-8">
+          <PendingReservationsSection />
+        </div>
+      )}
 
       {isCreating ? (
         <div className="bg-white p-5 sm:p-8 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 mb-8">
