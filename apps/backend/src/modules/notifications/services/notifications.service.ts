@@ -10,6 +10,7 @@ import {
   NotificationType,
 } from '@prisma/client';
 import { WebPushService } from '../../../services/webpush.service';
+import { formatPaymentReceivedMessage } from '../../../utils/spintax';
 
 // ─── DTOs ───────────────────────────────────────────────────────────────────
 
@@ -362,7 +363,7 @@ export class NotificationsService {
   }
 
   /**
-   * Handles payment received confirmation — dispatches receipt to guardians.
+   * Handles payment received confirmation — dispatches receipt to guardians via WhatsApp, Web Push, and In-App.
    */
   @OnEvent('payment.recorded', { async: true })
   async handlePaymentRecordedEvent(payload: {
@@ -370,30 +371,70 @@ export class NotificationsService {
     studentName: string;
     groupId?: string;
     groupName?: string;
+    paymentType?: string;
+    bookletId?: string;
+    bookletTitle?: string;
     amountPaid: number;
-    periodYear: number;
-    periodMonth: number;
+    amountExpected?: number;
+    currency?: string;
+    receiptNumber?: string;
+    paymentMethod?: string;
+    periodYear?: number;
+    periodMonth?: number;
+    remainingBalance?: number;
   }) {
     this.logger.log(
-      `Processing payment recorded notification for student [${payload.studentId}]`,
+      `Processing payment recorded notification for student [${payload.studentId}] (Amount: ${payload.amountPaid} ${payload.currency || 'EGP'})`,
     );
 
     const links = await this.prisma.parentStudentLink.findMany({
       where: { studentId: payload.studentId },
       include: {
-        parent: { include: { user: { select: { id: true, phone: true } } } },
+        parent: { include: { user: { select: { id: true, fullName: true, phone: true } } } },
       },
     });
 
-    const message = `تم تأكيد استلام مصروفات شهر (${payload.periodMonth}/${payload.periodYear}) للطالب ${payload.studentName} بمبلغ ${payload.amountPaid} ج.م.`;
+    const paymentTypeText =
+      payload.paymentType === 'BOOKLET'
+        ? `شراء مذكرة (${payload.bookletTitle || 'المذكرة الدراسية'})`
+        : `اشتراك شهر (${payload.periodMonth || new Date().getMonth() + 1}/${payload.periodYear || new Date().getFullYear()})${payload.groupName ? ` - ${payload.groupName}` : ''}`;
 
     for (const link of links) {
-      await this.createNotification({
-        recipientId: link.parent.user.id,
-        type: 'PAYMENT_RECEIVED',
-        title: '✅ إشعار سداد المصروفات الدراسية',
-        message,
-        referenceEntityId: payload.studentId,
+      const parentUser = link.parent?.user;
+      if (!parentUser) continue;
+
+      const parentName = parentUser.fullName || 'ولي الأمر المحترم';
+      const parentPhone = parentUser.phone;
+
+      const messageBody = formatPaymentReceivedMessage({
+        parentName,
+        studentName: payload.studentName,
+        amount: payload.amountPaid,
+        currency: payload.currency || 'جنيه',
+        paymentType: paymentTypeText,
+        invoiceNumber: payload.receiptNumber,
+        paymentMethod: payload.paymentMethod || 'نقدي / السنتر',
+        remainingBalance: payload.remainingBalance ?? 0,
+      });
+
+      await this.sendNotification({
+        recipientId: parentUser.id,
+        type: 'PAYMENT_RECEIVED_PARENT',
+        notificationType: NotificationType.PAYMENT_RECEIVED_PARENT,
+        title: `🧾 إيصال دفع: تم سداد ${payload.amountPaid} ${payload.currency || 'جنيه'} بنجاح`,
+        body: messageBody,
+        channels: parentPhone
+          ? [NotificationChannel.WHATSAPP, NotificationChannel.WEB_PUSH, NotificationChannel.IN_APP]
+          : [NotificationChannel.WEB_PUSH, NotificationChannel.IN_APP],
+        data: {
+          studentId: payload.studentId,
+          studentName: payload.studentName,
+          amount: String(payload.amountPaid),
+          phone: parentPhone || undefined,
+          paymentType: payload.paymentType,
+          receiptNumber: payload.receiptNumber,
+          url: `/parent-access`,
+        },
       });
     }
   }

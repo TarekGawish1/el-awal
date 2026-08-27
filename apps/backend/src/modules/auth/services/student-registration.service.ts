@@ -172,6 +172,19 @@ export class StudentRegistrationService {
           });
         }
 
+        // Save pendingCredentials so they can be sent to the parent via WhatsApp when accepted
+        await tx.studentProfile.update({
+          where: { id: createdStudentUser.id },
+          data: {
+            pendingCredentials: {
+              studentPassword,
+              parentPassword: parentIsNew ? parentPassword : null,
+              studentPhone,
+              parentPhone: parentPhone || null,
+            },
+          },
+        });
+
         return { studentUser: createdStudentUser };
       });
 

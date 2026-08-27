@@ -535,11 +535,22 @@ export class GroupsService {
       const centerName = teacherName ? `مجموعة الأستاذ ${teacherName}` : 'منصة الأوّل التعليمية';
       const platformUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online/login';
 
+      // Extract initial passwords if stored during registration
+      const pendingCreds = student?.pendingCredentials as {
+        studentPassword?: string;
+        parentPassword?: string;
+      } | null;
+
+      const studentPassword = pendingCreds?.studentPassword;
+      const parentPassword = pendingCreds?.parentPassword;
+
       const messageBody = formatStudentApprovalMessage({
         parentName,
         studentName,
         studentPhoneOrCode,
+        studentPassword,
         parentPhoneOrCode: parentPhone || undefined,
+        parentPassword,
         platformUrl,
         centerName,
         groupName,
@@ -561,7 +572,9 @@ export class GroupsService {
             studentId: student.id,
             studentName,
             studentPhoneOrCode,
+            studentPassword,
             parentPhone,
+            parentPassword,
             parentName,
             groupName,
             centerName,
@@ -570,8 +583,14 @@ export class GroupsService {
           },
         });
 
+        // Clear pendingCredentials after successful dispatch
+        await this.prisma.studentProfile.update({
+          where: { id: student.id },
+          data: { pendingCredentials: null },
+        });
+
         this.logger.log(
-          `📩 Student approval notification dispatched for student ${studentName} (recipient: ${recipientId}, phone: ${parentPhone || 'none'})`,
+          `📩 Student approval notification dispatched with credentials for student ${studentName} (recipient: ${recipientId}, phone: ${parentPhone || 'none'})`,
         );
       }
     } catch (notifErr) {

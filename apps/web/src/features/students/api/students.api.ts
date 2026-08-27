@@ -35,3 +35,16 @@ export async function regenerateStudentQrToken(id: string): Promise<StudentQrRes
     method: 'POST',
   });
 }
+
+export async function updateStudentStatus(id: string, status: string): Promise<StudentDetail> {
+  return await apiClient<StudentDetail>(`${API_ENDPOINTS.STUDENTS.LIST}/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function deleteStudent(id: string): Promise<{ success: boolean; message: string }> {
+  return await apiClient<{ success: boolean; message: string }>(`${API_ENDPOINTS.STUDENTS.LIST}/${id}`, {
+    method: 'DELETE',
+  });
+}

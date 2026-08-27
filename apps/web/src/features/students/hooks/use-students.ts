@@ -533,3 +533,37 @@ export function useRegenerateStudentQr() {
     },
   });
 }
+
+export function useUpdateStudentStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      import('../api/students.api').then((m) => m.updateStudentStatus(id, status)),
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData(['students', variables.id], (old: any) => ({ ...old, ...data }));
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      toast.success('تم تحديث حالة الطالب بنجاح ✅');
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'حدث خطأ أثناء تحديث حالة الطالب');
+    },
+  });
+}
+
+export function useDeleteStudent() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) =>
+      import('../api/students.api').then((m) => m.deleteStudent(id)),
+    onSuccess: (_data, id) => {
+      queryClient.removeQueries({ queryKey: ['students', id] });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      toast.success('تم حذف الطالب من النظام بنجاح 🗑️');
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'حدث خطأ أثناء حذف الطالب');
+    },
+  });
+}

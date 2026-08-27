@@ -165,6 +165,7 @@ export class SubscriptionsService {
       }
 
       if (payment.paymentStatus === PaymentStatus.PAID) {
+        const remaining = Math.max(0, Number(payment.amountExpected || 0) - Number(payment.amountPaid || 0));
         this.eventEmitter.emit('payment.recorded', {
           studentId: dto.studentId,
           studentName: student.user.fullName,
@@ -172,6 +173,11 @@ export class SubscriptionsService {
           bookletId: dto.bookletId,
           bookletTitle,
           amountPaid: Number(payment.amountPaid),
+          amountExpected: Number(payment.amountExpected || 0),
+          remainingBalance: remaining,
+          currency: payment.currency || 'EGP',
+          receiptNumber: payment.receiptNumber || undefined,
+          paymentMethod: payment.paymentMethod || 'نقدي',
           periodYear,
           periodMonth,
         });
@@ -281,6 +287,7 @@ export class SubscriptionsService {
 
     // If payment is marked as PAID, dispatch asynchronous domain event
     if (payment.paymentStatus === PaymentStatus.PAID) {
+      const remaining = Math.max(0, Number(payment.amountExpected || 0) - Number(payment.amountPaid || 0));
       this.eventEmitter.emit('payment.recorded', {
         studentId: dto.studentId,
         studentName: student.user.fullName,
@@ -288,6 +295,11 @@ export class SubscriptionsService {
         groupName,
         paymentType: 'TUITION',
         amountPaid: Number(payment.amountPaid),
+        amountExpected: Number(payment.amountExpected || 0),
+        remainingBalance: remaining,
+        currency: payment.currency || 'EGP',
+        receiptNumber: payment.receiptNumber || undefined,
+        paymentMethod: payment.paymentMethod || 'نقدي',
         periodYear,
         periodMonth,
       });

@@ -124,18 +124,30 @@ export class NotificationsController {
     return { success: true, message: 'Push subscription removed' };
   }
 
-  // ─── WhatsApp Admin Status ────────────────────────────────────────────────
-
   @Get('whatsapp-status')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({
-    summary: 'Get WhatsApp connection status and QR code for initial pairing (admin only)',
+    summary: 'Get WhatsApp connection status and QR code for pairing (admin only)',
   })
   @ApiResponse({
     status: 200,
-    description: 'Returns connected status and QR code data URL if pending pairing',
+    description: 'Returns connected status, connected phone number, and QR code data URL',
   })
   getWhatsAppStatus() {
     return this.whatsappService.getStatus();
+  }
+
+  @Post('whatsapp-relink')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({
+    summary: 'Disconnect existing WhatsApp session, clear auth keys, and generate a new QR code for pairing another number',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns success confirmation and triggers fresh QR code generation',
+  })
+  async relinkWhatsApp() {
+    return this.whatsappService.resetSession();
   }
 }
