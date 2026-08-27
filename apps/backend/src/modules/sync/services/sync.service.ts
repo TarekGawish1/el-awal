@@ -386,8 +386,16 @@ export class SyncService {
             student: {
               academicStatus: 'ACTIVE',
               user: { isActive: true },
-              ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
             },
+            ...(sinceDate
+              ? {
+                  OR: [
+                    { createdAt: { gte: sinceDate } },
+                    { updatedAt: { gte: sinceDate } },
+                    { student: { updatedAt: { gte: sinceDate } } },
+                  ],
+                }
+              : {}),
           },
           include: {
             student: {
