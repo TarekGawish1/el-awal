@@ -121,23 +121,32 @@ export function parseStudentQr(rawInput: unknown): ParsedQrPayload {
   }
 
   // 4. Check standard platform token and studentCode prefixes
-  // Backend generated UUID tokens: 'qr_tok_...'
+  // Backend generated UUID tokens: 'qr_tok_...' or 'qr_token_...'
   // Offline & platform tokens: 'QR-STU-...', 'QR-OFFLINE-...', 'QR-...', 'qr-...'
-  // Student codes: 'STU-...'
+  // Student codes: 'STU-...', 'stu-...'
+  // Standard UUID tokens: '018f...', 'd9b2d63d-...'
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw);
+
   if (
     raw.startsWith('qr_tok_') ||
+    raw.startsWith('qr_token_') ||
     /^QR[-_]/i.test(raw) ||
     /^qr[-_]/i.test(raw) ||
-    /^STU[-_]/i.test(raw)
+    /^STU[-_]/i.test(raw) ||
+    /^stu[-_]/i.test(raw) ||
+    isUuid
   ) {
     return {
       isValid: true,
       raw,
       type: 'STUDENT_QR',
       token: raw,
+      studentId: isUuid ? raw : undefined,
       studentCode: /^STU[-_]/i.test(raw) ? raw : undefined,
     };
   }
+
+  // Any other random barcode / arbitrary string (e.g. "LENOVO-SN-12345", "123456789")
 
   // Any other random barcode / arbitrary string (e.g. "LENOVO-SN-12345", "123456789")
   return {

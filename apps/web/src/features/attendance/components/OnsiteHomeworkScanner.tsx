@@ -20,6 +20,9 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useSessionReport } from '../hooks/use-attendance';
+import { apiClient } from '@/lib/api/client';
+import { API_ENDPOINTS } from '@/lib/api/endpoints';
+import { initQrDetector } from '@/lib/qr/qr-detector-init';
 
 interface OnsiteHomeworkScannerProps {
   sessionId: string;
@@ -58,11 +61,27 @@ export function OnsiteHomeworkScanner({
   const [checkedCount, setCheckedCount] = useState<number>(0);
   const { data: sessionReport } = useSessionReport(sessionId);
 
-  // Load initial checked homework count & hydrate from report
+  // Load initial checked homework count & hydrate students from report
   useEffect(() => {
     let isMounted = true;
 
-    // Hydrate local store from session report if available
+    // Hydrate students and homework records from session report into IndexedDB
+    if (sessionReport?.records && Array.isArray(sessionReport.records)) {
+      for (const r of sessionReport.records) {
+        if (r.studentId) {
+          offlineDb.putStudent({
+            id: r.studentId,
+            fullName: r.fullName || r.studentName || 'طالب',
+            name: r.fullName || r.studentName || 'طالب',
+            studentCode: r.studentCode || '',
+            qrCodeToken: r.qrCodeToken || '',
+            groupId: sessionReport.groupId || groupId || '',
+            gradeLevel: r.gradeLevel || '',
+          }).catch(() => {});
+        }
+      }
+    }
+
     if (sessionReport?.homeworkRecords && Array.isArray(sessionReport.homeworkRecords)) {
       for (const hr of sessionReport.homeworkRecords) {
         offlineDb.homework_records
@@ -98,7 +117,7 @@ export function OnsiteHomeworkScanner({
     return () => {
       isMounted = false;
     };
-  }, [sessionId, assessmentId, sessionReport]);
+  }, [sessionId, assessmentId, sessionReport, groupId]);
 
   // Pure Web Audio API Synthesizer (Crystal Clear Chimes & Buzzers)
   const playBeep = useCallback(
@@ -189,14 +208,38 @@ export function OnsiteHomeworkScanner({
 
       const cleanToken = parsed.token || parsed.studentId || parsed.studentCode || rawValue.trim();
 
-      // Find student in local database
+      // 1. Find student in local IndexedDB
       const matchQr = await offlineDb.findStudentByQrToken(rawValue);
       let student = matchQr?.student;
       if (!student) {
         student = await offlineDb.getStudentByIdOffline(cleanToken);
       }
 
-      // Check group roster if still not resolved
+      // 2. Check session report records
+      if (!student && sessionReport?.records) {
+        const match = sessionReport.records.find(
+          (r: any) =>
+            r.studentId === cleanToken ||
+            r.qrCodeToken === cleanToken ||
+            r.studentCode === cleanToken ||
+            (parsed.studentId && r.studentId === parsed.studentId) ||
+            (parsed.studentCode && r.studentCode === parsed.studentCode),
+        );
+        if (match) {
+          student = {
+            id: match.studentId,
+            fullName: match.fullName || match.studentName || 'طالب',
+            name: match.fullName || match.studentName || 'طالب',
+            studentCode: match.studentCode || '',
+            qrCodeToken: match.qrCodeToken || cleanToken,
+            groupId: sessionReport.groupId || groupId || '',
+            gradeLevel: match.gradeLevel || '',
+          };
+          offlineDb.putStudent(student).catch(() => {});
+        }
+      }
+
+      // 3. Check group roster if still not resolved
       if (!student && groupId) {
         const roster = await offlineDb.getRoster(groupId);
         if (roster?.students) {
@@ -208,7 +251,33 @@ export function OnsiteHomeworkScanner({
           );
           if (match) {
             student = match;
+            offlineDb.putStudent(student).catch(() => {});
           }
+        }
+      }
+
+      // 4. Online dynamic lookup fallback
+      if (!student && typeof navigator !== 'undefined' && navigator.onLine) {
+        try {
+          const searchRes = await apiClient<any>(`/students?search=${encodeURIComponent(cleanToken)}&limit=1`, {
+            method: 'GET',
+          });
+          const searchList = searchRes?.data || searchRes?.students || searchRes?.data?.data || [];
+          if (Array.isArray(searchList) && searchList.length > 0) {
+            const onlineStudent = searchList[0];
+            student = {
+              id: onlineStudent.id,
+              fullName: onlineStudent.fullName || onlineStudent.user?.fullName || 'طالب',
+              name: onlineStudent.fullName || onlineStudent.user?.fullName || 'طالب',
+              studentCode: onlineStudent.studentCode || '',
+              qrCodeToken: onlineStudent.qrCodeToken || cleanToken,
+              groupId: onlineStudent.groupId || groupId || '',
+              gradeLevel: onlineStudent.gradeLevel || '',
+            };
+            offlineDb.putStudent(student).catch(() => {});
+          }
+        } catch {
+          // Fall through to not found error
         }
       }
 
@@ -217,9 +286,9 @@ export function OnsiteHomeworkScanner({
         setFlashType('error');
         setLastScanResult({
           success: false,
-          message: 'تعذر العثور على بيانات الطالب محلياً. يرجى التحقق من الكود أو تحديث البيانات.',
+          message: 'تعذر العثور على بيانات الطالب. يرجى التحقق من الكود أو تحديث البيانات.',
         });
-        toast.error('طالب غير مسجل في قاعدة البيانات المحلية');
+        toast.error('طالب غير مسجل في النظام أو تعذر العثور عليه');
         setTimeout(() => {
           setLocked(false);
           setFlashType(null);
@@ -363,7 +432,11 @@ export function OnsiteHomeworkScanner({
           >
             <Scanner
               onScan={handleScan}
-              onError={() => {}}
+              onError={(err: any) => {
+                if (err?.message?.includes('Barcode detection service unavailable') || err?.message?.includes('detect')) {
+                  initQrDetector();
+                }
+              }}
               paused={locked}
               scanDelay={350}
               formats={['qr_code']}
