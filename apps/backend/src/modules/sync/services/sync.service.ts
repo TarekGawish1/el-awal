@@ -1961,8 +1961,12 @@ export class SyncService {
               );
             }
 
-            // If assessmentId is missing, resolve the default homework linked to this session
-            let targetAssessmentId = assessmentId;
+            // If assessmentId is missing or default placeholder, resolve the default homework linked to this session
+            const isPlaceholder =
+              !assessmentId ||
+              assessmentId === 'default-session-homework' ||
+              assessmentId === 'default';
+            let targetAssessmentId = !isPlaceholder ? assessmentId : undefined;
             if (!targetAssessmentId) {
               try {
                 const sessionWithHomework = await this.prisma.lessonSession.findUnique({
@@ -2188,7 +2192,11 @@ export class SyncService {
           }
 
           let assessment: any = null;
-          if (op.assessmentId && typeof tx.assessment?.findUnique === 'function') {
+          const isPlaceholder =
+            !op.assessmentId ||
+            op.assessmentId === 'default-session-homework' ||
+            op.assessmentId === 'default';
+          if (!isPlaceholder && typeof tx.assessment?.findUnique === 'function') {
             try {
               assessment = await tx.assessment.findUnique({
                 where: { id: op.assessmentId.trim() },
