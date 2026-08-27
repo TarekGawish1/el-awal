@@ -535,6 +535,8 @@ function CredentialCard({
   copyLabel,
   copied,
   onCopy,
+  whatsappText,
+  whatsappPhone,
 }: {
   title: string;
   icon: React.ReactNode;
