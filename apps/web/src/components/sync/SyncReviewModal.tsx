@@ -110,7 +110,11 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
       setIsComplete(true);
       setSyncProgress(100);
       setSyncStageText('تمت المزامنة بنجاح!');
-      onSuccess?.();
+      await loadData();
+      setTimeout(() => {
+        onSuccess?.();
+        onClose();
+      }, 700);
     } catch (err: any) {
       setSyncStageText(`حدث خطأ أثناء المزامنة: ${err?.message || 'يرجى المحاولة لاحقاً'}`);
     } finally {

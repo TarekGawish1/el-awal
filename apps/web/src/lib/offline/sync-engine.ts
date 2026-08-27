@@ -108,6 +108,13 @@ class OfflineSyncEngine {
 
   constructor() {
     if (typeof window !== 'undefined') {
+      offlineDb
+        .getMetadata<number>('lastSyncedTimestamp')
+        .then((ts) => {
+          if (ts) this.lastSyncedAt = ts;
+        })
+        .catch(() => {});
+
       window.addEventListener('online', () => this.handleNetworkChange(true));
       window.addEventListener('offline', () => this.handleNetworkChange(false));
 
@@ -149,6 +156,11 @@ class OfflineSyncEngine {
     return this.lastSyncedAt;
   }
 
+  public setLastSyncedAt(timestamp: number): void {
+    this.lastSyncedAt = timestamp;
+    offlineDb.setMetadata('lastSyncedTimestamp', timestamp).catch(() => {});
+  }
+
   public isAutoSyncEnabled(): boolean {
     if (typeof window === 'undefined' || !window.localStorage) return true;
     return localStorage.getItem('el_awal_auto_sync_enabled') !== 'false';
@@ -172,7 +184,20 @@ class OfflineSyncEngine {
    * Fetches remote delta diff summary from GET /api/v1/sync/diff
    */
   public async getSyncDiff(since?: number): Promise<IncomingDiffSummary> {
-    const timestamp = since || this.lastSyncedAt || Date.now() - 24 * 60 * 60 * 1000;
+    const lastBootstrapTime = await offlineDb.getMetadata<number>('lastBootstrapTimestamp');
+    const lastSyncedTime = await offlineDb.getMetadata<number>('lastSyncedTimestamp');
+    const timestamp = since || this.lastSyncedAt || lastSyncedTime || lastBootstrapTime;
+    
+    if (!timestamp) {
+      return {
+        groups: { count: 0, items: [] },
+        students: { count: 0, items: [] },
+        attendance: { count: 0, items: [] },
+        payments: { count: 0, items: [] },
+        serverTime: new Date().toISOString(),
+      };
+    }
+
     const isoDate = new Date(timestamp).toISOString();
     try {
       const res = await apiClient<IncomingDiffSummary>(
@@ -928,7 +953,7 @@ class OfflineSyncEngine {
         }
       }
 
-      this.lastSyncedAt = Date.now();
+      this.setLastSyncedAt(Date.now());
       if (syncedCount > 0) {
         toast.success(`تمت مزامنة ${syncedCount} من العمليات المحفوظة بنجاح 🚀`, {
           id: 'sync-success',
@@ -1218,6 +1243,7 @@ class OfflineSyncEngine {
       console.warn('Bootstrap refresh error during bidirectional sync:', e);
     }
 
+    this.setLastSyncedAt(Date.now());
     onProgress?.(100, 'اكتملت المزامنة بنجاح 🎉');
     this.notify('SYNC_PROGRESS', { progress: 100, step: 'COMPLETE' });
 
