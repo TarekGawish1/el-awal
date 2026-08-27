@@ -94,4 +94,23 @@ export class StudentsController {
   ): Promise<StudentQrCodeResponseDto> {
     return this.studentsService.regenerateQrToken(id, user);
   }
+
+  @Get('my-group/available-groups')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Get available physical groups for the authenticated student\'s grade level' })
+  async getAvailableGroups(
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.studentsService.getAvailableGroups(user);
+  }
+
+  @Post('my-group/reserve/:groupId')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Student reserves a spot in a physical group' })
+  async reserveGroup(
+    @Param('groupId') groupId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.studentsService.reserveGroup(groupId, user);
+  }
 }

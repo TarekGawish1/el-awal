@@ -287,7 +287,7 @@ export class StudentsService {
           },
         },
         groupEnrollments: {
-          where: { status: GroupEnrollmentStatus.ACTIVE },
+          where: { status: { in: [GroupEnrollmentStatus.ACTIVE, 'PENDING'] } },
           include: {
             group: { select: { id: true, name: true, gradeLevel: true } },
           },
@@ -641,5 +641,87 @@ export class StudentsService {
     });
 
     return CursorPaginationHelper.formatResponse(students, limit);
+  }
+
+  /**
+   * Fetches available active groups for the student's current grade level.
+   */
+  async getAvailableGroups(user: AuthenticatedUser) {
+    const studentId = this.resolveStudentId(user);
+    const student = await this.prisma.studentProfile.findUnique({
+      where: { id: studentId },
+      select: { gradeLevel: true, academicStage: true }
+    });
+    
+    if (!student) throw new NotFoundException('Student profile not found');
+    
+    return this.prisma.academicGroup.findMany({
+      where: {
+        gradeLevel: student.gradeLevel,
+        isActive: true,
+      },
+      include: {
+        teacher: {
+          include: { user: { select: { fullName: true } } }
+        },
+        schedules: {
+          orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }]
+        },
+        _count: {
+          select: {
+            enrollments: { where: { status: { in: [GroupEnrollmentStatus.ACTIVE, 'PENDING' as GroupEnrollmentStatus] } } }
+          }
+        }
+      }
+    });
+  }
+
+  /**
+   * Allows a student to reserve a spot (PENDING enrollment) in a group.
+   */
+  async reserveGroup(groupId: string, user: AuthenticatedUser) {
+    const studentId = this.resolveStudentId(user);
+    const group = await this.prisma.academicGroup.findUnique({
+      where: { id: groupId },
+      include: {
+        _count: {
+          select: {
+            enrollments: { where: { status: { in: [GroupEnrollmentStatus.ACTIVE, 'PENDING' as GroupEnrollmentStatus] } } }
+          }
+        }
+      }
+    });
+
+    if (!group) throw new NotFoundException('Group not found');
+    if (group._count.enrollments >= group.maxCapacity) {
+      throw new BadRequestException('هذه المجموعة مكتملة العدد');
+    }
+
+    const existingEnrollment = await this.prisma.groupEnrollment.findUnique({
+      where: { groupId_studentId: { groupId, studentId } }
+    });
+
+    if (existingEnrollment) {
+      if (existingEnrollment.status === 'PENDING' as GroupEnrollmentStatus) {
+        throw new BadRequestException('لديك حجز قيد الانتظار بالفعل في هذه المجموعة');
+      }
+      if (existingEnrollment.status === GroupEnrollmentStatus.ACTIVE) {
+        throw new BadRequestException('أنت منضم بالفعل لهذه المجموعة');
+      }
+      
+      // If DROPPED or TRANSFERRED, we can reactivate it as PENDING
+      return this.prisma.groupEnrollment.update({
+        where: { id: existingEnrollment.id },
+        data: { status: 'PENDING' as GroupEnrollmentStatus }
+      });
+    }
+
+    return this.prisma.groupEnrollment.create({
+      data: {
+        groupId,
+        studentId,
+        status: 'PENDING' as GroupEnrollmentStatus,
+      }
+    });
   }
 }

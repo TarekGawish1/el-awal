@@ -25,7 +25,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
 
     const trimmedIdentifier = identifier.trim();
     if (!trimmedIdentifier) {
-      errors.identifier = 'يرجى إدخال البريد الإلكتروني أو رقم الهاتف المسجل';
+      errors.identifier = 'يرجى إدخال كود الطالب أو رقم الهاتف';
     }
 
     if (!password) {
@@ -79,8 +79,8 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
         id="login-identifier"
         name="identifier"
         type="text"
-        label="البريد الإلكتروني أو رقم الهاتف"
-        placeholder="example@elawal.com أو 01012345678"
+        label="كود الطالب أو رقم الهاتف"
+        placeholder="STU-2026-00048 أو 01012345678"
         value={identifier}
         onChange={(e) => {
           setIdentifier(e.target.value);
