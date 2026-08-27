@@ -13,26 +13,30 @@ function normalizePhone(value: string): string {
 }
 
 export function ParentAccessForm() {
-  const [phone, setPhone] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [fieldError, setFieldError] = useState<string>();
   const { accessParent, isLoading, isError, error, resetError } = useParentAccess();
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const normalizedPhone = normalizePhone(phone);
-    if (!normalizedPhone) {
-      setFieldError('يرجى إدخال رقم هاتف الطالب');
+    const normalized = normalizePhone(identifier);
+    if (!normalized) {
+      setFieldError('يرجى إدخال رقم الهاتف أو كود الطالب');
       return;
     }
 
-    if (!EGYPTIAN_PHONE_REGEX.test(normalizedPhone)) {
-      setFieldError('يرجى إدخال رقم هاتف مصري صحيح مثل 01012345678');
+    // Allow Egyptian phone numbers or alphanumeric student codes (e.g. STU202600057)
+    const isPhone = EGYPTIAN_PHONE_REGEX.test(normalized);
+    const isStudentCode = /^[a-zA-Z0-9_-]{3,30}$/.test(normalized);
+
+    if (!isPhone && !isStudentCode) {
+      setFieldError('يرجى إدخال رقم هاتف مصري صحيح (مثال: 01012345678) أو كود الطالب');
       return;
     }
 
     setFieldError(undefined);
-    accessParent(normalizedPhone);
+    accessParent(normalized);
   };
 
   return (
@@ -50,21 +54,20 @@ export function ParentAccessForm() {
       <Input
         id="parent-access-phone"
         name="phone"
-        type="tel"
-        label="رقم هاتف الطالب المسجل"
-        placeholder="01012345678"
-        value={phone}
+        type="text"
+        label="رقم الهاتف أو كود الطالب"
+        placeholder="01012345678 أو STU202600057"
+        value={identifier}
         onChange={(event) => {
-          setPhone(event.target.value);
+          setIdentifier(event.target.value);
           if (fieldError) setFieldError(undefined);
           if (isError) resetError();
         }}
         error={fieldError}
-        helperText="أدخل رقم هاتف الطالب الذي سجلته الإدارة مسبقًا"
+        helperText="أدخل رقم هاتف الطالب أو رقم ولي الأمر أو كود الطالب"
         required
-        autoComplete="tel"
+        autoComplete="username"
         autoFocus
-        inputMode="tel"
         dir="ltr"
         startIcon={<Phone className="h-4 w-4" />}
       />

@@ -119,17 +119,21 @@ export class AuthService {
   }
 
   /**
-   * Authenticates through an administration-created student/parent linkage.
-   * The submitted phone identifies the student; the linked parent receives the session.
+   * Authenticates through an administration-created student/parent linkage or direct parent lookup.
+   * The submitted identifier can be the student phone, student ID code, or parent phone.
    */
   async parentAccess(dto: ParentAccessDto): Promise<AuthTokensResponseDto> {
+    const rawIdentifier = (dto.studentPhone || '').trim();
+    const phoneVariants = getPhoneVariants(rawIdentifier);
+
+    // 1. Try finding parent linked to student by student phone, student code, or emergency phone
     const student = await this.prisma.studentProfile.findFirst({
       where: {
-        user: {
-          phone: { in: getPhoneVariants(dto.studentPhone) },
-          isActive: true,
-          deletedAt: null,
-        },
+        OR: [
+          { user: { phone: { in: phoneVariants }, isActive: true, deletedAt: null } },
+          { studentCode: rawIdentifier },
+          { emergencyPhone: { in: phoneVariants } },
+        ],
       },
       select: {
         parentLinks: {
@@ -157,10 +161,37 @@ export class AuthService {
       },
     });
 
-    const parentUser = student?.parentLinks[0]?.parent.user;
+    let parentUser = student?.parentLinks[0]?.parent?.user;
+
+    // 2. If not found via student links, try finding parent user directly by phone
+    if (!parentUser) {
+      const directParent = await this.prisma.user.findFirst({
+        where: {
+          phone: { in: phoneVariants },
+          role: UserRole.PARENT,
+          isActive: true,
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          phone: true,
+          role: true,
+          isActive: true,
+          deletedAt: true,
+          parentProfile: { select: { id: true } },
+        },
+      });
+
+      if (directParent) {
+        parentUser = directParent;
+      }
+    }
+
     if (!parentUser || parentUser.role !== UserRole.PARENT || !parentUser.isActive || parentUser.deletedAt) {
-      this.logger.warn(`Parent access failed for student phone [${dto.studentPhone}]`);
-      throw new UnauthorizedException('رقم الطالب غير مسجل أو لا يوجد ولي أمر مرتبط به');
+      this.logger.warn(`Parent access failed for identifier [${dto.studentPhone}]`);
+      throw new UnauthorizedException('رقم الهاتف أو كود الطالب غير مسجل أو لا يوجد حساب ولي أمر مرتبط به');
     }
 
     return this.issueTokens(parentUser);
