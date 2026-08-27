@@ -331,8 +331,16 @@ export function useScanQrAttendance() {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
       if (!isOnline) {
-        // 2. Strict Offline Database Lookup Verification
-        const localMatch = await offlineDb.findStudentByQrToken(qrCodeToken);
+        // 1. Resolve Session Context first
+        const reportData: any = queryClient.getQueryData(['sessions', sessionId, 'report']);
+        const allSessions = await offlineDb.getSessionsOffline();
+        const sessionObj = allSessions.find((s) => s.id === sessionId);
+        const sessionGroupId = reportData?.groupId || sessionObj?.groupId || '';
+        const sessionGroupObj = sessionGroupId ? await offlineDb.getGroupByIdOffline(sessionGroupId) : null;
+        const sessionGroupName = reportData?.groupName || sessionGroupObj?.name || 'المجموعة الحالية';
+
+        // 2. Strict Offline Database Lookup Verification (with sessionGroupId preference)
+        const localMatch = await offlineDb.findStudentByQrToken(qrCodeToken, sessionGroupId);
         if (!localMatch || !localMatch.student) {
           const err: any = new Error('بيانات الطالب غير مسجلة في قاعدة البيانات المحلية. يرجى تحديث البيانات عند توفر الإنترنت.');
           err.code = 'STUDENT_NOT_FOUND';
@@ -343,19 +351,42 @@ export function useScanQrAttendance() {
         const studentId = student.id;
         const resolvedStudentName = student.fullName || student.user?.fullName || 'طالب';
 
-        const reportData: any = queryClient.getQueryData(['sessions', sessionId, 'report']);
-        const allSessions = await offlineDb.getSessionsOffline();
-        const sessionObj = allSessions.find((s) => s.id === sessionId);
-        const sessionGroupId = reportData?.groupId || sessionObj?.groupId || '';
-        const sessionGroupObj = sessionGroupId ? await offlineDb.getGroupByIdOffline(sessionGroupId) : null;
-        const sessionGroupName = reportData?.groupName || sessionGroupObj?.name || 'المجموعة الحالية';
-
         const studentGroupId = localMatch.groupId || student.groupId || '';
         const studentGroupObj = studentGroupId ? await offlineDb.getGroupByIdOffline(studentGroupId) : null;
         const studentGroupName = localMatch.groupName || studentGroupObj?.name || 'مجموعة أخرى';
 
-        // Check Cohort Enrollment (External Student Detection)
-        if (!allowCrossGroup && sessionGroupId && studentGroupId && sessionGroupId !== studentGroupId) {
+        // 3. Multi-tier Cohort Match Check
+        const isEnrolledInSessionRecords = reportData?.records?.some(
+          (r: any) =>
+            r.studentId === studentId ||
+            (r.studentCode && student.studentCode && String(r.studentCode).trim().toLowerCase() === String(student.studentCode).trim().toLowerCase()) ||
+            (effectiveToken && r.qrCodeToken && r.qrCodeToken === effectiveToken),
+        );
+
+        const sessionRoster = sessionGroupId ? await offlineDb.getRoster(sessionGroupId) : null;
+        const isEnrolledInSessionRoster = sessionRoster?.students?.some(
+          (s: any) =>
+            s.id === studentId ||
+            s.studentId === studentId ||
+            (s.studentCode && student.studentCode && String(s.studentCode).trim().toLowerCase() === String(student.studentCode).trim().toLowerCase()) ||
+            (effectiveToken && s.qrCodeToken && s.qrCodeToken === effectiveToken),
+        );
+
+        const studentGroupIds: string[] = Array.isArray(student.groupIds)
+          ? student.groupIds
+          : [student.groupId, localMatch.groupId].filter((id): id is string => Boolean(id));
+
+        const isDirectGroupMatch =
+          !sessionGroupId ||
+          studentGroupIds.includes(sessionGroupId) ||
+          student.groupId === sessionGroupId ||
+          localMatch.groupId === sessionGroupId;
+
+        const isStudentEnrolledInSession =
+          isEnrolledInSessionRecords || isEnrolledInSessionRoster || isDirectGroupMatch;
+
+        // Check Cohort Enrollment (External Student Detection) ONLY if truly NOT enrolled in this session's group
+        if (!allowCrossGroup && !isStudentEnrolledInSession && sessionGroupId && studentGroupId && sessionGroupId !== studentGroupId) {
           return {
             isCrossGroupPrompt: true,
             isDuplicate: false,
@@ -478,7 +509,12 @@ export function useScanQrAttendance() {
 
         // Fallback to offline queue if network connection drops mid-scan
         if (typeof navigator !== 'undefined' && !navigator.onLine) {
-          const localMatch = await offlineDb.findStudentByQrToken(qrCodeToken);
+          const reportData: any = queryClient.getQueryData(['sessions', sessionId, 'report']);
+          const allSessions = await offlineDb.getSessionsOffline();
+          const sessionObj = allSessions.find((s) => s.id === sessionId);
+          const sessionGroupId = reportData?.groupId || sessionObj?.groupId || '';
+
+          const localMatch = await offlineDb.findStudentByQrToken(qrCodeToken, sessionGroupId);
           if (!localMatch || !localMatch.student) {
             const err: any = new Error('بيانات الطالب غير مسجلة في قاعدة البيانات المحلية. يرجى تحديث البيانات عند توفر الإنترنت.');
             err.code = 'STUDENT_NOT_FOUND';
@@ -488,13 +524,38 @@ export function useScanQrAttendance() {
           const student = localMatch.student;
           const studentId = student.id;
           const resolvedStudentName = student.fullName || student.user?.fullName || 'طالب';
-
-          const allSessions = await offlineDb.getSessionsOffline();
-          const sessionObj = allSessions.find((s) => s.id === sessionId);
-          const sessionGroupId = sessionObj?.groupId || '';
           const studentGroupId = localMatch.groupId || student.groupId || '';
 
-          if (!allowCrossGroup && sessionGroupId && studentGroupId && sessionGroupId !== studentGroupId) {
+          const isEnrolledInSessionRecords = reportData?.records?.some(
+            (r: any) =>
+              r.studentId === studentId ||
+              (r.studentCode && student.studentCode && String(r.studentCode).trim().toLowerCase() === String(student.studentCode).trim().toLowerCase()) ||
+              (effectiveToken && r.qrCodeToken && r.qrCodeToken === effectiveToken),
+          );
+
+          const sessionRoster = sessionGroupId ? await offlineDb.getRoster(sessionGroupId) : null;
+          const isEnrolledInSessionRoster = sessionRoster?.students?.some(
+            (s: any) =>
+              s.id === studentId ||
+              s.studentId === studentId ||
+              (s.studentCode && student.studentCode && String(s.studentCode).trim().toLowerCase() === String(student.studentCode).trim().toLowerCase()) ||
+              (effectiveToken && s.qrCodeToken && s.qrCodeToken === effectiveToken),
+          );
+
+          const studentGroupIds: string[] = Array.isArray(student.groupIds)
+            ? student.groupIds
+            : [student.groupId, localMatch.groupId].filter((id): id is string => Boolean(id));
+
+          const isDirectGroupMatch =
+            !sessionGroupId ||
+            studentGroupIds.includes(sessionGroupId) ||
+            student.groupId === sessionGroupId ||
+            localMatch.groupId === sessionGroupId;
+
+          const isStudentEnrolledInSession =
+            isEnrolledInSessionRecords || isEnrolledInSessionRoster || isDirectGroupMatch;
+
+          if (!allowCrossGroup && !isStudentEnrolledInSession && sessionGroupId && studentGroupId && sessionGroupId !== studentGroupId) {
             return {
               isCrossGroupPrompt: true,
               isDuplicate: false,

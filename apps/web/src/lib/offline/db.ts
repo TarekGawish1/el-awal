@@ -34,6 +34,7 @@ export interface StudentEntity {
   parentPhone?: string;
   academicStatus?: string;
   groupId?: string;
+  groupIds?: string[];
   isActive?: boolean;
   isArchived?: boolean;
   updatedAt?: number;
@@ -1627,7 +1628,10 @@ class OfflineDatabase {
     }
   }
 
-  public async findStudentByQrToken(qrCodeToken: string): Promise<{
+  public async findStudentByQrToken(
+    qrCodeToken: string,
+    preferredGroupId?: string,
+  ): Promise<{
     student: any;
     groupId: string;
     groupName: string;
@@ -1648,15 +1652,44 @@ class OfflineDatabase {
     if (parsed.token) candidateIds.add(parsed.token);
     candidateIds.add(cleanToken);
 
+    // 0. If preferredGroupId is passed, check that group's roster first for instant cohort match
+    if (preferredGroupId) {
+      const preferredRoster = await this.getRoster(preferredGroupId);
+      if (preferredRoster?.students) {
+        const foundInPreferred = preferredRoster.students.find((s) => {
+          const sQr = s.qrCodeToken ? String(s.qrCodeToken).trim() : '';
+          const sCode = s.studentCode ? String(s.studentCode).trim() : '';
+          const sId = String((s as any).studentId || s.id || '').trim();
+          return candidateIds.has(sQr) || candidateIds.has(sCode) || (sId && candidateIds.has(sId));
+        });
+        if (foundInPreferred) {
+          return {
+            student: foundInPreferred,
+            groupId: preferredGroupId,
+            groupName: preferredRoster.groupName || 'المجموعة الحالية',
+          };
+        }
+      }
+    }
+
     // 1. Direct student store index check (by id or token)
     const candidateList = Array.from(candidateIds);
     for (const candidate of candidateList) {
       const student = await this.getStudentByIdOffline(candidate);
       if (student) {
-        const group = student.groupId ? await this.getGroupByIdOffline(student.groupId) : null;
+        const studentGroupIds: string[] = Array.isArray(student.groupIds)
+          ? student.groupIds
+          : [student.groupId].filter((id): id is string => Boolean(id));
+
+        const effectiveGroupId =
+          preferredGroupId && (studentGroupIds.includes(preferredGroupId) || student.groupId === preferredGroupId)
+            ? preferredGroupId
+            : student.groupId || '';
+
+        const group = effectiveGroupId ? await this.getGroupByIdOffline(effectiveGroupId) : null;
         return {
           student,
-          groupId: student.groupId || group?.id || '',
+          groupId: effectiveGroupId,
           groupName: group?.name || 'المجموعة الدراسية',
         };
       }
@@ -1672,10 +1705,19 @@ class OfflineDatabase {
     });
 
     if (foundDirect) {
-      const group = foundDirect.groupId ? await this.getGroupByIdOffline(foundDirect.groupId) : null;
+      const studentGroupIds: string[] = Array.isArray(foundDirect.groupIds)
+        ? foundDirect.groupIds
+        : [foundDirect.groupId].filter((id): id is string => Boolean(id));
+
+      const effectiveGroupId =
+        preferredGroupId && (studentGroupIds.includes(preferredGroupId) || foundDirect.groupId === preferredGroupId)
+          ? preferredGroupId
+          : foundDirect.groupId || '';
+
+      const group = effectiveGroupId ? await this.getGroupByIdOffline(effectiveGroupId) : null;
       return {
         student: foundDirect,
-        groupId: foundDirect.groupId || group?.id || '',
+        groupId: effectiveGroupId,
         groupName: group?.name || 'المجموعة الدراسية',
       };
     }
@@ -1686,8 +1728,8 @@ class OfflineDatabase {
       const found = roster.students.find((s) => {
         const sQr = s.qrCodeToken ? String(s.qrCodeToken).trim() : '';
         const sCode = s.studentCode ? String(s.studentCode).trim() : '';
-        const sId = s.id ? String(s.id).trim() : '';
-        return candidateIds.has(sQr) || candidateIds.has(sCode) || candidateIds.has(sId);
+        const sId = String((s as any).studentId || s.id || '').trim();
+        return candidateIds.has(sQr) || candidateIds.has(sCode) || (sId && candidateIds.has(sId));
       });
       if (found) {
         return { student: found, groupId: roster.groupId, groupName: roster.groupName };
