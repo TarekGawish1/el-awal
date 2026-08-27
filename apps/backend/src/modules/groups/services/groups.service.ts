@@ -481,7 +481,7 @@ export class GroupsService {
           periodMonth: currentMonth,
           amountExpected: amount,
           amountPaid: paymentStatus === 'PAID' ? amount : 0,
-          paymentStatus: paymentStatus === 'PAID' ? 'COMPLETED' as any : 'PENDING' as any,
+          paymentStatus: paymentStatus === 'PAID' ? 'PAID' as any : 'PENDING' as any,
           paymentType: 'TUITION' as any,
           paymentMethod: 'CASH',
           recordedById: user.id,
