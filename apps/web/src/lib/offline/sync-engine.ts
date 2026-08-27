@@ -781,8 +781,11 @@ class OfflineSyncEngine {
                 (mutationType === 'RECORD_HOMEWORK_ONSITE' ? 'CHECKED_ONSITE' : 'PRESENT'),
               recordedMethod:
                 m.payload?.recordedMethod || m.payload?.recordingMethod || 'QR_SCAN',
+              recordingMethod:
+                m.payload?.recordingMethod || m.payload?.recordedMethod || 'QR_SCAN',
               score: m.payload?.score ?? null,
               feedback: m.payload?.feedback,
+              notes: m.payload?.notes,
               clientTimestamp: m.payload?.clientTimestamp || m.clientTimestamp,
             },
             clientTimestamp: m.clientTimestamp,

@@ -2155,7 +2155,7 @@ export class SyncService {
           }
 
           case 'RECORD_ATTENDANCE': {
-            const { sessionId, studentId, qrCodeToken, status, recordingMethod, clientTimestamp, allowCrossGroup } =
+            const { sessionId, studentId, qrCodeToken, status, recordingMethod, clientTimestamp, allowCrossGroup, notes } =
               mutation.payload || {};
 
             let targetStudentId = studentId;
@@ -2222,6 +2222,7 @@ export class SyncService {
               update: {
                 status: (status as AttendanceStatus) || AttendanceStatus.PRESENT,
                 recordingMethod: (recordingMethod as RecordingMethod) || RecordingMethod.QR_SCAN,
+                notes: notes !== undefined ? notes : undefined,
                 recordedAt: recordDate,
               },
               create: {
@@ -2229,6 +2230,7 @@ export class SyncService {
                 studentId: targetStudentId,
                 status: (status as AttendanceStatus) || AttendanceStatus.PRESENT,
                 recordingMethod: (recordingMethod as RecordingMethod) || RecordingMethod.QR_SCAN,
+                notes: notes ?? null,
                 recordedById: recorderId,
                 recordedAt: recordDate,
               },
