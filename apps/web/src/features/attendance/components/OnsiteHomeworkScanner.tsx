@@ -430,12 +430,16 @@ export function OnsiteHomeworkScanner({
             <Scanner
               onScan={handleScan}
               onError={(err: any) => {
-                if (err?.message?.includes('Barcode detection service unavailable') || err?.message?.includes('detect')) {
+                const msg = err?.message || '';
+                if (msg.includes('Barcode detection service unavailable') || msg.includes('detect')) {
                   initQrDetector();
+                } else if (msg.includes('timed out') || msg.includes('timeout')) {
+                  console.warn('Camera stream startup delay - waiting for camera warmup');
                 }
               }}
               paused={locked}
               scanDelay={350}
+              startTimeoutMs={30000}
               formats={['qr_code']}
               constraints={{ facingMode }}
               styles={{ video: { transform: facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)' } }}

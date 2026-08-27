@@ -100,6 +100,8 @@ export function CourseQrEnrollModal({
           <div className="relative aspect-square w-full max-w-[260px] mx-auto rounded-2xl overflow-hidden border-2 border-primary-500 bg-black shadow-inner">
             <Scanner
               onScan={handleScan}
+              startTimeoutMs={30000}
+              formats={['qr_code']}
               styles={{
                 container: { width: '100%', height: '100%' },
                 video: { width: '100%', height: '100%', objectFit: 'cover' },

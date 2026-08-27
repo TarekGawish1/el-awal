@@ -239,6 +239,10 @@ export function FinanceQrScanner({
       initQrDetector();
       return;
     }
+    if (msg.includes('timed out') || msg.includes('timeout')) {
+      console.warn('Camera stream play timeout - waiting for device camera warmup');
+      return;
+    }
     if (error?.name === 'NotAllowedError' || msg.includes('Permission')) {
       setCameraError('تم رفض صلاحية استخدام الكاميرا. يرجى تفعيلها من إعدادات المتصفح.');
     } else if (error?.name === 'NotSupportedError' || msg.includes('secure context')) {
@@ -324,6 +328,7 @@ export function FinanceQrScanner({
           onError={handleError}
           paused={locked || isPending}
           scanDelay={400}
+          startTimeoutMs={30000}
           formats={['qr_code']}
           constraints={{ facingMode }}
           styles={{ video: { transform: facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)' } }}

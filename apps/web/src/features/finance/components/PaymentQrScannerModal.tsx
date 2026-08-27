@@ -284,6 +284,10 @@ export function PaymentQrScannerModal({
       initQrDetector();
       return;
     }
+    if (msg.includes('timed out') || msg.includes('timeout')) {
+      console.warn('Camera stream play timeout - waiting for device camera warmup');
+      return;
+    }
     if (error?.name === 'NotAllowedError' || msg.includes('Permission')) {
       setCameraError('تم رفض صلاحية استخدام الكاميرا. يرجى تفعيلها من إعدادات المتصفح.');
     } else if (error?.name === 'NotSupportedError' || msg.includes('secure context')) {
@@ -486,6 +490,7 @@ export function PaymentQrScannerModal({
                 onScan={handleScan}
                 onError={handleCameraError}
                 formats={['qr_code']}
+                startTimeoutMs={30000}
                 constraints={{ facingMode }}
                 styles={{ video: { transform: facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)' } }}
               />

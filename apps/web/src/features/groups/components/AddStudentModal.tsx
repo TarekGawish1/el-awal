@@ -139,6 +139,7 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
                       setIsScannerOpen(false);
                     }
                   }}
+                  startTimeoutMs={30000}
                   formats={['qr_code']}
                   components={{}}
                   constraints={{ facingMode }}
