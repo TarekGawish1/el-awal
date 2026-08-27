@@ -50,6 +50,89 @@ const SIGNATURES = [
   '',  // occasionally no signature (more human)
 ];
 
+export interface StudentApprovalCredentialsData {
+  parentName?: string;
+  studentName: string;
+  studentPhoneOrCode: string;
+  studentPassword?: string;
+  parentPhoneOrCode?: string;
+  parentPassword?: string;
+  platformUrl?: string;
+  centerName?: string;
+  groupName?: string;
+}
+
+/**
+ * Generates an automated welcome message with login credentials for parent and student
+ * sent via WhatsApp when student registration/enrollment is approved by teacher.
+ */
+export function formatStudentApprovalMessage(data: StudentApprovalCredentialsData): string {
+  const {
+    parentName = 'ولي الأمر المحترم',
+    studentName,
+    studentPhoneOrCode,
+    studentPassword,
+    parentPhoneOrCode,
+    parentPassword,
+    platformUrl = 'https://al-awal.online/login',
+    centerName = 'منصة الأوّل التعليمية',
+    groupName,
+  } = data;
+
+  const greetings = [
+    `السلام عليكم ورحمة الله وبركاته،\nأهلاً بحضرتك ${parentName} 🌸`,
+    `تحية طيبة وبعد، أهلاً بحضرتك ${parentName} الكريم 🌸`,
+    `السلام عليكم ورحمة الله،\nمرحباً بحضرتك ${parentName} 🌟`,
+  ];
+
+  const groupInfo = groupName ? ` في (*${groupName}*)` : '';
+
+  const approvalIntros = [
+    `تمت الموافقة بنجاح على انضمام الطالب/ة: *${studentName}*${groupInfo} إلى *${centerName}*. 🎉`,
+    `يسعدنا إبلاغكم بقبول تسجيل الطالب/ة: *${studentName}*${groupInfo} لدى *${centerName}*. 🎓`,
+    `تم تأكيد وقبول انضمام الطالب/ة: *${studentName}*${groupInfo} إلى *${centerName}* بنجاح. ✅`,
+  ];
+
+  const studentCreds = `📌 *بيانات حساب الطالب:*
+- اسم المستخدم/الهاتف: \`${studentPhoneOrCode}\`
+${studentPassword ? `- كلمة المرور: \`${studentPassword}\`` : '- كلمة المرور: كلمة المرور المحددة أثناء التسجيل'}`;
+
+  const parentCreds = parentPhoneOrCode
+    ? `\n\n📌 *بيانات حساب ولي الأمر (لمتابعة الحضور والدرجات والغياب):*
+- اسم المستخدم/الهاتف: \`${parentPhoneOrCode}\`
+${parentPassword ? `- كلمة المرور: \`${parentPassword}\`` : '- كلمة المرور: نفس كلمة المرور المحددة أو رقم هاتف ولي الأمر'}`
+    : '';
+
+  const closings = [
+    'يرجى الاحتفاظ بهذه الرسالة للرجوع إليها دائماً. نتمنى لطالبنا دوام التوفيق والنجاح 🌟',
+    'نرجو الاحتفاظ بهذه البيانات لتسجيل الدخول ومتابعة مسيرة الطالب أولاً بأول 📚✨',
+    'نسعد بوجودكم معنا، ونتمنى لأبنائنا رحلة تعليمية مليئة بالتميز والتفوق 🚀',
+  ];
+
+  const greeting = pickRandom(greetings);
+  const intro = pickRandom(approvalIntros);
+  const closing = pickRandom(closings);
+  const sig = pickRandom(SIGNATURES);
+
+  const parts = [
+    greeting,
+    '',
+    intro,
+    '',
+    studentCreds,
+    parentCreds,
+    '',
+    `🌐 *رابط تسجيل الدخول للمنصة:*`,
+    platformUrl,
+    '',
+    closing,
+  ];
+
+  if (sig) parts.push('', sig);
+
+  return parts.filter((p) => p !== undefined).join('\n');
+}
+
 // ─── Template Functions ─────────────────────────────────────────────────────────
 
 /**
