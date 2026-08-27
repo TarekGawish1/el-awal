@@ -1967,16 +1967,55 @@ export class SyncService {
       try {
         switch (mutation.type) {
           case 'RECORD_HOMEWORK_ONSITE': {
+            let { studentId } = mutation.payload || {};
             const {
               assessmentId,
-              studentId,
               sessionId,
               status,
               recordedMethod,
               score,
               feedback,
               clientTimestamp,
+              qrCodeToken,
+              allowCrossGroup,
             } = mutation.payload || {};
+
+            if (!studentId && qrCodeToken) {
+              const student = await this.prisma.studentProfile.findFirst({
+                where: {
+                  OR: [
+                    { id: qrCodeToken },
+                    { qrCodeToken: qrCodeToken },
+                    { studentCode: qrCodeToken },
+                  ],
+                  user: { isActive: true },
+                },
+                include: { groupEnrollments: true },
+              });
+
+              if (!student) {
+                throw new BadRequestException('INVALID_QR_CODE');
+              }
+
+              // Check group enrollment vs session's group if cross-group not allowed
+              if (allowCrossGroup !== true && sessionId) {
+                const session = await this.prisma.lessonSession.findUnique({
+                  where: { id: sessionId },
+                  select: { groupId: true },
+                });
+                
+                if (session && session.groupId) {
+                  const isEnrolled = student.groupEnrollments.some(
+                    (enrollment) => enrollment.groupId === session.groupId,
+                  );
+                  if (!isEnrolled) {
+                    throw new BadRequestException('STUDENT_NOT_ENROLLED');
+                  }
+                }
+              }
+
+              studentId = student.id;
+            }
 
             if (!studentId || !sessionId) {
               throw new BadRequestException(
@@ -2116,7 +2155,7 @@ export class SyncService {
           }
 
           case 'RECORD_ATTENDANCE': {
-            const { sessionId, studentId, qrCodeToken, status, recordingMethod, clientTimestamp, allowCrossGroup } =
+            const { sessionId, studentId, qrCodeToken, status, recordingMethod, clientTimestamp, allowCrossGroup, notes } =
               mutation.payload || {};
 
             let targetStudentId = studentId;
@@ -2183,6 +2222,7 @@ export class SyncService {
               update: {
                 status: (status as AttendanceStatus) || AttendanceStatus.PRESENT,
                 recordingMethod: (recordingMethod as RecordingMethod) || RecordingMethod.QR_SCAN,
+                notes: notes !== undefined ? notes : undefined,
                 recordedAt: recordDate,
               },
               create: {
@@ -2190,6 +2230,7 @@ export class SyncService {
                 studentId: targetStudentId,
                 status: (status as AttendanceStatus) || AttendanceStatus.PRESENT,
                 recordingMethod: (recordingMethod as RecordingMethod) || RecordingMethod.QR_SCAN,
+                notes: notes ?? null,
                 recordedById: recorderId,
                 recordedAt: recordDate,
               },
