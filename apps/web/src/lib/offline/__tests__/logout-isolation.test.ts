@@ -83,4 +83,23 @@ describe('P0-001 STEP 6B — Logout Isolation Implementation', () => {
     expect(legacyFound).toBeDefined();
     expect(legacyFound.userId).toBeUndefined(); // Legacy untouched
   });
+
+  it('Test 8 — IndexedDB cleanup failure', async () => {
+    useAuthStore.setState({ user: { id: 'user-a' } as any, isAuthenticated: true });
+    await syncEngine.enqueue('finance', '/payment', 'POST', { amount: 100 });
+    
+    const originalClear = offlineDb.clearUserPendingMutations;
+    offlineDb.clearUserPendingMutations = async () => {
+      throw new Error('Simulated DB failure');
+    };
+
+    try {
+      await expect(offlineDb.clearUserPendingMutations('user-a')).rejects.toThrow('Simulated DB failure');
+    } finally {
+      offlineDb.clearUserPendingMutations = originalClear;
+    }
+    
+    // Mutations remain
+    expect(await offlineDb.getUserPendingCount('user-a')).toBe(1);
+  });
 });
