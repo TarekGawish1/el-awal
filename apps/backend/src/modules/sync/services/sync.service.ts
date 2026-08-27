@@ -402,23 +402,30 @@ export class SyncService {
           if (
             enrollment?.student &&
             enrollment.student.user?.isActive !== false &&
-            (enrollment.student.academicStatus || 'ACTIVE') === 'ACTIVE' &&
-            !studentMap.has(enrollment.student.id)
+            (enrollment.student.academicStatus || 'ACTIVE') === 'ACTIVE'
           ) {
             const s = enrollment.student;
-            studentMap.set(s.id, {
-              id: s.id,
-              fullName: s.user?.fullName || '',
-              phone: s.user?.phone,
-              email: s.user?.email,
-              studentCode: s.studentCode || '',
-              qrCodeToken: s.qrCodeToken,
-              gradeLevel: s.gradeLevel,
-              emergencyPhone: s.emergencyPhone,
-              academicStatus: s.academicStatus || 'ACTIVE',
-              groupId: enrollment.groupId,
-              updatedAt: s.updatedAt,
-            });
+            const existing = studentMap.get(s.id);
+            if (!existing) {
+              studentMap.set(s.id, {
+                id: s.id,
+                fullName: s.user?.fullName || '',
+                phone: s.user?.phone,
+                email: s.user?.email,
+                studentCode: s.studentCode || '',
+                qrCodeToken: s.qrCodeToken,
+                gradeLevel: s.gradeLevel,
+                emergencyPhone: s.emergencyPhone,
+                academicStatus: s.academicStatus || 'ACTIVE',
+                groupId: enrollment.groupId,
+                groupIds: [enrollment.groupId],
+                updatedAt: s.updatedAt,
+              });
+            } else {
+              if (enrollment.groupId && !existing.groupIds.includes(enrollment.groupId)) {
+                existing.groupIds.push(enrollment.groupId);
+              }
+            }
           }
         }
         students = Array.from(studentMap.values());

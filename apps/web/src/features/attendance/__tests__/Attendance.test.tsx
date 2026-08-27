@@ -111,16 +111,12 @@ describe('TeacherAttendancePage', () => {
   it('displays session and switches between QR scanner and manual entry tabs', async () => {
     renderWithQuery(<TeacherAttendancePage />);
 
-    // Select session first
-    const sessionSelect = screen.getByRole('combobox');
-    fireEvent.change(sessionSelect, { target: { value: 'session-1' } });
-
     // Default QR tab should be open
-    expect(screen.getByRole('button', { name: /مسح QR/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /رصد يدوي/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /مسح QR للحضور/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /رصد يدوي للحضور/i })).toBeInTheDocument();
 
     // Switch to manual entry tab
-    fireEvent.click(screen.getByRole('button', { name: /رصد يدوي/i }));
+    fireEvent.click(screen.getByRole('button', { name: /رصد يدوي للحضور/i }));
     expect(screen.getByTestId('manual-roster')).toBeInTheDocument();
   });
 });

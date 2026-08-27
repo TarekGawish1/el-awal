@@ -25,9 +25,9 @@ class BootstrapManager {
   private listeners: Set<BootstrapListener> = new Set();
   /** Wall-clock time of the last successful bootstrap (full or delta). */
   private lastBootstrapAt: number = 0;
-  /** Minimum milliseconds between two delta bootstrap calls.  Full bootstrap
+  /** Minimum milliseconds between two delta bootstrap calls. Full bootstrap
    *  (forceFull) and explicit skipCooldown calls always bypass this. */
-  private readonly MIN_DELTA_INTERVAL_MS = 3 * 60 * 1000; // 3 minutes
+  private readonly MIN_DELTA_INTERVAL_MS = 15 * 1000; // 15 seconds for rapid cross-device sync
 
   public isBootstrapping(): boolean {
     return this.isBootstrappingState;
@@ -257,6 +257,19 @@ class BootstrapManager {
           qc.setQueryData(['teacher', 'academic-period'], payload.academicPeriod);
           qc.setQueryData(['teachers', 'academic-period'], payload.academicPeriod);
         }
+      }
+
+      // Automatically refresh in-memory UI caches if any data was updated
+      if (qc) {
+        if (payload.students.length > 0) qc.invalidateQueries({ queryKey: ['students'] });
+        if (payload.groups.length > 0) qc.invalidateQueries({ queryKey: ['groups'] });
+        if (payload.sessions.length > 0) {
+          qc.invalidateQueries({ queryKey: ['today-sessions'] });
+          qc.invalidateQueries({ queryKey: ['sessions'] });
+        }
+        if (payload.payments.length > 0) qc.invalidateQueries({ queryKey: ['payments'] });
+        if (payload.booklets.length > 0) qc.invalidateQueries({ queryKey: ['booklets'] });
+        if (payload.assessments.length > 0) qc.invalidateQueries({ queryKey: ['assessments'] });
       }
 
       const syncTimestamp = response.timestamp || rootData.timestamp || Date.now();

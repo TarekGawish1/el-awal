@@ -104,6 +104,12 @@ class OfflineSyncEngine {
 
   public setQueryClient(client: any): void {
     this.queryClient = client;
+    // Perform initial downstream delta pull to populate local db on startup
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      setTimeout(() => {
+        this.checkAndSync();
+      }, 1000);
+    }
   }
 
   constructor() {
@@ -118,12 +124,24 @@ class OfflineSyncEngine {
       window.addEventListener('online', () => this.handleNetworkChange(true));
       window.addEventListener('offline', () => this.handleNetworkChange(false));
 
-      // Periodic check every 30 seconds
-      setInterval(() => {
-        if (navigator.onLine && !this.isSyncingState) {
+      // Auto-sync on window focus or tab visibility (e.g. returning to app)
+      window.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && navigator.onLine) {
           this.checkAndSync();
         }
-      }, 30000);
+      });
+      window.addEventListener('focus', () => {
+        if (navigator.onLine) {
+          this.checkAndSync();
+        }
+      });
+
+      // Periodic check and downstream pull every 15 seconds
+      setInterval(() => {
+        if (navigator.onLine && !this.isSyncingState && !bootstrapManager.isBootstrapping()) {
+          this.checkAndSync();
+        }
+      }, 15000);
     }
   }
 
@@ -512,7 +530,18 @@ class OfflineSyncEngine {
 
     const verified = await this.verifyConnection();
     if (verified) {
-      this.flushOutbox();
+      // 1. Flush any pending outgoing mutations created on this device
+      await this.flushOutbox();
+
+      // 2. Automatically pull incremental updates (students, groups, sessions, etc.)
+      //    added by other devices into the local IndexedDB database
+      if (this.isAutoSyncEnabled() && !bootstrapManager.isBootstrapping()) {
+        try {
+          await bootstrapManager.performBootstrap({ queryClient: this.queryClient });
+        } catch (err) {
+          console.warn('Background auto-pull downstream sync error:', err);
+        }
+      }
     }
   }
 
