@@ -7,6 +7,7 @@ import { Alert } from '@/components/ui/Alert';
 import { RefreshCcw, AlertTriangle, CheckCircle2, XCircle, Users } from 'lucide-react';
 import { ExternalStudentModal } from './ExternalStudentModal';
 import { parseStudentQr } from '@/lib/qr/qr-parser';
+import { initQrDetector } from '@/lib/qr/qr-detector-init';
 import toast from 'react-hot-toast';
 
 interface QrScannerProps {
@@ -290,12 +291,18 @@ export function QrScanner({ sessionId }: QrScannerProps) {
 
   const handleError = (error: any) => {
     console.error('QR Scanner Error:', error);
-    if (error?.name === 'NotAllowedError' || error?.message?.includes('Permission')) {
+    const msg = error?.message || '';
+    if (msg.includes('Barcode detection service unavailable') || msg.includes('detect')) {
+      // Re-initialize local WASM engine silently
+      initQrDetector();
+      return;
+    }
+    if (error?.name === 'NotAllowedError' || msg.includes('Permission')) {
       setCameraError('تم رفض صلاحية استخدام الكاميرا. يرجى تفعيلها من إعدادات المتصفح.');
-    } else if (error?.name === 'NotSupportedError' || error?.message?.includes('secure context')) {
+    } else if (error?.name === 'NotSupportedError' || msg.includes('secure context')) {
       setCameraError('لا يمكن الوصول للكاميرا. تأكد من استخدام اتصال آمن (HTTPS) أو أنك تستخدم localhost.');
     } else {
-      setCameraError(error?.message || 'حدث خطأ في تشغيل الكاميرا.');
+      setCameraError(msg || 'حدث خطأ في تشغيل الكاميرا.');
     }
   };
 

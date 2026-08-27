@@ -44,6 +44,8 @@ const PRECACHE_URLS = [
   '/icons/apple-touch-icon.png',
   '/favicon.ico',
   '/favicon.svg',
+  '/wasm/zxing_reader.wasm',
+  '/zxing_reader.wasm',
 ];
 
 // Core routes whose RSC payloads should also be pre-cached for instant client-side routing

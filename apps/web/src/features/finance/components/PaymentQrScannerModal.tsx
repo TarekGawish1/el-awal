@@ -10,6 +10,7 @@ import { Alert } from '@/components/ui/Alert';
 import { formatBookletMismatchError, isBookletEligibleForStudent } from '../utils/bookletEligibility';
 import { Badge } from '@/components/ui/Badge';
 import { parseStudentQr } from '@/lib/qr/qr-parser';
+import { initQrDetector } from '@/lib/qr/qr-detector-init';
 import { 
   QrCode, 
   CheckCircle2, 
@@ -277,12 +278,18 @@ export function PaymentQrScannerModal({
 
   const handleCameraError = (error: any) => {
     console.error('QR Scanner Camera Error:', error);
-    if (error?.name === 'NotAllowedError' || error?.message?.includes('Permission')) {
+    const msg = error?.message || '';
+    if (msg.includes('Barcode detection service unavailable') || msg.includes('detect')) {
+      // Re-initialize local WASM engine silently
+      initQrDetector();
+      return;
+    }
+    if (error?.name === 'NotAllowedError' || msg.includes('Permission')) {
       setCameraError('تم رفض صلاحية استخدام الكاميرا. يرجى تفعيلها من إعدادات المتصفح.');
-    } else if (error?.name === 'NotSupportedError' || error?.message?.includes('secure context')) {
+    } else if (error?.name === 'NotSupportedError' || msg.includes('secure context')) {
       setCameraError('لا يمكن الوصول للكاميرا. تأكد من استخدام اتصال آمن (HTTPS) أو أنك تستخدم localhost.');
     } else {
-      setCameraError(error?.message || 'حدث خطأ في تشغيل الكاميرا.');
+      setCameraError(msg || 'حدث خطأ في تشغيل الكاميرا.');
     }
   };
 
