@@ -345,9 +345,42 @@ export function useScanQrAttendance() {
         // 2. Strict Offline Database Lookup Verification (with sessionGroupId preference)
         const localMatch = await offlineDb.findStudentByQrToken(qrCodeToken, sessionGroupId);
         if (!localMatch || !localMatch.student) {
-          const err: any = new Error('بيانات الطالب غير مسجلة في قاعدة البيانات المحلية. يرجى تحديث البيانات عند توفر الإنترنت.');
-          err.code = 'STUDENT_NOT_FOUND';
-          throw err;
+          // 2.5 Uncached Student Handling (Preserve offline scan)
+          const isQueued = await offlineDb.isAttendanceRecordedOffline(sessionId, '', effectiveToken);
+          if (isQueued) {
+            return {
+              isDuplicate: true,
+              isCrossGroupPrompt: false,
+              message: 'تم تسجيل حضور الطالب مسبقاً في هذه الحصة',
+              student: { id: '', fullName: 'طالب غير متزامن' },
+              sessionStats: reportData?.stats,
+            };
+          }
+
+          await syncEngine.enqueue(
+            'attendance',
+            API_ENDPOINTS.ATTENDANCE.SCAN_QR(sessionId),
+            'POST',
+            {
+              sessionId,
+              qrCodeToken: effectiveToken,
+              status: 'PRESENT',
+              recordingMethod: 'QR_SCAN',
+              allowCrossGroup: !!allowCrossGroup,
+              isGuest: false,
+              notes: 'Pending offline resolution',
+            },
+          );
+
+          return {
+            isDuplicate: false,
+            isCrossGroupPrompt: false,
+            isCrossGroupSuccess: false,
+            isOfflineSaved: true,
+            isUnknown: true,
+            message: 'تم حفظ الرمز محلياً، وسيتم التحقق منه عند توفر الإنترنت ⏳',
+            student: { id: '', fullName: 'طالب غير متزامن' },
+          };
         }
 
         const student = localMatch.student;
