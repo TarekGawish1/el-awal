@@ -125,4 +125,14 @@ export const studentApi = {
       body: JSON.stringify(payload),
     });
   },
+
+  getAvailableGroups: async () => {
+    return apiClient<any[]>('/students/my-group/available-groups');
+  },
+
+  reserveGroup: async (groupId: string) => {
+    return apiClient<any>(`/students/my-group/reserve/${groupId}`, {
+      method: 'POST',
+    });
+  },
 };

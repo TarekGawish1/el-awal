@@ -95,6 +95,24 @@ export function useStudentGroup() {
   });
 }
 
+export function useAvailableGroups() {
+  return useQuery({
+    queryKey: ['available-groups'],
+    queryFn: () => studentApi.getAvailableGroups(),
+  });
+}
+
+export function useReserveGroup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (groupId: string) => studentApi.reserveGroup(groupId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['student-profile'] });
+      queryClient.invalidateQueries({ queryKey: ['student-group'] });
+    },
+  });
+}
+
 export function useStudentGroupSessions(query: StudentGroupQuery) {
   return useQuery({
     queryKey: ['student-group-sessions', query.year, query.month],

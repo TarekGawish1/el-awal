@@ -46,13 +46,10 @@ export interface StudentDetail extends StudentListItem {
       };
     };
   }>;
-  groupEnrollments: Array<{
-    group: {
-      id: string;
-      name: string;
-      gradeLevel: string;
-    };
-  }>;
+  groupEnrollments: {
+    status: 'ACTIVE' | 'PENDING' | 'TRANSFERRED' | 'DROPPED';
+    group: { id: string; name: string; gradeLevel: string };
+  }[];
 }
 
 export interface CreateStudentPayload {

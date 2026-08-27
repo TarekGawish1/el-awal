@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { CourseCertificateModal } from './CourseCertificateModal';
 import { StudentRecentAssessments } from './StudentRecentAssessments';
 import { StudentLatestHomework } from './StudentLatestHomework';
+import { GroupReservation } from './GroupReservation';
 import { filterUpcomingGroupExams } from '../utils/assessments';
 
 export function StudentDashboard() {
@@ -149,8 +150,12 @@ export function StudentDashboard() {
         </div>
       </div>
 
-      {/* Next Session Details Card */}
-      {nextSession && (
+      {(!enrolledGroups.length || enrolledGroups[0].status === 'PENDING') ? (
+        <GroupReservation pendingEnrollment={enrolledGroups[0]?.status === 'PENDING' ? enrolledGroups[0] : undefined} />
+      ) : (
+        <>
+          {/* Next Session Details Card */}
+          {nextSession && (
         <Card className="border-none bg-gradient-to-r from-amber-500/10 to-orange-500/5 border border-amber-500/20 shadow-xs rounded-2xl overflow-hidden hover:shadow-md transition-shadow">
           <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -298,6 +303,8 @@ export function StudentDashboard() {
 
         <StudentRecentAssessments />
       </div>
+      </>
+      )}
     </div>
   );
 }
