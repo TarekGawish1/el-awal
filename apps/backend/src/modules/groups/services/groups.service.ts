@@ -445,7 +445,7 @@ export class GroupsService {
   /**
    * Accepts a pending group reservation
    */
-  async acceptReservation(enrollmentId: string, user: AuthenticatedUser) {
+  async acceptReservation(enrollmentId: string, user: AuthenticatedUser, paymentStatus: 'PAID' | 'LATER' = 'LATER') {
     const enrollment = await this.prisma.groupEnrollment.findUnique({
       where: { id: enrollmentId },
       include: { group: { include: { _count: { select: { enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } } } } } } }
@@ -461,9 +461,35 @@ export class GroupsService {
       throw new BadRequestException('هذه المجموعة مكتملة العدد');
     }
 
-    return this.prisma.groupEnrollment.update({
-      where: { id: enrollmentId },
-      data: { status: GroupEnrollmentStatus.ACTIVE }
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1; // JavaScript months are 0-indexed
+    
+    return this.prisma.$transaction(async (tx) => {
+      const updatedEnrollment = await tx.groupEnrollment.update({
+        where: { id: enrollmentId },
+        data: { status: GroupEnrollmentStatus.ACTIVE }
+      });
+
+      const amount = enrollment.group.monthlyFee || 0;
+
+      await tx.studentPaymentRecord.create({
+        data: {
+          studentId: enrollment.studentId,
+          groupId: enrollment.groupId,
+          periodYear: currentYear,
+          periodMonth: currentMonth,
+          amountExpected: amount,
+          amountPaid: paymentStatus === 'PAID' ? amount : 0,
+          paymentStatus: paymentStatus === 'PAID' ? 'PAID' as any : 'PENDING' as any,
+          paymentType: 'TUITION' as any,
+          paymentMethod: 'CASH',
+          recordedById: user.id,
+          notes: paymentStatus === 'PAID' ? 'تم الدفع وقت تأكيد الانضمام عبر QR' : 'تم تأكيد الانضمام وسيتم الدفع لاحقاً',
+        }
+      });
+
+      return updatedEnrollment;
     });
   }
 

@@ -529,7 +529,7 @@ export function usePendingReservations() {
 export function useAcceptReservation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (enrollmentId: string) => import('../api/groups.api').then(m => m.acceptReservation(enrollmentId)),
+    mutationFn: ({ enrollmentId, paymentStatus }: { enrollmentId: string, paymentStatus?: 'PAID' | 'LATER' }) => import('../api/groups.api').then(m => m.acceptReservation(enrollmentId, { paymentStatus })),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pending-reservations'] });
       queryClient.invalidateQueries({ queryKey: ['groups'] });
