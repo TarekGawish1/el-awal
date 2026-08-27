@@ -30,6 +30,7 @@ import { getNavigationItemsForRole } from '@/config/navigation';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { RefreshCw, ListChecks } from 'lucide-react';
+import { NotificationCenter } from '@/components/notifications/NotificationCenter';
 
 export default function DashboardLayout({
   children,
@@ -256,6 +257,9 @@ export default function DashboardLayout({
                 </span>
               )}
             </button>
+
+            {/* Notification Bell Center */}
+            <NotificationCenter />
 
             <div className="h-8 w-px bg-neutral-200 mx-1 hidden sm:block"></div>
 

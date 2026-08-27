@@ -92,6 +92,10 @@ export const API_ENDPOINTS = {
     UNREAD_COUNT: '/notifications/unread-count',
     MARK_READ: (id: string) => `/notifications/${id}/read`,
     MARK_ALL_READ: '/notifications/read-all',
+    PUSH_VAPID_KEY: '/notifications/push-vapid-key',
+    PUSH_SUBSCRIBE: '/notifications/push-subscribe',
+    PUSH_UNSUBSCRIBE: '/notifications/push-unsubscribe',
+    WHATSAPP_STATUS: '/notifications/whatsapp-status',
   },
   SYNC: {
     BOOTSTRAP: '/sync/bootstrap',

@@ -1,20 +1,49 @@
-import { Controller, Get, Patch, Param, Query } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Patch,
+  Param,
+  Query,
+  Body,
+  Req,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiBody,
+} from '@nestjs/swagger';
+import { Request } from 'express';
 import { NotificationsService } from '../services/notifications.service';
+import { WebPushService, PushSubscriptionDto } from '../../../services/webpush.service';
+import { WhatsAppService } from '../../../services/whatsapp/whatsapp.service';
 import { CursorPaginationDto } from '../../../common/dto/cursor-pagination.dto';
 import {
   CurrentUser,
   AuthenticatedUser,
 } from '../../../core/security/decorators/current-user.decorator';
+import { Roles } from '../../../core/security/decorators/roles.decorator';
+import { UserRole } from '@prisma/client';
 
-@ApiTags('In-App Notification Feed')
-@ApiBearerAuth()
+@ApiTags('Notifications')
+@ApiBearerAuth('JWT-auth')
 @Controller('notifications')
 export class NotificationsController {
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(
+    private readonly notificationsService: NotificationsService,
+    private readonly webPushService: WebPushService,
+    private readonly whatsappService: WhatsAppService,
+  ) {}
+
+  // ─── In-App Notification Feed ─────────────────────────────────────────────
 
   @Get()
-  @ApiOperation({ summary: 'Get Keyset cursor-paginated notification feed for authenticated user' })
+  @ApiOperation({ summary: 'Get cursor-paginated notification feed for authenticated user' })
   async getNotifications(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: CursorPaginationDto,
@@ -23,7 +52,7 @@ export class NotificationsController {
   }
 
   @Get('unread-count')
-  @ApiOperation({ summary: 'Get total count of unread notifications for badge presentation' })
+  @ApiOperation({ summary: 'Get total count of unread notifications for badge display' })
   @ApiResponse({ status: 200, description: 'Unread counter object' })
   async getUnreadCount(@CurrentUser() user: AuthenticatedUser) {
     return this.notificationsService.getUnreadCount(user.id);
@@ -42,5 +71,71 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Mark all notifications as read for the authenticated user' })
   async markAllAsRead(@CurrentUser() user: AuthenticatedUser) {
     return this.notificationsService.markAllAsRead(user.id);
+  }
+
+  // ─── Web Push Subscription Management ────────────────────────────────────
+
+  @Get('push-vapid-key')
+  @ApiOperation({ summary: 'Get VAPID public key for client-side push subscription' })
+  getVapidPublicKey() {
+    return { publicKey: this.webPushService.getPublicKey() };
+  }
+
+  @Post('push-subscribe')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Register or update a Web Push subscription for the authenticated user' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        endpoint: { type: 'string' },
+        keys: {
+          type: 'object',
+          properties: {
+            p256dh: { type: 'string' },
+            auth: { type: 'string' },
+          },
+        },
+      },
+      required: ['endpoint', 'keys'],
+    },
+  })
+  async subscribeToPush(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() subscription: PushSubscriptionDto,
+    @Req() req: Request,
+  ) {
+    await this.webPushService.subscribe(
+      user.id,
+      subscription,
+      req.headers['user-agent'],
+    );
+    return { success: true, message: 'Push subscription saved' };
+  }
+
+  @Delete('push-unsubscribe')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remove a Web Push subscription' })
+  async unsubscribeFromPush(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { endpoint: string },
+  ) {
+    await this.webPushService.unsubscribe(user.id, body.endpoint);
+    return { success: true, message: 'Push subscription removed' };
+  }
+
+  // ─── WhatsApp Admin Status ────────────────────────────────────────────────
+
+  @Get('whatsapp-status')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({
+    summary: 'Get WhatsApp connection status and QR code for initial pairing (admin only)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns connected status and QR code data URL if pending pairing',
+  })
+  getWhatsAppStatus() {
+    return this.whatsappService.getStatus();
   }
 }

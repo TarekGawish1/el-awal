@@ -35,6 +35,19 @@ const baseEnvSchema = z.object({
   ENABLE_SWAGGER: z.coerce.boolean().default(false),
   TRUST_PROXY: z.coerce.boolean().default(false),
   SEED_DEMO_PASSWORD: z.string().min(12).optional(),
+
+  // Web Push (VAPID)
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default('mailto:admin@elawal.com'),
+
+  // WhatsApp (Baileys & Anti-Ban Rate Limiting)
+  WHATSAPP_ENABLED: z.string().optional().default('true'),
+  WHATSAPP_HOURLY_LIMIT: z.string().optional().default('25'),
+  WHATSAPP_DAILY_LIMIT: z.string().optional().default('80'),
+
+  // Frontend app URL (used for push notification deep links)
+  NEXT_PUBLIC_APP_URL: z.string().url().optional(),
 });
 
 export const envSchema = baseEnvSchema.superRefine((env, ctx) => {

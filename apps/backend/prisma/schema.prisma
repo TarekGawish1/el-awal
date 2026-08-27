@@ -157,6 +157,41 @@ enum PaymentType {
 }
 
 // ==========================================
+// NOTIFICATION ENUMS
+// ==========================================
+
+enum NotificationChannel {
+  IN_APP
+  WEB_PUSH
+  WHATSAPP
+
+  @@map("notification_channel")
+}
+
+enum NotificationType {
+  SESSION_REMINDER_STUDENT
+  ONLINE_EXAM_REMINDER
+  ABSENCE_ALERT_PARENT
+  HOMEWORK_MISSING_PARENT
+  EXAM_FAILED_ALERT_PARENT
+  TEACHER_DAILY_SCHEDULE
+  TEACHER_SESSION_REMINDER
+  GENERAL_ANNOUNCEMENT
+
+  @@map("notification_type")
+}
+
+enum NotificationStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  READ
+
+  @@map("notification_status")
+}
+
+// ==========================================
 // 2. USERS & IDENTITY DOMAIN
 // ==========================================
 
@@ -183,6 +218,7 @@ model User {
   grantedCourseAccesses CourseAccess[]         @relation("GrantedCourseAccesses")
   recordedPayments      StudentPaymentRecord[] @relation("RecordedPayments")
   notifications         Notification[]         @relation("UserNotifications")
+  pushSubscriptions     PushSubscription[]     @relation("UserPushSubscriptions")
   refreshTokenSessions  RefreshTokenSession[]
 
   @@index([role], map: "idx_users_role")
@@ -863,20 +899,59 @@ model StudentEvaluation {
 }
 
 model Notification {
-  id                String    @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
-  recipientId       String    @map("recipient_id") @db.Uuid
-  type              String    @map("type") @db.VarChar(50)
-  title             String    @map("title") @db.VarChar(255)
-  message           String    @map("message") @db.Text
-  referenceEntityId String?   @map("reference_entity_id") @db.Uuid
-  isRead            Boolean   @default(false) @map("is_read")
-  readAt            DateTime? @map("read_at") @db.Timestamptz(6)
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  id                String                @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  recipientId       String                @map("recipient_id") @db.Uuid
+  // Legacy plain-string type kept for backwards-compat; notificationType is the new typed enum field
+  type              String                @map("type") @db.VarChar(50)
+  notificationType  NotificationType?     @map("notification_type")
+  title             String                @map("title") @db.VarChar(255)
+  // "message" column is aliased as "body" in application code
+  message           String                @map("message") @db.Text
+  referenceEntityId String?               @map("reference_entity_id") @db.Uuid
+  // Rich contextual payload: { sessionId, examId, groupId, studentId, score, phone }
+  data              Json?                 @map("data")
+  isRead            Boolean               @default(false) @map("is_read")
+  readAt            DateTime?             @map("read_at") @db.Timestamptz(6)
+  // Multi-channel delivery tracking
+  channels          NotificationChannel[] @map("channels")
+  whatsappStatus    NotificationStatus?   @map("whatsapp_status")
+  whatsappError     String?               @map("whatsapp_error") @db.Text
+  pushStatus        NotificationStatus?   @map("push_status")
+  scheduledFor      DateTime              @default(now()) @map("scheduled_for") @db.Timestamptz(6)
+  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   recipient User @relation("UserNotifications", fields: [recipientId], references: [id], onDelete: Cascade)
 
   @@index([recipientId, isRead, createdAt], map: "idx_notifications_recipient_read")
+  @@index([whatsappStatus, scheduledFor], map: "idx_notifications_whatsapp_queue")
   @@map("notifications")
+}
+
+// 2. Web Push Subscriptions Storage
+model PushSubscription {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  endpoint  String   @unique @map("endpoint") @db.Text
+  p256dh    String   @map("p256dh") @db.Text
+  auth      String   @map("auth") @db.Text
+  userAgent String?  @map("user_agent") @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation("UserPushSubscriptions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "idx_push_subscriptions_user")
+  @@map("push_subscriptions")
+}
+
+// 3. Baileys Multi-Device Auth Session Store (Persistent across Heroku Restarts)
+model WhatsAppAuthSession {
+  id        String   @id @map("id") @db.VarChar(255)
+  value     Json     @map("value")
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("whatsapp_auth_sessions")
 }
 
 model Booklet {
