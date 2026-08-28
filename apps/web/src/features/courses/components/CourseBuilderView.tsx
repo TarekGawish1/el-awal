@@ -329,53 +329,53 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
       </div>
 
       {/* Top View Selector Tabs (Curriculum vs Enrollments) */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-1.5 flex items-center gap-1.5 shadow-sm text-xs">
+      <div className="bg-white border border-slate-200 rounded-2xl p-1.5 flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 shadow-sm text-xs">
         <button
           type="button"
           onClick={() => setActiveTopTab('curriculum')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bold transition-all ${
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 sm:px-4 rounded-xl font-bold transition-all text-center ${
             activeTopTab === 'curriculum'
               ? 'bg-primary-600 text-white shadow-sm'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
           }`}
         >
-          <Layers className="w-4 h-4" />
+          <Layers className="w-4 h-4 shrink-0" />
           <span>منهج وفصول الكورس ({modules.length} فصول • {totalLessons} دروس)</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTopTab('enrollments')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bold transition-all ${
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 sm:px-4 rounded-xl font-bold transition-all text-center ${
             activeTopTab === 'enrollments'
               ? 'bg-primary-600 text-white shadow-sm'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
           }`}
         >
-          <GraduationCap className="w-4 h-4" />
+          <GraduationCap className="w-4 h-4 shrink-0" />
           <span>الطلاب والمشتركون في الكورس</span>
         </button>
       </div>
 
       {/* TAB 1: CURRICULUM & LESSONS */}
       {activeTopTab === 'curriculum' && (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* Assessment Banner: Course Final Exam */}
-          <div className="bg-white border border-slate-200 p-6 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
-            <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-200 shrink-0">
-                <Award className="w-6 h-6" />
+          <div className="bg-white border border-slate-200 p-4 sm:p-6 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-200 shrink-0">
+                <Award className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <div>
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
                     الامتحان الشامل للكورس
                   </span>
                 </div>
-                <h3 className="text-sm font-bold text-slate-900 mt-1">
+                <h3 className="text-xs sm:text-sm font-bold text-slate-900 mt-1 break-words">
                   {course.courseQuiz ? course.courseQuiz.title : 'لم يتم تعيين امتحان نهائي للكورس بعد'}
                 </h3>
-                <p className="text-xs text-slate-500">
+                <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
                   {course.courseQuiz
                     ? `إجمالي الدرجات: ${course.courseQuiz.totalScore} درجة • تقييم ختامي للمنهج`
                     : 'يمكنك ربط امتحان شامل يقيمه الطالب بعد إنهاء جميع فصول ودروس الكورس.'}
@@ -383,7 +383,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
               <select
                 value={course.courseQuizId || ''}
                 onChange={(e) => handleUpdateCourseQuiz(e.target.value)}
@@ -400,17 +400,17 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
           </div>
 
           {/* Course Settings: Sequential Lessons Enforcement */}
-          <div className="bg-white border border-slate-200 p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
-            <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center border border-slate-200 shrink-0">
-                <Lock className="w-5 h-5" />
+          <div className="bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl flex items-center justify-between gap-3 sm:gap-4 shadow-sm">
+            <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center border border-slate-200 shrink-0">
+                <Lock className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <div>
-                <p className="text-sm font-bold text-slate-900">ترتيب مشاهدة الدروس</p>
-                <p className="text-xs text-slate-500 mt-0.5">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-bold text-slate-900">ترتيب مشاهدة الدروس</p>
+                <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
                   {course.enforceSequentialLessons
-                    ? 'المنهج مرتب — يجب على الطالب إتمام كل درس قبل الانتقال للدرس التالي'
-                    : 'حرية المشاهدة — يمكن للطالب مشاهدة الدروس بأي ترتيب يريد'}
+                    ? 'المنهج مرتب — يجب إتمام كل درس بالترتيب'
+                    : 'حرية المشاهدة — يمكن للطالب المشاهدة بأي ترتيب'}
                 </p>
               </div>
             </div>
@@ -440,14 +440,14 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
             </button>
           </div>
 
-          <div className="bg-white border border-cyan-100 p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
-            <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-700 flex items-center justify-center border border-cyan-100 shrink-0">
-                <Award className="w-5 h-5" />
+          <div className="bg-white border border-cyan-100 p-4 sm:p-5 rounded-2xl flex items-center justify-between gap-3 sm:gap-4 shadow-sm">
+            <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-cyan-50 text-cyan-700 flex items-center justify-center border border-cyan-100 shrink-0">
+                <Award className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <div>
-                <p className="text-sm font-bold text-slate-900">شهادة إتمام الكورس</p>
-                <p className="text-xs text-slate-500 mt-0.5">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-bold text-slate-900">شهادة إتمام الكورس</p>
+                <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
                   {course.hasCertificate !== false
                     ? 'سيحصل الطالب على شهادة عند إكمال جميع الدروس'
                     : 'لن يتم إصدار شهادة لهذا الكورس'}
@@ -468,9 +468,9 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
           </div>
 
           {/* Modules Control Bar */}
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Layers className="w-5 h-5 text-primary-600" />
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h2 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+              <Layers className="w-4 h-4 sm:w-5 sm:h-5 text-primary-600" />
               <span>فصول ووحدات المنهج ({modules.length})</span>
             </h2>
 
@@ -478,7 +478,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
               <button
                 type="button"
                 onClick={() => setIsCreatingModule(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+                className="flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shrink-0 cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 <span>إضافة وحدة جديدة</span>
@@ -490,7 +490,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
           {isCreatingModule && (
             <form
               onSubmit={handleCreateModule}
-              className="p-5 bg-white border border-slate-200 rounded-2xl space-y-4 shadow-sm animate-in fade-in"
+              className="p-4 sm:p-5 bg-white border border-slate-200 rounded-2xl space-y-4 shadow-sm animate-in fade-in"
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2">
@@ -500,7 +500,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                 <button
                   type="button"
                   onClick={() => setIsCreatingModule(false)}
-                  className="text-xs text-slate-400 hover:text-slate-600"
+                  className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   إلغاء
                 </button>
@@ -557,14 +557,14 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                 <button
                   type="button"
                   onClick={() => setIsCreatingModule(false)}
-                  className="px-4 py-2 rounded-xl text-xs text-slate-600 hover:bg-slate-100"
+                  className="px-4 py-2 rounded-xl text-xs text-slate-600 hover:bg-slate-100 cursor-pointer"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
                   disabled={createModuleMutation.isPending}
-                  className="px-5 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm disabled:opacity-50"
+                  className="px-5 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm disabled:opacity-50 cursor-pointer"
                 >
                   {createModuleMutation.isPending ? 'جاري الحفظ...' : 'حفظ الوحدة'}
                 </button>
@@ -575,7 +575,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
           {/* Modules List Accordion */}
           <div className="space-y-4">
             {modules.length === 0 ? (
-              <div className="p-12 text-center bg-white border border-slate-200 rounded-2xl space-y-3 shadow-sm">
+              <div className="p-8 sm:p-12 text-center bg-white border border-slate-200 rounded-2xl space-y-3 shadow-sm">
                 <BookOpen className="w-10 h-10 text-slate-400 mx-auto" />
                 <h3 className="text-base font-bold text-slate-800">لا توجد فصول أو وحدات مضافة بعد</h3>
                 <p className="text-xs text-slate-500 max-w-sm mx-auto">
@@ -584,7 +584,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                 <button
                   type="button"
                   onClick={() => setIsCreatingModule(true)}
-                  className="px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm inline-flex items-center gap-2"
+                  className="px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm inline-flex items-center gap-2 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                   <span>إضافة الوحدة الأولى الآن</span>
@@ -625,43 +625,43 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                   >
                     {/* Module Accordion Header */}
                     <div
-                      className="p-4 sm:p-5 bg-slate-50/70 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      className="p-3.5 sm:p-5 bg-slate-50/70 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                       draggable
                       onDragStart={(e) => handleModuleDragStart(e, mod.id)}
                       onDragEnd={clearDragState}
                     >
                       <div
-                        className="flex items-center gap-3 cursor-pointer flex-1"
+                        className="flex items-center gap-2.5 sm:gap-3 cursor-pointer flex-1 min-w-0"
                         onClick={() => toggleModuleExpanded(mod.id)}
                       >
                         <span title="اسحب لإعادة ترتيب الوحدات" className="shrink-0 cursor-grab active:cursor-grabbing">
                           <GripVertical className="w-4 h-4 text-slate-300 hover:text-primary-500" />
                         </span>
-                        <div className="w-9 h-9 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center font-bold text-xs shrink-0 border border-primary-100">
+                        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center font-bold text-xs shrink-0 border border-primary-100">
                           {modIndex + 1}
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="text-sm font-bold text-slate-900">{mod.title}</h3>
-                            <span className="text-[11px] text-slate-500 font-normal">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                            <h3 className="text-xs sm:text-sm font-bold text-slate-900 break-words">{mod.title}</h3>
+                            <span className="text-[10px] sm:text-[11px] text-slate-500 font-normal shrink-0">
                               ({lessonsCount} دروس)
                             </span>
                           </div>
                           {mod.description && (
-                            <p className="text-xs text-slate-500 mt-0.5">{mod.description}</p>
+                            <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 break-words line-clamp-1 sm:line-clamp-none">{mod.description}</p>
                           )}
                         </div>
                       </div>
 
                       {/* Unit Controls (Unit Quiz + Add Lesson + Delete) */}
-                      <div className="flex items-center gap-2 flex-wrap self-end sm:self-auto">
+                      <div className="flex items-center gap-2 flex-wrap justify-between sm:justify-end w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60">
                         {/* Unit Exam Selector Dropdown */}
-                        <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-2.5 py-1 rounded-xl text-xs shadow-sm">
-                          <Award className="w-3.5 h-3.5 text-amber-500" />
+                        <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-2.5 py-1 rounded-xl text-xs shadow-sm max-w-full flex-1 sm:flex-none">
+                          <Award className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                           <select
                             value={mod.unitQuizId || ''}
                             onChange={(e) => handleUpdateUnitQuiz(mod.id, e.target.value)}
-                            className="bg-transparent text-[11px] text-slate-700 font-bold focus:outline-none max-w-[140px] cursor-pointer"
+                            className="bg-transparent text-[11px] text-slate-700 font-bold focus:outline-none w-full sm:max-w-[140px] cursor-pointer"
                             title="ربط امتحان للوحدة"
                           >
                             <option value="">-- بدون امتحان للوحدة --</option>
@@ -673,36 +673,38 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                           </select>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setLessonModalState({
-                              isOpen: true,
-                              moduleId: mod.id,
-                              lesson: null,
-                            })
-                          }
-                          className="flex items-center gap-1 px-3 py-1.5 bg-primary-50 text-primary-600 hover:bg-primary-600 hover:text-white rounded-xl text-xs font-bold transition-colors"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>إضافة درس</span>
-                        </button>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setLessonModalState({
+                                isOpen: true,
+                                moduleId: mod.id,
+                                lesson: null,
+                              })
+                            }
+                            className="flex items-center gap-1 px-3 py-1.5 bg-primary-50 text-primary-600 hover:bg-primary-600 hover:text-white rounded-xl text-xs font-bold transition-colors shrink-0 cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>إضافة درس</span>
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => setModuleToDelete({ id: mod.id, title: mod.title })}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors"
-                          title="حذف الوحدة بالكامل"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => setModuleToDelete({ id: mod.id, title: mod.title })}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors shrink-0 cursor-pointer"
+                            title="حذف الوحدة بالكامل"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
 
                     {/* Lessons List in Module */}
                     {!isCollapsed && (
                       <div
-                        className={`p-4 space-y-2.5 transition-colors ${
+                        className={`p-3 sm:p-4 space-y-2.5 transition-colors ${
                           lessonDropTarget?.moduleId === mod.id && dragItem?.type === 'lesson' && dragItem.moduleId !== mod.id
                             ? 'bg-primary-50/40 ring-2 ring-inset ring-primary-200 bg-white'
                             : 'bg-white'
@@ -769,7 +771,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                                   e.stopPropagation();
                                   handleLessonDrop(mod.id, getLessonDropIndex(e, lesIndex));
                                 }}
-                                className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors cursor-grab active:cursor-grabbing ${
+                                className={`p-3 sm:p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 transition-colors cursor-grab active:cursor-grabbing ${
                                   isDraggedLesson
                                     ? 'opacity-40 border-primary-300 bg-slate-50'
                                     : isEndDropIndicator
@@ -779,48 +781,48 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                                     : 'border-slate-100 bg-slate-50/60 hover:bg-slate-100/60'
                                 }`}
                               >
-                                <div className="flex items-center gap-3">
-                                  <span title="اسحب لإعادة الترتيب أو النقل بين الوحدات" className="shrink-0 cursor-grab active:cursor-grabbing">
+                                <div className="flex items-start gap-2.5 sm:gap-3 min-w-0 flex-1">
+                                  <span title="اسحب لإعادة الترتيب أو النقل بين الوحدات" className="shrink-0 cursor-grab active:cursor-grabbing mt-1 sm:mt-0">
                                     <GripVertical className="w-3.5 h-3.5 text-slate-300 hover:text-primary-500" />
                                   </span>
-                                  <div className="w-8 h-8 rounded-lg bg-white text-slate-600 flex items-center justify-center font-mono font-bold text-xs border border-slate-200 shadow-sm shrink-0">
+                                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white text-slate-600 flex items-center justify-center font-mono font-bold text-xs border border-slate-200 shadow-xs shrink-0 mt-0.5 sm:mt-0">
                                     {modIndex + 1}.{lesIndex + 1}
                                   </div>
-                                  <div>
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <h4 className="text-xs font-bold text-slate-900">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                                      <h4 className="text-xs sm:text-sm font-bold text-slate-900 break-words">
                                         {les.title}
                                       </h4>
                                       {les.isPreview && (
-                                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                                           معاينة مجانية
                                         </span>
                                       )}
                                     </div>
-                                    <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-1">
+                                    <div className="flex items-center gap-2 sm:gap-3 flex-wrap text-[10px] sm:text-[11px] text-slate-500 mt-1.5">
                                       {les.videoDurationSeconds ? (
-                                        <span className="flex items-center gap-1">
-                                          <Clock className="w-3 h-3" />
+                                        <span className="flex items-center gap-1 shrink-0">
+                                          <Clock className="w-3 h-3 text-slate-400" />
                                           {Math.floor(les.videoDurationSeconds / 60)} دقيقة
                                         </span>
                                       ) : null}
                                       {hasVideo && (
-                                        <span className="flex items-center gap-1 text-primary-600 font-medium">
+                                        <span className="flex items-center gap-1 text-primary-600 font-medium shrink-0">
                                           <Video className="w-3 h-3" /> فيديو الشرح
                                         </span>
                                       )}
                                       {hasSummary && (
-                                        <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                                        <span className="flex items-center gap-1 text-emerald-600 font-medium shrink-0">
                                           <FileText className="w-3 h-3" /> ملخص الدرس
                                         </span>
                                       )}
                                       {hasAttachments && (
-                                        <span className="flex items-center gap-1 text-amber-600 font-medium">
+                                        <span className="flex items-center gap-1 text-amber-600 font-medium shrink-0">
                                           <Paperclip className="w-3 h-3" /> {les.attachments?.length} مرفقات
                                         </span>
                                       )}
                                       {hasQuiz && (
-                                        <span className="flex items-center gap-1 text-purple-600 font-bold">
+                                        <span className="flex items-center gap-1 text-purple-600 font-bold shrink-0">
                                           <Award className="w-3 h-3" /> اختبار الدرس
                                         </span>
                                       )}
@@ -828,7 +830,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                                   </div>
                                 </div>
 
-                                <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                                <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
                                   <button
                                     type="button"
                                     onClick={() =>
@@ -838,18 +840,18 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                                         lesson: les,
                                       })
                                     }
-                                    className="p-2 text-slate-600 hover:text-primary-600 bg-white rounded-xl border border-slate-200 transition-colors shadow-sm"
+                                    className="p-1.5 sm:p-2 text-slate-600 hover:text-primary-600 bg-white rounded-xl border border-slate-200 transition-colors shadow-xs cursor-pointer"
                                     title="تعديل محتوى الدرس"
                                   >
-                                    <Edit className="w-4 h-4" />
+                                    <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => setLessonToDelete({ id: les.id, title: les.title })}
-                                    className="p-2 text-slate-400 hover:text-rose-600 bg-white rounded-xl border border-slate-200 transition-colors shadow-sm"
+                                    className="p-1.5 sm:p-2 text-slate-400 hover:text-rose-600 bg-white rounded-xl border border-slate-200 transition-colors shadow-xs cursor-pointer"
                                     title="حذف الدرس"
                                   >
-                                    <Trash2 className="w-4 h-4" />
+                                    <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                                   </button>
                                 </div>
                               </div>

@@ -19,6 +19,62 @@ import * as cron from 'node-cron';
  * 3. Daily 07:00   — TEACHER_DAILY_SCHEDULE (morning agenda)
  * 4. Every 5 min   — TEACHER_SESSION_REMINDER (15 min window)
  */
+// ─── Cairo Timezone Helpers ──────────────────────────────────────────────────
+
+/**
+ * Computes the exact UTC Date corresponding to a sessionDate (Date or YYYY-MM-DD string)
+ * and a startTime ("HH:mm") in the 'Africa/Cairo' timezone.
+ */
+function getSessionUtcDate(sessionDate: Date | string, startTime: string): Date {
+  const dateStr =
+    sessionDate instanceof Date
+      ? sessionDate.toISOString().split('T')[0]
+      : String(sessionDate).split('T')[0];
+
+  const [hours, minutes] = (startTime || '00:00').split(':').map(Number);
+
+  // Cairo is UTC+2 (standard) or UTC+3 (Daylight Saving Time).
+  // Compute the exact offset in hours for that date using Intl:
+  const refDate = new Date(`${dateStr}T12:00:00Z`);
+  const cairoHourStr = refDate.toLocaleTimeString('en-US', {
+    timeZone: 'Africa/Cairo',
+    hour12: false,
+    hour: 'numeric',
+  });
+  const cairoHour = parseInt(cairoHourStr, 10);
+  const diffHours = cairoHour - 12; // 2 or 3
+
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d, hours - diffHours, minutes, 0, 0));
+}
+
+/**
+ * Returns today's YYYY-MM-DD date string in 'Africa/Cairo'.
+ */
+function getCairoTodayString(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+}
+
+/**
+ * Returns the start (00:00:00.000) and end (23:59:59.999) of today in 'Africa/Cairo' as UTC Date objects.
+ */
+function getCairoTodayBounds(): { start: Date; end: Date; dateStr: string } {
+  const dateStr = getCairoTodayString();
+  const [y, m, d] = dateStr.split('-').map(Number);
+
+  const refDate = new Date(`${dateStr}T12:00:00Z`);
+  const cairoHourStr = refDate.toLocaleTimeString('en-US', {
+    timeZone: 'Africa/Cairo',
+    hour12: false,
+    hour: 'numeric',
+  });
+  const diffHours = parseInt(cairoHourStr, 10) - 12;
+
+  const start = new Date(Date.UTC(y, m - 1, d, 0 - diffHours, 0, 0, 0));
+  const end = new Date(Date.UTC(y, m - 1, d, 23 - diffHours, 59, 59, 999));
+  return { start, end, dateStr };
+}
+
 @Injectable()
 export class SchedulersService implements OnModuleInit {
   private readonly logger = new Logger(SchedulersService.name);
@@ -50,7 +106,7 @@ export class SchedulersService implements OnModuleInit {
       ),
     );
 
-    // 3. Teacher morning daily schedule (every day at 07:00)
+    // 3. Teacher morning daily schedule (every day at 07:00 Africa/Cairo)
     this.tasks.push(
       cron.schedule(
         '0 7 * * *',
@@ -85,16 +141,12 @@ export class SchedulersService implements OnModuleInit {
     this.logger.debug(`[StudentReminder] Scanning sessions ${windowStart.toISOString()} – ${windowEnd.toISOString()}`);
 
     try {
-      // Find sessions starting in the next 45–60 minutes
-      // Sessions use DATE + TIME string fields, so we need to match carefully
+      const scanStart = new Date(now.getTime() - 12 * 60 * 60 * 1000);
+      const scanEnd = new Date(now.getTime() + 36 * 60 * 60 * 1000);
+
       const sessions = await this.prisma.lessonSession.findMany({
         where: {
-          sessionDate: {
-            gte: new Date(now.toISOString().split('T')[0]),
-            lte: new Date(
-              new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            ),
-          },
+          sessionDate: { gte: scanStart, lte: scanEnd },
           isCancelled: false,
         },
         include: {
@@ -124,13 +176,11 @@ export class SchedulersService implements OnModuleInit {
         },
       });
 
-      // Filter to sessions within our 45–60 minute window
+      // Filter to sessions within our 45–60 minute window using Cairo local time conversion
       const targetSessions = sessions.filter((s) => {
         if (!s.startTime) return false;
-        const [hours, minutes] = s.startTime.split(':').map(Number);
-        const sessionDateTime = new Date(s.sessionDate);
-        sessionDateTime.setHours(hours, minutes, 0, 0);
-        return sessionDateTime >= windowStart && sessionDateTime <= windowEnd;
+        const sessionUtc = getSessionUtcDate(s.sessionDate, s.startTime);
+        return sessionUtc >= windowStart && sessionUtc <= windowEnd;
       });
 
       this.logger.log(
@@ -143,7 +193,17 @@ export class SchedulersService implements OnModuleInit {
           const student = enrollment.student;
           const studentUser = student.user;
 
-          // Notify student in-app
+          // Deduplicate: avoid sending twice for the same session to the same student
+          const alreadySent = await this.prisma.notification.findFirst({
+            where: {
+              recipientId: studentUser.id,
+              notificationType: NotificationType.SESSION_REMINDER_STUDENT,
+              referenceEntityId: session.id,
+            },
+          });
+          if (alreadySent) continue;
+
+          // Notify student in-app and web push
           await this.notifications.sendNotification({
             recipientId: studentUser.id,
             notificationType: NotificationType.SESSION_REMINDER_STUDENT,
@@ -151,6 +211,7 @@ export class SchedulersService implements OnModuleInit {
             title: '📅 تذكير: حصة دراسية قريباً',
             body: `تذكير: لديك حصة في مجموعة (${session.group.name}) الساعة ${timeStr} اليوم.`,
             channels: [NotificationChannel.IN_APP, NotificationChannel.WEB_PUSH],
+            referenceEntityId: session.id,
             data: {
               sessionId: session.id,
               groupId: session.groupId,
@@ -171,6 +232,7 @@ export class SchedulersService implements OnModuleInit {
               title: '📅 تذكير: حصة دراسية للطالب',
               body: `تذكير: لدى الطالب ${studentUser.fullName} حصة في مجموعة (${session.group.name}) الساعة ${timeStr} اليوم.`,
               channels: [NotificationChannel.IN_APP, NotificationChannel.WHATSAPP],
+              referenceEntityId: session.id,
               data: {
                 sessionId: session.id,
                 studentId: student.id,
@@ -237,6 +299,7 @@ export class SchedulersService implements OnModuleInit {
 
       for (const exam of exams) {
         const startTimeStr = exam.startDate?.toLocaleTimeString('ar-EG', {
+          timeZone: 'Africa/Cairo',
           hour: '2-digit',
           minute: '2-digit',
         });
@@ -249,6 +312,15 @@ export class SchedulersService implements OnModuleInit {
             // Skip students who already submitted
             if (alreadySubmittedIds.has(student.id)) continue;
 
+            const alreadySent = await this.prisma.notification.findFirst({
+              where: {
+                recipientId: student.user.id,
+                notificationType: NotificationType.ONLINE_EXAM_REMINDER,
+                referenceEntityId: exam.id,
+              },
+            });
+            if (alreadySent) continue;
+
             await this.notifications.sendNotification({
               recipientId: student.user.id,
               notificationType: NotificationType.ONLINE_EXAM_REMINDER,
@@ -259,6 +331,7 @@ export class SchedulersService implements OnModuleInit {
                 NotificationChannel.IN_APP,
                 NotificationChannel.WEB_PUSH,
               ],
+              referenceEntityId: exam.id,
               data: {
                 examId: exam.id,
                 studentId: student.id,
@@ -281,8 +354,7 @@ export class SchedulersService implements OnModuleInit {
     this.logger.log('[TeacherSchedule] Compiling daily agendas...');
 
     try {
-      const today = new Date();
-      const todayStr = today.toISOString().split('T')[0];
+      const { start, end, dateStr } = getCairoTodayBounds();
 
       const teachers = await this.prisma.teacherProfile.findMany({
         include: {
@@ -291,10 +363,21 @@ export class SchedulersService implements OnModuleInit {
       });
 
       for (const teacher of teachers) {
+        // Deduplicate: ensure teacher receives at most one morning agenda per day
+        const alreadySentToday = await this.prisma.notification.findFirst({
+          where: {
+            recipientId: teacher.user.id,
+            notificationType: NotificationType.TEACHER_DAILY_SCHEDULE,
+            createdAt: { gte: start, lte: end },
+          },
+        });
+        if (alreadySentToday) continue;
+
+        // Query candidate sessions around today's window
         const sessions = await this.prisma.lessonSession.findMany({
           where: {
             group: { teacherId: teacher.id },
-            sessionDate: new Date(todayStr),
+            sessionDate: { gte: start, lte: end },
             isCancelled: false,
           },
           include: { group: { select: { name: true, gradeLevel: true } } },
@@ -310,12 +393,15 @@ export class SchedulersService implements OnModuleInit {
 
         const body = [
           `صباح الخير أستاذ ${teacher.user.fullName} 👋`,
-          `جدولك اليوم (${todayStr}):`,
+          `جدولك اليوم (${dateStr}):`,
           ...agendaLines,
           `\nبالتوفيق في يومك! 🌟`,
         ].join('\n');
 
-        const channels: NotificationChannel[] = [NotificationChannel.IN_APP];
+        const channels: NotificationChannel[] = [
+          NotificationChannel.IN_APP,
+          NotificationChannel.WEB_PUSH,
+        ];
         if (teacher.user.phone) {
           channels.push(NotificationChannel.WHATSAPP);
         }
@@ -329,7 +415,7 @@ export class SchedulersService implements OnModuleInit {
           channels,
           data: {
             phone: teacher.user.phone,
-            date: todayStr,
+            date: dateStr,
             sessionCount: sessions.length,
           },
         });
@@ -349,14 +435,12 @@ export class SchedulersService implements OnModuleInit {
     const windowEnd = new Date(now.getTime() + 20 * 60 * 1000);   // 20 min from now
 
     try {
+      const scanStart = new Date(now.getTime() - 12 * 60 * 60 * 1000);
+      const scanEnd = new Date(now.getTime() + 36 * 60 * 60 * 1000);
+
       const sessions = await this.prisma.lessonSession.findMany({
         where: {
-          sessionDate: {
-            gte: new Date(now.toISOString().split('T')[0]),
-            lte: new Date(
-              new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            ),
-          },
+          sessionDate: { gte: scanStart, lte: scanEnd },
           isCancelled: false,
         },
         include: {
@@ -374,17 +458,28 @@ export class SchedulersService implements OnModuleInit {
 
       const targetSessions = sessions.filter((s) => {
         if (!s.startTime) return false;
-        const [hours, minutes] = s.startTime.split(':').map(Number);
-        const sessionDateTime = new Date(s.sessionDate);
-        sessionDateTime.setHours(hours, minutes, 0, 0);
-        return sessionDateTime >= windowStart && sessionDateTime <= windowEnd;
+        const sessionUtc = getSessionUtcDate(s.sessionDate, s.startTime);
+        return sessionUtc >= windowStart && sessionUtc <= windowEnd;
       });
 
       for (const session of targetSessions) {
         const teacher = session.group.teacher;
         const teacherUser = teacher.user;
 
-        const channels: NotificationChannel[] = [NotificationChannel.IN_APP];
+        // Deduplicate: avoid sending twice for the same session
+        const alreadySent = await this.prisma.notification.findFirst({
+          where: {
+            recipientId: teacherUser.id,
+            notificationType: NotificationType.TEACHER_SESSION_REMINDER,
+            referenceEntityId: session.id,
+          },
+        });
+        if (alreadySent) continue;
+
+        const channels: NotificationChannel[] = [
+          NotificationChannel.IN_APP,
+          NotificationChannel.WEB_PUSH,
+        ];
         if (teacherUser.phone) channels.push(NotificationChannel.WHATSAPP);
 
         await this.notifications.sendNotification({
@@ -394,6 +489,7 @@ export class SchedulersService implements OnModuleInit {
           title: '🔔 تذكير: حصة بعد 15 دقيقة',
           body: `حصة مجموعة (${session.group.name}) تبدأ الساعة ${session.startTime}. الرجاء الاستعداد.`,
           channels,
+          referenceEntityId: session.id,
           data: {
             phone: teacherUser.phone,
             sessionId: session.id,
@@ -408,3 +504,4 @@ export class SchedulersService implements OnModuleInit {
     }
   }
 }
+
