@@ -184,7 +184,7 @@ describe('GroupsService', () => {
         expect.objectContaining({
           recipientId: studentId,
           notificationType: NotificationType.STUDENT_APPROVAL_CREDENTIALS,
-          channels: [NotificationChannel.WEB_PUSH],
+          channels: [NotificationChannel.IN_APP, NotificationChannel.WEB_PUSH],
         }),
       );
       expect(mockNotificationsService.sendNotification).toHaveBeenNthCalledWith(
@@ -192,7 +192,11 @@ describe('GroupsService', () => {
         expect.objectContaining({
           recipientId: parentUserId,
           notificationType: NotificationType.STUDENT_APPROVAL_CREDENTIALS,
-          channels: [NotificationChannel.WHATSAPP, NotificationChannel.IN_APP],
+          channels: [
+            NotificationChannel.IN_APP,
+            NotificationChannel.WEB_PUSH,
+            NotificationChannel.WHATSAPP,
+          ],
           data: expect.objectContaining({ phone: '201022222222' }),
         }),
       );

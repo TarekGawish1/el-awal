@@ -380,6 +380,9 @@ model AcademicGroup {
   monthlyFee   Decimal  @default(0.00) @map("monthly_fee") @db.Decimal(10, 2)
   teacherId    String   @map("teacher_id") @db.Uuid
   isActive     Boolean  @default(true) @map("is_active")
+  registrationToken      String?   @unique(map: "uq_groups_registration_token") @default(cuid()) @map("registration_token") @db.VarChar(64)
+  isRegistrationOpen     Boolean   @default(true) @map("is_registration_open")
+  registrationLinkExpiry DateTime? @map("registration_link_expiry") @db.Timestamptz(6)
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 

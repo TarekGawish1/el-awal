@@ -112,8 +112,11 @@ export function formatStudentApprovalMessage(data: StudentApprovalCredentialsDat
     .replace(/\/+$/, '')
     .replace(/\/(login|parent-access)$/, '');
 
-  const directParam = displayStudentPhone || studentPhoneOrCode;
-  const parentDirectAccessUrl = `${baseUrl}/parent-access?phone=${encodeURIComponent(directParam)}`;
+  const directPhone = displayParentPhone || displayStudentPhone || studentPhoneOrCode;
+  const directPass = parentPassword || studentPassword || '';
+  const parentDirectAccessUrl = directPass
+    ? `${baseUrl}/parent-access?phone=${encodeURIComponent(directPhone)}&pass=${encodeURIComponent(directPass)}`
+    : `${baseUrl}/parent-access?phone=${encodeURIComponent(directPhone)}`;
 
   const studentCreds = `📌 *بيانات دخول الطالب:*
 - اسم المستخدم / الهاتف: \`${displayStudentPhone}\`

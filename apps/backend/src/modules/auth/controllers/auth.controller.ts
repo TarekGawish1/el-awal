@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from '../services/auth.service';
@@ -8,6 +8,7 @@ import { ParentAccessDto } from '../dto/parent-access.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { AuthTokensResponseDto } from '../dto/auth-response.dto';
 import { RegisterStudentDto } from '../dto/student-registration.dto';
+import { RegisterByGroupDto } from '../dto/register-by-group.dto';
 import { Public } from '../../../core/security/decorators/public.decorator';
 
 @ApiTags('Authentication')
@@ -49,6 +50,27 @@ export class AuthController {
   @ApiResponse({ status: 409, description: 'Phone number already registered, or student/parent phones conflict' })
   async registerStudent(@Body() dto: RegisterStudentDto) {
     return this.studentRegistrationService.registerStudent(dto);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @Get('group-invite/:token')
+  @ApiOperation({ summary: 'Public group invite metadata validation for the self-registration view' })
+  @ApiResponse({ status: 200, description: 'Group invite metadata with validity flag' })
+  async getGroupInvite(@Param('token') token: string) {
+    return this.authService.getGroupInvite(token);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Post('register-by-group')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Self-registration via group invite link: creates the student account, links/creates the parent, enrolls the student into the group, and returns auth tokens' })
+  @ApiResponse({ status: 201, description: 'Student registered, enrolled and auto-authenticated', type: AuthTokensResponseDto })
+  @ApiResponse({ status: 400, description: 'Invalid invite token or registration closed' })
+  @ApiResponse({ status: 409, description: 'Phone number already registered, or student/parent phones conflict' })
+  async registerByGroup(@Body() dto: RegisterByGroupDto): Promise<AuthTokensResponseDto> {
+    return this.authService.registerByGroup(dto);
   }
 
   @Public()

@@ -127,10 +127,10 @@ export class StudentRegistrationService {
           });
 
           if (existingParent) {
-            if (existingParent.role !== UserRole.PARENT || existingParent.deletedAt) {
-              throw new ConflictException({
-                code: 'PARENT_PHONE_CONFLICT',
-                message: 'رقم هاتف ولي الأمر مسجل بحساب آخر، يرجى استخدام رقم مختلف',
+            if (existingParent.deletedAt) {
+              await tx.user.update({
+                where: { id: existingParent.id },
+                data: { deletedAt: null, isActive: true },
               });
             }
             parentUserId = existingParent.id;

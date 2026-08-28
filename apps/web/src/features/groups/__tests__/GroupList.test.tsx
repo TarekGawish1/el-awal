@@ -14,6 +14,12 @@ import {
 vi.mock('../hooks/useGroups', () => ({
   useGroups: vi.fn(),
   useCreateGroup: vi.fn(),
+  useGenerateRegistrationLink: vi.fn(() => ({
+    mutate: vi.fn(),
+    data: null,
+    isPending: false,
+    reset: vi.fn(),
+  })),
 }));
 
 vi.mock('@/lib/api/client', () => ({

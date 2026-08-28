@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { AlertCircle, ArrowRight, Loader2, Phone, UserRound } from 'lucide-react';
+import { AlertCircle, ArrowRight, KeyRound, Loader2, Phone, ShieldCheck, UserRound } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle, Button, Input } from '@/components/ui';
 import { useParentAccess } from '../hooks/useParentAccess';
 
@@ -16,15 +16,16 @@ function normalizePhone(value: string): string {
 export function ParentAccessForm() {
   const searchParams = useSearchParams();
   const [identifier, setIdentifier] = useState('');
-  const [fieldError, setFieldError] = useState<string>();
+  const [password, setPassword] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{ identifier?: string; password?: string }>({});
   const { accessParent, isLoading, isError, error, resetError } = useParentAccess();
   const autoLoginAttempted = useRef(false);
 
-  // Auto-login if phone or student code is present in URL search params (e.g. from WhatsApp magic link)
+  // Auto-login if phone AND password are both present in URL search params (from secure WhatsApp direct link)
   useEffect(() => {
     if (autoLoginAttempted.current) return;
 
-    const queryParam =
+    const queryPhone =
       searchParams?.get('phone') ||
       searchParams?.get('p') ||
       searchParams?.get('studentPhone') ||
@@ -32,12 +33,20 @@ export function ParentAccessForm() {
       searchParams?.get('code') ||
       searchParams?.get('id');
 
-    if (queryParam) {
-      const normalized = normalizePhone(queryParam);
-      if (normalized) {
+    const queryPass =
+      searchParams?.get('pass') ||
+      searchParams?.get('password') ||
+      searchParams?.get('pwd') ||
+      searchParams?.get('key');
+
+    if (queryPhone) {
+      const normalizedPhone = normalizePhone(queryPhone);
+      setIdentifier(normalizedPhone);
+
+      if (queryPass && normalizedPhone) {
         autoLoginAttempted.current = true;
-        setIdentifier(normalized);
-        accessParent(normalized);
+        setPassword(queryPass);
+        accessParent({ studentPhone: normalizedPhone, password: queryPass });
       }
     }
   }, [searchParams, accessParent]);
@@ -46,34 +55,45 @@ export function ParentAccessForm() {
     event.preventDefault();
 
     const normalized = normalizePhone(identifier);
+    const trimmedPass = password.trim();
+    const newErrors: { identifier?: string; password?: string } = {};
+
     if (!normalized) {
-      setFieldError('يرجى إدخال رقم الهاتف أو كود الطالب');
+      newErrors.identifier = 'يرجى إدخال رقم الهاتف أو كود الطالب';
+    } else {
+      const isPhone = EGYPTIAN_PHONE_REGEX.test(normalized);
+      const isStudentCode = /^[a-zA-Z0-9_-]{3,30}$/.test(normalized);
+      if (!isPhone && !isStudentCode) {
+        newErrors.identifier = 'يرجى إدخال رقم هاتف مصري صحيح (مثال: 01012345678) أو كود الطالب';
+      }
+    }
+
+    if (!trimmedPass) {
+      newErrors.password = 'يرجى إدخال كلمة المرور';
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setFieldErrors(newErrors);
       return;
     }
 
-    // Allow Egyptian phone numbers or alphanumeric student codes (e.g. STU202600057)
-    const isPhone = EGYPTIAN_PHONE_REGEX.test(normalized);
-    const isStudentCode = /^[a-zA-Z0-9_-]{3,30}$/.test(normalized);
-
-    if (!isPhone && !isStudentCode) {
-      setFieldError('يرجى إدخال رقم هاتف مصري صحيح (مثال: 01012345678) أو كود الطالب');
-      return;
-    }
-
-    setFieldError(undefined);
-    accessParent(normalized);
+    setFieldErrors({});
+    accessParent({ studentPhone: normalized, password: trimmedPass });
   };
 
-  // If auto-logging in with query parameter, render smooth auto-redirect screen
+  // If auto-logging in with secure direct magic link, render smooth auto-redirect screen
   if (isLoading && !isError && autoLoginAttempted.current) {
     return (
       <div className="py-6 text-center space-y-4 animate-in fade-in-50 duration-200">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary-50 text-primary-600 ring-8 ring-primary-50/50">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 ring-8 ring-emerald-50/50">
           <Loader2 className="h-8 w-8 animate-spin" />
         </div>
         <div className="space-y-1">
-          <h3 className="text-base font-bold text-neutral-900">جاري تسجيل دخول ولي الأمر تلقائياً...</h3>
-          <p className="text-xs text-neutral-500">يرجى الانتظار لحظات، جاري تحويلك إلى لوحة المتابعة 📲</p>
+          <div className="flex items-center justify-center gap-1.5 text-base font-bold text-neutral-900">
+            <span>جاري التحقق وتسجيل دخول ولي الأمر بأمان...</span>
+            <ShieldCheck className="h-5 w-5 text-emerald-600" />
+          </div>
+          <p className="text-xs text-neutral-500">يرجى الانتظار لحظات، جاري تحويلك إلى لوحة متابعة الطالب 📲</p>
         </div>
       </div>
     );
@@ -100,16 +120,37 @@ export function ParentAccessForm() {
         value={identifier}
         onChange={(event) => {
           setIdentifier(event.target.value);
-          if (fieldError) setFieldError(undefined);
+          if (fieldErrors.identifier) setFieldErrors((prev) => ({ ...prev, identifier: undefined }));
           if (isError) resetError();
         }}
-        error={fieldError}
-        helperText="أدخل رقم هاتف الطالب أو رقم ولي الأمر أو كود الطالب"
+        error={fieldErrors.identifier}
+        helperText="أدخل رقم هاتف الحساب أو رقم الطالب"
         required
         autoComplete="username"
-        autoFocus
+        autoFocus={!identifier}
         dir="ltr"
         startIcon={<Phone className="h-4 w-4" />}
+      />
+
+      <Input
+        id="parent-access-password"
+        name="password"
+        type="password"
+        label="كلمة المرور"
+        placeholder="••••••••"
+        value={password}
+        onChange={(event) => {
+          setPassword(event.target.value);
+          if (fieldErrors.password) setFieldErrors((prev) => ({ ...prev, password: undefined }));
+          if (isError) resetError();
+        }}
+        error={fieldErrors.password}
+        helperText="كلمة المرور المستلمة في رسالة الواتساب أو الخاصة بالحساب"
+        required
+        autoComplete="current-password"
+        autoFocus={Boolean(identifier)}
+        dir="ltr"
+        startIcon={<KeyRound className="h-4 w-4" />}
       />
 
       <Button
@@ -118,18 +159,18 @@ export function ParentAccessForm() {
         size="lg"
         isLoading={isLoading}
         className="mt-2 w-full font-bold shadow-sm"
-        aria-label="متابعة دخول ولي الأمر"
+        aria-label="دخول ولي الأمر"
       >
         <UserRound className="me-2 h-4 w-4" />
-        <span>متابعة</span>
+        <span>دخول ولي الأمر</span>
       </Button>
 
       <Link
-        href="/"
+        href="/login"
         className="flex items-center justify-center gap-1.5 text-xs font-semibold text-neutral-500 transition-colors hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
       >
         <ArrowRight className="h-3.5 w-3.5" />
-        <span>العودة إلي الصفحة الرئيسية</span>
+        <span>العودة لصفحة تسجيل الدخول</span>
       </Link>
     </form>
   );

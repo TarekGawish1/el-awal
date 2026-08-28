@@ -9,8 +9,9 @@ import {
   removeStudentFromGroup,
   searchStudents,
   deleteGroup,
+  generateRegistrationLink,
 } from '../api/groups.api';
-import { Group, CreateGroupPayload, EnrollStudentPayload, GroupEnrollment, Student } from '../types/groups.types';
+import { Group, CreateGroupPayload, EnrollStudentPayload, GroupEnrollment, GroupRegistrationLink, Student } from '../types/groups.types';
 import { offlineDb, getGroupDetailsOffline, GroupEntity } from '@/lib/offline/db';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { generateUUIDv7 } from '@/lib/offline/uuid';
@@ -516,6 +517,18 @@ export function useSearchStudents(query: string) {
     },
     enabled: query.length >= 2,
     staleTime: 60 * 1000,
+  });
+}
+
+export function useGenerateRegistrationLink() {
+  return useMutation<GroupRegistrationLink, Error, string>({
+    mutationFn: (groupId: string) => generateRegistrationLink(groupId),
+    onSuccess: (data) => {
+      toast.success(`تم إنشاء رابط التسجيل لمجموعة ${data.groupName} بنجاح 🔗`);
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || 'تعذر إنشاء رابط التسجيل، يرجى المحاولة مرة أخرى');
+    },
   });
 }
 

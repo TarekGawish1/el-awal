@@ -6,7 +6,7 @@ import { ApiError } from '@/lib/api/errors';
 import { parentAccessUser } from '../api/auth.api';
 import { useAuthStore } from '../store/auth.store';
 import { getRoleLandingRoute } from '../utils/role-routing';
-import { AuthTokensResponse } from '../types/auth.types';
+import { AuthTokensResponse, ParentAccessCredentials } from '../types/auth.types';
 
 export function normalizeParentAccessError(error: unknown): string {
   if (error instanceof ApiError) {
@@ -15,7 +15,7 @@ export function normalizeParentAccessError(error: unknown): string {
     }
 
     if (error.statusCode === 401) {
-      return error.message || 'رقم الطالب غير مسجل أو لا يوجد ولي أمر مرتبط به';
+      return error.message || 'رقم الطالب أو كلمة المرور غير صحيحة';
     }
 
     if (error.statusCode === 429) {
@@ -38,7 +38,7 @@ export function useParentAccess() {
   const setSession = useAuthStore((state) => state.setSession);
 
   const mutation = useMutation({
-    mutationFn: (studentPhone: string) => parentAccessUser({ studentPhone }),
+    mutationFn: (credentials: ParentAccessCredentials) => parentAccessUser(credentials),
     onSuccess: (data: AuthTokensResponse) => {
       setSession(data);
       queryClient.clear();
@@ -47,7 +47,7 @@ export function useParentAccess() {
   });
 
   return {
-    accessParent: mutation.mutate,
+    accessParent: (credentials: ParentAccessCredentials) => mutation.mutate(credentials),
     isLoading: mutation.isPending,
     isError: mutation.isError,
     error: mutation.error ? normalizeParentAccessError(mutation.error) : null,

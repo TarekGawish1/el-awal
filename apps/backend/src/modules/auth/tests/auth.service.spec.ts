@@ -194,8 +194,9 @@ describe('AuthService', () => {
   });
 
   describe('parentAccess', () => {
-    it('authenticates the parent linked to a registered student phone', async () => {
+    it('authenticates the parent linked to a registered student phone with valid password', async () => {
       mockPrismaService.studentProfile.findFirst.mockResolvedValue({
+        user: { passwordHash: 'student-hashed-pass' },
         parentLinks: [
           {
             parent: {
@@ -204,6 +205,7 @@ describe('AuthService', () => {
                 fullName: 'أحمد محمود',
                 email: 'parent@elawal.com',
                 phone: '+201099999991',
+                passwordHash: 'parent-hashed-pass',
                 role: UserRole.PARENT,
                 isActive: true,
                 deletedAt: null,
@@ -217,26 +219,39 @@ describe('AuthService', () => {
         .mockResolvedValueOnce('parent-access-token')
         .mockResolvedValueOnce('parent-refresh-token');
 
-      const result = await service.parentAccess({ studentPhone: '01011111111' });
+      (bcrypt.compare as jest.Mock) = jest.fn().mockResolvedValue(true);
+
+      const result = await service.parentAccess({ studentPhone: '01011111111', password: 'secretpassword' });
 
       expect(result.user.role).toBe(UserRole.PARENT);
       expect(result.user.parentProfileId).toBe('parent-profile-1');
       expect(mockPrismaService.studentProfile.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: {
-            user: expect.objectContaining({
-              phone: { in: expect.arrayContaining(['01011111111', '+201011111111']) },
-            }),
-          },
+          where: expect.objectContaining({
+            OR: expect.arrayContaining([
+              expect.objectContaining({
+                user: expect.objectContaining({
+                  phone: { in: expect.arrayContaining(['01011111111', '+201011111111']) },
+                }),
+              }),
+            ]),
+          }),
         }),
       );
     });
 
-    it('rejects an unregistered student phone', async () => {
-      mockPrismaService.studentProfile.findFirst.mockResolvedValue(null);
-
+    it('rejects when password is missing', async () => {
       await expect(
         service.parentAccess({ studentPhone: '01011111111' }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('rejects an unregistered student phone', async () => {
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue(null);
+      mockPrismaService.user.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.parentAccess({ studentPhone: '01011111111', password: 'secretpassword' }),
       ).rejects.toThrow(UnauthorizedException);
     });
   });

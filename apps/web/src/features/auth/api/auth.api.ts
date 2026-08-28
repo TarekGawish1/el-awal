@@ -1,6 +1,6 @@
 import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
-import { AuthTokensResponse, AuthUser, LoginCredentials, ParentAccessCredentials, RefreshTokenResponse, StudentRegistrationPayload, StudentRegistrationResult } from '../types/auth.types';
+import { AuthTokensResponse, AuthUser, GroupInviteInfo, GroupRegistrationPayload, LoginCredentials, ParentAccessCredentials, RefreshTokenResponse, StudentRegistrationPayload, StudentRegistrationResult } from '../types/auth.types';
 import { getStoredRefreshToken } from '../utils/auth-tokens';
 
 import { saveOfflineCredentials, verifyOfflineLogin } from '../utils/offline-auth';
@@ -53,7 +53,10 @@ export async function loginUser(credentials: LoginCredentials): Promise<AuthToke
 export async function parentAccessUser(credentials: ParentAccessCredentials): Promise<AuthTokensResponse> {
   return apiClient<AuthTokensResponse>(API_ENDPOINTS.AUTH.PARENT_ACCESS, {
     method: 'POST',
-    body: JSON.stringify({ studentPhone: credentials.studentPhone.trim() }),
+    body: JSON.stringify({
+      studentPhone: credentials.studentPhone.trim(),
+      password: credentials.password?.trim(),
+    }),
   });
 }
 
@@ -74,6 +77,33 @@ export async function registerStudent(
       academicStage: payload.academicStage,
       gradeLevel: payload.gradeLevel,
       attendanceMode: payload.attendanceMode,
+    }),
+  });
+}
+
+/**
+ * Validates a group registration invite token via GET /api/v1/auth/group-invite/:token.
+ * Returns the group metadata for the public registration view.
+ */
+export async function fetchGroupInvite(token: string): Promise<GroupInviteInfo> {
+  return apiClient<GroupInviteInfo>(API_ENDPOINTS.AUTH.GROUP_INVITE(token));
+}
+
+/**
+ * Registers a student through a group invite link via POST /api/v1/auth/register-by-group.
+ * Creates the student account, links/creates the parent, enrolls the student
+ * into the group and returns auth tokens for immediate sign-in.
+ */
+export async function registerByGroup(payload: GroupRegistrationPayload): Promise<AuthTokensResponse> {
+  return apiClient<AuthTokensResponse>(API_ENDPOINTS.AUTH.REGISTER_BY_GROUP, {
+    method: 'POST',
+    body: JSON.stringify({
+      token: payload.token,
+      fullName: payload.fullName.trim(),
+      phone: payload.phone.trim(),
+      parentName: payload.parentName.trim(),
+      parentPhone: payload.parentPhone.trim(),
+      password: payload.password,
     }),
   });
 }

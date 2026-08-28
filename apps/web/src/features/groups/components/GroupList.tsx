@@ -1,49 +1,20 @@
 'use client';
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { Plus, Search, Layers, AlertCircle, BookOpen, MapPin, GraduationCap, Calendar, RotateCcw, ChevronDown, ChevronUp, Filter, X } from 'lucide-react';
+import { Plus, Search, Layers, AlertCircle, BookOpen, MapPin, GraduationCap, Calendar, RotateCcw, ChevronDown, ChevronUp, Filter, X, Link2 } from 'lucide-react';
 import { useGroups } from '../hooks/useGroups';
 import { useStoredAcademicPeriod } from '../hooks/useAcademicPeriod';
 import { GroupCard } from './GroupCard';
 import { CreateGroupModal } from './CreateGroupModal';
 import { GroupDetailsModal } from './GroupDetailsModal';
+import { GroupLinkGeneratorModal } from './GroupLinkGeneratorModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { MultiSelectDropdown } from './MultiSelectDropdown';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
 import { Group } from '../types/groups.types';
-
-const STAGE_ORDER = ['المرحلة الابتدائية', 'المرحلة الإعدادية', 'المرحلة الثانوية', 'أخرى'];
-
-const STAGE_GRADES_MAP: Record<string, string[]> = {
-  'المرحلة الابتدائية': [
-    'الصف الأول الابتدائي',
-    'الصف الثاني الابتدائي',
-    'الصف الثالث الابتدائي',
-    'الصف الرابع الابتدائي',
-    'الصف الخامس الابتدائي',
-    'الصف السادس الابتدائي',
-  ],
-  'المرحلة الإعدادية': [
-    'الصف الأول الإعدادي',
-    'الصف الثاني الإعدادي',
-    'الصف الثالث الإعدادي',
-  ],
-  'المرحلة الثانوية': [
-    'الصف الأول الثانوي',
-    'الصف الثاني الثانوي',
-    'الصف الثالث الثانوي',
-  ],
-};
-
-const getStageName = (gradeLevel: string) => {
-  if (!gradeLevel) return 'أخرى';
-  if (gradeLevel.includes('الابتدائي')) return 'المرحلة الابتدائية';
-  if (gradeLevel.includes('الإعدادي')) return 'المرحلة الإعدادية';
-  if (gradeLevel.includes('الثانوي')) return 'المرحلة الثانوية';
-  return 'أخرى';
-};
+import { STAGE_ORDER, STAGE_GRADES_MAP, getStageName } from '../utils/group-stages';
 
 export function GroupList() {
   const { data: groups, isLoading, isError, error, refetch } = useGroups();
@@ -55,6 +26,7 @@ export function GroupList() {
   } = useStoredAcademicPeriod(groups);
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
@@ -325,10 +297,16 @@ export function GroupList() {
           <h1 className="text-2xl font-bold text-slate-800">إدارة المجموعات</h1>
           <p className="text-slate-500 mt-1">إدارة مجموعاتك الدراسية والطلاب المسجلين بها</p>
         </div>
-        <Button onClick={() => setIsCreateModalOpen(true)} className="w-full sm:w-auto">
-          <Plus className="w-4 h-4 ml-2" />
-          مجموعة جديدة
-        </Button>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+          <Button onClick={() => setIsLinkModalOpen(true)} variant="outline" className="w-full sm:w-auto border-primary-200 text-primary-700 hover:bg-primary-50">
+            <Link2 className="w-4 h-4 ml-2" />
+            إنشاء رابط تسجيل للمجموعة
+          </Button>
+          <Button onClick={() => setIsCreateModalOpen(true)} className="w-full sm:w-auto">
+            <Plus className="w-4 h-4 ml-2" />
+            مجموعة جديدة
+          </Button>
+        </div>
       </div>
 
       {/* Filters Toolbar */}
@@ -573,6 +551,11 @@ export function GroupList() {
       <CreateGroupModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
+      />
+
+      <GroupLinkGeneratorModal
+        isOpen={isLinkModalOpen}
+        onClose={() => setIsLinkModalOpen(false)}
       />
 
       <GroupDetailsModal
