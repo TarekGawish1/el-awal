@@ -12,6 +12,7 @@ import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeri
 import { AttendanceReportCard } from '@/features/attendance/components/AttendanceReportCard';
 import { QrScanner } from '@/features/attendance/components/QrScanner';
 import { ManualAttendanceRoster } from '@/features/attendance/components/ManualAttendanceRoster';
+import { QrHomeworkScanner } from '@/features/attendance/components/QrHomeworkScanner';
 
 import { useTeacherSessions } from '@/features/schedules/hooks/useSchedules';
 import { RotateCcw, MapPin, Calendar, Users, QrCode, ClipboardList, BookOpen, Sparkles, ClipboardCheck } from 'lucide-react';
@@ -64,7 +65,7 @@ function TeacherAttendanceContent() {
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>(paramSessionId || '');
-  const [activeTab, setActiveTab] = useState<'QR' | 'MANUAL'>('QR');
+  const [activeTab, setActiveTab] = useState<'QR' | 'MANUAL' | 'QR_HOMEWORK'>('QR');
 
   const { data: groups } = useGroups();
   const { selectedYears, selectedTerms } = useStoredAcademicPeriod(groups);
@@ -588,6 +589,14 @@ function TeacherAttendanceContent() {
                       مسح QR للحضور
                     </Button>
                     <Button
+                      variant={activeTab === 'QR_HOMEWORK' ? 'primary' : 'outline'}
+                      onClick={() => setActiveTab('QR_HOMEWORK')}
+                      className={`min-w-[130px] rounded-xl ${activeTab === 'QR_HOMEWORK' ? 'shadow-md shadow-primary-500/20' : ''}`}
+                    >
+                      <ClipboardCheck className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" />
+                      مسح QR للواجب
+                    </Button>
+                    <Button
                       variant={activeTab === 'MANUAL' ? 'primary' : 'outline'}
                       onClick={() => setActiveTab('MANUAL')}
                       className={`min-w-[130px] rounded-xl ${activeTab === 'MANUAL' ? 'shadow-md shadow-primary-500/20' : ''}`}
@@ -595,12 +604,13 @@ function TeacherAttendanceContent() {
                       <ClipboardList className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" />
                       رصد يدوي للحضور
                     </Button>
-
                   </div>
                 </CardHeader>
                 <CardContent className="p-6">
                   {activeTab === 'QR' ? (
                     <QrScanner sessionId={selectedSessionId} />
+                  ) : activeTab === 'QR_HOMEWORK' ? (
+                    <QrHomeworkScanner sessionId={selectedSessionId} />
                   ) : (
                     <ManualAttendanceRoster sessionId={selectedSessionId} records={report.records} />
                   )}
