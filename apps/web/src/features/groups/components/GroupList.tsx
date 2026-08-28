@@ -77,6 +77,7 @@ export function GroupList() {
   }, [isFiltersOpen]);
 
   const [expandedStages, setExpandedStages] = useState<Record<string, boolean>>({});
+  const [expandedGrades, setExpandedGrades] = useState<Record<string, boolean>>({});
 
   // Calculate available grade options dynamically based on selected stages
   const availableGradeOptions = useMemo(() => {
@@ -281,6 +282,23 @@ export function GroupList() {
       return { ...prev, [stage]: !isExpanded };
     });
   }, [availableStages]);
+
+  const isGradeExpanded = useCallback((stage: string, grade: string) => {
+    if (expandedGrades[grade] !== undefined) {
+      return expandedGrades[grade];
+    }
+    const stageGrades = Object.keys(groupedGroups[stage] || {}).sort();
+    return stageGrades.indexOf(grade) === 0;
+  }, [expandedGrades, groupedGroups]);
+
+  const toggleGrade = useCallback((stage: string, grade: string) => {
+    setExpandedGrades(prev => {
+      const isExpanded = prev[grade] !== undefined 
+        ? prev[grade] 
+        : (Object.keys(groupedGroups[stage] || {}).sort().indexOf(grade) === 0);
+      return { ...prev, [grade]: !isExpanded };
+    });
+  }, [groupedGroups]);
 
   const hasActiveFilters =
     searchQuery !== '' ||
@@ -509,23 +527,41 @@ export function GroupList() {
 
                 {isExpanded && (
                   <div className="space-y-8">
-                    {Object.keys(groupedGroups[stage]).sort().map((grade) => (
-                      <div key={grade}>
-                        <h3 className="text-lg font-bold text-slate-700 mb-4 flex items-center">
-                          <div className="w-2 h-2 rounded-full bg-primary-500 ml-2"></div>
-                          {grade || 'بدون صف'}
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                          {groupedGroups[stage][grade].map((group) => (
-                            <GroupCard
-                              key={group.id}
-                              group={group}
-                              onClick={() => setSelectedGroupId(group.id)}
-                            />
-                          ))}
+                    {Object.keys(groupedGroups[stage]).sort().map((grade) => {
+                      const isGradeExp = isGradeExpanded(stage, grade);
+                      return (
+                        <div key={grade}>
+                          <div 
+                            className="flex items-center justify-between cursor-pointer mb-4 group"
+                            onClick={() => toggleGrade(stage, grade)}
+                          >
+                            <h3 className="text-lg font-bold text-slate-700 flex items-center group-hover:text-primary-600 transition-colors">
+                              <div className="w-2 h-2 rounded-full bg-primary-500 ml-2"></div>
+                              {grade || 'بدون صف'}
+                            </h3>
+                            <div className="text-slate-400 group-hover:text-primary-600 transition-colors bg-slate-50 p-1.5 rounded-full">
+                              {isGradeExp ? (
+                                <ChevronUp className="w-4 h-4" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4" />
+                              )}
+                            </div>
+                          </div>
+                          
+                          {isGradeExp && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                              {groupedGroups[stage][grade].map((group) => (
+                                <GroupCard
+                                  key={group.id}
+                                  group={group}
+                                  onClick={() => setSelectedGroupId(group.id)}
+                                />
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
