@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { Plus, Search, Layers, AlertCircle, BookOpen, MapPin, GraduationCap, Calendar, RotateCcw, ChevronDown, ChevronUp, Filter, X, Users } from 'lucide-react';
+import { Plus, Search, Layers, AlertCircle, BookOpen, MapPin, GraduationCap, Calendar, RotateCcw, ChevronDown, ChevronUp, Filter, X } from 'lucide-react';
 import { useGroups } from '../hooks/useGroups';
 import { useStoredAcademicPeriod } from '../hooks/useAcademicPeriod';
 import { GroupCard } from './GroupCard';
@@ -53,31 +53,6 @@ export function GroupList() {
     selectedTerms,
     setSelectedTerms,
   } = useStoredAcademicPeriod(groups);
-
-  // Calculate top-level stats
-  const stats = useMemo(() => {
-    if (!groups || !Array.isArray(groups)) return { totalGroups: 0, totalStudents: 0, totalLocations: 0 };
-    
-    let totalStudents = 0;
-    const locationsSet = new Set<string>();
-
-    groups.forEach(group => {
-      if (group._count?.enrollments) {
-        totalStudents += group._count.enrollments;
-      }
-      group.schedules?.forEach(s => {
-        if (s.location && s.location.trim()) {
-          locationsSet.add(s.location.trim());
-        }
-      });
-    });
-
-    return {
-      totalGroups: groups.length,
-      totalStudents,
-      totalLocations: locationsSet.size,
-    };
-  }, [groups]);
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -355,39 +330,6 @@ export function GroupList() {
           مجموعة جديدة
         </Button>
       </div>
-
-      {/* KPI Stats */}
-      {!isError && !isLoading && groups && groups.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex items-center gap-4">
-            <div className="bg-primary-50 p-3 rounded-lg text-primary-600">
-              <Layers className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 font-medium mb-0.5">إجمالي المجموعات</p>
-              <h4 className="text-xl font-bold text-slate-800">{stats.totalGroups}</h4>
-            </div>
-          </div>
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex items-center gap-4">
-            <div className="bg-emerald-50 p-3 rounded-lg text-emerald-600">
-              <Users className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 font-medium mb-0.5">إجمالي الطلاب</p>
-              <h4 className="text-xl font-bold text-slate-800">{stats.totalStudents}</h4>
-            </div>
-          </div>
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex items-center gap-4">
-            <div className="bg-amber-50 p-3 rounded-lg text-amber-600">
-              <MapPin className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 font-medium mb-0.5">أماكن العمل</p>
-              <h4 className="text-xl font-bold text-slate-800">{stats.totalLocations}</h4>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Filters Toolbar */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 space-y-4">
