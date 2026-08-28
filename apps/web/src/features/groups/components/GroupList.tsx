@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import { Plus, Search, Layers, AlertCircle, BookOpen, MapPin, GraduationCap, Calendar, RotateCcw } from 'lucide-react';
+import { Plus, Search, Layers, AlertCircle, BookOpen, MapPin, GraduationCap, Calendar, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
 import { useGroups } from '../hooks/useGroups';
 import { useStoredAcademicPeriod } from '../hooks/useAcademicPeriod';
 import { GroupCard } from './GroupCard';
@@ -60,6 +60,8 @@ export function GroupList() {
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+
+  const [expandedStages, setExpandedStages] = useState<Record<string, boolean>>({});
 
   // Calculate available grade options dynamically based on selected stages
   const availableGradeOptions = useMemo(() => {
@@ -251,6 +253,20 @@ export function GroupList() {
     );
   }, [groupedGroups]);
 
+  const isStageExpanded = useCallback((stage: string) => {
+    if (expandedStages[stage] !== undefined) {
+      return expandedStages[stage];
+    }
+    return availableStages.indexOf(stage) === 0;
+  }, [expandedStages, availableStages]);
+
+  const toggleStage = useCallback((stage: string) => {
+    setExpandedStages(prev => {
+      const isExpanded = prev[stage] !== undefined ? prev[stage] : availableStages.indexOf(stage) === 0;
+      return { ...prev, [stage]: !isExpanded };
+    });
+  }, [availableStages]);
+
   const hasActiveFilters =
     searchQuery !== '' ||
     selectedStages.length > 0 ||
@@ -437,36 +453,53 @@ export function GroupList() {
         </div>
       ) : (
         <div className="space-y-8">
-          {availableStages.map((stage) => (
-            <div key={stage} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
-                <div className="bg-primary-50 p-2 rounded-lg text-primary-600">
-                  <BookOpen className="w-5 h-5" />
-                </div>
-                <h2 className="text-xl font-bold text-slate-800">{stage}</h2>
-              </div>
-
-              <div className="space-y-8">
-                {Object.keys(groupedGroups[stage]).sort().map((grade) => (
-                  <div key={grade}>
-                    <h3 className="text-lg font-bold text-slate-700 mb-4 flex items-center">
-                      <div className="w-2 h-2 rounded-full bg-primary-500 ml-2"></div>
-                      {grade || 'بدون صف'}
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {groupedGroups[stage][grade].map((group) => (
-                        <GroupCard
-                          key={group.id}
-                          group={group}
-                          onClick={() => setSelectedGroupId(group.id)}
-                        />
-                      ))}
+          {availableStages.map((stage) => {
+            const isExpanded = isStageExpanded(stage);
+            return (
+              <div key={stage} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 transition-all">
+                <div 
+                  className={`flex items-center justify-between cursor-pointer ${isExpanded ? 'mb-6 pb-4 border-b border-slate-100' : ''}`}
+                  onClick={() => toggleStage(stage)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="bg-primary-50 p-2 rounded-lg text-primary-600">
+                      <BookOpen className="w-5 h-5" />
                     </div>
+                    <h2 className="text-xl font-bold text-slate-800">{stage}</h2>
                   </div>
-                ))}
+                  <div className="text-slate-400 hover:text-primary-600 transition-colors bg-slate-50 p-2 rounded-full">
+                    {isExpanded ? (
+                      <ChevronUp className="w-5 h-5" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5" />
+                    )}
+                  </div>
+                </div>
+
+                {isExpanded && (
+                  <div className="space-y-8">
+                    {Object.keys(groupedGroups[stage]).sort().map((grade) => (
+                      <div key={grade}>
+                        <h3 className="text-lg font-bold text-slate-700 mb-4 flex items-center">
+                          <div className="w-2 h-2 rounded-full bg-primary-500 ml-2"></div>
+                          {grade || 'بدون صف'}
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {groupedGroups[stage][grade].map((group) => (
+                            <GroupCard
+                              key={group.id}
+                              group={group}
+                              onClick={() => setSelectedGroupId(group.id)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
