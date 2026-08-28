@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
-import { Plus, Search, Layers, AlertCircle, BookOpen, MapPin, GraduationCap, Calendar, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { Plus, Search, Layers, AlertCircle, BookOpen, MapPin, GraduationCap, Calendar, RotateCcw, ChevronDown, ChevronUp, Filter, X } from 'lucide-react';
 import { useGroups } from '../hooks/useGroups';
 import { useStoredAcademicPeriod } from '../hooks/useAcademicPeriod';
 import { GroupCard } from './GroupCard';
@@ -60,6 +60,21 @@ export function GroupList() {
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const filtersRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (filtersRef.current && !filtersRef.current.contains(e.target as Node)) {
+        setIsFiltersOpen(false);
+      }
+    };
+    if (isFiltersOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isFiltersOpen]);
 
   const [expandedStages, setExpandedStages] = useState<Record<string, boolean>>({});
 
@@ -300,10 +315,9 @@ export function GroupList() {
 
       {/* Filters Toolbar */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 space-y-4">
-        {/* Row 1: Search, Academic Year, Term */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
           {/* Search Input */}
-          <div className="md:col-span-6 relative">
+          <div className="md:col-span-5 relative">
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-slate-400" />
             </div>
@@ -315,7 +329,7 @@ export function GroupList() {
             />
           </div>
 
-          {/* Academic Year / العام الدراسي MultiSelect Checkboxes Dropdown */}
+          {/* Academic Year */}
           <div className="md:col-span-3">
             <MultiSelectDropdown
               placeholder="العام الدراسي"
@@ -326,7 +340,7 @@ export function GroupList() {
             />
           </div>
 
-          {/* Academic Term / الفصل الدراسي MultiSelect Checkboxes Dropdown */}
+          {/* Academic Term */}
           <div className="md:col-span-3">
             <MultiSelectDropdown
               placeholder="الفصل الدراسي"
@@ -336,51 +350,68 @@ export function GroupList() {
               onChange={setSelectedTerms}
             />
           </div>
-        </div>
 
-        {/* Row 2: Stage, Grade, Locations/Centers */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-          {/* Stage MultiSelect Checkboxes Dropdown */}
-          <div className="md:col-span-3">
-            <MultiSelectDropdown
-              placeholder="المرحلة التعليمية"
-              allSelectedLabel="جميع المراحل التعليمية"
-              options={[
-                { label: 'المرحلة الابتدائية', value: 'المرحلة الابتدائية' },
-                { label: 'المرحلة الإعدادية', value: 'المرحلة الإعدادية' },
-                { label: 'المرحلة الثانوية', value: 'المرحلة الثانوية' },
-              ]}
-              selectedValues={selectedStages}
-              onChange={handleStagesChange}
-            />
-          </div>
+          {/* Advanced Filters Button */}
+          <div className="md:col-span-1 relative" ref={filtersRef}>
+            <button
+              onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+              className={`w-full h-11 flex items-center justify-center gap-2 rounded-xl border transition-all ${
+                isFiltersOpen 
+                ? 'bg-primary-50 text-primary-600 border-primary-200' 
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}
+              title="فلاتر متقدمة"
+            >
+              <Filter className="w-5 h-5" />
+            </button>
 
-          {/* Grade Level / السنة الدراسية MultiSelect Checkboxes Dropdown */}
-          <div className="md:col-span-3">
-            <MultiSelectDropdown
-              placeholder="الصف الدراسي"
-              allSelectedLabel="جميع الصفوف الدراسية"
-              withSearch={availableGradeOptions.length > 5}
-              options={availableGradeOptions}
-              selectedValues={selectedGrades}
-              onChange={handleGradesChange}
-            />
-          </div>
+            {/* Advanced Filters Popover */}
+            {isFiltersOpen && (
+              <div className="absolute top-full left-0 mt-2 w-[calc(100vw-32px)] sm:w-[320px] bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-[100] space-y-4 origin-top-left rtl:origin-top-right">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-bold text-slate-800 text-sm">فلاتر متقدمة</h3>
+                  <button onClick={() => setIsFiltersOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors bg-slate-50 p-1.5 rounded-md">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                
+                <div className="space-y-3">
+                  <MultiSelectDropdown
+                    placeholder="المرحلة التعليمية"
+                    allSelectedLabel="جميع المراحل التعليمية"
+                    options={[
+                      { label: 'المرحلة الابتدائية', value: 'المرحلة الابتدائية' },
+                      { label: 'المرحلة الإعدادية', value: 'المرحلة الإعدادية' },
+                      { label: 'المرحلة الثانوية', value: 'المرحلة الثانوية' },
+                    ]}
+                    selectedValues={selectedStages}
+                    onChange={handleStagesChange}
+                  />
 
-          {/* Place / Location MultiSelect Checkboxes Dropdown */}
-          <div className="md:col-span-6">
-            <MultiSelectDropdown
-              placeholder="المكان / السنتر"
-              allSelectedLabel="جميع الأماكن والسناتر"
-              withSearch={true}
-              options={availableLocations.map((loc) => ({
-                label: loc,
-                value: loc,
-                icon: <MapPin className="w-3.5 h-3.5 text-primary-600" />,
-              }))}
-              selectedValues={selectedLocations}
-              onChange={setSelectedLocations}
-            />
+                  <MultiSelectDropdown
+                    placeholder="الصف الدراسي"
+                    allSelectedLabel="جميع الصفوف الدراسية"
+                    withSearch={availableGradeOptions.length > 5}
+                    options={availableGradeOptions}
+                    selectedValues={selectedGrades}
+                    onChange={handleGradesChange}
+                  />
+
+                  <MultiSelectDropdown
+                    placeholder="المكان / السنتر"
+                    allSelectedLabel="جميع الأماكن والسناتر"
+                    withSearch={true}
+                    options={availableLocations.map((loc) => ({
+                      label: loc,
+                      value: loc,
+                      icon: <MapPin className="w-3.5 h-3.5 text-primary-600" />,
+                    }))}
+                    selectedValues={selectedLocations}
+                    onChange={setSelectedLocations}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
