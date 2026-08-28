@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { useGroups, useGenerateRegistrationLink } from '../hooks/useGroups';
-import { STAGE_ORDER, STAGE_GRADES_MAP, getStageName } from '../utils/group-stages';
+import { STAGE_ORDER, STAGE_GRADES_MAP, getStageName, ALL_CANONICAL_STAGES } from '../utils/group-stages';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 
 interface GroupLinkGeneratorModalProps {
@@ -28,9 +28,18 @@ export function GroupLinkGeneratorModal({ isOpen, onClose }: GroupLinkGeneratorM
 
   const stageOptions = useMemo(() => {
     const stages = new Set<string>();
-    (groups || []).forEach((g) => stages.add(getStageName(g.gradeLevel)));
+    // Always include all 3 canonical educational stages
+    ALL_CANONICAL_STAGES.forEach((s) => stages.add(s));
+    // Also include any extra stage from existing groups if present
+    (groups || []).forEach((g) => {
+      if (g.gradeLevel) stages.add(getStageName(g.gradeLevel));
+    });
     return Array.from(stages)
-      .sort((a, b) => STAGE_ORDER.indexOf(a) - STAGE_ORDER.indexOf(b))
+      .sort((a, b) => {
+        const indexA = STAGE_ORDER.indexOf(a);
+        const indexB = STAGE_ORDER.indexOf(b);
+        return (indexA === -1 ? 99 : indexA) - (indexB === -1 ? 99 : indexB);
+      })
       .map((stage) => ({ label: stage, value: stage }));
   }, [groups]);
 

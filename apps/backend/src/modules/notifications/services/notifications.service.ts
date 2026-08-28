@@ -10,6 +10,7 @@ import {
   NotificationType,
 } from '@prisma/client';
 import { WebPushService } from '../../../services/webpush.service';
+import { WhatsAppDispatcherService } from '../../whatsapp/services/whatsapp-dispatcher.service';
 import { formatPaymentReceivedMessage } from '../../../utils/spintax';
 
 // ─── DTOs ───────────────────────────────────────────────────────────────────
@@ -69,6 +70,7 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly webPush: WebPushService,
+    private readonly whatsappDispatcher: WhatsAppDispatcherService,
   ) {}
 
   // ─── Core Multi-Channel Dispatcher ─────────────────────────────────────────
@@ -78,7 +80,7 @@ export class NotificationsService {
    *
    * - IN_APP: created in DB automatically (always active)
    * - WEB_PUSH: dispatched immediately via VAPID
-   * - WHATSAPP: sets whatsappStatus=PENDING, picked up by WhatsAppWorker
+   * - WHATSAPP: renders and persists a dedicated WhatsAppMessageLog entry
    */
   async sendNotification(dto: SendNotificationDto) {
     const channels = Array.from(
@@ -97,12 +99,13 @@ export class NotificationsService {
         data: dto.data as any,
         channels,
         scheduledFor: dto.scheduledFor || new Date(),
-        // Set WhatsApp status to PENDING if channel requested
-        whatsappStatus: channels.includes(NotificationChannel.WHATSAPP)
-          ? NotificationStatus.PENDING
-          : undefined,
       },
+      include: { recipient: { select: { fullName: true, role: true } } },
     });
+
+    if (channels.includes(NotificationChannel.WHATSAPP)) {
+      await this.whatsappDispatcher.enqueueNotification(notification);
+    }
 
     // Dispatch Web Push immediately (async, non-blocking)
     if (channels.includes(NotificationChannel.WEB_PUSH)) {

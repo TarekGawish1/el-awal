@@ -3,7 +3,7 @@ import { NotificationsController } from './controllers/notifications.controller'
 import { NotificationsService } from './services/notifications.service';
 import { WebPushService } from '../../services/webpush.service';
 import { WhatsAppService } from '../../services/whatsapp/whatsapp.service';
-import { WhatsAppWorker } from '../../workers/whatsapp.worker';
+import { WhatsAppDispatcherService } from '../whatsapp/services/whatsapp-dispatcher.service';
 import { SchedulersService } from '../../jobs/schedulers';
 import { DeadlineReminderCron } from './crons/deadline-reminder.cron';
 
@@ -14,9 +14,9 @@ import { DeadlineReminderCron } from './crons/deadline-reminder.cron';
     NotificationsService,
     WebPushService,
 
-    // WhatsApp: socket manager + queue worker
+    // WhatsApp: socket manager + strictly sequential persistent dispatcher
     WhatsAppService,
-    WhatsAppWorker,
+    WhatsAppDispatcherService,
 
     // Cron schedulers (run in-process)
     SchedulersService,

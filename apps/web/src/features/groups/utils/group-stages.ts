@@ -1,10 +1,24 @@
+import { ACADEMIC_STAGES } from '@/lib/constants/academic-levels';
+
 /**
  * Shared stage/grade derivation for academic groups.
- * Extracted from GroupList so link generators and filters stay consistent.
+ * Standardized across GroupList, Link Generator Modal, and platform filters.
  */
-export const STAGE_ORDER = ['المرحلة الابتدائية', 'المرحلة الإعدادية', 'المرحلة الثانوية', 'أخرى'];
+export const STAGE_ORDER = ['المرحلة الثانوية', 'المرحلة الإعدادية', 'المرحلة الابتدائية', 'أخرى'];
+
+export const ALL_CANONICAL_STAGES = ['المرحلة الثانوية', 'المرحلة الإعدادية', 'المرحلة الابتدائية'];
 
 export const STAGE_GRADES_MAP: Record<string, string[]> = {
+  'المرحلة الثانوية': [
+    'الصف الأول الثانوي',
+    'الصف الثاني الثانوي',
+    'الصف الثالث الثانوي',
+  ],
+  'المرحلة الإعدادية': [
+    'الصف الأول الإعدادي',
+    'الصف الثاني الإعدادي',
+    'الصف الثالث الإعدادي',
+  ],
   'المرحلة الابتدائية': [
     'الصف الأول الابتدائي',
     'الصف الثاني الابتدائي',
@@ -13,22 +27,12 @@ export const STAGE_GRADES_MAP: Record<string, string[]> = {
     'الصف الخامس الابتدائي',
     'الصف السادس الابتدائي',
   ],
-  'المرحلة الإعدادية': [
-    'الصف الأول الإعدادي',
-    'الصف الثاني الإعدادي',
-    'الصف الثالث الإعدادي',
-  ],
-  'المرحلة الثانوية': [
-    'الصف الأول الثانوي',
-    'الصف الثاني الثانوي',
-    'الصف الثالث الثانوي',
-  ],
 };
 
 export const getStageName = (gradeLevel: string) => {
   if (!gradeLevel) return 'أخرى';
-  if (gradeLevel.includes('الابتدائي')) return 'المرحلة الابتدائية';
-  if (gradeLevel.includes('الإعدادي')) return 'المرحلة الإعدادية';
   if (gradeLevel.includes('الثانوي')) return 'المرحلة الثانوية';
+  if (gradeLevel.includes('الإعدادي')) return 'المرحلة الإعدادية';
+  if (gradeLevel.includes('الابتدائي')) return 'المرحلة الابتدائية';
   return 'أخرى';
 };

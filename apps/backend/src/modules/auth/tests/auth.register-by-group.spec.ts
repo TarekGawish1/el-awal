@@ -82,6 +82,11 @@ describe('AuthService — registerByGroup', () => {
     getOrThrow: jest.fn((key: string) => 'test-secret-32-chars-long-for-jwt-signing'),
   };
 
+  const mockWhatsAppService = {
+    sendMessage: jest.fn().mockResolvedValue(true),
+    sendTextMessage: jest.fn().mockResolvedValue(true),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -89,6 +94,7 @@ describe('AuthService — registerByGroup', () => {
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: 'WhatsAppService', useValue: mockWhatsAppService },
       ],
     }).compile();
 

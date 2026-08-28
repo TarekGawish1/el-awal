@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthController } from './controllers/auth.controller';
 import { AuthService } from './services/auth.service';
 import { StudentRegistrationService } from './services/student-registration.service';
+import { WhatsAppService } from '../../services/whatsapp/whatsapp.service';
 
 @Module({
   imports: [
@@ -19,7 +20,7 @@ import { StudentRegistrationService } from './services/student-registration.serv
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, StudentRegistrationService],
+  providers: [AuthService, StudentRegistrationService, WhatsAppService],
   exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

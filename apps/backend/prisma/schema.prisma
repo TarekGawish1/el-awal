@@ -201,6 +201,17 @@ enum NotificationStatus {
   @@map("notification_status")
 }
 
+enum WhatsAppStatus {
+  QUEUED
+  SENDING
+  SENT
+  DELIVERED
+  FAILED
+  PERMANENT_FAIL
+
+  @@map("whatsapp_status")
+}
+
 // ==========================================
 // 2. USERS & IDENTITY DOMAIN
 // ==========================================
@@ -303,6 +314,8 @@ model StudentProfile {
   dateOfBirth    DateTime?             @map("date_of_birth") @db.Date
   emergencyPhone String?               @map("emergency_phone") @db.VarChar(30)
   pendingCredentials Json?            @map("pending_credentials")
+  tempAccessPin  String?                @map("temp_access_pin") @db.VarChar(50)
+  pinExpiresAt   DateTime?              @map("pin_expires_at") @db.Timestamptz(6)
   createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -942,6 +955,30 @@ model Notification {
   @@index([recipientId, isRead, createdAt], map: "idx_notifications_recipient_read")
   @@index([whatsappStatus, scheduledFor], map: "idx_notifications_whatsapp_queue")
   @@map("notifications")
+}
+
+model WhatsAppMessageLog {
+  id                String         @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  recipientPhone    String         @map("recipient_phone") @db.VarChar(30)
+  recipientName     String?        @map("recipient_name") @db.VarChar(200)
+  recipientRole     UserRole       @default(PARENT) @map("recipient_role")
+  templateType      String         @map("template_type") @db.VarChar(100)
+  messageBody       String         @map("message_body") @db.Text
+  status            WhatsAppStatus @default(QUEUED) @map("status")
+  providerMessageId String?        @map("provider_message_id") @db.VarChar(255)
+  failureReason     String?        @map("failure_reason") @db.Text
+  retryCount        Int            @default(0) @map("retry_count")
+  maxRetries        Int            @default(3) @map("max_retries")
+  scheduledFor      DateTime       @default(now()) @map("scheduled_for") @db.Timestamptz(6)
+  sentAt            DateTime?      @map("sent_at") @db.Timestamptz(6)
+  deliveredAt       DateTime?      @map("delivered_at") @db.Timestamptz(6)
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status, scheduledFor], map: "idx_whatsapp_message_logs_queue")
+  @@index([recipientPhone], map: "idx_whatsapp_message_logs_recipient_phone")
+  @@index([createdAt], map: "idx_whatsapp_message_logs_created_at")
+  @@map("whatsapp_message_logs")
 }
 
 // 2. Web Push Subscriptions Storage

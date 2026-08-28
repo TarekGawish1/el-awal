@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotificationsService } from '../services/notifications.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { WebPushService } from '../../../services/webpush.service';
+import { WhatsAppDispatcherService } from '../../whatsapp/services/whatsapp-dispatcher.service';
 import { AttendanceStatus } from '@prisma/client';
 
 describe('NotificationsService', () => {
@@ -10,6 +11,10 @@ describe('NotificationsService', () => {
 
   const mockWebPushService = {
     sendPush: jest.fn(),
+  };
+
+  const mockWhatsAppDispatcher = {
+    enqueueNotification: jest.fn(),
   };
 
   const mockPrismaService = {
@@ -36,6 +41,7 @@ describe('NotificationsService', () => {
         NotificationsService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: WebPushService, useValue: mockWebPushService },
+        { provide: WhatsAppDispatcherService, useValue: mockWhatsAppDispatcher },
       ],
     }).compile();
 

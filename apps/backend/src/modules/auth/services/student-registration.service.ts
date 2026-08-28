@@ -111,6 +111,8 @@ export class StudentRegistrationService {
                 academicStage: dto.academicStage,
                 attendanceMode: dto.attendanceMode as any,
                 emergencyPhone: parentPhone,
+                tempAccessPin: studentPassword,
+                pinExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
               },
             },
           },

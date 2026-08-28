@@ -22,6 +22,9 @@ import { StorageService } from '../../../integrations/storage/storage.service';
 import { computeEffectiveDueDate, SessionForDeadline } from '../../assessments/utils/effective-due-date.util';
 import { NotificationsService } from '../../notifications/services/notifications.service';
 import { RealtimeGateway } from '../../../realtime/realtime.gateway';
+import { ResetStudentPasswordDto } from '../dto/reset-student-password.dto';
+import { generateSecurePassword } from '../../../common/utils/password.util';
+import { WhatsAppService } from '../../../services/whatsapp/whatsapp.service';
 
 @Injectable()
 export class StudentsService {
@@ -32,6 +35,7 @@ export class StudentsService {
     private readonly notificationsService: NotificationsService,
     private readonly realtimeGateway: RealtimeGateway,
     @Optional() private readonly storageService?: StorageService,
+    @Optional() private readonly whatsAppService?: WhatsAppService,
   ) {}
 
   /**
@@ -110,6 +114,8 @@ export class StudentsService {
           academicStage: dto.academicStage,
           dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
           emergencyPhone: dto.emergencyPhone,
+          tempAccessPin: dto.password,
+          pinExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         },
       });
 
@@ -850,5 +856,187 @@ export class StudentsService {
 
     this.logger.log(`Student [${id}] ${student.user.fullName} successfully deleted from system by [${user.id}]`);
     return { success: true, message: 'تم حذف الطالب من النظام بنجاح' };
+  }
+
+  /**
+   * Reset student password or issue temporary access PIN.
+   * Authorized strictly for teachers (of the student's groups) and secretariat.
+   * Can automatically dispatch the new credentials via WhatsApp.
+   */
+  async resetStudentPassword(
+    studentId: string,
+    dto: ResetStudentPasswordDto,
+    user: AuthenticatedUser,
+  ) {
+    await this.assertStudentAccess(studentId, user, false, false);
+
+    const studentProfile = await this.prisma.studentProfile.findUnique({
+      where: { id: studentId },
+      include: {
+        user: true,
+        parentLinks: {
+          include: {
+            parent: {
+              include: {
+                user: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!studentProfile || !studentProfile.user) {
+      throw new NotFoundException(`Student with ID [${studentId}] not found`);
+    }
+
+    const newPassword = dto.newPassword?.trim() || generateSecurePassword(6);
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const pinExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+    // 1. Update user password and profile tempAccessPin
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: studentProfile.user.id },
+        data: { passwordHash },
+      }),
+      this.prisma.studentProfile.update({
+        where: { id: studentProfile.id },
+        data: {
+          tempAccessPin: newPassword,
+          pinExpiresAt,
+        },
+      }),
+    ]);
+
+    const studentName = studentProfile.user.fullName;
+    const studentPhone = studentProfile.user.phone || '';
+    const studentCode = studentProfile.studentCode || '';
+    const parentPhone =
+      studentProfile.emergencyPhone ||
+      studentProfile.parentLinks?.[0]?.parent?.user?.phone ||
+      '';
+    const parentName =
+      studentProfile.parentLinks?.[0]?.parent?.user?.fullName || 'ولي الأمر';
+
+    let messageSent = false;
+    if (dto.sendWhatsApp !== false && this.whatsAppService) {
+      try {
+        let teacherName = 'إدارة السنتر';
+        if (user.role === UserRole.TEACHER) {
+          const teacherUser = await this.prisma.user.findUnique({
+            where: { id: user.id },
+            select: { fullName: true },
+          });
+          if (teacherUser?.fullName) {
+            teacherName = teacherUser.fullName;
+          }
+        }
+
+        const message = `🔑 *إشعار تحديث بيانات الدخول - منصة الأوّل*
+
+أهلاً بحضرتك أ/ ${parentName}،
+تم تحديث كلمة المرور الخاصة بالطالب/ة: *${studentName}* (${studentCode}) مع *${teacherName}*.
+
+━━━━━━━━━━━━━━━━━━━
+📌 *بيانات الدخول المحدثة:*
+▫️ *كود الطالب:* ${studentCode}
+▫️ *رقم الدخول / الهاتف:* ${studentPhone}
+▫️ *كلمة المرور الجديدة:* ${newPassword}
+🔗 *رابط تسجيل الدخول:* https://al-awal.online/login
+━━━━━━━━━━━━━━━━━━━
+يمكنكم الدخول ومتابعة الحساب في أي وقت. بالتوفيق والنجاح! 🌟`.trim();
+
+        if (parentPhone) {
+          await this.whatsAppService.sendMessage(parentPhone, message);
+          messageSent = true;
+        }
+
+        if (studentPhone && studentPhone !== parentPhone) {
+          const studentMsg = `🔑 *إشعار تحديث كلمة المرور - منصة الأوّل*
+
+أهلاً بك يا ${studentName} 🌸
+تم تحديث كلمة المرور لحسابك على منصة الأوّل:
+▫️ *كود الطالب:* ${studentCode}
+▫️ *رقم الهاتف:* ${studentPhone}
+▫️ *كلمة المرور الجديدة:* ${newPassword}
+🔗 *رابط الدخول:* https://al-awal.online/login
+نتمنى لك كل التوفيق! 🌟`.trim();
+
+          await this.whatsAppService.sendMessage(studentPhone, studentMsg);
+        }
+      } catch (waErr) {
+        this.logger.warn(`Failed to dispatch reset-password WhatsApp alert: ${waErr}`);
+      }
+    }
+
+    return {
+      success: true,
+      studentId: studentProfile.id,
+      studentCode,
+      studentName,
+      studentPhone,
+      parentPhone,
+      newPassword,
+      messageSent,
+    };
+  }
+
+  /**
+   * Retrieve student credentials & active temporary PIN.
+   */
+  async getStudentCredentials(studentId: string, user: AuthenticatedUser) {
+    await this.assertStudentAccess(studentId, user, false, false);
+
+    const studentProfile = await this.prisma.studentProfile.findUnique({
+      where: { id: studentId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            phone: true,
+            email: true,
+            isActive: true,
+          },
+        },
+        parentLinks: {
+          include: {
+            parent: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    fullName: true,
+                    phone: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!studentProfile || !studentProfile.user) {
+      throw new NotFoundException(`Student with ID [${studentId}] not found`);
+    }
+
+    const parentUser = studentProfile.parentLinks?.[0]?.parent?.user;
+    const isPinActive =
+      !!studentProfile.tempAccessPin &&
+      (!studentProfile.pinExpiresAt || new Date(studentProfile.pinExpiresAt) > new Date());
+
+    return {
+      studentId: studentProfile.id,
+      studentName: studentProfile.user.fullName,
+      studentCode: studentProfile.studentCode,
+      studentPhone: studentProfile.user.phone,
+      parentName: parentUser?.fullName || null,
+      parentPhone: studentProfile.emergencyPhone || parentUser?.phone || null,
+      tempAccessPin: isPinActive ? studentProfile.tempAccessPin : null,
+      pinExpiresAt: studentProfile.pinExpiresAt,
+      isPinActive,
+    };
   }
 }

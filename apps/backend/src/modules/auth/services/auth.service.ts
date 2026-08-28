@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, ConflictException, Logger, Optional } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomUUID } from 'crypto';
@@ -13,6 +13,7 @@ import { RegisterByGroupDto } from '../dto/register-by-group.dto';
 import { normalizeEgyptianPhone } from '../../../common/utils/phone.util';
 import { generateSecurePassword } from '../../../common/utils/password.util';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
+import { WhatsAppService } from '../../../services/whatsapp/whatsapp.service';
 
 export interface JwtTokenPayload {
   sub: string;
@@ -75,6 +76,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    @Optional() private readonly whatsAppService?: WhatsAppService,
   ) {}
 
   private hashToken(token: string): string {
@@ -548,6 +550,7 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
+    let generatedParentPassword: string | null = null;
     let studentUser;
     try {
       studentUser = await this.prisma.$transaction(async (tx) => {
@@ -583,6 +586,8 @@ export class AuthService {
                 academicStage: this.deriveStageCode(group.gradeLevel),
                 attendanceMode: 'CENTER',
                 emergencyPhone: parentPhone,
+                tempAccessPin: dto.password,
+                pinExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
               },
             },
           },
@@ -616,6 +621,7 @@ export class AuthService {
           }
         } else {
           const parentPassword = generateSecurePassword();
+          generatedParentPassword = parentPassword;
           const parentPasswordHash = await bcrypt.hash(parentPassword, 10);
           const newParentUser = await tx.user.create({
             data: {
@@ -685,6 +691,47 @@ export class AuthService {
     }
 
     this.logger.log(`Group self-registration completed for [${fullName}] into group [${group.id}]`);
+
+    // Automated Parent WhatsApp Delivery on Group Registration
+    try {
+      let teacherDisplayName = 'الأستاذ';
+      const teacherUser = await this.prisma.user.findUnique({
+        where: { id: group.teacherId },
+        select: { fullName: true },
+      });
+      if (teacherUser?.fullName) {
+        teacherDisplayName = teacherUser.fullName;
+      }
+
+      const studentCode = studentUser.studentProfile?.studentCode || '';
+      const parentPassText = generatedParentPassword || 'رقم هاتفك المسجل أو كلمة مرور حسابك';
+      const directAccessLink = `https://al-awal.online/parent-access?phone=${encodeURIComponent(parentPhone)}${generatedParentPassword ? `&pass=${encodeURIComponent(generatedParentPassword)}` : ''}`;
+
+      const message = `🌟 مرحباً بك أ/ ${parentName}!
+تم تسجيل انضمام ابنكم/ابنتكم (${fullName}) بنجاح إلى:
+🏫 *${group.name}* مع *${teacherDisplayName}* على منصة الأوّل.
+
+━━━━━━━━━━━━━━━━━━━
+👤 *بيانات حساب الطالب:*
+▫️ *كود الطالب:* ${studentCode}
+▫️ *رقم الدخول:* ${phone}
+▫️ *كلمة المرور:* ${dto.password}
+🔗 *رابط منصة الطالب:* https://al-awal.online/login
+
+━━━━━━━━━━━━━━━━━━━
+👨‍👩‍👦 *بيانات حساب ولي الأمر (لمتابعة الحضور والدرجات والغياب):*
+▫️ *رقم الدخول:* ${parentPhone}
+▫️ *كلمة المرور:* ${parentPassText}
+🔗 *رابط بوابة ولي الأمر المباشر:* ${directAccessLink}
+━━━━━━━━━━━━━━━━━━━
+نتمنى لابنكم عاماً دراسياً مليئاً بالتفوق والنجاح! 🎓`.trim();
+
+      if (this.whatsAppService) {
+        await this.whatsAppService.sendMessage(parentPhone, message);
+      }
+    } catch (waErr) {
+      this.logger.warn(`Failed to dispatch registration WhatsApp message to parent: ${waErr}`);
+    }
 
     return this.issueTokens({
       id: studentUser.id,

@@ -1,4 +1,4 @@
-﻿import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GroupLinkGeneratorModal } from '../components/GroupLinkGeneratorModal';
 import toast from 'react-hot-toast';
@@ -99,6 +99,14 @@ describe('GroupLinkGeneratorModal', () => {
 
   const openModal = () => render(<GroupLinkGeneratorModal isOpen onClose={() => {}} />);
 
+  it('populates all 3 canonical academic stages in the stage dropdown', () => {
+    openModal();
+    const stageOptions = getSelectOptions(0);
+    expect(stageOptions).toContain('المرحلة الثانوية');
+    expect(stageOptions).toContain('المرحلة الإعدادية');
+    expect(stageOptions).toContain('المرحلة الابتدائية');
+  });
+
   it('cascades the filters: stage limits grades, grade limits groups', () => {
     openModal();
 
@@ -109,6 +117,8 @@ describe('GroupLinkGeneratorModal', () => {
 
     // Grades are limited to the secondary stage
     const gradeOptions = getSelectOptions(1);
+    expect(gradeOptions).toContain('الصف الأول الثانوي');
+    expect(gradeOptions).toContain('الصف الثاني الثانوي');
     expect(gradeOptions).toContain('الصف الثالث الثانوي');
     expect(gradeOptions).not.toContain('الصف الثاني الإعدادي');
 
@@ -122,6 +132,18 @@ describe('GroupLinkGeneratorModal', () => {
     expect(groupOptions).toContain('group-1');
     expect(groupOptions).toContain('group-2');
     expect(groupOptions).not.toContain('group-3');
+  });
+
+  it('shows all primary grades when selecting المرحلة الابتدائية', () => {
+    openModal();
+    selectStage('المرحلة الابتدائية');
+    const gradeOptions = getSelectOptions(1);
+    expect(gradeOptions).toContain('الصف الأول الابتدائي');
+    expect(gradeOptions).toContain('الصف الثاني الابتدائي');
+    expect(gradeOptions).toContain('الصف الثالث الابتدائي');
+    expect(gradeOptions).toContain('الصف الرابع الابتدائي');
+    expect(gradeOptions).toContain('الصف الخامس الابتدائي');
+    expect(gradeOptions).toContain('الصف السادس الابتدائي');
   });
 
   it('resets downstream selections when the stage changes', () => {
