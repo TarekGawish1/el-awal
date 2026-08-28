@@ -230,13 +230,13 @@ export function AcademicPeriodSwitcher() {
   const pendingTermLabel = pendingTerm === 'SECOND_TERM' ? 'ترم ثانٍ' : 'ترم أول';
 
   return (
-    <div className="relative">
+    <div className="relative shrink-0">
       {/* Trigger Button in Header */}
       <button
         type="button"
         onClick={handleTriggerClick}
         aria-disabled={!isOnline}
-        className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl border transition-all shadow-2xs group cursor-pointer ${
+        className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-xl border transition-all shadow-2xs group cursor-pointer shrink-0 ${
           !isOnline
             ? 'bg-slate-100 border-slate-200 text-slate-500'
             : 'bg-primary-50/80 hover:bg-primary-100/90 border-primary-200/80 text-primary-900'
@@ -252,7 +252,7 @@ export function AcademicPeriodSwitcher() {
         <div className={`flex items-center gap-1 ${!isOnline ? 'text-slate-400' : 'text-primary-600'}`}>
           <Calendar className="w-3.5 h-3.5" />
         </div>
-        <div className="flex items-center gap-1 text-xs font-bold leading-none">
+        <div className="flex items-center gap-1 text-[11px] sm:text-xs font-bold leading-none">
           <span className="hidden sm:inline">العام </span>
           <span>{activeYear}</span>
           <span className={!isOnline ? 'text-slate-300' : 'text-primary-300'}>•</span>
@@ -265,10 +265,10 @@ export function AcademicPeriodSwitcher() {
         ) : !canChangePeriod ? (
           <Lock className="w-3 h-3 text-slate-400 ms-0.5" />
         ) : (
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse ms-0.5" />
+          <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 animate-pulse ms-0.5" />
         )}
         <ChevronDown
-          className={`w-3.5 h-3.5 transition-transform duration-200 ${!isOnline ? 'text-slate-400' : 'text-primary-500'} ${
+          className={`w-3 h-3 sm:w-3.5 sm:h-3.5 transition-transform duration-200 ${!isOnline ? 'text-slate-400' : 'text-primary-500'} ${
             isOpen ? 'rotate-180' : ''
           }`}
         />

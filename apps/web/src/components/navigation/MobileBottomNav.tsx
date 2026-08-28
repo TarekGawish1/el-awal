@@ -66,7 +66,7 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
   return (
     <nav
       aria-label="شريط التنقل السفلي للهواتف"
-      className="lg:hidden pb-[env(safe-area-inset-bottom,0px)] h-[calc(4rem+env(safe-area-inset-bottom,0px))] fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 shadow-lg shadow-neutral-900/5 transition-all"
+      className="lg:hidden pb-[env(safe-area-inset-bottom,0px)] h-[calc(4rem+env(safe-area-inset-bottom,0px))] fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-lg shadow-neutral-900/5 transition-all"
     >
       <div className="flex items-center justify-around px-2 py-1.5 max-w-lg mx-auto">
         {tabs.map((tab) => {
