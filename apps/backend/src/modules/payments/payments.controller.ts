@@ -5,6 +5,7 @@ import { CurrentUser, AuthenticatedUser } from '../../core/security/decorators/c
 import { Roles } from '../../core/security/decorators/roles.decorator';
 import { MatrixLedgerQueryDto } from './dto/matrix-ledger-query.dto';
 import { BillingConfigurationDto } from './dto/billing-configuration.dto';
+import { FinanceAnalyticsQueryDto } from './dto/finance-analytics-query.dto';
 import { PaymentsService } from './payments.service';
 
 @ApiTags('Payments & Financial Matrix')
@@ -12,6 +13,16 @@ import { PaymentsService } from './payments.service';
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
+
+  @Get('analytics')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Get aggregated financial analytics for tuition, booklets, and per-group collection stats' })
+  async getFinanceAnalytics(
+    @Query() query: FinanceAnalyticsQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.paymentsService.getFinanceAnalytics(user, query);
+  }
 
   @Get('matrix-ledger')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)

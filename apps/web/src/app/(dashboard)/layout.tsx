@@ -334,7 +334,7 @@ export default function DashboardLayout({
             )}
 
             {/* Notification Bell Center */}
-            <div className="hidden sm:block shrink-0">
+            <div className="shrink-0">
               <NotificationCenter />
             </div>
 

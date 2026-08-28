@@ -10,8 +10,9 @@ import {
   fetchMatrixLedger,
   fetchBillingConfiguration,
   updateBillingConfiguration,
+  fetchFinanceAnalytics,
 } from '../api/finance.api';
-import { PaymentQuery, RecordPaymentPayload, ScanPaymentQrPayload, DefaultersResponse, ScanPaymentQrResponse, StudentPaymentRecord } from '../types/finance.types';
+import { PaymentQuery, RecordPaymentPayload, ScanPaymentQrPayload, DefaultersResponse, ScanPaymentQrResponse, StudentPaymentRecord, FinanceAnalyticsResponse } from '../types/finance.types';
 import { offlineDb } from '@/lib/offline/db';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
@@ -28,6 +29,7 @@ export const financeKeys = {
     [...financeKeys.all, 'defaulters', groupId, year, month] as const,
   matrixLedger: (query: Record<string, unknown>) => [...financeKeys.all, 'matrix-ledger', query] as const,
   billingConfiguration: (academicYear: string, academicTerm: string) => [...financeKeys.all, 'billing-configuration', academicYear, academicTerm] as const,
+  financeAnalytics: (query: Record<string, unknown>) => [...financeKeys.all, 'finance-analytics', query] as const,
 };
 
 export function useMatrixLedger(query: {
@@ -45,6 +47,21 @@ export function useMatrixLedger(query: {
     queryKey: financeKeys.matrixLedger(query),
     queryFn: () => fetchMatrixLedger(query),
     enabled: Boolean(query.stage && query.gradeLevel),
+    staleTime: 30_000,
+  });
+}
+
+export function useFinanceAnalytics(query: {
+  academicPeriodId?: string;
+  academicYear?: string;
+  academicTerm?: string;
+  stage?: string;
+  gradeLevel?: string;
+  groupId?: string;
+}) {
+  return useQuery<FinanceAnalyticsResponse>({
+    queryKey: financeKeys.financeAnalytics(query),
+    queryFn: () => fetchFinanceAnalytics(query),
     staleTime: 30_000,
   });
 }

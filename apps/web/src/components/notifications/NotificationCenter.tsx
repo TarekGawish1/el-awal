@@ -372,12 +372,12 @@ export function NotificationCenter() {
               exit={{ opacity: 0, y: -8, scale: 0.96 }}
               transition={{ duration: 0.18, ease: 'easeOut' }}
               className="
-                absolute left-0 top-12 z-50
-                w-[360px] max-h-[540px]
+                fixed sm:absolute inset-x-3 sm:inset-x-auto top-14 sm:top-12 z-50
+                w-auto sm:w-[360px] max-w-[380px] max-h-[80vh] sm:max-h-[540px]
                 bg-white rounded-2xl shadow-xl shadow-slate-200/80
                 border border-slate-100
                 flex flex-col overflow-hidden
-                md:left-auto md:right-0
+                sm:end-0
               "
               dir="rtl"
               role="dialog"

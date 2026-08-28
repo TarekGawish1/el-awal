@@ -34,7 +34,7 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
   const pathname = usePathname();
   const isOnline = useOnlineStatus();
 
-  // Role-specific bottom navigation tabs (Top 4 most-used daily tasks + Menu trigger)
+  // Role-specific bottom navigation tabs (Clean, balanced essential daily tasks + Menu trigger)
   const teacherTabs: NavTabItem[] = [
     { label: 'الرئيسية', href: '/teacher/dashboard', icon: LayoutDashboard, onlineOnly: false },
     { label: 'المجموعات', href: '/teacher/groups', icon: Users, onlineOnly: false },
@@ -44,11 +44,9 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
 
   const studentTabs: NavTabItem[] = [
     { label: 'الرئيسية', href: '/student/dashboard', icon: LayoutDashboard, onlineOnly: false },
-    { label: 'المجموعة الدراسية', href: '/student/group', icon: Users, onlineOnly: false },
-    { label: 'الدورات الأونلاين', href: '/student/courses', icon: BookOpen, onlineOnly: true },
-    { label: 'الـ QR', href: '/student/attendance', icon: QrCode, isHighlighted: true, onlineOnly: false },
+    { label: 'مجموعتي', href: '/student/group', icon: Users, onlineOnly: false },
+    { label: 'الكورسات', href: '/student/courses', icon: BookOpen, onlineOnly: true },
     { label: 'التقييمات', href: '/student/assessments', icon: FileText, onlineOnly: true },
-    { label: 'المدفوعات', href: '/student/payments', icon: DollarSign, onlineOnly: false },
   ];
 
   const parentTabs: NavTabItem[] = [
