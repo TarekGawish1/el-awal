@@ -176,13 +176,16 @@ export function useSessionReport(sessionId: string | null) {
         for (const mut of sessionMutations) {
           const p = mut.payload;
           if (p.studentId) {
-            recordsMap.set(String(p.studentId).trim(), {
+            const cleanStId = String(p.studentId).trim();
+            const existing = recordsMap.get(cleanStId);
+            recordsMap.set(cleanStId, {
+              ...existing,
               id: mut.id,
               studentId: p.studentId,
-              status: p.status || 'PRESENT',
-              recordingMethod: p.recordingMethod || 'QR_SCAN',
+              status: p.status || existing?.status || 'PRESENT',
+              recordingMethod: p.recordingMethod || existing?.recordingMethod || 'QR_SCAN',
               recordedAt: new Date(mut.clientTimestamp).toISOString(),
-              notes: p.notes,
+              notes: p.notes || existing?.notes,
             });
           }
         }

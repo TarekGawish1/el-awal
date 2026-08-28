@@ -254,7 +254,7 @@ export interface HomeworkRecordEntity {
   assessmentId: string;
   studentId: string;
   sessionId: string;
-  status: 'NOT_SUBMITTED' | 'SUBMITTED_ONLINE' | 'CHECKED_ONSITE' | 'EXCUSED';
+  status: 'NOT_SUBMITTED' | 'SUBMITTED_ONLINE' | 'CHECKED_ONSITE' | 'EXCUSED' | 'INCOMPLETE';
   checkedByRole?: 'TEACHER' | 'SECRETARIAT' | string;
   recordedMethod?: 'QR_SCAN' | 'MANUAL' | string;
   score?: number | null;
@@ -1880,7 +1880,7 @@ class OfflineDatabase {
     studentId: string,
     qrCodeToken?: string,
   ): Promise<boolean> {
-    const cleanSessionId = String(sessionId).trim();
+    const cleanSessionId = String(sessionId).trim().toLowerCase();
     const cleanStudentId = String(studentId).trim();
     const cleanToken = qrCodeToken ? String(qrCodeToken).trim() : '';
 
@@ -2615,7 +2615,7 @@ class OfflineDatabase {
     assessmentId: string;
     studentId: string;
     sessionId: string;
-    status?: 'CHECKED_ONSITE' | 'NOT_SUBMITTED' | 'SUBMITTED_ONLINE' | 'EXCUSED';
+    status?: 'CHECKED_ONSITE' | 'NOT_SUBMITTED' | 'SUBMITTED_ONLINE' | 'EXCUSED' | 'INCOMPLETE';
     recordedMethod?: 'QR_SCAN' | 'MANUAL';
     score?: number | null;
     feedback?: string | null;

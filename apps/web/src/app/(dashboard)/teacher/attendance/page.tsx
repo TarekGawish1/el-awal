@@ -12,8 +12,8 @@ import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeri
 import { AttendanceReportCard } from '@/features/attendance/components/AttendanceReportCard';
 import { QrScanner } from '@/features/attendance/components/QrScanner';
 import { ManualAttendanceRoster } from '@/features/attendance/components/ManualAttendanceRoster';
-import { OnsiteHomeworkScanner } from '@/features/attendance/components/OnsiteHomeworkScanner';
-import { ManualHomeworkChecklist } from '@/features/attendance/components/ManualHomeworkChecklist';
+import { QrHomeworkScanner } from '@/features/attendance/components/QrHomeworkScanner';
+
 import { useTeacherSessions } from '@/features/schedules/hooks/useSchedules';
 import { RotateCcw, MapPin, Calendar, Users, QrCode, ClipboardList, BookOpen, Sparkles, ClipboardCheck } from 'lucide-react';
 
@@ -65,8 +65,7 @@ function TeacherAttendanceContent() {
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>(paramSessionId || '');
-  const [activeTab, setActiveTab] = useState<'QR' | 'MANUAL' | 'HOMEWORK_ONSITE'>('QR');
-  const [homeworkMode, setHomeworkMode] = useState<'QR' | 'CHECKLIST'>('QR');
+  const [activeTab, setActiveTab] = useState<'QR' | 'MANUAL' | 'QR_HOMEWORK'>('QR');
 
   const { data: groups } = useGroups();
   const { selectedYears, selectedTerms } = useStoredAcademicPeriod(groups);
@@ -590,6 +589,14 @@ function TeacherAttendanceContent() {
                       مسح QR للحضور
                     </Button>
                     <Button
+                      variant={activeTab === 'QR_HOMEWORK' ? 'primary' : 'outline'}
+                      onClick={() => setActiveTab('QR_HOMEWORK')}
+                      className={`min-w-[130px] rounded-xl ${activeTab === 'QR_HOMEWORK' ? 'shadow-md shadow-primary-500/20' : ''}`}
+                    >
+                      <ClipboardCheck className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" />
+                      مسح QR للواجب
+                    </Button>
+                    <Button
                       variant={activeTab === 'MANUAL' ? 'primary' : 'outline'}
                       onClick={() => setActiveTab('MANUAL')}
                       className={`min-w-[130px] rounded-xl ${activeTab === 'MANUAL' ? 'shadow-md shadow-primary-500/20' : ''}`}
@@ -597,67 +604,15 @@ function TeacherAttendanceContent() {
                       <ClipboardList className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" />
                       رصد يدوي للحضور
                     </Button>
-                    <Button
-                      variant={activeTab === 'HOMEWORK_ONSITE' ? 'primary' : 'outline'}
-                      onClick={() => setActiveTab('HOMEWORK_ONSITE')}
-                      className={`min-w-[200px] rounded-xl ${
-                        activeTab === 'HOMEWORK_ONSITE'
-                          ? 'shadow-md shadow-emerald-500/20 bg-emerald-600 hover:bg-emerald-700 text-white'
-                          : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50'
-                      }`}
-                    >
-                      <ClipboardCheck className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" />
-                      تسليم الواجب والحضور (QR / يدوي)
-                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="p-6">
                   {activeTab === 'QR' ? (
                     <QrScanner sessionId={selectedSessionId} />
-                  ) : activeTab === 'MANUAL' ? (
-                    <ManualAttendanceRoster sessionId={selectedSessionId} records={report.records} />
+                  ) : activeTab === 'QR_HOMEWORK' ? (
+                    <QrHomeworkScanner sessionId={selectedSessionId} />
                   ) : (
-                    <div className="space-y-6">
-                      {/* Mode selector between Fast QR Scan and Manual Checklist */}
-                      <div className="flex justify-center gap-2 p-1.5 bg-slate-100/80 rounded-2xl w-fit mx-auto">
-                        <button
-                          type="button"
-                          onClick={() => setHomeworkMode('QR')}
-                          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                            homeworkMode === 'QR'
-                              ? 'bg-white text-emerald-800 shadow-xs'
-                              : 'text-slate-500 hover:text-slate-800'
-                          }`}
-                        >
-                          <QrCode className="w-4 h-4" />
-                          <span>مسح QR السريع للواجب</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setHomeworkMode('CHECKLIST')}
-                          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                            homeworkMode === 'CHECKLIST'
-                              ? 'bg-white text-emerald-800 shadow-xs'
-                              : 'text-slate-500 hover:text-slate-800'
-                          }`}
-                        >
-                          <ClipboardList className="w-4 h-4" />
-                          <span>قائمة الفحص اليدوي للواجب</span>
-                        </button>
-                      </div>
-
-                      {homeworkMode === 'QR' ? (
-                        <OnsiteHomeworkScanner
-                          sessionId={selectedSessionId}
-                          groupId={report.groupId}
-                        />
-                      ) : (
-                        <ManualHomeworkChecklist
-                          sessionId={selectedSessionId}
-                          groupId={report.groupId}
-                        />
-                      )}
-                    </div>
+                    <ManualAttendanceRoster sessionId={selectedSessionId} records={report.records} />
                   )}
                 </CardContent>
               </Card>
