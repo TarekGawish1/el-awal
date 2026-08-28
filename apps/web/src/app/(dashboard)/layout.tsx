@@ -33,7 +33,7 @@ import { usePendingReservations } from '@/features/groups';
 import { useRealtimeReservations } from '@/lib/realtime/useRealtimeReservations';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import { syncEngine } from '@/lib/offline/sync-engine';
-import { NotificationCenter } from '@/components/notifications/NotificationCenter';
+import { NotificationBell } from '@/features/notifications/components/NotificationBell';
 import { WhatsAppConnectionManager } from '@/components/admin/WhatsAppConnectionManager';
 import { isRouteAllowedForRole, getRoleLandingRoute } from '@/features/auth/utils/role-routing';
 
@@ -335,7 +335,7 @@ export default function DashboardLayout({
 
             {/* Notification Bell Center */}
             <div className="shrink-0">
-              <NotificationCenter />
+              <NotificationBell />
             </div>
 
             <div className="h-6 w-px bg-neutral-200 mx-0.5 hidden sm:block shrink-0"></div>

@@ -78,6 +78,7 @@ export async function fetchFinanceAnalytics(query: {
   stage?: string;
   gradeLevel?: string;
   groupId?: string;
+  periodMonth?: number;
 }): Promise<FinanceAnalyticsResponse> {
   return apiClient<FinanceAnalyticsResponse>('/payments/analytics', {
     params: query as Record<string, string | number | boolean | undefined>,

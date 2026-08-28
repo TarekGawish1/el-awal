@@ -51,6 +51,15 @@ export interface SendNotificationDto {
   scheduledFor?: Date;
 }
 
+export interface DispatchNotificationPayload {
+  notificationType: NotificationType;
+  type?: string;
+  title: string;
+  body: string;
+  data?: Record<string, unknown>;
+  referenceEntityId?: string;
+}
+
 // ─── Service ────────────────────────────────────────────────────────────────
 
 @Injectable()
@@ -126,6 +135,30 @@ export class NotificationsService {
     }
 
     return notification;
+  }
+
+  /** Dispatches the same in-app and push notification to a deduplicated user list. */
+  async dispatchToUsers(
+    userIds: string[],
+    payload: DispatchNotificationPayload,
+    channels: NotificationChannel[],
+  ) {
+    const uniqueUserIds = [...new Set(userIds.filter(Boolean))];
+
+    return Promise.all(
+      uniqueUserIds.map((recipientId) =>
+        this.sendNotification({
+          recipientId,
+          notificationType: payload.notificationType,
+          type: payload.type || payload.notificationType,
+          title: payload.title,
+          body: payload.body,
+          channels,
+          data: payload.data,
+          referenceEntityId: payload.referenceEntityId,
+        }),
+      ),
+    );
   }
 
   /**
@@ -452,6 +485,14 @@ export class NotificationsService {
         return data?.sessionId ? `${base}/sessions/${data.sessionId}` : base;
       case NotificationType.ONLINE_EXAM_REMINDER:
         return data?.examId ? `${base}/exams/${data.examId}` : base;
+      case NotificationType.NEW_EXAM_PUBLISHED:
+      case NotificationType.EXAM_DEADLINE_REMINDER:
+        return data?.assessmentId
+          ? `/student/assessments?id=${data.assessmentId}`
+          : '/student/assessments';
+      case NotificationType.NEW_HOMEWORK_ASSIGNED:
+      case NotificationType.HOMEWORK_DEADLINE_REMINDER:
+        return '/student/dashboard';
       case NotificationType.ABSENCE_ALERT_PARENT:
         return data?.studentId ? `${base}/students/${data.studentId}` : base;
       default:

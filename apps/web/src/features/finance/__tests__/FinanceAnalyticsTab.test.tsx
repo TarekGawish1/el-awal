@@ -117,14 +117,62 @@ describe('FinanceAnalyticsTab', () => {
     expect(Array.from(gradeSelect.options).map((option) => option.textContent)).not.toContain('الصف الأول الإعدادي');
   });
 
-  it('navigates to the matrix ledger scoped to the group', () => {
+  it('defaults to term-wide scope and scopes the query when a month is selected', () => {
+    render(<FinanceAnalyticsTab groups={groups} />);
+
+    expect(useFinanceAnalytics).toHaveBeenLastCalledWith(expect.objectContaining({ periodMonth: undefined }));
+    expect(screen.getByText('🗓️ نطاق العرض: إحصائيات الترم كامل')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('الشهر'), { target: { value: '9' } });
+
+    expect(useFinanceAnalytics).toHaveBeenLastCalledWith(expect.objectContaining({ periodMonth: 9 }));
+    expect(screen.getByText(/نطاق العرض: إحصائيات شهر 9/)).toBeInTheDocument();
+  });
+
+  it('returns to term-wide scope when the whole-term option is selected', () => {
+    render(<FinanceAnalyticsTab groups={groups} />);
+
+    fireEvent.change(screen.getByLabelText('الشهر'), { target: { value: '9' } });
+    expect(useFinanceAnalytics).toHaveBeenLastCalledWith(expect.objectContaining({ periodMonth: 9 }));
+
+    fireEvent.change(screen.getByLabelText('الشهر'), { target: { value: '' } });
+
+    expect(useFinanceAnalytics).toHaveBeenLastCalledWith(expect.objectContaining({ periodMonth: undefined }));
+    expect(screen.getByText('🗓️ نطاق العرض: إحصائيات الترم كامل')).toBeInTheDocument();
+  });
+
+  it('resets the selected month when the term changes', () => {
+    render(<FinanceAnalyticsTab groups={groups} />);
+
+    fireEvent.change(screen.getByLabelText('الشهر'), { target: { value: '9' } });
+    expect(useFinanceAnalytics).toHaveBeenLastCalledWith(expect.objectContaining({ periodMonth: 9 }));
+
+    fireEvent.change(screen.getByLabelText('الفترة الدراسية'), { target: { value: 'SECOND_TERM' } });
+
+    expect(useFinanceAnalytics).toHaveBeenLastCalledWith(expect.objectContaining({ periodMonth: undefined, academicTerm: 'SECOND_TERM' }));
+    const monthSelect = screen.getByLabelText('الشهر') as HTMLSelectElement;
+    expect(Array.from(monthSelect.options).map((option) => option.value)).toEqual(['', '2', '3', '4', '5', '6', '7']);
+  });
+
+  it('navigates to the matrix ledger scoped to the group with stage and grade preset', () => {
     render(<FinanceAnalyticsTab groups={groups} />);
 
     fireEvent.click(screen.getAllByRole('button', { name: /فتح في سجل المدفوعات الشامل/ })[0]);
 
-    expect(routerPush).toHaveBeenCalledWith(
-      expect.stringContaining('/teacher/finance?tab=matrix&groupId=group-1'),
-    );
-    expect(routerPush).toHaveBeenCalledWith(expect.stringContaining('gradeLevel='));
+    expect(routerPush).toHaveBeenCalledTimes(1);
+    const [url] = routerPush.mock.calls[0];
+    expect(url).toContain('/teacher/finance?tab=matrix&groupId=group-1');
+    expect(url).toContain('stage=SECONDARY');
+    expect(url).toContain('gradeLevel=');
+  });
+
+  it('infers the stage from the group grade when no stage filter is selected', () => {
+    render(<FinanceAnalyticsTab groups={groups} />);
+
+    fireEvent.click(screen.getAllByRole('button', { name: /فتح في سجل المدفوعات الشامل/ })[1]);
+
+    const [url] = routerPush.mock.calls[0];
+    expect(url).toContain('groupId=group-2');
+    expect(url).toContain('stage=PREPARATORY');
   });
 });

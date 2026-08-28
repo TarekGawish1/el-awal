@@ -340,6 +340,11 @@ export class PaymentsService {
     const excludedMonths = this.normalizeExcludedMonths(billingConfiguration?.excludedMonths, availableMonths);
     const months = availableMonths.filter((month) => !excludedMonths.includes(month));
 
+    const requestedMonth = Number(query.periodMonth) || 0;
+    const isMonthScope =
+      requestedMonth >= 1 && requestedMonth <= 12 && availableMonths.includes(requestedMonth) && !excludedMonths.includes(requestedMonth);
+    const billingMonths = isMonthScope ? [requestedMonth] : months;
+
     const stageGrades = query.stage && query.stage !== 'ALL' ? STAGE_GRADE_LEVELS[query.stage] || [] : [];
     let gradeLevelFilter: any;
     if (query.gradeLevel && query.gradeLevel !== 'ALL') {
@@ -409,6 +414,8 @@ export class PaymentsService {
               groupId: true,
               bookletId: true,
               paymentType: true,
+              periodYear: true,
+              periodMonth: true,
               amountPaid: true,
               paymentStatus: true,
             },
@@ -433,13 +440,14 @@ export class PaymentsService {
       const attributedGroupId =
         payment.groupId && groupIds.has(payment.groupId) ? payment.groupId : primaryGroupByStudent.get(payment.studentId) || null;
       if (!attributedGroupId || !groupIds.has(attributedGroupId)) continue;
+      if (isMonthScope && payment.paymentType === PaymentType.TUITION && Number(payment.periodMonth) !== requestedMonth) continue;
       const target = payment.paymentType === PaymentType.BOOKLET ? bookletCollectedByGroup : tuitionCollectedByGroup;
       target.set(attributedGroupId, (target.get(attributedGroupId) || 0) + Number(payment.amountPaid || 0));
     }
 
     const groupRows = groups.map((group) => {
       const studentCount = studentCountByGroup.get(group.id) || 0;
-      const tuitionExpected = round2(Number(group.monthlyFee) * studentCount * months.length);
+      const tuitionExpected = round2(Number(group.monthlyFee) * studentCount * billingMonths.length);
       const bookletsExpected = round2(
         booklets
           .filter((booklet) => booklet.gradeLevel === group.gradeLevel && (!booklet.groupId || booklet.groupId === group.id))
@@ -495,7 +503,9 @@ export class PaymentsService {
     return {
       academicYear,
       academicTerm,
-      months,
+      months: billingMonths,
+      periodMonth: isMonthScope ? requestedMonth : null,
+      scope: isMonthScope ? 'MONTH' : 'TERM',
       overview: {
         totalExpected: overviewTotalExpected,
         totalCollected: overviewTotalCollected,

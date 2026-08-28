@@ -44,9 +44,9 @@ describe('PaymentsService finance analytics', () => {
     { id: 'booklet-2', title: 'مذكرة ثانية ثانوي', price: 40, gradeLevel: 'الصف الثاني الثانوي', groupId: null },
   ];
   const paymentsDb = [
-    { studentId: 'student-1', groupId: 'group-1', bookletId: null, paymentType: 'TUITION', amountPaid: 300, paymentStatus: 'PAID' },
-    { studentId: 'student-1', groupId: 'group-1', bookletId: 'booklet-1', paymentType: 'BOOKLET', amountPaid: 50, paymentStatus: 'PAID' },
-    { studentId: 'student-3', groupId: 'group-2', bookletId: null, paymentType: 'TUITION', amountPaid: 100, paymentStatus: 'PAID' },
+    { studentId: 'student-1', groupId: 'group-1', bookletId: null, paymentType: 'TUITION', periodYear: 2026, periodMonth: 8, amountPaid: 300, paymentStatus: 'PAID' },
+    { studentId: 'student-1', groupId: 'group-1', bookletId: 'booklet-1', paymentType: 'BOOKLET', periodYear: 2026, periodMonth: 8, amountPaid: 50, paymentStatus: 'PAID' },
+    { studentId: 'student-3', groupId: 'group-2', bookletId: null, paymentType: 'TUITION', periodYear: 2026, periodMonth: 9, amountPaid: 100, paymentStatus: 'PAID' },
   ];
 
   const matchesGrade = (where: any, gradeLevel: string) =>
@@ -165,5 +165,41 @@ describe('PaymentsService finance analytics', () => {
     expect(result.overview.tuition.expected).toBe(800); // (300 * 2 + 200 * 1) * 1 month
     expect(result.overview.tuition.collected).toBe(400);
     expect(result.overview.tuition.collectionRate).toBe(50);
+  });
+
+  it('scopes tuition expected and collected to a single month when periodMonth is provided', async () => {
+    seedFullScenario();
+
+    const result = await service.getFinanceAnalytics(teacherUser, {
+      academicPeriodId: '2026-2027:FIRST_TERM',
+      periodMonth: 9,
+    });
+
+    expect(result.scope).toBe('MONTH');
+    expect(result.periodMonth).toBe(9);
+    expect(result.months).toEqual([9]);
+
+    // Only September tuition counts: expected = (300 * 2 + 200 * 1) * 1 month, collected = student-3's September payment
+    expect(result.overview.tuition).toEqual({ expected: 800, collected: 100, remaining: 700, collectionRate: 12.5 });
+
+    // Booklets are a one-time term purchase, so they keep the term-wide scope
+    expect(result.overview.booklets).toEqual({ expected: 140, collected: 50, remaining: 90, collectionRate: 35.71 });
+
+    expect(result.overview.totalExpected).toBe(940);
+    expect(result.overview.totalCollected).toBe(150);
+  });
+
+  it('falls back to term scope when the requested month is outside the term', async () => {
+    seedFullScenario();
+
+    const result = await service.getFinanceAnalytics(teacherUser, {
+      academicPeriodId: '2026-2027:FIRST_TERM',
+      periodMonth: 3, // SECOND_TERM month, not part of FIRST_TERM
+    });
+
+    expect(result.scope).toBe('TERM');
+    expect(result.periodMonth).toBeNull();
+    expect(result.months).toEqual([8, 9, 10, 11, 12, 1]);
+    expect(result.overview.tuition.expected).toBe(4800);
   });
 });

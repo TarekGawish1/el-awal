@@ -115,4 +115,38 @@ describe('FinancialMatrixLedger', () => {
     expect(groupSelect.value).toBe('');
     expect((screen.getByLabelText('الصف الدراسي') as HTMLSelectElement).value).toBe('');
   });
+
+  it('applies deep-link group filters on mount and enables the ledger query', () => {
+    render(
+      <FinancialMatrixLedger
+        groups={[{ id: 'group-1', name: 'المجموعة الأولى', gradeLevel: 'الصف الأول الثانوي' }]}
+        initialStage="SECONDARY"
+        initialGradeLevel="الصف الأول الثانوي"
+        initialGroupId="group-1"
+      />,
+    );
+
+    expect(screen.getByLabelText('المرحلة الدراسية')).toHaveValue('SECONDARY');
+    expect(screen.getByLabelText('الصف الدراسي')).toHaveValue('الصف الأول الثانوي');
+    expect(screen.getByLabelText('المجموعة الدراسية')).toHaveValue('group-1');
+    expect(useMatrixLedger).toHaveBeenLastCalledWith(
+      expect.objectContaining({ stage: 'SECONDARY', gradeLevel: 'الصف الأول الثانوي', groupId: 'group-1' }),
+    );
+  });
+
+  it('infers the stage from the deep-linked grade when the stage param is missing', () => {
+    render(
+      <FinancialMatrixLedger
+        groups={[{ id: 'group-1', name: 'المجموعة الأولى', gradeLevel: 'الصف الأول الثانوي' }]}
+        initialGradeLevel="الصف الأول الثانوي"
+        initialGroupId="group-1"
+      />,
+    );
+
+    expect(screen.getByLabelText('المرحلة الدراسية')).toHaveValue('SECONDARY');
+    expect(screen.getByLabelText('الصف الدراسي')).toHaveValue('الصف الأول الثانوي');
+    expect(useMatrixLedger).toHaveBeenLastCalledWith(
+      expect.objectContaining({ stage: 'SECONDARY', gradeLevel: 'الصف الأول الثانوي' }),
+    );
+  });
 });

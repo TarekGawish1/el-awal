@@ -9,7 +9,10 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { useFinanceAnalytics } from '../hooks/useFinance';
 import { FinanceAnalyticsGroup } from '../types/finance.types';
 import { FinanceFiltersBar } from './FinanceFiltersBar';
+import { inferStageFromGrade } from '@/lib/constants/grades';
 import { DEFAULT_ACADEMIC_TERM, STORAGE_TERM_KEY, STORAGE_YEAR_KEY } from '@/features/groups/hooks/useAcademicPeriod';
+
+const ARABIC_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 
 function readStoredValue(key: string, fallback: string) {
   if (typeof window === 'undefined') return fallback;
@@ -105,6 +108,7 @@ export function FinanceAnalyticsTab({ groups = [] }: { groups?: any[] }) {
   const [stage, setStage] = useState('');
   const [gradeLevel, setGradeLevel] = useState('');
   const [groupId, setGroupId] = useState('');
+  const [periodMonth, setPeriodMonth] = useState<number | ''>('');
   const [search, setSearch] = useState('');
 
   useEffect(() => {
@@ -127,6 +131,7 @@ export function FinanceAnalyticsTab({ groups = [] }: { groups?: any[] }) {
     stage: stage || undefined,
     gradeLevel: gradeLevel || undefined,
     groupId: groupId || undefined,
+    periodMonth: periodMonth || undefined,
   };
   const { data: analytics, isLoading, isError } = useFinanceAnalytics(query);
 
@@ -142,6 +147,7 @@ export function FinanceAnalyticsTab({ groups = [] }: { groups?: any[] }) {
   const setGradeAndReset = (value: string) => { setGradeLevel(value); setGroupId(''); };
   const setTermAndReset = (value: 'FIRST_TERM' | 'SECOND_TERM') => {
     setAcademicTerm(value);
+    setPeriodMonth('');
     try {
       localStorage.setItem(STORAGE_TERM_KEY, JSON.stringify([value]));
       window.dispatchEvent(new Event('el_awal_academic_period_changed'));
@@ -152,7 +158,8 @@ export function FinanceAnalyticsTab({ groups = [] }: { groups?: any[] }) {
 
   const openInMatrix = (group: FinanceAnalyticsGroup) => {
     const params = new URLSearchParams({ tab: 'matrix', groupId: group.id });
-    if (stage) params.set('stage', stage);
+    const effectiveStage = stage || inferStageFromGrade(group.gradeLevel);
+    if (effectiveStage) params.set('stage', effectiveStage);
     if (group.gradeLevel) params.set('gradeLevel', group.gradeLevel);
     router.push(`/teacher/finance?${params.toString()}`);
   };
@@ -167,6 +174,15 @@ export function FinanceAnalyticsTab({ groups = [] }: { groups?: any[] }) {
             <p className="text-xs font-bold text-primary-100">Financial Analytics</p>
             <h2 className="mt-1 text-2xl font-extrabold">لوحة الإحصائيات والتقارير المالية</h2>
             <p className="mt-1 text-sm text-primary-100">نظرة شاملة على تحصيل الاشتراكات والمذكرات لكل المجموعات الدراسية.</p>
+            {periodMonth ? (
+              <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold text-white">
+                📅 نطاق العرض: إحصائيات شهر {periodMonth} ({ARABIC_MONTHS[periodMonth - 1]}) — الاشتراكات محسوبة لهذا الشهر فقط
+              </span>
+            ) : (
+              <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold text-white">
+                🗓️ نطاق العرض: إحصائيات الترم كامل
+              </span>
+            )}
           </div>
           <BarChart3 className="hidden h-14 w-14 text-white/20 sm:block" />
         </CardContent>
@@ -180,11 +196,15 @@ export function FinanceAnalyticsTab({ groups = [] }: { groups?: any[] }) {
         academicYear={academicYear}
         academicTerm={academicTerm}
         search={search}
+        periodMonth={periodMonth || undefined}
         onStageChange={setStageAndReset}
         onGradeChange={setGradeAndReset}
         onGroupChange={setGroupId}
         onTermChange={setTermAndReset}
         onSearchChange={setSearch}
+        onMonthChange={(value) => setPeriodMonth(value || '')}
+        allowWholeTerm
+        allowWholeTermLabel="إحصائيات الترم كامل"
       />
 
       {isError ? (

@@ -5,6 +5,7 @@ import { WebPushService } from '../../services/webpush.service';
 import { WhatsAppService } from '../../services/whatsapp/whatsapp.service';
 import { WhatsAppWorker } from '../../workers/whatsapp.worker';
 import { SchedulersService } from '../../jobs/schedulers';
+import { DeadlineReminderCron } from './crons/deadline-reminder.cron';
 
 @Module({
   controllers: [NotificationsController],
@@ -19,6 +20,7 @@ import { SchedulersService } from '../../jobs/schedulers';
 
     // Cron schedulers (run in-process)
     SchedulersService,
+    DeadlineReminderCron,
   ],
   exports: [NotificationsService, WebPushService, WhatsAppService],
 })

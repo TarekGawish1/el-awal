@@ -5,6 +5,7 @@ import {
   ConflictException,
   ForbiddenException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../../core/database/prisma.service';
@@ -21,6 +22,9 @@ import {
   UserRole,
   GroupEnrollmentStatus,
   CourseEnrollmentStatus,
+  AssessmentType,
+  NotificationChannel,
+  NotificationType,
 } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
 import { resolveOfficialSubmission } from '../utils/submission-grade.util';
@@ -28,6 +32,7 @@ import {
   computeEffectiveDueDate,
   SessionForDeadline,
 } from '../utils/effective-due-date.util';
+import { NotificationsService } from '../../notifications/services/notifications.service';
 
 @Injectable()
 export class AssessmentsService {
@@ -36,6 +41,7 @@ export class AssessmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   /**
@@ -46,6 +52,25 @@ export class AssessmentsService {
     isSecretariat: boolean,
     dto: CreateAssessmentDto,
   ) {
+    const logicalType = dto.assessmentType || dto.type;
+    if (!logicalType) {
+      throw new BadRequestException('Assessment type is required');
+    }
+
+    // Keep the existing API/storage values working while exposing the clearer
+    // HOMEWORK and QUIZ names to newer clients.
+    const storedType =
+      logicalType === AssessmentType.HOMEWORK
+        ? AssessmentType.ASSIGNMENT
+        : logicalType === AssessmentType.QUIZ
+          ? AssessmentType.EXAM
+          : logicalType;
+    const deadline = dto.deadline || dto.dueDate;
+    const storedAssessmentType =
+      logicalType === AssessmentType.ASSIGNMENT
+        ? AssessmentType.HOMEWORK
+        : logicalType;
+
     // 1. Validate resource ownership and consistency
     if (!isSecretariat) {
       if (dto.groupId) {
@@ -98,17 +123,19 @@ export class AssessmentsService {
         q.questionType === QuestionType.TRUE_FALSE,
     );
 
-    return this.prisma.$transaction(async (tx) => {
+    const assessment = await this.prisma.$transaction(async (tx) => {
       const assessment = await tx.assessment.create({
         data: {
           id: dto.id || undefined,
           title: dto.title,
           description: dto.description,
-          type: dto.type,
+          type: storedType,
+          assessmentType: storedAssessmentType,
           totalScore: dto.totalScore,
           passingScore: dto.passingScore,
           durationMinutes: dto.durationMinutes,
-          dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+          dueDate: deadline ? new Date(deadline) : null,
+          deadline: deadline ? new Date(deadline) : null,
           startDate: dto.startDate ? new Date(dto.startDate) : null,
           academicStage: dto.academicStage,
           gradeLevel: dto.gradeLevel,
@@ -150,6 +177,12 @@ export class AssessmentsService {
         totalQuestions: dto.questions.length,
       };
     });
+
+    if (assessment.isPublished) {
+      await this.notifyAssessmentPublished(assessment);
+    }
+
+    return assessment;
   }
 
   /**
@@ -370,12 +403,14 @@ export class AssessmentsService {
       title: assessment.title,
       description: assessment.description,
       type: assessment.type,
+      assessmentType: assessment.assessmentType,
       totalScore: Number(assessment.totalScore),
       passingScore: assessment.passingScore
         ? Number(assessment.passingScore)
         : null,
       durationMinutes: assessment.durationMinutes,
       dueDate: effectiveDueDate,
+      deadline: assessment.deadline,
       isPublished: assessment.isPublished,
       allowMultipleAttempts: assessment.allowMultipleAttempts,
       teacher: assessment.teacher,
@@ -1144,15 +1179,115 @@ export class AssessmentsService {
         ...(dto.title !== undefined && { title: dto.title }),
         ...(dto.description !== undefined && { description: dto.description }),
         ...(dto.durationMinutes !== undefined && { durationMinutes: dto.durationMinutes }),
-        ...(dto.dueDate !== undefined && { dueDate: dto.dueDate ? new Date(dto.dueDate) : null }),
+        ...((dto.dueDate !== undefined || dto.deadline !== undefined) && {
+          dueDate: (dto.deadline || dto.dueDate) ? new Date(dto.deadline || dto.dueDate!) : null,
+          deadline: (dto.deadline || dto.dueDate) ? new Date(dto.deadline || dto.dueDate!) : null,
+        }),
         ...(dto.isPublished !== undefined && { isPublished: dto.isPublished }),
         ...(dto.allowMultipleAttempts !== undefined && { allowMultipleAttempts: dto.allowMultipleAttempts }),
         ...(dto.courseId !== undefined && { courseId: dto.courseId || null }),
+        ...(dto.assessmentType !== undefined && {
+          assessmentType: dto.assessmentType,
+          type:
+            dto.assessmentType === AssessmentType.HOMEWORK
+              ? AssessmentType.ASSIGNMENT
+              : dto.assessmentType === AssessmentType.QUIZ
+                ? AssessmentType.EXAM
+                : dto.assessmentType,
+        }),
       },
     });
+
+    if (dto.isPublished === true && !assessment.isPublished) {
+      await this.notifyAssessmentPublished({ ...assessment, ...updated });
+    }
 
     this.logger.log(`Assessment [${assessmentId}] updated`);
 
     return updated;
+  }
+
+  private async notifyAssessmentPublished(assessment: {
+    id: string;
+    title: string;
+    type: AssessmentType;
+    assessmentType?: AssessmentType | null;
+    totalScore: unknown;
+    groupId?: string | null;
+    isPublished: boolean;
+    deadline?: Date | null;
+    dueDate?: Date | null;
+  }) {
+    if (!this.notifications || !assessment.isPublished || !assessment.groupId) return;
+
+    const isHomework =
+      assessment.assessmentType === AssessmentType.HOMEWORK ||
+      assessment.type === AssessmentType.ASSIGNMENT;
+    const isExam =
+      assessment.assessmentType === AssessmentType.EXAM ||
+      assessment.assessmentType === AssessmentType.QUIZ ||
+      assessment.type === AssessmentType.EXAM;
+    if (!isHomework && !isExam) return;
+
+    try {
+      const [group, enrollments] = await Promise.all([
+        this.prisma.academicGroup.findUnique({
+          where: { id: assessment.groupId },
+          select: { name: true },
+        }),
+        this.prisma.groupEnrollment.findMany({
+          where: { groupId: assessment.groupId, status: GroupEnrollmentStatus.ACTIVE },
+          select: { student: { select: { id: true, user: { select: { id: true } } } } },
+        }),
+      ]);
+
+      const targetUserIds = enrollments
+        .map(
+          (enrollment) =>
+            enrollment.student?.user?.id ||
+            (enrollment.student as { userId?: string })?.userId ||
+            enrollment.student?.id,
+        )
+        .filter((id): id is string => Boolean(id));
+      if (targetUserIds.length === 0) return;
+
+      const notificationType = isHomework
+        ? NotificationType.NEW_HOMEWORK_ASSIGNED
+        : NotificationType.NEW_EXAM_PUBLISHED;
+      const groupName = group?.name || 'مجموعتك الدراسية';
+      const deadline = assessment.deadline || assessment.dueDate;
+      const deadlineText = deadline
+        ? deadline.toLocaleString('ar-EG', {
+            timeZone: 'Africa/Cairo',
+            dateStyle: 'short',
+            timeStyle: 'short',
+          })
+        : 'غير محدد';
+      const body = isHomework
+        ? `تمت إضافة واجب جديد لمجموعتك (${groupName}). آخر موعد للتسليم: ${deadlineText}.`
+        : `تم نشر اختبار جديد لمجموعتك (${groupName}). الدرجة: ${Number(assessment.totalScore)} درجة.`;
+
+      await this.notifications.dispatchToUsers(
+        targetUserIds,
+        {
+          notificationType,
+          title: isHomework
+            ? `📝 واجب جديد: ${assessment.title}`
+            : `📋 اختبار جديد: ${assessment.title}`,
+          body,
+          referenceEntityId: assessment.id,
+          data: {
+            assessmentId: assessment.id,
+            groupId: assessment.groupId,
+            groupName,
+            deadline: deadline?.toISOString(),
+            priority: 'high',
+          },
+        },
+        [NotificationChannel.IN_APP, NotificationChannel.WEB_PUSH],
+      );
+    } catch (error) {
+      this.logger.error(`Failed to notify students about assessment [${assessment.id}]`, error);
+    }
   }
 }

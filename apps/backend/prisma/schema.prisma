@@ -102,7 +102,9 @@ enum ContentType {
 
 enum AssessmentType {
   ASSIGNMENT
+  HOMEWORK
   EXAM
+  QUIZ
 
   @@map("assessment_type")
 }
@@ -181,6 +183,10 @@ enum NotificationType {
   TEACHER_DAILY_SCHEDULE
   TEACHER_SESSION_REMINDER
   GENERAL_ANNOUNCEMENT
+  NEW_HOMEWORK_ASSIGNED
+  NEW_EXAM_PUBLISHED
+  HOMEWORK_DEADLINE_REMINDER
+  EXAM_DEADLINE_REMINDER
 
   @@map("notification_type")
 }
@@ -754,6 +760,7 @@ model Assessment {
   title           String         @map("title") @db.VarChar(255)
   description     String?        @map("description") @db.Text
   type            AssessmentType @map("type")
+  assessmentType  AssessmentType @default(ASSIGNMENT) @map("assessment_type")
   totalScore      Decimal        @default(100.00) @map("total_score") @db.Decimal(6, 2)
   passingScore    Decimal?       @map("passing_score") @db.Decimal(6, 2)
   durationMinutes Int?           @map("duration_minutes")
@@ -763,6 +770,7 @@ model Assessment {
   homeworkDeliveryType HomeworkDeliveryType @default(ONSITE) @map("homework_delivery_type")
   startDate       DateTime?      @map("start_date") @db.Timestamptz(6)
   dueDate         DateTime?      @map("due_date") @db.Timestamptz(6)
+  deadline        DateTime?      @map("deadline") @db.Timestamptz(6)
   createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
 
