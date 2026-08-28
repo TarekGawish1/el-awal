@@ -211,14 +211,7 @@ export function GroupDetails({ id }: GroupDetailsProps) {
               <UserPlus className="w-4 h-4 ml-2" />
               إضافة طالب
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => router.push(`/teacher/attendance?groupId=${group.id}`)}
-              className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-            >
-              <ClipboardCheck className="w-4 h-4 ml-2" />
-              تسليم الواجب والحضور
-            </Button>
+
             <Button variant="outline" onClick={() => router.push(`/teacher/attendance?groupId=${group.id}`)}>
               <FileText className="w-4 h-4 ml-2" />
               كشف الحضور

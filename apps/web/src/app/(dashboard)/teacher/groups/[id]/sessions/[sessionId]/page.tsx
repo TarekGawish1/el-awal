@@ -6,8 +6,7 @@ import Link from 'next/link';
 import { useSessionReport } from '@/features/attendance/hooks/use-attendance';
 import { useGroup } from '@/features/groups/hooks/useGroups';
 import { AttendanceReportCard } from '@/features/attendance/components/AttendanceReportCard';
-import { OnsiteHomeworkScanner } from '@/features/attendance/components/OnsiteHomeworkScanner';
-import { ManualHomeworkChecklist } from '@/features/attendance/components/ManualHomeworkChecklist';
+
 import { QrScanner } from '@/features/attendance/components/QrScanner';
 import { ManualAttendanceRoster } from '@/features/attendance/components/ManualAttendanceRoster';
 import { Card, CardHeader, CardContent } from '@/components/ui/Card';
@@ -32,8 +31,7 @@ export default function GroupSessionDeliveryPage() {
   const { data: group } = useGroup(groupId);
   const { data: report, isLoading: isLoadingReport, isError } = useSessionReport(sessionId);
 
-  const [activeTab, setActiveTab] = useState<'HOMEWORK_ONSITE' | 'QR' | 'MANUAL'>('HOMEWORK_ONSITE');
-  const [homeworkMode, setHomeworkMode] = useState<'QR' | 'CHECKLIST'>('QR');
+  const [activeTab, setActiveTab] = useState<'QR' | 'MANUAL'>('QR');
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto py-4">
@@ -87,19 +85,6 @@ export default function GroupSessionDeliveryPage() {
             <CardHeader className="border-b border-slate-100 px-6 py-5 bg-slate-50/30">
               <div className="flex flex-wrap justify-center gap-3">
                 <Button
-                  variant={activeTab === 'HOMEWORK_ONSITE' ? 'primary' : 'outline'}
-                  onClick={() => setActiveTab('HOMEWORK_ONSITE')}
-                  className={`min-w-[220px] rounded-xl font-bold ${
-                    activeTab === 'HOMEWORK_ONSITE'
-                      ? 'shadow-md shadow-emerald-500/20 bg-emerald-600 hover:bg-emerald-700 text-white'
-                      : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50'
-                  }`}
-                >
-                  <ClipboardCheck className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" />
-                  تسليم الواجب والحضور (QR / يدوي)
-                </Button>
-
-                <Button
                   variant={activeTab === 'QR' ? 'primary' : 'outline'}
                   onClick={() => setActiveTab('QR')}
                   className={`min-w-[140px] rounded-xl ${activeTab === 'QR' ? 'shadow-md shadow-primary-500/20' : ''}`}
@@ -120,49 +105,7 @@ export default function GroupSessionDeliveryPage() {
             </CardHeader>
 
             <CardContent className="p-6">
-              {activeTab === 'HOMEWORK_ONSITE' ? (
-                <div className="space-y-6">
-                  {/* Mode switcher */}
-                  <div className="flex justify-center gap-2 p-1.5 bg-slate-100/80 rounded-2xl w-fit mx-auto">
-                    <button
-                      type="button"
-                      onClick={() => setHomeworkMode('QR')}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                        homeworkMode === 'QR'
-                          ? 'bg-white text-emerald-800 shadow-xs'
-                          : 'text-slate-500 hover:text-slate-800'
-                      }`}
-                    >
-                      <QrCode className="w-4 h-4" />
-                      <span>مسح QR السريع للواجب</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setHomeworkMode('CHECKLIST')}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                        homeworkMode === 'CHECKLIST'
-                          ? 'bg-white text-emerald-800 shadow-xs'
-                          : 'text-slate-500 hover:text-slate-800'
-                      }`}
-                    >
-                      <ClipboardList className="w-4 h-4" />
-                      <span>قائمة الفحص اليدوي للواجب</span>
-                    </button>
-                  </div>
-
-                  {homeworkMode === 'QR' ? (
-                    <OnsiteHomeworkScanner
-                      sessionId={sessionId}
-                      groupId={groupId}
-                    />
-                  ) : (
-                    <ManualHomeworkChecklist
-                      sessionId={sessionId}
-                      groupId={groupId}
-                    />
-                  )}
-                </div>
-              ) : activeTab === 'QR' ? (
+              {activeTab === 'QR' ? (
                 <QrScanner sessionId={sessionId} />
               ) : (
                 <ManualAttendanceRoster sessionId={sessionId} records={report.records} />
