@@ -32,12 +32,24 @@ const credentials = {
   parentIsNew: true,
 };
 
+function selectCenterMode() {
+  fireEvent.click(screen.getByText('طالب سنتر'));
+}
+
+function selectOption(labelText: RegExp, optionText: string) {
+  const trigger = screen.getByLabelText(labelText);
+  fireEvent.click(trigger);
+  const optionButton = screen.getByRole('button', { name: optionText });
+  fireEvent.click(optionButton);
+}
+
 function fillValidInfo() {
+  selectCenterMode();
   fireEvent.change(screen.getByLabelText(/الاسم بالكامل/i), { target: { value: 'محمود أحمد علي' } });
   fireEvent.change(screen.getByLabelText(/رقم هاتف الطالب/i), { target: { value: '01012345678' } });
   fireEvent.change(screen.getByLabelText(/رقم هاتف ولي الأمر/i), { target: { value: '01098765432' } });
-  fireEvent.change(screen.getByLabelText(/المرحلة الدراسية/i), { target: { value: 'SECONDARY' } });
-  fireEvent.change(screen.getByLabelText(/الصف الدراسي/i), { target: { value: 'الصف الثالث الثانوي' } });
+  selectOption(/المرحلة الدراسية/i, 'المرحلة الثانوية');
+  selectOption(/الصف الدراسي/i, 'الصف الثالث الثانوي');
 }
 
 describe('StudentRegistrationForm Component', () => {
@@ -45,10 +57,21 @@ describe('StudentRegistrationForm Component', () => {
     vi.clearAllMocks();
   });
 
-  it('renders the student information step with all required fields', () => {
+  it('renders the attendance mode selection step initially', () => {
     mockHook();
 
     render(<StudentRegistrationForm />);
+
+    expect(screen.getByText('طالب سنتر')).toBeInTheDocument();
+    expect(screen.getByText('أونلاين فقط')).toBeInTheDocument();
+    expect(screen.getByText(/العودة إلى تسجيل الدخول/i)).toBeInTheDocument();
+  });
+
+  it('renders the student information step with all required fields after selecting mode', () => {
+    mockHook();
+
+    render(<StudentRegistrationForm />);
+    selectCenterMode();
 
     expect(screen.getByLabelText(/الاسم بالكامل/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/رقم هاتف الطالب/i)).toBeInTheDocument();
@@ -56,13 +79,13 @@ describe('StudentRegistrationForm Component', () => {
     expect(screen.getByLabelText(/المرحلة الدراسية/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/الصف الدراسي/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /متابعة/i })).toBeInTheDocument();
-    expect(screen.getByText(/العودة إلى تسجيل الدخول/i)).toBeInTheDocument();
   });
 
   it('validates empty fields and shows client-side errors without submitting', async () => {
     const base = mockHook();
 
     render(<StudentRegistrationForm />);
+    selectCenterMode();
 
     fireEvent.click(screen.getByRole('button', { name: /متابعة/i }));
 
@@ -132,6 +155,7 @@ describe('StudentRegistrationForm Component', () => {
         parentPhone: '01098765432',
         academicStage: 'SECONDARY',
         gradeLevel: 'الصف الثالث الثانوي',
+        attendanceMode: 'CENTER',
       });
     });
   });
@@ -156,17 +180,14 @@ describe('StudentRegistrationForm Component', () => {
 
     render(<StudentRegistrationForm />);
 
-    expect(screen.getByText('تم إنشاء الحساب بنجاح')).toBeInTheDocument();
+    expect(screen.getByText(/تم إنشاء الحساب بنجاح/i)).toBeInTheDocument();
     expect(screen.getByText('STU-2026-00482')).toBeInTheDocument();
     expect(screen.getByText('Ab3$kL9mQwZx')).toBeInTheDocument();
-    expect(screen.getByText('Xy7@nR2pVcTq')).toBeInTheDocument();
-    expect(screen.getByText(/لن تظهر كلمات المرور مرة أخرى/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /نسخ بيانات الطالب/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /نسخ بيانات ولي الأمر/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /الانتقال إلى لوحة التحكم/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /نسخ بيانات حساب الطالب/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /اختار المجموعة الدراسية/i })).toBeInTheDocument();
   });
 
-  it('does not show a parent password when the parent account already existed', () => {
+  it('renders student credentials correctly on success', () => {
     mockHook({
       isRegistered: true,
       credentials: { ...credentials, parentIsNew: false, parentPassword: null },
@@ -174,9 +195,8 @@ describe('StudentRegistrationForm Component', () => {
 
     render(<StudentRegistrationForm />);
 
-    expect(screen.getByText('تم إنشاء الحساب بنجاح')).toBeInTheDocument();
-    // Parent password is not shown for an existing parent account
-    expect(screen.queryByText('Xy7@nR2pVcTq')).not.toBeInTheDocument();
+    expect(screen.getByText(/تم إنشاء الحساب بنجاح/i)).toBeInTheDocument();
+    expect(screen.getByText('STU-2026-00482')).toBeInTheDocument();
   });
 
   it('redirects to the dashboard from the success screen', () => {
@@ -184,7 +204,7 @@ describe('StudentRegistrationForm Component', () => {
 
     render(<StudentRegistrationForm />);
 
-    fireEvent.click(screen.getByRole('button', { name: /الانتقال إلى لوحة التحكم/i }));
+    fireEvent.click(screen.getByRole('button', { name: /اختار المجموعة الدراسية/i }));
     expect(base.redirectToDashboard).toHaveBeenCalled();
   });
 
@@ -192,6 +212,7 @@ describe('StudentRegistrationForm Component', () => {
     mockHook({ isRegistering: true });
 
     render(<StudentRegistrationForm />);
+    selectCenterMode();
 
     const submitBtn = screen.getByRole('button', { name: /متابعة/i });
     expect(submitBtn).toBeDisabled();

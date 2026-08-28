@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import {
   AlertCircle,
+  ArrowLeft,
   ArrowRight,
   Check,
   CheckCircle2,
@@ -348,8 +349,10 @@ export function StudentRegistrationForm() {
         value={academicStage}
         onChange={(e) => {
           const value = e.target.value;
-          setAcademicStage(value === '' ? '' : (value as AcademicStage));
-          setGradeLevel('');
+          if (value !== academicStage) {
+            setAcademicStage(value === '' ? '' : (value as AcademicStage));
+            setGradeLevel('');
+          }
           if (fieldErrors.academicStage) setFieldErrors((prev) => ({ ...prev, academicStage: undefined }));
         }}
         error={fieldErrors.academicStage}
@@ -590,11 +593,12 @@ function CredentialsScreen({
           type="button"
           variant="primary"
           size="lg"
-          className="w-full font-bold shadow-md rounded-2xl py-4"
+          className="w-full font-bold shadow-md rounded-2xl py-4 flex items-center justify-center gap-2 text-base"
           onClick={onContinue}
-          aria-label="الانتقال إلى صفحة تسجيل الدخول"
+          aria-label="اختار المجموعة الدراسية"
         >
-          <span>العودة لصفحة تسجيل الدخول</span>
+          <span>اختار المجموعة الدراسية</span>
+          <ArrowLeft className="h-5 w-5" />
         </Button>
       </div>
     </div>
