@@ -521,39 +521,51 @@ export class GroupsService {
       return updated;
     });
 
-    // ── Dispatch WhatsApp & In-App notification on Student Approval ─────────
-    try {
+      try {
       const student = enrollment.student;
       const studentUser = student?.user;
       const parentLink = student?.parentLinks?.[0];
       const parentUser = parentLink?.parent?.user;
 
-      const parentPhone = parentUser?.phone || student?.emergencyPhone;
+      // Extract initial credentials if stored during registration
+      const pendingCreds = student?.pendingCredentials as {
+        studentPassword?: string;
+        parentPassword?: string;
+        studentPhone?: string;
+        parentPhone?: string;
+      } | null;
+
+      const parentPhone =
+        parentUser?.phone ||
+        pendingCreds?.parentPhone ||
+        (student as any)?.parentPhone ||
+        student?.emergencyPhone ||
+        undefined;
+
       const parentName = parentUser?.fullName || 'ولي الأمر المحترم';
       const studentName = studentUser?.fullName || 'الطالب';
-      const studentPhoneOrCode = studentUser?.phone || student?.studentCode || '';
+      const studentPhoneOrCode =
+        studentUser?.phone ||
+        pendingCreds?.studentPhone ||
+        student?.studentCode ||
+        '';
       const groupName = enrollment.group?.name || '';
       const teacherName = enrollment.group?.teacher?.user?.fullName;
       const centerName = teacherName ? `مجموعة الأستاذ ${teacherName}` : 'منصة الأوّل التعليمية';
       const platformUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online/login';
 
-      // Extract initial passwords if stored during registration
-      const pendingCreds = student?.pendingCredentials as {
-        studentPassword?: string;
-        parentPassword?: string;
-      } | null;
-
       const studentPassword = pendingCreds?.studentPassword;
       const parentPassword = pendingCreds?.parentPassword;
 
+      // 1. Notify Student via In-App and Web Push
       if (studentUser?.id) {
         await this.notificationsService.sendNotification({
           recipientId: studentUser.id,
           type: 'STUDENT_APPROVAL_CREDENTIALS',
           notificationType: NotificationType.STUDENT_APPROVAL_CREDENTIALS,
-          title: `تم تأكيد وقبول انضمام ${studentName}`,
-          body: `تم قبول طلب انضمامك إلى ${groupName || 'المجموعة'}. يمكنك الآن الدخول إلى منصة الأوّل.`,
-          channels: [NotificationChannel.WEB_PUSH],
+          title: `تم تأكيد وقبول انضمامك إلى ${groupName || 'المجموعة'} 🎉`,
+          body: `مرحباً ${studentName}، تم قبول طلب انضمامك بنجاح. يمكنك الآن متابعة الحصص، الامتحانات، والواجبات.`,
+          channels: [NotificationChannel.IN_APP, NotificationChannel.WEB_PUSH],
           data: {
             studentId: student.id,
             studentName,
@@ -564,6 +576,7 @@ export class GroupsService {
         });
       }
 
+      // 2. Notify Parent via WhatsApp, In-App, and Web Push
       const parentRecipientId = parentUser?.id || studentUser?.id;
       if (parentRecipientId) {
         const messageBody = formatStudentApprovalMessage({
@@ -578,15 +591,21 @@ export class GroupsService {
           groupName,
         });
 
+        const channels: NotificationChannel[] = [
+          NotificationChannel.IN_APP,
+          NotificationChannel.WEB_PUSH,
+        ];
+        if (parentPhone) {
+          channels.push(NotificationChannel.WHATSAPP);
+        }
+
         await this.notificationsService.sendNotification({
           recipientId: parentRecipientId,
           type: 'STUDENT_APPROVAL_CREDENTIALS',
           notificationType: NotificationType.STUDENT_APPROVAL_CREDENTIALS,
-          title: `تم تأكيد وقبول انضمام ${studentName}`,
+          title: `تم تأكيد وقبول انضمام الطالب ${studentName}`,
           body: messageBody,
-          channels: parentPhone
-            ? [NotificationChannel.WHATSAPP, NotificationChannel.IN_APP]
-            : [NotificationChannel.IN_APP],
+          channels,
           data: {
             studentId: student.id,
             studentName,
@@ -617,8 +636,6 @@ export class GroupsService {
       this.logger.error('Failed to dispatch student approval notification', notifErr);
     }
 
-    // Push a realtime "reservations changed" signal so the teacher's open
-    // tabs refresh the pending list & sidebar counter without polling.
     this.realtimeGateway.notifyReservationsChanged([user.id]);
 
     return updatedEnrollment;
@@ -633,7 +650,7 @@ export class GroupsService {
       include: { group: true }
     });
 
-    if (!enrollment || enrollment.status !== 'PENDING' as GroupEnrollmentStatus) {
+    if (!enrollment || enrollment.status !== ('PENDING' as GroupEnrollmentStatus)) {
       throw new NotFoundException('Pending reservation not found');
     }
 

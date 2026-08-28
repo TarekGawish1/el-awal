@@ -26,6 +26,7 @@ import { BookletManagementSection } from '@/features/booklets/components/Booklet
 import { FinanceTabs, FinanceTab } from './FinanceTabs';
 import { FinancialMatrixLedger } from './FinancialMatrixLedger';
 import { ManualPaymentTab } from './ManualPaymentTab';
+import { FinanceAnalyticsTab } from './FinanceAnalyticsTab';
 import toast from 'react-hot-toast';
 
 const ARABIC_MONTHS = [
@@ -39,6 +40,8 @@ export function FinanceDashboard() {
   const paramYear = searchParams.get('year');
   const paramMonth = searchParams.get('month');
   const paramTab = searchParams.get('tab');
+  const paramStage = searchParams.get('stage') || '';
+  const paramGradeLevel = searchParams.get('gradeLevel') || '';
 
   const [selectedGroupId, setSelectedGroupId] = useState<string>(paramGroupId || '');
   const [periodYear, setPeriodYear] = useState<number>(
@@ -48,7 +51,7 @@ export function FinanceDashboard() {
     paramMonth && !isNaN(Number(paramMonth)) ? Number(paramMonth) : new Date().getMonth() + 1
   );
   const [activeTab, setActiveTab] = useState<FinanceTab>(
-    paramTab === 'booklets' ? 'BOOKLETS' : paramTab === 'matrix' ? 'MATRIX' : 'QR'
+    paramTab === 'booklets' ? 'BOOKLETS' : paramTab === 'matrix' ? 'MATRIX' : paramTab === 'analytics' ? 'ANALYTICS' : 'QR'
   );
   const [historyStudentId, setHistoryStudentId] = useState<string | null>(null);
 
@@ -66,6 +69,8 @@ export function FinanceDashboard() {
       setActiveTab('BOOKLETS');
     } else if (paramTab === 'matrix') {
       setActiveTab('MATRIX');
+    } else if (paramTab === 'analytics') {
+      setActiveTab('ANALYTICS');
     }
   }, [paramGroupId, paramYear, paramMonth, paramTab]);
 
@@ -129,7 +134,9 @@ export function FinanceDashboard() {
       {activeTab === 'BOOKLETS' ? (
         <BookletManagementSection groups={groups} />
       ) : activeTab === 'MATRIX' ? (
-        <FinancialMatrixLedger groups={groups} />
+        <FinancialMatrixLedger groups={groups} initialStage={paramStage} initialGradeLevel={paramGradeLevel} initialGroupId={paramGroupId || ''} />
+      ) : activeTab === 'ANALYTICS' ? (
+        <FinanceAnalyticsTab groups={groups} />
       ) : activeTab === 'MANUAL' ? (
         <ManualPaymentTab groups={groups} initialPeriodYear={periodYear} initialPeriodMonth={periodMonth} initialGroupId={selectedGroupId} />
       ) : (

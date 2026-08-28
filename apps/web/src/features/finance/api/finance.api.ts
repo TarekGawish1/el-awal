@@ -9,6 +9,7 @@ import {
   CursorPaginatedResponse,
   MatrixLedgerResponse,
   BillingConfigurationResponse,
+  FinanceAnalyticsResponse,
 } from '../types/finance.types';
 
 export async function fetchPayments(query: PaymentQuery = {}): Promise<CursorPaginatedResponse<StudentPaymentRecord>> {
@@ -66,6 +67,19 @@ export async function fetchMatrixLedger(query: {
   limit?: number;
 }): Promise<MatrixLedgerResponse> {
   return apiClient<MatrixLedgerResponse>('/payments/matrix-ledger', {
+    params: query as Record<string, string | number | boolean | undefined>,
+  });
+}
+
+export async function fetchFinanceAnalytics(query: {
+  academicPeriodId?: string;
+  academicYear?: string;
+  academicTerm?: string;
+  stage?: string;
+  gradeLevel?: string;
+  groupId?: string;
+}): Promise<FinanceAnalyticsResponse> {
+  return apiClient<FinanceAnalyticsResponse>('/payments/analytics', {
     params: query as Record<string, string | number | boolean | undefined>,
   });
 }

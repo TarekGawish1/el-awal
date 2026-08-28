@@ -118,13 +118,13 @@ function calculateTotals(student: MatrixLedgerStudent, months: number[], booklet
   return { totalPaid, totalDue };
 }
 
-export function FinancialMatrixLedger({ groups = [] }: { groups?: any[] }) {
+export function FinancialMatrixLedger({ groups = [], initialStage = '', initialGradeLevel = '', initialGroupId = '' }: { groups?: any[]; initialStage?: string; initialGradeLevel?: string; initialGroupId?: string }) {
   const defaultYear = new Date().getFullYear() + '-' + (new Date().getFullYear() + 1);
   const [academicYear, setAcademicYear] = useState(() => readStoredValue(STORAGE_YEAR_KEY, defaultYear));
   const [academicTerm, setAcademicTerm] = useState<'FIRST_TERM' | 'SECOND_TERM'>(() => readStoredValue(STORAGE_TERM_KEY, DEFAULT_ACADEMIC_TERM) as 'FIRST_TERM' | 'SECOND_TERM');
-  const [stage, setStage] = useState('');
-  const [gradeLevel, setGradeLevel] = useState('');
-  const [groupId, setGroupId] = useState('');
+  const [stage, setStage] = useState(initialStage);
+  const [gradeLevel, setGradeLevel] = useState(initialGradeLevel);
+  const [groupId, setGroupId] = useState(initialGroupId);
   const [search, setSearch] = useState('');
   const [excludedMonths, setExcludedMonths] = useState<number[]>([]);
   const [page, setPage] = useState(1);

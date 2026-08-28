@@ -178,3 +178,38 @@ export interface BillingConfigurationResponse {
   availableMonths: number[];
   excludedMonths: number[];
 }
+
+export interface FinanceAnalyticsBreakdown {
+  expected: number;
+  collected: number;
+  remaining: number;
+  rate?: number;
+  collectionRate?: number;
+}
+
+export interface FinanceAnalyticsGroup {
+  id: string;
+  name: string;
+  gradeLevel: string;
+  stage: string;
+  studentCount: number;
+  tuition: FinanceAnalyticsBreakdown;
+  booklets: FinanceAnalyticsBreakdown;
+  total: FinanceAnalyticsBreakdown;
+}
+
+export interface FinanceAnalyticsResponse {
+  academicYear: string;
+  academicTerm: 'FIRST_TERM' | 'SECOND_TERM';
+  months: number[];
+  overview: {
+    totalExpected: number;
+    totalCollected: number;
+    totalRemaining: number;
+    collectionRate: number;
+    totalStudents: number;
+    tuition: FinanceAnalyticsBreakdown;
+    booklets: FinanceAnalyticsBreakdown;
+  };
+  groups: FinanceAnalyticsGroup[];
+}

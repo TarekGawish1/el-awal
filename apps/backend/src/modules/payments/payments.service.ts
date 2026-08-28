@@ -3,9 +3,26 @@ import { GroupEnrollmentStatus, PaymentStatus, PaymentType, UserRole } from '@pr
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../core/security/decorators/current-user.decorator';
 import { MatrixLedgerQueryDto } from './dto/matrix-ledger-query.dto';
+import { FinanceAnalyticsQueryDto } from './dto/finance-analytics-query.dto';
 
 const FIRST_TERM_MONTHS = [8, 9, 10, 11, 12, 1];
 const SECOND_TERM_MONTHS = [2, 3, 4, 5, 6, 7];
+
+const STAGE_GRADE_LEVELS: Record<string, string[]> = {
+  PRIMARY: [
+    'الصف الأول الابتدائي',
+    'الصف الثاني الابتدائي',
+    'الصف الثالث الابتدائي',
+    'الصف الرابع الابتدائي',
+    'الصف الخامس الابتدائي',
+    'الصف السادس الابتدائي',
+  ],
+  PREPARATORY: ['الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي'],
+  SECONDARY: ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي'],
+};
+
+const round2 = (value: number) => Math.round(value * 100) / 100;
+const rate = (collected: number, expected: number) => (expected > 0 ? Math.round((collected / expected) * 10000) / 100 : 0);
 
 @Injectable()
 export class PaymentsService {
@@ -301,6 +318,204 @@ export class PaymentsService {
       limit,
       booklets: booklets.map((booklet) => ({ ...booklet, price: Number(booklet.price) })),
       students: resultStudents,
+    };
+  }
+
+  private inferStage(gradeLevel: string): string {
+    return Object.entries(STAGE_GRADE_LEVELS).find(([, grades]) => grades.includes(gradeLevel))?.[0] || '';
+  }
+
+  async getFinanceAnalytics(user: AuthenticatedUser, query: FinanceAnalyticsQueryDto) {
+    if (user.role !== UserRole.TEACHER && user.role !== UserRole.SECRETARIAT) {
+      throw new ForbiddenException('Only teachers and secretariat can view the financial analytics');
+    }
+
+    const { academicYear, academicTerm, availableMonths } = this.parsePeriod(query as MatrixLedgerQueryDto);
+    const teacherId = await this.resolveTeacherId(user);
+    const billingConfiguration = teacherId
+      ? await this.prisma.teacherBillingConfiguration.findUnique({
+          where: { teacherId_academicYear_academicTerm: { teacherId, academicYear, academicTerm } },
+        })
+      : null;
+    const excludedMonths = this.normalizeExcludedMonths(billingConfiguration?.excludedMonths, availableMonths);
+    const months = availableMonths.filter((month) => !excludedMonths.includes(month));
+
+    const stageGrades = query.stage && query.stage !== 'ALL' ? STAGE_GRADE_LEVELS[query.stage] || [] : [];
+    let gradeLevelFilter: any;
+    if (query.gradeLevel && query.gradeLevel !== 'ALL') {
+      gradeLevelFilter = query.gradeLevel;
+    } else if (stageGrades.length > 0) {
+      gradeLevelFilter = { in: stageGrades };
+    }
+
+    const groupWhere: any = {
+      isActive: true,
+      academicYear,
+      academicTerm,
+      ...(teacherId ? { teacherId } : {}),
+      ...(query.groupId ? { id: query.groupId } : {}),
+      ...(gradeLevelFilter ? { gradeLevel: gradeLevelFilter } : {}),
+    };
+
+    const studentWhere: any = {
+      academicStatus: 'ACTIVE',
+      user: { isActive: true },
+      groupEnrollments: { some: { status: GroupEnrollmentStatus.ACTIVE, group: groupWhere } },
+      ...(gradeLevelFilter ? { gradeLevel: gradeLevelFilter } : {}),
+    };
+
+    const [groups, students, booklets] = await Promise.all([
+      this.prisma.academicGroup.findMany({
+        where: groupWhere,
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, name: true, gradeLevel: true, monthlyFee: true },
+      }),
+      this.prisma.studentProfile.findMany({
+        where: studentWhere,
+        select: {
+          id: true,
+          gradeLevel: true,
+          groupEnrollments: {
+            where: { status: GroupEnrollmentStatus.ACTIVE, group: groupWhere },
+            select: { groupId: true },
+          },
+        },
+      }),
+      this.prisma.booklet.findMany({
+        where: {
+          isActive: true,
+          academicYear,
+          academicTerm,
+          ...(teacherId ? { teacherProfileId: teacherId } : {}),
+          ...(gradeLevelFilter ? { gradeLevel: gradeLevelFilter } : {}),
+          ...(query.groupId ? { OR: [{ groupId: null }, { groupId: query.groupId }] } : {}),
+        },
+        select: { id: true, title: true, price: true, gradeLevel: true, groupId: true },
+      }),
+    ]);
+
+    const studentIds = students.map((student) => student.id);
+    const payments =
+      studentIds.length === 0
+        ? []
+        : await this.prisma.studentPaymentRecord.findMany({
+            where: {
+              studentId: { in: studentIds },
+              paymentType: { in: [PaymentType.TUITION, PaymentType.BOOKLET] },
+              paymentStatus: { in: [PaymentStatus.PAID, PaymentStatus.EXEMPT] },
+            },
+            select: {
+              studentId: true,
+              groupId: true,
+              bookletId: true,
+              paymentType: true,
+              amountPaid: true,
+              paymentStatus: true,
+            },
+          });
+
+    const groupIds = new Set(groups.map((group) => group.id));
+    const primaryGroupByStudent = new Map<string, string | null>();
+    const studentCountByGroup = new Map<string, number>();
+    const studentCountByGrade = new Map<string, number>();
+    for (const student of students) {
+      const enrollmentGroupIds = student.groupEnrollments.map((enrollment) => enrollment.groupId);
+      primaryGroupByStudent.set(student.id, enrollmentGroupIds[0] || null);
+      studentCountByGrade.set(student.gradeLevel, (studentCountByGrade.get(student.gradeLevel) || 0) + 1);
+      for (const groupId of enrollmentGroupIds) {
+        studentCountByGroup.set(groupId, (studentCountByGroup.get(groupId) || 0) + 1);
+      }
+    }
+
+    const tuitionCollectedByGroup = new Map<string, number>();
+    const bookletCollectedByGroup = new Map<string, number>();
+    for (const payment of payments) {
+      const attributedGroupId =
+        payment.groupId && groupIds.has(payment.groupId) ? payment.groupId : primaryGroupByStudent.get(payment.studentId) || null;
+      if (!attributedGroupId || !groupIds.has(attributedGroupId)) continue;
+      const target = payment.paymentType === PaymentType.BOOKLET ? bookletCollectedByGroup : tuitionCollectedByGroup;
+      target.set(attributedGroupId, (target.get(attributedGroupId) || 0) + Number(payment.amountPaid || 0));
+    }
+
+    const groupRows = groups.map((group) => {
+      const studentCount = studentCountByGroup.get(group.id) || 0;
+      const tuitionExpected = round2(Number(group.monthlyFee) * studentCount * months.length);
+      const bookletsExpected = round2(
+        booklets
+          .filter((booklet) => booklet.gradeLevel === group.gradeLevel && (!booklet.groupId || booklet.groupId === group.id))
+          .reduce((sum, booklet) => sum + Number(booklet.price) * studentCount, 0),
+      );
+      const tuitionCollected = round2(tuitionCollectedByGroup.get(group.id) || 0);
+      const bookletsCollected = round2(bookletCollectedByGroup.get(group.id) || 0);
+      const totalExpected = round2(tuitionExpected + bookletsExpected);
+      const totalCollected = round2(tuitionCollected + bookletsCollected);
+
+      return {
+        id: group.id,
+        name: group.name,
+        gradeLevel: group.gradeLevel,
+        stage: this.inferStage(group.gradeLevel),
+        studentCount,
+        tuition: {
+          expected: tuitionExpected,
+          collected: tuitionCollected,
+          remaining: Math.max(0, round2(tuitionExpected - tuitionCollected)),
+          rate: rate(tuitionCollected, tuitionExpected),
+        },
+        booklets: {
+          expected: bookletsExpected,
+          collected: bookletsCollected,
+          remaining: Math.max(0, round2(bookletsExpected - bookletsCollected)),
+          rate: rate(bookletsCollected, bookletsExpected),
+        },
+        total: {
+          expected: totalExpected,
+          collected: totalCollected,
+          remaining: Math.max(0, round2(totalExpected - totalCollected)),
+          rate: rate(totalCollected, totalExpected),
+        },
+      };
+    });
+
+    const overviewTuitionExpected = round2(groupRows.reduce((sum, group) => sum + group.tuition.expected, 0));
+    const overviewTuitionCollected = round2(groupRows.reduce((sum, group) => sum + group.tuition.collected, 0));
+    const overviewBookletsExpected = round2(
+      booklets.reduce(
+        (sum, booklet) =>
+          sum +
+          Number(booklet.price) *
+            (booklet.groupId ? studentCountByGroup.get(booklet.groupId) || 0 : studentCountByGrade.get(booklet.gradeLevel) || 0),
+        0,
+      ),
+    );
+    const overviewBookletsCollected = round2(groupRows.reduce((sum, group) => sum + group.booklets.collected, 0));
+    const overviewTotalExpected = round2(overviewTuitionExpected + overviewBookletsExpected);
+    const overviewTotalCollected = round2(overviewTuitionCollected + overviewBookletsCollected);
+
+    return {
+      academicYear,
+      academicTerm,
+      months,
+      overview: {
+        totalExpected: overviewTotalExpected,
+        totalCollected: overviewTotalCollected,
+        totalRemaining: Math.max(0, round2(overviewTotalExpected - overviewTotalCollected)),
+        collectionRate: rate(overviewTotalCollected, overviewTotalExpected),
+        totalStudents: students.length,
+        tuition: {
+          expected: overviewTuitionExpected,
+          collected: overviewTuitionCollected,
+          remaining: Math.max(0, round2(overviewTuitionExpected - overviewTuitionCollected)),
+          collectionRate: rate(overviewTuitionCollected, overviewTuitionExpected),
+        },
+        booklets: {
+          expected: overviewBookletsExpected,
+          collected: overviewBookletsCollected,
+          remaining: Math.max(0, round2(overviewBookletsExpected - overviewBookletsCollected)),
+          collectionRate: rate(overviewBookletsCollected, overviewBookletsExpected),
+        },
+      },
+      groups: groupRows,
     };
   }
 }
