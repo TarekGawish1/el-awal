@@ -11,7 +11,6 @@ import {
   DollarSign,
   ClipboardList,
   Bell,
-  ClipboardList,
 } from 'lucide-react';
 
 export interface NavItemConfig {
