@@ -901,16 +901,16 @@ function AboutUsSection() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.8 }}
-              className="max-w-4xl mx-auto bg-white/10 backdrop-blur-xl border border-white/20 border-b-0 p-6 sm:p-10 md:p-12 pb-14 sm:pb-20 rounded-t-[2rem] sm:rounded-t-[3rem] shadow-2xl text-center text-white"
+              className="max-w-3xl mx-auto bg-white/10 backdrop-blur-xl border border-white/20 border-b-0 p-6 sm:p-8 md:p-10 pb-10 sm:pb-12 md:pb-16 rounded-t-[2rem] sm:rounded-t-[3rem] shadow-2xl text-center text-white"
             >
-              <div className="inline-block px-3 py-1 sm:px-4 sm:py-2 bg-white/20 rounded-full font-bold text-xs sm:text-sm mb-4 sm:mb-6 text-white border border-white/30">
+              <div className="inline-block px-3 py-1 sm:px-4 sm:py-2 bg-white/20 rounded-full font-bold text-xs sm:text-sm mb-3 sm:mb-5 text-white border border-white/30">
                 من نحن
               </div>
-              <h2 className="text-2xl sm:text-4xl md:text-5xl font-black mb-4 sm:mb-6 leading-tight">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-black mb-3 sm:mb-5 leading-tight">
                 تعرف على الأستاذ / <span className="text-blue-400">أحمد غريب</span>
               </h2>
 
-              <div className="space-y-3 sm:space-y-6 text-slate-200 text-[13px] sm:text-lg leading-relaxed max-w-3xl mx-auto">
+              <div className="space-y-3 sm:space-y-4 text-slate-200 text-[13px] sm:text-base md:text-lg leading-relaxed max-w-2xl mx-auto">
                 <p>
                   نحن في منصة الأول نؤمن بأن الرياضيات ليست مجرد أرقام وقوانين، بل هي لغة العقل ومنهج للتفكير. هدفنا هو تبسيط المادة وتوصيلها للطلاب بأسهل وأمتع الطرق الممكنة.
                 </p>
