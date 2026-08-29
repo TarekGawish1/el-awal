@@ -292,7 +292,7 @@ export default function DashboardLayout({
             )}
 
             {/* Pending Actions Button - visible while offline with queued mutations */}
-            {!isOnline && pendingSyncCount > 0 && (
+            {user?.role !== 'STUDENT' && user?.role !== 'PARENT' && !isOnline && pendingSyncCount > 0 && (
               <button
                 onClick={() => setIsActivityDrawerOpen(true)}
                 className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border bg-purple-50 border-purple-200 text-purple-800 hover:bg-purple-100 shadow-xs shrink-0"
@@ -308,24 +308,26 @@ export default function DashboardLayout({
             )}
 
             {/* Sync Review Button (shows when online with pending items or on click) */}
-            <button
-              onClick={() => setIsSyncReviewOpen(true)}
-              className={`flex items-center justify-center w-8 h-8 sm:w-auto sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-bold transition-all border shrink-0 ${
-                pendingSyncCount > 0
-                  ? 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 shadow-xs animate-pulse'
-                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-              }`}
-              title="مراجعة المزامنة السحابية"
-              aria-label="مراجعة المزامنة السحابية"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span className="hidden md:inline ms-1.5">المزامنة</span>
-              {pendingSyncCount > 0 && (
-                <span className="bg-amber-600 text-white rounded-full px-1.5 py-0.2 text-[10px] font-mono font-black ms-1">
-                  {pendingSyncCount}
-                </span>
-              )}
-            </button>
+            {user?.role !== 'STUDENT' && user?.role !== 'PARENT' && (
+              <button
+                onClick={() => setIsSyncReviewOpen(true)}
+                className={`flex items-center justify-center w-8 h-8 sm:w-auto sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-bold transition-all border shrink-0 ${
+                  pendingSyncCount > 0
+                    ? 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 shadow-xs animate-pulse'
+                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+                title="مراجعة المزامنة السحابية"
+                aria-label="مراجعة المزامنة السحابية"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span className="hidden md:inline ms-1.5">المزامنة</span>
+                {pendingSyncCount > 0 && (
+                  <span className="bg-amber-600 text-white rounded-full px-1.5 py-0.2 text-[10px] font-mono font-black ms-1">
+                    {pendingSyncCount}
+                  </span>
+                )}
+              </button>
+            )}
 
             {/* WhatsApp Gateway Quick Manager (Teachers & Secretariat) - Accessible in sidebar on mobile */}
             {(user?.role === 'TEACHER' || user?.role === 'SECRETARIAT') && (
