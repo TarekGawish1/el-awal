@@ -26,6 +26,7 @@ import {
 import {
   useNotificationSettings,
   useUpdateNotificationSettings,
+  type NotificationSystemSettings,
 } from '@/hooks/useNotificationSettings';
 import {
   useNotifications,
@@ -68,7 +69,7 @@ export default function NotificationCenterPage() {
     return true;
   });
 
-  const handleToggle = (key: keyof typeof settings, currentValue?: boolean) => {
+  const handleToggle = (key: keyof NotificationSystemSettings, currentValue?: boolean) => {
     updateSettings.mutate({ [key]: !currentValue });
   };
 

@@ -174,6 +174,6 @@ export class NotificationsController {
     @Body() dto: Partial<NotificationSystemSettings>,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.settingsService.updateSettings(dto, user.fullName || user.email || 'Admin');
+    return this.settingsService.updateSettings(dto, user.email || user.phone || user.id || 'Admin');
   }
 }
