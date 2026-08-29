@@ -4,10 +4,11 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthController } from './controllers/auth.controller';
 import { AuthService } from './services/auth.service';
 import { StudentRegistrationService } from './services/student-registration.service';
-import { WhatsAppService } from '../../services/whatsapp/whatsapp.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
+    NotificationsModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -20,7 +21,7 @@ import { WhatsAppService } from '../../services/whatsapp/whatsapp.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, StudentRegistrationService, WhatsAppService],
+  providers: [AuthService, StudentRegistrationService],
   exports: [AuthService, JwtModule],
 })
 export class AuthModule {}
