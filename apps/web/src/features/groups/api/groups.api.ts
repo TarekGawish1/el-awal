@@ -106,3 +106,10 @@ export async function rejectReservation(enrollmentId: string): Promise<void> {
     method: 'POST',
   });
 }
+
+export async function changeReservationGroup(enrollmentId: string, groupId: string): Promise<void> {
+  return await apiClient<void>(`/groups/reservations/${enrollmentId}/group`, {
+    method: 'PATCH',
+    body: JSON.stringify({ groupId }),
+  });
+}

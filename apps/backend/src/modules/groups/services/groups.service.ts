@@ -702,7 +702,38 @@ export class GroupsService {
     this.realtimeGateway.notifyReservationsChanged([user.id]);
 
     return this.prisma.groupEnrollment.delete({
-      where: { id: enrollmentId }
+      where: { id: enrollmentId },
+    });
+  }
+
+  /**
+   * Changes the target group for a pending reservation.
+   */
+  async changeReservationGroup(enrollmentId: string, newGroupId: string, user: AuthenticatedUser) {
+    const enrollment = await this.prisma.groupEnrollment.findUnique({
+      where: { id: enrollmentId },
+      include: { group: true },
+    });
+
+    if (!enrollment || enrollment.status !== ('PENDING' as GroupEnrollmentStatus)) {
+      throw new NotFoundException('Pending reservation not found');
+    }
+
+    await this.checkTeacherOwnership(enrollment.group, user);
+
+    const newGroup = await this.prisma.academicGroup.findUnique({
+      where: { id: newGroupId },
+    });
+
+    if (!newGroup) {
+      throw new NotFoundException('Target group not found');
+    }
+
+    await this.checkTeacherOwnership(newGroup, user);
+
+    return this.prisma.groupEnrollment.update({
+      where: { id: enrollmentId },
+      data: { groupId: newGroupId },
     });
   }
 }

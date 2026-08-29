@@ -561,3 +561,18 @@ export function useRejectReservation() {
     },
   });
 }
+
+export function useChangeReservationGroup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ enrollmentId, groupId }: { enrollmentId: string, groupId: string }) => import('../api/groups.api').then(m => m.changeReservationGroup(enrollmentId, groupId)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pending-reservations'] });
+      queryClient.invalidateQueries({ queryKey: ['groups'] });
+      toast.success('تم تغيير المجموعة بنجاح');
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'حدث خطأ أثناء تغيير المجموعة');
+    }
+  });
+}

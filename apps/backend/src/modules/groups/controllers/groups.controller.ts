@@ -162,4 +162,15 @@ export class GroupsController {
   ) {
     return this.groupsService.rejectReservation(enrollmentId, user);
   }
+
+  @Patch('reservations/:enrollmentId/group')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Change the target group of a pending reservation' })
+  async changeReservationGroup(
+    @Param('enrollmentId') enrollmentId: string,
+    @Body('groupId') groupId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.groupsService.changeReservationGroup(enrollmentId, groupId, user);
+  }
 }

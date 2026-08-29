@@ -6,14 +6,24 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
 import { CheckCircle2, XCircle, Clock, User, Phone, MapPin, QrCode, Banknote, CalendarClock, AlertCircle, X, Search } from 'lucide-react';
-import { usePendingReservations, useAcceptReservation, useRejectReservation } from '@/features/groups';
+import { usePendingReservations, useAcceptReservation, useRejectReservation, useGroups, useChangeReservationGroup } from '@/features/groups';
 import toast from 'react-hot-toast';
 import { Scanner } from '@yudiel/react-qr-scanner';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/DropdownMenu';
 
 export function PendingReservationsSection() {
   const { data: reservations, isLoading } = usePendingReservations();
   const acceptMutation = useAcceptReservation();
   const rejectMutation = useRejectReservation();
+  const changeGroupMutation = useChangeReservationGroup();
+  const { data: allGroups } = useGroups();
   
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [acceptModalData, setAcceptModalData] = useState<{ id: string; studentName: string } | null>(null);
@@ -161,6 +171,26 @@ export function PendingReservationsSection() {
                         <MapPin className="w-3.5 h-3.5" />
                         {reservation.group?.name}
                       </span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="text-[10px] text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full hover:bg-primary-100 transition-colors">
+                            تغيير المجموعة
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuLabel>اختر المجموعة الجديدة</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          {allGroups?.map(g => (
+                            <DropdownMenuItem 
+                              key={g.id} 
+                              onClick={() => changeGroupMutation.mutate({ enrollmentId: reservation.id, groupId: g.id })}
+                              disabled={g.id === reservation.groupId || changeGroupMutation.isPending}
+                            >
+                              {g.name} {g.id === reservation.groupId && '(الحالية)'}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-700 border-none font-medium px-2 py-0 h-5">
                         {new Date(reservation.enrolledAt).toLocaleDateString('ar-EG')}
                       </Badge>
