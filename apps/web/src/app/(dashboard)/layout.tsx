@@ -200,7 +200,7 @@ export default function DashboardLayout({
                       pathname?.startsWith(item.href)))
               );
 
-              const isCollapsed = Boolean(collapsedSections[sectionId]) && !hasActiveChild;
+              const isCollapsed = Boolean(collapsedSections[sectionId]);
 
               return (
                 <div key={sectionId} className="space-y-1">
