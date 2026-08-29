@@ -48,6 +48,42 @@ const ALL_GRADE_LEVELS = [
   { value: 'الصف السادس الابتدائي', label: 'الصف السادس الابتدائي' },
 ];
 
+const STAGE_GRADES_MAP: Record<string, string[]> = {
+  'المرحلة الابتدائية': [
+    'الصف الأول الابتدائي',
+    'الصف الثاني الابتدائي',
+    'الصف الثالث الابتدائي',
+    'الصف الرابع الابتدائي',
+    'الصف الخامس الابتدائي',
+    'الصف السادس الابتدائي',
+  ],
+  'المرحلة الإعدادية': [
+    'الصف الأول الإعدادي',
+    'الصف الثاني الإعدادي',
+    'الصف الثالث الإعدادي',
+  ],
+  'المرحلة الثانوية': [
+    'الصف الأول الثانوي',
+    'الصف الثاني الثانوي',
+    'الصف الثالث الثانوي',
+  ],
+};
+
+const STAGE_OPTIONS = [
+  { value: '', label: '-- جميع المراحل الدراسية --' },
+  { value: 'المرحلة الابتدائية', label: 'المرحلة الابتدائية' },
+  { value: 'المرحلة الإعدادية', label: 'المرحلة الإعدادية' },
+  { value: 'المرحلة الثانوية', label: 'المرحلة الثانوية' },
+];
+
+function getStageFromGrade(grade?: string | null): string {
+  if (!grade) return '';
+  if (grade.includes('الابتدائي')) return 'المرحلة الابتدائية';
+  if (grade.includes('الإعدادي')) return 'المرحلة الإعدادية';
+  if (grade.includes('الثانوي')) return 'المرحلة الثانوية';
+  return '';
+}
+
 const uploadSchema = z.object({
   title: z.string().min(3, 'عنوان الملف مطلوب (3 أحرف على الأقل)'),
   description: z.string().optional(),
@@ -115,6 +151,10 @@ export function UploadModal({
     resetProgress,
   } = useUploadContent();
 
+  const [selectedStage, setSelectedStage] = useState<string>(() => {
+    return getStageFromGrade(initialGradeLevel) || '';
+  });
+
   const {
     register,
     handleSubmit,
@@ -139,6 +179,44 @@ export function UploadModal({
   const selectedGroupId = watch('groupId');
   const selectedSessionId = watch('sessionId');
   const sessionTopicValue = watch('sessionTopic');
+
+  // Dynamically compute available grades based on selected stage
+  const availableGrades = useMemo(() => {
+    if (!selectedStage) return ALL_GRADE_LEVELS;
+    const stageGrades = STAGE_GRADES_MAP[selectedStage] || [];
+    return ALL_GRADE_LEVELS.filter((g) => stageGrades.includes(g.value));
+  }, [selectedStage]);
+
+  // Stage change handler
+  const handleStageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newStage = e.target.value;
+    setSelectedStage(newStage);
+
+    if (newStage) {
+      const validGrades = STAGE_GRADES_MAP[newStage] || [];
+      if (selectedGradeLevel && !validGrades.includes(selectedGradeLevel)) {
+        setValue('gradeLevel', '');
+        setValue('groupId', '');
+        setValue('sessionId', '');
+        setValue('sessionTopic', '');
+      }
+    }
+  };
+
+  // Grade change handler
+  const handleGradeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newGrade = e.target.value;
+    setValue('gradeLevel', newGrade);
+    setValue('groupId', '');
+    setValue('sessionId', '');
+    setValue('sessionTopic', '');
+    if (newGrade) {
+      const matchedStage = getStageFromGrade(newGrade);
+      if (matchedStage && matchedStage !== selectedStage) {
+        setSelectedStage(matchedStage);
+      }
+    }
+  };
 
   // Query sessions for a specific group, or all groups in the selected grade.
   const effectiveGroupId =
@@ -224,7 +302,10 @@ export function UploadModal({
   // Sync defaults when modal opens
   useEffect(() => {
     if (isOpen) {
-      if (initialGradeLevel) setValue('gradeLevel', initialGradeLevel);
+      if (initialGradeLevel) {
+        setValue('gradeLevel', initialGradeLevel);
+        setSelectedStage(getStageFromGrade(initialGradeLevel));
+      }
       if (initialGroupId) {
         setValue('groupId', initialGroupId);
         setValue('targetScope', 'SPECIFIC_GROUP');
@@ -332,13 +413,19 @@ export function UploadModal({
     );
   };
 
-  // Filter groups ONLY to the current active academic year, semester, and selected grade level
-  const filteredGroups = groups.filter((g) => {
-    if (activeYear && g.academicYear && g.academicYear !== activeYear) return false;
-    if (activeTerm && g.academicTerm && g.academicTerm !== activeTerm) return false;
-    if (selectedGradeLevel && g.gradeLevel !== selectedGradeLevel) return false;
-    return true;
-  });
+  // Filter groups to the current active academic year, semester, stage, and selected grade level
+  const filteredGroups = useMemo(() => {
+    return groups.filter((g) => {
+      if (activeYear && g.academicYear && g.academicYear !== activeYear) return false;
+      if (activeTerm && g.academicTerm && g.academicTerm !== activeTerm) return false;
+      if (selectedStage) {
+        const gStage = getStageFromGrade(g.gradeLevel);
+        if (gStage && gStage !== selectedStage) return false;
+      }
+      if (selectedGradeLevel && g.gradeLevel !== selectedGradeLevel) return false;
+      return true;
+    });
+  }, [groups, selectedStage, selectedGradeLevel, activeYear, activeTerm]);
 
   const getFileCategoryIcon = () => {
     switch (fileCategory) {
@@ -395,14 +482,33 @@ export function UploadModal({
               <span className="text-[11px] text-slate-500 font-medium">سيتم ربط الملف بهذه الفترة تلقائياً</span>
             </div>
 
-            {/* Scope / Grade & Session Scoping */}
+            {/* Scope / Stage, Grade & Session Scoping */}
             <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-100 space-y-4">
               <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
                 <Layers className="w-4 h-4 text-primary-600" />
-                تحديد الصف الدراسي ونطاق الظهور:
+                تحديد المرحلة والصف الدراسي ونطاق الظهور:
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Academic Stage */}
+                <div>
+                  <Label className="mb-1 block text-xs font-bold text-slate-700">
+                    المرحلة الدراسية
+                  </Label>
+                  <select
+                    value={selectedStage}
+                    onChange={handleStageChange}
+                    disabled={isPending}
+                    className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium disabled:bg-slate-100 disabled:opacity-75"
+                  >
+                    {STAGE_OPTIONS.map((st) => (
+                      <option key={st.value} value={st.value}>
+                        {st.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Grade Level */}
                 <div>
                   <Label className="mb-1 block text-xs font-bold text-slate-700">
@@ -410,11 +516,13 @@ export function UploadModal({
                   </Label>
                   <select
                     {...register('gradeLevel')}
+                    value={selectedGradeLevel || ''}
+                    onChange={handleGradeChange}
                     disabled={isPending}
                     className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium disabled:bg-slate-100 disabled:opacity-75"
                   >
                     <option value="">-- اختر الصف الدراسي --</option>
-                    {ALL_GRADE_LEVELS.map((g) => (
+                    {availableGrades.map((g) => (
                       <option key={g.value} value={g.value}>
                         {g.label}
                       </option>
