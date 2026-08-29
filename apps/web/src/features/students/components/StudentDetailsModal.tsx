@@ -152,6 +152,7 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
                 <span className="text-xs font-semibold text-slate-500">الصف الدراسي</span>
                 <p className="text-sm font-bold text-slate-900">{student.gradeLevel || 'غير محدد'}</p>
               </div>
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
                 <span className="text-xs font-semibold text-slate-500">تاريخ التسجيل</span>
                 <p className="text-sm font-bold text-slate-900">
                   {new Date(student.createdAt || Date.now()).toLocaleDateString('ar-EG')}
@@ -204,7 +205,7 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
                       <thead>
                         <tr>
                           <th className="p-2 border-b border-slate-100 text-slate-500 font-bold whitespace-nowrap text-start">الحصة</th>
-                          {attendanceHistory.map((_, i) => (
+                          {attendanceHistory.map((_: any, i: number) => (
                             <th key={i} className="p-2 border-b border-slate-100 font-mono text-slate-400 min-w-[40px]">{attendanceHistory.length - i}</th>
                           )).reverse()}
                         </tr>
