@@ -327,7 +327,7 @@ export function ChildDetailsView({ studentId }: ChildDetailsViewProps) {
                     {isPaid ? (
                       <Badge variant="success" className="text-[10px] mt-1 py-0 px-1.5 h-4">تم الدفع</Badge>
                     ) : (
-                      <Badge variant="destructive" className="text-[10px] mt-1 py-0 px-1.5 h-4">غير مدفوع</Badge>
+                      <Badge variant="error" className="text-[10px] mt-1 py-0 px-1.5 h-4">غير مدفوع</Badge>
                     )}
                   </div>
                 </div>
