@@ -12,6 +12,7 @@ import {
   ClipboardList,
   Bell,
   MessageSquareShare,
+  Award,
 } from 'lucide-react';
 
 export interface NavItemConfig {
@@ -47,6 +48,7 @@ export const TEACHER_NAVIGATION_SECTIONS: NavSectionConfig[] = [
       { label: 'الواجبات والاختبارات', href: '/teacher/assessments', icon: FileText, onlineOnly: true },
       { label: 'المحتوى والدروس', href: '/teacher/content', icon: BookOpen, onlineOnly: true },
       { label: 'الكورسات أونلاين', href: '/teacher/courses', icon: Video, onlineOnly: true },
+      { label: 'الشهادات', href: '/teacher/certificates', icon: Award, onlineOnly: true },
     ],
   },
   {
