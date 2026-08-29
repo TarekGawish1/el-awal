@@ -304,7 +304,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
           </button>
 
           <Link
-            href={`/student/courses/${course.id}/learn`}
+            href={`/teacher/courses/${course.id}/preview`}
             target="_blank"
             className="flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition-colors border border-slate-200 shadow-sm"
           >

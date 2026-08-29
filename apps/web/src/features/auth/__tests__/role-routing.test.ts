@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getRoleLandingRoute, sanitizeRedirectUrl } from '../utils/role-routing';
+import { getRoleLandingRoute, sanitizeRedirectUrl, isRouteAllowedForRole } from '../utils/role-routing';
 
 describe('Role Routing Utilities', () => {
   describe('getRoleLandingRoute', () => {
@@ -17,6 +17,30 @@ describe('Role Routing Utilities', () => {
 
     it('should map PARENT to /parent/dashboard', () => {
       expect(getRoleLandingRoute('PARENT')).toBe('/parent/dashboard');
+    });
+  });
+
+  describe('isRouteAllowedForRole', () => {
+    it('allows TEACHER to access teacher routes and student course learning preview routes', () => {
+      expect(isRouteAllowedForRole('/teacher/dashboard', 'TEACHER')).toBe(true);
+      expect(isRouteAllowedForRole('/teacher/courses/c-1/preview', 'TEACHER')).toBe(true);
+      expect(isRouteAllowedForRole('/student/courses/c-1/learn', 'TEACHER')).toBe(true);
+      expect(isRouteAllowedForRole('/student/courses/c-1/learn?lessonId=les-1', 'TEACHER')).toBe(true);
+      expect(isRouteAllowedForRole('/student/dashboard', 'TEACHER')).toBe(false);
+      expect(isRouteAllowedForRole('/student/attendance', 'TEACHER')).toBe(false);
+    });
+
+    it('allows SECRETARIAT to access secretariat, teacher, and student course learning preview routes', () => {
+      expect(isRouteAllowedForRole('/secretariat/dashboard', 'SECRETARIAT')).toBe(true);
+      expect(isRouteAllowedForRole('/teacher/courses', 'SECRETARIAT')).toBe(true);
+      expect(isRouteAllowedForRole('/student/courses/c-1/learn', 'SECRETARIAT')).toBe(true);
+      expect(isRouteAllowedForRole('/parent/dashboard', 'SECRETARIAT')).toBe(false);
+    });
+
+    it('allows STUDENT to access student courses and learning room', () => {
+      expect(isRouteAllowedForRole('/student/dashboard', 'STUDENT')).toBe(true);
+      expect(isRouteAllowedForRole('/student/courses/c-1/learn', 'STUDENT')).toBe(true);
+      expect(isRouteAllowedForRole('/teacher/courses', 'STUDENT')).toBe(false);
     });
   });
 
@@ -50,6 +74,8 @@ describe('Role Routing Utilities', () => {
       expect(sanitizeRedirectUrl('/teacher/finance', 'PARENT')).toBeNull();
       expect(sanitizeRedirectUrl('/teacher/finance', 'TEACHER')).toBe('/teacher/finance');
       expect(sanitizeRedirectUrl('/student/dashboard', 'STUDENT')).toBe('/student/dashboard');
+      expect(sanitizeRedirectUrl('/student/courses/c-1/learn', 'TEACHER')).toBe('/student/courses/c-1/learn');
     });
   });
 });
+

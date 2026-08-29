@@ -21,10 +21,19 @@ export function getRoleLandingRoute(role: UserRole): string {
 
 export function isRouteAllowedForRole(path: string, role: UserRole): boolean {
   if (role === 'TEACHER') {
-    return path.startsWith('/teacher') || path.startsWith('/courses');
+    return (
+      path.startsWith('/teacher') ||
+      path.startsWith('/courses') ||
+      /^\/student\/courses\/[^/]+\/learn/.test(path)
+    );
   }
   if (role === 'SECRETARIAT') {
-    return path.startsWith('/secretariat') || path.startsWith('/teacher') || path.startsWith('/courses');
+    return (
+      path.startsWith('/secretariat') ||
+      path.startsWith('/teacher') ||
+      path.startsWith('/courses') ||
+      /^\/student\/courses\/[^/]+\/learn/.test(path)
+    );
   }
   if (role === 'STUDENT') {
     return (

@@ -53,6 +53,7 @@ function getPausedEmbedUrl(embedUrl: string): string {
 export function StudentCourseLearningRoom({ courseId, initialLessonId }: StudentCourseLearningRoomProps) {
   const { data: course, isLoading: isCourseLoading } = useCourseDetail(courseId);
   const { user } = useAuth();
+  const isTeacherOrAdmin = user?.role === 'TEACHER' || user?.role === 'SECRETARIAT';
 
   // Per-student scope for every browser-persisted progress key. Without this the
   // localStorage keys were shared by courseId only, so a browser used by more than one
@@ -663,8 +664,9 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
       <div className="flex items-center justify-between bg-white border border-slate-200 px-6 py-4 rounded-2xl shadow-sm">
         <div className="flex items-center gap-3">
           <Link
-            href="/student/courses"
+            href={isTeacherOrAdmin ? `/teacher/courses/${courseId}` : '/student/courses'}
             className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-primary-50 hover:text-primary-600 text-slate-700 flex items-center justify-center transition-colors shrink-0 border border-slate-200"
+            title={isTeacherOrAdmin ? 'العودة لتعديل وبناء الكورس' : 'العودة لقائمة الدورات'}
           >
             <ArrowRight className="w-5 h-5" />
           </Link>
@@ -673,6 +675,11 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
               <span className="text-[11px] font-bold text-primary-600">{course.title}</span>
               <span className="text-slate-300">•</span>
               <span className="text-[11px] text-slate-500">{course.subject}</span>
+              {isTeacherOrAdmin && (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                  وضع معاينة المعلم
+                </span>
+              )}
             </div>
             <h1 className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">
               {activeLesson ? activeLesson.title : 'قاعة المشاهدة والتعلم'}
@@ -916,7 +923,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
               activeLessonId={selectedLessonId}
               onSelectLesson={(id) => setSelectedLessonId(id)}
               completedLessonIds={completedLessonIds}
-              enforceSequentialLessons={course.enforceSequentialLessons ?? false}
+              enforceSequentialLessons={isTeacherOrAdmin ? false : (course.enforceSequentialLessons ?? false)}
             />
           </div>
         </div>
@@ -946,7 +953,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                   setIsMobileSyllabusOpen(false);
                 }}
                 completedLessonIds={completedLessonIds}
-                enforceSequentialLessons={course.enforceSequentialLessons ?? false}
+                enforceSequentialLessons={isTeacherOrAdmin ? false : (course.enforceSequentialLessons ?? false)}
               />
             </div>
           </div>

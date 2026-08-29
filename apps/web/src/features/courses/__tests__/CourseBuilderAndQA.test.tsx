@@ -9,6 +9,7 @@ import { LessonQuizTab } from '@/features/student-portal/components/LessonQuizTa
 import { StudentCourseLearningRoom } from '@/features/student-portal/components/StudentCourseLearningRoom';
 import { LessonEditorModal } from '@/features/courses/components/LessonEditorModal';
 import { CourseManagementContainer } from '@/features/courses/components/CourseManagementContainer';
+import { CourseBuilderView } from '@/features/courses/components/CourseBuilderView';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { coursesApi } from '@/features/courses/api/courses.api';
 
@@ -368,6 +369,61 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
       const videoWrapper = container.querySelector('.aspect-video');
       expect(videoWrapper).toBeInTheDocument();
       expect(videoWrapper).toHaveClass('overflow-hidden');
+    });
+
+    it('renders Teacher Preview Mode badge and back link to Course Builder when user is a TEACHER', async () => {
+      vi.mocked(coursesApi.getCourseDetails).mockResolvedValue({
+        id: 'course-1',
+        title: 'كورس النحو والبلاغة',
+        subject: 'اللغة العربية',
+        gradeLevel: 'الصف الثالث الثانوي',
+        status: 'PUBLISHED',
+        modules: [
+          {
+            id: 'mod-1',
+            title: 'الوحدة الأولى',
+            lessons: [
+              { id: 'les-1', title: 'شرح كان وأخواتها', isPreview: true },
+            ],
+          },
+        ],
+      } as any);
+
+      // Re-mock useAuth with TEACHER role
+      const { useAuth } = await import('@/features/auth');
+      vi.mocked(useAuth).mockReturnValue({
+        user: { id: 'teacher-1', fullName: 'أ. طارق عبد الله', role: 'TEACHER' },
+      } as any);
+
+      render(
+        <StudentCourseLearningRoom courseId="course-1" initialLessonId="les-1" />,
+        { wrapper }
+      );
+
+      expect(await screen.findByText('وضع معاينة المعلم')).toBeInTheDocument();
+      const backLink = screen.getByTitle('العودة لتعديل وبناء الكورس');
+      expect(backLink).toHaveAttribute('href', '/teacher/courses/course-1');
+    });
+  });
+
+  describe('CourseBuilderView Component Preview Button', () => {
+    it('renders معاينة قاعة المشاهدة link targeting /teacher/courses/[id]/preview with _blank', async () => {
+      vi.mocked(coursesApi.getCourseDetails).mockResolvedValue({
+        id: 'course-1',
+        title: 'كورس النحو والبلاغة',
+        subject: 'اللغة العربية',
+        gradeLevel: 'الصف الثالث الثانوي',
+        status: 'PUBLISHED',
+        modules: [],
+        groupAccess: [],
+      } as any);
+
+      render(<CourseBuilderView courseId="course-1" />, { wrapper });
+
+      const previewLink = await screen.findByRole('link', { name: /معاينة قاعة المشاهدة/i });
+      expect(previewLink).toBeInTheDocument();
+      expect(previewLink).toHaveAttribute('href', '/teacher/courses/course-1/preview');
+      expect(previewLink).toHaveAttribute('target', '_blank');
     });
   });
 });
