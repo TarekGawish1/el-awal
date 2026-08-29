@@ -600,6 +600,34 @@ const TESTIMONIALS = [
 ];
 
 function TestimonialsSection() {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const interval = setInterval(() => {
+      // Only auto-scroll on mobile screens (where it's not a grid)
+      if (window.innerWidth >= 768) return;
+
+      const maxScroll = container.scrollWidth - container.clientWidth;
+      if (maxScroll <= 0) return;
+
+      const currentScroll = Math.abs(container.scrollLeft);
+      
+      // If reached the end, scroll back to start
+      if (currentScroll >= maxScroll - 20) {
+        container.scrollTo({ left: 0, behavior: 'smooth' });
+      } else {
+        // In RTL, scrolling left (negative) moves to the next item
+        const itemWidth = container.children[0]?.clientWidth || 300;
+        container.scrollBy({ left: -(itemWidth + 24), behavior: 'smooth' });
+      }
+    }, 3500);
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <section className="py-24 bg-white relative overflow-hidden" id="testimonials" dir="rtl">
       <div className="absolute top-0 right-0 w-full h-full overflow-hidden pointer-events-none z-0 opacity-40">
@@ -624,7 +652,10 @@ function TestimonialsSection() {
           </motion.div>
         </div>
 
-        <div className="flex overflow-x-auto pb-8 -mx-6 px-6 gap-6 snap-x snap-mandatory md:grid md:grid-cols-2 lg:grid-cols-3 md:overflow-visible md:pb-0 md:mx-0 md:px-0 hide-scrollbar">
+        <div 
+          ref={scrollRef}
+          className="flex overflow-x-auto pb-8 -mx-6 px-6 gap-6 snap-x snap-mandatory md:grid md:grid-cols-2 lg:grid-cols-3 md:overflow-visible md:pb-0 md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+        >
           {TESTIMONIALS.map((testimonial, index) => (
             <motion.div
               key={testimonial.id}
