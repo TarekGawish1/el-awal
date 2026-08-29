@@ -37,6 +37,8 @@ export function ParentAccessForm() {
       searchParams?.get('pass') ||
       searchParams?.get('password') ||
       searchParams?.get('pwd') ||
+      searchParams?.get('pin') ||
+      searchParams?.get('token') ||
       searchParams?.get('key');
 
     if (queryPhone) {
