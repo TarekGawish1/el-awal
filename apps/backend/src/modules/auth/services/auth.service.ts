@@ -733,8 +733,8 @@ export class AuthService {
       }
 
       const studentCode = studentUser.studentProfile?.studentCode || '';
-      const parentPassText = generatedParentPassword || 'رقم هاتفك المسجل أو كلمة مرور حسابك';
-      const directAccessLink = `https://al-awal.online/parent-access?phone=${encodeURIComponent(parentPhone)}${generatedParentPassword ? `&pass=${encodeURIComponent(generatedParentPassword)}` : ''}`;
+      const parentPassText = generatedParentPassword || dto.password;
+      const directAccessLink = `https://al-awal.online/parent-access?phone=${encodeURIComponent(parentPhone)}&pass=${encodeURIComponent(parentPassText)}`;
 
       const message = `🌟 مرحباً بك أ/ ${parentName}!
 تم تسجيل انضمام ابنكم/ابنتكم (${fullName}) بنجاح إلى:

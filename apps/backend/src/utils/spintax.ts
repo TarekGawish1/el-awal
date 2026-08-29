@@ -117,16 +117,19 @@ export function formatStudentRegistrationMessage(data: StudentApprovalCredential
     .replace(/\/(login|parent-access)$/, '');
 
   const directPhone = displayParentPhone || displayStudentPhone || studentPhoneOrCode;
-  const directPass = parentPassword || studentPassword || '';
+  const cleanParentPass = parentPassword && !/[\s\u0600-\u06FF]/.test(parentPassword) ? parentPassword : '';
+  const cleanStudentPass = studentPassword && !/[\s\u0600-\u06FF]/.test(studentPassword) ? studentPassword : '';
+  const directPass = cleanParentPass || cleanStudentPass || '';
   const parentDirectAccessUrl = directPass
     ? `${baseUrl}/parent-access?phone=${encodeURIComponent(directPhone)}&pass=${encodeURIComponent(directPass)}`
     : `${baseUrl}/parent-access?phone=${encodeURIComponent(directPhone)}`;
 
   const studentCreds = `📌 *بيانات دخول الطالب:*
 - اسم المستخدم / الهاتف: \`${displayStudentPhone}\`
-${studentPassword ? `- كلمة المرور: \`${studentPassword}\`` : '- كلمة المرور: كلمة المرور التي تم تحديدها أثناء التسجيل'}
+- كلمة المرور: \`${cleanStudentPass || studentPassword || 'كلمة المرور المحددة للطالب'}\`
 🔗 رابط دخول الطالب: ${baseUrl}/login`;
 
+  const displayParentPass = cleanParentPass || cleanStudentPass || '';
   const parentCreds = `📌 *بوابة ولي الأمر (لمتابعة الحضور، الغياب، والدرجات):*
 - يمكن لولي الأمر الدخول مباشرة وبضغطة واحدة دون الحاجة لكتابة أي بيانات عبر الرابط التالي:
 🔗 رابط دخول ولي الأمر المباشر:
@@ -134,7 +137,7 @@ ${parentDirectAccessUrl}
 
 📌 *أو الدخول ببيانات الحساب عبر صفحة الدخول:*
 - رقم هاتف الحساب: \`${displayParentPhone || displayStudentPhone}\`
-${parentPassword ? `- كلمة المرور: \`${parentPassword}\`\n` : ''}`;
+${displayParentPass ? `- كلمة المرور: \`${displayParentPass}\`` : ''}`;
 
   const closings = [
     'يرجى الاحتفاظ بهذه الرسالة للرجوع إليها دائماً. نتمنى لطالبنا دوام التوفيق والنجاح 🌟',
@@ -203,16 +206,19 @@ export function formatStudentApprovalMessage(data: StudentApprovalCredentialsDat
     .replace(/\/(login|parent-access)$/, '');
 
   const directPhone = displayParentPhone || displayStudentPhone || studentPhoneOrCode;
-  const directPass = parentPassword || studentPassword || '';
+  const cleanParentPass = parentPassword && !/[\s\u0600-\u06FF]/.test(parentPassword) ? parentPassword : '';
+  const cleanStudentPass = studentPassword && !/[\s\u0600-\u06FF]/.test(studentPassword) ? studentPassword : '';
+  const directPass = cleanParentPass || cleanStudentPass || '';
   const parentDirectAccessUrl = directPass
     ? `${baseUrl}/parent-access?phone=${encodeURIComponent(directPhone)}&pass=${encodeURIComponent(directPass)}`
     : `${baseUrl}/parent-access?phone=${encodeURIComponent(directPhone)}`;
 
   const studentCreds = `📌 *بيانات دخول الطالب:*
 - اسم المستخدم / الهاتف: \`${displayStudentPhone}\`
-${studentPassword ? `- كلمة المرور: \`${studentPassword}\`` : '- كلمة المرور: كلمة المرور الخاصة بالطالب'}
+- كلمة المرور: \`${cleanStudentPass || studentPassword || 'كلمة المرور الخاصة بالطالب'}\`
 🔗 رابط دخول الطالب: ${baseUrl}/login`;
 
+  const displayParentPass = cleanParentPass || cleanStudentPass || '';
   const parentCreds = `📌 *بوابة ولي الأمر (لمتابعة الحضور، الغياب، والدرجات):*
 - يمكن لولي الأمر الدخول مباشرة وبضغطة واحدة دون الحاجة لكتابة أي بيانات عبر الرابط التالي:
 🔗 رابط دخول ولي الأمر المباشر:
@@ -220,7 +226,7 @@ ${parentDirectAccessUrl}
 
 📌 *أو الدخول ببيانات الحساب عبر صفحة الدخول:*
 - رقم هاتف الحساب: \`${displayParentPhone || displayStudentPhone}\`
-${parentPassword ? `- كلمة المرور: \`${parentPassword}\`\n` : ''}`;
+${displayParentPass ? `- كلمة المرور: \`${displayParentPass}\`` : ''}`;
 
   const closings = [
     'يرجى الاحتفاظ بهذه الرسالة للرجوع إليها دائماً. نتمنى لطالبنا دوام التوفيق والنجاح 🌟',
