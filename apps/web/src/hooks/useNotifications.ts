@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
 
@@ -26,12 +26,13 @@ export interface Notification {
   createdAt: string;
 }
 
-interface NotificationFeedResponse {
+export interface NotificationFeedResponse {
   data: Notification[];
   meta: {
     nextCursor?: string;
     hasNextPage: boolean;
     total?: number;
+    limit?: number;
   };
 }
 
@@ -41,12 +42,15 @@ export interface NotificationFeedOptions {
   cursor?: string;
   role?: string;
   scope?: string;
+  limit?: number;
 }
 
 export const notificationKeys = {
   all: ['notifications'] as const,
   feed: (options?: NotificationFeedOptions | string) =>
     [...notificationKeys.all, 'feed', typeof options === 'string' ? options : JSON.stringify(options)] as const,
+  infinite: (options?: Omit<NotificationFeedOptions, 'cursor'>) =>
+    [...notificationKeys.all, 'infinite', JSON.stringify(options)] as const,
   unreadCount: () => [...notificationKeys.all, 'unread-count'] as const,
 };
 
@@ -70,6 +74,32 @@ export function useNotifications(options?: NotificationFeedOptions | string) {
       );
       return res;
     },
+    staleTime: 20_000,
+  });
+}
+
+/**
+ * Fetches cursor-paginated infinite notification feed with load-more capabilities.
+ */
+export function useInfiniteNotifications(options?: Omit<NotificationFeedOptions, 'cursor'>) {
+  return useInfiniteQuery({
+    queryKey: notificationKeys.infinite(options),
+    queryFn: async ({ pageParam }: { pageParam?: string }): Promise<NotificationFeedResponse> => {
+      const params: Record<string, string | number> = {
+        ...(options?.role && options.role !== 'ALL' ? { role: options.role } : {}),
+        ...(options?.scope ? { scope: options.scope } : {}),
+        ...(options?.limit ? { limit: options.limit } : { limit: 15 }),
+        ...(pageParam ? { cursor: pageParam } : {}),
+      };
+      const res = await apiClient<NotificationFeedResponse>(
+        API_ENDPOINTS.NOTIFICATIONS.LIST,
+        { method: 'GET', params: params as Record<string, string> },
+      );
+      return res;
+    },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.meta?.hasNextPage ? lastPage.meta.nextCursor : undefined,
     staleTime: 20_000,
   });
 }

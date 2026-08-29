@@ -32,7 +32,7 @@ import {
   type NotificationSystemSettings,
 } from '@/hooks/useNotificationSettings';
 import {
-  useNotifications,
+  useInfiniteNotifications,
   useUnreadCount,
   useMarkRead,
   useMarkAllRead,
@@ -52,10 +52,13 @@ export default function NotificationCenterPage() {
   const updateSettings = useUpdateNotificationSettings();
 
   const {
-    data: feedData,
+    data: infiniteFeedData,
     isLoading: isFeedLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
     refetch: refetchFeed,
-  } = useNotifications({
+  } = useInfiniteNotifications({
     scope: 'all',
     role: roleFilter !== 'ALL' ? roleFilter : undefined,
   });
@@ -66,7 +69,7 @@ export default function NotificationCenterPage() {
   const { user } = useAuth();
 
   const unreadCount = unreadData?.unreadCount ?? 0;
-  const notifications = feedData?.data ?? [];
+  const notifications = infiniteFeedData?.pages.flatMap((page) => page.data) ?? [];
 
   const filteredNotifications = notifications.filter((item) => {
     if (readFilter === 'UNREAD' && item.isRead) return false;
@@ -874,6 +877,38 @@ export default function NotificationCenterPage() {
               ))
             )}
           </div>
+
+          {/* Pagination Controls */}
+          {notifications.length > 0 && (
+            <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+              <div className="flex items-center gap-2">
+                <span>تم عرض {filteredNotifications.length} إشعار</span>
+                {hasNextPage && (
+                  <span className="text-blue-600 font-medium">• يتوفر المزيد</span>
+                )}
+              </div>
+
+              {hasNextPage ? (
+                <button
+                  type="button"
+                  disabled={isFetchingNextPage}
+                  onClick={() => fetchNextPage()}
+                  className="w-full sm:w-auto px-5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold transition-all flex items-center justify-center gap-2"
+                >
+                  {isFetchingNextPage ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>جاري تحميل المزيد...</span>
+                    </>
+                  ) : (
+                    <span>تحميل المزيد من الإشعارات السابقة</span>
+                  )}
+                </button>
+              ) : (
+                <span className="text-slate-400">تم تحميل جميع الإشعارات المتاحة</span>
+              )}
+            </div>
+          )}
         </div>
       )}
 
