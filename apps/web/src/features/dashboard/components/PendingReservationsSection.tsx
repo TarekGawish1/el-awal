@@ -17,6 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/DropdownMenu';
+import { StudentDetailsModal } from '@/features/students/components/StudentDetailsModal';
 
 export function PendingReservationsSection() {
   const { data: reservations, isLoading } = usePendingReservations();
@@ -27,6 +28,7 @@ export function PendingReservationsSection() {
   
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [acceptModalData, setAcceptModalData] = useState<{ id: string; studentName: string } | null>(null);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -161,7 +163,12 @@ export function PendingReservationsSection() {
                     <User className="w-5 h-5 text-amber-600" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-neutral-900">{reservation.student?.user?.fullName || 'غير معروف'}</h4>
+                    <button 
+                      onClick={() => setSelectedStudentId(reservation.studentId || reservation.student?.id)} 
+                      className="font-bold text-neutral-900 hover:text-primary-600 transition-colors text-start"
+                    >
+                      {reservation.student?.user?.fullName || 'غير معروف'}
+                    </button>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-neutral-500 mt-1">
                       <span className="flex items-center gap-1">
                         <Phone className="w-3.5 h-3.5" />
@@ -312,6 +319,13 @@ export function PendingReservationsSection() {
           </div>
         </div>
       )}
+
+      {/* Student Details Modal */}
+      <StudentDetailsModal
+        studentId={selectedStudentId}
+        isOpen={!!selectedStudentId}
+        onClose={() => setSelectedStudentId(null)}
+      />
     </>
   );
 }
