@@ -836,36 +836,31 @@ export class StudentsService {
 
       if (!recipientId) return;
 
-      // Queue via DB Notification record so WhatsAppWorker retries automatically
-      // on reconnect — critical when dyno wakes from Heroku Eco 30-min sleep.
-      await this.prisma.notification.create({
+      // Dispatch via notificationsService so it creates Notification + enqueues to WhatsAppMessageLog
+      await this.notificationsService.sendNotification({
+        recipientId,
+        type: 'STUDENT_GROUP_LINK_ENROLLMENT',
+        notificationType: NotificationType.STUDENT_APPROVAL_CREDENTIALS,
+        title: `📋 تم تسجيل طلب انضمام ${studentName} إلى ${group?.name || 'المجموعة'}`,
+        body: `مرحباً، تم تسجيل طلب انضمام الطالب ${studentName} بنجاح وبانتظار الموافقة.`,
+        channels: [NotificationChannel.WHATSAPP, NotificationChannel.IN_APP],
         data: {
-          recipientId,
-          type: 'STUDENT_GROUP_LINK_ENROLLMENT',
-          notificationType: NotificationType.STUDENT_APPROVAL_CREDENTIALS,
-          title: `📋 تم تسجيل طلب انضمام ${studentName} إلى ${group?.name || 'المجموعة'}`,
-          message: `مرحباً، تم تسجيل طلب انضمام الطالب ${studentName} بنجاح وبانتظار الموافقة.`,
-          whatsappStatus: NotificationStatus.PENDING,
-          scheduledFor: new Date(),
-          data: {
-            studentId,
-            studentName,
-            studentPhoneOrCode: pendingCreds?.studentPhone || student.user?.phone || student.studentCode,
-            studentPassword: pendingCreds?.studentPassword,
-            parentPhone: whatsappPhone,
-            parentPassword: pendingCreds?.parentPassword,
-            parentName: parentUser?.fullName || studentName,
-            groupName: group?.name,
-            centerName,
-            platformUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online',
-            // CRITICAL: `phone` is what WhatsAppWorker reads to send the message
-            phone: whatsappPhone,
-          },
+          studentId,
+          studentName,
+          studentPhoneOrCode: pendingCreds?.studentPhone || student.user?.phone || student.studentCode,
+          studentPassword: pendingCreds?.studentPassword,
+          parentPhone: whatsappPhone,
+          parentPassword: pendingCreds?.parentPassword,
+          parentName: parentUser?.fullName || studentName,
+          groupName: group?.name,
+          centerName,
+          platformUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online',
+          phone: whatsappPhone,
         },
       });
 
       this.logger.log(
-        `📥 Group-link WhatsApp queued for student ${studentName} → ${whatsappPhone} (worker retries on reconnect)`,
+        `📥 Group-link WhatsApp queued for student ${studentName} → ${whatsappPhone}`,
       );
     } catch (err) {
       this.logger.error(`sendGroupLinkWhatsApp error for student [${studentId}]`, err);

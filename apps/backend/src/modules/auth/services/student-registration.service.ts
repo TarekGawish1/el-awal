@@ -2,14 +2,14 @@ import { Injectable, ConflictException, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
-import { UserRole, NotificationStatus, NotificationType } from '@prisma/client';
+import { UserRole, NotificationChannel, NotificationType } from '@prisma/client';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AuthService } from './auth.service';
 import { RegisterStudentDto } from '../dto/student-registration.dto';
 import { normalizeEgyptianPhone, getPhoneVariants } from '../../../common/utils/phone.util';
 import { generateSecurePassword } from '../../../common/utils/password.util';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
-import { WhatsAppService } from '../../../services/whatsapp/whatsapp.service';
+import { NotificationsService } from '../../notifications/services/notifications.service';
 import { formatStudentApprovalMessage } from '../../../utils/spintax';
 
 export interface StudentRegistrationResult {
@@ -42,7 +42,7 @@ export class StudentRegistrationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly authService: AuthService,
-    private readonly whatsAppService: WhatsAppService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -244,12 +244,10 @@ export class StudentRegistrationService {
       studentProfile: { id: studentUser.id },
     });
 
-    // 8. Queue WhatsApp via the DB-backed Notification queue so the
-    //    WhatsAppWorker delivers it with auto-retry even if the socket is
-    //    currently sleeping (Heroku Eco dyno restart / 30-min sleep).
+    // 8. Dispatch WhatsApp notification via NotificationsService so it
+    //    persists in WhatsAppMessageLog and is processed by WhatsAppDispatcherService.
     try {
       const whatsappPhone = parentPhone || studentPhone;
-      const teacherName = dto.groupId ? undefined : undefined; // resolved later by worker if needed
       const messageBody = formatStudentApprovalMessage({
         parentName: parentPhone ? `ولي أمر ${fullName}` : fullName,
         studentName: fullName,
@@ -269,34 +267,29 @@ export class StudentRegistrationService {
           }))?.id ?? studentUser.id)
         : studentUser.id;
 
-      await this.prisma.notification.create({
+      await this.notificationsService.sendNotification({
+        recipientId,
+        type: 'STUDENT_REGISTRATION_CREDENTIALS',
+        notificationType: NotificationType.STUDENT_APPROVAL_CREDENTIALS,
+        title: `🎉 مرحباً بك! بيانات دخول الطالب ${fullName}`,
+        body: messageBody,
+        channels: [NotificationChannel.WHATSAPP, NotificationChannel.IN_APP],
         data: {
-          recipientId,
-          type: 'STUDENT_REGISTRATION_CREDENTIALS',
-          notificationType: NotificationType.STUDENT_APPROVAL_CREDENTIALS,
-          title: `🎉 مرحباً بك! بيانات دخول الطالب ${fullName}`,
-          message: messageBody,
-          // whatsappStatus PENDING → WhatsAppWorker picks it up and retries
-          // automatically once the socket is connected (survives dyno sleep)
-          whatsappStatus: NotificationStatus.PENDING,
-          scheduledFor: new Date(), // deliver ASAP
-          data: {
-            studentId: studentUser.id,
-            studentName: fullName,
-            studentPhoneOrCode: studentPhone,
-            studentPassword,
-            parentPhone: parentPhone || undefined,
-            parentPassword: parentIsNew ? parentPassword : undefined,
-            centerName: 'منصة الأوّل التعليمية',
-            platformUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online',
-            // CRITICAL: `phone` is what WhatsAppWorker reads to send the message
-            phone: whatsappPhone,
-          },
+          studentId: studentUser.id,
+          studentName: fullName,
+          studentPhoneOrCode: studentPhone,
+          studentPassword,
+          parentPhone: parentPhone || undefined,
+          parentPassword: parentIsNew ? parentPassword : undefined,
+          parentName: parentPhone ? `ولي أمر ${fullName}` : fullName,
+          centerName: 'منصة الأوّل التعليمية',
+          platformUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online',
+          phone: whatsappPhone,
         },
       });
 
       this.logger.log(
-        `📥 Registration WhatsApp queued for student ${fullName} → ${whatsappPhone} (worker will retry if socket sleeping)`,
+        `📥 Registration WhatsApp queued for student ${fullName} → ${whatsappPhone}`,
       );
     } catch (waErr) {
       // Non-fatal — registration succeeded even if we couldn't queue the WhatsApp
