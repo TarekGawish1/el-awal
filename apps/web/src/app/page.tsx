@@ -202,11 +202,6 @@ function HeroSection() {
         <div className="absolute -top-[20%] -right-[10%] w-[50%] h-[50%] rounded-full bg-blue-100/50 blur-[100px]" />
         <div className="absolute top-[40%] -left-[10%] w-[40%] h-[40%] rounded-full bg-blue-200/40 blur-[120px]" />
 
-        {/* Math symbols floating */}
-        <div className="absolute top-[20%] right-[40%] text-blue-200 text-6xl opacity-40 rotate-12 select-none">∑</div>
-        <div className="absolute top-[60%] left-[20%] text-blue-200 text-6xl opacity-40 -rotate-12 select-none">π</div>
-        <div className="absolute top-[30%] left-[10%] text-blue-200 text-7xl opacity-40 rotate-45 select-none">∫</div>
-        <div className="absolute bottom-[20%] right-[20%] text-blue-200 text-6xl opacity-40 -rotate-6 select-none">√</div>
       </div>
 
       <div className="flex-1 relative z-10 container mx-auto px-6 pt-32 pb-16 flex flex-col lg:flex-row items-center justify-between gap-12 lg:gap-8">
@@ -219,28 +214,6 @@ function HeroSection() {
           className="w-full lg:w-1/2 flex justify-center lg:justify-end relative"
         >
           <div className="relative w-full max-w-[500px] h-[500px] flex items-end justify-center mt-10 lg:mt-0">
-            {/* Decorative Math Elements around the teacher */}
-            <motion.div
-              animate={{ y: [0, -10, 0] }}
-              transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
-              className="absolute top-10 right-10 text-slate-800 text-3xl font-bold opacity-30 -rotate-12"
-            >
-              x² + y²
-            </motion.div>
-            <motion.div
-              animate={{ y: [0, 15, 0] }}
-              transition={{ repeat: Infinity, duration: 5, ease: "easeInOut", delay: 1 }}
-              className="absolute top-32 left-4 text-slate-800 text-4xl font-bold opacity-30 rotate-12"
-            >
-              f(x)
-            </motion.div>
-            <motion.div
-              animate={{ y: [0, -15, 0] }}
-              transition={{ repeat: Infinity, duration: 6, ease: "easeInOut", delay: 2 }}
-              className="absolute bottom-32 right-0 text-slate-800 text-5xl font-bold opacity-30 rotate-45"
-            >
-              ∞
-            </motion.div>
 
             {/* The Cutout Image with Bottom Fade */}
             <div
