@@ -9,7 +9,7 @@ import {
   BookOpen,
   Video,
   DollarSign,
-  ClipboardList,
+  Bell,
 } from 'lucide-react';
 
 export interface NavItemConfig {
@@ -31,6 +31,7 @@ export const TEACHER_NAVIGATION_ITEMS: NavItemConfig[] = [
   { label: 'الكورسات أونلاين', href: '/teacher/courses', icon: Video, onlineOnly: true },
   { label: 'المحتوى والدروس', href: '/teacher/content', icon: BookOpen, onlineOnly: true },
   { label: 'الماليات والمصروفات', href: '/teacher/finance', icon: DollarSign, onlineOnly: false },
+  { label: 'مركز الإشعارات والتحكم', href: '/teacher/notifications', icon: Bell, onlineOnly: false },
 ];
 
 export const STUDENT_NAVIGATION_ITEMS: NavItemConfig[] = [

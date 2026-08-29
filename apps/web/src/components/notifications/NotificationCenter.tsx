@@ -16,6 +16,7 @@ import {
   Bell as BellIcon,
   BellOff,
   Loader2,
+  Sliders,
 } from 'lucide-react';
 import {
   useNotifications,
@@ -25,6 +26,7 @@ import {
   type Notification,
 } from '@/hooks/useNotifications';
 import { useWebPush } from '@/hooks/useWebPush';
+import { useAuth } from '@/features/auth';
 import toast from 'react-hot-toast';
 
 // ─── Type Icons Map ───────────────────────────────────────────────────────────
@@ -288,6 +290,7 @@ export function NotificationCenter() {
   const drawerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
+  const { user } = useAuth();
 
   const { data: unreadData } = useUnreadCount();
   const { data: feedData, isLoading } = useNotifications();
@@ -441,6 +444,19 @@ export function NotificationCenter() {
                   )}
                 </div>
                 <div className="flex items-center gap-1">
+                  {(user?.role === 'TEACHER' || user?.role === 'SECRETARIAT') && (
+                    <button
+                      onClick={() => {
+                        setIsOpen(false);
+                        router.push('/teacher/notifications');
+                      }}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                      title="مركز التحكم في الإشعارات والقواطع"
+                      aria-label="مركز التحكم في الإشعارات"
+                    >
+                      <Sliders size={14} />
+                    </button>
+                  )}
                   {unreadCount > 0 && (
                     <button
                       onClick={handleMarkAllRead}

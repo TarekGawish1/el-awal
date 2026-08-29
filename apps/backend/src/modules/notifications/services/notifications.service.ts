@@ -11,6 +11,7 @@ import {
 } from '@prisma/client';
 import { WebPushService } from '../../../services/webpush.service';
 import { WhatsAppDispatcherService } from '../../whatsapp/services/whatsapp-dispatcher.service';
+import { NotificationSettingsService } from './notification-settings.service';
 import { formatPaymentReceivedMessage } from '../../../utils/spintax';
 
 // ─── DTOs ───────────────────────────────────────────────────────────────────
@@ -71,6 +72,7 @@ export class NotificationsService {
     private readonly prisma: PrismaService,
     private readonly webPush: WebPushService,
     private readonly whatsappDispatcher: WhatsAppDispatcherService,
+    private readonly settingsService: NotificationSettingsService,
   ) {}
 
   // ─── Core Multi-Channel Dispatcher ─────────────────────────────────────────
@@ -78,14 +80,29 @@ export class NotificationsService {
   /**
    * Unified notification dispatcher.
    *
-   * - IN_APP: created in DB automatically (always active)
-   * - WEB_PUSH: dispatched immediately via VAPID
-   * - WHATSAPP: renders and persists a dedicated WhatsAppMessageLog entry
+   * - IN_APP: created in DB automatically (respects isInAppEnabled)
+   * - WEB_PUSH: dispatched immediately via VAPID (respects isPushEnabled)
+   * - WHATSAPP: renders and persists a dedicated WhatsAppMessageLog entry (respects isWhatsAppEnabled)
    */
   async sendNotification(dto: SendNotificationDto) {
-    const channels = Array.from(
+    const rawChannels = Array.from(
       new Set([NotificationChannel.IN_APP, ...dto.channels]),
     );
+
+    // Filter channels based on global system switches and category settings
+    const activeChannels: NotificationChannel[] = [];
+    for (const ch of rawChannels) {
+      if (await this.settingsService.isChannelAllowed(ch, dto.notificationType || dto.type)) {
+        activeChannels.push(ch);
+      }
+    }
+
+    if (activeChannels.length === 0) {
+      this.logger.debug(
+        `All requested channels suppressed by system settings for notification [${dto.type}]`,
+      );
+      return null;
+    }
 
     const notification = await this.prisma.notification.create({
       data: {
@@ -97,18 +114,18 @@ export class NotificationsService {
         referenceEntityId: dto.referenceEntityId,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         data: dto.data as any,
-        channels,
+        channels: activeChannels,
         scheduledFor: dto.scheduledFor || new Date(),
       },
       include: { recipient: { select: { fullName: true, role: true } } },
     });
 
-    if (channels.includes(NotificationChannel.WHATSAPP)) {
+    if (activeChannels.includes(NotificationChannel.WHATSAPP)) {
       await this.whatsappDispatcher.enqueueNotification(notification);
     }
 
     // Dispatch Web Push immediately (async, non-blocking)
-    if (channels.includes(NotificationChannel.WEB_PUSH)) {
+    if (activeChannels.includes(NotificationChannel.WEB_PUSH)) {
       this.webPush
         .sendToUser(dto.recipientId, {
           title: dto.title,
@@ -133,7 +150,7 @@ export class NotificationsService {
               where: { id: notification.id },
               data: { pushStatus: NotificationStatus.FAILED },
             })
-            .catch(() => undefined);
+              .catch(() => undefined);
         });
     }
 

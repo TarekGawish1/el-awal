@@ -7,10 +7,13 @@ import { WhatsAppDispatcherService } from '../whatsapp/services/whatsapp-dispatc
 import { SchedulersService } from '../../jobs/schedulers';
 import { DeadlineReminderCron } from './crons/deadline-reminder.cron';
 
+import { NotificationSettingsService } from './services/notification-settings.service';
+
 @Module({
   controllers: [NotificationsController],
   providers: [
     // Core notification services
+    NotificationSettingsService,
     NotificationsService,
     WebPushService,
 
@@ -22,6 +25,6 @@ import { DeadlineReminderCron } from './crons/deadline-reminder.cron';
     SchedulersService,
     DeadlineReminderCron,
   ],
-  exports: [NotificationsService, WebPushService, WhatsAppService],
+  exports: [NotificationSettingsService, NotificationsService, WebPushService, WhatsAppService],
 })
 export class NotificationsModule {}

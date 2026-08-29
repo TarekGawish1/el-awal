@@ -1060,3 +1060,13 @@ model StudentPaymentRecord {
   @@index([recordedById, groupId], map: "idx_payments_recorder_group")
   @@map("student_payment_records")
 }
+
+model SystemSetting {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  key       String   @unique @map("key") @db.VarChar(100)
+  value     Json     @map("value")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("system_settings")
+}
+

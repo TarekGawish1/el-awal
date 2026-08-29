@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  NotificationChannel,
   NotificationType,
   UserRole,
   WhatsAppStatus,
@@ -24,6 +25,8 @@ import {
   formatStudentRegistrationMessage,
   formatTeacherAgendaMessage,
 } from '../../../utils/spintax';
+
+import { NotificationSettingsService } from '../../notifications/services/notification-settings.service';
 
 const RETRY_DELAYS_MS = [30_000, 2 * 60_000, 5 * 60_000];
 const POST_SEND_COOLDOWN_MIN_MS = 4_000;
@@ -58,6 +61,7 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
   constructor(
     private readonly prisma: PrismaService,
     private readonly whatsapp: WhatsAppService,
+    private readonly settingsService: NotificationSettingsService,
     config: ConfigService,
   ) {
     this.hourlyLimit = this.parsePositiveLimit(
@@ -99,6 +103,28 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
 
   /** Persists a fully rendered, varied message before the dispatcher can send it. */
   async enqueueNotification(notification: QueueNotification) {
+    // Disable WhatsApp messages if globally disabled or if type is disabled
+    const isAllowed = await this.settingsService.isChannelAllowed(
+      NotificationChannel.WHATSAPP,
+      notification.notificationType ?? notification.type,
+    );
+
+    if (!isAllowed) {
+      this.logger.debug(`Skipping WhatsApp enqueue for [${notification.type}]: suppressed by notification settings`);
+      return null;
+    }
+
+    // Disable WhatsApp messages for session time reminders
+    if (
+      notification.notificationType === NotificationType.SESSION_REMINDER_STUDENT ||
+      notification.notificationType === NotificationType.TEACHER_SESSION_REMINDER ||
+      notification.type === 'SESSION_REMINDER_STUDENT' ||
+      notification.type === 'TEACHER_SESSION_REMINDER'
+    ) {
+      this.logger.debug(`Skipping WhatsApp dispatch for session reminder [${notification.type}]`);
+      return null;
+    }
+
     const data = notification.data as Record<string, unknown> | null;
     const rawPhone = data?.phone;
     if (typeof rawPhone !== 'string' || !rawPhone.trim()) {
@@ -223,7 +249,10 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
 
     let nextDelay = 10_000;
     try {
-      if (!this.isWithinActiveHours()) {
+      const isWaAllowed = await this.settingsService.isChannelAllowed(NotificationChannel.WHATSAPP);
+      if (!isWaAllowed) {
+        nextDelay = 30_000;
+      } else if (!this.isWithinActiveHours()) {
         nextDelay = 5 * 60_000;
       } else if (await this.isQuotaExhausted()) {
         if (await this.isDailyQuotaExhausted()) await this.deferQueuedMessagesToTomorrow();
