@@ -1,17 +1,31 @@
 'use client';
 
-import { AlertCircle, BookOpen, GraduationCap, RefreshCw, Users } from 'lucide-react';
+import { AlertCircle, BookOpen, GraduationCap, RefreshCw, Users, WifiOff } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle, Button, Card, CardContent } from '@/components/ui';
 import { useAuth } from '@/features/auth';
 import { useLinkedStudents } from '../hooks/useParentPortal';
 import { ChildDetailsModal } from './ChildDetailsModal';
 import { ChildDetailsView } from './ChildDetailsView';
 import { useState } from 'react';
+import { useOnlineStatus } from '@/lib/offline/use-online-status';
 
 export function ParentDashboard() {
   const { user } = useAuth();
+  const isOnline = useOnlineStatus();
   const { data: linkedStudents, isLoading, isError, refetch } = useLinkedStudents();
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
+
+  if (!isOnline) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mb-4">
+          <WifiOff className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-800 mb-2">لا يوجد اتصال بالإنترنت</h2>
+        <p className="text-sm text-slate-500">يتطلب عرض بيانات الأبناء وجود اتصال بالإنترنت.</p>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return <div className="h-40 animate-pulse rounded-xl bg-neutral-100" aria-label="جاري التحميل" />;
