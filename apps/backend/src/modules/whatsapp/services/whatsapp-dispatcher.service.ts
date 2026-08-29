@@ -17,9 +17,11 @@ import {
   formatAbsenceMessage,
   formatExamFailedMessage,
   formatGenericMessage,
+  formatGroupReservationPendingMessage,
   formatPaymentMessage,
   formatSessionReminderMessage,
   formatStudentApprovalMessage,
+  formatStudentRegistrationMessage,
   formatTeacherAgendaMessage,
 } from '../../../utils/spintax';
 
@@ -322,36 +324,57 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
     const data = notification.data as Record<string, unknown> | null;
     let message: string;
 
-    switch (notification.notificationType) {
-      case NotificationType.STUDENT_APPROVAL_CREDENTIALS:
-        message = formatStudentApprovalMessage({
-          parentName: (data?.parentName as string) || 'ولي الأمر المحترم',
-          studentName: (data?.studentName as string) || 'الطالب',
-          studentPhoneOrCode: (data?.studentPhoneOrCode as string) || (data?.studentPhone as string) || (data?.studentCode as string) || '',
-          studentPassword: data?.studentPassword as string | undefined,
-          parentPhoneOrCode: (data?.parentPhoneOrCode as string) || (data?.parentPhone as string) || undefined,
-          parentPassword: data?.parentPassword as string | undefined,
-          platformUrl: (data?.platformUrl as string) || process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online/login',
-          centerName: (data?.centerName as string) || 'منصة الأوّل التعليمية',
-          groupName: data?.groupName as string | undefined,
-        });
-        break;
-      case NotificationType.ABSENCE_ALERT_PARENT:
-        message = formatAbsenceMessage((data?.studentName as string) || 'الطالب', (data?.groupName as string) || 'الحصة', data?.date as string | undefined);
-        break;
-      case NotificationType.SESSION_REMINDER_STUDENT:
-        message = formatSessionReminderMessage((data?.studentName as string) || 'الطالب', (data?.groupName as string) || 'الحصة', (data?.startTime as string) || '');
-        break;
-      case NotificationType.EXAM_FAILED_ALERT_PARENT:
-        message = formatExamFailedMessage((data?.studentName as string) || 'الطالب', (data?.examTitle as string) || 'الاختبار', Number(data?.score ?? 0), Number(data?.total ?? 100), Number(data?.passing ?? 50));
-        break;
-      case NotificationType.TEACHER_DAILY_SCHEDULE:
-        message = formatTeacherAgendaMessage((data?.teacherName as string) || 'الأستاذ', (data?.date as string) || new Date().toLocaleDateString('ar-EG'), (data?.sessions as string[]) || [notification.message]);
-        break;
-      default:
-        message = notification.type === 'PAYMENT_RECEIVED' && data?.amount
-          ? formatPaymentMessage((data.studentName as string) || 'الطالب', Number(data.amount), Number(data.month ?? new Date().getMonth() + 1), Number(data.year ?? new Date().getFullYear()))
-          : formatGenericMessage(notification.title, notification.message);
+    if (notification.type === 'STUDENT_REGISTRATION_CREDENTIALS') {
+      message = formatStudentRegistrationMessage({
+        parentName: (data?.parentName as string) || 'ولي الأمر المحترم',
+        studentName: (data?.studentName as string) || 'الطالب',
+        studentPhoneOrCode: (data?.studentPhoneOrCode as string) || (data?.studentPhone as string) || (data?.studentCode as string) || '',
+        studentPassword: data?.studentPassword as string | undefined,
+        parentPhoneOrCode: (data?.parentPhoneOrCode as string) || (data?.parentPhone as string) || undefined,
+        parentPassword: data?.parentPassword as string | undefined,
+        platformUrl: (data?.platformUrl as string) || process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online/login',
+        centerName: (data?.centerName as string) || 'منصة الأوّل التعليمية',
+        groupName: data?.groupName as string | undefined,
+      });
+    } else if (notification.type === 'STUDENT_GROUP_LINK_ENROLLMENT') {
+      message = formatGroupReservationPendingMessage({
+        parentName: (data?.parentName as string) || 'ولي الأمر المحترم',
+        studentName: (data?.studentName as string) || 'الطالب',
+        groupName: data?.groupName as string | undefined,
+        centerName: (data?.centerName as string) || 'منصة الأوّل التعليمية',
+      });
+    } else {
+      switch (notification.notificationType) {
+        case NotificationType.STUDENT_APPROVAL_CREDENTIALS:
+          message = formatStudentApprovalMessage({
+            parentName: (data?.parentName as string) || 'ولي الأمر المحترم',
+            studentName: (data?.studentName as string) || 'الطالب',
+            studentPhoneOrCode: (data?.studentPhoneOrCode as string) || (data?.studentPhone as string) || (data?.studentCode as string) || '',
+            studentPassword: data?.studentPassword as string | undefined,
+            parentPhoneOrCode: (data?.parentPhoneOrCode as string) || (data?.parentPhone as string) || undefined,
+            parentPassword: data?.parentPassword as string | undefined,
+            platformUrl: (data?.platformUrl as string) || process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online/login',
+            centerName: (data?.centerName as string) || 'منصة الأوّل التعليمية',
+            groupName: data?.groupName as string | undefined,
+          });
+          break;
+        case NotificationType.ABSENCE_ALERT_PARENT:
+          message = formatAbsenceMessage((data?.studentName as string) || 'الطالب', (data?.groupName as string) || 'الحصة', data?.date as string | undefined);
+          break;
+        case NotificationType.SESSION_REMINDER_STUDENT:
+          message = formatSessionReminderMessage((data?.studentName as string) || 'الطالب', (data?.groupName as string) || 'الحصة', (data?.startTime as string) || '');
+          break;
+        case NotificationType.EXAM_FAILED_ALERT_PARENT:
+          message = formatExamFailedMessage((data?.studentName as string) || 'الطالب', (data?.examTitle as string) || 'الاختبار', Number(data?.score ?? 0), Number(data?.total ?? 100), Number(data?.passing ?? 50));
+          break;
+        case NotificationType.TEACHER_DAILY_SCHEDULE:
+          message = formatTeacherAgendaMessage((data?.teacherName as string) || 'الأستاذ', (data?.date as string) || new Date().toLocaleDateString('ar-EG'), (data?.sessions as string[]) || [notification.message]);
+          break;
+        default:
+          message = notification.type === 'PAYMENT_RECEIVED' && data?.amount
+            ? formatPaymentMessage((data.studentName as string) || 'الطالب', Number(data.amount), Number(data.month ?? new Date().getMonth() + 1), Number(data.year ?? new Date().getFullYear()))
+            : formatGenericMessage(notification.title, notification.message);
+      }
     }
 
     const reference = randomUUID().slice(0, 8).toUpperCase();

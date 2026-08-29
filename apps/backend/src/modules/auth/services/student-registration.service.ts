@@ -1,8 +1,7 @@
 import { Injectable, ConflictException, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
-import { Prisma } from '@prisma/client';
-import { UserRole, NotificationChannel, NotificationType } from '@prisma/client';
+import { Prisma, GroupEnrollmentStatus, UserRole, NotificationChannel, NotificationType } from '@prisma/client';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AuthService } from './auth.service';
 import { RegisterStudentDto } from '../dto/student-registration.dto';
@@ -10,7 +9,7 @@ import { normalizeEgyptianPhone, getPhoneVariants } from '../../../common/utils/
 import { generateSecurePassword } from '../../../common/utils/password.util';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
 import { NotificationsService } from '../../notifications/services/notifications.service';
-import { formatStudentApprovalMessage } from '../../../utils/spintax';
+import { formatStudentApprovalMessage, formatStudentRegistrationMessage } from '../../../utils/spintax';
 
 export interface StudentRegistrationResult {
   accessToken: string;
@@ -209,28 +208,69 @@ export class StudentRegistrationService {
       `Student self-registration completed: [${studentCode}] ${fullName} (parent ${parentIsNew ? 'created' : 'linked'})`,
     );
 
-    // 6. If a groupId was provided (group-link registration), create a PENDING enrollment
-    //    so the teacher can approve it and send a follow-up WhatsApp on acceptance.
+    // 6. If a groupId was provided (direct group link registration):
+    //    Direct group links do NOT require teacher acceptance!
+    //    Create an ACTIVE enrollment directly and record initial tuition.
+    let groupRecord: {
+      id: string;
+      name: string;
+      teacher?: { user?: { fullName: string } | null } | null;
+    } | null = null;
+
     if (dto.groupId) {
       try {
         const group = await this.prisma.academicGroup.findUnique({
           where: { id: dto.groupId },
-          select: { id: true, isActive: true },
+          select: {
+            id: true,
+            name: true,
+            isActive: true,
+            monthlyFee: true,
+            teacher: { select: { user: { select: { fullName: true } } } },
+          },
         });
+
         if (group && group.isActive) {
+          groupRecord = {
+            id: group.id,
+            name: group.name,
+            teacher: group.teacher,
+          };
           await this.prisma.groupEnrollment.upsert({
             where: { groupId_studentId: { groupId: dto.groupId, studentId: studentUser.id } },
             create: {
               groupId: dto.groupId,
               studentId: studentUser.id,
-              status: 'PENDING' as any,
+              status: GroupEnrollmentStatus.ACTIVE,
             },
-            update: { status: 'PENDING' as any },
+            update: { status: GroupEnrollmentStatus.ACTIVE },
           });
-          this.logger.log(`PENDING enrollment created for student [${studentCode}] in group [${dto.groupId}]`);
+
+          // Create initial payment record for the active enrollment
+          const now = new Date();
+          const amount = group.monthlyFee ? Number(group.monthlyFee) : 0;
+          await this.prisma.studentPaymentRecord.create({
+            data: {
+              student: { connect: { id: studentUser.id } },
+              group: { connect: { id: dto.groupId } },
+              recordedBy: { connect: { id: studentUser.id } },
+              periodYear: now.getFullYear(),
+              periodMonth: now.getMonth() + 1,
+              amountExpected: amount,
+              amountPaid: 0,
+              paymentStatus: 'PENDING' as any,
+              paymentType: 'TUITION' as any,
+              paymentMethod: 'CASH',
+              notes: 'تسجيل مباشر عبر رابط المجموعة',
+            },
+          }).catch(() => undefined);
+
+          this.logger.log(
+            `ACTIVE enrollment created for student [${studentCode}] in group [${dto.groupId}] via direct link`,
+          );
         }
       } catch (enrollErr) {
-        this.logger.warn(`Failed to create PENDING enrollment for group ${dto.groupId}: ${enrollErr}`);
+        this.logger.warn(`Failed to create ACTIVE enrollment for group ${dto.groupId}: ${enrollErr}`);
       }
     }
 
@@ -244,20 +284,11 @@ export class StudentRegistrationService {
       studentProfile: { id: studentUser.id },
     });
 
-    // 8. Dispatch WhatsApp notification via NotificationsService so it
-    //    persists in WhatsAppMessageLog and is processed by WhatsAppDispatcherService.
+    // 8. Dispatch WhatsApp notification via NotificationsService:
+    //    - If direct group link: Send Group Acceptance Message directly to parent!
+    //    - If general registration: Send Account Credentials message.
     try {
       const whatsappPhone = parentPhone || studentPhone;
-      const messageBody = formatStudentApprovalMessage({
-        parentName: parentPhone ? `ولي أمر ${fullName}` : fullName,
-        studentName: fullName,
-        studentPhoneOrCode: studentPhone,
-        studentPassword,
-        parentPhoneOrCode: parentPhone || undefined,
-        parentPassword: parentIsNew ? parentPassword : undefined,
-        platformUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online',
-        centerName: 'منصة الأوّل التعليمية',
-      });
 
       // Resolve the recipient (parent user ID if linked, else student ID)
       const recipientId = parentPhone
@@ -267,30 +298,85 @@ export class StudentRegistrationService {
           }))?.id ?? studentUser.id)
         : studentUser.id;
 
-      await this.notificationsService.sendNotification({
-        recipientId,
-        type: 'STUDENT_REGISTRATION_CREDENTIALS',
-        notificationType: NotificationType.STUDENT_APPROVAL_CREDENTIALS,
-        title: `🎉 مرحباً بك! بيانات دخول الطالب ${fullName}`,
-        body: messageBody,
-        channels: [NotificationChannel.WHATSAPP, NotificationChannel.IN_APP],
-        data: {
-          studentId: studentUser.id,
+      if (groupRecord) {
+        // Direct Group Link Registration: Direct acceptance message!
+        const teacherName = groupRecord.teacher?.user?.fullName;
+        const centerName = teacherName ? `مجموعة الأستاذ ${teacherName}` : 'منصة الأوّل التعليمية';
+        const messageBody = formatStudentApprovalMessage({
+          parentName: parentPhone ? `ولي أمر ${fullName}` : fullName,
           studentName: fullName,
           studentPhoneOrCode: studentPhone,
           studentPassword,
-          parentPhone: parentPhone || undefined,
+          parentPhoneOrCode: parentPhone || undefined,
           parentPassword: parentIsNew ? parentPassword : undefined,
-          parentName: parentPhone ? `ولي أمر ${fullName}` : fullName,
-          centerName: 'منصة الأوّل التعليمية',
           platformUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online',
-          phone: whatsappPhone,
-        },
-      });
+          centerName,
+          groupName: groupRecord.name,
+        });
 
-      this.logger.log(
-        `📥 Registration WhatsApp queued for student ${fullName} → ${whatsappPhone}`,
-      );
+        await this.notificationsService.sendNotification({
+          recipientId,
+          type: 'STUDENT_APPROVAL_CREDENTIALS',
+          notificationType: NotificationType.STUDENT_APPROVAL_CREDENTIALS,
+          title: `✅ تم تأكيد وقبول انضمام الطالب ${fullName} في ${groupRecord.name}`,
+          body: messageBody,
+          channels: [NotificationChannel.WHATSAPP, NotificationChannel.IN_APP],
+          data: {
+            studentId: studentUser.id,
+            studentName: fullName,
+            studentPhoneOrCode: studentPhone,
+            studentPassword,
+            parentPhone: parentPhone || undefined,
+            parentPassword: parentIsNew ? parentPassword : undefined,
+            parentName: parentPhone ? `ولي أمر ${fullName}` : fullName,
+            groupName: groupRecord.name,
+            centerName,
+            platformUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online',
+            phone: whatsappPhone,
+          },
+        });
+
+        this.logger.log(
+          `📥 Direct Group Acceptance WhatsApp queued for student ${fullName} → ${whatsappPhone}`,
+        );
+      } else {
+        // General Registration (without group): Platform Credentials
+        const messageBody = formatStudentRegistrationMessage({
+          parentName: parentPhone ? `ولي أمر ${fullName}` : fullName,
+          studentName: fullName,
+          studentPhoneOrCode: studentPhone,
+          studentPassword,
+          parentPhoneOrCode: parentPhone || undefined,
+          parentPassword: parentIsNew ? parentPassword : undefined,
+          platformUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online',
+          centerName: 'منصة الأوّل التعليمية',
+        });
+
+        await this.notificationsService.sendNotification({
+          recipientId,
+          type: 'STUDENT_REGISTRATION_CREDENTIALS',
+          notificationType: NotificationType.STUDENT_APPROVAL_CREDENTIALS,
+          title: `🎉 مرحباً بك! بيانات دخول الطالب ${fullName}`,
+          body: messageBody,
+          channels: [NotificationChannel.WHATSAPP, NotificationChannel.IN_APP],
+          data: {
+            studentId: studentUser.id,
+            studentName: fullName,
+            studentPhoneOrCode: studentPhone,
+            studentPassword,
+            parentPhone: parentPhone || undefined,
+            parentPassword: parentIsNew ? parentPassword : undefined,
+            parentName: parentPhone ? `ولي أمر ${fullName}` : fullName,
+            centerName: 'منصة الأوّل التعليمية',
+            platformUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online',
+            phone: whatsappPhone,
+          },
+        });
+
+        this.logger.log(
+          `📥 Platform Registration WhatsApp queued for student ${fullName} → ${whatsappPhone}`,
+        );
+      }
     } catch (waErr) {
       // Non-fatal — registration succeeded even if we couldn't queue the WhatsApp
       this.logger.error('Failed to queue registration WhatsApp notification', waErr);

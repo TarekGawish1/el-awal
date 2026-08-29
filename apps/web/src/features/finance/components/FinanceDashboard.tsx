@@ -21,14 +21,12 @@ import {
   Calendar, 
   Wallet, 
   CheckCircle2,
-  Link2,
 } from 'lucide-react';
 import { BookletManagementSection } from '@/features/booklets/components/BookletManagementSection';
 import { FinanceTabs, FinanceTab } from './FinanceTabs';
 import { FinancialMatrixLedger } from './FinancialMatrixLedger';
 import { ManualPaymentTab } from './ManualPaymentTab';
 import { FinanceAnalyticsTab } from './FinanceAnalyticsTab';
-import { GroupLinkGeneratorModal } from '@/features/groups/components/GroupLinkGeneratorModal';
 import toast from 'react-hot-toast';
 
 const ARABIC_MONTHS = [
@@ -95,7 +93,6 @@ export function FinanceDashboard() {
   });
 
   const [paymentToDelete, setPaymentToDelete] = useState<{ id: string; studentName: string } | null>(null);
-  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const { mutate: deletePayment, isPending: isDeleting } = useDeletePayment();
 
   const handleDelete = (id: string, studentName: string) => {
@@ -122,24 +119,13 @@ export function FinanceDashboard() {
       {/* Header */}
       <div className="bg-white p-5 sm:p-8 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-full h-2 bg-gradient-to-r from-primary-400 to-primary-600"></div>
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">إدارة المصروفات وسداد الطلاب</h1>
-            <p className="mt-1 sm:mt-3 text-slate-500 text-sm sm:text-lg">
-              امسح رمز الـ QR الخاص بأي طالب مباشرة لتسجيل سداد المصروفات فورياً وتحديد مجموعته أو مذكراته تلقائياً.
-            </p>
-          </div>
-          <Button onClick={() => setIsLinkModalOpen(true)} variant="outline" className="border-primary-200 text-primary-700 hover:bg-primary-50 shrink-0">
-            <Link2 className="w-4 h-4 ml-2" />
-            إنشاء رابط تسجيل للمجموعة
-          </Button>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">إدارة المصروفات وسداد الطلاب</h1>
+          <p className="mt-1 sm:mt-3 text-slate-500 text-sm sm:text-lg">
+            امسح رمز الـ QR الخاص بأي طالب مباشرة لتسجيل سداد المصروفات فورياً وتحديد مجموعته أو مذكراته تلقائياً.
+          </p>
         </div>
       </div>
-
-      <GroupLinkGeneratorModal
-        isOpen={isLinkModalOpen}
-        onClose={() => setIsLinkModalOpen(false)}
-      />
 
       <FinanceTabs activeTab={activeTab} onChange={setActiveTab} />
 
