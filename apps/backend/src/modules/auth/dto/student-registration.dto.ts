@@ -2,7 +2,15 @@ import { IsIn, IsNotEmpty, IsString, MinLength, MaxLength, ValidateIf, IsOptiona
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEgyptianPhone } from '../../../common/decorators/is-egyptian-phone.decorator';
 
-export const ACADEMIC_STAGES = ['PRIMARY', 'MIDDLE', 'SECONDARY'];
+export const ACADEMIC_STAGES = [
+  'PRIMARY',
+  'MIDDLE',
+  'PREPARATORY',
+  'SECONDARY',
+  'المرحلة الابتدائية',
+  'المرحلة الإعدادية',
+  'المرحلة الثانوية',
+];
 export const ATTENDANCE_MODES = ['CENTER', 'ONLINE'];
 
 export class RegisterStudentDto {
@@ -27,7 +35,7 @@ export class RegisterStudentDto {
   parentPhone?: string;
 
   @ApiProperty({ example: 'SECONDARY', enum: ACADEMIC_STAGES })
-  @IsIn(ACADEMIC_STAGES, { message: 'Academic stage must be one of PRIMARY, MIDDLE, SECONDARY' })
+  @IsIn(ACADEMIC_STAGES, { message: 'Academic stage must be one of PRIMARY, MIDDLE, PREPARATORY, SECONDARY' })
   academicStage: string;
 
   @ApiProperty({ example: 'الصف الثالث الثانوي' })
