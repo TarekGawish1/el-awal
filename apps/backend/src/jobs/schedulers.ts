@@ -124,10 +124,54 @@ export class SchedulersService implements OnModuleInit {
       ),
     );
 
+    // 5. Keep-alive self-ping (every 14 minutes)
+    //    Prevents Heroku Eco dyno from sleeping after 30 min of inactivity.
+    //    When the dyno sleeps, the Baileys WhatsApp socket disconnects and the
+    //    first registration request after wake-up would get 'not_connected'.
+    this.tasks.push(
+      cron.schedule(
+        '*/14 * * * *',
+        () => this.runKeepAlivePing(),
+        { timezone: 'Africa/Cairo' },
+      ),
+    );
+
     this.logger.log(`✅ ${this.tasks.length} cron schedulers active`);
   }
 
   // ─── Scheduler Methods ────────────────────────────────────────────────────
+
+  /**
+   * Self-ping the app's health endpoint to prevent Heroku Eco dyno sleep.
+   * Dyno sleeps after 30 min of inactivity — this runs every 14 min to prevent it.
+   * When the dyno sleeps the Baileys WA socket disconnects, causing 'not_connected'
+   * errors on the first registration after wakeup.
+   */
+  private runKeepAlivePing(): void {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || '';
+    if (!appUrl) {
+      // No URL configured — skip silently (local dev)
+      return;
+    }
+
+    try {
+      const targetUrl = `${appUrl.replace(/\/$/, '')}/api/health`;
+      const lib = targetUrl.startsWith('https') ? require('https') : require('http');
+      const req = lib.get(targetUrl, (res: any) => {
+        this.logger.debug(`[KeepAlive] Ping ${targetUrl} → HTTP ${res.statusCode}`);
+        res.resume(); // consume response so socket closes
+      });
+      req.on('error', (err: Error) => {
+        this.logger.warn(`[KeepAlive] Ping failed: ${err.message}`);
+      });
+      req.setTimeout(10_000, () => {
+        req.destroy();
+        this.logger.warn('[KeepAlive] Ping timed out after 10s');
+      });
+    } catch (err) {
+      this.logger.warn(`[KeepAlive] Unexpected ping error: ${err}`);
+    }
+  }
 
   /**
    * Notifies students enrolled in sessions starting in 45–60 minutes.

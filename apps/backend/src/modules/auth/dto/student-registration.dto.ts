@@ -39,6 +39,11 @@ export class RegisterStudentDto {
   @ApiProperty({ example: 'CENTER', enum: ATTENDANCE_MODES })
   @IsIn(ATTENDANCE_MODES, { message: 'Attendance mode must be one of CENTER, ONLINE' })
   attendanceMode: string;
+
+  @ApiProperty({ example: 'abc123-group-uuid', description: 'Optional group ID when registering via a group invite link', required: false })
+  @IsOptional()
+  @IsString()
+  groupId?: string;
 }
 
 export class StudentRegistrationCredentialsDto {
