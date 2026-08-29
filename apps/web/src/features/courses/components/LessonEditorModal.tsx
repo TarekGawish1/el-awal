@@ -14,6 +14,10 @@ import {
   ExternalLink,
   Clock,
   Loader2,
+  Sparkles,
+  Gauge,
+  ShieldCheck,
+  Info,
 } from "lucide-react";
 import { CourseLesson, LessonAttachment } from "../types/courses.types";
 import {
@@ -26,6 +30,14 @@ import {
 import { coursesApi } from "../api/courses.api";
 import { useAssessments } from "@/features/assessments/hooks/use-assessments";
 import { updateAssessment } from "@/features/assessments/api/assessments.api";
+import {
+  validateVideoFile,
+  extractVideoMetadata,
+  formatVideoSize,
+  formatEtaArabic,
+  VideoMetadata,
+  MAX_VIDEO_SIZE_BYTES,
+} from "../utils/video-optimizer";
 import { FileUploadZone } from "./FileUploadZone";
 import toast from "react-hot-toast";
 
@@ -75,9 +87,16 @@ export function LessonEditorModal({
   const [allowMultipleAttempts, setAllowMultipleAttempts] = useState(false);
   const [attachments, setAttachments] = useState<LessonAttachment[]>([]);
 
-  // Video Upload State
+  // Video Upload & Optimization State
   const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+  const [isInspectingVideo, setIsInspectingVideo] = useState(false);
   const [videoUploadProgress, setVideoUploadProgress] = useState(0);
+  const [uploadSpeedMbps, setUploadSpeedMbps] = useState(0);
+  const [uploadedBytes, setUploadedBytes] = useState(0);
+  const [totalBytes, setTotalBytes] = useState(0);
+  const [etaSeconds, setEtaSeconds] = useState(0);
+  const [videoMeta, setVideoMeta] = useState<VideoMetadata | null>(null);
+  const uploadXhrRef = React.useRef<XMLHttpRequest | null>(null);
 
   // New Attachment State
   const [newAttachmentTitle, setNewAttachmentTitle] = useState("");
@@ -138,28 +157,58 @@ export function LessonEditorModal({
 
   if (!isOpen) return null;
 
+  const handleCancelUpload = () => {
+    if (uploadXhrRef.current) {
+      uploadXhrRef.current.abort();
+      uploadXhrRef.current = null;
+    }
+    setIsUploadingVideo(false);
+    setIsInspectingVideo(false);
+    setVideoUploadProgress(0);
+    setUploadSpeedMbps(0);
+    setUploadedBytes(0);
+    setTotalBytes(0);
+    setEtaSeconds(0);
+    toast.error("تم إلغاء رفع الفيديو");
+  };
+
   const handleDirectVideoUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2000 * 1024 * 1024) {
-      toast.error("حجم الفيديو يتجاوز 2 جيجابايت");
+    // Strict 2 GB size limit validation
+    const validation = validateVideoFile(file);
+    if (!validation.isValid) {
+      toast.error(validation.error || "حجم الفيديو يتجاوز الحد الأقصى المسموح به (2 جيجابايت)");
       return;
     }
 
     try {
+      setIsInspectingVideo(true);
       setIsUploadingVideo(true);
       setVideoUploadProgress(5);
       setUploadedVideoName(file.name);
+      setTotalBytes(file.size);
+      setUploadedBytes(0);
 
+      // Extract local metadata (Duration, Resolution, Bitrate)
+      const meta = await extractVideoMetadata(file);
+      setVideoMeta(meta);
+      if (meta.durationSeconds > 0) {
+        setVideoDurationSeconds(meta.durationSeconds);
+      }
+      setIsInspectingVideo(false);
+
+      // Request secure Direct Bunny Stream Upload credentials
       const creds = await coursesApi.getVideoUploadCredentials(
         title.trim() || file.name,
       );
       setVideoUploadProgress(15);
 
       const xhr = new XMLHttpRequest();
+      uploadXhrRef.current = xhr;
       xhr.open("PUT", creds.uploadUrl);
       if (creds.accessKey) xhr.setRequestHeader("AccessKey", creds.accessKey);
       if (creds.authorizationSignature)
@@ -176,33 +225,57 @@ export function LessonEditorModal({
       if (creds.videoId) xhr.setRequestHeader("VideoId", creds.videoId);
       xhr.setRequestHeader("Content-Type", "application/octet-stream");
 
+      let lastLoaded = 0;
+      let lastTime = Date.now();
+
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
+          const now = Date.now();
+          const timeDiff = (now - lastTime) / 1000;
+          if (timeDiff >= 0.5) {
+            const bytesDiff = event.loaded - lastLoaded;
+            const speed = (bytesDiff / timeDiff) / (1024 * 1024); // MB/s
+            setUploadSpeedMbps(parseFloat(speed.toFixed(2)));
+
+            const remainingBytes = event.total - event.loaded;
+            const remainingSeconds = speed > 0 ? (remainingBytes / (1024 * 1024)) / speed : 0;
+            setEtaSeconds(Math.ceil(remainingSeconds));
+
+            lastLoaded = event.loaded;
+            lastTime = now;
+          }
+
+          setUploadedBytes(event.loaded);
+          setTotalBytes(event.total);
           const percent = Math.round((event.loaded / event.total) * 80) + 15;
-          setVideoUploadProgress(percent);
+          setVideoUploadProgress(Math.min(percent, 98));
         }
       };
 
       xhr.onload = () => {
+        uploadXhrRef.current = null;
         if (xhr.status >= 200 && xhr.status < 300) {
           setVideoUploadProgress(100);
           setIsUploadingVideo(false);
           setBunnyVideoId(creds.videoId);
           setVideoEmbedUrl(creds.embedUrl);
-          toast.success("تم رفع الفيديو بنجاح وجاري بدء البث السحابي");
+          toast.success("تم رفع الفيديو بنجاح! جاري معالجة وتشفير البث السحابي");
         } else {
           setIsUploadingVideo(false);
-          toast.error("تعذر رفع الفيديو");
+          toast.error("تعذر رفع الفيديو إلى سيرفر البث السحابي");
         }
       };
 
       xhr.onerror = () => {
+        uploadXhrRef.current = null;
         setIsUploadingVideo(false);
         toast.error("حدث خطأ في الاتصال أثناء رفع الفيديو");
       };
 
       xhr.send(file);
     } catch (err: any) {
+      uploadXhrRef.current = null;
+      setIsInspectingVideo(false);
       setIsUploadingVideo(false);
       toast.error(err?.message || "تعذر الحصول على تصريح رفع الفيديو");
     }
@@ -495,17 +568,23 @@ export function LessonEditorModal({
 
               {/* Direct Drag & Drop Video Upload Area */}
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                     <Video className="w-4 h-4 text-primary-600" />
-                    فيديو الشرح التفاعلي المشفر
+                    فيديو الشرح التفاعلي المشفر (حتى 2 جيجابايت)
                   </span>
-                  {bunnyVideoId && (
-                    <span className="text-[11px] font-bold bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
-                      <CheckCircle className="w-3 h-3 text-emerald-600" />
-                      <span>تم ربط وتجهيز الفيديو بنجاح</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-semibold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md border border-blue-200 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-blue-600" />
+                      <span>ضغط سحابي ذكي متعدد الجودات</span>
                     </span>
-                  )}
+                    {bunnyVideoId && (
+                      <span className="text-[11px] font-bold bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3 text-emerald-600" />
+                        <span>تم ربط وتجهيز الفيديو بنجاح</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Processing notice if video is currently encoding on Bunny CDN */}
@@ -553,9 +632,14 @@ export function LessonEditorModal({
                           <p className="text-xs font-bold text-white truncate">
                             {uploadedVideoName || "فيديو الشرح المباشر"}
                           </p>
-                          <p className="text-[10px] text-slate-400 font-mono truncate">
-                            ID: {bunnyVideoId}
-                          </p>
+                          <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono truncate">
+                            <span>ID: {bunnyVideoId}</span>
+                            {videoMeta && (
+                              <span className="text-emerald-400">
+                                • {videoMeta.qualityLabel} ({videoMeta.formattedSize})
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -584,7 +668,7 @@ export function LessonEditorModal({
                   </div>
                 ) : (
                   /* Direct Upload Dropzone */
-                  <div className="border-2 border-dashed border-slate-200 hover:border-primary-500 rounded-2xl p-6 text-center cursor-pointer transition-colors relative bg-white">
+                  <div className="border-2 border-dashed border-slate-200 hover:border-primary-500 rounded-2xl p-6 text-center cursor-pointer transition-colors relative bg-white group">
                     <input
                       type="file"
                       accept="video/*"
@@ -593,32 +677,78 @@ export function LessonEditorModal({
                       className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                     />
                     <div className="flex flex-col items-center gap-2 text-slate-600">
-                      <UploadCloud className="w-10 h-10 text-primary-600" />
-                      <p className="text-xs font-bold text-slate-800">
-                        انقر لاختيار فيديو أو سحبه هنا للرفع المباشر إلى السيرفر
-                        السحابي المشفر
+                      <div className="w-12 h-12 rounded-2xl bg-blue-50 text-primary-600 flex items-center justify-center group-hover:scale-105 transition-transform border border-blue-100 shadow-sm">
+                        <UploadCloud className="w-6 h-6" />
+                      </div>
+                      <p className="text-xs font-bold text-slate-900">
+                        انقر لاختيار فيديو أو سحبه هنا للرفع المباشر إلى السيرفر السحابي
                       </p>
-                      <p className="text-[11px] text-slate-500">
-                        يتم التشفير الآمن والتقطيع التلقائي بجودات متعددة ضد
-                        التسجيل والقرصنة
-                      </p>
+                      <div className="flex items-center flex-wrap justify-center gap-2 text-[11px] text-slate-500 mt-1">
+                        <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-medium">
+                          الحد الأقصى: 2 جيجابايت (2048 MB)
+                        </span>
+                        <span>•</span>
+                        <span className="text-emerald-600 font-medium">
+                          ضغط سحابي تلقائي (HLS 1080p, 720p, 480p, 360p)
+                        </span>
+                        <span>•</span>
+                        <span>تشفير DRM ضد التسجيل والسرقة</span>
+                      </div>
                     </div>
                   </div>
                 )}
 
+                {/* Upload Progress & Speed Metrics */}
                 {isUploadingVideo && (
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs font-bold text-slate-800">
-                      <span>جاري رفع الفيديو وتجهيز البث السحابي...</span>
-                      <span className="font-mono text-primary-600">
+                  <div className="p-4 bg-white border border-blue-100 rounded-xl shadow-sm space-y-3 animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin text-primary-600" />
+                        {isInspectingVideo
+                          ? "جاري فحص وتجهيز الفيديو والضغط السحابي..."
+                          : "جاري الرفع المباشر إلى سيرفرات البث السحابي..."}
+                      </span>
+                      <span className="font-mono text-primary-600 text-sm">
                         {videoUploadProgress}%
                       </span>
                     </div>
-                    <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+
+                    <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
                       <div
                         className="bg-primary-600 h-full transition-all duration-300 rounded-full"
                         style={{ width: `${videoUploadProgress}%` }}
                       />
+                    </div>
+
+                    <div className="flex items-center justify-between flex-wrap gap-2 text-[11px] text-slate-500 font-medium pt-1 border-t border-slate-100">
+                      <div className="flex items-center gap-3">
+                        {totalBytes > 0 && (
+                          <span>
+                            تم رفع: <strong className="text-slate-800 font-mono">{formatVideoSize(uploadedBytes)}</strong> من <strong className="text-slate-800 font-mono">{formatVideoSize(totalBytes)}</strong>
+                          </span>
+                        )}
+                        {uploadSpeedMbps > 0 && (
+                          <span className="flex items-center gap-1 text-blue-600">
+                            <Gauge className="w-3.5 h-3.5" />
+                            <span className="font-mono">{uploadSpeedMbps} ميجابايت/ث</span>
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        {etaSeconds > 0 && (
+                          <span className="text-slate-600">
+                            الوقت المتبقي: <strong className="text-slate-800">{formatEtaArabic(etaSeconds)}</strong>
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={handleCancelUpload}
+                          className="text-rose-600 hover:text-rose-700 hover:underline text-[11px] font-bold"
+                        >
+                          إلغاء الرفع
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
