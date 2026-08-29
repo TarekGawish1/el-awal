@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { StudentQrBadge } from './StudentQrBadge';
 import { StudentPasswordModal } from './StudentPasswordModal';
-import { X, Phone, User, Users, Calendar, AlertCircle, ExternalLink, Trash2, UserX, CheckCircle, ShieldAlert, KeyRound } from 'lucide-react';
+import { X, Phone, User, Users, Calendar, AlertCircle, ExternalLink, Trash2, UserX, CheckCircle, ShieldAlert, KeyRound, Check, ClipboardList } from 'lucide-react';
 import { formatWhatsAppNumber } from '@/lib/utils/formatters';
 
 interface StudentDetailsModalProps {
@@ -144,6 +144,83 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
                 <p className="text-sm font-bold text-slate-900">
                   {new Date(student.createdAt || Date.now()).toLocaleDateString('ar-EG')}
                 </p>
+              </div>
+            </div>
+
+            {/* Performance & Attendance (Mocked Data) */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                <ClipboardList className="w-4 h-4 text-primary-600" />
+                سجل الحضور والواجبات (آخر 10 حصص)
+              </h4>
+              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1 bg-green-50 p-3 rounded-xl border border-green-100 text-center">
+                    <p className="text-xs text-green-700 font-bold mb-1">نسبة الحضور</p>
+                    <p className="text-xl font-black text-green-700">85%</p>
+                  </div>
+                  <div className="flex-1 bg-blue-50 p-3 rounded-xl border border-blue-100 text-center">
+                    <p className="text-xs text-blue-700 font-bold mb-1">نسبة حل الواجب</p>
+                    <p className="text-xl font-black text-blue-700">70%</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center text-[10px] text-slate-500 font-medium px-1">
+                    <span>أقدم حصة</span>
+                    <span>أحدث حصة</span>
+                  </div>
+                  <div className="flex gap-2 rtl:flex-row overflow-x-auto pb-2 custom-scrollbar">
+                    {/* Mock 10 sessions */}
+                    {[
+                      { attended: true, hw: true },
+                      { attended: true, hw: true },
+                      { attended: false, hw: false },
+                      { attended: true, hw: false },
+                      { attended: true, hw: true },
+                      { attended: true, hw: true },
+                      { attended: false, hw: false },
+                      { attended: true, hw: true },
+                      { attended: true, hw: false },
+                      { attended: true, hw: true },
+                    ].map((session, i) => (
+                      <div key={i} className="flex flex-col gap-1 min-w-[32px]">
+                        {/* Attendance Box */}
+                        <div 
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center border transition-all ${
+                            session.attended 
+                              ? 'bg-green-100 border-green-200 text-green-600' 
+                              : 'bg-red-50 border-red-200 text-red-500'
+                          }`}
+                          title={session.attended ? 'حاضر' : 'غائب'}
+                        >
+                          {session.attended ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                        </div>
+                        {/* Homework indicator */}
+                        <div 
+                          className={`w-8 h-1.5 rounded-full ${
+                            !session.attended ? 'bg-slate-100' : session.hw ? 'bg-blue-500' : 'bg-red-400'
+                          }`}
+                          title={!session.attended ? 'لم يحضر' : session.hw ? 'تم حل الواجب' : 'لم يحل الواجب'}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-4 text-[10px] text-slate-500 mt-2 font-medium">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded bg-green-100 border border-green-200"></div>
+                      <span>حاضر</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded bg-red-50 border border-red-200"></div>
+                      <span>غائب</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-1.5 rounded-full bg-blue-500"></div>
+                      <span>أنجز الواجب</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
