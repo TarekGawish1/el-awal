@@ -115,11 +115,11 @@ function Navbar() {
         </div>
 
         {/* CTA Buttons */}
-        <div className="flex items-center gap-3">
-          <div className="relative hidden sm:block" ref={dropdownRef}>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="relative" ref={dropdownRef}>
             <button 
               onClick={() => setIsLoginDropdownOpen(!isLoginDropdownOpen)}
-              className="text-slate-600 font-bold hover:text-slate-900 transition-colors px-4 py-2 flex items-center gap-1"
+              className="text-slate-600 font-bold hover:text-slate-900 transition-colors px-2 sm:px-4 py-2 flex items-center gap-1 text-sm sm:text-base"
             >
               تسجيل الدخول
               <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform duration-200 ${isLoginDropdownOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
@@ -152,7 +152,7 @@ function Navbar() {
             </AnimatePresence>
           </div>
 
-          <a href="/register/student" className="bg-slate-900 hover:bg-blue-600 text-white px-6 py-2.5 rounded-full font-bold shadow-md transition-all hover:shadow-lg hover:-translate-y-0.5">
+          <a href="/register/student" className="bg-slate-900 hover:bg-blue-600 text-white px-4 py-2 sm:px-6 sm:py-2.5 rounded-full font-bold shadow-md transition-all hover:shadow-lg hover:-translate-y-0.5 text-sm sm:text-base">
             إنشاء حساب
           </a>
         </div>
@@ -213,7 +213,7 @@ function HeroSection() {
           transition={{ duration: 0.8, delay: 0.2 }}
           className="w-full lg:w-1/2 flex justify-center lg:justify-end relative"
         >
-          <div className="relative w-full max-w-[500px] h-[500px] flex items-end justify-center mt-10 lg:mt-0">
+          <div className="relative w-full max-w-[350px] lg:max-w-[500px] h-[350px] lg:h-[500px] flex items-end justify-center mt-10 lg:mt-0">
 
             {/* The Cutout Image with Bottom Fade */}
             <div
