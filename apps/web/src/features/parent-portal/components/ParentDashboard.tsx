@@ -4,10 +4,13 @@ import { AlertCircle, BookOpen, GraduationCap, RefreshCw, Users } from 'lucide-r
 import { Alert, AlertDescription, AlertTitle, Button, Card, CardContent } from '@/components/ui';
 import { useAuth } from '@/features/auth';
 import { useLinkedStudents } from '../hooks/useParentPortal';
+import { ChildDetailsModal } from './ChildDetailsModal';
+import { useState } from 'react';
 
 export function ParentDashboard() {
   const { user } = useAuth();
   const { data: linkedStudents, isLoading, isError, refetch } = useLinkedStudents();
+  const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
 
   if (isLoading) {
     return <div className="h-40 animate-pulse rounded-xl bg-neutral-100" aria-label="جاري التحميل" />;
@@ -48,7 +51,11 @@ export function ParentDashboard() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {linkedStudents.map(({ linkId, relationshipType, student }) => (
-            <Card key={linkId} className="border-neutral-200/90 shadow-sm">
+            <Card 
+              key={linkId} 
+              className="border-neutral-200/90 shadow-sm cursor-pointer hover:border-primary-300 transition-colors"
+              onClick={() => setSelectedChildId(student.id)}
+            >
               <CardContent className="space-y-5 p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3">
@@ -81,6 +88,12 @@ export function ParentDashboard() {
           ))}
         </div>
       )}
+
+      <ChildDetailsModal
+        isOpen={!!selectedChildId}
+        studentId={selectedChildId}
+        onClose={() => setSelectedChildId(null)}
+      />
     </div>
   );
 }
