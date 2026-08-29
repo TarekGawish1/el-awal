@@ -713,16 +713,44 @@ function TestimonialsSection() {
   );
 }
 
-const CERTIFICATES = [
-  { id: 1, title: 'المركز الأول - الصف الثالث الثانوي', student: 'محمد أحمد', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' },
-  { id: 2, title: 'التفوق في الرياضيات', student: 'مريم محمود', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' },
-  { id: 3, title: 'الدرجة النهائية - الترم الأول', student: 'يوسف طارق', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' },
-  { id: 4, title: 'المركز الأول - الصف الأول الثانوي', student: 'فاطمة علي', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' }
+const CERTIFICATES_BY_STAGE = [
+  {
+    stageId: 'secondary',
+    stageName: 'أبطال المرحلة الثانوية',
+    certificates: [
+      { id: 1, title: 'المركز الأول - الصف الثالث الثانوي', student: 'محمد أحمد', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' },
+      { id: 2, title: 'التفوق في الرياضيات', student: 'مريم محمود', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' },
+      { id: 3, title: 'الدرجة النهائية - الترم الأول', student: 'يوسف طارق', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' },
+      { id: 4, title: 'المركز الأول - الصف الأول الثانوي', student: 'فاطمة علي', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' }
+    ]
+  },
+  {
+    stageId: 'preparatory',
+    stageName: 'أبطال المرحلة الإعدادية',
+    certificates: [
+      { id: 5, title: 'المركز الأول - الصف الثالث الإعدادي', student: 'عمر حسين', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' },
+      { id: 6, title: 'التميز في الجبر', student: 'نور ياسر', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' },
+      { id: 7, title: 'الدرجة النهائية', student: 'زياد طارق', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' },
+    ]
+  },
+  {
+    stageId: 'primary',
+    stageName: 'أبطال المرحلة الابتدائية',
+    certificates: [
+      { id: 8, title: 'الأول على المدرسة - الصف السادس', student: 'جنى محمد', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' },
+      { id: 9, title: 'عبقري الرياضيات', student: 'ياسين أحمد', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' },
+    ]
+  }
 ];
 
 function CertificatesSection() {
   return (
     <section className="py-24 bg-slate-50 relative overflow-hidden" id="certificates" dir="rtl">
+      <div className="absolute top-0 right-0 w-full h-full overflow-hidden pointer-events-none z-0 opacity-40">
+        <div className="absolute top-[10%] right-[10%] w-[30%] h-[40%] rounded-full bg-amber-50 blur-[100px]" />
+        <div className="absolute bottom-[10%] left-[5%] w-[40%] h-[30%] rounded-full bg-orange-50 blur-[120px]" />
+      </div>
+
       <div className="container mx-auto px-6 relative z-10">
         <div className="text-center max-w-2xl mx-auto mb-16">
           <motion.div
@@ -735,37 +763,53 @@ function CertificatesSection() {
               لوحة <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-500 to-orange-500">الشرف</span>
             </h2>
             <p className="text-slate-600 text-lg font-medium">
-              نحتفي بطلابنا المتميزين والمتفوقين، شهادات تقدير لأبطال منصة الأول.
+              نحتفي بطلابنا المتميزين والمتفوقين، شهادات تقدير لأبطال منصة الأول في جميع المراحل.
             </p>
           </motion.div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {CERTIFICATES.map((cert, index) => (
-            <motion.div
-              key={cert.id}
-              initial={{ opacity: 0, scale: 0.9 }}
-              whileInView={{ opacity: 1, scale: 1 }}
+        <div className="space-y-16">
+          {CERTIFICATES_BY_STAGE.map((stage, stageIndex) => (
+            <motion.div 
+              key={stage.stageId} 
+              className="relative"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
-              className="bg-white rounded-2xl p-3 border border-slate-200 shadow-md hover:shadow-xl hover:-translate-y-2 transition-all group"
+              transition={{ duration: 0.5, delay: stageIndex * 0.1 }}
             >
-              <div className="relative overflow-hidden rounded-xl bg-slate-100 aspect-[4/3] mb-4">
-                <img 
-                  src={cert.image} 
-                  alt={cert.title} 
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
-                  <div className="text-white">
-                    <div className="font-bold">{cert.student}</div>
-                    <div className="text-sm text-slate-200">{cert.title}</div>
-                  </div>
-                </div>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-slate-800 border-r-4 border-amber-500 pr-4">
+                  {stage.stageName}
+                </h3>
               </div>
-              <div className="text-center px-2 pb-2">
-                <h4 className="font-bold text-slate-900 truncate">{cert.student}</h4>
-                <p className="text-sm text-slate-500 truncate">{cert.title}</p>
+              
+              {/* Horizontal Scroll Container (Netflix Style) */}
+              <div className="flex overflow-x-auto gap-6 pb-6 -mx-6 px-6 md:mx-0 md:px-0 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                {stage.certificates.map((cert) => (
+                  <div
+                    key={cert.id}
+                    className="shrink-0 w-[280px] sm:w-[320px] snap-center bg-white rounded-2xl p-3 border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all group"
+                  >
+                    <div className="relative overflow-hidden rounded-xl bg-slate-100 aspect-[4/3] mb-4">
+                      <img 
+                        src={cert.image} 
+                        alt={cert.title} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+                        <div className="text-white">
+                          <div className="font-bold text-lg">{cert.student}</div>
+                          <div className="text-sm text-slate-200">{cert.title}</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-center px-2 pb-2">
+                      <h4 className="font-bold text-slate-900 truncate">{cert.student}</h4>
+                      <p className="text-sm text-slate-500 truncate">{cert.title}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </motion.div>
           ))}
