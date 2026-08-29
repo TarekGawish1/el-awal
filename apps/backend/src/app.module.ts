@@ -23,6 +23,7 @@ import { HealthModule } from './modules/health/health.module';
 import { TeachersModule } from './modules/teachers/teachers.module';
 import { AcademicPeriodsModule } from './modules/academic-periods/academic-periods.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { ContactMessagesModule } from './modules/contact-messages/contact-messages.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
     BookletsModule,
     SyncModule,
     HealthModule,
+    ContactMessagesModule,
   ],
 })
 export class AppModule {}

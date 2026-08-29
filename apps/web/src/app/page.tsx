@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
+import { toast } from 'react-hot-toast';
 
 function IntroSequence({ onComplete }: { onComplete: () => void }) {
   useEffect(() => {
@@ -925,6 +926,52 @@ function AboutUsSection() {
   );
 }
 
+function ContactForm() {
+  const [isPending, startTransition] = React.useTransition();
+  const formRef = React.useRef<HTMLFormElement>(null);
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    startTransition(async () => {
+      // Import dynamically or assume it's imported at top
+      const { submitContactMessage } = await import('./actions');
+      const result = await submitContactMessage(formData);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success("تم إرسال رسالتك بنجاح!");
+        formRef.current?.reset();
+      }
+    });
+  };
+
+  return (
+    <form ref={formRef} className="space-y-4" onSubmit={handleSubmit}>
+      <div>
+        <label className="block text-sm font-bold text-slate-700 mb-2">الاسم بالكامل</label>
+        <input name="name" type="text" placeholder="اكتب اسمك هنا" required className="w-full bg-slate-50 border border-slate-200 text-slate-900 px-4 py-3 rounded-xl outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all" />
+      </div>
+      <div>
+        <label className="block text-sm font-bold text-slate-700 mb-2">رقم الموبايل</label>
+        <input name="phone" type="tel" placeholder="01X XXXX XXXX" dir="ltr" required className="w-full bg-slate-50 border border-slate-200 text-slate-900 px-4 py-3 rounded-xl outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all text-right" />
+      </div>
+      <div>
+        <label className="block text-sm font-bold text-slate-700 mb-2">الرسالة أو الاستفسار</label>
+        <textarea name="message" rows={4} placeholder="اكتب رسالتك هنا..." required className="w-full bg-slate-50 border border-slate-200 text-slate-900 px-4 py-3 rounded-xl outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all resize-none"></textarea>
+      </div>
+      <button type="submit" disabled={isPending} className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-2">
+        <span>{isPending ? "جاري الإرسال..." : "إرسال الرسالة"}</span>
+        {!isPending && (
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 -rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+          </svg>
+        )}
+      </button>
+    </form>
+  );
+}
+
 function ContactUsSection() {
   return (
     <section className="py-24 bg-slate-50 relative overflow-hidden" id="contact" dir="rtl">
@@ -1005,26 +1052,7 @@ function ContactUsSection() {
             className="bg-white p-8 rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50"
           >
             <h3 className="text-2xl font-bold text-slate-900 mb-6">أرسل لنا رسالة</h3>
-            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">الاسم بالكامل</label>
-                <input type="text" placeholder="اكتب اسمك هنا" className="w-full bg-slate-50 border border-slate-200 text-slate-900 px-4 py-3 rounded-xl outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all" />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">رقم الموبايل</label>
-                <input type="tel" placeholder="01X XXXX XXXX" dir="ltr" className="w-full bg-slate-50 border border-slate-200 text-slate-900 px-4 py-3 rounded-xl outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all text-right" />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">الرسالة أو الاستفسار</label>
-                <textarea rows={4} placeholder="اكتب رسالتك هنا..." className="w-full bg-slate-50 border border-slate-200 text-slate-900 px-4 py-3 rounded-xl outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all resize-none"></textarea>
-              </div>
-              <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-2">
-                <span>إرسال الرسالة</span>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 -rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-              </button>
-            </form>
+            <ContactForm />
           </motion.div>
         </div>
       </div>

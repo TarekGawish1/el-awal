@@ -70,6 +70,7 @@ export const TEACHER_NAVIGATION_SECTIONS: NavSectionConfig[] = [
     title: 'مركز التواصل',
     items: [
       { label: 'مركز الإشعارات والتحكم', href: '/teacher/notifications', icon: Bell, onlineOnly: false },
+      { label: 'رسائل الموقع', href: '/teacher/inquiries', icon: MessageSquareShare, onlineOnly: true },
       {
         label: 'ربط وإدارة الواتساب',
         href: '#whatsapp-manager',
