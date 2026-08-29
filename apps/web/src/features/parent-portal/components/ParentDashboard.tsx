@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle, Button, Card, CardContent } from '
 import { useAuth } from '@/features/auth';
 import { useLinkedStudents } from '../hooks/useParentPortal';
 import { ChildDetailsModal } from './ChildDetailsModal';
+import { ChildDetailsView } from './ChildDetailsView';
 import { useState } from 'react';
 
 export function ParentDashboard() {
@@ -48,6 +49,10 @@ export function ParentDashboard() {
             <p className="text-sm text-neutral-500">يرجى مراجعة الإدارة للتأكد من ربط الطالب بولي الأمر.</p>
           </CardContent>
         </Card>
+      ) : linkedStudents.length === 1 ? (
+        <div className="bg-white rounded-3xl p-2 sm:p-4 shadow-sm border border-slate-100">
+          <ChildDetailsView studentId={linkedStudents[0].student.id} />
+        </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {linkedStudents.map(({ linkId, relationshipType, student }) => (
