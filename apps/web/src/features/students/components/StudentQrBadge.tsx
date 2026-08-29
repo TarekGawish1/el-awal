@@ -180,41 +180,41 @@ export function StudentQrBadge({
   };
 
   return (
-    <div className="flex flex-col items-center border-none rounded-3xl shadow-sm ring-1 ring-slate-100 relative overflow-hidden bg-gradient-to-b from-white to-slate-50">
-      <div ref={badgeRef} className="flex flex-col items-center w-full p-8 pb-6 relative bg-white">
-        <div className="absolute top-0 w-full h-2 bg-gradient-to-r from-primary-400 to-primary-600"></div>
+    <div className="flex flex-col sm:flex-row items-stretch border-none rounded-3xl shadow-sm ring-1 ring-slate-100 relative overflow-hidden bg-gradient-to-b sm:bg-gradient-to-l from-white to-slate-50">
+      <div ref={badgeRef} className="flex flex-col items-center justify-center w-full sm:w-1/2 p-6 sm:p-8 relative bg-white border-b sm:border-b-0 sm:border-l border-slate-100">
+        <div className="absolute top-0 sm:top-auto sm:right-0 sm:inset-y-0 w-full sm:w-1.5 h-1.5 sm:h-full bg-gradient-to-r sm:bg-gradient-to-b from-primary-400 to-primary-600"></div>
 
-        <div className="bg-white p-5 rounded-2xl shadow-sm ring-1 ring-slate-100 mb-6 group hover:shadow-md transition-shadow mt-2">
-          <QRCode value={data.qrCodeToken} size={220} className="group-hover:scale-105 transition-transform duration-300" />
+        <div className="bg-white p-4 rounded-2xl shadow-sm ring-1 ring-slate-100 mb-4 group hover:shadow-md transition-shadow sm:mt-2">
+          <QRCode value={data.qrCodeToken} size={180} className="group-hover:scale-105 transition-transform duration-300" />
         </div>
         <div className="text-center w-full">
-          <h3 className="text-xl font-bold text-slate-900">{data.fullName}</h3>
+          <h3 className="text-lg font-bold text-slate-900">{data.fullName}</h3>
         </div>
       </div>
 
-      <div className="w-full p-8 pt-2">
+      <div className="flex flex-col justify-center w-full sm:w-1/2 p-6 sm:p-8">
         {showConfirm ? (
           <div className="flex flex-col items-center space-y-4 p-5 bg-amber-50 border border-amber-200 rounded-2xl w-full">
             <p className="text-sm text-amber-800 text-center font-medium leading-relaxed">
               سيؤدي هذا إلى إبطال رمز الاستجابة السريعة (QR) الحالي. هل أنت متأكد أنك تريد المتابعة؟
             </p>
-            <div className="flex space-x-3 rtl:space-x-reverse w-full">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1 rounded-xl"
-                onClick={() => setShowConfirm(false)}
-                disabled={isRegenerating}
-              >
-                إلغاء
-              </Button>
+            <div className="flex flex-col space-y-2 w-full">
               <Button
                 size="sm"
-                className="flex-1 rounded-xl bg-amber-600 hover:bg-amber-700 text-white border-none shadow-sm"
+                className="w-full rounded-xl bg-amber-600 hover:bg-amber-700 text-white border-none shadow-sm"
                 onClick={handleRegenerate}
                 disabled={isRegenerating}
               >
                 {isRegenerating ? 'جاري التوليد...' : 'تأكيد'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full rounded-xl bg-white"
+                onClick={() => setShowConfirm(false)}
+                disabled={isRegenerating}
+              >
+                إلغاء
               </Button>
             </div>
           </div>
@@ -222,13 +222,13 @@ export function StudentQrBadge({
           <div className="w-full space-y-3">
             <Button
               variant="outline"
-              className="w-full rounded-xl border-dashed border-2 hover:border-primary-500 hover:text-primary-600 hover:bg-primary-50 transition-all font-medium py-6"
+              className="w-full rounded-xl border-dashed border-2 hover:border-primary-500 hover:text-primary-600 hover:bg-primary-50 transition-all font-medium py-5"
               onClick={() => setShowConfirm(true)}
             >
               <svg className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              إعادة توليد كود الـ QR
+              إعادة توليد الـ QR
             </Button>
 
             <button
@@ -243,7 +243,7 @@ export function StudentQrBadge({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
               )}
-              {isDownloading ? 'جاري التنزيل...' : 'تنزيل صورة الكود'}
+              {isDownloading ? 'جاري التنزيل...' : 'تنزيل الكود'}
             </button>
 
             {studentPhone && (
