@@ -9,14 +9,7 @@ import { CheckCircle2, XCircle, Clock, User, Phone, MapPin, QrCode, Banknote, Ca
 import { usePendingReservations, useAcceptReservation, useRejectReservation, useGroups, useChangeReservationGroup } from '@/features/groups';
 import toast from 'react-hot-toast';
 import { Scanner } from '@yudiel/react-qr-scanner';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/DropdownMenu';
+import { Select } from '@/components/ui/Select';
 import { StudentDetailsModal } from '@/features/students/components/StudentDetailsModal';
 
 export function PendingReservationsSection() {
@@ -178,29 +171,22 @@ export function PendingReservationsSection() {
                         <MapPin className="w-3.5 h-3.5" />
                         {reservation.group?.name}
                       </span>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button className="text-[10px] text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full hover:bg-primary-100 transition-colors">
-                            تغيير المجموعة
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48">
-                          <DropdownMenuLabel>اختر المجموعة الجديدة</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          {allGroups?.filter(g => g.gradeLevel === reservation.group?.gradeLevel).length === 0 && (
-                            <div className="p-2 text-xs text-neutral-500 text-center">لا توجد مجموعات أخرى لنفس الصف</div>
-                          )}
-                          {allGroups?.filter(g => g.gradeLevel === reservation.group?.gradeLevel).map(g => (
-                            <DropdownMenuItem 
-                              key={g.id} 
-                              onClick={() => changeGroupMutation.mutate({ enrollmentId: reservation.id, groupId: g.id })}
-                              disabled={g.id === reservation.groupId || changeGroupMutation.isPending}
-                            >
-                              {g.name} {g.id === reservation.groupId && '(الحالية)'}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <div className="w-32">
+                        <Select
+                          value={reservation.groupId}
+                          onChange={(e) => {
+                            if (e.target.value !== reservation.groupId) {
+                              changeGroupMutation.mutate({ enrollmentId: reservation.id, groupId: e.target.value });
+                            }
+                          }}
+                          options={
+                            allGroups?.filter(g => g.gradeLevel === reservation.group?.gradeLevel).map(g => ({
+                              label: g.id === reservation.groupId ? `${g.name} (الحالية)` : g.name,
+                              value: g.id
+                            })) || []
+                          }
+                        />
+                      </div>
                       <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-700 border-none font-medium px-2 py-0 h-5">
                         {new Date(reservation.enrolledAt).toLocaleDateString('ar-EG')}
                       </Badge>
