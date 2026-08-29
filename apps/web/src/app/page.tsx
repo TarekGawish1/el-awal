@@ -221,7 +221,7 @@ function HeroSection() {
               }}
             >
               <img
-                src="/teacherPhoto.webp"
+                src="/teacher-photo.png"
                 alt="صورة الأستاذ"
                 className="w-full h-full object-cover object-top drop-shadow-2xl rounded-t-[3rem]"
               />
@@ -238,7 +238,7 @@ function HeroSection() {
         >
           <h1 className="flex flex-col gap-4 text-4xl sm:text-5xl lg:text-6xl font-black text-slate-900 mb-8 leading-normal">
             <span className="text-blue-600">
-              ألاستاذ/ أحمد غريب
+              الاستاذ/ أحمد غريب
             </span>
           </h1>
 
@@ -850,10 +850,10 @@ function AboutUsSection() {
 
       {/* Content */}
       <div className="container mx-auto px-4 sm:px-6 relative z-10 w-full flex flex-col flex-1 justify-between h-full">
-        
+
         {/* Top Feature Cards */}
         <div className="w-full max-w-4xl mx-auto mb-10">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: -20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -865,7 +865,7 @@ function AboutUsSection() {
               <div className="font-bold text-white text-sm sm:text-xl mb-1 text-center">سنوات خبرة</div>
               <p className="text-xs sm:text-base text-slate-300 text-center hidden sm:block">في تدريس الرياضيات</p>
             </div>
-            
+
             <div className="bg-white/10 p-4 sm:p-8 rounded-3xl border border-white/20 backdrop-blur-xl shadow-2xl flex flex-col items-center justify-center">
               <div className="w-10 h-10 sm:w-16 sm:h-16 mx-auto rounded-2xl bg-blue-500/20 text-blue-400 flex items-center justify-center mb-3 sm:mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-8 sm:w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -890,7 +890,7 @@ function AboutUsSection() {
 
         {/* Bottom Text Card */}
         <div className="w-full mt-auto -mb-8 sm:-mb-12">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 50 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -903,7 +903,7 @@ function AboutUsSection() {
             <h2 className="text-2xl sm:text-4xl md:text-5xl font-black mb-4 sm:mb-6 leading-tight">
               تعرف على الأستاذ / <span className="text-blue-400">أحمد غريب</span>
             </h2>
-            
+
             <div className="space-y-3 sm:space-y-6 text-slate-200 text-[13px] sm:text-lg leading-relaxed max-w-3xl mx-auto">
               <p>
                 نحن في منصة الأول نؤمن بأن الرياضيات ليست مجرد أرقام وقوانين، بل هي لغة العقل ومنهج للتفكير. هدفنا هو تبسيط المادة وتوصيلها للطلاب بأسهل وأمتع الطرق الممكنة.
