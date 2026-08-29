@@ -468,11 +468,11 @@ function CenterScheduleSection() {
           {/* Stage Selector (Dropdown on Mobile, Tabs on Desktop) */}
           <div className="border-b border-slate-100 bg-slate-100/50 p-4">
             {/* Mobile Dropdown */}
-            <div className="sm:hidden block w-full">
+            <div className="sm:hidden block w-full relative">
               <select
                 value={selectedStage}
                 onChange={(e) => handleStageChange(e.target.value)}
-                className="w-full bg-white border border-slate-200 text-slate-900 font-bold py-3 px-4 rounded-xl outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all shadow-sm"
+                className="w-full appearance-none bg-white border border-slate-200 text-slate-900 font-bold py-3 pr-4 pl-10 rounded-xl outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all shadow-sm"
               >
                 {STAGES.map((stage) => (
                   <option key={stage.id} value={stage.id}>
@@ -480,6 +480,11 @@ function CenterScheduleSection() {
                   </option>
                 ))}
               </select>
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
             </div>
 
             {/* Desktop Tabs */}
