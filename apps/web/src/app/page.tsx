@@ -380,30 +380,54 @@ function CoursesSection() {
 }
 
 function CenterScheduleSection() {
-  const [selectedGrade, setSelectedGrade] = useState('grade-1');
+  const [selectedStage, setSelectedStage] = useState('secondary');
+  const [selectedGrade, setSelectedGrade] = useState('sec-1');
+
+  const STAGES = [
+    { id: 'primary', name: 'المرحلة الابتدائية' },
+    { id: 'secondary', name: 'المرحلة الثانوية' },
+  ];
+
+  const GRADES = {
+    primary: [
+      { id: 'prim-5', name: 'الصف الخامس الابتدائي' },
+      { id: 'prim-6', name: 'الصف السادس الابتدائي' },
+    ],
+    secondary: [
+      { id: 'sec-1', name: 'الصف الأول الثانوي' },
+      { id: 'sec-2', name: 'الصف الثاني الثانوي' },
+      { id: 'sec-3', name: 'الصف الثالث الثانوي' },
+    ]
+  };
 
   const SCHEDULE_DATA: Record<string, { center: string, days: string, time: string }[]> = {
-    'grade-1': [
+    'prim-5': [
+      { center: 'سنتر الأوائل - مدينة نصر', days: 'السبت والثلاثاء', time: '2:00 ظهراً' },
+    ],
+    'prim-6': [
+      { center: 'سنتر الأوائل - مدينة نصر', days: 'الأحد والأربعاء', time: '2:00 ظهراً' },
+    ],
+    'sec-1': [
       { center: 'سنتر الأوائل - مدينة نصر', days: 'السبت والثلاثاء', time: '4:00 عصراً' },
       { center: 'سنتر القمة - مصر الجديدة', days: 'الأحد والأربعاء', time: '6:00 مساءً' },
     ],
-    'grade-2': [
+    'sec-2': [
       { center: 'سنتر الأوائل - مدينة نصر', days: 'السبت والثلاثاء', time: '6:00 مساءً' },
       { center: 'سنتر الفرسان - المعادي', days: 'الإثنين والخميس', time: '5:00 عصراً' },
     ],
-    'grade-3': [
+    'sec-3': [
       { center: 'سنتر الأوائل - مدينة نصر', days: 'الجمعة', time: '9:00 صباحاً (مكثف)' },
       { center: 'سنتر القمة - مصر الجديدة', days: 'الأحد والأربعاء', time: '8:00 مساءً' },
     ],
   };
 
-  const GRADES = [
-    { id: 'grade-1', name: 'الصف الأول الثانوي' },
-    { id: 'grade-2', name: 'الصف الثاني الثانوي' },
-    { id: 'grade-3', name: 'الصف الثالث الثانوي' },
-  ];
+  const handleStageChange = (stageId: string) => {
+    setSelectedStage(stageId);
+    setSelectedGrade(GRADES[stageId as keyof typeof GRADES][0].id);
+  };
 
   const currentSchedules = SCHEDULE_DATA[selectedGrade] || [];
+  const currentGrades = GRADES[selectedStage as keyof typeof GRADES] || [];
 
   return (
     <section className="py-24 bg-slate-50 relative overflow-hidden" id="schedule" dir="rtl">
@@ -419,22 +443,40 @@ function CenterScheduleSection() {
               مواعيد <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">السنتر</span>
             </h2>
             <p className="text-slate-600 text-lg font-medium">
-              اختر الصف الدراسي لمعرفة مواعيد وأماكن المحاضرات الحضورية (الأوفلاين) المتاحة.
+              اختر المرحلة والصف الدراسي لمعرفة مواعيد وأماكن المحاضرات الحضورية المتاحة.
             </p>
           </motion.div>
         </div>
 
         <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-xl shadow-slate-200/50 overflow-hidden border border-slate-100">
-          {/* Tabs */}
-          <div className="flex flex-wrap border-b border-slate-100 bg-slate-50/50 p-2 sm:p-4 gap-2 justify-center">
-            {GRADES.map((grade) => (
+          
+          {/* Stage Tabs */}
+          <div className="flex border-b border-slate-100 bg-slate-100/50 p-2 sm:p-4 gap-2 justify-center">
+            {STAGES.map((stage) => (
+              <button
+                key={stage.id}
+                onClick={() => handleStageChange(stage.id)}
+                className={`px-8 py-3 rounded-xl font-bold text-sm sm:text-base transition-all ${
+                  selectedStage === stage.id
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                    : 'bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {stage.name}
+              </button>
+            ))}
+          </div>
+
+          {/* Grade Tabs */}
+          <div className="flex flex-wrap border-b border-slate-100 bg-white p-2 sm:p-4 gap-2 justify-center">
+            {currentGrades.map((grade) => (
               <button
                 key={grade.id}
                 onClick={() => setSelectedGrade(grade.id)}
-                className={`px-6 py-3 rounded-xl font-bold text-sm sm:text-base transition-all ${
+                className={`px-6 py-2.5 rounded-full font-bold text-sm sm:text-base transition-all ${
                   selectedGrade === grade.id
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20 scale-105'
-                    : 'bg-white text-slate-600 hover:bg-slate-100'
+                    ? 'bg-blue-50 text-blue-700 border-2 border-blue-600'
+                    : 'bg-white text-slate-600 border-2 border-slate-100 hover:border-slate-200'
                 }`}
               >
                 {grade.name}
