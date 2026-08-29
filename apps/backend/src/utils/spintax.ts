@@ -13,6 +13,7 @@ function pickRandom<T>(arr: T[]): T {
 
 function arabicDate(): string {
   return new Date().toLocaleDateString('ar-EG', {
+    timeZone: 'Africa/Cairo',
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -22,6 +23,7 @@ function arabicDate(): string {
 
 function arabicTime(): string {
   return new Date().toLocaleTimeString('ar-EG', {
+    timeZone: 'Africa/Cairo',
     hour: '2-digit',
     minute: '2-digit',
   });
@@ -394,6 +396,7 @@ export function formatPaymentReceivedMessage(data: PaymentNotificationData): str
   } = data;
 
   const dateStr = new Date().toLocaleDateString('ar-EG', {
+    timeZone: 'Africa/Cairo',
     weekday: 'long',
     year: 'numeric',
     month: 'long',

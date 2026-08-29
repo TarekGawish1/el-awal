@@ -136,6 +136,7 @@ export class AttendanceService {
 
     const recordedTimeStr = result.record.recordedAt
       ? new Date(result.record.recordedAt).toLocaleTimeString('ar-EG', {
+          timeZone: 'Africa/Cairo',
           hour: '2-digit',
           minute: '2-digit',
         })

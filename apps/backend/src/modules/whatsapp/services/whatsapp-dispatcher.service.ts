@@ -368,7 +368,11 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
           message = formatExamFailedMessage((data?.studentName as string) || 'الطالب', (data?.examTitle as string) || 'الاختبار', Number(data?.score ?? 0), Number(data?.total ?? 100), Number(data?.passing ?? 50));
           break;
         case NotificationType.TEACHER_DAILY_SCHEDULE:
-          message = formatTeacherAgendaMessage((data?.teacherName as string) || 'الأستاذ', (data?.date as string) || new Date().toLocaleDateString('ar-EG'), (data?.sessions as string[]) || [notification.message]);
+          message = formatTeacherAgendaMessage(
+            (data?.teacherName as string) || 'الأستاذ',
+            (data?.date as string) || new Date().toLocaleDateString('ar-EG', { timeZone: 'Africa/Cairo' }),
+            (data?.sessions as string[]) || [notification.message],
+          );
           break;
         default:
           message = notification.type === 'PAYMENT_RECEIVED' && data?.amount
@@ -380,7 +384,9 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
     const reference = randomUUID().slice(0, 8).toUpperCase();
     const emoji = ['🌟', '📚', '✨'][Math.floor(Math.random() * 3)];
     const timestamp = new Date().toLocaleTimeString('ar-EG', {
-      hour: '2-digit', minute: '2-digit',
+      timeZone: 'Africa/Cairo',
+      hour: '2-digit',
+      minute: '2-digit',
     });
     return `${message}\n\n${emoji} مرجع الرسالة: ${reference} • ${timestamp}`;
   }
