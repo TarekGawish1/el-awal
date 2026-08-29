@@ -221,7 +221,7 @@ function HeroSection() {
               }}
             >
               <img
-                src="/teacher-photo.png"
+                src="/teacher-photo.webp"
                 alt="صورة الأستاذ"
                 className="w-full h-full object-cover object-top drop-shadow-2xl rounded-t-[3rem]"
               />
