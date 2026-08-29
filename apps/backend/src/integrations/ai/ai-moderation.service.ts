@@ -50,7 +50,17 @@ export class AiModerationService {
 
     const trimmed = text.trim();
 
-    // ── Tier 1: AI Semantic Intelligence Verification (Intent, Slang, Franco, Bullying) ──
+    // Always apply deterministic rules first. An AI allow verdict must never bypass
+    // known profanity or direct insults.
+    if (containsProfanity(trimmed)) {
+      return {
+        isValid: false,
+        reason: 'عذراً، يحتوي النص على كلمات أو عبارات غير لائقة تتعارض مع الآداب العامة للمنصة 🚫',
+        flaggedBy: 'RULE_FILTER',
+      };
+    }
+
+    // ── Tier 2: AI Semantic Intelligence Verification (Intent, Slang, Franco, Bullying) ──
     if (this.isAiEnabled) {
       try {
         const aiResult = await this.verifyWithAi(trimmed);
@@ -67,15 +77,6 @@ export class AiModerationService {
       } catch (err: any) {
         this.logger.warn(`AI Moderation request failed (${err.message}). Falling back to local filter.`);
       }
-    }
-
-    // ── Tier 2: Local Rule Filter (Only as fallback when AI API is unavailable) ──
-    if (containsProfanity(trimmed)) {
-      return {
-        isValid: false,
-        reason: 'عذراً، يحتوي النص على كلمات أو عبارات غير لائقة تتعارض مع الآداب العامة للمنصة 🚫',
-        flaggedBy: 'RULE_FILTER',
-      };
     }
 
     return { isValid: true, flaggedBy: 'CLEAN' };
