@@ -33,6 +33,7 @@ describe('StudentRegistrationService', () => {
           }
           return state.parent;
         }),
+        update: jest.fn(async () => ({})),
         create: jest.fn(async (args: any) => {
           if (args.data.role === UserRole.STUDENT) {
             return {
@@ -67,12 +68,14 @@ describe('StudentRegistrationService', () => {
           if (args.where?.studentCode) return null;
           return null;
         }),
+        update: jest.fn(async () => ({})),
       },
       parentProfile: {
         findUnique: jest.fn(async () => null),
         create: jest.fn(async () => ({ id: PARENT_ID, relationshipType: 'ولي أمر' })),
       },
       parentStudentLink: {
+        findUnique: jest.fn(async () => null),
         create: jest.fn(async () => {
           if (state.failParentLink) {
             throw new Error('link failure');
@@ -204,12 +207,14 @@ describe('StudentRegistrationService', () => {
     expect(tx.parentStudentLink.create).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects when the parent phone belongs to a non-parent account', async () => {
-    state.parent = { id: 'teacher-1', role: UserRole.TEACHER, deletedAt: null };
-    mockPrismaService.$transaction.mockImplementation((fn: any) => fn(buildTx()));
+  it('links multiple students to the same parent phone successfully', async () => {
+    state.parent = { id: PARENT_ID, role: UserRole.PARENT, deletedAt: null };
+    const tx = buildTx();
+    mockPrismaService.$transaction.mockImplementation((fn: any) => fn(tx));
 
-    await expect(service.registerStudent(validDto)).rejects.toThrow(ConflictException);
-    expect(authService.issueTokens).not.toHaveBeenCalled();
+    const result = await service.registerStudent(validDto);
+    expect(result.credentials.parentIsNew).toBe(false);
+    expect(tx.parentStudentLink.create).toHaveBeenCalled();
   });
 
   it('rolls back (no tokens issued) when parent link creation fails', async () => {

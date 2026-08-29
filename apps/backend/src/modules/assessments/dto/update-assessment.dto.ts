@@ -1,5 +1,6 @@
-import { IsOptional, IsString, MinLength, IsInt, Min, IsDateString, IsBoolean, IsUUID } from 'class-validator';
+import { IsOptional, IsString, MinLength, IsInt, Min, IsDateString, IsBoolean, IsUUID, IsEnum } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { AssessmentType } from '@prisma/client';
 
 export class UpdateAssessmentDto {
   @ApiPropertyOptional({
@@ -36,6 +37,19 @@ export class UpdateAssessmentDto {
   @IsOptional()
   @IsDateString()
   dueDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Assessment deadline (alias for dueDate)',
+    example: '2026-09-30T23:59:59.000Z',
+  })
+  @IsOptional()
+  @IsDateString()
+  deadline?: string;
+
+  @ApiPropertyOptional({ enum: AssessmentType })
+  @IsOptional()
+  @IsEnum(AssessmentType)
+  assessmentType?: AssessmentType;
 
   @ApiPropertyOptional({
     description: 'Whether the assessment is active and visible to students',

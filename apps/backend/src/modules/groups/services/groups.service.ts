@@ -6,6 +6,7 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { CreateGroupDto } from '../dto/create-group.dto';
 import { UpdateGroupDto } from '../dto/update-group.dto';
@@ -237,6 +238,48 @@ export class GroupsService {
     });
 
     return { success: true, message: 'Group successfully deleted' };
+  }
+
+  /**
+   * Generates or retrieves the active self-registration invite token for a
+   * group. The token is reused while the registration window is open and
+   * regenerated once it has expired, so shareable links remain stable.
+   */
+  async generateRegistrationLink(groupId: string, user?: AuthenticatedUser) {
+    const group = await this.prisma.academicGroup.findUnique({
+      where: { id: groupId },
+    });
+
+    if (!group) {
+      throw new NotFoundException(`Academic group [${groupId}] not found`);
+    }
+
+    await this.checkTeacherOwnership(group, user);
+
+    const now = new Date();
+    const isExpired =
+      !!group.registrationLinkExpiry && group.registrationLinkExpiry.getTime() < now.getTime();
+
+    let token = group.registrationToken;
+    if (!token || isExpired) {
+      token = randomBytes(16).toString('hex');
+      await this.prisma.academicGroup.update({
+        where: { id: groupId },
+        data: {
+          registrationToken: token,
+          registrationLinkExpiry: null,
+        },
+      });
+    }
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online';
+
+    return {
+      groupId: group.id,
+      groupName: group.name,
+      token,
+      registrationUrl: `${appUrl}/register/group?token=${token}`,
+    };
   }
 
   /**

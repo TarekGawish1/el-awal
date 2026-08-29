@@ -111,6 +111,8 @@ export class StudentRegistrationService {
                 academicStage: dto.academicStage,
                 attendanceMode: dto.attendanceMode as any,
                 emergencyPhone: parentPhone,
+                tempAccessPin: studentPassword,
+                pinExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
               },
             },
           },
@@ -127,10 +129,10 @@ export class StudentRegistrationService {
           });
 
           if (existingParent) {
-            if (existingParent.role !== UserRole.PARENT || existingParent.deletedAt) {
-              throw new ConflictException({
-                code: 'PARENT_PHONE_CONFLICT',
-                message: 'رقم هاتف ولي الأمر مسجل بحساب آخر، يرجى استخدام رقم مختلف',
+            if (existingParent.deletedAt) {
+              await tx.user.update({
+                where: { id: existingParent.id },
+                data: { deletedAt: null, isActive: true },
               });
             }
             parentUserId = existingParent.id;

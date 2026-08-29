@@ -202,6 +202,8 @@ export interface FinanceAnalyticsResponse {
   academicYear: string;
   academicTerm: 'FIRST_TERM' | 'SECOND_TERM';
   months: number[];
+  periodMonth?: number | null;
+  scope?: 'MONTH' | 'TERM';
   overview: {
     totalExpected: number;
     totalCollected: number;

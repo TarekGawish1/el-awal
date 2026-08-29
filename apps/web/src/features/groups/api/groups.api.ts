@@ -6,6 +6,7 @@ import {
   GroupWithDetails,
   GroupEnrollment,
   EnrollStudentPayload,
+  GroupRegistrationLink,
   Student
 } from '../types/groups.types';
 
@@ -80,6 +81,12 @@ export async function searchStudents(query: string): Promise<{ data: Student[] }
   // Use existing students endpoint. Assumes GET /students is implemented.
   return await apiClient<{ data: Student[] }>(API_ENDPOINTS.STUDENTS.LIST, {
     params: { search: query, limit: 10 },
+  });
+}
+
+export async function generateRegistrationLink(groupId: string): Promise<GroupRegistrationLink> {
+  return await apiClient<GroupRegistrationLink>(API_ENDPOINTS.GROUPS.REGISTRATION_LINK(groupId), {
+    method: 'POST',
   });
 }
 

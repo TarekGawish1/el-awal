@@ -127,6 +127,27 @@ export class StudentsController {
     return this.studentsService.updateStudentStatus(id, status, user);
   }
 
+  @Get(':id/credentials')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Get student credentials & active temporary PIN' })
+  async getStudentCredentials(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.studentsService.getStudentCredentials(id, user);
+  }
+
+  @Post(':id/reset-password')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Reset student password and optionally send WhatsApp notification' })
+  async resetStudentPassword(
+    @Param('id') id: string,
+    @Body() dto: any,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.studentsService.resetStudentPassword(id, dto, user);
+  }
+
   @Delete(':id')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Delete / remove student from system' })

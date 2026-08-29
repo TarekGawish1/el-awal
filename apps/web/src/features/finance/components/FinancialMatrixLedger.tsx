@@ -13,6 +13,7 @@ import { MatrixLedgerStudent } from '../types/finance.types';
 import { StudentHistoryModal } from './StudentHistoryModal';
 import { CancelPaymentModal, PaymentSummaryInfo } from './CancelPaymentModal';
 import { FinanceFiltersBar, TERM_MONTHS } from './FinanceFiltersBar';
+import { inferStageFromGrade } from '@/lib/constants/grades';
 import { DEFAULT_ACADEMIC_TERM, STORAGE_TERM_KEY, STORAGE_YEAR_KEY } from '@/features/groups/hooks/useAcademicPeriod';
 
 const ARABIC_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
@@ -144,6 +145,20 @@ export function FinancialMatrixLedger({ groups = [], initialStage = '', initialG
     window.addEventListener('storage', sync);
     return () => { window.removeEventListener('el_awal_academic_period_changed', sync); window.removeEventListener('storage', sync); };
   }, [defaultYear]);
+
+  useEffect(() => {
+    if (initialStage && initialStage !== stage) setStage(initialStage);
+    if (initialGradeLevel && initialGradeLevel !== gradeLevel) setGradeLevel(initialGradeLevel);
+    if (initialGroupId && initialGroupId !== groupId) setGroupId(initialGroupId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialStage, initialGradeLevel, initialGroupId]);
+
+  useEffect(() => {
+    if (!stage && gradeLevel) {
+      const inferred = inferStageFromGrade(gradeLevel);
+      if (inferred) setStage(inferred);
+    }
+  }, [stage, gradeLevel]);
 
   useEffect(() => {
     if (billingConfig) setExcludedMonths(billingConfig.excludedMonths || []);

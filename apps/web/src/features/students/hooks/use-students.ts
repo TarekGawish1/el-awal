@@ -5,6 +5,9 @@ import {
   fetchStudentQrCode,
   createStudent,
   regenerateStudentQrToken,
+  fetchStudentCredentials,
+  resetStudentPassword,
+  ResetStudentPasswordPayload,
 } from '../api/students.api';
 import {
   StudentQuery,
@@ -571,3 +574,38 @@ export function useDeleteStudent() {
     },
   });
 }
+
+export function useStudentCredentials(studentId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['students', studentId, 'credentials'],
+    queryFn: () => fetchStudentCredentials(studentId),
+    enabled: !!studentId && enabled,
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
+export function useResetStudentPassword() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ studentId, payload }: { studentId: string; payload: ResetStudentPasswordPayload }) =>
+      resetStudentPassword(studentId, payload),
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['students', variables.studentId] });
+      queryClient.invalidateQueries({ queryKey: ['students', variables.studentId, 'credentials'] });
+      toast.success(
+        data.messageSent
+          ? 'تم تعيين كلمة المرور وإرسالها لواتساب بنجاح ✅'
+          : 'تم تحديث كلمة مرور الطالب بنجاح ✅',
+      );
+    },
+    onError: (err: any) => {
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          'تعذر إعادة تعيين كلمة المرور، يرجى المحاولة مرة أخرى',
+      );
+    },
+  });
+}
+

@@ -11,9 +11,10 @@ import { useStudents } from '../hooks/use-students';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
 import { AcademicStatus } from '../types/students.types';
-import { Search, RotateCcw, Users, Calendar, BookOpen, ChevronRight, ChevronLeft, Eye } from 'lucide-react';
+import { Search, RotateCcw, Users, Calendar, BookOpen, ChevronRight, ChevronLeft, Eye, KeyRound } from 'lucide-react';
 import { Pagination } from '@/components/ui/Pagination';
 import { StudentDetailsModal } from './StudentDetailsModal';
+import { StudentPasswordModal } from './StudentPasswordModal';
 
 const STAGE_GRADES_MAP: Record<string, string[]> = {
   'المرحلة الابتدائية': [
@@ -50,6 +51,7 @@ export function StudentList() {
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [selectedStudentForModal, setSelectedStudentForModal] = useState<string | null>(null);
+  const [selectedStudentForPassword, setSelectedStudentForPassword] = useState<{ id: string; name: string } | null>(null);
 
   // Fetch groups to populate group filter options
   const { data: groups } = useGroups();
@@ -577,8 +579,18 @@ export function StudentList() {
                         <Button
                           variant="outline"
                           size="sm"
+                          onClick={() => setSelectedStudentForPassword({ id: student.id, name: student.user.fullName })}
+                          className="rounded-xl font-bold bg-white hover:bg-amber-50 hover:text-amber-700 border-slate-200 hover:border-amber-200 transition-all shadow-sm text-xs"
+                          title="كلمة المرور وبيانات الدخول"
+                        >
+                          <KeyRound className="w-3.5 h-3.5 ml-1.5 text-amber-600" />
+                          كلمة المرور
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => setSelectedStudentForModal(student.id)}
-                          className="rounded-xl font-bold bg-white hover:bg-primary-50 hover:text-primary-600 border-slate-200 hover:border-primary-200 transition-all shadow-sm"
+                          className="rounded-xl font-bold bg-white hover:bg-primary-50 hover:text-primary-600 border-slate-200 hover:border-primary-200 transition-all shadow-sm text-xs"
                         >
                           <Eye className="w-4 h-4 ml-1.5" />
                           عرض التفاصيل
@@ -663,7 +675,19 @@ export function StudentList() {
                     </div>
                   </div>
 
-                  <div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedStudentForPassword({ id: student.id, name: student.user.fullName });
+                      }}
+                      className="w-full text-xs font-bold rounded-xl py-2 bg-white hover:bg-amber-50 hover:text-amber-700 border-amber-200 text-amber-800"
+                    >
+                      <KeyRound className="w-3.5 h-3.5 ml-1 text-amber-600" />
+                      كلمة المرور
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -674,7 +698,7 @@ export function StudentList() {
                       className="w-full text-xs font-bold rounded-xl py-2 bg-white hover:bg-primary-50 hover:text-primary-600 border-slate-200"
                     >
                       <Eye className="w-3.5 h-3.5 ml-1.5" />
-                      عرض تفاصيل وملف الطالب
+                      عرض التفاصيل
                     </Button>
                   </div>
                 </div>
@@ -703,6 +727,14 @@ export function StudentList() {
         studentId={selectedStudentForModal}
         isOpen={!!selectedStudentForModal}
         onClose={() => setSelectedStudentForModal(null)}
+      />
+
+      {/* Quick Student Password & Credentials Modal */}
+      <StudentPasswordModal
+        studentId={selectedStudentForPassword?.id || null}
+        studentName={selectedStudentForPassword?.name || 'الطالب'}
+        isOpen={!!selectedStudentForPassword}
+        onClose={() => setSelectedStudentForPassword(null)}
       />
     </div>
   );

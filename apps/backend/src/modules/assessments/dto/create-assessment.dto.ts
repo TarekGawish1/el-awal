@@ -50,7 +50,15 @@ export class CreateAssessmentDto {
     example: AssessmentType.EXAM,
   })
   @IsEnum(AssessmentType)
-  type: AssessmentType;
+  type?: AssessmentType;
+
+  @ApiPropertyOptional({
+    enum: AssessmentType,
+    description: 'Logical assessment type. HOMEWORK is stored as the legacy ASSIGNMENT type for existing clients.',
+  })
+  @IsOptional()
+  @IsEnum(AssessmentType)
+  assessmentType?: AssessmentType;
 
   @ApiProperty({
     description: 'Total exam maximum score',
@@ -94,6 +102,14 @@ export class CreateAssessmentDto {
   @IsOptional()
   @IsDateString()
   dueDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Assessment deadline (alias for dueDate)',
+    example: '2026-09-30T23:59:59.000Z',
+  })
+  @IsOptional()
+  @IsDateString()
+  deadline?: string;
 
   @ApiPropertyOptional({
     description: 'Target physical classroom group ID',

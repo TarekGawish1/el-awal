@@ -26,6 +26,8 @@ interface FinanceFiltersBarProps {
   onTermChange: (value: 'FIRST_TERM' | 'SECOND_TERM') => void;
   onSearchChange: (value: string) => void;
   onMonthChange?: (value: number) => void;
+  allowWholeTerm?: boolean;
+  allowWholeTermLabel?: string;
 }
 
 function inferStage(gradeLevel?: string) {
@@ -47,6 +49,8 @@ export function FinanceFiltersBar({
   onTermChange,
   onSearchChange,
   onMonthChange,
+  allowWholeTerm,
+  allowWholeTermLabel,
 }: FinanceFiltersBarProps) {
   const groupGrades = groups.map((group) => group.gradeLevel).filter(Boolean);
   const stageGrades = GRADE_LEVELS_BY_STAGE[stage] || [];
@@ -96,7 +100,8 @@ export function FinanceFiltersBar({
       {onMonthChange && (
         <label className="text-xs font-bold text-slate-700">
           الشهر
-          <select aria-label="الشهر" value={periodMonth} onChange={(event) => onMonthChange(Number(event.target.value))} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm">
+          <select aria-label="الشهر" value={periodMonth ?? ''} onChange={(event) => onMonthChange(Number(event.target.value))} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm">
+            {allowWholeTerm && <option value="">{allowWholeTermLabel || 'الترم كامل'}</option>}
             {TERM_MONTHS[academicTerm].map((month) => <option key={month} value={month}>{month} ({['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'][month - 1]})</option>)}
           </select>
         </label>

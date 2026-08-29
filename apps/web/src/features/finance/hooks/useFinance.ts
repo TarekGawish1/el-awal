@@ -58,6 +58,7 @@ export function useFinanceAnalytics(query: {
   stage?: string;
   gradeLevel?: string;
   groupId?: string;
+  periodMonth?: number;
 }) {
   return useQuery<FinanceAnalyticsResponse>({
     queryKey: financeKeys.financeAnalytics(query),

@@ -27,10 +27,12 @@ export interface AssessmentListItem {
   id: string;
   title: string;
   type: 'EXAM' | 'ASSIGNMENT';
+  assessmentType?: 'HOMEWORK' | 'EXAM' | 'QUIZ' | 'ASSIGNMENT';
   totalScore: number;
   passingScore: number;
   isPublished: boolean;
   dueDate: string | null;
+  deadline?: string | null;
   durationMinutes: number | null;
   academicStage?: string | null;
   gradeLevel?: string | null;
@@ -53,6 +55,7 @@ export interface AssessmentDetail {
   id: string;
   title: string;
   type: 'EXAM' | 'ASSIGNMENT';
+  assessmentType?: 'HOMEWORK' | 'EXAM' | 'QUIZ' | 'ASSIGNMENT';
   description: string | null;
   groupId: string | null;
   courseId: string | null;
@@ -63,6 +66,7 @@ export interface AssessmentDetail {
   isAutoGraded: boolean;
   allowMultipleAttempts: boolean;
   dueDate: string | null;
+  deadline?: string | null;
   durationMinutes: number | null;
   questions: AssessmentQuestion[];
   mySubmission?: any;
@@ -80,10 +84,12 @@ export interface CreateAssessmentPayload {
   courseId?: string;
   title: string;
   type: string;
+  assessmentType?: 'HOMEWORK' | 'EXAM' | 'QUIZ' | 'ASSIGNMENT';
   description?: string;
   totalScore: number;
   passingScore: number;
   dueDate?: string;
+  deadline?: string;
   durationMinutes?: number;
   isPublished: boolean;
   isAutoGraded: boolean;
@@ -98,8 +104,10 @@ export interface UpdateAssessmentPayload {
   passingScore?: number;
   durationMinutes?: number;
   dueDate?: string;
+  deadline?: string;
   isPublished?: boolean;
   allowMultipleAttempts?: boolean;
+  assessmentType?: 'HOMEWORK' | 'EXAM' | 'QUIZ' | 'ASSIGNMENT';
 }
 
 export interface AssessmentSubmissionListItem {

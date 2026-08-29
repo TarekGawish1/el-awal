@@ -1,8 +1,10 @@
-import { Controller, Get, Put, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { TeachersService } from '../services/teachers.service';
+import { StudentsService } from '../../students/services/students.service';
 import { DashboardOverviewQueryDto } from '../dto/dashboard-overview-query.dto';
 import { UpdateAcademicPeriodDto } from '../dto/update-academic-period.dto';
+import { ResetStudentPasswordDto } from '../../students/dto/reset-student-password.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
 import {
   CurrentUser,
@@ -14,7 +16,10 @@ import { UserRole } from '@prisma/client';
 @ApiBearerAuth()
 @Controller('teachers')
 export class TeachersController {
-  constructor(private readonly teachersService: TeachersService) {}
+  constructor(
+    private readonly teachersService: TeachersService,
+    private readonly studentsService: StudentsService,
+  ) {}
 
   @Get('dashboard/overview')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
@@ -53,6 +58,31 @@ export class TeachersController {
   ) {
     const teacherId = user.teacherProfileId || user.id;
     return this.teachersService.updateAcademicPeriod(teacherId, dto);
+  }
+
+  @Get('students/:studentId/credentials')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({
+    summary: 'Retrieve student credentials and active temporary access PIN',
+  })
+  async getStudentCredentials(
+    @Param('studentId') studentId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.studentsService.getStudentCredentials(studentId, user);
+  }
+
+  @Post('students/:studentId/reset-password')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({
+    summary: 'Reset student password and optionally send WhatsApp notification to student and parent',
+  })
+  async resetStudentPassword(
+    @Param('studentId') studentId: string,
+    @Body() dto: ResetStudentPasswordDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.studentsService.resetStudentPassword(studentId, dto, user);
   }
 }
 

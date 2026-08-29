@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class FinanceAnalyticsQueryDto {
   @ApiPropertyOptional({ example: '2026-2027:FIRST_TERM' })
@@ -25,4 +26,8 @@ export class FinanceAnalyticsQueryDto {
   @ApiPropertyOptional({ example: 'group-id' })
   @IsOptional() @IsString()
   groupId?: string;
+
+  @ApiPropertyOptional({ example: 9, description: 'Scope the analytics to a single month of the term instead of the whole term' })
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(12)
+  periodMonth?: number;
 }

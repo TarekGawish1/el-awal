@@ -1,14 +1,20 @@
-import { IsNotEmpty, IsString } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEgyptianPhone } from '../../../common/decorators/is-egyptian-phone.decorator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ParentAccessDto {
   @ApiProperty({
-    description: 'Phone number of a student already registered by the administration',
+    description: 'Phone number or code of a student or parent',
     example: '01012345678',
   })
   @IsString()
-  @IsNotEmpty({ message: 'يرجى إدخال رقم هاتف الطالب' })
-  @IsEgyptianPhone({ message: 'يرجى إدخال رقم هاتف مصري صحيح للطالب' })
+  @IsNotEmpty({ message: 'يرجى إدخال رقم الهاتف أو كود الطالب' })
   studentPhone: string;
+
+  @ApiPropertyOptional({
+    description: 'Password for secure direct parent access',
+    example: 'r54dpf',
+  })
+  @IsOptional()
+  @IsString()
+  password?: string;
 }

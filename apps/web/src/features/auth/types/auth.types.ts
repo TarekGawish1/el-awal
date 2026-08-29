@@ -7,6 +7,7 @@ export interface LoginCredentials {
 
 export interface ParentAccessCredentials {
   studentPhone: string;
+  password?: string;
 }
 
 export type AcademicStage = 'PRIMARY' | 'MIDDLE' | 'SECONDARY';
@@ -31,6 +32,25 @@ export interface StudentRegistrationCredentials {
 
 export interface StudentRegistrationResult extends AuthTokensResponse {
   credentials: StudentRegistrationCredentials;
+}
+
+export interface GroupInviteInfo {
+  groupId: string;
+  groupName: string;
+  gradeLevel: string;
+  stage: string;
+  teacherName: string;
+  monthlyFee: number;
+  isValid: boolean;
+}
+
+export interface GroupRegistrationPayload {
+  token: string;
+  fullName: string;
+  phone: string;
+  parentName: string;
+  parentPhone: string;
+  password: string;
 }
 
 export interface AuthUser {

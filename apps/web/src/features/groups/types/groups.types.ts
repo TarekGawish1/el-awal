@@ -64,3 +64,10 @@ export interface GroupEnrollment {
 export interface GroupWithDetails extends Group {
   schedules?: any[];
 }
+
+export interface GroupRegistrationLink {
+  groupId: string;
+  groupName: string;
+  token: string;
+  registrationUrl: string;
+}

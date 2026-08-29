@@ -89,6 +89,18 @@ export class GroupsController {
     return this.groupsService.deleteGroup(id, user);
   }
 
+  @Post(':id/registration-link')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Generate or fetch the shareable self-registration link for a group' })
+  @ApiResponse({ status: 200, description: 'Registration link details returned' })
+  async generateRegistrationLink(
+    @Param('id') groupId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.groupsService.generateRegistrationLink(groupId, user);
+  }
+
   @Post(':id/students')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Enroll student into academic group roster (Capacity checked)' })

@@ -48,3 +48,45 @@ export async function deleteStudent(id: string): Promise<{ success: boolean; mes
     method: 'DELETE',
   });
 }
+
+export interface StudentCredentialsResponse {
+  studentId: string;
+  studentName: string;
+  studentCode: string;
+  studentPhone: string | null;
+  parentName: string | null;
+  parentPhone: string | null;
+  tempAccessPin: string | null;
+  pinExpiresAt: string | null;
+  isPinActive: boolean;
+}
+
+export interface ResetStudentPasswordPayload {
+  newPassword?: string;
+  sendWhatsApp?: boolean;
+}
+
+export interface ResetStudentPasswordResponse {
+  success: boolean;
+  studentId: string;
+  studentCode: string;
+  studentName: string;
+  studentPhone: string;
+  parentPhone: string;
+  newPassword: string;
+  messageSent: boolean;
+}
+
+export async function fetchStudentCredentials(id: string): Promise<StudentCredentialsResponse> {
+  return await apiClient<StudentCredentialsResponse>(API_ENDPOINTS.STUDENTS.CREDENTIALS(id));
+}
+
+export async function resetStudentPassword(
+  id: string,
+  payload: ResetStudentPasswordPayload,
+): Promise<ResetStudentPasswordResponse> {
+  return await apiClient<ResetStudentPasswordResponse>(API_ENDPOINTS.STUDENTS.RESET_PASSWORD(id), {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}

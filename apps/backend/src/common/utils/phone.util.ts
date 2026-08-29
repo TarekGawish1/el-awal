@@ -51,3 +51,23 @@ export function getPhoneVariants(value: string): string[] {
     `0020${nationalNumber}`,
   ])];
 }
+
+/**
+ * Returns a phone number in the digits-only format expected by WhatsApp.
+ * Example: +201012345678 -> 201012345678.
+ */
+export function formatWhatsAppNumber(value: string): string {
+  let digits = value.replace(/\D/g, '');
+
+  if (digits.startsWith('00')) {
+    digits = digits.slice(2);
+  }
+  if (digits.startsWith('0') && digits.length === 11) {
+    return `20${digits.slice(1)}`;
+  }
+  if (digits.startsWith('1') && digits.length === 10) {
+    return `20${digits}`;
+  }
+
+  return digits;
+}

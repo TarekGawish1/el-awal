@@ -6,10 +6,19 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../core/database/prisma.service';
+import { WhatsAppStatus } from '@prisma/client';
 import { usePgAuthState } from './pg-auth';
 import * as QRCode from 'qrcode';
 
 type ConnectionStatus = 'connecting' | 'open' | 'close' | 'qr';
+
+type ProtectedSendOutcome = 'sent' | 'not_registered' | 'not_connected' | 'error';
+
+interface ProtectedSendResult {
+  outcome: ProtectedSendOutcome;
+  providerMessageId?: string;
+  failureReason?: string;
+}
 
 /**
  * WhatsAppService — manages the Baileys WA socket lifecycle with anti-ban hardening.
@@ -143,6 +152,13 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Alias for sendMessage to support various service conventions
+   */
+  async sendTextMessage(phone: string, text: string): Promise<boolean> {
+    return this.sendMessage(phone, text);
+  }
+
+  /**
    * Anti-ban protected message delivery.
    *
    * Steps:
@@ -158,16 +174,26 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   async sendProtectedMessage(
     phone: string,
     text: string,
-  ): Promise<'sent' | 'not_registered' | 'not_connected' | 'error'> {
+  ): Promise<ProtectedSendOutcome> {
+    return (await this.sendTrackedProtectedMessage(phone, text)).outcome;
+  }
+
+  /**
+   * Same anti-ban-protected send flow, with the Baileys message ID retained for
+   * persistent dispatch/delivery tracking. Callers must still be sequential.
+   */
+  async sendTrackedProtectedMessage(
+    phone: string,
+    text: string,
+  ): Promise<ProtectedSendResult> {
     if (this.connectionStatus !== 'open' || !this.socket) {
       this.logger.warn(
         `WhatsApp not connected (status=${this.connectionStatus}). Cannot send to ${phone}`,
       );
-      return 'not_connected';
+      return { outcome: 'not_connected', failureReason: 'WhatsApp socket is not connected' };
     }
 
     const jid = this.normalizePhoneToJid(phone);
-
     const sock = this.socket as {
       onWhatsApp: (jid: string) => Promise<Array<{ exists: boolean; jid: string }>>;
       presenceSubscribe: (jid: string) => Promise<void>;
@@ -176,37 +202,29 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
     };
 
     try {
-      // ── Step 1: Verify number exists on WhatsApp ──────────────────────────
       const [result] = await sock.onWhatsApp(jid).catch(() => [{ exists: false, jid }]);
       if (!result?.exists) {
-        this.logger.warn(
-          `[AntiBan] Number ${phone} is NOT registered on WhatsApp — skipping`,
-        );
-        return 'not_registered';
+        this.logger.warn(`[AntiBan] Number ${phone} is NOT registered on WhatsApp — skipping`);
+        return { outcome: 'not_registered' };
       }
 
-      // ── Step 2: Subscribe to presence (required before update) ───────────
       await sock.presenceSubscribe(jid).catch(() => undefined);
-
-      // ── Step 3: Simulate typing presence ─────────────────────────────────
       await sock.sendPresenceUpdate('composing', jid).catch(() => undefined);
 
-      // ── Step 4: Random typing duration (2.0s – 4.5s) ─────────────────────
       const typingDelay = this.randomBetween(2_000, 4_500);
       await this.sleep(typingDelay);
-
-      // ── Step 5: Clear presence ────────────────────────────────────────────
       await sock.sendPresenceUpdate('paused', jid).catch(() => undefined);
 
-      // ── Step 6: Send the message ──────────────────────────────────────────
-      await sock.sendMessage(jid, { text });
+      const response = await sock.sendMessage(jid, { text });
+      const providerMessageId = (response as { key?: { id?: string } } | undefined)?.key?.id;
       this.logger.log(
         `✅ [AntiBan] Protected message sent to ${jid} (typing delay: ${typingDelay}ms)`,
       );
-      return 'sent';
+      return { outcome: 'sent', providerMessageId };
     } catch (error) {
+      const failureReason = error instanceof Error ? error.message : 'Unknown WhatsApp gateway error';
       this.logger.error(`❌ Failed to send protected WhatsApp message to ${phone}`, error);
-      return 'error';
+      return { outcome: 'error', failureReason };
     }
   }
 
@@ -260,6 +278,12 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
 
       // ── Event: credentials updated (save to Postgres) ──
       sock.ev.on('creds.update', saveCreds);
+
+      // Baileys emits outgoing message acknowledgement updates. A delivery or
+      // read acknowledgement is sufficient to mark the persisted record delivered.
+      sock.ev.on('messages.update', (updates: unknown) => {
+        void this.recordDeliveryReceipts(updates);
+      });
 
       // ── Event: connection state changes ──
       sock.ev.on('connection.update', async (update: unknown) => {
@@ -325,6 +349,26 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
       // ignore
     }
     this.socket = null;
+  }
+
+  private async recordDeliveryReceipts(updates: unknown): Promise<void> {
+    if (!Array.isArray(updates)) return;
+
+    for (const entry of updates) {
+      const receipt = entry as { key?: { id?: string; fromMe?: boolean }; update?: { status?: number } };
+      const messageId = receipt.key?.id;
+      // Baileys acknowledgement values >= 3 represent delivered/read/played.
+      if (!receipt.key?.fromMe || !messageId || (receipt.update?.status ?? 0) < 3) continue;
+
+      try {
+        await this.prisma.whatsAppMessageLog.updateMany({
+          where: { providerMessageId: messageId, status: WhatsAppStatus.SENT },
+          data: { status: WhatsAppStatus.DELIVERED, deliveredAt: new Date() },
+        });
+      } catch (error) {
+        this.logger.warn(`Failed to record WhatsApp delivery receipt for ${messageId}`, error);
+      }
+    }
   }
 
   private async clearAuthSession() {

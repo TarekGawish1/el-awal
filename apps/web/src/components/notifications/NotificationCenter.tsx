@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bell,
@@ -67,6 +68,26 @@ const typeConfig: Record<
     color: 'text-purple-600',
     bg: 'bg-purple-50',
   },
+  NEW_HOMEWORK_ASSIGNED: {
+    icon: <ClipboardList size={16} />,
+    color: 'text-blue-600',
+    bg: 'bg-blue-50',
+  },
+  HOMEWORK_DEADLINE_REMINDER: {
+    icon: <AlertTriangle size={16} />,
+    color: 'text-amber-600',
+    bg: 'bg-amber-50',
+  },
+  NEW_EXAM_PUBLISHED: {
+    icon: <ClipboardList size={16} />,
+    color: 'text-purple-600',
+    bg: 'bg-purple-50',
+  },
+  EXAM_DEADLINE_REMINDER: {
+    icon: <AlertTriangle size={16} />,
+    color: 'text-amber-600',
+    bg: 'bg-amber-50',
+  },
   PAYMENT_RECEIVED: {
     icon: <CreditCard size={16} />,
     color: 'text-emerald-600',
@@ -119,10 +140,10 @@ function formatRelativeTime(dateStr: string): string {
 
 function NotificationItem({
   notification,
-  onRead,
+  onClick,
 }: {
   notification: Notification;
-  onRead: (id: string) => void;
+  onClick: () => void;
 }) {
   const config = getTypeConfig(notification.notificationType || notification.type);
 
@@ -137,7 +158,7 @@ function NotificationItem({
         ${notification.isRead ? 'bg-white hover:bg-slate-50' : 'bg-blue-50/60 hover:bg-blue-50'}
         border border-transparent hover:border-slate-100
       `}
-      onClick={() => !notification.isRead && onRead(notification.id)}
+      onClick={onClick}
     >
       {/* Unread dot */}
       {!notification.isRead && (
@@ -266,6 +287,7 @@ export function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const router = useRouter();
 
   const { data: unreadData } = useUnreadCount();
   const { data: feedData, isLoading } = useNotifications();
@@ -300,12 +322,37 @@ export function NotificationCenter() {
     return () => document.removeEventListener('keydown', handleEsc);
   }, []);
 
-  const handleMarkRead = (id: string) => {
-    markRead.mutate(id);
-  };
-
   const handleMarkAllRead = () => {
     markAllRead.mutate();
+  };
+
+  const handleNotificationClick = (notification: Notification) => {
+    if (!notification.isRead) markRead.mutate(notification.id);
+
+    const notificationType = notification.notificationType || notification.type;
+    const assessmentId = notification.data?.assessmentId;
+    let route: string | null = null;
+
+    if (
+      notificationType === 'NEW_EXAM_PUBLISHED' ||
+      notificationType === 'EXAM_DEADLINE_REMINDER'
+    ) {
+      route = assessmentId
+        ? `/student/assessments?id=${encodeURIComponent(String(assessmentId))}`
+        : '/student/assessments';
+    } else if (
+      notificationType === 'NEW_HOMEWORK_ASSIGNED' ||
+      notificationType === 'HOMEWORK_DEADLINE_REMINDER'
+    ) {
+      route = '/student/dashboard';
+    } else if (typeof notification.data?.url === 'string') {
+      route = notification.data.url;
+    }
+
+    if (route) {
+      setIsOpen(false);
+      router.push(route);
+    }
   };
 
   return (
@@ -434,7 +481,7 @@ export function NotificationCenter() {
                       <NotificationItem
                         key={n.id}
                         notification={n}
-                        onRead={handleMarkRead}
+                        onClick={() => handleNotificationClick(n)}
                       />
                     ))}
                   </AnimatePresence>
