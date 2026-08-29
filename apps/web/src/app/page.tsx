@@ -605,34 +605,6 @@ const TESTIMONIALS = [
 ];
 
 function TestimonialsSection() {
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const container = scrollRef.current;
-    if (!container) return;
-
-    const interval = setInterval(() => {
-      // Only auto-scroll on mobile screens (where it's not a grid)
-      if (window.innerWidth >= 768) return;
-
-      const maxScroll = container.scrollWidth - container.clientWidth;
-      if (maxScroll <= 0) return;
-
-      const currentScroll = Math.abs(container.scrollLeft);
-      
-      // If reached the end, scroll back to start
-      if (currentScroll >= maxScroll - 20) {
-        container.scrollTo({ left: 0, behavior: 'smooth' });
-      } else {
-        // In RTL, scrolling left (negative) moves to the next item
-        const itemWidth = container.children[0]?.clientWidth || 300;
-        container.scrollBy({ left: -(itemWidth + 24), behavior: 'smooth' });
-      }
-    }, 3500);
-
-    return () => clearInterval(interval);
-  }, []);
-
   return (
     <section className="py-24 bg-white relative overflow-hidden" id="testimonials" dir="rtl">
       <div className="absolute top-0 right-0 w-full h-full overflow-hidden pointer-events-none z-0 opacity-40">
@@ -657,10 +629,51 @@ function TestimonialsSection() {
           </motion.div>
         </div>
 
-        <div 
-          ref={scrollRef}
-          className="flex overflow-x-auto pb-8 -mx-6 px-6 gap-6 snap-x snap-mandatory md:grid md:grid-cols-2 lg:grid-cols-3 md:overflow-visible md:pb-0 md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
-        >
+        {/* Mobile View: Continuous Marquee */}
+        <div className="md:hidden flex overflow-hidden -mx-6">
+          <motion.div
+            className="flex gap-6 px-6 w-max"
+            animate={{ x: ["0%", "50%"] }}
+            transition={{
+              repeat: Infinity,
+              ease: "linear",
+              duration: 15,
+            }}
+          >
+            {[...TESTIMONIALS, ...TESTIMONIALS].map((testimonial, index) => (
+              <div
+                key={`${testimonial.id}-${index}`}
+                className="bg-slate-50 rounded-3xl p-8 border border-slate-100 relative shrink-0 w-[85vw] sm:w-[350px]"
+              >
+                <div className="absolute top-6 left-8 text-blue-100">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 rotate-180" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" />
+                  </svg>
+                </div>
+
+                <div className="mb-6 relative z-10">
+                  <h4 className="font-bold text-slate-900 text-lg">{testimonial.name}</h4>
+                  <p className="text-sm text-slate-500 font-medium">{testimonial.role}</p>
+                </div>
+
+                <div className="flex gap-1 mb-4 relative z-10">
+                  {[...Array(testimonial.rating)].map((_, i) => (
+                    <svg key={i} xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                  ))}
+                </div>
+
+                <p className="text-slate-700 leading-relaxed relative z-10 text-lg">
+                  "{testimonial.content}"
+                </p>
+              </div>
+            ))}
+          </motion.div>
+        </div>
+
+        {/* Desktop View: Grid */}
+        <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-8">
           {TESTIMONIALS.map((testimonial, index) => (
             <motion.div
               key={testimonial.id}
@@ -668,7 +681,7 @@ function TestimonialsSection() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
-              className="bg-slate-50 rounded-3xl p-8 border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all relative shrink-0 w-[85vw] sm:w-[350px] snap-center md:w-auto"
+              className="bg-slate-50 rounded-3xl p-8 border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all relative"
             >
               <div className="absolute top-6 left-8 text-blue-100">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 rotate-180" fill="currentColor" viewBox="0 0 24 24">
