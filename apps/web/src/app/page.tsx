@@ -944,7 +944,7 @@ function ContactUsSection() {
               </div>
               <div>
                 <h4 className="font-bold text-slate-900 text-lg mb-1">رقم الهاتف</h4>
-                <p className="text-slate-600" dir="ltr">010 1234 5678</p>
+                <p className="text-slate-600" dir="ltr">012 2130 1224</p>
               </div>
             </div>
 
@@ -957,7 +957,7 @@ function ContactUsSection() {
               </div>
               <div>
                 <h4 className="font-bold text-slate-900 text-lg mb-1">واتساب</h4>
-                <p className="text-slate-600" dir="ltr">010 1234 5678</p>
+                <p className="text-slate-600" dir="ltr">010 2190 2000</p>
               </div>
             </div>
 
@@ -971,7 +971,8 @@ function ContactUsSection() {
               </div>
               <div>
                 <h4 className="font-bold text-slate-900 text-lg mb-1">العنوان</h4>
-                <p className="text-slate-600">سنتر الأوائل - مدينة نصر، القاهرة</p>
+                <p className="text-slate-600">سنتر العدليه - دمياط</p>
+                <p className="text-slate-600 mt-1">سنتر البستان - دمياط</p>
               </div>
             </div>
           </motion.div>
