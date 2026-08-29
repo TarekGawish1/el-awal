@@ -9,6 +9,11 @@ export interface NotificationSystemSettings {
   isWhatsAppEnabled: boolean;
   isPushEnabled: boolean;
   isInAppEnabled: boolean;
+  // Target Audience Master Switches
+  teacherNotificationsEnabled: boolean;
+  studentNotificationsEnabled: boolean;
+  parentNotificationsEnabled: boolean;
+  // Category Switches
   absenceAlertsEnabled: boolean;
   paymentAlertsEnabled: boolean;
   studentApprovalAlertsEnabled: boolean;

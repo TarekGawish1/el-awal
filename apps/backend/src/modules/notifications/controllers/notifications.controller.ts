@@ -47,12 +47,12 @@ export class NotificationsController {
   // ─── In-App Notification Feed ─────────────────────────────────────────────
 
   @Get()
-  @ApiOperation({ summary: 'Get cursor-paginated notification feed for authenticated user' })
+  @ApiOperation({ summary: 'Get cursor-paginated notification feed with optional role filtering' })
   async getNotifications(
     @CurrentUser() user: AuthenticatedUser,
-    @Query() query: CursorPaginationDto,
+    @Query() query: CursorPaginationDto & { role?: string; scope?: string },
   ) {
-    return this.notificationsService.getNotifications(user.id, query);
+    return this.notificationsService.getNotifications(user, query);
   }
 
   @Get('unread-count')

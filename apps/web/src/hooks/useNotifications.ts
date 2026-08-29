@@ -18,6 +18,11 @@ export interface Notification {
   channels?: string[];
   whatsappStatus?: string;
   pushStatus?: string;
+  recipient?: {
+    id: string;
+    fullName: string;
+    role: string;
+  };
   createdAt: string;
 }
 
@@ -32,29 +37,40 @@ interface NotificationFeedResponse {
 
 // ─── Query Keys ───────────────────────────────────────────────────────────────
 
+export interface NotificationFeedOptions {
+  cursor?: string;
+  role?: string;
+  scope?: string;
+}
+
 export const notificationKeys = {
   all: ['notifications'] as const,
-  feed: (cursor?: string) => [...notificationKeys.all, 'feed', cursor] as const,
+  feed: (options?: NotificationFeedOptions | string) =>
+    [...notificationKeys.all, 'feed', typeof options === 'string' ? options : JSON.stringify(options)] as const,
   unreadCount: () => [...notificationKeys.all, 'unread-count'] as const,
 };
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
 /**
- * Fetches the paginated notification feed for the current user.
+ * Fetches the paginated notification feed for the current user or platform-wide for staff.
  */
-export function useNotifications(cursor?: string) {
+export function useNotifications(options?: NotificationFeedOptions | string) {
+  const queryParams =
+    typeof options === 'string'
+      ? { cursor: options }
+      : options || {};
+
   return useQuery({
-    queryKey: notificationKeys.feed(cursor),
+    queryKey: notificationKeys.feed(options),
     queryFn: async (): Promise<NotificationFeedResponse> => {
-      const params = cursor ? { cursor } : undefined;
       const res = await apiClient<NotificationFeedResponse>(
         API_ENDPOINTS.NOTIFICATIONS.LIST,
-        { method: 'GET', params },
+        { method: 'GET', params: queryParams as Record<string, string> },
       );
       return res;
     },
-    staleTime: 30_000, // 30 seconds
+    staleTime: 20_000,
   });
 }
 

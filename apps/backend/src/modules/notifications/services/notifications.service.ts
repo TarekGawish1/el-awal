@@ -8,6 +8,7 @@ import {
   NotificationChannel,
   NotificationStatus,
   NotificationType,
+  UserRole,
 } from '@prisma/client';
 import { WebPushService } from '../../../services/webpush.service';
 import { WhatsAppDispatcherService } from '../../whatsapp/services/whatsapp-dispatcher.service';
@@ -100,6 +101,19 @@ export class NotificationsService {
     if (activeChannels.length === 0) {
       this.logger.debug(
         `All requested channels suppressed by system settings for notification [${dto.type}]`,
+      );
+      return null;
+    }
+
+    // Check if recipient's role is allowed in system settings
+    const recipient = await this.prisma.user.findUnique({
+      where: { id: dto.recipientId },
+      select: { fullName: true, role: true },
+    });
+
+    if (recipient && !(await this.settingsService.isRecipientRoleAllowed(recipient.role))) {
+      this.logger.debug(
+        `Notification suppressed: notifications disabled for role [${recipient.role}]`,
       );
       return null;
     }
@@ -201,9 +215,12 @@ export class NotificationsService {
   // ─── Read / Management ────────────────────────────────────────────────────
 
   /**
-   * Keyset cursor-paginated notification feed for a user.
+   * Keyset cursor-paginated notification feed with optional role filtering and staff-wide scope.
    */
-  async getNotifications(recipientId: string, query: CursorPaginationDto) {
+  async getNotifications(
+    user: { id: string; role: UserRole },
+    query: CursorPaginationDto & { role?: string; scope?: string },
+  ) {
     const limit = CursorPaginationHelper.sanitizeLimit(query.limit);
     const decodedCursor = query.cursor
       ? CursorPaginationHelper.decodeCursor(query.cursor)
@@ -213,10 +230,30 @@ export class NotificationsService {
       'DESC',
     );
 
+    const isStaff = user.role === UserRole.TEACHER || user.role === UserRole.SECRETARIAT;
+    const targetRole = query.role && query.role !== 'ALL' ? (query.role as UserRole) : undefined;
+
+    const whereClause: any = {
+      ...(cursorFilter || {}),
+    };
+
+    if (isStaff && query.scope === 'all') {
+      if (targetRole) {
+        whereClause.recipient = { role: targetRole };
+      }
+    } else {
+      whereClause.recipientId = user.id;
+      if (targetRole) {
+        whereClause.recipient = { role: targetRole };
+      }
+    }
+
     const notifications = await this.prisma.notification.findMany({
-      where: {
-        recipientId,
-        ...(cursorFilter || {}),
+      where: whereClause,
+      include: {
+        recipient: {
+          select: { id: true, fullName: true, role: true },
+        },
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit + 1,
