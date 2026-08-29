@@ -13,7 +13,9 @@ import { RegisterByGroupDto } from '../dto/register-by-group.dto';
 import { normalizeEgyptianPhone } from '../../../common/utils/phone.util';
 import { generateSecurePassword } from '../../../common/utils/password.util';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
-import { WhatsAppService } from '../../../services/whatsapp/whatsapp.service';
+
+import { NotificationsService } from '../../notifications/services/notifications.service';
+import { NotificationChannel, NotificationType } from '@prisma/client';
 
 export interface JwtTokenPayload {
   sub: string;
@@ -76,7 +78,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    @Optional() private readonly whatsAppService?: WhatsAppService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   private hashToken(token: string): string {
@@ -726,20 +728,39 @@ export class AuthService {
 ━━━━━━━━━━━━━━━━━━━
 نتمنى لابنكم عاماً دراسياً مليئاً بالتفوق والنجاح! 🎓`.trim();
 
-      if (this.whatsAppService) {
-        await this.whatsAppService.sendMessage(parentPhone, message);
+        // Queue registration credentials via NotificationsService
+        await this.notificationsService.sendNotification({
+          recipientId: studentUser.id,
+          type: 'STUDENT_REGISTRATION_CREDENTIALS',
+          notificationType: NotificationType.STUDENT_APPROVAL_CREDENTIALS,
+          title: `🎉 مرحباً بك! بيانات دخول الطالب ${dto.fullName}`,
+          body: message,
+          channels: [NotificationChannel.WHATSAPP, NotificationChannel.IN_APP],
+          data: {
+            studentId: studentUser.id,
+            studentName: dto.fullName,
+            studentPhoneOrCode: phone,
+            studentPassword: dto.password,
+            parentPhone,
+            parentPassword: parentPassText,
+            parentName: `ولي أمر ${dto.fullName}`,
+            centerName: group.name ? `مجموعة ${group.name}` : 'منصة الأوّل التعليمية',
+            groupName: group.name,
+            platformUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online',
+            phone: parentPhone || phone,
+          },
+        });
+      } catch (waErr) {
+        this.logger.warn(`Failed to dispatch registration WhatsApp message to parent: ${waErr}`);
       }
-    } catch (waErr) {
-      this.logger.warn(`Failed to dispatch registration WhatsApp message to parent: ${waErr}`);
-    }
 
-    return this.issueTokens({
-      id: studentUser.id,
-      fullName: studentUser.fullName,
-      email: null,
-      phone: studentUser.phone,
-      role: UserRole.STUDENT,
-      studentProfile: { id: studentUser.id },
-    });
+      return this.issueTokens({
+        id: studentUser.id,
+        fullName: studentUser.fullName,
+        email: null,
+        phone: studentUser.phone,
+        role: UserRole.STUDENT,
+        studentProfile: { id: studentUser.id },
+      });
+    }
   }
-}

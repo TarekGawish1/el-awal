@@ -24,7 +24,6 @@ import { NotificationsService } from '../../notifications/services/notifications
 import { RealtimeGateway } from '../../../realtime/realtime.gateway';
 import { ResetStudentPasswordDto } from '../dto/reset-student-password.dto';
 import { generateSecurePassword } from '../../../common/utils/password.util';
-import { WhatsAppService } from '../../../services/whatsapp/whatsapp.service';
 
 @Injectable()
 export class StudentsService {
@@ -35,7 +34,6 @@ export class StudentsService {
     private readonly notificationsService: NotificationsService,
     private readonly realtimeGateway: RealtimeGateway,
     @Optional() private readonly storageService?: StorageService,
-    @Optional() private readonly whatsAppService?: WhatsAppService,
   ) {}
 
   /**
@@ -1006,8 +1004,7 @@ export class StudentsService {
     const parentName =
       studentProfile.parentLinks?.[0]?.parent?.user?.fullName || 'ولي الأمر';
 
-    let messageSent = false;
-    if (dto.sendWhatsApp !== false && this.whatsAppService) {
+    if (dto.sendWhatsApp !== false) {
       try {
         let teacherName = 'إدارة السنتر';
         if (user.role === UserRole.TEACHER) {
@@ -1035,22 +1032,25 @@ export class StudentsService {
 يمكنكم الدخول ومتابعة الحساب في أي وقت. بالتوفيق والنجاح! 🌟`.trim();
 
         if (parentPhone) {
-          await this.whatsAppService.sendMessage(parentPhone, message);
-          messageSent = true;
-        }
-
-        if (studentPhone && studentPhone !== parentPhone) {
-          const studentMsg = `🔑 *إشعار تحديث كلمة المرور - منصة الأوّل*
-
-أهلاً بك يا ${studentName} 🌸
-تم تحديث كلمة المرور لحسابك على منصة الأوّل:
-▫️ *كود الطالب:* ${studentCode}
-▫️ *رقم الهاتف:* ${studentPhone}
-▫️ *كلمة المرور الجديدة:* ${newPassword}
-🔗 *رابط الدخول:* https://al-awal.online/login
-نتمنى لك كل التوفيق! 🌟`.trim();
-
-          await this.whatsAppService.sendMessage(studentPhone, studentMsg);
+          await this.notificationsService.sendNotification({
+            recipientId: studentProfile.parentLinks?.[0]?.parent?.user?.id || studentProfile.user.id,
+            type: 'PASSWORD_RESET_ALERT',
+            notificationType: NotificationType.STUDENT_APPROVAL_CREDENTIALS,
+            title: `🔑 تم تحديث كلمة المرور للطالب ${studentName}`,
+            body: message,
+            channels: [NotificationChannel.WHATSAPP, NotificationChannel.IN_APP],
+            data: {
+              phone: parentPhone,
+              studentName,
+              studentCode,
+              studentPhoneOrCode: studentPhone,
+              studentPassword: newPassword,
+              parentPhone,
+              parentName,
+              centerName: teacherName,
+              platformUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online',
+            },
+          });
         }
       } catch (waErr) {
         this.logger.warn(`Failed to dispatch reset-password WhatsApp alert: ${waErr}`);
@@ -1065,7 +1065,7 @@ export class StudentsService {
       studentPhone,
       parentPhone,
       newPassword,
-      messageSent,
+      messageSent: dto.sendWhatsApp !== false,
     };
   }
 
