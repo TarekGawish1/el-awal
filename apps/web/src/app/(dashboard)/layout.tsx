@@ -20,6 +20,7 @@ import {
   Download,
   RefreshCw,
   ListChecks,
+  ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '@/features/auth';
 import { DashboardBreadcrumbs } from '@/features/dashboard/components/DashboardBreadcrumbs';
@@ -47,6 +48,7 @@ export default function DashboardLayout({
   const [isSyncConfirmationOpen, setIsSyncConfirmationOpen] = useState(false);
   const [isActivityDrawerOpen, setIsActivityDrawerOpen] = useState(false);
   const [isWhatsAppManagerOpen, setIsWhatsAppManagerOpen] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
   const pathname = usePathname();
@@ -185,73 +187,106 @@ export default function DashboardLayout({
           </div>
 
           {/* Categorized Navigation Links */}
-          <nav className="p-3 overflow-y-auto flex-1 space-y-3.5" aria-label="القائمة الرئيسية">
-            {navigationSections.map((section, sIdx) => (
-              <div key={section.id || sIdx} className="space-y-1">
-                {section.title && (
-                  <div className="px-3 pt-1 pb-1 text-[11px] font-bold text-neutral-400 uppercase tracking-wider select-none">
-                    {section.title}
-                  </div>
-                )}
-                <div className="space-y-1">
-                  {section.items.map((item) => {
-                    const Icon = item.icon;
-                    const isActive =
-                      !item.isAction &&
-                      (pathname === item.href ||
-                        (item.href !== '/teacher/dashboard' &&
-                          item.href !== '/student/dashboard' &&
-                          item.href !== '/parent/dashboard' &&
-                          pathname?.startsWith(item.href)));
+          <nav className="p-3 overflow-y-auto flex-1 space-y-3" aria-label="القائمة الرئيسية">
+            {navigationSections.map((section, sIdx) => {
+              const sectionId = section.id || `sec-${sIdx}`;
+              const hasActiveChild = section.items.some(
+                (item) =>
+                  !item.isAction &&
+                  (pathname === item.href ||
+                    (item.href !== '/teacher/dashboard' &&
+                      item.href !== '/student/dashboard' &&
+                      item.href !== '/parent/dashboard' &&
+                      pathname?.startsWith(item.href)))
+              );
 
-                    if (item.isAction) {
-                      return (
-                        <button
-                          key={item.href}
-                          type="button"
-                          onClick={() => {
-                            if (item.actionId === 'whatsapp-manager') {
-                              setIsWhatsAppManagerOpen(true);
-                            }
-                            setIsMobileSidebarOpen(false);
-                          }}
-                          className="w-full flex items-center gap-3 px-3.5 py-2 rounded-md text-sm font-semibold text-emerald-700 hover:bg-emerald-50 transition-all border border-emerald-200/80 bg-emerald-50/40 shadow-2xs group cursor-pointer"
-                        >
-                          <svg className="w-4 h-4 text-emerald-600 shrink-0 group-hover:scale-110 transition-transform" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.888-.788-1.489-1.761-1.663-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
-                          </svg>
-                          <span>{item.label}</span>
-                        </button>
-                      );
-                    }
+              const isCollapsed = Boolean(collapsedSections[sectionId]) && !hasActiveChild;
 
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        onClick={() => setIsMobileSidebarOpen(false)}
-                        className={`flex items-center gap-3 px-3.5 py-2 rounded-md text-sm font-medium transition-all ${
-                          isActive
-                            ? 'bg-primary-50 text-primary-700 font-semibold border-e-4 border-primary-600 shadow-xs'
-                            : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+              return (
+                <div key={sectionId} className="space-y-1">
+                  {section.title && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCollapsedSections((prev) => ({
+                          ...prev,
+                          [sectionId]: !prev[sectionId],
+                        }));
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-bold text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100/70 rounded-md transition-colors uppercase tracking-wider select-none group cursor-pointer"
+                      aria-expanded={!isCollapsed}
+                      aria-label={`تبديل قسم ${section.title}`}
+                    >
+                      <span>{section.title}</span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 text-neutral-400 group-hover:text-neutral-600 transition-transform duration-200 ${
+                          isCollapsed ? '-rotate-90 rtl:rotate-90' : 'rotate-0'
                         }`}
-                      >
-                        <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-primary-600' : 'text-neutral-400'}`} />
-                        <span className="truncate">{item.label}</span>
-                        {item.badgeKey === 'reservations' && pendingReservationsCount > 0 && (
-                          <span
-                            className="ms-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold leading-none"
-                            aria-label={`${pendingReservationsCount} طلب انضمام قيد الانتظار`}
+                      />
+                    </button>
+                  )}
+                  {!isCollapsed && (
+                    <div className="space-y-1">
+                      {section.items.map((item) => {
+                        const Icon = item.icon;
+                        const isActive =
+                          !item.isAction &&
+                          (pathname === item.href ||
+                            (item.href !== '/teacher/dashboard' &&
+                              item.href !== '/student/dashboard' &&
+                              item.href !== '/parent/dashboard' &&
+                              pathname?.startsWith(item.href)));
+
+                        if (item.isAction) {
+                          return (
+                            <button
+                              key={item.href}
+                              type="button"
+                              onClick={() => {
+                                if (item.actionId === 'whatsapp-manager') {
+                                  setIsWhatsAppManagerOpen(true);
+                                }
+                                setIsMobileSidebarOpen(false);
+                              }}
+                              className="w-full flex items-center gap-3 px-3.5 py-2 rounded-md text-sm font-semibold text-emerald-700 hover:bg-emerald-50 transition-all border border-emerald-200/80 bg-emerald-50/40 shadow-2xs group cursor-pointer"
+                            >
+                              <svg className="w-4 h-4 text-emerald-600 shrink-0 group-hover:scale-110 transition-transform" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.888-.788-1.489-1.761-1.663-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
+                              </svg>
+                              <span>{item.label}</span>
+                            </button>
+                          );
+                        }
+
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setIsMobileSidebarOpen(false)}
+                            className={`flex items-center gap-3 px-3.5 py-2 rounded-md text-sm font-medium transition-all ${
+                              isActive
+                                ? 'bg-primary-50 text-primary-700 font-semibold border-e-4 border-primary-600 shadow-xs'
+                                : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+                            }`}
                           >
-                            {pendingReservationsCount > 99 ? '99+' : pendingReservationsCount}
-                          </span>
-                        )}
-                      </Link>
-                    );
-                  })}
+                            <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-primary-600' : 'text-neutral-400'}`} />
+                            <span className="truncate">{item.label}</span>
+                            {item.badgeKey === 'reservations' && pendingReservationsCount > 0 && (
+                              <span
+                                className="ms-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold leading-none"
+                                aria-label={`${pendingReservationsCount} طلب انضمام قيد الانتظار`}
+                              >
+                                {pendingReservationsCount > 99 ? '99+' : pendingReservationsCount}
+                              </span>
+                            )}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </nav>
         </div>
 
