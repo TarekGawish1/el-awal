@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -53,6 +53,15 @@ export default function DashboardLayout({
   const router = useRouter();
   const { user, isAuthenticated, isInitialized, logout, LogoutConfirmation } = useAuth();
   const isOnline = useOnlineStatus();
+  
+  const mainScrollRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to top of main area when navigating between pages
+  useEffect(() => {
+    if (mainScrollRef.current) {
+      mainScrollRef.current.scrollTop = 0;
+    }
+  }, [pathname]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -381,7 +390,10 @@ export default function DashboardLayout({
         </header>
 
         {/* Main Content Area */}
-        <main className="flex-1 min-h-screen w-full overflow-x-hidden overflow-y-auto pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] pt-3 px-3 sm:px-6">
+        <main
+          ref={mainScrollRef}
+          className="flex-1 h-full w-full overflow-x-hidden overflow-y-auto pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] pt-3 px-3 sm:px-6"
+        >
           <div className="max-w-7xl mx-auto w-full min-h-full">
             {children}
           </div>
