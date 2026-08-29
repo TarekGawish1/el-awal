@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
-import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { MultiSelectDropdown } from '@/features/groups/components/MultiSelectDropdown';
 import { useTodaySessions, useSessionReport } from '@/features/attendance/hooks/use-attendance';
@@ -13,6 +12,7 @@ import { AttendanceReportCard } from '@/features/attendance/components/Attendanc
 import { QrScanner } from '@/features/attendance/components/QrScanner';
 import { ManualAttendanceRoster } from '@/features/attendance/components/ManualAttendanceRoster';
 import { QrHomeworkScanner } from '@/features/attendance/components/QrHomeworkScanner';
+import { SearchableSessionCombobox } from '@/features/attendance/components/SearchableSessionCombobox';
 
 import { useTeacherSessions } from '@/features/schedules/hooks/useSchedules';
 import { RotateCcw, MapPin, Calendar, Users, QrCode, ClipboardList, BookOpen, Sparkles, ClipboardCheck } from 'lucide-react';
@@ -214,7 +214,7 @@ function TeacherAttendanceContent() {
     });
   }, [allTeacherSessions, groupMap, selectedStages, selectedGrades, selectedLocations, activeYear, activeTerm]);
 
-  // Auto-select session based on paramSessionId, paramGroupId, or nearest time
+  // Auto-select session based on paramSessionId, paramGroupId, or nearest time, and sync with active filters
   useEffect(() => {
     // 1. Explicit sessionId passed in URL
     if (paramSessionId) {
@@ -228,26 +228,52 @@ function TeacherAttendanceContent() {
     if (paramGroupId) {
       const cleanGroupId = String(paramGroupId).toLowerCase();
       // Look for today's session for this group
-      const todayGroupSession = filteredSessions.find(
-        (s: any) => String(s.groupId).toLowerCase() === cleanGroupId
-      );
+      const todayGroupSession =
+        (filteredSessions || []).find(
+          (s: any) => String(s.groupId).toLowerCase() === cleanGroupId
+        ) ||
+        (sessions || []).find(
+          (s: any) => String(s.groupId).toLowerCase() === cleanGroupId
+        );
       if (todayGroupSession) {
-        setSelectedSessionId(todayGroupSession.id);
+        if (selectedSessionId !== todayGroupSession.id) {
+          setSelectedSessionId(todayGroupSession.id);
+        }
         return;
       }
 
       // If no session found in today's list, find closest in all semester sessions for this group
-      const allGroupSession = filteredAllSessions.find(
-        (s: any) => String(s.groupId).toLowerCase() === cleanGroupId
-      );
+      const allGroupSession =
+        (filteredAllSessions || []).find(
+          (s: any) => String(s.groupId).toLowerCase() === cleanGroupId
+        ) ||
+        (allTeacherSessions || []).find(
+          (s: any) => String(s.groupId).toLowerCase() === cleanGroupId
+        );
       if (allGroupSession) {
-        setSelectedSessionId(allGroupSession.id);
+        if (selectedSessionId !== allGroupSession.id) {
+          setSelectedSessionId(allGroupSession.id);
+        }
         return;
       }
+
+      if (selectedSessionId) return;
     }
 
-    // 3. General auto-selection from today's sessions
-    if (filteredSessions.length > 0 && !selectedSessionId) {
+    // 3. Check if currently selected session is still valid under active filters
+    const isCurrentInFilteredToday = filteredSessions.some(
+      (s: any) => String(s.id).toLowerCase() === String(selectedSessionId).toLowerCase()
+    );
+    const isCurrentInFilteredAll = filteredAllSessions.some(
+      (s: any) => String(s.id).toLowerCase() === String(selectedSessionId).toLowerCase()
+    );
+
+    if (selectedSessionId && (isCurrentInFilteredToday || isCurrentInFilteredAll)) {
+      return; // Current selection remains valid
+    }
+
+    // 4. Auto-select nearest today's session or first available matching session
+    if (filteredSessions.length > 0) {
       const now = new Date();
       const nowMins = now.getHours() * 60 + now.getMinutes();
 
@@ -270,11 +296,15 @@ function TeacherAttendanceContent() {
 
       if (activeSession) {
         setSelectedSessionId(activeSession.id);
-      } else if (filteredSessions[0]) {
+      } else {
         setSelectedSessionId(filteredSessions[0].id);
       }
+    } else if (filteredAllSessions.length > 0) {
+      setSelectedSessionId(filteredAllSessions[0].id);
+    } else {
+      setSelectedSessionId('');
     }
-  }, [filteredSessions, filteredAllSessions, selectedSessionId, paramSessionId, paramGroupId]);
+  }, [filteredSessions, filteredAllSessions, sessions, allTeacherSessions, selectedSessionId, paramSessionId, paramGroupId]);
 
   const { data: report, isLoading: isLoadingReport, isError: isErrorReport } = useSessionReport(selectedSessionId);
 
@@ -286,69 +316,6 @@ function TeacherAttendanceContent() {
     setSelectedGrades([]);
     setSelectedLocations([]);
   };
-
-  const todaySelectOptions = useMemo(() => {
-    const optionsList = filteredSessions.map((s: any) => {
-      const g = groupMap.get(s.groupId) || s.group;
-      const groupName = g?.name || 'مجموعة';
-      const formattedTime = s.startTime ? formatTime12h(s.startTime) : '';
-      let timeLabel = formattedTime ? ` (الساعة ${formattedTime})` : '';
-
-      if (
-        formattedTime &&
-        (groupName.includes(`(الساعة ${formattedTime})`) || groupName.includes(formattedTime))
-      ) {
-        timeLabel = '';
-      }
-
-      const loc = g?.schedules?.[0]?.location ? ` - 📍 ${g.schedules[0].location}` : '';
-      const topic = s.topic ? ` - 📖 ${s.topic}` : '';
-
-      return {
-        label: `${groupName}${timeLabel}${topic}${loc}`,
-        value: s.id,
-      };
-    });
-
-    return [
-      { label: `-- اختر من حصص اليوم (${filteredSessions.length} حصة) --`, value: '' },
-      ...optionsList,
-    ];
-  }, [filteredSessions, groupMap]);
-
-  const allSessionsSelectOptions = useMemo(() => {
-    const optionsList = filteredAllSessions.map((s: any) => {
-      const g = groupMap.get(s.groupId) || s.group;
-      const groupName = g?.name || 'مجموعة';
-      const formattedTime = s.startTime ? formatTime12h(s.startTime) : '';
-
-      let dateLabel = '';
-      if (s.sessionDate) {
-        const d = new Date(s.sessionDate);
-        if (!isNaN(d.getTime())) {
-          dateLabel = d.toLocaleDateString('ar-EG', {
-            weekday: 'short',
-            day: 'numeric',
-            month: 'numeric',
-          });
-        }
-      }
-
-      const timePart = formattedTime ? ` (${formattedTime})` : '';
-      const topic = s.topic ? ` - ${s.topic}` : '';
-      const loc = g?.schedules?.[0]?.location ? ` - 📍 ${g.schedules[0].location}` : '';
-
-      return {
-        label: `📅 ${dateLabel} | ${groupName}${timePart}${topic}${loc}`,
-        value: s.id,
-      };
-    });
-
-    return [
-      { label: `-- اختر من جميع حصص الترم (${filteredAllSessions.length} حصة) --`, value: '' },
-      ...optionsList,
-    ];
-  }, [filteredAllSessions, groupMap]);
 
   return (
     <div className="max-w-6xl mx-auto py-4 sm:py-8 px-2 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
@@ -499,68 +466,36 @@ function TeacherAttendanceContent() {
           <div className="pt-3 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* 1. حصص اليوم */}
             <div>
-              <label className="block text-xs font-bold text-neutral-700 mb-1.5 flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-emerald-700 font-bold">
-                  <Calendar className="w-4 h-4 text-emerald-600" />
-                  حصص اليوم
-                </span>
-                <span className="text-slate-400 font-medium text-[11px]">
-                  {filteredSessions.length} حصص متاحة لليوم
-                </span>
-              </label>
-
-              {isLoadingSessions ? (
-                <div className="animate-pulse h-10 bg-slate-100 rounded-xl w-full"></div>
-              ) : isErrorSessions ? (
+              {isErrorSessions ? (
                 <p className="text-red-500 text-xs">فشل تحميل حصص اليوم.</p>
               ) : (
-                <Select
-                  value={
-                    filteredSessions.some(
-                      (s: any) => String(s.id).toLowerCase() === String(selectedSessionId).toLowerCase()
-                    )
-                      ? selectedSessionId
-                      : ''
-                  }
-                  onChange={(e) => {
-                    if (e.target.value) setSelectedSessionId(e.target.value);
-                  }}
-                  className="w-full rounded-xl border-emerald-200 focus:border-emerald-500 font-semibold bg-emerald-50/20"
-                  options={todaySelectOptions}
+                <SearchableSessionCombobox
+                  label="حصص اليوم"
+                  countLabel={`${filteredSessions.length} حصص متاحة لليوم`}
+                  sessions={filteredSessions}
+                  selectedSessionId={selectedSessionId}
+                  onSelectSession={(id) => setSelectedSessionId(id)}
+                  placeholder="-- اختر من حصص اليوم --"
+                  isLoading={isLoadingSessions}
+                  isTodayPicker={true}
+                  groupMap={groupMap}
                 />
               )}
             </div>
 
             {/* 2. جميع حصص الترم (السابقة والقادمة) */}
             <div>
-              <label className="block text-xs font-bold text-neutral-700 mb-1.5 flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-primary-700 font-bold">
-                  <BookOpen className="w-4 h-4 text-primary-600" />
-                  جميع حصص الترم (السابقة والمستقبلية)
-                </span>
-                <span className="text-slate-400 font-medium text-[11px]">
-                  {filteredAllSessions.length} حصة مجدولة
-                </span>
-              </label>
-
-              {isLoadingAllSessions ? (
-                <div className="animate-pulse h-10 bg-slate-100 rounded-xl w-full"></div>
-              ) : (
-                <Select
-                  value={
-                    filteredAllSessions.some(
-                      (s: any) => String(s.id).toLowerCase() === String(selectedSessionId).toLowerCase()
-                    )
-                      ? selectedSessionId
-                      : ''
-                  }
-                  onChange={(e) => {
-                    if (e.target.value) setSelectedSessionId(e.target.value);
-                  }}
-                  className="w-full rounded-xl border-primary-200 focus:border-primary-500 font-semibold bg-primary-50/20"
-                  options={allSessionsSelectOptions}
-                />
-              )}
+              <SearchableSessionCombobox
+                label="جميع حصص الترم (السابقة والمستقبلية)"
+                countLabel={`${filteredAllSessions.length} حصة مجدولة`}
+                sessions={filteredAllSessions}
+                selectedSessionId={selectedSessionId}
+                onSelectSession={(id) => setSelectedSessionId(id)}
+                placeholder="-- ابحث أو اختر من جميع حصص الترم --"
+                isLoading={isLoadingAllSessions}
+                isTodayPicker={false}
+                groupMap={groupMap}
+              />
             </div>
           </div>
         </div>
