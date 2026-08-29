@@ -23,7 +23,7 @@ import {
   formatTeacherAgendaMessage,
 } from '../../../utils/spintax';
 
-const RETRY_DELAYS_MS = [15 * 60_000, 45 * 60_000, 2 * 60 * 60_000];
+const RETRY_DELAYS_MS = [30_000, 2 * 60_000, 5 * 60_000];
 const POST_SEND_COOLDOWN_MIN_MS = 4_000;
 const POST_SEND_COOLDOWN_MAX_MS = 7_000;
 
