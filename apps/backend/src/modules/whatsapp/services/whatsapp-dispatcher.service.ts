@@ -398,9 +398,9 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
           break;
         case NotificationType.TEACHER_DAILY_SCHEDULE:
           message = formatTeacherAgendaMessage(
-            (data?.teacherName as string) || 'الأستاذ',
+            (data?.teacherName as string) || notification.recipient?.fullName || 'الأستاذ',
             (data?.date as string) || new Date().toLocaleDateString('ar-EG', { timeZone: 'Africa/Cairo' }),
-            (data?.sessions as string[]) || [notification.message],
+            (data?.sessions as string[]) || (notification.message ? [notification.message] : []),
           );
           break;
         default:
@@ -424,7 +424,7 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
     const hour = Number(new Intl.DateTimeFormat('en-US', {
       timeZone: 'Africa/Cairo', hour: '2-digit', hourCycle: 'h23',
     }).format(new Date()));
-    return hour >= 8 && hour < 21;
+    return hour >= 7 && hour < 22;
   }
 
   private getCairoMidnight(): Date {

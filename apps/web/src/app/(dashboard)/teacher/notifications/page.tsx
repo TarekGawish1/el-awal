@@ -661,45 +661,74 @@ export default function NotificationCenterPage() {
               </div>
 
               {/* Teacher Daily Schedule */}
-              <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-100 flex items-center justify-between gap-4 md:col-span-2">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center shrink-0 mt-0.5">
-                    <Calendar size={18} />
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <h4 className="text-sm font-bold text-slate-800">
-                        الجدول اليومي الصباحي للمعلم
-                      </h4>
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-100 text-teal-800">
-                        <UserCheck size={11} />
-                        المستلم: المعلم
-                      </span>
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-slate-200/80 text-slate-700">
-                        إشعار فوري + المنصة
-                      </span>
+              <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-100 flex flex-col gap-3.5 md:col-span-2">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center shrink-0 mt-0.5">
+                      <Calendar size={18} />
                     </div>
-                    <p className="text-xs text-slate-500">
-                      إرسال ملخص الحصص والمجموعات المجدولة في بداية اليوم للمعلم
-                    </p>
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <h4 className="text-sm font-bold text-slate-800">
+                          الجدول اليومي الصباحي للمعلم
+                        </h4>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-100 text-teal-800">
+                          <UserCheck size={11} />
+                          المستلم: المعلم
+                        </span>
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-slate-200/80 text-slate-700">
+                          واتساب + فوري + المنصة
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        إرسال ملخص الحصص والمجموعات المجدولة يومياً الساعة 07:00 صباحاً عبر الواتساب والإشعار الفوري
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleToggle(
+                        'teacherDailyScheduleEnabled',
+                        settings?.teacherDailyScheduleEnabled,
+                      )
+                    }
+                    className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors shrink-0 ${
+                      settings?.teacherDailyScheduleEnabled
+                        ? 'bg-blue-600 justify-end'
+                        : 'bg-slate-300 justify-start'
+                    }`}
+                  >
+                    <motion.div layout className="w-4 h-4 rounded-full bg-white shadow-xs" />
+                  </button>
+                </div>
+
+                {/* Teacher WhatsApp Number Field */}
+                <div className="pt-2.5 border-t border-slate-200/70 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs">
+                  <div className="flex items-center gap-2 text-slate-600">
+                    <Smartphone size={14} className="text-teal-600 shrink-0" />
+                    <span>رقم هاتف المعلم لاستلام جدول الصباح عبر الواتساب:</span>
+                  </div>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <input
+                      type="tel"
+                      dir="ltr"
+                      defaultValue={settings?.teacherRecipientPhone || user?.phone || ''}
+                      key={settings?.teacherRecipientPhone || user?.phone || 'phone'}
+                      placeholder={user?.phone || '010xxxxxxxx'}
+                      onBlur={(e) => {
+                        const val = e.target.value.trim();
+                        if (val !== (settings?.teacherRecipientPhone || '')) {
+                          handleToggle('teacherRecipientPhone', val as any);
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-mono text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 w-full sm:w-44"
+                    />
+                    <span className="text-[10px] text-slate-400 shrink-0 whitespace-nowrap">
+                      (حفظ تلقائي عند التغيير)
+                    </span>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleToggle(
-                      'teacherDailyScheduleEnabled',
-                      settings?.teacherDailyScheduleEnabled,
-                    )
-                  }
-                  className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors shrink-0 ${
-                    settings?.teacherDailyScheduleEnabled
-                      ? 'bg-blue-600 justify-end'
-                      : 'bg-slate-300 justify-start'
-                  }`}
-                >
-                  <motion.div layout className="w-4 h-4 rounded-full bg-white shadow-xs" />
-                </button>
               </div>
             </div>
           </div>

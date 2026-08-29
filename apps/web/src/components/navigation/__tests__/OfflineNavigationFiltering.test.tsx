@@ -50,20 +50,21 @@ describe('Offline Navigation Filtering & Route Guards', () => {
   });
 
   describe('getNavigationItemsForRole', () => {
-    it('returns all 10 teacher navigation items when online', () => {
+    it('returns all 11 teacher navigation items when online', () => {
       const items = getNavigationItemsForRole('TEACHER', true);
-      expect(items).toHaveLength(10);
+      expect(items).toHaveLength(11);
       const labels = items.map((i) => i.label);
       expect(labels).toContain('الكورسات أونلاين');
       expect(labels).toContain('الواجبات والاختبارات');
       expect(labels).toContain('المحتوى والدروس');
       expect(labels).toContain('لوحة التحكم');
       expect(labels).toContain('سجل الطلاب');
+      expect(labels).toContain('مركز الإشعارات والتحكم');
     });
 
-    it('filters out online-only teacher items (leaving 7 offline-supported items) when offline', () => {
+    it('filters out online-only teacher items (leaving 8 offline-supported items) when offline', () => {
       const items = getNavigationItemsForRole('TEACHER', false);
-      expect(items).toHaveLength(7);
+      expect(items).toHaveLength(8);
       const labels = items.map((i) => i.label);
       expect(labels).not.toContain('الكورسات أونلاين');
       expect(labels).not.toContain('الواجبات والاختبارات');
@@ -74,6 +75,7 @@ describe('Offline Navigation Filtering & Route Guards', () => {
       expect(labels).toContain('رصد الحضور والـ QR');
       expect(labels).toContain('سجل الطلاب');
       expect(labels).toContain('الماليات والمصروفات');
+      expect(labels).toContain('مركز الإشعارات والتحكم');
     });
 
     it('filters out online-only student items when offline', () => {

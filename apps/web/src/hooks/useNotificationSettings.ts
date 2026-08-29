@@ -19,6 +19,7 @@ export interface NotificationSystemSettings {
   studentApprovalAlertsEnabled: boolean;
   examAlertsEnabled: boolean;
   teacherDailyScheduleEnabled: boolean;
+  teacherRecipientPhone?: string;
   updatedAt?: string;
   updatedBy?: string;
 }
