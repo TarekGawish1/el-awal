@@ -50,6 +50,9 @@ export function ChildDetailsView({ studentId }: ChildDetailsViewProps) {
   const hwMissing = attendanceHistory?.filter((r: any) => r.status === 'PRESENT' && r.homeworkStatus === 'MISSING').length || 0;
   const hwIncomplete = attendanceHistory?.filter((r: any) => r.status === 'PRESENT' && r.homeworkStatus === 'INCOMPLETE').length || 0;
 
+  const totalPaid = paymentHistory?.filter((p: any) => p.paymentStatus === 'PAID').reduce((acc: number, p: any) => acc + (Number(p.amountPaid) || 0), 0) || 0;
+  const totalUnpaid = paymentHistory?.filter((p: any) => p.paymentStatus !== 'PAID').reduce((acc: number, p: any) => acc + (Number(p.amountExpected) || 0), 0) || 0;
+
   // Next Session Calculation
   let nextSessionStr = 'غير محدد';
   if (primaryGroup?.schedules?.length) {
@@ -128,26 +131,43 @@ export function ChildDetailsView({ studentId }: ChildDetailsViewProps) {
         </div>
       </div>
 
-      {/* Financial Overview (Current Month) */}
-      <div className="bg-gradient-to-l from-emerald-50 to-emerald-100/50 p-4 rounded-2xl border border-emerald-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl">
-            <Wallet className="w-5 h-5" />
+      {/* Financial Overview (Current Month & Summaries) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Monthly Fee */}
+        <div className="bg-gradient-to-l from-emerald-50 to-emerald-100/50 p-4 rounded-2xl border border-emerald-100 flex flex-col justify-between gap-2">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl">
+              <Wallet className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-emerald-700 mb-0.5">الاشتراك الشهري ({primaryGroup?.name || 'المجموعة'})</p>
+              <p className="text-lg font-black text-slate-800">
+                {primaryGroup?.monthlyFee ? `${primaryGroup.monthlyFee} ج.م` : 'غير محدد'}
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-xs font-bold text-emerald-700 mb-0.5">الاشتراك الشهري ({primaryGroup?.name || 'المجموعة الحالية'})</p>
-            <p className="text-lg font-black text-slate-800">
-              {primaryGroup?.monthlyFee ? `${primaryGroup.monthlyFee} ج.م` : 'غير محدد'}
-            </p>
+          <div className="mt-2 pt-2 border-t border-emerald-200/50 flex justify-between items-center">
+            <span className="text-[10px] font-semibold text-slate-500">حالة الشهر الحالي</span>
+            {paymentHistory?.some((p: any) => p.periodMonth === new Date().getMonth() + 1 && p.periodYear === new Date().getFullYear() && p.paymentStatus === 'PAID') ? (
+              <Badge variant="success" className="px-2 py-0 h-5 text-[10px]">تم الدفع</Badge>
+            ) : (
+              <Badge variant="error" className="px-2 py-0 h-5 text-[10px]">غير مدفوع</Badge>
+            )}
           </div>
         </div>
-        <div className="flex flex-col items-start sm:items-end">
-          <p className="text-xs font-semibold text-slate-500 mb-1">حالة الدفع للشهر الحالي ({new Date().getMonth() + 1})</p>
-          {paymentHistory?.some((p: any) => p.periodMonth === new Date().getMonth() + 1 && p.periodYear === new Date().getFullYear() && p.paymentStatus === 'PAID') ? (
-            <Badge variant="success" className="px-3 py-1 text-xs">تم سداد اشتراك الشهر</Badge>
-          ) : (
-            <Badge variant="error" className="px-3 py-1 text-xs">لم يتم السداد بعد</Badge>
-          )}
+
+        {/* Total Paid */}
+        <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100/50 flex flex-col justify-center gap-2">
+          <p className="text-xs font-bold text-blue-700 mb-0.5">إجمالي المدفوعات السابقة</p>
+          <p className="text-2xl font-black text-blue-700">{totalPaid} ج.م</p>
+          <p className="text-[10px] text-slate-500 font-medium">تشمل المذكرات والاشتراكات المسددة</p>
+        </div>
+
+        {/* Total Unpaid / Overdue */}
+        <div className="bg-red-50/50 p-4 rounded-2xl border border-red-100/50 flex flex-col justify-center gap-2">
+          <p className="text-xs font-bold text-red-700 mb-0.5">المتأخرات والمبالغ المستحقة</p>
+          <p className="text-2xl font-black text-red-700">{totalUnpaid} ج.م</p>
+          <p className="text-[10px] text-slate-500 font-medium">المبالغ المطلوب سدادها</p>
         </div>
       </div>
 
