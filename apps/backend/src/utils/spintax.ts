@@ -76,7 +76,95 @@ export function formatLocalEgyptianPhone(phone: string): string {
 
 /**
  * Generates an automated welcome message with login credentials for parent and student
- * sent via WhatsApp when student registration/enrollment is approved by teacher.
+ * sent via WhatsApp when student registers a new account on the platform.
+ */
+export function formatStudentRegistrationMessage(data: StudentApprovalCredentialsData): string {
+  const {
+    parentName = 'ولي الأمر المحترم',
+    studentName,
+    studentPhoneOrCode,
+    studentPassword,
+    parentPhoneOrCode,
+    parentPassword,
+    platformUrl = 'https://al-awal.online/login',
+    centerName = 'منصة الأوّل التعليمية',
+    groupName,
+  } = data;
+
+  const displayStudentPhone = formatLocalEgyptianPhone(studentPhoneOrCode);
+  const displayParentPhone = parentPhoneOrCode ? formatLocalEgyptianPhone(parentPhoneOrCode) : '';
+
+  const greetings = [
+    `السلام عليكم ورحمة الله وبركاته،\nأهلاً بحضرتك ${parentName} 🌸`,
+    `تحية طيبة وبعد، أهلاً بحضرتك ${parentName} الكريم 🌸`,
+    `السلام عليكم ورحمة الله،\nمرحباً بحضرتك ${parentName} 🌟`,
+  ];
+
+  const groupPendingNotice = groupName
+    ? `\n📌 تم تسجيل طلب الانضمام إلى (*${groupName}*) وهو قيد المراجعة حالياً من قبل المعلم. ⏳\n`
+    : '';
+
+  const registrationIntros = [
+    `تم إنشاء حساب الطالب/ة: *${studentName}* بنجاح على *${centerName}*. 🎉${groupPendingNotice}`,
+    `يسعدنا تأكيد إنشاء حساب الطالب/ة: *${studentName}* لدى *${centerName}*. 🎓${groupPendingNotice}`,
+    `أهلاً بكم في *${centerName}*! تم إنشاء حساب الطالب/ة: *${studentName}* بنجاح. 🚀${groupPendingNotice}`,
+  ];
+
+  const baseUrl = (platformUrl || 'https://al-awal.online')
+    .replace(/\/+$/, '')
+    .replace(/\/(login|parent-access)$/, '');
+
+  const directPhone = displayParentPhone || displayStudentPhone || studentPhoneOrCode;
+  const directPass = parentPassword || studentPassword || '';
+  const parentDirectAccessUrl = directPass
+    ? `${baseUrl}/parent-access?phone=${encodeURIComponent(directPhone)}&pass=${encodeURIComponent(directPass)}`
+    : `${baseUrl}/parent-access?phone=${encodeURIComponent(directPhone)}`;
+
+  const studentCreds = `📌 *بيانات دخول الطالب:*
+- اسم المستخدم / الهاتف: \`${displayStudentPhone}\`
+${studentPassword ? `- كلمة المرور: \`${studentPassword}\`` : '- كلمة المرور: كلمة المرور التي تم تحديدها أثناء التسجيل'}
+🔗 رابط دخول الطالب: ${baseUrl}/login`;
+
+  const parentCreds = `📌 *بوابة ولي الأمر (لمتابعة الحضور، الغياب، والدرجات):*
+- يمكن لولي الأمر الدخول مباشرة وبضغطة واحدة دون الحاجة لكتابة أي بيانات عبر الرابط التالي:
+🔗 رابط دخول ولي الأمر المباشر:
+${parentDirectAccessUrl}
+
+📌 *أو الدخول ببيانات الحساب عبر صفحة الدخول:*
+- رقم هاتف الحساب: \`${displayParentPhone || displayStudentPhone}\`
+${parentPassword ? `- كلمة المرور: \`${parentPassword}\`\n` : ''}`;
+
+  const closings = [
+    'يرجى الاحتفاظ بهذه الرسالة للرجوع إليها دائماً. نتمنى لطالبنا دوام التوفيق والنجاح 🌟',
+    'نرجو الاحتفاظ بهذه البيانات لتسجيل الدخول ومتابعة مسيرة الطالب أولاً بأول 📚✨',
+    'نسعد بوجودكم معنا، ونتمنى لأبنائنا رحلة تعليمية مليئة بالتميز والتفوق 🚀',
+  ];
+
+  const greeting = pickRandom(greetings);
+  const intro = pickRandom(registrationIntros);
+  const closing = pickRandom(closings);
+  const sig = pickRandom(SIGNATURES);
+
+  const parts = [
+    greeting,
+    '',
+    intro,
+    '',
+    studentCreds,
+    '',
+    parentCreds,
+    '',
+    closing,
+  ];
+
+  if (sig) parts.push('', sig);
+
+  return parts.filter((p) => p !== undefined).join('\n');
+}
+
+/**
+ * Generates an automated approval message sent via WhatsApp
+ * ONLY after the teacher actually approves/accepts student enrollment in a group.
  */
 export function formatStudentApprovalMessage(data: StudentApprovalCredentialsData): string {
   const {
@@ -103,8 +191,8 @@ export function formatStudentApprovalMessage(data: StudentApprovalCredentialsDat
   const groupInfo = groupName ? ` في (*${groupName}*)` : '';
 
   const approvalIntros = [
-    `تمت الموافقة بنجاح على انضمام الطالب/ة: *${studentName}*${groupInfo} إلى *${centerName}*. 🎉`,
-    `يسعدنا إبلاغكم بقبول تسجيل الطالب/ة: *${studentName}*${groupInfo} لدى *${centerName}*. 🎓`,
+    `تمت الموافقة بنجاح على قبول وانضمام الطالب/ة: *${studentName}*${groupInfo} لدى *${centerName}*. 🎉✅`,
+    `يسعدنا إبلاغكم بالموافقة الرسمية على انضمام الطالب/ة: *${studentName}*${groupInfo} إلى *${centerName}*. 🎓`,
     `تم تأكيد وقبول انضمام الطالب/ة: *${studentName}*${groupInfo} إلى *${centerName}* بنجاح. ✅`,
   ];
 
@@ -120,7 +208,7 @@ export function formatStudentApprovalMessage(data: StudentApprovalCredentialsDat
 
   const studentCreds = `📌 *بيانات دخول الطالب:*
 - اسم المستخدم / الهاتف: \`${displayStudentPhone}\`
-${studentPassword ? `- كلمة المرور: \`${studentPassword}\`` : '- كلمة المرور: كلمة المرور التي اختارها الطالب أثناء التسجيل'}
+${studentPassword ? `- كلمة المرور: \`${studentPassword}\`` : '- كلمة المرور: كلمة المرور الخاصة بالطالب'}
 🔗 رابط دخول الطالب: ${baseUrl}/login`;
 
   const parentCreds = `📌 *بوابة ولي الأمر (لمتابعة الحضور، الغياب، والدرجات):*
@@ -158,6 +246,47 @@ ${parentPassword ? `- كلمة المرور: \`${parentPassword}\`\n` : ''}`;
   if (sig) parts.push('', sig);
 
   return parts.filter((p) => p !== undefined).join('\n');
+}
+
+/**
+ * Generates an automated notification sent via WhatsApp when student submits a group reservation request
+ * (before teacher approves it).
+ */
+export function formatGroupReservationPendingMessage(data: {
+  parentName?: string;
+  studentName: string;
+  groupName?: string;
+  teacherName?: string;
+  centerName?: string;
+}): string {
+  const {
+    parentName = 'ولي الأمر المحترم',
+    studentName,
+    groupName = 'المجموعة',
+    centerName = 'منصة الأوّل التعليمية',
+  } = data;
+
+  const greetings = [
+    `السلام عليكم ورحمة الله وبركاته،\nأهلاً بحضرتك ${parentName} 🌸`,
+    `تحية طيبة وبعد، أهلاً بحضرتك ${parentName} الكريم 🌸`,
+    `السلام عليكم ورحمة الله،\nمرحباً بحضرتك ${parentName} 🌟`,
+  ];
+
+  const groupInfo = groupName ? ` في (*${groupName}*)` : '';
+
+  const bodies = [
+    `📋 تم استلام وتسجيل طلب انضمام الطالب/ة: *${studentName}*${groupInfo} لدى *${centerName}* بنجاح.\n\n⏳ الطلب قيد المراجعة حالياً من قبل المعلم، وسنوافيكم برسالة تأكيد فور اعتماد القبول.`,
+    `📋 نود إبلاغكم بوصول طلب حجز وانضمام الطالب/ة: *${studentName}*${groupInfo} إلى *${centerName}*.\n\n⏳ جاري مراجعة الطلب من قبل إدارة السنتر وسنرسل لكم إشعاراً فور التأكيد.`,
+  ];
+
+  const greeting = pickRandom(greetings);
+  const body = pickRandom(bodies);
+  const sig = pickRandom(SIGNATURES);
+
+  const parts = [greeting, '', body];
+  if (sig) parts.push('', sig);
+
+  return parts.join('\n');
 }
 
 // ─── Template Functions ─────────────────────────────────────────────────────────
