@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Link from 'next/link';
 
 function IntroSequence({ onComplete }: { onComplete: () => void }) {
   useEffect(() => {
@@ -246,9 +247,9 @@ function HeroSection() {
           </p>
 
           <div className="flex flex-wrap items-center justify-center lg:justify-start gap-5 w-full">
-            <a href="/login" className="bg-blue-600 hover:bg-blue-700 text-white px-10 py-4 rounded-full font-bold text-lg shadow-lg shadow-blue-500/30 transition-transform hover:-translate-y-1 inline-block">
+            <Link href="/login" className="bg-blue-600 hover:bg-blue-700 text-white px-10 py-4 rounded-full font-bold text-lg shadow-lg shadow-blue-500/30 transition-transform hover:-translate-y-1 inline-block">
               ابدأ التعلم الآن
-            </a>
+            </Link>
             <button className="bg-white hover:bg-slate-50 text-slate-700 border-2 border-slate-200 px-8 py-4 rounded-full font-bold text-lg flex items-center gap-3 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
@@ -285,6 +286,99 @@ function HeroSection() {
   );
 }
 
+const COURSES = [
+  {
+    id: 1,
+    title: 'الصف الأول الثانوي',
+    description: 'شرح مبسط ومفصل لمنهج الرياضيات للصف الأول الثانوي مع تدريبات مكثفة وتطبيقات على النظام الجديد.',
+    badge: 'ترم أول',
+    color: 'from-blue-500 to-cyan-500'
+  },
+  {
+    id: 2,
+    title: 'الصف الثاني الثانوي',
+    description: 'تأسيس قوي في التفاضل وحساب المثلثات والجبر مع حل أسئلة بنك المعرفة وامتحانات سابقة.',
+    badge: 'ترم أول',
+    color: 'from-indigo-500 to-purple-500'
+  },
+  {
+    id: 3,
+    title: 'الصف الثالث الثانوي',
+    description: 'مراجعات نهائية وتدريبات متقدمة للثانوية العامة تضمن لك الدرجة النهائية في جميع فروع الرياضيات.',
+    badge: 'علمي رياضة',
+    color: 'from-emerald-500 to-teal-500'
+  }
+];
+
+function CoursesSection() {
+  return (
+    <section className="py-24 bg-white relative overflow-hidden" id="courses" dir="rtl">
+      <div className="absolute top-0 right-0 w-full h-full overflow-hidden pointer-events-none z-0 opacity-40">
+        <div className="absolute -top-[10%] right-[10%] w-[30%] h-[40%] rounded-full bg-blue-50 blur-[100px]" />
+        <div className="absolute bottom-[10%] -left-[5%] w-[40%] h-[30%] rounded-full bg-indigo-50 blur-[120px]" />
+      </div>
+
+      <div className="container mx-auto px-6 relative z-10">
+        <div className="text-center max-w-2xl mx-auto mb-16">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 mb-4 tracking-tight">
+              اكتشف <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">كورساتنا</span>
+            </h2>
+            <p className="text-slate-600 text-lg font-medium">
+              اختر المرحلة الدراسية الخاصة بك وابدأ رحلة التفوق مع أقوى محتوى تعليمي في الرياضيات.
+            </p>
+          </motion.div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {COURSES.map((course, index) => (
+            <motion.div
+              key={course.id}
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: index * 0.1 }}
+              className="group relative bg-white rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_rgb(0,0,0,0.08)] transition-all overflow-hidden flex flex-col"
+            >
+              {/* Image/Gradient Area */}
+              <div className={`h-48 w-full bg-gradient-to-br ${course.color} relative overflow-hidden flex items-start justify-start p-6`}>
+                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
+                <div className="relative z-10 bg-white/25 backdrop-blur-md px-4 py-1.5 rounded-full text-white text-sm font-bold shadow-sm self-start">
+                  {course.badge}
+                </div>
+                {/* Decorative Math Icon */}
+                <div className="absolute -bottom-6 -left-6 text-white/20 text-9xl font-black -rotate-12 pointer-events-none">
+                  {index === 0 ? '∑' : index === 1 ? '∫' : '∞'}
+                </div>
+              </div>
+
+              {/* Content Area */}
+              <div className="p-6 sm:p-8 flex-1 flex flex-col bg-white">
+                <h3 className="text-2xl font-bold text-slate-900 mb-3">{course.title}</h3>
+                <p className="text-slate-600 text-base leading-relaxed mb-6 flex-1">
+                  {course.description}
+                </p>
+                
+                <Link href="/login" className="mt-auto hover:bg-blue-50 flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-slate-100 text-slate-700 font-bold transition-colors group-hover:border-blue-100">
+                  <span>اشترك الآن</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 rtl:rotate-180 text-blue-600 transition-transform group-hover:-translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  </svg>
+                </Link>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function RootPage() {
   const [showIntro, setShowIntro] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
@@ -310,6 +404,7 @@ export default function RootPage() {
           transition={{ duration: 1, delay: 0.2 }}
         >
           <HeroSection />
+          <CoursesSection />
         </motion.div>
       )}
     </main>
