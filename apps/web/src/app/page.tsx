@@ -624,7 +624,7 @@ function TestimonialsSection() {
           </motion.div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="flex overflow-x-auto pb-8 -mx-6 px-6 gap-6 snap-x snap-mandatory md:grid md:grid-cols-2 lg:grid-cols-3 md:overflow-visible md:pb-0 md:mx-0 md:px-0 hide-scrollbar">
           {TESTIMONIALS.map((testimonial, index) => (
             <motion.div
               key={testimonial.id}
@@ -632,7 +632,7 @@ function TestimonialsSection() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
-              className="bg-slate-50 rounded-3xl p-8 border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all relative"
+              className="bg-slate-50 rounded-3xl p-8 border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all relative shrink-0 w-[85vw] sm:w-[350px] snap-center md:w-auto"
             >
               <div className="absolute top-6 left-8 text-blue-100">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 rotate-180" fill="currentColor" viewBox="0 0 24 24">
