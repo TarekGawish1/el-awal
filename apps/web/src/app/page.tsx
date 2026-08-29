@@ -833,9 +833,6 @@ function AboutUsSection() {
 
   return (
     <section className="pt-16 sm:pt-24 relative overflow-hidden flex flex-col min-h-[85vh] sm:min-h-[80vh]" id="about" dir="rtl">
-      {/* Smooth Top Transition from Certificates Section */}
-      <div className="absolute top-0 left-0 right-0 h-32 sm:h-48 bg-gradient-to-b from-slate-50 to-transparent pointer-events-none z-20" />
-
       {/* Background Slideshow */}
       <div className="absolute inset-0 z-0 bg-slate-900">
         <AnimatePresence mode="popLayout">
