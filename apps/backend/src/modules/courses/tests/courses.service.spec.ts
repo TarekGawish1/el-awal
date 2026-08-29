@@ -1,10 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { CoursesService } from '../services/courses.service';
 import { CourseProgressRepository } from '../repositories/course-progress.repository';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { BunnyVideoService } from '../../../integrations/video/bunny-video.service';
 import { StorageService } from '../../../integrations/storage/storage.service';
+import { AiModerationService } from '../../../integrations/ai/ai-moderation.service';
 import { CourseStatus, CourseAccessStatus, UserRole } from '@prisma/client';
 
 describe('CoursesService', () => {
@@ -13,6 +14,7 @@ describe('CoursesService', () => {
   let progressRepo: CourseProgressRepository;
   let bunnyVideoService: BunnyVideoService;
   let storageService: StorageService;
+  let aiModerationService: AiModerationService;
 
   const mockPrismaService = {
     course: {
@@ -46,9 +48,14 @@ describe('CoursesService', () => {
       create: jest.fn(),
       findUnique: jest.fn(),
       findMany: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
     },
     lessonQuestionReply: {
       create: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
     },
     user: {
       findUnique: jest.fn(),
@@ -115,6 +122,18 @@ describe('CoursesService', () => {
         { provide: CourseProgressRepository, useValue: mockProgressRepository },
         { provide: BunnyVideoService, useValue: mockBunnyVideoService },
         { provide: StorageService, useValue: mockStorageService },
+        {
+          provide: AiModerationService,
+          useValue: {
+            assertValidContent: jest.fn(async (text: string) => {
+              const { containsProfanity } = require('../../../common/utils/content-moderation.util');
+              if (containsProfanity(text)) {
+                throw new BadRequestException('عذراً، يحتوي النص على كلمات أو عبارات غير لائقة');
+              }
+            }),
+            evaluateContent: jest.fn(async (text: string) => ({ isValid: true, flaggedBy: 'CLEAN' })),
+          },
+        },
       ],
     }).compile();
 
@@ -123,6 +142,7 @@ describe('CoursesService', () => {
     progressRepo = module.get<CourseProgressRepository>(CourseProgressRepository);
     bunnyVideoService = module.get<BunnyVideoService>(BunnyVideoService);
     storageService = module.get<StorageService>(StorageService);
+    aiModerationService = module.get<AiModerationService>(AiModerationService);
     jest.clearAllMocks();
   });
 
@@ -329,7 +349,77 @@ describe('CoursesService', () => {
       });
 
       expect(result.id).toBe('reply-1');
+      expect(result.content).toBe('نعم يجوز تقديم الخبر إذا كان شبه جملة.');
       expect(result.authorName).toBe('أ. طارق جاويش');
+    });
+
+    it('should reject questions and replies containing insults or profanity', async () => {
+      const studentUser: any = {
+        id: 'user-1',
+        studentProfileId: 'stu-1',
+        role: UserRole.STUDENT,
+      };
+
+      await expect(
+        service.createLessonQuestion('lesson-1', studentUser, {
+          content: 'fuck you bitch',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.createLessonQuestion('lesson-1', studentUser, {
+          content: 'احا ايه دا',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.createQuestionReply('q-1', studentUser, {
+          content: 'يا شرموط',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should allow author or teacher to update and delete questions and replies', async () => {
+      mockPrismaService.lessonQuestion.findUnique.mockResolvedValue({
+        id: 'q-1',
+        studentId: 'stu-1',
+        student: { user: { id: 'user-1' } },
+        lesson: { module: { course: { teacherId: 'teacher-1' } } },
+      });
+      mockPrismaService.lessonQuestion.update.mockResolvedValue({
+        id: 'q-1',
+        content: 'سؤال محدث',
+      });
+      mockPrismaService.lessonQuestion.delete.mockResolvedValue({ id: 'q-1' });
+
+      const authorUser: any = { id: 'user-1', studentProfileId: 'stu-1', role: UserRole.STUDENT };
+      const updated = await service.updateLessonQuestion('q-1', authorUser, {
+        content: 'سؤال محدث',
+      });
+      expect(updated.content).toBe('سؤال محدث');
+
+      const deleted = await service.deleteLessonQuestion('q-1', authorUser);
+      expect(deleted.id).toBe('q-1');
+
+      // Test reply update & delete
+      mockPrismaService.lessonQuestionReply.findUnique.mockResolvedValue({
+        id: 'reply-1',
+        authorId: 'user-1',
+        question: { lesson: { module: { course: { teacherId: 'teacher-1' } } } },
+      });
+      mockPrismaService.lessonQuestionReply.update.mockResolvedValue({
+        id: 'reply-1',
+        content: 'رد محدث',
+      });
+      mockPrismaService.lessonQuestionReply.delete.mockResolvedValue({ id: 'reply-1' });
+
+      const updatedReply = await service.updateQuestionReply('reply-1', authorUser, {
+        content: 'رد محدث',
+      });
+      expect(updatedReply.content).toBe('رد محدث');
+
+      const deletedReply = await service.deleteQuestionReply('reply-1', authorUser);
+      expect(deletedReply.id).toBe('reply-1');
     });
   });
 

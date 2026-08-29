@@ -282,6 +282,64 @@ export function useCreateReply(lessonId: string) {
   });
 }
 
+export function useUpdateQuestion(lessonId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ questionId, data }: { questionId: string; data: { content: string } }) =>
+      coursesApi.updateQuestion(questionId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lesson-questions', lessonId] });
+      toast.success('تم تحديث السؤال بنجاح');
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر تحديث السؤال');
+    },
+  });
+}
+
+export function useDeleteQuestion(lessonId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (questionId: string) => coursesApi.deleteQuestion(questionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lesson-questions', lessonId] });
+      toast.success('تم حذف السؤال بنجاح');
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر حذف السؤال');
+    },
+  });
+}
+
+export function useUpdateReply(lessonId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ replyId, data }: { replyId: string; data: { content: string } }) =>
+      coursesApi.updateReply(replyId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lesson-questions', lessonId] });
+      toast.success('تم تحديث الرد بنجاح');
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر تحديث الرد');
+    },
+  });
+}
+
+export function useDeleteReply(lessonId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (replyId: string) => coursesApi.deleteReply(replyId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lesson-questions', lessonId] });
+      toast.success('تم حذف الرد بنجاح');
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر حذف الرد');
+    },
+  });
+}
+
 export function useLessonViewer(lessonId: string) {
   return useQuery({
     queryKey: ['lesson-viewer', lessonId],

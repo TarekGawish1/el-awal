@@ -176,6 +176,32 @@ export const coursesApi = {
     });
   },
 
+  updateQuestion: async (questionId: string, data: { content: string }): Promise<LessonQuestion> => {
+    return apiClient<LessonQuestion>(`/courses/questions/${questionId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteQuestion: async (questionId: string): Promise<void> => {
+    return apiClient<void>(`/courses/questions/${questionId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  updateReply: async (replyId: string, data: { content: string }): Promise<LessonQuestionReply> => {
+    return apiClient<LessonQuestionReply>(`/courses/questions/replies/${replyId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteReply: async (replyId: string): Promise<void> => {
+    return apiClient<void>(`/courses/questions/replies/${replyId}`, {
+      method: 'DELETE',
+    });
+  },
+
   // Student Lesson Viewer & DRM Stream Auth
   getLessonViewer: async (lessonId: string): Promise<LessonViewerData> => {
     return apiClient<LessonViewerData>(`/courses/lessons/${lessonId}`);

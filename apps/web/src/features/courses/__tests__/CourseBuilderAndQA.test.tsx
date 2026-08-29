@@ -19,6 +19,10 @@ vi.mock('@/features/courses/api/courses.api', () => ({
     getLessonQuestions: vi.fn(),
     createQuestion: vi.fn(),
     createReply: vi.fn(),
+    updateQuestion: vi.fn(),
+    deleteQuestion: vi.fn(),
+    updateReply: vi.fn(),
+    deleteReply: vi.fn(),
     getTeacherCourses: vi.fn(),
     getCourseDetails: vi.fn(),
     getLessonViewer: vi.fn(),
@@ -224,6 +228,165 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
       });
 
       expect(textarea).toHaveValue('');
+    });
+
+    it('blocks submitting questions containing insults or bad words and does not call createQuestion', async () => {
+      vi.mocked(coursesApi.getLessonQuestions).mockResolvedValue([]);
+      render(
+        <LessonQAPanel
+          lessonId="lesson-1"
+          currentPlaybackSeconds={10}
+          onSeekToTimestamp={vi.fn()}
+        />,
+        { wrapper }
+      );
+
+      const textarea = screen.getByPlaceholderText(/اكتب سؤالك بوضوح/i);
+      fireEvent.change(textarea, { target: { value: 'fuck you bitch' } });
+
+      const submitBtn = screen.getByRole('button', { name: /نشر السؤال/i });
+      fireEvent.click(submitBtn);
+
+      expect(coursesApi.createQuestion).not.toHaveBeenCalled();
+    });
+
+    it('allows editing a question and calls coursesApi.updateQuestion', async () => {
+      const mockQuestions = [
+        {
+          id: 'q-edit-1',
+          content: 'سؤال بحاجة لتعديل',
+          videoTimestamp: null,
+          lessonId: 'lesson-1',
+          studentId: 'user-1',
+          studentUserId: 'user-1',
+          studentName: 'طالب منصة الأول',
+          createdAt: '2026-08-23T10:00:00Z',
+          updatedAt: '2026-08-23T10:00:00Z',
+          replies: [],
+        },
+      ];
+      vi.mocked(coursesApi.getLessonQuestions).mockResolvedValue(mockQuestions);
+      vi.mocked(coursesApi.updateQuestion).mockResolvedValue({
+        ...mockQuestions[0],
+        content: 'سؤال تم تعديله وتوضيحه',
+      });
+
+      render(
+        <LessonQAPanel
+          lessonId="lesson-1"
+          onSeekToTimestamp={vi.fn()}
+        />,
+        { wrapper }
+      );
+
+      // Find edit button
+      const editBtn = await screen.findByTitle('تعديل السؤال');
+      expect(editBtn).toBeInTheDocument();
+      fireEvent.click(editBtn);
+
+      // Edit input should appear
+      const editInput = screen.getByDisplayValue('سؤال بحاجة لتعديل');
+      fireEvent.change(editInput, { target: { value: 'سؤال تم تعديله وتوضيحه' } });
+
+      const saveBtn = screen.getByRole('button', { name: /حفظ التعديل/i });
+      fireEvent.click(saveBtn);
+
+      await waitFor(() => {
+        expect(coursesApi.updateQuestion).toHaveBeenCalledWith('q-edit-1', {
+          content: 'سؤال تم تعديله وتوضيحه',
+        });
+      });
+    });
+
+    it('opens confirm modal on delete click and calls coursesApi.deleteQuestion', async () => {
+      const mockQuestions = [
+        {
+          id: 'q-del-1',
+          content: 'سؤال سيتم حذفه',
+          videoTimestamp: null,
+          lessonId: 'lesson-1',
+          studentId: 'user-1',
+          studentUserId: 'user-1',
+          studentName: 'طالب منصة الأول',
+          createdAt: '2026-08-23T10:00:00Z',
+          updatedAt: '2026-08-23T10:00:00Z',
+          replies: [],
+        },
+      ];
+      vi.mocked(coursesApi.getLessonQuestions).mockResolvedValue(mockQuestions);
+      vi.mocked(coursesApi.deleteQuestion).mockResolvedValue(undefined);
+
+      render(
+        <LessonQAPanel
+          lessonId="lesson-1"
+          onSeekToTimestamp={vi.fn()}
+        />,
+        { wrapper }
+      );
+
+      const deleteBtn = await screen.findByTitle('حذف السؤال');
+      fireEvent.click(deleteBtn);
+
+      // Confirmation modal should open
+      expect(screen.getByText('تأكيد حذف السؤال')).toBeInTheDocument();
+      expect(screen.getByText(/هل أنت متأكد من حذف هذا السؤال/i)).toBeInTheDocument();
+
+      const confirmBtn = screen.getByRole('button', { name: /نعم، احذف نهائياً/i });
+      fireEvent.click(confirmBtn);
+
+      await waitFor(() => {
+        expect(coursesApi.deleteQuestion).toHaveBeenCalledWith('q-del-1');
+      });
+    });
+  });
+
+  describe('Content Moderation Utility (validateContentProfanity)', () => {
+    it('detects and blocks Arabic profanities and insults', async () => {
+      const { validateContentProfanity } = await import('@/lib/validation/content-moderation');
+      expect(validateContentProfanity('احا')).not.toBeNull();
+      expect(validateContentProfanity('أحا ايه دا')).not.toBeNull();
+      expect(validateContentProfanity('كسمك')).not.toBeNull();
+      expect(validateContentProfanity('يا شرموط')).not.toBeNull();
+      expect(validateContentProfanity('يا خول')).not.toBeNull();
+      expect(validateContentProfanity('يا ابن الكلب')).not.toBeNull();
+      expect(validateContentProfanity('يا معرص')).not.toBeNull();
+      expect(validateContentProfanity('سكس')).not.toBeNull();
+    });
+
+    it('detects and blocks Franco-Arabic (3rabizi) insults and swear words', async () => {
+      const { validateContentProfanity } = await import('@/lib/validation/content-moderation');
+      expect(validateContentProfanity('a7a')).not.toBeNull();
+      expect(validateContentProfanity('a7a ايه ده')).not.toBeNull();
+      expect(validateContentProfanity('kosomk')).not.toBeNull();
+      expect(validateContentProfanity('kossomak')).not.toBeNull();
+      expect(validateContentProfanity('5awal')).not.toBeNull();
+      expect(validateContentProfanity('ya 3ars')).not.toBeNull();
+      expect(validateContentProfanity('ebn el was5a')).not.toBeNull();
+      expect(validateContentProfanity('sharmouta')).not.toBeNull();
+      expect(validateContentProfanity('manyook')).not.toBeNull();
+      expect(validateContentProfanity('teezak')).not.toBeNull();
+      expect(validateContentProfanity('ga7ba')).not.toBeNull();
+      expect(validateContentProfanity('yel3an deenak')).not.toBeNull();
+    });
+
+    it('detects and blocks English profanities, abbreviations, and bypasses', async () => {
+      const { validateContentProfanity } = await import('@/lib/validation/content-moderation');
+      expect(validateContentProfanity('fuck you bitch')).not.toBeNull();
+      expect(validateContentProfanity('you are a bitch')).not.toBeNull();
+      expect(validateContentProfanity('f*ck this shit')).not.toBeNull();
+      expect(validateContentProfanity('f u c k')).not.toBeNull();
+      expect(validateContentProfanity('asshole')).not.toBeNull();
+      expect(validateContentProfanity('stfu')).not.toBeNull();
+      expect(validateContentProfanity('motherfucker')).not.toBeNull();
+      expect(validateContentProfanity('retard')).not.toBeNull();
+    });
+
+    it('allows clean and educational content without false positives', async () => {
+      const { validateContentProfanity } = await import('@/lib/validation/content-moderation');
+      expect(validateContentProfanity('ما هو إعراب كلمة طالباً؟')).toBeNull();
+      expect(validateContentProfanity('شكراً جزيلاً يا مستر على الشرح الرائع')).toBeNull();
+      expect(validateContentProfanity('هل يجوز تقديم خبر كان على اسمها في حالة النكرة؟')).toBeNull();
+      expect(validateContentProfanity('الفيزياء والرياضيات ممتعة')).toBeNull();
     });
   });
 

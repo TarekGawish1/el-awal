@@ -20,7 +20,12 @@ import { CreateLessonDto } from '../dto/create-lesson.dto';
 import { UpdateLessonDto } from '../dto/update-lesson.dto';
 import { CourseQueryDto } from '../dto/course-query.dto';
 import { UpdateProgressDto } from '../dto/update-progress.dto';
-import { CreateQuestionDto, CreateQuestionReplyDto } from '../dto/lesson-qa.dto';
+import {
+  CreateQuestionDto,
+  CreateQuestionReplyDto,
+  UpdateQuestionDto,
+  UpdateQuestionReplyDto,
+} from '../dto/lesson-qa.dto';
 import { CreateAttachmentDto } from '../dto/lesson-attachment.dto';
 import { GrantGroupAccessDto } from '../dto/group-access.dto';
 import { ReorderModulesDto } from '../dto/reorder-modules.dto';
@@ -323,6 +328,48 @@ export class CoursesController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.coursesService.createQuestionReply(questionId, user, dto);
+  }
+
+  @Patch('questions/:questionId')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT)
+  @ApiOperation({ summary: 'Update a student timestamped question (author or teacher/secretariat)' })
+  async updateLessonQuestion(
+    @Param('questionId') questionId: string,
+    @Body() dto: UpdateQuestionDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.coursesService.updateLessonQuestion(questionId, user, dto);
+  }
+
+  @Delete('questions/:questionId')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT)
+  @ApiOperation({ summary: 'Delete a student timestamped question (author or teacher/secretariat)' })
+  async deleteLessonQuestion(
+    @Param('questionId') questionId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.coursesService.deleteLessonQuestion(questionId, user);
+  }
+
+  @Patch('questions/replies/:replyId')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT)
+  @ApiOperation({ summary: 'Update a question reply (author or teacher/secretariat)' })
+  async updateQuestionReply(
+    @Param('replyId') replyId: string,
+    @Body() dto: UpdateQuestionReplyDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.coursesService.updateQuestionReply(replyId, user, dto);
+  }
+
+  @Delete('questions/replies/:replyId')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT)
+  @ApiOperation({ summary: 'Delete a question reply (author or teacher/secretariat)' })
+  async deleteQuestionReply(
+    @Param('replyId') replyId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.coursesService.deleteQuestionReply(replyId, user);
   }
 
   @Post(':id/enroll')

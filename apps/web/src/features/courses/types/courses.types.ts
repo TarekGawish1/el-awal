@@ -47,6 +47,7 @@ export interface LessonQuestion {
   videoTimestamp?: number | null;
   lessonId: string;
   studentId: string;
+  studentUserId?: string;
   studentName: string;
   createdAt: string;
   updatedAt: string;

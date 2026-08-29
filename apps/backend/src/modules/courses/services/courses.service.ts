@@ -21,7 +21,14 @@ import { CreateLessonDto } from '../dto/create-lesson.dto';
 import { UpdateLessonDto } from '../dto/update-lesson.dto';
 import { CourseQueryDto } from '../dto/course-query.dto';
 import { UpdateProgressDto } from '../dto/update-progress.dto';
-import { CreateQuestionDto, CreateQuestionReplyDto } from '../dto/lesson-qa.dto';
+import {
+  CreateQuestionDto,
+  CreateQuestionReplyDto,
+  UpdateQuestionDto,
+  UpdateQuestionReplyDto,
+} from '../dto/lesson-qa.dto';
+import { assertCleanContent } from '../../../common/utils/content-moderation.util';
+import { AiModerationService } from '../../../integrations/ai/ai-moderation.service';
 import { CreateAttachmentDto } from '../dto/lesson-attachment.dto';
 import { GrantGroupAccessDto } from '../dto/group-access.dto';
 import { ReorderModulesDto, ReorderLessonsDto } from '../dto/reorder-modules.dto';
@@ -53,6 +60,7 @@ export class CoursesService {
     private readonly progressRepository: CourseProgressRepository,
     private readonly bunnyVideoService: BunnyVideoService,
     private readonly storageService: StorageService,
+    private readonly aiModeration: AiModerationService,
   ) {}
 
   /**
@@ -756,7 +764,8 @@ export class CoursesService {
       videoTimestamp: q.videoTimestamp,
       lessonId: q.lessonId,
       studentId: q.studentId,
-      studentName: q.student.user.fullName,
+      studentUserId: q.student?.user?.id || q.studentId,
+      studentName: q.student?.user?.fullName || 'طالب مسجل',
       createdAt: q.createdAt,
       updatedAt: q.updatedAt,
       replies: q.replies,
@@ -774,6 +783,8 @@ export class CoursesService {
     if (!dto.content || !dto.content.trim()) {
       throw new BadRequestException('نص السؤال مطلوب');
     }
+
+    await this.aiModeration.assertValidContent(dto.content);
 
     let studentProfile = null;
 
@@ -834,7 +845,7 @@ export class CoursesService {
       },
       include: {
         student: {
-          include: { user: { select: { fullName: true } } },
+          include: { user: { select: { id: true, fullName: true } } },
         },
         replies: true,
       },
@@ -846,11 +857,101 @@ export class CoursesService {
       videoTimestamp: question.videoTimestamp,
       lessonId: question.lessonId,
       studentId: question.studentId,
+      studentUserId: question.student?.user?.id || user.id,
       studentName: question.student?.user?.fullName || user.email || 'طالب مسجل',
       createdAt: question.createdAt,
       updatedAt: question.updatedAt,
       replies: [],
     };
+  }
+
+  /**
+   * Updates an existing lesson question (author or instructor).
+   */
+  async updateLessonQuestion(
+    questionId: string,
+    user: AuthenticatedUser,
+    dto: UpdateQuestionDto,
+  ) {
+    if (!dto.content || !dto.content.trim()) {
+      throw new BadRequestException('نص السؤال مطلوب');
+    }
+
+    await this.aiModeration.assertValidContent(dto.content);
+
+    const question = await this.prisma.lessonQuestion.findUnique({
+      where: { id: questionId },
+      include: {
+        student: {
+          include: { user: { select: { id: true } } },
+        },
+        lesson: {
+          include: { module: { include: { course: true } } },
+        },
+      },
+    });
+
+    if (!question) {
+      throw new NotFoundException(`السؤال غير موجود [${questionId}]`);
+    }
+
+    const course = question.lesson.module.course;
+    const isAuthor =
+      question.student?.user?.id === user.id ||
+      question.studentId === user.studentProfileId ||
+      question.studentId === user.id;
+    const isTeacher =
+      user.role === UserRole.TEACHER &&
+      (course.teacherId === user.teacherProfileId || course.teacherId === user.id);
+    const isSecretariat = user.role === UserRole.SECRETARIAT;
+
+    if (!isAuthor && !isTeacher && !isSecretariat) {
+      throw new ForbiddenException('ليس لديك صلاحية لتعديل هذا السؤال');
+    }
+
+    return this.prisma.lessonQuestion.update({
+      where: { id: questionId },
+      data: { content: dto.content.trim() },
+    });
+  }
+
+  /**
+   * Deletes a lesson question and all its replies (author, instructor, or secretariat).
+   */
+  async deleteLessonQuestion(questionId: string, user: AuthenticatedUser) {
+    const question = await this.prisma.lessonQuestion.findUnique({
+      where: { id: questionId },
+      include: {
+        student: {
+          include: { user: { select: { id: true } } },
+        },
+        lesson: {
+          include: { module: { include: { course: true } } },
+        },
+      },
+    });
+
+    if (!question) {
+      throw new NotFoundException(`السؤال غير موجود [${questionId}]`);
+    }
+
+    const course = question.lesson.module.course;
+    const isAuthor =
+      question.student?.user?.id === user.id ||
+      question.studentId === user.studentProfileId ||
+      question.studentId === user.id;
+    const isTeacher =
+      user.role === UserRole.TEACHER &&
+      (course.teacherId === user.teacherProfileId || course.teacherId === user.id);
+    const isSecretariat = user.role === UserRole.SECRETARIAT;
+
+    if (!isAuthor && !isTeacher && !isSecretariat) {
+      throw new ForbiddenException('ليس لديك صلاحية لحذف هذا السؤال');
+    }
+
+    return this.prisma.lessonQuestion.delete({
+      where: { id: questionId },
+    });
   }
 
   /**
@@ -861,11 +962,17 @@ export class CoursesService {
     user: AuthenticatedUser,
     dto: CreateQuestionReplyDto,
   ) {
+    if (!dto.content || !dto.content.trim()) {
+      throw new BadRequestException('نص الرد مطلوب');
+    }
+
+    await this.aiModeration.assertValidContent(dto.content);
+
     const question = await this.prisma.lessonQuestion.findUnique({
       where: { id: questionId },
     });
     if (!question) {
-      throw new NotFoundException(`Question [${questionId}] not found`);
+      throw new NotFoundException(`السؤال غير موجود [${questionId}]`);
     }
 
     const author = await this.prisma.user.findUnique({
@@ -877,11 +984,96 @@ export class CoursesService {
     return this.prisma.lessonQuestionReply.create({
       data: {
         questionId,
-        content: dto.content,
+        content: dto.content.trim(),
         authorId: user.id,
         authorRole: user.role,
         authorName,
       },
+    });
+  }
+
+  /**
+   * Updates an existing Q&A reply (author or instructor).
+   */
+  async updateQuestionReply(
+    replyId: string,
+    user: AuthenticatedUser,
+    dto: UpdateQuestionReplyDto,
+  ) {
+    if (!dto.content || !dto.content.trim()) {
+      throw new BadRequestException('نص الرد مطلوب');
+    }
+
+    await this.aiModeration.assertValidContent(dto.content);
+
+    const reply = await this.prisma.lessonQuestionReply.findUnique({
+      where: { id: replyId },
+      include: {
+        question: {
+          include: {
+            lesson: {
+              include: { module: { include: { course: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    if (!reply) {
+      throw new NotFoundException(`الرد غير موجود [${replyId}]`);
+    }
+
+    const course = reply.question.lesson.module.course;
+    const isAuthor = reply.authorId === user.id;
+    const isTeacher =
+      user.role === UserRole.TEACHER &&
+      (course.teacherId === user.teacherProfileId || course.teacherId === user.id);
+    const isSecretariat = user.role === UserRole.SECRETARIAT;
+
+    if (!isAuthor && !isTeacher && !isSecretariat) {
+      throw new ForbiddenException('ليس لديك صلاحية لتعديل هذا الرد');
+    }
+
+    return this.prisma.lessonQuestionReply.update({
+      where: { id: replyId },
+      data: { content: dto.content.trim() },
+    });
+  }
+
+  /**
+   * Deletes an existing Q&A reply (author, instructor, or secretariat).
+   */
+  async deleteQuestionReply(replyId: string, user: AuthenticatedUser) {
+    const reply = await this.prisma.lessonQuestionReply.findUnique({
+      where: { id: replyId },
+      include: {
+        question: {
+          include: {
+            lesson: {
+              include: { module: { include: { course: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    if (!reply) {
+      throw new NotFoundException(`الرد غير موجود [${replyId}]`);
+    }
+
+    const course = reply.question.lesson.module.course;
+    const isAuthor = reply.authorId === user.id;
+    const isTeacher =
+      user.role === UserRole.TEACHER &&
+      (course.teacherId === user.teacherProfileId || course.teacherId === user.id);
+    const isSecretariat = user.role === UserRole.SECRETARIAT;
+
+    if (!isAuthor && !isTeacher && !isSecretariat) {
+      throw new ForbiddenException('ليس لديك صلاحية لحذف هذا الرد');
+    }
+
+    return this.prisma.lessonQuestionReply.delete({
+      where: { id: replyId },
     });
   }
 
