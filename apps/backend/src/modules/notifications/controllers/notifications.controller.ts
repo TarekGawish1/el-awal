@@ -31,6 +31,8 @@ import { Roles } from '../../../core/security/decorators/roles.decorator';
 import { Public } from '../../../core/security/decorators/public.decorator';
 import { UserRole } from '@prisma/client';
 
+import { NotificationSettingsService, NotificationSystemSettings } from '../services/notification-settings.service';
+
 @ApiTags('Notifications')
 @ApiBearerAuth('JWT-auth')
 @Controller('notifications')
@@ -39,6 +41,7 @@ export class NotificationsController {
     private readonly notificationsService: NotificationsService,
     private readonly webPushService: WebPushService,
     private readonly whatsappService: WhatsAppService,
+    private readonly settingsService: NotificationSettingsService,
   ) {}
 
   // ─── In-App Notification Feed ─────────────────────────────────────────────
@@ -151,5 +154,26 @@ export class NotificationsController {
   })
   async relinkWhatsApp() {
     return this.whatsappService.resetSession();
+  }
+
+  // ─── Global System Notification Controls ──────────────────────────────────
+
+  @Get('settings')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Get global notification system switches (WhatsApp, Web Push, In-App)' })
+  @ApiResponse({ status: 200, description: 'Returns system-wide notification settings' })
+  async getSettings() {
+    return this.settingsService.getSettings();
+  }
+
+  @Patch('settings')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Update global notification system switches (WhatsApp Master, Push Master, Categories)' })
+  @ApiResponse({ status: 200, description: 'Returns updated system-wide notification settings' })
+  async updateSettings(
+    @Body() dto: Partial<NotificationSystemSettings>,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.settingsService.updateSettings(dto, user.fullName || user.email || 'Admin');
   }
 }

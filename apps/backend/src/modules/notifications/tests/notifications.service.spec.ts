@@ -3,7 +3,8 @@ import { NotificationsService } from '../services/notifications.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { WebPushService } from '../../../services/webpush.service';
 import { WhatsAppDispatcherService } from '../../whatsapp/services/whatsapp-dispatcher.service';
-import { AttendanceStatus } from '@prisma/client';
+import { NotificationSettingsService } from '../services/notification-settings.service';
+import { AttendanceStatus, NotificationChannel } from '@prisma/client';
 
 describe('NotificationsService', () => {
   let service: NotificationsService;
@@ -11,10 +12,25 @@ describe('NotificationsService', () => {
 
   const mockWebPushService = {
     sendPush: jest.fn(),
+    sendToUser: jest.fn().mockResolvedValue(1),
   };
 
   const mockWhatsAppDispatcher = {
     enqueueNotification: jest.fn(),
+  };
+
+  const mockNotificationSettings = {
+    getSettings: jest.fn().mockResolvedValue({
+      isWhatsAppEnabled: true,
+      isPushEnabled: true,
+      isInAppEnabled: true,
+      absenceAlertsEnabled: true,
+      paymentAlertsEnabled: true,
+      studentApprovalAlertsEnabled: true,
+      examAlertsEnabled: true,
+      teacherDailyScheduleEnabled: true,
+    }),
+    isChannelAllowed: jest.fn().mockResolvedValue(true),
   };
 
   const mockPrismaService = {
@@ -23,6 +39,7 @@ describe('NotificationsService', () => {
       findMany: jest.fn(),
       count: jest.fn(),
       updateMany: jest.fn(),
+      update: jest.fn(),
     },
     studentProfile: {
       findUnique: jest.fn(),
@@ -42,6 +59,7 @@ describe('NotificationsService', () => {
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: WebPushService, useValue: mockWebPushService },
         { provide: WhatsAppDispatcherService, useValue: mockWhatsAppDispatcher },
+        { provide: NotificationSettingsService, useValue: mockNotificationSettings },
       ],
     }).compile();
 
@@ -123,4 +141,37 @@ describe('NotificationsService', () => {
       expect(mockPrismaService.notification.create).toHaveBeenCalledTimes(2);
     });
   });
+
+  describe('global channel switches enforcement', () => {
+    it('should exclude WHATSAPP channel when WhatsApp master switch is disabled', async () => {
+      mockNotificationSettings.isChannelAllowed.mockImplementation(async (ch: NotificationChannel) => {
+        if (ch === NotificationChannel.WHATSAPP) return false;
+        return true;
+      });
+
+      mockPrismaService.notification.create.mockResolvedValue({
+        id: 'notif-2',
+        recipient: { fullName: 'طالب', role: 'STUDENT' },
+      });
+
+      await service.sendNotification({
+        recipientId: 'user-1',
+        notificationType: 'PAYMENT_RECEIVED_PARENT' as any,
+        type: 'PAYMENT_RECEIVED_PARENT',
+        title: 'سند قبض',
+        body: 'تم استلام الرسوم',
+        channels: [NotificationChannel.IN_APP, NotificationChannel.WHATSAPP],
+      });
+
+      expect(mockWhatsAppDispatcher.enqueueNotification).not.toHaveBeenCalled();
+      expect(mockPrismaService.notification.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            channels: [NotificationChannel.IN_APP],
+          }),
+        }),
+      );
+    });
+  });
 });
+

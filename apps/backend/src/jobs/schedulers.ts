@@ -263,27 +263,6 @@ export class SchedulersService implements OnModuleInit {
               startTime: timeStr,
             },
           });
-
-          // Notify parents via WhatsApp
-          for (const link of student.parentLinks) {
-            const parentUser = link.parent.user;
-            if (!parentUser.phone) continue;
-
-            await this.notifications.sendNotification({
-              recipientId: parentUser.id,
-              notificationType: NotificationType.SESSION_REMINDER_STUDENT,
-              type: 'SESSION_REMINDER_STUDENT',
-              title: '📅 تذكير: حصة دراسية للطالب',
-              body: `تذكير: لدى الطالب ${studentUser.fullName} حصة في مجموعة (${session.group.name}) الساعة ${timeStr} اليوم.`,
-              channels: [NotificationChannel.IN_APP, NotificationChannel.WHATSAPP],
-              referenceEntityId: session.id,
-              data: {
-                sessionId: session.id,
-                studentId: student.id,
-                phone: parentUser.phone,
-              },
-            });
-          }
         }
       }
     } catch (error) {
@@ -524,7 +503,6 @@ export class SchedulersService implements OnModuleInit {
           NotificationChannel.IN_APP,
           NotificationChannel.WEB_PUSH,
         ];
-        if (teacherUser.phone) channels.push(NotificationChannel.WHATSAPP);
 
         await this.notifications.sendNotification({
           recipientId: teacherUser.id,

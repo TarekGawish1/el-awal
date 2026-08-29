@@ -104,6 +104,7 @@ export const API_ENDPOINTS = {
     PUSH_SUBSCRIBE: '/notifications/push-subscribe',
     PUSH_UNSUBSCRIBE: '/notifications/push-unsubscribe',
     WHATSAPP_STATUS: '/notifications/whatsapp-status',
+    SETTINGS: '/notifications/settings',
   },
   SYNC: {
     BOOTSTRAP: '/sync/bootstrap',
