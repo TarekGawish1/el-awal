@@ -9,6 +9,7 @@ import {
   BookOpen,
   Video,
   DollarSign,
+  ClipboardList,
   Bell,
   ClipboardList,
 } from 'lucide-react';
