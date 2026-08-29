@@ -106,8 +106,8 @@ export function PendingReservationsSection() {
 
   return (
     <>
-      <Card className="shadow-sm border-amber-200 bg-gradient-to-br from-amber-50 to-white overflow-hidden relative">
-        <div className="absolute top-0 right-0 w-2 h-full bg-amber-500" />
+      <Card className="shadow-sm border-amber-200 bg-gradient-to-br from-amber-50 to-white relative">
+        <div className="absolute top-0 right-0 w-2 h-full bg-amber-500 rounded-r-lg" />
         <CardHeader className="pb-3 border-b border-amber-100/50">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -150,28 +150,21 @@ export function PendingReservationsSection() {
       <CardContent className="p-0">
         <div className="divide-y divide-amber-100">
           {filteredReservations.length > 0 ? filteredReservations.map((reservation) => (
-              <div key={reservation.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-amber-100/20 transition-colors">
-                <div className="flex items-start sm:items-center gap-4">
+              <div key={reservation.id} className="p-4 sm:p-5 flex flex-col xl:flex-row xl:items-center justify-between gap-4 hover:bg-amber-100/20 transition-colors">
+                <div className="flex items-start sm:items-center gap-4 flex-1">
                   <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
                     <User className="w-5 h-5 text-amber-600" />
                   </div>
-                  <div>
-                    <button 
-                      onClick={() => setSelectedStudentId(reservation.studentId || reservation.student?.id)} 
-                      className="font-bold text-neutral-900 hover:text-primary-600 transition-colors text-start"
-                    >
-                      {reservation.student?.user?.fullName || 'غير معروف'}
-                    </button>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-neutral-500 mt-1">
-                      <span className="flex items-center gap-1">
-                        <Phone className="w-3.5 h-3.5" />
-                        {reservation.student?.user?.phone || 'لا يوجد رقم'}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5" />
-                        {reservation.group?.name}
-                      </span>
-                      <div className="w-32">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
+                      <button 
+                        onClick={() => setSelectedStudentId(reservation.studentId || reservation.student?.id)} 
+                        className="font-bold text-lg text-neutral-900 hover:text-primary-600 transition-colors text-start whitespace-nowrap"
+                      >
+                        {reservation.student?.user?.fullName || 'غير معروف'}
+                      </button>
+                      
+                      <div className="w-full sm:w-80 shrink-0">
                         <Select
                           value={reservation.groupId}
                           onChange={(e) => {
@@ -187,6 +180,13 @@ export function PendingReservationsSection() {
                           }
                         />
                       </div>
+                    </div>
+                    
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-neutral-500 mt-3">
+                      <span className="flex items-center gap-1 font-mono">
+                        <Phone className="w-3.5 h-3.5" />
+                        {reservation.student?.user?.phone || 'لا يوجد رقم'}
+                      </span>
                       <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-700 border-none font-medium px-2 py-0 h-5">
                         {new Date(reservation.enrolledAt).toLocaleDateString('ar-EG')}
                       </Badge>
@@ -194,7 +194,16 @@ export function PendingReservationsSection() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 sm:shrink-0">
+                <div className="flex flex-wrap items-center gap-2 xl:shrink-0 mt-2 xl:mt-0">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-neutral-600 hover:text-primary-700 hover:bg-primary-50 border-neutral-200"
+                    onClick={() => setSelectedStudentId(reservation.studentId || reservation.student?.id)}
+                  >
+                    <Search className="w-4 h-4 me-1.5" />
+                    معاينة
+                  </Button>
                   <Button 
                     variant="outline" 
                     size="sm" 
