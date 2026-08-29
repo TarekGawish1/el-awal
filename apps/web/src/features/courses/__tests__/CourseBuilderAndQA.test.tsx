@@ -350,6 +350,7 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
       expect(validateContentProfanity('يا خول')).not.toBeNull();
       expect(validateContentProfanity('يا ابن الكلب')).not.toBeNull();
       expect(validateContentProfanity('يا معرص')).not.toBeNull();
+      expect(validateContentProfanity('انت راجل مش محترم')).not.toBeNull();
       expect(validateContentProfanity('سكس')).not.toBeNull();
     });
 

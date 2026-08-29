@@ -32,7 +32,7 @@ describe('AiModerationService', () => {
     jest.restoreAllMocks();
   });
 
-  it('should evaluate and block inappropriate content via AI Semantic inspection', async () => {
+  it('should evaluate and block subtle inappropriate content via AI Semantic inspection', async () => {
     const mockGeminiResponse = {
       candidates: [
         {
@@ -55,13 +55,27 @@ describe('AiModerationService', () => {
       json: async () => mockGeminiResponse,
     } as any);
 
-    const result = await service.evaluateContent('kooos amaak ya khawal');
+    const result = await service.evaluateContent('أسلوبك محبط للطلاب');
     expect(result.isValid).toBe(false);
     expect(result.flaggedBy).toBe('AI_SEMANTIC');
     expect(result.reason).toContain('ألفاظ نابية');
   });
 
-  it('should block profanities via local filter if AI is disabled or unavailable', async () => {
+  it('should block known profanities locally before an AI verdict can allow them', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ text: JSON.stringify({ isValid: true }) }] } }],
+      }),
+    } as any);
+
+    const directInsult = await service.evaluateContent('انت راجل مش محترم');
+    expect(directInsult.isValid).toBe(false);
+    expect(directInsult.flaggedBy).toBe('RULE_FILTER');
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('should block profanities via local filter if AI is unavailable', async () => {
     jest.spyOn(global, 'fetch').mockRejectedValue(new Error('AI Service Offline'));
 
     const result = await service.evaluateContent('احا ايه دا');
@@ -96,7 +110,7 @@ describe('AiModerationService', () => {
       json: async () => mockGeminiResponse,
     } as any);
 
-    const result = await service.evaluateContent('شرحك مش مفهوم خالص وانت فاشل');
+    const result = await service.evaluateContent('أسلوبك محبط للطلاب');
     expect(result.isValid).toBe(false);
     expect(result.flaggedBy).toBe('AI_SEMANTIC');
     expect(result.reason).toContain('إهانة وتنمر');
