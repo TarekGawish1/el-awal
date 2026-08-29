@@ -6,6 +6,11 @@ export interface NotificationSystemSettings {
   isWhatsAppEnabled: boolean;
   isPushEnabled: boolean;
   isInAppEnabled: boolean;
+  // Target Audience Master Switches
+  teacherNotificationsEnabled: boolean;
+  studentNotificationsEnabled: boolean;
+  parentNotificationsEnabled: boolean;
+  // Category Switches
   absenceAlertsEnabled: boolean;
   paymentAlertsEnabled: boolean;
   studentApprovalAlertsEnabled: boolean;
@@ -19,6 +24,9 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSystemSettings = {
   isWhatsAppEnabled: true,
   isPushEnabled: true,
   isInAppEnabled: true,
+  teacherNotificationsEnabled: true,
+  studentNotificationsEnabled: true,
+  parentNotificationsEnabled: true,
   absenceAlertsEnabled: true,
   paymentAlertsEnabled: true,
   studentApprovalAlertsEnabled: true,
@@ -167,4 +175,22 @@ export class NotificationSettingsService {
 
     return true;
   }
+
+  /**
+   * Checks whether notifications are globally enabled for a specific recipient role.
+   */
+  async isRecipientRoleAllowed(role?: string): Promise<boolean> {
+    const settings = await this.getSettings();
+    if (role === 'TEACHER' && !settings.teacherNotificationsEnabled) {
+      return false;
+    }
+    if (role === 'STUDENT' && !settings.studentNotificationsEnabled) {
+      return false;
+    }
+    if (role === 'PARENT' && !settings.parentNotificationsEnabled) {
+      return false;
+    }
+    return true;
+  }
 }
+

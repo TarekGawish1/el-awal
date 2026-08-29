@@ -29,8 +29,12 @@ describe('NotificationsService', () => {
       studentApprovalAlertsEnabled: true,
       examAlertsEnabled: true,
       teacherDailyScheduleEnabled: true,
+      teacherNotificationsEnabled: true,
+      studentNotificationsEnabled: true,
+      parentNotificationsEnabled: true,
     }),
     isChannelAllowed: jest.fn().mockResolvedValue(true),
+    isRecipientRoleAllowed: jest.fn().mockResolvedValue(true),
   };
 
   const mockPrismaService = {
@@ -49,6 +53,9 @@ describe('NotificationsService', () => {
     },
     parentStudentLink: {
       findMany: jest.fn(),
+    },
+    user: {
+      findUnique: jest.fn().mockResolvedValue({ id: 'user-1', fullName: 'مستخدم', role: 'PARENT' }),
     },
   };
 
