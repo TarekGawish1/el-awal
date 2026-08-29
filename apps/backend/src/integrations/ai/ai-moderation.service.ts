@@ -154,14 +154,14 @@ Text to analyze:
     const configuredModel =
       this.configService.get<string>('GEMINI_MODEL') ||
       process.env.GEMINI_MODEL ||
-      'gemini-2.0-flash';
+      'gemini-3.6-flash';
 
     const modelsToTry = [
       configuredModel,
+      'gemini-3.6-flash',
+      'gemini-3.5-flash',
       'gemini-2.0-flash',
       'gemini-1.5-flash',
-      'gemini-1.5-flash-8b',
-      'gemini-1.5-pro',
     ];
     const uniqueModels = Array.from(new Set(modelsToTry.filter(Boolean)));
 
@@ -178,6 +178,12 @@ Text to analyze:
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
+            safetySettings: [
+              { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+              { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+              { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+              { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+            ],
             generationConfig: {
               temperature: 0.1,
               responseMimeType: 'application/json',
@@ -193,6 +199,15 @@ Text to analyze:
         }
 
         const data = await response.json();
+
+        // Check if prompt was blocked by native safety filters
+        if (data?.promptFeedback?.blockReason || data?.candidates?.[0]?.finishReason === 'SAFETY') {
+          return {
+            isValid: false,
+            reason: 'تم حظر المحتوى تلقائياً بواسطة معايير الأمان لاحتوائه على ألفاظ مسيئة 🚫',
+          };
+        }
+
         const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!rawText) return { isValid: true };
 
