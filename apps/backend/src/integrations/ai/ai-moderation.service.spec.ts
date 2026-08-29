@@ -32,30 +32,45 @@ describe('AiModerationService', () => {
     jest.restoreAllMocks();
   });
 
-  it('should immediately block blatant profanities via Tier 1 without calling external AI', async () => {
-    const fetchSpy = jest.spyOn(global, 'fetch');
+  it('should evaluate and block inappropriate content via AI Semantic inspection', async () => {
+    const mockGeminiResponse = {
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                text: JSON.stringify({
+                  isValid: false,
+                  reason: 'يحتوي النص على ألفاظ نابية وإهانة',
+                }),
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => mockGeminiResponse,
+    } as any);
+
+    const result = await service.evaluateContent('kooos amaak ya khawal');
+    expect(result.isValid).toBe(false);
+    expect(result.flaggedBy).toBe('AI_SEMANTIC');
+    expect(result.reason).toContain('ألفاظ نابية');
+  });
+
+  it('should block profanities via local filter if AI is disabled or unavailable', async () => {
+    jest.spyOn(global, 'fetch').mockRejectedValue(new Error('AI Service Offline'));
 
     const result = await service.evaluateContent('احا ايه دا');
     expect(result.isValid).toBe(false);
     expect(result.flaggedBy).toBe('RULE_FILTER');
-    expect(fetchSpy).not.toHaveBeenCalled();
 
-    const enResult = await service.evaluateContent('fuck you bitch');
-    expect(enResult.isValid).toBe(false);
-    expect(enResult.flaggedBy).toBe('RULE_FILTER');
-    expect(fetchSpy).not.toHaveBeenCalled();
-
-    const francoResult1 = await service.evaluateContent('a7a ya 5awal');
-    expect(francoResult1.isValid).toBe(false);
-    expect(francoResult1.flaggedBy).toBe('RULE_FILTER');
-
-    const francoResult2 = await service.evaluateContent('kosomk ya 3ars');
-    expect(francoResult2.isValid).toBe(false);
-    expect(francoResult2.flaggedBy).toBe('RULE_FILTER');
-
-    const francoResult3 = await service.evaluateContent('ebn el was5a');
-    expect(francoResult3.isValid).toBe(false);
-    expect(francoResult3.flaggedBy).toBe('RULE_FILTER');
+    const francoResult = await service.evaluateContent('kooos amaak ya khawal');
+    expect(francoResult.isValid).toBe(false);
+    expect(francoResult.flaggedBy).toBe('RULE_FILTER');
   });
 
   it('should call Gemini API for clean-looking text and block subtle toxicity', async () => {

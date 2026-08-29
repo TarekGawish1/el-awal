@@ -61,35 +61,41 @@ const PROFANITY_PATTERNS: RegExp[] = [
 
   // ── Franco-Arabic (3rabizi / Chat Arabic) Insults & Profanities ──
   // أحا / احيه
-  /\b(a7a|a7aa|a7aaa|a7eeh|a7ee|a7eeha|a7eha)\b/i,
+  /\b(a7a|a7aa|a7aaa|a7eeh|a7ee|a7eeha|a7eha|ahaa|ahhaa|a77a)\b/i,
 
   // كسم ومشتقاتها
-  /\b(kosom|kosomk|kosmak|kosomak|kossom|kossomk|kossomak|kossmak|kos_omak|kos_omk|kos_om|koss|kossy|kossek|kossaha)\b/i,
-  /\b(ksm|ksmk|kssm|kssmk|kos_emk|kos_emak)\b/i,
+  /\b(k[o0uuee]+s+[o0aaei]*m+[a-z]*)\b/i,
+  /\b(ksm|ksmk|kssm|kssmk|ksemk|ksemak)\b/i,
+  /\b(k[o0uuee]+s+|k[o0uuee]+s+h?a|k[o0uuee]+s+y|k[o0uuee]+s+ek)\s*(el\s*)?(o+m+[a-z]*|a+m+[a-z]*|e+m+[a-z]*|a+b+[o0uuee]*k*|o+x+t+[a-z]*|o+k+h+t+[a-z]*|[5x]|kh|deen|rab|sharaf|meyet[a-z]*)/i,
+  /\b(k[o0uuee]+s+|k[o0uuee]+s+h?a)\b/i,
 
   // الشتائم والكلمات الجنسية بالفرانكو
-  /\b(sharmout|sharmouta|sharmota|sharmata|shraiet|sharmouti|sharmateen)\b/i,
-  /\b(5awal|5awalat|5awel|5ewal|5wal|5awala|5awalaty)\b/i,
-  /\b(manyook|manyoook|manayek|menayek|motnak|metnak|motnaak|metnakin|metnakeen|metnaka)\b/i,
-  /\b(3ars|3r9|3arsan|m3aras|m3rs|ta3rees|3arsa|3rs|m3araseen)\b/i,
-  /\b(teez|teezak|tezo|tezk|teezha|6eez|6eezak|6eezha)\b/i,
-  /\b(zob|zoby|zobak|zeb|zeby|zebak|zebe|zobo)\b/i,
-  /\b(qa7ba|ga7ba|2a7ba|ka7ba|qa7ab|ga7ab|2a7ab)\b/i,
-  /\b(neek|nayek|yeneek|aneek|teneek|teneka|5ra|5ara|5araa)\b/i,
+  /\b([5x]|kh)aw+a+l[a-z]*\b/i,
+  /\b([5x]|kh)o+l\b/i,
+  /\b(sh|ch)arm+o+u*t+[a-z]*\b/i,
+  /\b(m[aouie]*n[a-z]*y+[o0u]+k[a-z]*|m[aouie]*t*n[a-z]*a+k[a-z]*)\b/i,
+  /\b(3|a|aa)a*r+s+[a-z]*|m(3|a|aa)a*r+a*s+[a-z]*|ta(3|a)a*r+e+s+\b/i,
+  /\b(t[eio0]+z+[a-z]*|6[eio0]+z+[a-z]*|a+y+r+[eiy]*)\b/i,
+  /\b(z[o0ebiu]+b+[a-z]*)\b/i,
+  /\b(q|g|k|2|a)a*(7|h)b+[a-z]*\b/i,
+  /\b(n[eia]+y*e*k+|y+e*n[eia]+k+|a+n[eia]+k+|t+e*n[eia]+k+)\b/i,
+  /\b([5x]|kh)r+a+[a-z]*\b/i,
 
-  // سباب مركب بالفرانكو
-  /\b(ebn\s*(el\s*)?(kalb|was5a|wes5a|wesxa|was5ah|wes5ah|sharmouta|sharmota|ga7ba|qa7ba|7aram|metnaka))\b/i,
-  /\b(ya\s*(7ayawan|7mar|7omar|kalb|5awal|3ars|was5|wes5|nages|sharmout|sharmouta|manyook|metnak|ebn\s*el\s*(kalb|was5a|sharmouta)))\b/i,
-  /\b(yel3an\s*(deenak|rabak|abook|omak|meyeteenak|meyeteeenak|sharafak))\b/i,
-  /\b(deen\s*(omak|abook|rabak))\b/i,
-  /\b(toz\s*feek|taz\s*feek|tozz\s*feek)\b/i,
+  // سباب مركب ومنادى بالفرانكو
+  /\b(was5[a-z0-9]*|wes5[a-z0-9]*|wasx[a-z0-9]*|wesx[a-z0-9]*|waskh[a-z]*|weskh[a-z]*)\b/i,
+  /\b(ebn|ibn)\s*(el\s*)?(kalb|kelb|was5[a-z0-9]*|wes5[a-z0-9]*|waskh[a-z]*|weskh[a-z]*|sharmout[a-z]*|charmout[a-z]*|ga7b[a-z0-9]*|qa7b[a-z0-9]*|7aram|haram|metnak[a-z]*|mitnak[a-z]*|5awal[a-z0-9]*|khawal[a-z]*|3ars[a-z0-9]*|aars[a-z]*)\b/i,
+  /\b(ya)\s*(7|h|[5x]|kh|3|a|sh|ch|m|w|n|k|g|q|2|e)[a-z0-9]*\s*(khawal|5awal|3ars|aars|ars|manyook|metnak|was5[a-z0-9]*|wes5[a-z0-9]*|waskh|weskh|kalb|kelb|7mar|hmar|7omar|homar|7ayawan|hayawan|sharmout[a-z]*|charmout[a-z]*|ga7b[a-z0-9]*|gahb[a-z]*|qa7b[a-z0-9]*|qahb[a-z]*|nages|najes|ebn)\b/i,
+  /\b(ya)\s*(khawal[a-z0-9]*|5awal[a-z0-9]*|3ars[a-z0-9]*|aars[a-z]*|ars|manyook|metnak|was5[a-z0-9]*|wes5[a-z0-9]*|waskh|weskh|kalb|kelb|7mar|hmar|7omar|homar|7ayawan|hayawan|sharmout|sharmouta|charmouta|ga7ba|gahba|qa7ba|qahba|nages|najes)\b/i,
+  /\b(yel(3|a)a*n)\s*(deen[a-z]*|rab[a-z]*|ab[o0u]+k*|o+m+[a-z]*|a+m+[a-z]*|e+m+[a-z]*|meyet[a-z]*|sharaf[a-z]*|asl[a-z]*)\b/i,
+  /\b(d[eiy]+n)\s*(o+m+[a-z]*|a+m+[a-z]*|e+m+[a-z]*|ab[o0u]+k*|rab[a-z]*)\b/i,
+  /\b(t[o0a]+z+|t+f+[o0u]+)\s*(f[eiy]+k*|3al[eiy]+k*|al[eiy]+k*)\b/i,
 
   // ── Arabic Profanities & Egyptian Slang Insults ──
   // أحا / احيه ومشتقاتها
-  /(^|\s|\W)(احا|أحا|احيه|أحيه|احاا|احييي)($|\s|\W)/,
+  /(^|\s|\W)(احا|أحا|احيه|أحيه|احاا|احييي|احا+)($|\s|\W)/,
 
   // الشتائم الجنسية وألفاظ العورات
-  /(^|\s|\W)(كسم|كسمك|كسك|كسها|كسختك|كسمين|كس_امك|ك_س_م)($|\s|\W)/,
+  /(^|\s|\W)(كسم|كسمك|كسك|كسها|كسختك|كسمين|كس_امك|ك_س_م|كس\s*(امك|ام|ابوك|اختك|عرضك|دينك|ميتينك))($|\s|\W)/,
   /(^|\s|\W)(كس|طيز|طياز|طيزك|طيزها|زب|زبي|زبك|شرموط|شرموطه|شرمطه|شرايط|قحبه|قحب|قحاب)($|\s|\W)/,
   /(^|\s|\W)(خول|خوال|خولات|منيوك|منايك|منيكه|متناك|تناك|تنيكه|نيك|ينيك|انيك|منيوكه)($|\s|\W)/,
   /(^|\s|\W)(عرص|معرص|تعريص|عرصة|عرصه|متناكين|تناكه)($|\s|\W)/,
@@ -97,12 +103,12 @@ const PROFANITY_PATTERNS: RegExp[] = [
 
   // سب الدين واللعن
   /(يلعن\s*(دين|رب|ام|ابو|ميتين|روح|اهل|شرف))/,
-  /(دين\s*امك|دين\s*ابوك)/,
+  /(دين\s*(امك|ابوك|ربك|دينك))/,
 
   // الشتائم المركبة والسباب المباشر
-  /(ابن\s*(الكلب|كلب|الوسخه|وسخه|الوسخة|وسخة|الشراميط|الشرموطه|الشرموطة|القحبه|القحبة|الحرام|المتناكه|المتناكة))/,
-  /(يا\s*(وسخ|نجس|معرص|حيوان|حمار|كلب|شرموط|قحبه|خول|منيوك|ابن الكلب|ابن الوسخه|ابن الشرموطه))/,
-  /(عيل\s*(نجس|وسخ|شرموط|خول|معرص))/,
+  /(ابن\s*(الكلب|كلب|الوسخه|وسخه|الوسخة|وسخة|الشراميط|الشرموطه|الشرموطة|القحبه|القحبة|الحرام|المتناكه|المتناكة|الخول|العرص))/,
+  /(يا\s*(وسخ|نجس|معرص|حيوان|حمار|كلب|شرموط|قحبه|خول|منيوك|متناك|ابن الكلب|ابن الوسخه|ابن الشرموطه))/,
+  /(عيل\s*(نجس|وسخ|شرموط|خول|معرص|منيوك))/,
   /(طظ\s*فيك|طز\s*فيك|تفو\s*عليك)/,
 ];
 

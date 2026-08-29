@@ -41,7 +41,7 @@ export class AiModerationService {
   }
 
   /**
-   * Evaluates text through Tier 1 (local deterministic filter) and Tier 2 (AI Semantic Inspection).
+   * Evaluates text using intelligent AI Semantic inspection (with local fallback if AI is disabled).
    */
   async evaluateContent(text: string): Promise<AiModerationResult> {
     if (!text || typeof text !== 'string' || !text.trim()) {
@@ -50,16 +50,7 @@ export class AiModerationService {
 
     const trimmed = text.trim();
 
-    // ── Tier 1: Local Deterministic Rule-Based Normalization & Filter (0ms) ──
-    if (containsProfanity(trimmed)) {
-      return {
-        isValid: false,
-        reason: 'عذراً، يحتوي النص على كلمات أو عبارات غير لائقة تتعارض مع الآداب العامة للمنصة 🚫',
-        flaggedBy: 'RULE_FILTER',
-      };
-    }
-
-    // ── Tier 2: AI Semantic Verification (Contextual, Sarcasm & Bullying Detection) ──
+    // ── Tier 1: AI Semantic Intelligence Verification (Intent, Slang, Franco, Bullying) ──
     if (this.isAiEnabled) {
       try {
         const aiResult = await this.verifyWithAi(trimmed);
@@ -72,23 +63,28 @@ export class AiModerationService {
             flaggedBy: 'AI_SEMANTIC',
           };
         }
+        return { isValid: true, flaggedBy: 'CLEAN' };
       } catch (err: any) {
-        // Graceful degradation: If AI call fails/times out, log and do not block legitimate requests
-        this.logger.warn(`AI Moderation request failed or timed out (${err.message}). Falling back to local filter result.`);
+        this.logger.warn(`AI Moderation request failed (${err.message}). Falling back to local filter.`);
       }
+    }
+
+    // ── Tier 2: Local Rule Filter (Only as fallback when AI API is unavailable) ──
+    if (containsProfanity(trimmed)) {
+      return {
+        isValid: false,
+        reason: 'عذراً، يحتوي النص على كلمات أو عبارات غير لائقة تتعارض مع الآداب العامة للمنصة 🚫',
+        flaggedBy: 'RULE_FILTER',
+      };
     }
 
     return { isValid: true, flaggedBy: 'CLEAN' };
   }
 
   /**
-   * Asserts clean content or throws a user-facing BadRequestException in Arabic.
+   * Asserts valid content using AI semantic intelligence or throws a user-facing BadRequestException.
    */
   async assertValidContent(text: string): Promise<void> {
-    // Immediate sync check
-    assertCleanContent(text);
-
-    // AI Semantic check
     const result = await this.evaluateContent(text);
     if (!result.isValid) {
       throw new BadRequestException(result.reason);
@@ -109,24 +105,28 @@ export class AiModerationService {
   }
 
   /**
-   * Calls Google Gemini Flash for ultra-fast, intelligent Arabic & English moderation.
+   * Calls Google Gemini Flash for ultra-fast, intelligent multilingual moderation.
    */
   private async verifyWithGemini(text: string): Promise<{ isValid: boolean; reason?: string | null }> {
-    const model =
+    const configuredModel =
       this.configService.get<string>('GEMINI_MODEL') ||
       process.env.GEMINI_MODEL ||
       'gemini-3.5-flash-lite';
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.geminiApiKey}`;
+
+    const modelsToTry = [configuredModel, 'gemini-3.5-flash-lite', 'gemini-3.6-flash'];
+    // Deduplicate models
+    const uniqueModels = Array.from(new Set(modelsToTry.filter(Boolean)));
 
     const prompt = `You are an automated content moderation AI for an Egyptian & Arab educational learning platform ('El-Awal'). Your role is to determine whether a student or teacher comment/question is appropriate, respectful, and safe.
 
-You MUST recognize and block insults and toxic content across three languages/formats:
-1. Standard Arabic & Egyptian Slang (العامية المصرية والشتائم الدارجة).
-2. Franco-Arabic / Chat Arabic / 3rabizi (e.g. 'a7a', 'kosomk', '5awal', 'ya 3ars', 'ebn el was5a', 'sharmouta', 'manyook', 'teezak', 'zobak', 'ga7ba', 'yel3an deenak', etc. using numbers like 2, 3, 5, 7, 8, 9 as Arabic letters).
+You MUST recognize and block insults, vulgarities, and toxic content across three languages/formats:
+1. Standard Arabic & Egyptian Slang (العامية المصرية والشتائم الدارجة مثل: كسمك، احا، شرموطة، خول، عرص، منيوك، متناك، طيز، زب، يلعن دينك، ابن الكلب، ابن الوسخة).
+2. Franco-Arabic / Chat Arabic / 3rabizi (e.g. 'kooos amaak', 'kos omak', 'khawal', '5awal', 'a7a', 'ya 3ars', 'ebn el was5a', 'sharmouta', 'manyook', 'teezak', 'zobak', 'ga7ba', 'yel3an deenak', etc. using numbers like 2, 3, 5, 7, 8, 9 or letters like kh, 5, 3, 7).
 3. English profanities, insults, slang, and abbreviations (e.g. 'fuck', 'bitch', 'shit', 'asshole', 'dick', 'cunt', 'stfu', 'motherfucker', 'kys', 'retard', etc.).
 
 Criteria to BLOCK (isValid: false):
 - Curse words, vulgarities, sexual innuendos or anatomy insults in Arabic, Franco, or English.
+- Direct or indirect insults towards students, teachers, or parents (e.g. "kooos amaak", "ya khawal", "ya 3ars", "ebn el wes5a").
 - Bullying, mocking, belittling, toxicity, or passive-aggressive insults aimed at teachers, staff, or other students (e.g. "شرحك فاشل", "انت مبتفهمش حاجة", "you are stupid", "mesh fahem 7aga mnk ya fashal").
 - Harassment, hate speech, religious insults, or blasphemy.
 
@@ -137,48 +137,60 @@ Criteria to ALLOW (isValid: true):
 
 Analyze the following text and respond ONLY with a raw JSON object (no markdown formatting, no backticks):
 {"isValid": boolean, "reason": string | null}
-If invalid, provide reason in concise Arabic (e.g. "يحتوي النص على إهانة أو ألفاظ غير لائقة بالفرانكو/الإنجليزية").
+If invalid, provide reason in concise Arabic (e.g. "يحتوي النص على إهانة أو ألفاظ غير لائقة بالفرانكو/العربية").
 
 Text to analyze:
 "${text.replace(/"/g, '\\"')}"`;
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2500); // 2.5s timeout guard
+    let lastError: any = null;
 
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.1,
-            responseMimeType: 'application/json',
-          },
-        }),
-        signal: controller.signal,
-      });
+    for (const model of uniqueModels) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.geminiApiKey}`;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3500); // 3.5s timeout guard
 
-      clearTimeout(timeout);
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.1,
+              responseMimeType: 'application/json',
+            },
+          }),
+          signal: controller.signal,
+        });
 
-      if (!response.ok) {
-        throw new Error(`Gemini API HTTP ${response.status}: ${response.statusText}`);
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+          throw new Error(`Gemini API [${model}] HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!rawText) return { isValid: true };
+
+        const cleanJson = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleanJson);
+        return {
+          isValid: Boolean(parsed.isValid),
+          reason: parsed.reason || null,
+        };
+      } catch (err: any) {
+        clearTimeout(timeout);
+        lastError = err;
+        // If it's a 404 (model not found), try the next fallback model
+        if (err.message && err.message.includes('HTTP 404')) {
+          continue;
+        }
+        break;
       }
-
-      const data = await response.json();
-      const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!rawText) return { isValid: true };
-
-      const cleanJson = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
-      const parsed = JSON.parse(cleanJson);
-      return {
-        isValid: Boolean(parsed.isValid),
-        reason: parsed.reason || null,
-      };
-    } catch (err: any) {
-      clearTimeout(timeout);
-      throw err;
     }
+
+    throw lastError || new Error('Gemini verification failed');
   }
 
   /**
