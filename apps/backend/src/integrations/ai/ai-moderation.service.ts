@@ -95,45 +95,23 @@ export class AiModerationService {
    * Calls Google Gemini or OpenAI API to inspect context, nuance, and intent.
    */
   private async verifyWithAi(text: string): Promise<{ isValid: boolean; reason?: string | null }> {
-    if (this.geminiApiKey) {
-      return this.verifyWithGemini(text);
-    }
-    if (this.openaiApiKey) {
-      return this.verifyWithOpenAi(text);
-    }
-    return { isValid: true };
-  }
+    const prompt = `You are an automated content moderation AI for an Egyptian & Arab educational learning platform ('El-Awal'). Your role is to determine whether a student or teacher comment/question/reply is appropriate, respectful, and safe.
 
-  /**
-   * Calls Google Gemini Flash for ultra-fast, intelligent multilingual moderation.
-   */
-  private async verifyWithGemini(text: string): Promise<{ isValid: boolean; reason?: string | null }> {
-    const configuredModel =
-      this.configService.get<string>('GEMINI_MODEL') ||
-      process.env.GEMINI_MODEL ||
-      'gemini-3.5-flash-lite';
-
-    const modelsToTry = [configuredModel, 'gemini-3.5-flash-lite', 'gemini-3.6-flash'];
-    // Deduplicate models
-    const uniqueModels = Array.from(new Set(modelsToTry.filter(Boolean)));
-
-    const prompt = `You are an automated content moderation AI for an Egyptian & Arab educational learning platform ('El-Awal'). Your role is to determine whether a student or teacher comment/question is appropriate, respectful, and safe.
-
-You MUST recognize and block insults, vulgarities, and toxic content across three languages/formats:
-1. Standard Arabic & Egyptian Slang (العامية المصرية والشتائم الدارجة مثل: كسمك، احا، شرموطة، خول، عرص، منيوك، متناك، طيز، زب، يلعن دينك، ابن الكلب، ابن الوسخة).
-2. Franco-Arabic / Chat Arabic / 3rabizi (e.g. 'kooos amaak', 'kos omak', 'khawal', '5awal', 'a7a', 'ya 3ars', 'ebn el was5a', 'sharmouta', 'manyook', 'teezak', 'zobak', 'ga7ba', 'yel3an deenak', etc. using numbers like 2, 3, 5, 7, 8, 9 or letters like kh, 5, 3, 7).
-3. English profanities, insults, slang, and abbreviations (e.g. 'fuck', 'bitch', 'shit', 'asshole', 'dick', 'cunt', 'stfu', 'motherfucker', 'kys', 'retard', etc.).
+You MUST recognize and block insults, vulgarities, bullying, and toxic content across three languages/formats:
+1. Standard Arabic & Egyptian Slang (العامية المصرية والشتائم والإهانات مثل: غبي، انت غبي، يا غبي، حمار، يا حمار، حيوان، كلب، اهبل، متخلف، فاشل، حقير، تافه، سافل، واطي، قذر، نجس، وسخ، كسمك، احا، شرموطة، خول، عرص، منيوك، متناك، طيز، زب، يلعن دينك، ابن الكلب، ابن الوسخة).
+2. Franco-Arabic / Chat Arabic / 3rabizi (e.g. 'ghabi', 'ya ghabi', 'enta ghabi', '7mar', 'ya 7mar', 'hayawan', 'kalb', 'ahbal', 'motakhalef', 'fashal', 'fashel', 'was5', 'wes5', 'najes', 'safel', 'tafeh', 'kooos amaak', 'kos omak', 'khawal', '5awal', 'a7a', 'ya 3ars', 'ebn el was5a', 'sharmouta', 'manyook', 'teezak', 'zobak', 'ga7ba', 'yel3an deenak').
+3. English profanities, insults, slang, and abbreviations (e.g. 'you are stupid', 'stupid', 'idiot', 'moron', 'dumb', 'loser', 'fuck', 'bitch', 'shit', 'asshole', 'dick', 'cunt', 'stfu', 'motherfucker', 'kys', 'retard').
 
 Criteria to BLOCK (isValid: false):
+- Direct insults, name-calling, or slurs towards teachers, students, or parents (e.g. "انت غبي", "يا حمار", "انت متخلف", "شرحك زبالة", "you are stupid", "enta ghabi").
 - Curse words, vulgarities, sexual innuendos or anatomy insults in Arabic, Franco, or English.
-- Direct or indirect insults towards students, teachers, or parents (e.g. "kooos amaak", "ya khawal", "ya 3ars", "ebn el wes5a").
-- Bullying, mocking, belittling, toxicity, or passive-aggressive insults aimed at teachers, staff, or other students (e.g. "شرحك فاشل", "انت مبتفهمش حاجة", "you are stupid", "mesh fahem 7aga mnk ya fashal").
+- Bullying, mocking, belittling, toxicity, or passive-aggressive insults aimed at teachers, staff, or other students (e.g. "شرحك فاشل", "انت مبتفهمش حاجة", "mesh fahem 7aga mnk ya fashal").
 - Harassment, hate speech, religious insults, or blasphemy.
 
 Criteria to ALLOW (isValid: true):
 - Legitimate educational questions or doubts about physics, math, Arabic grammar, biology, etc.
-- Polite feedback or requests for further explanation.
-- Polite greetings and gratitude (e.g. شكراً يا مستر, thank you, salam alaykom, shokran).
+- Polite feedback or requests for further explanation (e.g. "مش فاهم الجزئية دي ممكن توضيح؟", "could you please explain step 2?").
+- Polite greetings and gratitude (e.g. "شكراً يا مستر", "جزاك الله خيراً", "thank you", "salam alaykom", "shokran").
 
 Analyze the following text and respond ONLY with a raw JSON object (no markdown formatting, no backticks):
 {"isValid": boolean, "reason": string | null}
@@ -142,12 +120,57 @@ If invalid, provide reason in concise Arabic (e.g. "يحتوي النص على �
 Text to analyze:
 "${text.replace(/"/g, '\\"')}"`;
 
+    let lastAiError: any = null;
+
+    if (this.geminiApiKey) {
+      try {
+        return await this.verifyWithGemini(text, prompt);
+      } catch (err: any) {
+        lastAiError = err;
+        this.logger.warn(`Gemini verification failed (${err.message}). Trying OpenAI if available.`);
+      }
+    }
+
+    if (this.openaiApiKey) {
+      try {
+        return await this.verifyWithOpenAi(text, prompt);
+      } catch (err: any) {
+        lastAiError = err;
+        this.logger.warn(`OpenAI verification failed (${err.message}).`);
+      }
+    }
+
+    if (lastAiError) {
+      throw lastAiError;
+    }
+
+    return { isValid: true };
+  }
+
+  /**
+   * Calls Google Gemini for ultra-fast, intelligent multilingual moderation.
+   */
+  private async verifyWithGemini(text: string, prompt: string): Promise<{ isValid: boolean; reason?: string | null }> {
+    const configuredModel =
+      this.configService.get<string>('GEMINI_MODEL') ||
+      process.env.GEMINI_MODEL ||
+      'gemini-2.0-flash';
+
+    const modelsToTry = [
+      configuredModel,
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+      'gemini-1.5-flash-8b',
+      'gemini-1.5-pro',
+    ];
+    const uniqueModels = Array.from(new Set(modelsToTry.filter(Boolean)));
+
     let lastError: any = null;
 
     for (const model of uniqueModels) {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.geminiApiKey}`;
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 3500); // 3.5s timeout guard
+      const timeout = setTimeout(() => controller.abort(), 4500);
 
       try {
         const response = await fetch(endpoint, {
@@ -182,8 +205,7 @@ Text to analyze:
       } catch (err: any) {
         clearTimeout(timeout);
         lastError = err;
-        // If it's a 404 (model not found), try the next fallback model
-        if (err.message && err.message.includes('HTTP 404')) {
+        if (err.message && (err.message.includes('HTTP 404') || err.message.includes('HTTP 429') || err.message.includes('HTTP 503'))) {
           continue;
         }
         break;
@@ -194,12 +216,12 @@ Text to analyze:
   }
 
   /**
-   * Calls OpenAI Moderation API or Chat Completion.
+   * Calls OpenAI Chat Completion for intelligent fallback moderation.
    */
-  private async verifyWithOpenAi(text: string): Promise<{ isValid: boolean; reason?: string | null }> {
-    const endpoint = 'https://api.openai.com/v1/moderations';
+  private async verifyWithOpenAi(text: string, prompt: string): Promise<{ isValid: boolean; reason?: string | null }> {
+    const endpoint = 'https://api.openai.com/v1/chat/completions';
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2500);
+    const timeout = setTimeout(() => controller.abort(), 4500);
 
     try {
       const response = await fetch(endpoint, {
@@ -208,7 +230,12 @@ Text to analyze:
           'Content-Type': 'application/json',
           Authorization: `Bearer ${this.openaiApiKey}`,
         },
-        body: JSON.stringify({ input: text }),
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user', content: prompt }],
+          response_format: { type: 'json_object' },
+          temperature: 0.1,
+        }),
         signal: controller.signal,
       });
 
@@ -219,14 +246,14 @@ Text to analyze:
       }
 
       const data = await response.json();
-      const isFlagged = data?.results?.[0]?.flagged;
-      if (isFlagged) {
-        return {
-          isValid: false,
-          reason: 'عذراً، تم حظر المحتوى بواسطة نظام الذكاء الاصطناعي لاحتوائه على عبارات غير لائقة 🚫',
-        };
-      }
-      return { isValid: true };
+      const rawText = data?.choices?.[0]?.message?.content;
+      if (!rawText) return { isValid: true };
+
+      const parsed = JSON.parse(rawText.trim());
+      return {
+        isValid: Boolean(parsed.isValid),
+        reason: parsed.reason || null,
+      };
     } catch (err: any) {
       clearTimeout(timeout);
       throw err;

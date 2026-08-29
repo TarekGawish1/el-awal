@@ -58,6 +58,7 @@ const PROFANITY_PATTERNS: RegExp[] = [
   /\b(pussy|pussies|p\*ssy|p!ssy)\b/i,
   /\b(bastard|bastards|slut|sluts|whore|whores|wh0re|skank|hoe)\b/i,
   /\b(nigger|nigga|n1gger|n!gga|fag|faggot|retard|retarded|kys)\b/i,
+  /\b(you\s*are\s*stupid|u\s*r\s*stupid|ur\s*stupid|stupid|idiot|moron|dumbass|loser)\b/i,
 
   // ── Franco-Arabic (3rabizi / Chat Arabic) Insults & Profanities ──
   // أحا / احيه
@@ -81,6 +82,22 @@ const PROFANITY_PATTERNS: RegExp[] = [
   /\b(n[eia]+y*e*k+|y+e*n[eia]+k+|a+n[eia]+k+|t+e*n[eia]+k+)\b/i,
   /\b([5x]|kh)r+a+[a-z]*\b/i,
 
+  // إهانات وتنمر بالفرانكو
+  /\b(ghabi|ghaby|ghabey?a|a3?ghbiya|ya\s*ghabi|enta\s*ghabi|enti\s*ghabeya)\b/i,
+  /\b(7mar|7marah|7omeer|hmar|hmara|homar|ya\s*7mar|enta\s*7mar)\b/i,
+  /\b(hayawan|7ayawan|hayawana|ya\s*hayawan|enta\s*hayawan)\b/i,
+  /\b(kalb|kelb|kelba|ya\s*kalb|enta\s*kalb)\b/i,
+  /\b(ahbal|ehbal|habal|habla|ya\s*ahbal|enta\s*ahbal)\b/i,
+  /\b(motakhalef|motakhallif|met5alef|metkhalef|ya\s*motakhalef|enta\s*motakhalef)\b/i,
+  /\b(fashal|fashel|fashla|fashleen|ya\s*fashel|enta\s*fashel)\b/i,
+  /\b(safel|safeel|safla|ya\s*safel|enta\s*safel)\b/i,
+  /\b(7a2eer|haqeer|haqira|ya\s*haqeer|enta\s*haqeer)\b/i,
+  /\b(waty|watee|watya|ya\s*waty|enta\s*waty)\b/i,
+  /\b(tafeh|tafha|ya\s*tafeh|enta\s*tafeh)\b/i,
+  /\b(qazer|2azer|2azara|ya\s*qazer|enta\s*qazer)\b/i,
+  /\b(zebala|zbala|ya\s*zebala|enta\s*zebala)\b/i,
+  /\b(2leel\s*el\s*adab|adeem\s*el\s*adab|mesh\s*metraby)\b/i,
+
   // سباب مركب ومنادى بالفرانكو
   /\b(was5[a-z0-9]*|wes5[a-z0-9]*|wasx[a-z0-9]*|wesx[a-z0-9]*|waskh[a-z]*|weskh[a-z]*)\b/i,
   /\b(ebn|ibn)\s*(el\s*)?(kalb|kelb|was5[a-z0-9]*|wes5[a-z0-9]*|waskh[a-z]*|weskh[a-z]*|sharmout[a-z]*|charmout[a-z]*|ga7b[a-z0-9]*|qa7b[a-z0-9]*|7aram|haram|metnak[a-z]*|mitnak[a-z]*|5awal[a-z0-9]*|khawal[a-z]*|3ars[a-z0-9]*|aars[a-z]*)\b/i,
@@ -91,6 +108,25 @@ const PROFANITY_PATTERNS: RegExp[] = [
   /\b(t[o0a]+z+|t+f+[o0u]+)\s*(f[eiy]+k*|3al[eiy]+k*|al[eiy]+k*)\b/i,
 
   // ── Arabic Profanities & Egyptian Slang Insults ──
+  // إهانات شخصية وتنمر وسباب صريح
+  /(^|\s|\W)(غبي|غبيه|غبية|اغبياء|أغبياء|غباء|ياغبي|ياغبيه|ياغبية|يااغبياء|انت\s*غبي|انتي\s*غبيه|انتي\s*غبية|انتو\s*اغبياء|انتم\s*اغبياء)($|\s|\W)/,
+  /(^|\s|\W)(حمار|حماره|حمارة|حمير|ياحمار|ياحماره|ياحمير|انت\s*حمار|انتي\s*حماره)($|\s|\W)/,
+  /(^|\s|\W)(حيوان|حيوانه|حيوانة|حيوانات|ياحيوان|ياحيوانه|انت\s*حيوان)($|\s|\W)/,
+  /(^|\s|\W)(كلب|كلبه|كلبة|كلاب|ياكلب|ياكلبه|انت\s*كلب)($|\s|\W)/,
+  /(^|\s|\W)(اهبل|أهبل|هبله|هبلة|هبل|ياهبل|ياهبله|يااهبل|انت\s*اهبل)($|\s|\W)/,
+  /(^|\s|\W)(متخلف|متخلفه|متخلفة|متخلفين|تخلف|يامتخلف|انت\s*متخلف)($|\s|\W)/,
+  /(^|\s|\W)(فاشل|فاشله|فاشلة|فاشلين|يافاشل|انت\s*فاشل|شرحك\s*فاشل|شرحك\s*زباله|شرحك\s*زبالة|شرحك\s*خرا)($|\s|\W)/,
+  /(^|\s|\W)(حقير|حقيره|حقيرة|حقراء|ياحقير|انت\s*حقير)($|\s|\W)/,
+  /(^|\s|\W)(سافل|سافله|سافلة|سفاله|سفالة|ياسافل|انت\s*سافل)($|\s|\W)/,
+  /(^|\s|\W)(واطي|واطيه|واطية|ياواطي|انت\s*واطي)($|\s|\W)/,
+  /(^|\s|\W)(تافه|تافهه|تافهة|تفاهه|تفاهة|ياتافه|انت\s*تافه)($|\s|\W)/,
+  /(^|\s|\W)(قذر|قذره|قذرة|قذاره|قذارة|ياقذر|انت\s*قذر)($|\s|\W)/,
+  /(^|\s|\W)(وسخ|وسخه|وسخة|اوساخ|أوساخ|ياوسخ|ياوسخه|انت\s*وسخ)($|\s|\W)/,
+  /(^|\s|\W)(نجس|نجسه|نجسة|انجاس|أنجاس|يانجس|انت\s*نجس)($|\s|\W)/,
+  /(^|\s|\W)(زباله|زبالة|يازباله|يازبالة|انت\s*زباله)($|\s|\W)/,
+  /(^|\s|\W)(صايع|صايعه|صايعة|ياصايع|انت\s*صايع)($|\s|\W)/,
+  /(قليل\s*(الادب|الأدب)|قليلة\s*(الادب|الأدب)|عديم\s*(الادب|الأدب|التربية|التربيه)|مش\s*(متربي|متربيه|متربية))/,
+
   // أحا / احيه ومشتقاتها
   /(^|\s|\W)(احا|أحا|احيه|أحيه|احاا|احييي|احا+)($|\s|\W)/,
 
