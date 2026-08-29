@@ -829,7 +829,7 @@ function AboutUsSection() {
   }, []);
 
   return (
-    <section className="py-12 sm:py-24 relative overflow-hidden flex items-center justify-center min-h-[60vh] sm:min-h-[80vh]" id="about" dir="rtl">
+    <section className="py-16 sm:py-24 relative overflow-hidden flex items-center justify-center min-h-[85vh] sm:min-h-[80vh]" id="about" dir="rtl">
       {/* Background Slideshow */}
       <div className="absolute inset-0 z-0 bg-slate-900">
         <AnimatePresence mode="popLayout">
@@ -845,7 +845,7 @@ function AboutUsSection() {
           />
         </AnimatePresence>
         {/* Dark overlay for readability */}
-        <div className="absolute inset-0 bg-slate-900/70" />
+        <div className="absolute inset-0 bg-slate-900/50" />
       </div>
 
       {/* Content */}
