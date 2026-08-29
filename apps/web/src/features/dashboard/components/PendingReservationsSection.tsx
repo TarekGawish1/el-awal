@@ -18,6 +18,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/DropdownMenu';
 
+interface AdvancedCameraConstraints extends MediaTrackConstraintSet {
+  focusMode?: string;
+  exposureMode?: string;
+  whiteBalanceMode?: string;
+}
+
 export function PendingReservationsSection() {
   const { data: reservations, isLoading } = usePendingReservations();
   const acceptMutation = useAcceptReservation();
@@ -27,6 +33,14 @@ export function PendingReservationsSection() {
   
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [acceptModalData, setAcceptModalData] = useState<{ id: string; studentName: string } | null>(null);
+
+  const lastScanRef = React.useRef<{ token: string; timestamp: number } | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      lastScanRef.current = null;
+    };
+  }, []);
 
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -63,6 +77,24 @@ export function PendingReservationsSection() {
   }
 
   const handleScan = (text: string) => {
+    if (!text) return;
+    
+    const now = Date.now();
+    const lastScan = lastScanRef.current;
+
+    if (lastScan && lastScan.token === text) {
+      const timeDiff = now - lastScan.timestamp;
+      if (timeDiff <= 1000) {
+        lastScanRef.current = null;
+      } else {
+        lastScanRef.current = { token: text, timestamp: now };
+        return;
+      }
+    } else {
+      lastScanRef.current = { token: text, timestamp: now };
+      return;
+    }
+
     // text is likely qr_tok_... or student code
     setIsScannerOpen(false);
     const reservation = reservations.find(r => 
@@ -247,9 +279,8 @@ export function PendingReservationsSection() {
                     }
                   }}
                   onError={(error) => console.error(error?.message)}
-                  scanDelay={150}
+                  scanDelay={250}
                   components={{
-                    audio: false,
                     torch: true,
                     zoom: false,
                     finder: true,
@@ -262,8 +293,8 @@ export function PendingReservationsSection() {
                       { focusMode: 'continuous' },
                       { exposureMode: 'continuous' },
                       { whiteBalanceMode: 'continuous' },
-                    ]
-                  } as any}
+                    ] as AdvancedCameraConstraints[]
+                  }}
                 />
               </div>
               <p className="mt-4 text-center text-sm text-neutral-500">

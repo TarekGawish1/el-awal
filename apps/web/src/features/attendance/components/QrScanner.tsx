@@ -10,6 +10,12 @@ import { parseStudentQr } from '@/lib/qr/qr-parser';
 import { initQrDetector } from '@/lib/qr/qr-detector-init';
 import toast from 'react-hot-toast';
 
+interface AdvancedCameraConstraints extends MediaTrackConstraintSet {
+  focusMode?: string;
+  exposureMode?: string;
+  whiteBalanceMode?: string;
+}
+
 interface QrScannerProps {
   sessionId: string;
 }
@@ -128,7 +134,13 @@ export function QrScanner({ sessionId }: QrScannerProps) {
     }
   };
 
-  const [consecutiveScans, setConsecutiveScans] = useState<{ token: string; count: number } | null>(null);
+  const lastScanRef = React.useRef<{ token: string; timestamp: number } | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      lastScanRef.current = null;
+    };
+  }, []);
 
   const handleScan = (detectedCodes: any[]) => {
     if (locked || isPending || crossGroupPrompt || !detectedCodes || detectedCodes.length === 0) {
@@ -138,18 +150,21 @@ export function QrScanner({ sessionId }: QrScannerProps) {
     const token = detectedCodes[0]?.rawValue;
     if (!token) return;
 
-    // Confirm detection over 2 consecutive frames for reliability (debounce)
-    if (consecutiveScans?.token === token) {
-      if (consecutiveScans.count < 1) {
-        setConsecutiveScans({ token, count: consecutiveScans.count + 1 });
+    const now = Date.now();
+    const lastScan = lastScanRef.current;
+
+    if (lastScan && lastScan.token === token) {
+      const timeDiff = now - lastScan.timestamp;
+      if (timeDiff <= 1000) {
+        lastScanRef.current = null;
+      } else {
+        lastScanRef.current = { token, timestamp: now };
         return;
       }
     } else {
-      setConsecutiveScans({ token, count: 1 });
+      lastScanRef.current = { token, timestamp: now };
       return;
     }
-
-    setConsecutiveScans(null);
 
     // Strict client-side format and schema verification
     const parsed = parseStudentQr(token);
@@ -228,7 +243,6 @@ export function QrScanner({ sessionId }: QrScannerProps) {
           setTimeout(() => {
             setLocked(false);
             setFlashType(null);
-            setConsecutiveScans(null);
           }, 2500);
         },
         onError: (error: any) => {
@@ -256,7 +270,6 @@ export function QrScanner({ sessionId }: QrScannerProps) {
           setTimeout(() => {
             setLocked(false);
             setFlashType(null);
-            setConsecutiveScans(null);
           }, 1500);
         },
       },
@@ -305,7 +318,6 @@ export function QrScanner({ sessionId }: QrScannerProps) {
     setLocked(false);
     setFlashType(null);
     setLastScanResult(null);
-    setConsecutiveScans(null);
   };
 
   const handleError = (error: any) => {
@@ -351,11 +363,10 @@ export function QrScanner({ sessionId }: QrScannerProps) {
           onScan={handleScan}
           onError={handleError}
           paused={locked || isPending || !!crossGroupPrompt}
-          scanDelay={150}
+          scanDelay={250}
           startTimeoutMs={30000}
           formats={['qr_code']}
           components={{
-            audio: false,
             torch: true,
             zoom: false,
             finder: true,
@@ -368,8 +379,8 @@ export function QrScanner({ sessionId }: QrScannerProps) {
               { focusMode: 'continuous' },
               { exposureMode: 'continuous' },
               { whiteBalanceMode: 'continuous' },
-            ]
-          } as any}
+            ] as AdvancedCameraConstraints[]
+          }}
           styles={{
             container: { width: '100%', height: '100%', position: 'relative' },
             video: {

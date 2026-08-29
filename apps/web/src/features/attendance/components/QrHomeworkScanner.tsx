@@ -24,6 +24,12 @@ import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
 import { initQrDetector } from '@/lib/qr/qr-detector-init';
 
+interface AdvancedCameraConstraints extends MediaTrackConstraintSet {
+  focusMode?: string;
+  exposureMode?: string;
+  whiteBalanceMode?: string;
+}
+
 interface QrHomeworkScannerProps {
   sessionId: string;
   groupId?: string;
@@ -166,10 +172,34 @@ export function QrHomeworkScanner({
     [soundEnabled],
   );
 
+  const lastScanRef = React.useRef<{ token: string; timestamp: number } | null>(null);
+
+  useEffect(() => {
+    return () => {
+      lastScanRef.current = null;
+    };
+  }, []);
+
   const handleScan = async (detectedCodes: any[]) => {
     if (locked || scannedStudent) return;
     const rawValue = detectedCodes?.[0]?.rawValue;
     if (!rawValue || typeof rawValue !== 'string') return;
+
+    const now = Date.now();
+    const lastScan = lastScanRef.current;
+
+    if (lastScan && lastScan.token === rawValue) {
+      const timeDiff = now - lastScan.timestamp;
+      if (timeDiff <= 1000) {
+        lastScanRef.current = null;
+      } else {
+        lastScanRef.current = { token: rawValue, timestamp: now };
+        return;
+      }
+    } else {
+      lastScanRef.current = { token: rawValue, timestamp: now };
+      return;
+    }
 
     setLocked(true);
 
@@ -377,11 +407,10 @@ export function QrHomeworkScanner({
                 }
               }}
               paused={locked || !!scannedStudent}
-              scanDelay={150}
+              scanDelay={250}
               startTimeoutMs={30000}
               formats={['qr_code']}
               components={{
-                audio: false,
                 torch: true,
                 zoom: false,
                 finder: true,
@@ -394,8 +423,8 @@ export function QrHomeworkScanner({
                   { focusMode: 'continuous' },
                   { exposureMode: 'continuous' },
                   { whiteBalanceMode: 'continuous' },
-                ]
-              } as any}
+                ] as AdvancedCameraConstraints[]
+              }}
               styles={{
                 container: { width: '100%', height: '100%', position: 'relative' },
                 video: {
