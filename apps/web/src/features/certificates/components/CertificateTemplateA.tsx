@@ -81,11 +81,11 @@ export const CertificateTemplateA = forwardRef<HTMLDivElement, Props>(({ data },
         <circle cx="185" cy="60" r="2" fill="currentColor" />
       </svg>
 
-      <div className="relative w-full h-full flex flex-col items-center pt-16 px-16 z-30">
+      <div className="relative w-full h-full flex flex-col items-center pt-10 px-16 z-30">
         
         {/* Top Emblem */}
-        <div className="mb-6 flex flex-col items-center">
-          <svg className="w-24 h-24 text-[#C5A059]" viewBox="0 0 100 100" fill="none">
+        <div className="mb-4 flex flex-col items-center">
+          <svg className="w-20 h-20 text-[#C5A059]" viewBox="0 0 100 100" fill="none">
             {/* Wreath */}
             <path d="M20,50 C20,20 40,10 50,10 C60,10 80,20 80,50 C80,80 60,90 50,90 C40,90 20,80 20,50 Z" stroke="currentColor" strokeWidth="2" strokeDasharray="4 2"/>
             {/* Cap */}
@@ -104,13 +104,13 @@ export const CertificateTemplateA = forwardRef<HTMLDivElement, Props>(({ data },
         </div>
 
         {/* Title */}
-        <div className="text-center mb-6 w-full flex flex-col items-center">
-          <div className="flex items-center justify-center gap-6 mb-4">
+        <div className="text-center mb-5 w-full flex flex-col items-center">
+          <div className="flex items-center justify-center gap-6 mb-2">
             {/* Left Ornament */}
             <svg className="w-16 h-6 text-[#C5A059]" viewBox="0 0 50 20" fill="currentColor">
               <path d="M0,10 C15,10 20,0 25,0 C30,0 35,10 50,10 C35,10 30,20 25,20 C20,20 15,10 0,10 Z" />
             </svg>
-            <h1 className="text-[3.2rem] font-bold text-[#0A192F]" style={{ fontFamily: "'Amiri', serif" }}>
+            <h1 className="text-[3rem] font-bold text-[#0A192F]" style={{ fontFamily: "'Amiri', serif" }}>
               شهادة تقدير وتفوق دراسي
             </h1>
             {/* Right Ornament */}
@@ -129,13 +129,13 @@ export const CertificateTemplateA = forwardRef<HTMLDivElement, Props>(({ data },
         </div>
 
         {/* Presenter Statement */}
-        <p className="text-[1.5rem] text-[#334155] mb-6 font-medium">
-          يسر الأستاذ <span className="font-bold text-[#0A192F] mx-2 text-[1.6rem]">{data.teacherName}</span> أن يمنح هذه الشهادة إلى
+        <p className="text-[1.4rem] text-[#334155] mb-5 font-medium">
+          يسر الأستاذ <span className="font-bold text-[#0A192F] mx-2 text-[1.5rem]">{data.teacherName}</span> أن يمنح هذه الشهادة إلى
         </p>
 
         {/* Student Name */}
-        <div className="relative mb-8 w-full text-center flex flex-col items-center justify-center">
-          <h2 className="text-[4rem] font-bold text-[#1D4ED8] pb-4 px-12 max-w-[900px] leading-tight" style={{ fontFamily: "'Amiri', serif" }}>
+        <div className="relative mb-6 w-full text-center flex flex-col items-center justify-center">
+          <h2 className="text-[3.5rem] font-bold text-[#1D4ED8] pb-3 px-12 max-w-[900px] leading-tight" style={{ fontFamily: "'Amiri', serif" }}>
             {data.studentName || 'اسم الطالب'}
           </h2>
           {/* Elegant Divider */}
@@ -149,16 +149,16 @@ export const CertificateTemplateA = forwardRef<HTMLDivElement, Props>(({ data },
         </div>
 
         {/* Achievement Paragraph */}
-        <div className="max-w-[750px] text-center mb-16">
-          <p className="text-[1.5rem] text-[#1E293B] leading-[1.8] font-medium" style={{ fontFamily: "'Amiri', serif" }}>
+        <div className="max-w-[750px] text-center">
+          <p className="text-[1.4rem] text-[#1E293B] leading-[1.8] font-medium" style={{ fontFamily: "'Amiri', serif" }}>
             وذلك تقديرًا {getGrammarText1()} العلمي الملحوظ في مادة 
-            <span className="font-bold text-[#0A192F] text-[1.8rem] mx-2">{data.subject || '......'}</span>، 
+            <span className="font-bold text-[#0A192F] text-[1.6rem] mx-2">{data.subject || '......'}</span>، 
             متمنيًا {isMale ? 'له' : 'لها'} مستقبلًا واعدًا ومزيدًا من النجاح والتألق.
           </p>
         </div>
 
         {/* Bottom Section - Perfectly balanced grid */}
-        <div className="w-full grid grid-cols-4 items-center px-12 absolute bottom-20">
+        <div className="w-full grid grid-cols-4 items-end px-12 mt-auto pb-10">
           
           {/* 1. Year Badge (Left) */}
           <div className="col-span-1 flex justify-center relative">
