@@ -16,6 +16,7 @@ export interface NotificationSystemSettings {
   studentApprovalAlertsEnabled: boolean;
   examAlertsEnabled: boolean;
   teacherDailyScheduleEnabled: boolean;
+  teacherRecipientPhone?: string;
   updatedAt?: string;
   updatedBy?: string;
 }
@@ -32,6 +33,7 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSystemSettings = {
   studentApprovalAlertsEnabled: true,
   examAlertsEnabled: true,
   teacherDailyScheduleEnabled: true,
+  teacherRecipientPhone: '',
 };
 
 const SETTINGS_KEY = 'NOTIFICATION_SYSTEM_SETTINGS';

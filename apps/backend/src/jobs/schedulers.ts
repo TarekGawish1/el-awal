@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../core/database/prisma.service';
 import { NotificationsService } from '../modules/notifications/services/notifications.service';
+import { NotificationSettingsService } from '../modules/notifications/services/notification-settings.service';
 import {
   NotificationChannel,
   NotificationType,
@@ -83,6 +84,7 @@ export class SchedulersService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly settingsService: NotificationSettingsService,
   ) {}
 
   onModuleInit() {
@@ -421,11 +423,14 @@ export class SchedulersService implements OnModuleInit {
           `\nبالتوفيق في يومك! 🌟`,
         ].join('\n');
 
+        const settings = await this.settingsService.getSettings();
+        const targetPhone = settings.teacherRecipientPhone?.trim() || teacher.user.phone;
+
         const channels: NotificationChannel[] = [
           NotificationChannel.IN_APP,
           NotificationChannel.WEB_PUSH,
         ];
-        if (teacher.user.phone) {
+        if (targetPhone) {
           channels.push(NotificationChannel.WHATSAPP);
         }
 
@@ -437,7 +442,7 @@ export class SchedulersService implements OnModuleInit {
           body,
           channels,
           data: {
-            phone: teacher.user.phone,
+            phone: targetPhone,
             teacherName: teacher.user.fullName,
             date: dateStr,
             sessionCount: sessions.length,

@@ -26,12 +26,10 @@ export function DashboardHeader({
     setIsMounted(true);
   }, []);
 
-  const cleanName = teacherName?.trim() || '';
-  const formattedTeacherName = cleanName
-    ? cleanName.startsWith('أستاذ') || cleanName.startsWith('أ.')
-      ? cleanName
-      : `أستاذ ${cleanName}`
-    : 'أستاذ';
+  const cleanName = (teacherName || '').trim();
+  const withoutHonorific = cleanName.replace(/^(أستاذة?|أ\.?|د\.?|م\.?|الاستاذ)\s*/i, '').trim();
+  const firstName = withoutHonorific.split(/\s+/)[0] || '';
+  const formattedTeacherName = firstName ? `أستاذ ${firstName}` : 'أستاذ';
 
   return (
     <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-neutral-200/80">
