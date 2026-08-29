@@ -775,12 +775,6 @@ export class StudentsService {
       }
     }
 
-    // ── Send WhatsApp to parent immediately on group-link enrollment ────────
-    // This runs fire-and-forget so it never blocks the enrollment response.
-    this.sendGroupLinkWhatsApp(studentId, groupId, student).catch((err) =>
-      this.logger.error(`Group-link WhatsApp failed for student [${studentId}]`, err),
-    );
-
     return enrollment;
   }
 

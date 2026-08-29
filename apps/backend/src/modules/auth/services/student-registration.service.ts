@@ -340,25 +340,15 @@ export class StudentRegistrationService {
           `📥 Direct Group Acceptance WhatsApp queued for student ${fullName} → ${whatsappPhone}`,
         );
       } else {
-        // General Registration (without group): Platform Credentials
-        const messageBody = formatStudentRegistrationMessage({
-          parentName: parentPhone ? `ولي أمر ${fullName}` : fullName,
-          studentName: fullName,
-          studentPhoneOrCode: studentPhone,
-          studentPassword,
-          parentPhoneOrCode: parentPhone || undefined,
-          parentPassword: parentIsNew ? parentPassword : undefined,
-          platformUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online',
-          centerName: 'منصة الأوّل التعليمية',
-        });
-
+        // General Registration (without direct group link):
+        // Only send In-App notification; WhatsApp will be sent ONLY when the teacher accepts/enrolls the student.
         await this.notificationsService.sendNotification({
           recipientId,
           type: 'STUDENT_REGISTRATION_CREDENTIALS',
           notificationType: NotificationType.STUDENT_APPROVAL_CREDENTIALS,
           title: `🎉 مرحباً بك! بيانات دخول الطالب ${fullName}`,
-          body: messageBody,
-          channels: [NotificationChannel.WHATSAPP, NotificationChannel.IN_APP],
+          body: `مرحباً بك في منصة الأوّل التعليمية! تم إنشاء الحساب بنجاح.`,
+          channels: [NotificationChannel.IN_APP],
           data: {
             studentId: studentUser.id,
             studentName: fullName,
@@ -372,10 +362,6 @@ export class StudentRegistrationService {
             phone: whatsappPhone,
           },
         });
-
-        this.logger.log(
-          `📥 Platform Registration WhatsApp queued for student ${fullName} → ${whatsappPhone}`,
-        );
       }
     } catch (waErr) {
       // Non-fatal — registration succeeded even if we couldn't queue the WhatsApp
