@@ -638,8 +638,15 @@ export class GroupsService {
           NotificationChannel.IN_APP,
           NotificationChannel.WEB_PUSH,
         ];
-        if (parentPhone) {
+        // Fall back to student phone if parent has no number,
+        // so the WhatsApp worker always has a valid `phone` field.
+        const whatsappPhone = parentPhone || studentUser?.phone || null;
+        if (whatsappPhone) {
           channels.push(NotificationChannel.WHATSAPP);
+        } else {
+          this.logger.warn(
+            `No phone for WhatsApp to student ${studentName} [id=${student.id}] — IN_APP + WEB_PUSH only`,
+          );
         }
 
         await this.notificationsService.sendNotification({
@@ -654,22 +661,26 @@ export class GroupsService {
             studentName,
             studentPhoneOrCode,
             studentPassword,
-            parentPhone,
+            parentPhone: whatsappPhone || undefined,
             parentPassword,
             parentName,
             groupName,
             centerName,
             platformUrl,
-            phone: parentPhone || undefined,
+            // CRITICAL: `phone` must be set for the WhatsApp worker to process the job
+            phone: whatsappPhone || undefined,
           },
           referenceEntityId: student.id,
         });
 
-        // Clear pendingCredentials after successful dispatch
-        await this.prisma.studentProfile.update({
-          where: { id: student.id },
-          data: { pendingCredentials: null },
-        });
+        // Clear pendingCredentials only when WhatsApp was queued (phone available),
+        // so credentials aren't lost if the student had no phone linked at approval.
+        if (whatsappPhone) {
+          await this.prisma.studentProfile.update({
+            where: { id: student.id },
+            data: { pendingCredentials: null },
+          });
+        }
 
         this.logger.log(
           `📩 Student approval notifications dispatched for ${studentName} (student push: ${studentUser?.id ? 'yes' : 'no'}, parent WhatsApp: ${parentPhone || 'none'})`,

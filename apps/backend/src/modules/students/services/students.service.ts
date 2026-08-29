@@ -13,7 +13,7 @@ import { PrismaService } from '../../../core/database/prisma.service';
 import { CreateStudentDto } from '../dto/create-student.dto';
 import { StudentQueryDto } from '../dto/student-query.dto';
 import { StudentQrCodeResponseDto } from '../dto/qr-code-response.dto';
-import { UserRole, GroupEnrollmentStatus, PaymentStatus, PaymentType, StudentAcademicStatus, NotificationChannel, NotificationType } from '@prisma/client';
+import { UserRole, GroupEnrollmentStatus, PaymentStatus, PaymentType, StudentAcademicStatus, NotificationChannel, NotificationType, NotificationStatus } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
@@ -777,7 +777,99 @@ export class StudentsService {
       }
     }
 
+    // ── Send WhatsApp to parent immediately on group-link enrollment ────────
+    // This runs fire-and-forget so it never blocks the enrollment response.
+    this.sendGroupLinkWhatsApp(studentId, groupId, student).catch((err) =>
+      this.logger.error(`Group-link WhatsApp failed for student [${studentId}]`, err),
+    );
+
     return enrollment;
+  }
+
+  /**
+   * Sends WhatsApp to the parent (or student as fallback) after a group-link enrollment.
+   * Uses pendingCredentials stored during self-registration.
+   */
+  private async sendGroupLinkWhatsApp(
+    studentId: string,
+    groupId: string,
+    partialStudent?: { user?: { fullName: string } | null } | null,
+  ): Promise<void> {
+    try {
+      const [student, group] = await Promise.all([
+        this.prisma.studentProfile.findUnique({
+          where: { id: studentId },
+          include: {
+            user: { select: { id: true, fullName: true, phone: true } },
+            parentLinks: {
+              take: 1,
+              include: { parent: { include: { user: { select: { id: true, fullName: true, phone: true } } } } },
+            },
+          },
+        }),
+        this.prisma.academicGroup.findUnique({
+          where: { id: groupId },
+          select: { name: true, teacher: { include: { user: { select: { fullName: true } } } } },
+        }),
+      ]);
+
+      if (!student) return;
+
+      const parentUser = student.parentLinks[0]?.parent?.user;
+      const whatsappPhone = parentUser?.phone || student.emergencyPhone || student.user?.phone || null;
+
+      if (!whatsappPhone) {
+        this.logger.warn(`[reserveGroup] No phone for WhatsApp to student ${student.user?.fullName} [${studentId}] — skipped`);
+        return;
+      }
+
+      const pendingCreds = student.pendingCredentials as {
+        studentPassword?: string;
+        parentPassword?: string;
+        studentPhone?: string;
+      } | null;
+
+      const teacherName = (group as any)?.teacher?.user?.fullName;
+      const centerName = teacherName ? `مجموعة الأستاذ ${teacherName}` : 'منصة الأوّل التعليمية';
+      const studentName = student.user?.fullName || 'الطالب';
+      const recipientId = parentUser?.id || student.user?.id;
+
+      if (!recipientId) return;
+
+      // Queue via DB Notification record so WhatsAppWorker retries automatically
+      // on reconnect — critical when dyno wakes from Heroku Eco 30-min sleep.
+      await this.prisma.notification.create({
+        data: {
+          recipientId,
+          type: 'STUDENT_GROUP_LINK_ENROLLMENT',
+          notificationType: NotificationType.STUDENT_APPROVAL_CREDENTIALS,
+          title: `📋 تم تسجيل طلب انضمام ${studentName} إلى ${group?.name || 'المجموعة'}`,
+          message: `مرحباً، تم تسجيل طلب انضمام الطالب ${studentName} بنجاح وبانتظار الموافقة.`,
+          whatsappStatus: NotificationStatus.PENDING,
+          scheduledFor: new Date(),
+          data: {
+            studentId,
+            studentName,
+            studentPhoneOrCode: pendingCreds?.studentPhone || student.user?.phone || student.studentCode,
+            studentPassword: pendingCreds?.studentPassword,
+            parentPhone: whatsappPhone,
+            parentPassword: pendingCreds?.parentPassword,
+            parentName: parentUser?.fullName || studentName,
+            groupName: group?.name,
+            centerName,
+            platformUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online',
+            // CRITICAL: `phone` is what WhatsAppWorker reads to send the message
+            phone: whatsappPhone,
+          },
+        },
+      });
+
+      this.logger.log(
+        `📥 Group-link WhatsApp queued for student ${studentName} → ${whatsappPhone} (worker retries on reconnect)`,
+      );
+    } catch (err) {
+      this.logger.error(`sendGroupLinkWhatsApp error for student [${studentId}]`, err);
+    }
   }
 
   /**
