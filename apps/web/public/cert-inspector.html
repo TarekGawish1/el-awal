@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { margin: 0; padding: 0; background: #eee; text-align: center; }
+    svg { max-width: 90vw; max-height: 90vh; border: 1px solid #ccc; background: white; cursor: crosshair; }
+    #info { position: fixed; top: 10px; left: 10px; background: rgba(0,0,0,0.8); color: lime; padding: 10px; font-family: monospace; z-index: 1000; }
+  </style>
+</head>
+<body>
+  <div id="info">Click anywhere on the certificate to get SVG coordinates.<br>Current: x=0, y=0</div>
+  <div id="svg-container"></div>
+  <script>
+    fetch('/certificationFile.svg').then(r => r.text()).then(text => {
+      document.getElementById('svg-container').innerHTML = text;
+      const svg = document.querySelector('svg');
+      const info = document.getElementById('info');
+      let clickCount = 0;
+      
+      svg.addEventListener('mousemove', e => {
+        const pt = svg.createSVGPoint();
+        pt.x = e.clientX;
+        pt.y = e.clientY;
+        const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+        info.innerHTML = `Hover: x=${Math.round(svgP.x)}, y=${Math.round(svgP.y)}`;
+      });
+      
+      svg.addEventListener('click', e => {
+        const pt = svg.createSVGPoint();
+        pt.x = e.clientX;
+        pt.y = e.clientY;
+        const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+        clickCount++;
+        const coords = `x=${Math.round(svgP.x)}, y=${Math.round(svgP.y)}`;
+        console.log(`Click ${clickCount}: ${coords}`);
+        alert(`Clicked: ${coords}`);
+      });
+    });
+  </script>
+</body>
+</html>
