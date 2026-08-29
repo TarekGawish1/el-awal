@@ -128,6 +128,29 @@ export function ChildDetailsView({ studentId }: ChildDetailsViewProps) {
         </div>
       </div>
 
+      {/* Financial Overview (Current Month) */}
+      <div className="bg-gradient-to-l from-emerald-50 to-emerald-100/50 p-4 rounded-2xl border border-emerald-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl">
+            <Wallet className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-emerald-700 mb-0.5">الاشتراك الشهري ({primaryGroup?.name || 'المجموعة الحالية'})</p>
+            <p className="text-lg font-black text-slate-800">
+              {primaryGroup?.monthlyFee ? `${primaryGroup.monthlyFee} ج.م` : 'غير محدد'}
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-col items-start sm:items-end">
+          <p className="text-xs font-semibold text-slate-500 mb-1">حالة الدفع للشهر الحالي ({new Date().getMonth() + 1})</p>
+          {paymentHistory?.some((p: any) => p.periodMonth === new Date().getMonth() + 1 && p.periodYear === new Date().getFullYear() && p.paymentStatus === 'PAID') ? (
+            <Badge variant="success" className="px-3 py-1 text-xs">تم سداد اشتراك الشهر</Badge>
+          ) : (
+            <Badge variant="error" className="px-3 py-1 text-xs">لم يتم السداد بعد</Badge>
+          )}
+        </div>
+      </div>
+
       {/* Upcoming (Session & Exams) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100/50 flex items-start gap-3">
