@@ -139,10 +139,19 @@ export function CertificateBuilder() {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">المادة</label>
-              <Input 
+              <Select 
                 value={data.subject} 
                 onChange={(e) => handleChange('subject', e.target.value)} 
-                placeholder="مثال: الرياضيات"
+                options={[
+                  { label: 'اختر المادة...', value: '' },
+                  { label: 'الإحصاء', value: 'الإحصاء' },
+                  { label: 'الرياضيات', value: 'الرياضيات' },
+                  { label: 'الفيزياء', value: 'الفيزياء' },
+                  { label: 'الكيمياء', value: 'الكيمياء' },
+                  { label: 'الأحياء', value: 'الأحياء' },
+                  { label: 'اللغة العربية', value: 'اللغة العربية' },
+                  { label: 'اللغة الإنجليزية', value: 'اللغة الإنجليزية' }
+                ]}
               />
             </div>
 
