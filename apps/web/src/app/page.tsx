@@ -379,6 +379,127 @@ function CoursesSection() {
   );
 }
 
+function CenterScheduleSection() {
+  const [selectedGrade, setSelectedGrade] = useState('grade-1');
+
+  const SCHEDULE_DATA: Record<string, { center: string, days: string, time: string }[]> = {
+    'grade-1': [
+      { center: 'سنتر الأوائل - مدينة نصر', days: 'السبت والثلاثاء', time: '4:00 عصراً' },
+      { center: 'سنتر القمة - مصر الجديدة', days: 'الأحد والأربعاء', time: '6:00 مساءً' },
+    ],
+    'grade-2': [
+      { center: 'سنتر الأوائل - مدينة نصر', days: 'السبت والثلاثاء', time: '6:00 مساءً' },
+      { center: 'سنتر الفرسان - المعادي', days: 'الإثنين والخميس', time: '5:00 عصراً' },
+    ],
+    'grade-3': [
+      { center: 'سنتر الأوائل - مدينة نصر', days: 'الجمعة', time: '9:00 صباحاً (مكثف)' },
+      { center: 'سنتر القمة - مصر الجديدة', days: 'الأحد والأربعاء', time: '8:00 مساءً' },
+    ],
+  };
+
+  const GRADES = [
+    { id: 'grade-1', name: 'الصف الأول الثانوي' },
+    { id: 'grade-2', name: 'الصف الثاني الثانوي' },
+    { id: 'grade-3', name: 'الصف الثالث الثانوي' },
+  ];
+
+  const currentSchedules = SCHEDULE_DATA[selectedGrade] || [];
+
+  return (
+    <section className="py-24 bg-slate-50 relative overflow-hidden" id="schedule" dir="rtl">
+      <div className="container mx-auto px-6 relative z-10">
+        <div className="text-center max-w-2xl mx-auto mb-16">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 mb-4 tracking-tight">
+              مواعيد <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">السنتر</span>
+            </h2>
+            <p className="text-slate-600 text-lg font-medium">
+              اختر الصف الدراسي لمعرفة مواعيد وأماكن المحاضرات الحضورية (الأوفلاين) المتاحة.
+            </p>
+          </motion.div>
+        </div>
+
+        <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-xl shadow-slate-200/50 overflow-hidden border border-slate-100">
+          {/* Tabs */}
+          <div className="flex flex-wrap border-b border-slate-100 bg-slate-50/50 p-2 sm:p-4 gap-2 justify-center">
+            {GRADES.map((grade) => (
+              <button
+                key={grade.id}
+                onClick={() => setSelectedGrade(grade.id)}
+                className={`px-6 py-3 rounded-xl font-bold text-sm sm:text-base transition-all ${
+                  selectedGrade === grade.id
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20 scale-105'
+                    : 'bg-white text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                {grade.name}
+              </button>
+            ))}
+          </div>
+
+          {/* Schedule List */}
+          <div className="p-6 sm:p-8">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={selectedGrade}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.3 }}
+                className="grid grid-cols-1 md:grid-cols-2 gap-6"
+              >
+                {currentSchedules.map((item, index) => (
+                  <div key={index} className="bg-slate-50 border border-slate-100 rounded-2xl p-6 hover:shadow-lg hover:border-blue-100 transition-all group">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-xl font-bold text-slate-900 mb-4">{item.center}</h4>
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-3 text-slate-600 font-medium">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            {item.days}
+                          </div>
+                          <div className="flex items-center gap-3 text-slate-600 font-medium">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            {item.time}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </motion.div>
+            </AnimatePresence>
+            
+            <div className="mt-10 text-center">
+              <Link href="/login" className="bg-slate-900 hover:bg-blue-600 text-white px-10 py-4 rounded-full font-bold text-lg shadow-lg shadow-slate-900/20 hover:shadow-blue-600/30 transition-all hover:-translate-y-1 inline-flex items-center justify-center gap-3 w-full sm:w-auto">
+                <span>احجز مكانك الآن</span>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 rtl:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function RootPage() {
   const [showIntro, setShowIntro] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
@@ -405,6 +526,7 @@ export default function RootPage() {
         >
           <HeroSection />
           <CoursesSection />
+          <CenterScheduleSection />
         </motion.div>
       )}
     </main>
