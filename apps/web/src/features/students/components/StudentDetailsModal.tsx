@@ -165,48 +165,81 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center text-[10px] text-slate-500 font-medium px-1">
-                    <span>أقدم حصة</span>
-                    <span>أحدث حصة</span>
-                  </div>
-                  <div className="flex gap-2 rtl:flex-row overflow-x-auto pb-2 custom-scrollbar">
-                    {/* Mock 10 sessions */}
-                    {[
-                      { attended: true, hw: true },
-                      { attended: true, hw: true },
-                      { attended: false, hw: false },
-                      { attended: true, hw: false },
-                      { attended: true, hw: true },
-                      { attended: true, hw: true },
-                      { attended: false, hw: false },
-                      { attended: true, hw: true },
-                      { attended: true, hw: false },
-                      { attended: true, hw: true },
-                    ].map((session, i) => (
-                      <div key={i} className="flex flex-col gap-1 min-w-[32px]">
-                        {/* Attendance Box */}
-                        <div 
-                          className={`w-8 h-8 rounded-lg flex items-center justify-center border transition-all ${
-                            session.attended 
-                              ? 'bg-green-100 border-green-200 text-green-600' 
-                              : 'bg-red-50 border-red-200 text-red-500'
-                          }`}
-                          title={session.attended ? 'حاضر' : 'غائب'}
-                        >
-                          {session.attended ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-                        </div>
-                        {/* Homework indicator */}
-                        <div 
-                          className={`w-8 h-1.5 rounded-full ${
-                            !session.attended ? 'bg-slate-100' : session.hw ? 'bg-blue-500' : 'bg-red-400'
-                          }`}
-                          title={!session.attended ? 'لم يحضر' : session.hw ? 'تم حل الواجب' : 'لم يحل الواجب'}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-4 text-[10px] text-slate-500 mt-2 font-medium">
+                <div className="space-y-2 overflow-x-auto custom-scrollbar pb-2">
+                  <table className="w-full text-center text-xs">
+                    <thead>
+                      <tr>
+                        <th className="p-2 border-b border-slate-100 text-slate-500 font-bold whitespace-nowrap text-start">الحصة</th>
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                          <th key={num} className="p-2 border-b border-slate-100 font-mono text-slate-400 min-w-[40px]">{num}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* Attendance Row */}
+                      <tr>
+                        <td className="p-2 border-b border-slate-50 text-slate-700 font-bold whitespace-nowrap text-start">الحضور</td>
+                        {[
+                          { attended: true, hw: true },
+                          { attended: true, hw: true },
+                          { attended: false, hw: false },
+                          { attended: true, hw: false },
+                          { attended: true, hw: true },
+                          { attended: true, hw: true },
+                          { attended: false, hw: false },
+                          { attended: true, hw: true },
+                          { attended: true, hw: false },
+                          { attended: true, hw: true },
+                        ].map((session, i) => (
+                          <td key={`att-${i}`} className="p-2 border-b border-slate-50">
+                            <div className={`mx-auto w-7 h-7 rounded-lg flex items-center justify-center border transition-all ${
+                              session.attended 
+                                ? 'bg-green-100 border-green-200 text-green-600' 
+                                : 'bg-red-50 border-red-200 text-red-500'
+                            }`}
+                            title={session.attended ? 'حاضر' : 'غائب'}>
+                              {session.attended ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                            </div>
+                          </td>
+                        ))}
+                      </tr>
+                      {/* Homework Row */}
+                      <tr>
+                        <td className="p-2 text-slate-700 font-bold whitespace-nowrap text-start">الواجب</td>
+                        {[
+                          { attended: true, hw: true },
+                          { attended: true, hw: true },
+                          { attended: false, hw: false },
+                          { attended: true, hw: false },
+                          { attended: true, hw: true },
+                          { attended: true, hw: true },
+                          { attended: false, hw: false },
+                          { attended: true, hw: true },
+                          { attended: true, hw: false },
+                          { attended: true, hw: true },
+                        ].map((session, i) => (
+                          <td key={`hw-${i}`} className="p-2">
+                            {!session.attended ? (
+                              <div className="mx-auto w-7 h-7 rounded-lg flex items-center justify-center border border-slate-200 bg-slate-50 text-slate-400" title="لم يحضر">
+                                <span className="text-lg leading-none font-medium">-</span>
+                              </div>
+                            ) : (
+                              <div className={`mx-auto w-7 h-7 rounded-lg flex items-center justify-center border transition-all ${
+                                session.hw 
+                                  ? 'bg-blue-100 border-blue-200 text-blue-600' 
+                                  : 'bg-amber-100 border-amber-200 text-amber-600'
+                              }`}
+                              title={session.hw ? 'تم حل الواجب' : 'لم يحل الواجب'}>
+                                {session.hw ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                              </div>
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    </tbody>
+                  </table>
+                  
+                  <div className="flex flex-wrap items-center gap-4 text-[10px] text-slate-500 mt-3 font-medium px-2">
                     <div className="flex items-center gap-1.5">
                       <div className="w-2.5 h-2.5 rounded bg-green-100 border border-green-200"></div>
                       <span>حاضر</span>
@@ -216,8 +249,12 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
                       <span>غائب</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-1.5 rounded-full bg-blue-500"></div>
+                      <div className="w-2.5 h-2.5 rounded bg-blue-100 border border-blue-200"></div>
                       <span>أنجز الواجب</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded bg-amber-100 border border-amber-200"></div>
+                      <span>لم ينجز الواجب</span>
                     </div>
                   </div>
                 </div>
