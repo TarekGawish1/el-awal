@@ -1,51 +1,99 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { Download, Loader2 } from 'lucide-react';
+import { Download, Loader2, ZoomIn, ZoomOut, Maximize2, RefreshCw } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { CertificateTemplateA, CertificateData } from './CertificateTemplateA';
 
 export function CertificateBuilder() {
-  const [name, setName] = useState('');
-  const [gender, setGender] = useState<'MALE' | 'FEMALE'>('MALE');
-  const [subject, setSubject] = useState('');
-  const [score, setScore] = useState('100');
-  const [date, setDate] = useState(new Date().toLocaleDateString('ar-EG'));
-  const [year, setYear] = useState(new Date().getFullYear().toString());
-  
+  const [data, setData] = useState<CertificateData>({
+    studentName: '',
+    gender: 'MALE',
+    subject: '',
+    score: '100',
+    issueDate: new Date().toLocaleDateString('ar-EG'),
+    year: new Date().getFullYear().toString(),
+    teacherName: 'أحمد غريب', // Default or from profile
+  });
+
   const [isGenerating, setIsGenerating] = useState(false);
-  const [svgContent, setSvgContent] = useState<string>('');
+  const [scale, setScale] = useState(1);
+  const containerRef = useRef<HTMLDivElement>(null);
   const certificateRef = useRef<HTMLDivElement>(null);
 
+  // Auto-scale to fit container on load/resize
   useEffect(() => {
-    fetch('/certificate-template.svg')
-      .then(res => res.text())
-      .then(text => setSvgContent(text));
+    const updateScale = () => {
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.clientWidth;
+        // 1123 is the fixed width of the certificate
+        const desiredScale = Math.min((containerWidth - 40) / 1123, 1);
+        setScale(desiredScale);
+      }
+    };
+    
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
   }, []);
+
+  const handleChange = (field: keyof CertificateData, value: string) => {
+    setData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleReset = () => {
+    setData({
+      studentName: '',
+      gender: 'MALE',
+      subject: '',
+      score: '100',
+      issueDate: new Date().toLocaleDateString('ar-EG'),
+      year: new Date().getFullYear().toString(),
+      teacherName: 'أحمد غريب',
+    });
+  };
 
   const handleGenerate = async () => {
     if (!certificateRef.current) return;
     setIsGenerating(true);
     try {
-      const canvas = await html2canvas(certificateRef.current, {
-        scale: 2, // High resolution
+      // Create a clone to render without CSS transforms affecting html2canvas
+      const clone = certificateRef.current.cloneNode(true) as HTMLElement;
+      clone.style.transform = 'none';
+      clone.style.position = 'absolute';
+      clone.style.left = '-9999px';
+      clone.style.top = '-9999px';
+      document.body.appendChild(clone);
+
+      const canvas = await html2canvas(clone, {
+        scale: 3, // High resolution for print
         useCORS: true,
-        backgroundColor: null
+        backgroundColor: '#FDFDFD',
+        width: 1123,
+        height: 794,
+        windowWidth: 1123,
+        windowHeight: 794
       });
       
-      const imgData = canvas.toDataURL('image/png');
+      document.body.removeChild(clone);
+
+      const imgData = canvas.toDataURL('image/jpeg', 1.0);
+      
+      // A4 landscape dimensions in mm: 297 x 210
       const pdf = new jsPDF({
         orientation: 'landscape',
-        unit: 'px',
-        format: [canvas.width, canvas.height]
+        unit: 'mm',
+        format: 'a4'
       });
       
-      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-      pdf.save(`certificate-${name || 'student'}.pdf`);
+      pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210);
+      pdf.save(`شهادة-${data.studentName || 'طالب'}.pdf`);
+      
     } catch (error) {
       console.error('Error generating PDF:', error);
     } finally {
@@ -53,36 +101,38 @@ export function CertificateBuilder() {
     }
   };
 
-  const getGenderText = () => gender === 'MALE' ? 'الطالب' : 'الطالبة';
-  const getGrammarText1 = () => gender === 'MALE' ? 'أدائه المتميز وتفوقه العلمي الملحوظ في مادة' : 'أدائها المتميز وتفوقها العلمي الملحوظ في مادة';
-  const getGrammarText2 = () => gender === 'MALE' ? 'متمنياً له مستقبلاً واعداً ومزيداً من النجاح والتألق.' : 'متمنياً لها مستقبلاً واعداً ومزيداً من النجاح والتألق.';
-
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
       
       {/* Form Section */}
-      <div className="xl:col-span-1 space-y-6">
+      <div className="xl:col-span-4 space-y-6 order-2 xl:order-1">
         <Card className="p-6">
-          <h2 className="text-xl font-bold text-slate-800 mb-6">بيانات الشهادة</h2>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-bold text-slate-800">بيانات الشهادة</h2>
+            <Button variant="ghost" size="sm" onClick={handleReset} className="text-slate-500 hover:text-slate-700">
+              <RefreshCw className="w-4 h-4 ml-2" />
+              إعادة تعيين
+            </Button>
+          </div>
           
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">اسم الطالب</label>
               <Input 
-                value={name} 
-                onChange={(e) => setName(e.target.value)} 
-                placeholder="أحمد محمد..."
+                value={data.studentName} 
+                onChange={(e) => handleChange('studentName', e.target.value)} 
+                placeholder="مثال: أحمد محمد علي"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">النوع</label>
               <Select 
-                value={gender}
-                onChange={(e) => setGender(e.target.value as any)}
+                value={data.gender}
+                onChange={(e) => handleChange('gender', e.target.value as any)}
                 options={[
-                  { label: 'ذكر', value: 'MALE' },
-                  { label: 'أنثى', value: 'FEMALE' }
+                  { label: 'ذكر (الطالب / أدائه)', value: 'MALE' },
+                  { label: 'أنثى (الطالبة / أدائها)', value: 'FEMALE' }
                 ]}
               />
             </div>
@@ -90,9 +140,9 @@ export function CertificateBuilder() {
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">المادة</label>
               <Input 
-                value={subject} 
-                onChange={(e) => setSubject(e.target.value)} 
-                placeholder="الإحصاء"
+                value={data.subject} 
+                onChange={(e) => handleChange('subject', e.target.value)} 
+                placeholder="مثال: الرياضيات"
               />
             </div>
 
@@ -100,8 +150,16 @@ export function CertificateBuilder() {
               <label className="block text-sm font-medium text-slate-700 mb-1">الدرجة</label>
               <Input 
                 type="number"
-                value={score} 
-                onChange={(e) => setScore(e.target.value)} 
+                value={data.score} 
+                onChange={(e) => handleChange('score', e.target.value)} 
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">اسم المعلم المانح</label>
+              <Input 
+                value={data.teacherName} 
+                onChange={(e) => handleChange('teacherName', e.target.value)} 
               />
             </div>
 
@@ -109,27 +167,27 @@ export function CertificateBuilder() {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">التاريخ</label>
                 <Input 
-                  value={date} 
-                  onChange={(e) => setDate(e.target.value)} 
+                  value={data.issueDate} 
+                  onChange={(e) => handleChange('issueDate', e.target.value)} 
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">السنة</label>
                 <Input 
-                  value={year} 
-                  onChange={(e) => setYear(e.target.value)} 
+                  value={data.year} 
+                  onChange={(e) => handleChange('year', e.target.value)} 
                 />
               </div>
             </div>
             
-            <div className="pt-4 border-t border-slate-100">
+            <div className="pt-6 mt-4 border-t border-slate-100">
               <Button 
                 variant="primary" 
-                className="w-full" 
+                className="w-full py-6 text-lg font-bold" 
                 onClick={handleGenerate}
-                disabled={isGenerating || !name || !subject}
+                disabled={isGenerating || !data.studentName || !data.subject}
               >
-                {isGenerating ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <Download className="w-4 h-4 ml-2" />}
+                {isGenerating ? <Loader2 className="w-5 h-5 ml-2 animate-spin" /> : <Download className="w-5 h-5 ml-2" />}
                 إنشاء وتحميل PDF
               </Button>
             </div>
@@ -138,76 +196,84 @@ export function CertificateBuilder() {
       </div>
 
       {/* Preview Section */}
-      <div className="xl:col-span-2">
-        <Card className="p-6 bg-slate-50 border-dashed border-2 overflow-hidden flex justify-center items-center">
-          <div className="w-full max-w-4xl relative shadow-lg" ref={certificateRef}>
-            {/* The SVG Container */}
-            {svgContent ? (
-              <div 
-                className="w-full h-auto relative" 
-                style={{ aspectRatio: '1577/1471' }}
-              >
-                <div 
-                  dangerouslySetInnerHTML={{ __html: svgContent }} 
-                  className="absolute inset-0 w-full h-full pointer-events-none" 
-                  style={{ '& svg': { width: '100%', height: '100%' } } as any}
-                />
-                
-                {/* Dynamic SVG Text Overlay */}
-                <svg viewBox="0 0 1577 1471" className="absolute inset-0 w-full h-full" style={{ zIndex: 10 }}>
-                  <style>
-                    {`
-                      .cert-name { font-family: 'Amiri', 'Tajawal', sans-serif; font-weight: bold; fill: #155EEF; font-size: 85px; }
-                      .cert-text { font-family: 'Amiri', 'Tajawal', sans-serif; fill: #2c2d2a; font-size: 26px; }
-                      .cert-text-bold { font-family: 'Amiri', 'Tajawal', sans-serif; font-weight: bold; fill: #2c2d2a; font-size: 26px; }
-                      .cert-score { font-family: 'Amiri', 'Tajawal', sans-serif; font-weight: bold; fill: #155EEF; font-size: 80px; }
-                      .cert-date { font-family: 'Amiri', 'Tajawal', sans-serif; fill: #2c2d2a; font-size: 20px; }
-                      .cert-year { font-family: 'Arial', sans-serif; font-weight: bold; fill: #2c2d2a; font-size: 24px; }
-                    `}
-                  </style>
+      <div className="xl:col-span-8 order-1 xl:order-2">
+        <Card className="flex flex-col h-full bg-slate-50/50 border border-slate-200 shadow-sm overflow-hidden">
+          {/* Toolbar */}
+          <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-white">
+            <h3 className="font-semibold text-slate-700">معاينة حية</h3>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setScale(s => Math.max(0.3, s - 0.1))}>
+                <ZoomOut className="w-4 h-4" />
+              </Button>
+              <span className="text-sm font-medium text-slate-600 w-12 text-center">
+                {Math.round(scale * 100)}%
+              </span>
+              <Button variant="outline" size="sm" onClick={() => setScale(s => Math.min(1.5, s + 0.1))}>
+                <ZoomIn className="w-4 h-4" />
+              </Button>
+              <Button variant="outline" size="sm" className="mr-4" onClick={() => {
+                if (containerRef.current) {
+                  const desiredScale = Math.min((containerRef.current.clientWidth - 40) / 1123, 1);
+                  setScale(desiredScale);
+                }
+              }}>
+                <Maximize2 className="w-4 h-4 ml-2" />
+                احتواء
+              </Button>
+            </div>
+          </div>
 
-                  {/* A: Student Name */}
-                  <text x="788" y="635" textAnchor="middle" className="cert-name">
-                    {name || 'اسم الطالب'}
-                  </text>
-
-                  {/* B: Sentence 1 (Gender) */}
-                  <text x="788" y="490" textAnchor="middle" className="cert-text" direction="rtl" unicodeBidi="bidi-override">
-                    يسر الأستاذ أحمد غريب أن يمنح هذه الشهادة إلى {getGenderText()}
-                  </text>
-
-                  {/* C: Sentence 2 & 3 (Subject) */}
-                  <text x="788" y="730" textAnchor="middle" className="cert-text" direction="rtl" unicodeBidi="bidi-override">
-                    وذلك تقديراً لـ {getGrammarText1()} <tspan className="cert-text-bold">{subject || '.......'}</tspan>
-                  </text>
-                  <text x="788" y="770" textAnchor="middle" className="cert-text" direction="rtl" unicodeBidi="bidi-override">
-                    {getGrammarText2()}
-                  </text>
-
-                  {/* D: Score */}
-                  <text x="948" y="930" textAnchor="middle" className="cert-score">
-                    {score}
-                  </text>
-
-                  {/* E: Date */}
-                  <text x="716" y="920" textAnchor="middle" className="cert-date" direction="rtl" unicodeBidi="bidi-override">
-                    {date}
-                  </text>
-
-                  {/* F: Year */}
-                  <text x="532" y="833" textAnchor="middle" className="cert-year">
-                    {year}
-                  </text>
-                </svg>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center h-96">
-                <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-              </div>
-            )}
+          {/* Canvas Area */}
+          <div 
+            ref={containerRef}
+            className="flex-1 overflow-auto flex items-center justify-center p-6 bg-slate-100/50 relative min-h-[600px]"
+          >
+            {/* The Scaled Wrapper */}
+            <div 
+              className="origin-center transition-transform duration-200 ease-out shadow-2xl rounded-sm"
+              style={{ 
+                transform: `scale(${scale})`,
+                width: '1123px',
+                height: '794px',
+              }}
+            >
+              <CertificateTemplateA data={data} ref={certificateRef} />
+            </div>
           </div>
         </Card>
       </div>
+
+      {/* Certificate History */}
+      <div className="xl:col-span-12 mt-8 order-3">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold text-slate-800">الشهادات السابقة</h2>
+        </div>
+        <Card className="bg-white shadow-sm border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-right text-sm text-slate-600">
+              <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+                <tr>
+                  <th className="py-4 px-6 text-right">اسم الطالب</th>
+                  <th className="py-4 px-6 text-right">المادة</th>
+                  <th className="py-4 px-6 text-center">الدرجة</th>
+                  <th className="py-4 px-6 text-center">التاريخ</th>
+                  <th className="py-4 px-6 text-center">السنة</th>
+                  <th className="py-4 px-6 text-left">الإجراءات</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {/* Mock data for now until API is connected */}
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-500">
+                    لا توجد شهادات سابقة بعد.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
+
     </div>
   );
 }
