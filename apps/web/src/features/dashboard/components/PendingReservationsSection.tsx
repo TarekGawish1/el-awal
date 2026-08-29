@@ -247,8 +247,23 @@ export function PendingReservationsSection() {
                     }
                   }}
                   onError={(error) => console.error(error?.message)}
-                  scanDelay={2000}
-                  retryDelay={200}
+                  scanDelay={150}
+                  components={{
+                    audio: false,
+                    torch: true,
+                    zoom: false,
+                    finder: true,
+                  }}
+                  constraints={{
+                    facingMode: { ideal: 'environment' },
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    advanced: [
+                      { focusMode: 'continuous' },
+                      { exposureMode: 'continuous' },
+                      { whiteBalanceMode: 'continuous' },
+                    ]
+                  } as any}
                 />
               </div>
               <p className="mt-4 text-center text-sm text-neutral-500">

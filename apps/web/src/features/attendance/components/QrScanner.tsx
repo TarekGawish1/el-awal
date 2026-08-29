@@ -128,6 +128,8 @@ export function QrScanner({ sessionId }: QrScannerProps) {
     }
   };
 
+  const [consecutiveScans, setConsecutiveScans] = useState<{ token: string; count: number } | null>(null);
+
   const handleScan = (detectedCodes: any[]) => {
     if (locked || isPending || crossGroupPrompt || !detectedCodes || detectedCodes.length === 0) {
       return;
@@ -135,6 +137,19 @@ export function QrScanner({ sessionId }: QrScannerProps) {
 
     const token = detectedCodes[0]?.rawValue;
     if (!token) return;
+
+    // Confirm detection over 2 consecutive frames for reliability (debounce)
+    if (consecutiveScans?.token === token) {
+      if (consecutiveScans.count < 1) {
+        setConsecutiveScans({ token, count: consecutiveScans.count + 1 });
+        return;
+      }
+    } else {
+      setConsecutiveScans({ token, count: 1 });
+      return;
+    }
+
+    setConsecutiveScans(null);
 
     // Strict client-side format and schema verification
     const parsed = parseStudentQr(token);
@@ -213,6 +228,7 @@ export function QrScanner({ sessionId }: QrScannerProps) {
           setTimeout(() => {
             setLocked(false);
             setFlashType(null);
+            setConsecutiveScans(null);
           }, 2500);
         },
         onError: (error: any) => {
@@ -240,6 +256,7 @@ export function QrScanner({ sessionId }: QrScannerProps) {
           setTimeout(() => {
             setLocked(false);
             setFlashType(null);
+            setConsecutiveScans(null);
           }, 1500);
         },
       },
@@ -288,6 +305,7 @@ export function QrScanner({ sessionId }: QrScannerProps) {
     setLocked(false);
     setFlashType(null);
     setLastScanResult(null);
+    setConsecutiveScans(null);
   };
 
   const handleError = (error: any) => {
@@ -333,14 +351,25 @@ export function QrScanner({ sessionId }: QrScannerProps) {
           onScan={handleScan}
           onError={handleError}
           paused={locked || isPending || !!crossGroupPrompt}
-          scanDelay={400}
+          scanDelay={150}
           startTimeoutMs={30000}
           formats={['qr_code']}
+          components={{
+            audio: false,
+            torch: true,
+            zoom: false,
+            finder: true,
+          }}
           constraints={{
             facingMode: { ideal: facingMode },
             width: { ideal: 1280 },
             height: { ideal: 720 },
-          }}
+            advanced: [
+              { focusMode: 'continuous' },
+              { exposureMode: 'continuous' },
+              { whiteBalanceMode: 'continuous' },
+            ]
+          } as any}
           styles={{
             container: { width: '100%', height: '100%', position: 'relative' },
             video: {

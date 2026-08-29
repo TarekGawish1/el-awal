@@ -377,14 +377,25 @@ export function QrHomeworkScanner({
                 }
               }}
               paused={locked || !!scannedStudent}
-              scanDelay={350}
+              scanDelay={150}
               startTimeoutMs={30000}
               formats={['qr_code']}
+              components={{
+                audio: false,
+                torch: true,
+                zoom: false,
+                finder: true,
+              }}
               constraints={{
                 facingMode: { ideal: facingMode },
                 width: { ideal: 1280 },
                 height: { ideal: 720 },
-              }}
+                advanced: [
+                  { focusMode: 'continuous' },
+                  { exposureMode: 'continuous' },
+                  { whiteBalanceMode: 'continuous' },
+                ]
+              } as any}
               styles={{
                 container: { width: '100%', height: '100%', position: 'relative' },
                 video: {
