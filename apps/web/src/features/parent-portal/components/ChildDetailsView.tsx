@@ -23,7 +23,6 @@ export function ChildDetailsView({ studentId }: ChildDetailsViewProps) {
 
   const isLoading = isStudentLoading || isAttendanceLoading || isPaymentLoading;
   const studentName = student?.user?.fullName || 'الطالب';
-  const enrollments = student?.groupEnrollments || [];
 
   if (isLoading) {
     return (
