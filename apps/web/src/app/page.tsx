@@ -819,6 +819,105 @@ function CertificatesSection() {
   );
 }
 
+function AboutUsSection() {
+  return (
+    <section className="py-24 bg-white relative overflow-hidden" id="about" dir="rtl">
+      {/* Decorative Background Elements */}
+      <div className="absolute top-0 right-0 w-full h-full overflow-hidden pointer-events-none z-0 opacity-40">
+        <div className="absolute top-[20%] right-[5%] w-[30%] h-[40%] rounded-full bg-blue-50 blur-[120px]" />
+        <div className="absolute bottom-[10%] left-[10%] w-[25%] h-[35%] rounded-full bg-indigo-50 blur-[100px]" />
+      </div>
+
+      <div className="container mx-auto px-6 relative z-10">
+        <div className="flex flex-col lg:flex-row items-center gap-16">
+          
+          {/* Image Side */}
+          <motion.div 
+            initial={{ opacity: 0, x: 50 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8 }}
+            className="w-full lg:w-1/2 relative"
+          >
+            <div className="relative rounded-3xl overflow-hidden aspect-[4/5] sm:aspect-square lg:aspect-[4/5] bg-slate-100 border border-slate-200 shadow-2xl">
+              <div className="absolute inset-0 bg-gradient-to-tr from-blue-600/20 to-indigo-600/20 mix-blend-multiply z-10" />
+              <img 
+                src="https://placehold.co/800x1000/e2e8f0/475569?text=صورة+الأستاذ" 
+                alt="الأستاذ أحمد غريب" 
+                className="w-full h-full object-cover"
+              />
+            </div>
+            {/* Experience Badge */}
+            <div className="absolute -bottom-8 -right-8 bg-white p-6 rounded-3xl shadow-xl border border-slate-100 hidden sm:block z-20">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600 font-black text-2xl">
+                  +10
+                </div>
+                <div>
+                  <div className="font-bold text-slate-900 text-lg">سنوات من الخبرة</div>
+                  <div className="text-slate-500 text-sm">في تدريس الرياضيات</div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Content Side */}
+          <motion.div 
+            initial={{ opacity: 0, x: -50 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8 }}
+            className="w-full lg:w-1/2"
+          >
+            <div className="inline-block px-4 py-2 bg-blue-50 text-blue-600 rounded-full font-bold text-sm mb-6">
+              من نحن
+            </div>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 mb-6 leading-tight">
+              تعرف على <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">الأستاذ / أحمد غريب</span>
+            </h2>
+            
+            <div className="space-y-6 text-slate-600 text-lg leading-relaxed">
+              <p>
+                نحن في منصة الأول نؤمن بأن الرياضيات ليست مجرد أرقام وقوانين، بل هي لغة العقل ومنهج للتفكير. هدفنا هو تبسيط المادة وتوصيلها للطلاب بأسهل وأمتع الطرق الممكنة.
+              </p>
+              <p>
+                الأستاذ <strong className="text-slate-900">أحمد غريب</strong>، خبير تدريس الرياضيات للمراحل الإعدادية والثانوية، يمتلك خبرة واسعة في تأهيل الطلاب للتعامل مع النظام الحديث للامتحانات بثقة واقتدار، من خلال التركيز على الفهم العميق والتدريب المستمر.
+              </p>
+            </div>
+
+            <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                  </svg>
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 mb-1">شرح مبسط ومفصل</h4>
+                  <p className="text-sm text-slate-500">نركز على استيعاب الطالب لكل فكرة رياضية بسلاسة.</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 mb-1">تدريبات مكثفة</h4>
+                  <p className="text-sm text-slate-500">مئات الأسئلة المحلولة والامتحانات الدورية.</p>
+                </div>
+              </div>
+            </div>
+
+          </motion.div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function RootPage() {
   const [showIntro, setShowIntro] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
@@ -848,6 +947,7 @@ export default function RootPage() {
           <CenterScheduleSection />
           <TestimonialsSection />
           <CertificatesSection />
+          <AboutUsSection />
         </motion.div>
       )}
     </main>
