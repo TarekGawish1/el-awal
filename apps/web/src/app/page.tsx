@@ -282,6 +282,9 @@ function HeroSection() {
         </motion.div>
 
       </div>
+
+      {/* Smooth Bottom Transition to Courses Section */}
+      <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-white to-transparent pointer-events-none z-20" />
     </div>
   );
 }
