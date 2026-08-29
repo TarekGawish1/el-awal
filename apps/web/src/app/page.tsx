@@ -151,10 +151,6 @@ function Navbar() {
               )}
             </AnimatePresence>
           </div>
-
-          <a href="/register/student" className="bg-slate-900 hover:bg-blue-600 text-white px-4 py-2 sm:px-6 sm:py-2.5 rounded-full font-bold shadow-md transition-all hover:shadow-lg hover:-translate-y-0.5 text-sm sm:text-base">
-            إنشاء حساب
-          </a>
         </div>
       </div>
     </motion.nav>
