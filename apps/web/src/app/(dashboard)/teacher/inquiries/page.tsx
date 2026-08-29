@@ -1,6 +1,5 @@
 import React from 'react';
 import { Mail, Phone, Calendar, CheckCircle, Trash2 } from 'lucide-react';
-import { api } from '@/lib/api/client'; // Assuming there's a client
 
 export const dynamic = 'force-dynamic';
 
