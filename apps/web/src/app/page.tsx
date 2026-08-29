@@ -581,24 +581,21 @@ const TESTIMONIALS = [
     name: 'أحمد محمود',
     role: 'طالب - الصف الثالث الثانوي',
     content: 'بصراحة منصة الأول غيرت مفهومي عن الرياضيات، الشرح مبسط جداً والأسئلة والامتحانات بتغطي كل أفكار المنهج والنظام الجديد.',
-    rating: 5,
-    image: 'https://i.pravatar.cc/150?img=11'
+    rating: 5
   },
   {
     id: 2,
     name: 'سارة خالد',
     role: 'طالبة - الصف الثاني الثانوي',
     content: 'المتابعة هنا ممتازة، وأكثر شيء يعجبني هو سرعة الرد على الأسئلة وتوافر مذكرات وملخصات بتسهل علينا المراجعة قبل الامتحان.',
-    rating: 5,
-    image: 'https://i.pravatar.cc/150?img=5'
+    rating: 5
   },
   {
     id: 3,
     name: 'عمر طارق',
     role: 'طالب - الصف الأول الثانوي',
     content: 'شرح الأستاذ أحمد غريب ممتاز، بيعرف يبسط المعلومة الصعبة، ومنصة الأول فيها فيديوهات بجودة عالية وبنك أسئلة رائع.',
-    rating: 5,
-    image: 'https://i.pravatar.cc/150?img=12'
+    rating: 5
   }
 ];
 
@@ -643,16 +640,9 @@ function TestimonialsSection() {
                 </svg>
               </div>
 
-              <div className="flex items-center gap-4 mb-6 relative z-10">
-                <img
-                  src={testimonial.image}
-                  alt={testimonial.name}
-                  className="w-16 h-16 rounded-full object-cover border-4 border-white shadow-sm"
-                />
-                <div>
-                  <h4 className="font-bold text-slate-900 text-lg">{testimonial.name}</h4>
-                  <p className="text-sm text-slate-500 font-medium">{testimonial.role}</p>
-                </div>
+              <div className="mb-6 relative z-10">
+                <h4 className="font-bold text-slate-900 text-lg">{testimonial.name}</h4>
+                <p className="text-sm text-slate-500 font-medium">{testimonial.role}</p>
               </div>
 
               <div className="flex gap-1 mb-4 relative z-10">
