@@ -676,7 +676,7 @@ export default function NotificationCenterPage() {
                         المستلم: المعلم
                       </span>
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-slate-200/80 text-slate-700">
-                        إشعار فوري + المنصة
+                        واتساب + فوري + المنصة
                       </span>
                     </div>
                     <p className="text-xs text-slate-500">

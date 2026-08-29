@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/features/auth';
 import { DashboardFilterState, DateRangePreset } from '../types/dashboard.types';
 import { useTeacherDashboard, useTeacherGroups, DEFAULT_DASHBOARD_FILTERS } from '../hooks/useTeacherDashboard';
 import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
@@ -19,6 +20,7 @@ import { PendingReservationsSection } from './PendingReservationsSection';
 
 export function TeacherDashboardContainer() {
   const router = useRouter();
+  const { user } = useAuth();
 
   // Fetch groups for filter dropdown
   const { data: groups = [], isLoading: isGroupsLoading } = useTeacherGroups();
@@ -108,6 +110,7 @@ export function TeacherDashboardContainer() {
 
       {/* 2. Top-level Header & Quick Refresh */}
       <DashboardHeader
+        teacherName={user?.fullName}
         isFetching={isFetching && !isLoading}
         isOffline={isOffline}
         lastUpdatedTimestamp={dashboardData?.lastUpdatedTimestamp}

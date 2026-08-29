@@ -14,7 +14,7 @@ export interface DashboardHeaderProps {
 }
 
 export function DashboardHeader({
-  teacherName = 'أستاذ المادة',
+  teacherName,
   lastUpdatedTimestamp,
   isFetching,
   isOffline,
@@ -25,6 +25,13 @@ export function DashboardHeader({
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  const cleanName = teacherName?.trim() || '';
+  const formattedTeacherName = cleanName
+    ? cleanName.startsWith('أستاذ') || cleanName.startsWith('أ.')
+      ? cleanName
+      : `أستاذ ${cleanName}`
+    : 'أستاذ';
 
   return (
     <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-neutral-200/80">
@@ -39,7 +46,7 @@ export function DashboardHeader({
           </span>
         </div>
         <h1 className="text-2xl md:text-3xl font-bold text-neutral-900 tracking-tight">
-          مرحباً، {teacherName} 👋
+          مرحباً، {formattedTeacherName} 👋
         </h1>
         <p className="text-sm text-neutral-600 mt-1">
           نظرة عامة على المجموعات والحصص ونسب الحضور والواجبات بانتظار المتابعة اليوم

@@ -479,20 +479,22 @@ export function formatTeacherAgendaMessage(
   sessionLines: string[],
 ): string {
   const sigs = [
-    '📋 منصة الأول التعليمية — نتمنى لك يوماً موفقاً 🌟',
-    '✨ فريق الأول — بالتوفيق في يومك أستاذ!',
-    '🎓 منصة الأول — جدول اليوم جاهز!',
+    '📋 منصة الأول التعليمية — نتمنى لك يوماً موفقاً ومثمراً 🌟',
+    '✨ فريق الأول — بالتوفيق والنجاح في يومك أستاذنا!',
+    '🎓 منصة الأول — يوم تعليمي موفق ومبارك بإذن الله 🌟',
   ];
 
   const intros = [
-    `صباح الخير أستاذ *${teacherName}* 👋\nجدولك لهذا اليوم *${dateStr}*:`,
-    `مرحباً أستاذ *${teacherName}* ☀️\nهذا جدولك اليوم *${dateStr}*:`,
-    `أستاذ *${teacherName}*، صباح النور! 🌅\nمواعيد حصصك اليوم *${dateStr}*:`,
+    `صباح الخير أستاذ *${teacherName}* 👋\nإليك جدول حصصك ومجموعاتك المجدولة اليوم (*${dateStr}*):`,
+    `مرحباً بحضرتك أستاذ *${teacherName}* ☀️\nجدولك ومواعيد الحصص اليوم (*${dateStr}*):`,
+    `أستاذ *${teacherName}*، صباح النور والبركة! 🌅\nمواعيد حصصك ومجموعاتك اليوم (*${dateStr}*):`,
   ];
 
   const intro = pickRandom(intros);
   const sig = pickRandom(sigs);
-  const agenda = sessionLines.map((l, i) => `${i + 1}. ${l}`).join('\n');
+  const agenda = sessionLines
+    .map((l, i) => (/^\d+[\.\-]/.test(l.trim()) ? l.trim() : `${i + 1}. ${l.trim()}`))
+    .join('\n');
 
   return `${intro}\n\n${agenda}\n\n${sig}`;
 }

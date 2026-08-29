@@ -411,13 +411,13 @@ export class SchedulersService implements OnModuleInit {
 
         const agendaLines = sessions.map(
           (s, i) =>
-            `${i + 1}. ${s.group.name} (${s.group.gradeLevel}) — الساعة ${s.startTime || '—'}`,
+            `${s.group.name} (${s.group.gradeLevel}) — الساعة ${s.startTime || '—'}`,
         );
 
         const body = [
           `صباح الخير أستاذ ${teacher.user.fullName} 👋`,
           `جدولك اليوم (${dateStr}):`,
-          ...agendaLines,
+          ...agendaLines.map((l, i) => `${i + 1}. ${l}`),
           `\nبالتوفيق في يومك! 🌟`,
         ].join('\n');
 
@@ -438,8 +438,10 @@ export class SchedulersService implements OnModuleInit {
           channels,
           data: {
             phone: teacher.user.phone,
+            teacherName: teacher.user.fullName,
             date: dateStr,
             sessionCount: sessions.length,
+            sessions: agendaLines,
           },
         });
       }
