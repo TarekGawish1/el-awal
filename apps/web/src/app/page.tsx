@@ -664,6 +664,68 @@ function TestimonialsSection() {
   );
 }
 
+const CERTIFICATES = [
+  { id: 1, title: 'المركز الأول - الصف الثالث الثانوي', student: 'محمد أحمد', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' },
+  { id: 2, title: 'التفوق في الرياضيات', student: 'مريم محمود', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' },
+  { id: 3, title: 'الدرجة النهائية - الترم الأول', student: 'يوسف طارق', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' },
+  { id: 4, title: 'المركز الأول - الصف الأول الثانوي', student: 'فاطمة علي', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' }
+];
+
+function CertificatesSection() {
+  return (
+    <section className="py-24 bg-slate-50 relative overflow-hidden" id="certificates" dir="rtl">
+      <div className="container mx-auto px-6 relative z-10">
+        <div className="text-center max-w-2xl mx-auto mb-16">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 mb-4 tracking-tight">
+              لوحة <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-500 to-orange-500">الشرف</span>
+            </h2>
+            <p className="text-slate-600 text-lg font-medium">
+              نحتفي بطلابنا المتميزين والمتفوقين، شهادات تقدير لأبطال منصة الأول.
+            </p>
+          </motion.div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {CERTIFICATES.map((cert, index) => (
+            <motion.div
+              key={cert.id}
+              initial={{ opacity: 0, scale: 0.9 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: index * 0.1 }}
+              className="bg-white rounded-2xl p-3 border border-slate-200 shadow-md hover:shadow-xl hover:-translate-y-2 transition-all group"
+            >
+              <div className="relative overflow-hidden rounded-xl bg-slate-100 aspect-[4/3] mb-4">
+                <img 
+                  src={cert.image} 
+                  alt={cert.title} 
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+                  <div className="text-white">
+                    <div className="font-bold">{cert.student}</div>
+                    <div className="text-sm text-slate-200">{cert.title}</div>
+                  </div>
+                </div>
+              </div>
+              <div className="text-center px-2 pb-2">
+                <h4 className="font-bold text-slate-900 truncate">{cert.student}</h4>
+                <p className="text-sm text-slate-500 truncate">{cert.title}</p>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function RootPage() {
   const [showIntro, setShowIntro] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
@@ -692,6 +754,7 @@ export default function RootPage() {
           <CoursesSection />
           <CenterScheduleSection />
           <TestimonialsSection />
+          <CertificatesSection />
         </motion.div>
       )}
     </main>
