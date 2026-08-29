@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -11,7 +11,7 @@ import { useStudents } from '../hooks/use-students';
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
 import { AcademicStatus } from '../types/students.types';
-import { Search, RotateCcw, Users, Calendar, BookOpen, ChevronRight, ChevronLeft, Eye, KeyRound } from 'lucide-react';
+import { Search, RotateCcw, Users, Calendar, BookOpen, ChevronRight, ChevronLeft, Eye, KeyRound, Filter, X } from 'lucide-react';
 import { Pagination } from '@/components/ui/Pagination';
 import { StudentDetailsModal } from './StudentDetailsModal';
 import { StudentPasswordModal } from './StudentPasswordModal';
@@ -52,6 +52,21 @@ export function StudentList() {
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [selectedStudentForModal, setSelectedStudentForModal] = useState<string | null>(null);
   const [selectedStudentForPassword, setSelectedStudentForPassword] = useState<{ id: string; name: string } | null>(null);
+
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const filtersRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (filtersRef.current && !filtersRef.current.contains(e.target as Node)) {
+        setIsFiltersOpen(false);
+      }
+    };
+    if (isFiltersOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isFiltersOpen]);
 
   // Fetch groups to populate group filter options
   const { data: groups } = useGroups();
@@ -343,18 +358,17 @@ export function StudentList() {
   return (
     <div className="space-y-6">
       {/* Filters Toolbar */}
-      <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-        {/* Row 1: Search, Academic Year, Term */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
           {/* Search Input */}
-          <div className="md:col-span-6 relative">
-            <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none">
+          <div className="md:col-span-5 relative">
+            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-slate-400" />
             </div>
             <Input
               type="search"
-              placeholder="ابحث بالاسم، رقم الهاتف أو الكود..."
               className="pr-10 h-10 text-xs sm:text-sm bg-slate-50/50 border border-slate-200 focus:border-primary-500 rounded-lg transition-all"
+              placeholder="ابحث بالاسم، رقم الهاتف أو الكود..."
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
@@ -363,7 +377,7 @@ export function StudentList() {
             />
           </div>
 
-          {/* Academic Year MultiSelect Checkboxes Dropdown */}
+          {/* Academic Year */}
           <div className="md:col-span-3">
             <MultiSelectDropdown
               placeholder="العام الدراسي"
@@ -377,7 +391,7 @@ export function StudentList() {
             />
           </div>
 
-          {/* Academic Term MultiSelect Checkboxes Dropdown */}
+          {/* Academic Term */}
           <div className="md:col-span-3">
             <MultiSelectDropdown
               placeholder="الفصل الدراسي"
@@ -390,56 +404,73 @@ export function StudentList() {
               }}
             />
           </div>
-        </div>
 
-        {/* Row 2: Stage, Grade, Groups */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-          {/* Stage MultiSelect Checkboxes Dropdown */}
-          <div className="md:col-span-3">
-            <MultiSelectDropdown
-              placeholder="المرحلة التعليمية"
-              allSelectedLabel="جميع المراحل التعليمية"
-              options={[
-                { label: 'المرحلة الابتدائية', value: 'المرحلة الابتدائية' },
-                { label: 'المرحلة الإعدادية', value: 'المرحلة الإعدادية' },
-                { label: 'المرحلة الثانوية', value: 'المرحلة الثانوية' },
-              ]}
-              selectedValues={selectedStages}
-              onChange={(vals) => {
-                handleStagesChange(vals);
-                setCurrentPage(1);
-              }}
-            />
-          </div>
+          {/* Advanced Filters Button */}
+          <div className="md:col-span-1 relative" ref={filtersRef}>
+            <button
+              onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+              className={`w-full h-10 flex items-center justify-center gap-2 rounded-lg border transition-all ${
+                isFiltersOpen 
+                ? 'bg-primary-50 text-primary-600 border-primary-200' 
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}
+              title="فلاتر متقدمة"
+            >
+              <Filter className="w-5 h-5" />
+            </button>
 
-          {/* Grade Level MultiSelect Checkboxes Dropdown */}
-          <div className="md:col-span-3">
-            <MultiSelectDropdown
-              placeholder="الصف الدراسي"
-              allSelectedLabel="جميع الصفوف الدراسية"
-              withSearch={availableGradeOptions.length > 5}
-              options={availableGradeOptions}
-              selectedValues={selectedGrades}
-              onChange={(vals) => {
-                handleGradesChange(vals);
-                setCurrentPage(1);
-              }}
-            />
-          </div>
+            {/* Advanced Filters Popover */}
+            {isFiltersOpen && (
+              <div className="absolute top-full left-0 mt-2 w-[calc(100vw-32px)] sm:w-[320px] bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-[100] space-y-4 origin-top-left rtl:origin-top-right">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-bold text-slate-800 text-sm">فلاتر متقدمة</h3>
+                  <button onClick={() => setIsFiltersOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors bg-slate-50 p-1.5 rounded-md">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                
+                <div className="space-y-3">
+                  <MultiSelectDropdown
+                    placeholder="المرحلة التعليمية"
+                    allSelectedLabel="جميع المراحل التعليمية"
+                    options={[
+                      { label: 'المرحلة الابتدائية', value: 'المرحلة الابتدائية' },
+                      { label: 'المرحلة الإعدادية', value: 'المرحلة الإعدادية' },
+                      { label: 'المرحلة الثانوية', value: 'المرحلة الثانوية' },
+                    ]}
+                    selectedValues={selectedStages}
+                    onChange={(vals) => {
+                      handleStagesChange(vals);
+                      setCurrentPage(1);
+                    }}
+                  />
 
-          {/* Group MultiSelect Checkboxes Dropdown */}
-          <div className="md:col-span-6">
-            <MultiSelectDropdown
-              placeholder="المجموعة الدراسية"
-              allSelectedLabel="جميع المجموعات"
-              withSearch={true}
-              options={availableGroupOptions}
-              selectedValues={selectedGroups}
-              onChange={(vals) => {
-                setSelectedGroups(vals);
-                setCurrentPage(1);
-              }}
-            />
+                  <MultiSelectDropdown
+                    placeholder="الصف الدراسي"
+                    allSelectedLabel="جميع الصفوف الدراسية"
+                    withSearch={availableGradeOptions.length > 5}
+                    options={availableGradeOptions}
+                    selectedValues={selectedGrades}
+                    onChange={(vals) => {
+                      handleGradesChange(vals);
+                      setCurrentPage(1);
+                    }}
+                  />
+
+                  <MultiSelectDropdown
+                    placeholder="المجموعة الدراسية"
+                    allSelectedLabel="جميع المجموعات"
+                    withSearch={true}
+                    options={availableGroupOptions}
+                    selectedValues={selectedGroups}
+                    onChange={(vals) => {
+                      setSelectedGroups(vals);
+                      setCurrentPage(1);
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
