@@ -237,7 +237,18 @@ export function UploadModal({
     selectedGradeLevel,
     selectedTargetScope === 'SPECIFIC_GROUP' ? selectedGroupId : undefined,
   );
-  const groupSessions = selectedTargetScope === 'SPECIFIC_GROUP' ? selectedGroupSessions : gradeSessions;
+  const rawSessions = selectedTargetScope === 'SPECIFIC_GROUP' ? selectedGroupSessions : gradeSessions;
+  
+  // Filter groupSessions strictly to the active academic year & semester
+  const semesterSessions = useMemo(() => {
+    if (!Array.isArray(rawSessions)) return [];
+    return rawSessions.filter((sess: any) => {
+      if (activeYear && sess.academicYear && sess.academicYear !== activeYear) return false;
+      if (activeTerm && sess.academicTerm && sess.academicTerm !== activeTerm) return false;
+      return true;
+    });
+  }, [rawSessions, activeYear, activeTerm]);
+
   const isLoadingSessions =
     selectedTargetScope === 'SPECIFIC_GROUP' ? isLoadingGroupSessions : isLoadingGradeSessions;
 
@@ -281,7 +292,7 @@ export function UploadModal({
 
     if (val.startsWith('SESSION_')) {
       const sId = val.replace('SESSION_', '');
-      const sess = groupSessions.find((s) => s.id === sId);
+      const sess = semesterSessions.find((s) => s.id === sId);
       setValue('sessionId', sId);
       setValue('sessionTopic', sess?.topic || 'حصة مجدولة');
       return;
@@ -580,7 +591,11 @@ export function UploadModal({
                     <BookOpen className="w-3.5 h-3.5 text-primary-600" />
                     اختيار الدرس أو الحصة المرتبطة:
                   </span>
-                  <span className="text-[10px] text-slate-400 font-normal">اختياري</span>
+                  <span className="text-[11px] font-bold text-primary-700 bg-primary-50 border border-primary-100 px-2 py-0.5 rounded-md">
+                    {isLoadingSessions
+                      ? 'جاري التحميل...'
+                      : `إجمالي حصص الترم: ${semesterSessions.length} حصة`}
+                  </span>
                 </Label>
 
                 {/* Dropdown for selecting available lessons/sessions */}
@@ -601,9 +616,9 @@ export function UploadModal({
                   >
                     <option value="">-- بدون ربط بحصة محددة (مرفق عام للمنهج) --</option>
 
-                    {groupSessions.length > 0 && (
-                      <optgroup label="حصص المجموعة المجدولة في قاعدة البيانات">
-                        {groupSessions.map((session) => (
+                    {semesterSessions.length > 0 && (
+                      <optgroup label={`حصص ${activeTerm === 'SECOND_TERM' ? 'الترم الثاني' : 'الترم الأول'} المجدولة (${semesterSessions.length} حصة)`}>
+                        {semesterSessions.map((session) => (
                           <option key={session.id} value={`SESSION_${session.id}`}>
                             {session.topic || 'حصة بدون عنوان'} ({session.sessionDate.includes('T') ? session.sessionDate.split('T')[0] : session.sessionDate}{session.startTime ? ` • ${formatArabicTime12H(session.startTime)}` : ''})
                           </option>
