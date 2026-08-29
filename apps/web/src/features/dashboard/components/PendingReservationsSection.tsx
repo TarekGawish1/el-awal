@@ -180,7 +180,10 @@ export function PendingReservationsSection() {
                         <DropdownMenuContent align="end" className="w-48">
                           <DropdownMenuLabel>اختر المجموعة الجديدة</DropdownMenuLabel>
                           <DropdownMenuSeparator />
-                          {allGroups?.map(g => (
+                          {allGroups?.filter(g => g.gradeLevel === reservation.group?.gradeLevel).length === 0 && (
+                            <div className="p-2 text-xs text-neutral-500 text-center">لا توجد مجموعات أخرى لنفس الصف</div>
+                          )}
+                          {allGroups?.filter(g => g.gradeLevel === reservation.group?.gradeLevel).map(g => (
                             <DropdownMenuItem 
                               key={g.id} 
                               onClick={() => changeGroupMutation.mutate({ enrollmentId: reservation.id, groupId: g.id })}
