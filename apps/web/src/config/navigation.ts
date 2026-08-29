@@ -10,6 +10,7 @@ import {
   Video,
   DollarSign,
   Bell,
+  ClipboardList,
 } from 'lucide-react';
 
 export interface NavItemConfig {
