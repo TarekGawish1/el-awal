@@ -60,6 +60,7 @@ export const API_ENDPOINTS = {
     SCAN_QR: (sessionId: string) => `/attendance/sessions/${sessionId}/scan-qr`,
     REPORTS: (sessionId: string) => `/attendance/sessions/${sessionId}/report`,
     HOMEWORK_ONSITE: (sessionId: string) => `/attendance/sessions/${sessionId}/homework-onsite`,
+    HISTORY: (studentId: string) => `/attendance/student/${studentId}`,
   },
   ASSESSMENTS: {
     LIST: '/assessments',

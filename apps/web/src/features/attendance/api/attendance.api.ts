@@ -48,3 +48,12 @@ export async function recordManualBatch(sessionId: string, payload: BatchAttenda
     body: JSON.stringify(payload),
   });
 }
+
+export async function fetchStudentAttendanceHistory(studentId: string, limit = 10): Promise<any> {
+  const query = new URLSearchParams();
+  if (limit) query.append('limit', limit.toString());
+  const qs = query.toString();
+  const url = `${API_ENDPOINTS.ATTENDANCE.HISTORY(studentId)}${qs ? `?${qs}` : ''}`;
+  return await apiClient<any>(url);
+}
+

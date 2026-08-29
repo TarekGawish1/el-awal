@@ -5,6 +5,7 @@ import {
   fetchSessionReport,
   scanQrAttendance,
   recordManualBatch,
+  fetchStudentAttendanceHistory,
 } from '../api/attendance.api';
 import { BatchAttendanceDto, ScanQrResponse } from '../types/attendance.types';
 import { offlineDb } from '@/lib/offline/db';
@@ -732,5 +733,24 @@ export function useManualAttendance() {
       queryClient.invalidateQueries({ queryKey: ['sessions', variables.sessionId, 'report'] });
       queryClient.invalidateQueries({ queryKey: ['groups'] });
     },
+  });
+}
+
+export function useStudentAttendanceHistory(studentId: string | null, limit = 10) {
+  return useQuery({
+    queryKey: ['students', studentId, 'attendance-history', limit],
+    queryFn: async () => {
+      if (!studentId) return null;
+      try {
+        const response = await fetchStudentAttendanceHistory(studentId, limit);
+        return response?.data || [];
+      } catch (error) {
+        console.error('Failed to fetch student attendance history', error);
+        return [];
+      }
+    },
+    enabled: !!studentId,
+    networkMode: 'always',
+    staleTime: 60 * 1000,
   });
 }

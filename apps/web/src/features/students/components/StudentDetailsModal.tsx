@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useStudent, useUpdateStudentStatus, useDeleteStudent } from '../hooks/use-students';
+import { useStudentAttendanceHistory } from '@/features/attendance/hooks/use-attendance';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -18,13 +19,16 @@ interface StudentDetailsModalProps {
 }
 
 export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetailsModalProps) {
-  const { data: student, isLoading, isError } = useStudent(studentId || '');
+  const { data: student, isLoading: isStudentLoading, isError } = useStudent(studentId || '');
+  const { data: attendanceHistory, isLoading: isAttendanceLoading } = useStudentAttendanceHistory(studentId || '', 10);
   const updateStatusMutation = useUpdateStudentStatus();
   const deleteStudentMutation = useDeleteStudent();
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
   if (!isOpen || !studentId) return null;
+
+  const isLoading = isStudentLoading || isAttendanceLoading;
 
   const studentName = student?.user?.fullName || 'طالب';
   const studentPhone = student?.user?.phone || student?.emergencyPhone || '';
@@ -147,7 +151,7 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
               </div>
             </div>
 
-            {/* Performance & Attendance (Mocked Data) */}
+            {/* Performance & Attendance */}
             <div className="space-y-3">
               <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
                 <ClipboardList className="w-4 h-4 text-primary-600" />
@@ -157,87 +161,99 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex-1 bg-green-50 p-3 rounded-xl border border-green-100 text-center">
                     <p className="text-xs text-green-700 font-bold mb-1">نسبة الحضور</p>
-                    <p className="text-xl font-black text-green-700">85%</p>
+                    <p className="text-xl font-black text-green-700">
+                      {attendanceHistory && attendanceHistory.length > 0
+                        ? Math.round(
+                            (attendanceHistory.filter((r: any) => r.status === 'PRESENT').length /
+                              attendanceHistory.length) *
+                              100,
+                          )
+                        : 0}
+                      %
+                    </p>
                   </div>
                   <div className="flex-1 bg-blue-50 p-3 rounded-xl border border-blue-100 text-center">
                     <p className="text-xs text-blue-700 font-bold mb-1">نسبة حل الواجب</p>
-                    <p className="text-xl font-black text-blue-700">70%</p>
+                    <p className="text-xl font-black text-blue-700">
+                      {attendanceHistory &&
+                      attendanceHistory.filter((r: any) => r.status === 'PRESENT').length > 0
+                        ? Math.round(
+                            (attendanceHistory.filter(
+                              (r: any) => r.status === 'PRESENT' && (r.homeworkStatus === 'COMPLETED' || r.homeworkStatus === 'SUBMITTED' || r.homeworkStatus === 'EXCUSED'),
+                            ).length /
+                              attendanceHistory.filter((r: any) => r.status === 'PRESENT').length) *
+                              100,
+                          )
+                        : 0}
+                      %
+                    </p>
                   </div>
                 </div>
 
                 <div className="space-y-2 overflow-x-auto custom-scrollbar pb-2">
-                  <table className="w-full text-center text-xs">
-                    <thead>
-                      <tr>
-                        <th className="p-2 border-b border-slate-100 text-slate-500 font-bold whitespace-nowrap text-start">الحصة</th>
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                          <th key={num} className="p-2 border-b border-slate-100 font-mono text-slate-400 min-w-[40px]">{num}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {/* Attendance Row */}
-                      <tr>
-                        <td className="p-2 border-b border-slate-50 text-slate-700 font-bold whitespace-nowrap text-start">الحضور</td>
-                        {[
-                          { attended: true, hw: true },
-                          { attended: true, hw: true },
-                          { attended: false, hw: false },
-                          { attended: true, hw: false },
-                          { attended: true, hw: true },
-                          { attended: true, hw: true },
-                          { attended: false, hw: false },
-                          { attended: true, hw: true },
-                          { attended: true, hw: false },
-                          { attended: true, hw: true },
-                        ].map((session, i) => (
-                          <td key={`att-${i}`} className="p-2 border-b border-slate-50">
-                            <div className={`mx-auto w-7 h-7 rounded-lg flex items-center justify-center border transition-all ${
-                              session.attended 
-                                ? 'bg-green-100 border-green-200 text-green-600' 
-                                : 'bg-red-50 border-red-200 text-red-500'
-                            }`}
-                            title={session.attended ? 'حاضر' : 'غائب'}>
-                              {session.attended ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-                            </div>
-                          </td>
-                        ))}
-                      </tr>
-                      {/* Homework Row */}
-                      <tr>
-                        <td className="p-2 text-slate-700 font-bold whitespace-nowrap text-start">الواجب</td>
-                        {[
-                          { attended: true, hw: true },
-                          { attended: true, hw: true },
-                          { attended: false, hw: false },
-                          { attended: true, hw: false },
-                          { attended: true, hw: true },
-                          { attended: true, hw: true },
-                          { attended: false, hw: false },
-                          { attended: true, hw: true },
-                          { attended: true, hw: false },
-                          { attended: true, hw: true },
-                        ].map((session, i) => (
-                          <td key={`hw-${i}`} className="p-2">
-                            {!session.attended ? (
-                              <div className="mx-auto w-7 h-7 rounded-lg flex items-center justify-center border border-slate-200 bg-slate-50 text-slate-400" title="لم يحضر">
-                                <span className="text-lg leading-none font-medium">-</span>
-                              </div>
-                            ) : (
-                              <div className={`mx-auto w-7 h-7 rounded-lg flex items-center justify-center border transition-all ${
-                                session.hw 
-                                  ? 'bg-blue-100 border-blue-200 text-blue-600' 
-                                  : 'bg-amber-100 border-amber-200 text-amber-600'
-                              }`}
-                              title={session.hw ? 'تم حل الواجب' : 'لم يحل الواجب'}>
-                                {session.hw ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-                              </div>
-                            )}
-                          </td>
-                        ))}
-                      </tr>
-                    </tbody>
-                  </table>
+                  {attendanceHistory && attendanceHistory.length > 0 ? (
+                    <table className="w-full text-center text-xs">
+                      <thead>
+                        <tr>
+                          <th className="p-2 border-b border-slate-100 text-slate-500 font-bold whitespace-nowrap text-start">الحصة</th>
+                          {attendanceHistory.map((_, i) => (
+                            <th key={i} className="p-2 border-b border-slate-100 font-mono text-slate-400 min-w-[40px]">{attendanceHistory.length - i}</th>
+                          )).reverse()}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {/* Attendance Row */}
+                        <tr>
+                          <td className="p-2 border-b border-slate-50 text-slate-700 font-bold whitespace-nowrap text-start">الحضور</td>
+                          {[...attendanceHistory].reverse().map((record: any, i) => {
+                            const isPresent = record.status === 'PRESENT';
+                            return (
+                              <td key={`att-${record.id}`} className="p-2 border-b border-slate-50">
+                                <div className={`mx-auto w-7 h-7 rounded-lg flex items-center justify-center border transition-all ${
+                                  isPresent 
+                                    ? 'bg-green-100 border-green-200 text-green-600' 
+                                    : 'bg-red-50 border-red-200 text-red-500'
+                                }`}
+                                title={isPresent ? 'حاضر' : 'غائب'}>
+                                  {isPresent ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                                </div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                        {/* Homework Row */}
+                        <tr>
+                          <td className="p-2 text-slate-700 font-bold whitespace-nowrap text-start">الواجب</td>
+                          {[...attendanceHistory].reverse().map((record: any, i) => {
+                            const isPresent = record.status === 'PRESENT';
+                            const hwDone = record.homeworkStatus === 'COMPLETED' || record.homeworkStatus === 'SUBMITTED' || record.homeworkStatus === 'EXCUSED';
+                            return (
+                              <td key={`hw-${record.id}`} className="p-2">
+                                {!isPresent ? (
+                                  <div className="mx-auto w-7 h-7 rounded-lg flex items-center justify-center border border-slate-200 bg-slate-50 text-slate-400" title="لم يحضر">
+                                    <span className="text-lg leading-none font-medium">-</span>
+                                  </div>
+                                ) : (
+                                  <div className={`mx-auto w-7 h-7 rounded-lg flex items-center justify-center border transition-all ${
+                                    hwDone 
+                                      ? 'bg-blue-100 border-blue-200 text-blue-600' 
+                                      : 'bg-amber-100 border-amber-200 text-amber-600'
+                                  }`}
+                                  title={hwDone ? 'تم حل الواجب' : 'لم يحل الواجب'}>
+                                    {hwDone ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                                  </div>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div className="p-4 text-center text-slate-500 text-sm bg-slate-50 rounded-xl">
+                      لا يوجد سجل حصص مسجل لهذا الطالب بعد.
+                    </div>
+                  )}
                   
                   <div className="flex flex-wrap items-center gap-4 text-[10px] text-slate-500 mt-3 font-medium px-2">
                     <div className="flex items-center gap-1.5">
