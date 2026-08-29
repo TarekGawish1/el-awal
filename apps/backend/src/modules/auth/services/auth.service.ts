@@ -216,14 +216,41 @@ export class AuthService {
       throw new UnauthorizedException('رقم الهاتف أو كود الطالب غير مسجل أو لا يوجد حساب ولي أمر مرتبط به');
     }
 
-    // 3. Authenticate with password verification (checks parent's password, or student's password for convenience)
-    const isParentPasswordValid = await bcrypt.compare(password, parentUser.passwordHash);
-    let isStudentPasswordValid = false;
-    if (!isParentPasswordValid && studentUser?.passwordHash) {
-      isStudentPasswordValid = await bcrypt.compare(password, studentUser.passwordHash);
+    // 3. Authenticate with password verification:
+    // Check parent's own password FIRST
+    let isPasswordValid = await bcrypt.compare(password, parentUser.passwordHash);
+
+    // If not matched, check ANY of the parent's linked students' passwords or temporary access PINs
+    if (!isPasswordValid) {
+      const linkedStudents = await this.prisma.parentStudentLink.findMany({
+        where: { parentId: parentUser.id },
+        include: {
+          student: {
+            include: {
+              user: {
+                select: { passwordHash: true, phone: true },
+              },
+            },
+          },
+        },
+      });
+
+      for (const link of linkedStudents) {
+        if (link.student?.user?.passwordHash) {
+          const match = await bcrypt.compare(password, link.student.user.passwordHash);
+          if (match) {
+            isPasswordValid = true;
+            break;
+          }
+        }
+        if (link.student?.tempAccessPin && link.student.tempAccessPin === password) {
+          isPasswordValid = true;
+          break;
+        }
+      }
     }
 
-    if (!isParentPasswordValid && !isStudentPasswordValid) {
+    if (!isPasswordValid) {
       this.logger.warn(`Parent access failed: invalid password for identifier [${rawIdentifier}]`);
       throw new UnauthorizedException('كلمة المرور غير صحيحة، يرجى التأكد من كلمة المرور أو استخدام رابط الدخول الآمن');
     }
