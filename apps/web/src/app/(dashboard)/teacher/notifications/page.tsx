@@ -499,21 +499,30 @@ export default function NotificationCenterPage() {
                 التحكم التفصيلي في أنواع الإشعارات التلقائية
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                تخصيص الأحداث التي يتم إطلاق إشعارات تلقائية لها
+                تخصيص الأحداث التي يتم إطلاق إشعارات تلقائية لها وتحديد المستلمين والقنوات
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Absences */}
               <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-100 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
                     <AlertTriangle size={18} />
                   </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-800">
-                      تنبيهات الغياب لأولياء الأمور
-                    </h4>
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <h4 className="text-sm font-bold text-slate-800">
+                        تنبيهات الغياب والحضور
+                      </h4>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-800">
+                        <HeartHandshake size={11} />
+                        المستلم: أولياء الأمور
+                      </span>
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-slate-200/80 text-slate-700">
+                        واتساب + فوري + المنصة
+                      </span>
+                    </div>
                     <p className="text-xs text-slate-500">
                       إرسال إشعار فوري لولي الأمر عند تسجيل غياب الطالب في الحصة
                     </p>
@@ -524,7 +533,7 @@ export default function NotificationCenterPage() {
                   onClick={() =>
                     handleToggle('absenceAlertsEnabled', settings?.absenceAlertsEnabled)
                   }
-                  className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors ${
+                  className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors shrink-0 ${
                     settings?.absenceAlertsEnabled ? 'bg-blue-600 justify-end' : 'bg-slate-300 justify-start'
                   }`}
                 >
@@ -534,14 +543,23 @@ export default function NotificationCenterPage() {
 
               {/* Payments */}
               <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-100 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
                     <CreditCard size={18} />
                   </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-800">
-                      إيصالات السداد والاشتراكات
-                    </h4>
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <h4 className="text-sm font-bold text-slate-800">
+                        إيصالات السداد والاشتراكات
+                      </h4>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                        <Users size={11} />
+                        المستلم: الطلاب وأولياء الأمور
+                      </span>
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-slate-200/80 text-slate-700">
+                        واتساب + فوري + المنصة
+                      </span>
+                    </div>
                     <p className="text-xs text-slate-500">
                       إرسال تفاصيل السند والمبلغ المستلم عند تسجيل دفع اشتراك أو ملزمة
                     </p>
@@ -552,7 +570,7 @@ export default function NotificationCenterPage() {
                   onClick={() =>
                     handleToggle('paymentAlertsEnabled', settings?.paymentAlertsEnabled)
                   }
-                  className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors ${
+                  className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors shrink-0 ${
                     settings?.paymentAlertsEnabled ? 'bg-blue-600 justify-end' : 'bg-slate-300 justify-start'
                   }`}
                 >
@@ -562,14 +580,23 @@ export default function NotificationCenterPage() {
 
               {/* Student Approvals & Credentials */}
               <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-100 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 mt-0.5">
                     <GraduationCap size={18} />
                   </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-800">
-                      اعتماد تسجيل الطلاب وبيانات الحساب
-                    </h4>
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <h4 className="text-sm font-bold text-slate-800">
+                        اعتماد تسجيل الطلاب وبيانات الحساب
+                      </h4>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 text-blue-800">
+                        <GraduationCap size={11} />
+                        المستلم: الطلاب
+                      </span>
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-slate-200/80 text-slate-700">
+                        واتساب + فوري + المنصة
+                      </span>
+                    </div>
                     <p className="text-xs text-slate-500">
                       إرسال كود الطالب وبيانات تسجيل الدخول فور قبول طلب الانضمام
                     </p>
@@ -583,7 +610,7 @@ export default function NotificationCenterPage() {
                       settings?.studentApprovalAlertsEnabled,
                     )
                   }
-                  className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors ${
+                  className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors shrink-0 ${
                     settings?.studentApprovalAlertsEnabled
                       ? 'bg-blue-600 justify-end'
                       : 'bg-slate-300 justify-start'
@@ -595,14 +622,23 @@ export default function NotificationCenterPage() {
 
               {/* Exams & Assessments */}
               <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-100 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 mt-0.5">
                     <FileText size={18} />
                   </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-800">
-                      إشعارات وتذكيرات الامتحانات والواجبات
-                    </h4>
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <h4 className="text-sm font-bold text-slate-800">
+                        إشعارات الامتحانات والواجبات
+                      </h4>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-100 text-purple-800">
+                        <GraduationCap size={11} />
+                        المستلم: الطلاب
+                      </span>
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-slate-200/80 text-slate-700">
+                        إشعار فوري + المنصة
+                      </span>
+                    </div>
                     <p className="text-xs text-slate-500">
                       تنبيه الطلاب بالاختبارات المنشورة ونتائج التصحيح
                     </p>
@@ -613,7 +649,7 @@ export default function NotificationCenterPage() {
                   onClick={() =>
                     handleToggle('examAlertsEnabled', settings?.examAlertsEnabled)
                   }
-                  className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors ${
+                  className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors shrink-0 ${
                     settings?.examAlertsEnabled ? 'bg-blue-600 justify-end' : 'bg-slate-300 justify-start'
                   }`}
                 >
@@ -623,14 +659,23 @@ export default function NotificationCenterPage() {
 
               {/* Teacher Daily Schedule */}
               <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-100 flex items-center justify-between gap-4 md:col-span-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center shrink-0">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center shrink-0 mt-0.5">
                     <Calendar size={18} />
                   </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-800">
-                      الجدول اليومي الصباحي للمعلم
-                    </h4>
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <h4 className="text-sm font-bold text-slate-800">
+                        الجدول اليومي الصباحي للمعلم
+                      </h4>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-100 text-teal-800">
+                        <UserCheck size={11} />
+                        المستلم: المعلم
+                      </span>
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-slate-200/80 text-slate-700">
+                        إشعار فوري + المنصة
+                      </span>
+                    </div>
                     <p className="text-xs text-slate-500">
                       إرسال ملخص الحصص والمجموعات المجدولة في بداية اليوم للمعلم
                     </p>
@@ -644,7 +689,7 @@ export default function NotificationCenterPage() {
                       settings?.teacherDailyScheduleEnabled,
                     )
                   }
-                  className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors ${
+                  className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors shrink-0 ${
                     settings?.teacherDailyScheduleEnabled
                       ? 'bg-blue-600 justify-end'
                       : 'bg-slate-300 justify-start'

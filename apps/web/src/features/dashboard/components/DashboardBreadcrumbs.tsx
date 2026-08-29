@@ -9,6 +9,7 @@ const routeLabels: Record<string, string> = {
   teacher: 'الرئيسية',
   student: 'الرئيسية',
   parent: 'الرئيسية',
+  secretariat: 'الرئيسية',
   dashboard: 'لوحة التحكم',
   groups: 'المجموعات الدراسية',
   attendance: 'رصد الحضور والغياب',
@@ -29,6 +30,8 @@ const routeLabels: Record<string, string> = {
   schedules: 'جدول الحصص',
   submissions: 'تسليمات وإجابات الطلاب',
   new: 'إضافة جديد',
+  notifications: 'مركز الإشعارات والتحكم',
+  reservations: 'طلبات الانضمام والقبول',
 };
 
 export function DashboardBreadcrumbs() {
