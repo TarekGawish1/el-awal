@@ -465,21 +465,39 @@ function CenterScheduleSection() {
 
         <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-xl shadow-slate-200/50 overflow-hidden border border-slate-100">
           
-          {/* Stage Tabs */}
-          <div className="flex border-b border-slate-100 bg-slate-100/50 p-2 sm:p-4 gap-2 justify-center">
-            {STAGES.map((stage) => (
-              <button
-                key={stage.id}
-                onClick={() => handleStageChange(stage.id)}
-                className={`px-8 py-3 rounded-xl font-bold text-sm sm:text-base transition-all ${
-                  selectedStage === stage.id
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                    : 'bg-white text-slate-600 hover:bg-slate-50'
-                }`}
+          {/* Stage Selector (Dropdown on Mobile, Tabs on Desktop) */}
+          <div className="border-b border-slate-100 bg-slate-100/50 p-4">
+            {/* Mobile Dropdown */}
+            <div className="sm:hidden block w-full">
+              <select
+                value={selectedStage}
+                onChange={(e) => handleStageChange(e.target.value)}
+                className="w-full bg-white border border-slate-200 text-slate-900 font-bold py-3 px-4 rounded-xl outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all shadow-sm"
               >
-                {stage.name}
-              </button>
-            ))}
+                {STAGES.map((stage) => (
+                  <option key={stage.id} value={stage.id}>
+                    {stage.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Desktop Tabs */}
+            <div className="hidden sm:flex gap-2 justify-center">
+              {STAGES.map((stage) => (
+                <button
+                  key={stage.id}
+                  onClick={() => handleStageChange(stage.id)}
+                  className={`px-8 py-3 rounded-xl font-bold text-base transition-all ${
+                    selectedStage === stage.id
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                      : 'bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {stage.name}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Grade Tabs */}
