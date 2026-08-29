@@ -55,7 +55,13 @@ export function LoginContainer() {
 
             <LoginForm />
 
-            <div className="mt-6 pt-4 border-t border-neutral-100 text-center">
+            <div className="mt-6 pt-4 border-t border-neutral-100 flex flex-col gap-4 text-center">
+              <p className="text-sm text-neutral-600">
+                ليس لدي حساب؟{' '}
+                <a href="/register/student" className="font-bold text-primary-600 hover:text-primary-700 transition-colors">
+                  إنشاء حساب
+                </a>
+              </p>
               <button
                 type="button"
                 onClick={() => router.push('/')}
