@@ -152,8 +152,7 @@ export function useSessionReport(sessionId: string | null) {
 
         // 4. Collect pending attendance mutations for this session
         const currentUserId = useAuthStore.getState().user?.id;
-        if (!currentUserId) throw new Error('Authentication required');
-        const pendingMutations = await offlineDb.getPendingMutations(currentUserId);
+        const pendingMutations = currentUserId ? await offlineDb.getPendingMutations(currentUserId) : [];
         const sessionMutations = pendingMutations.filter(
           (m) =>
             m.domain === 'attendance' &&
