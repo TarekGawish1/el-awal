@@ -315,6 +315,20 @@ export function UploadModal({
     }
   }, [isOpen, initialGradeLevel, initialGroupId, initialSessionTopic, initialSessionId, setValue]);
 
+  // Filter groups to the current active academic year, semester, stage, and selected grade level
+  const filteredGroups = useMemo(() => {
+    return groups.filter((g) => {
+      if (activeYear && g.academicYear && g.academicYear !== activeYear) return false;
+      if (activeTerm && g.academicTerm && g.academicTerm !== activeTerm) return false;
+      if (selectedStage) {
+        const gStage = getStageFromGrade(g.gradeLevel);
+        if (gStage && gStage !== selectedStage) return false;
+      }
+      if (selectedGradeLevel && g.gradeLevel !== selectedGradeLevel) return false;
+      return true;
+    });
+  }, [groups, selectedStage, selectedGradeLevel, activeYear, activeTerm]);
+
   if (!isOpen) return null;
 
   if (!isOnline) {
@@ -412,20 +426,6 @@ export function UploadModal({
       },
     );
   };
-
-  // Filter groups to the current active academic year, semester, stage, and selected grade level
-  const filteredGroups = useMemo(() => {
-    return groups.filter((g) => {
-      if (activeYear && g.academicYear && g.academicYear !== activeYear) return false;
-      if (activeTerm && g.academicTerm && g.academicTerm !== activeTerm) return false;
-      if (selectedStage) {
-        const gStage = getStageFromGrade(g.gradeLevel);
-        if (gStage && gStage !== selectedStage) return false;
-      }
-      if (selectedGradeLevel && g.gradeLevel !== selectedGradeLevel) return false;
-      return true;
-    });
-  }, [groups, selectedStage, selectedGradeLevel, activeYear, activeTerm]);
 
   const getFileCategoryIcon = () => {
     switch (fileCategory) {
