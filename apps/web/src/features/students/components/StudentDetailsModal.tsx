@@ -196,7 +196,7 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
                       <thead>
                         <tr>
                           <th className="p-2 border-b border-slate-100 text-slate-500 font-bold whitespace-nowrap text-start">الحصة</th>
-                          {attendanceHistory.map((_: any, i: number) => (
+                          {attendanceHistory.map((_, i) => (
                             <th key={i} className="p-2 border-b border-slate-100 font-mono text-slate-400 min-w-[40px]">{attendanceHistory.length - i}</th>
                           )).reverse()}
                         </tr>

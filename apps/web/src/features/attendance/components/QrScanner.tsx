@@ -10,12 +10,6 @@ import { parseStudentQr } from '@/lib/qr/qr-parser';
 import { initQrDetector } from '@/lib/qr/qr-detector-init';
 import toast from 'react-hot-toast';
 
-interface AdvancedCameraConstraints extends MediaTrackConstraintSet {
-  focusMode?: string;
-  exposureMode?: string;
-  whiteBalanceMode?: string;
-}
-
 interface QrScannerProps {
   sessionId: string;
 }
@@ -134,14 +128,6 @@ export function QrScanner({ sessionId }: QrScannerProps) {
     }
   };
 
-  const lastScanRef = React.useRef<{ token: string; timestamp: number } | null>(null);
-
-  React.useEffect(() => {
-    return () => {
-      lastScanRef.current = null;
-    };
-  }, []);
-
   const handleScan = (detectedCodes: any[]) => {
     if (locked || isPending || crossGroupPrompt || !detectedCodes || detectedCodes.length === 0) {
       return;
@@ -149,22 +135,6 @@ export function QrScanner({ sessionId }: QrScannerProps) {
 
     const token = detectedCodes[0]?.rawValue;
     if (!token) return;
-
-    const now = Date.now();
-    const lastScan = lastScanRef.current;
-
-    if (lastScan && lastScan.token === token) {
-      const timeDiff = now - lastScan.timestamp;
-      if (timeDiff <= 1000) {
-        lastScanRef.current = null;
-      } else {
-        lastScanRef.current = { token, timestamp: now };
-        return;
-      }
-    } else {
-      lastScanRef.current = { token, timestamp: now };
-      return;
-    }
 
     // Strict client-side format and schema verification
     const parsed = parseStudentQr(token);
@@ -363,23 +333,13 @@ export function QrScanner({ sessionId }: QrScannerProps) {
           onScan={handleScan}
           onError={handleError}
           paused={locked || isPending || !!crossGroupPrompt}
-          scanDelay={250}
+          scanDelay={400}
           startTimeoutMs={30000}
           formats={['qr_code']}
-          components={{
-            torch: true,
-            zoom: false,
-            finder: true,
-          }}
           constraints={{
             facingMode: { ideal: facingMode },
             width: { ideal: 1280 },
             height: { ideal: 720 },
-            advanced: [
-              { focusMode: 'continuous' },
-              { exposureMode: 'continuous' },
-              { whiteBalanceMode: 'continuous' },
-            ] as AdvancedCameraConstraints[]
           }}
           styles={{
             container: { width: '100%', height: '100%', position: 'relative' },

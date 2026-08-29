@@ -9,13 +9,14 @@ import { CheckCircle2, XCircle, Clock, User, Phone, MapPin, QrCode, Banknote, Ca
 import { usePendingReservations, useAcceptReservation, useRejectReservation, useGroups, useChangeReservationGroup } from '@/features/groups';
 import toast from 'react-hot-toast';
 import { Scanner } from '@yudiel/react-qr-scanner';
-
-
-interface AdvancedCameraConstraints extends MediaTrackConstraintSet {
-  focusMode?: string;
-  exposureMode?: string;
-  whiteBalanceMode?: string;
-}
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/DropdownMenu';
 
 export function PendingReservationsSection() {
   const { data: reservations, isLoading } = usePendingReservations();
@@ -26,14 +27,6 @@ export function PendingReservationsSection() {
   
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [acceptModalData, setAcceptModalData] = useState<{ id: string; studentName: string } | null>(null);
-
-  const lastScanRef = React.useRef<{ token: string; timestamp: number } | null>(null);
-
-  React.useEffect(() => {
-    return () => {
-      lastScanRef.current = null;
-    };
-  }, []);
 
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -70,24 +63,6 @@ export function PendingReservationsSection() {
   }
 
   const handleScan = (text: string) => {
-    if (!text) return;
-    
-    const now = Date.now();
-    const lastScan = lastScanRef.current;
-
-    if (lastScan && lastScan.token === text) {
-      const timeDiff = now - lastScan.timestamp;
-      if (timeDiff <= 1000) {
-        lastScanRef.current = null;
-      } else {
-        lastScanRef.current = { token: text, timestamp: now };
-        return;
-      }
-    } else {
-      lastScanRef.current = { token: text, timestamp: now };
-      return;
-    }
-
     // text is likely qr_tok_... or student code
     setIsScannerOpen(false);
     const reservation = reservations.find(r => 
@@ -196,28 +171,26 @@ export function PendingReservationsSection() {
                         <MapPin className="w-3.5 h-3.5" />
                         {reservation.group?.name}
                       </span>
-                      <select 
-                        className="text-[10px] text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full hover:bg-primary-100 transition-colors border-none cursor-pointer outline-none appearance-none font-bold"
-                        title="تغيير المجموعة"
-                        value=""
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            changeGroupMutation.mutate({ enrollmentId: reservation.id, groupId: e.target.value });
-                          }
-                        }}
-                        disabled={changeGroupMutation.isPending}
-                      >
-                        <option value="" disabled>تغيير المجموعة</option>
-                        {allGroups?.map(g => (
-                          <option 
-                            key={g.id} 
-                            value={g.id} 
-                            disabled={g.id === reservation.groupId}
-                          >
-                            {g.name} {g.id === reservation.groupId ? '(الحالية)' : ''}
-                          </option>
-                        ))}
-                      </select>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="text-[10px] text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full hover:bg-primary-100 transition-colors">
+                            تغيير المجموعة
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuLabel>اختر المجموعة الجديدة</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          {allGroups?.map(g => (
+                            <DropdownMenuItem 
+                              key={g.id} 
+                              onClick={() => changeGroupMutation.mutate({ enrollmentId: reservation.id, groupId: g.id })}
+                              disabled={g.id === reservation.groupId || changeGroupMutation.isPending}
+                            >
+                              {g.name} {g.id === reservation.groupId && '(الحالية)'}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-700 border-none font-medium px-2 py-0 h-5">
                         {new Date(reservation.enrolledAt).toLocaleDateString('ar-EG')}
                       </Badge>
@@ -274,22 +247,8 @@ export function PendingReservationsSection() {
                     }
                   }}
                   onError={(error) => console.error(error?.message)}
-                  scanDelay={250}
-                  components={{
-                    torch: true,
-                    zoom: false,
-                    finder: true,
-                  }}
-                  constraints={{
-                    facingMode: { ideal: 'environment' },
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
-                    advanced: [
-                      { focusMode: 'continuous' },
-                      { exposureMode: 'continuous' },
-                      { whiteBalanceMode: 'continuous' },
-                    ] as AdvancedCameraConstraints[]
-                  }}
+                  scanDelay={2000}
+                  retryDelay={200}
                 />
               </div>
               <p className="mt-4 text-center text-sm text-neutral-500">
