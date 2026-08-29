@@ -140,10 +140,18 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
             {/* Academic Info & Groups */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
+                <span className="text-xs font-semibold text-slate-500">المرحلة الدراسية</span>
+                <p className="text-sm font-bold text-slate-900">
+                  {student.academicStage === 'PRIMARY' ? 'المرحلة الابتدائية' : 
+                   student.academicStage === 'MIDDLE' ? 'المرحلة الإعدادية' : 
+                   student.academicStage === 'SECONDARY' ? 'المرحلة الثانوية' : 
+                   student.academicStage || 'غير محدد'}
+                </p>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
                 <span className="text-xs font-semibold text-slate-500">الصف الدراسي</span>
                 <p className="text-sm font-bold text-slate-900">{student.gradeLevel || 'غير محدد'}</p>
               </div>
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
                 <span className="text-xs font-semibold text-slate-500">تاريخ التسجيل</span>
                 <p className="text-sm font-bold text-slate-900">
                   {new Date(student.createdAt || Date.now()).toLocaleDateString('ar-EG')}
