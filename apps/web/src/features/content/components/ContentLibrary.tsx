@@ -347,7 +347,16 @@ export function ContentLibrary({ onUploadClick }: { onUploadClick: () => void })
             <Select
               aria-label="اختيار الصف الدراسي"
               value={selectedGrade}
-              onChange={(e) => setSelectedGrade(e.target.value)}
+              onChange={(e) => {
+                const g = e.target.value;
+                setSelectedGrade(g);
+                if (g !== 'ALL') {
+                  const stage = getAcademicStage(g);
+                  if (stage && selectedStage !== stage) {
+                    setSelectedStage(stage);
+                  }
+                }
+              }}
               options={gradeOptionsForStage}
               className="h-10 text-xs sm:text-sm bg-slate-50/70 border-slate-200 rounded-xl focus:bg-white"
             />
