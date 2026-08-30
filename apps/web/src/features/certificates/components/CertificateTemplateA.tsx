@@ -29,11 +29,12 @@ export const CertificateTemplateA = forwardRef<HTMLDivElement, Props>(({ data },
     <div
       ref={ref}
       dir="rtl"
-      className="relative overflow-hidden bg-center bg-no-repeat bg-cover"
+      className="relative overflow-hidden bg-center bg-no-repeat"
       style={{
         width: '1146px', // from SVG viewBox
         height: '810px',
         backgroundImage: "url('/certification-bg.svg')",
+        backgroundSize: '100% 100%',
         fontFamily: "'Amiri', 'Tajawal', system-ui, serif",
       }}
     >

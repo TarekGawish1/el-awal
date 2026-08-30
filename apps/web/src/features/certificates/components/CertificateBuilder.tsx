@@ -121,26 +121,36 @@ export function CertificateBuilder() {
     setIsGenerating(true);
     
     try {
-      // Create a clone of the node without the transform scale
-      // html2canvas works best on unscaled elements
+      // Create a fixed wrapper to prevent scroll/offset issues in html2canvas
+      const wrapper = document.createElement('div');
+      wrapper.style.position = 'fixed';
+      wrapper.style.top = '0';
+      wrapper.style.left = '0';
+      wrapper.style.width = '0';
+      wrapper.style.height = '0';
+      wrapper.style.overflow = 'hidden';
+
       const clone = certificateRef.current.cloneNode(true) as HTMLElement;
-      clone.style.transform = 'none';
-      clone.style.position = 'absolute';
-      clone.style.left = '-9999px';
-      clone.style.top = '-9999px';
-      document.body.appendChild(clone);
+      clone.style.margin = '0';
+      wrapper.appendChild(clone);
+      document.body.appendChild(wrapper);
+
+      // Ensure fonts are fully loaded before rendering
+      await document.fonts.ready;
 
       const canvas = await html2canvas(clone, {
-        scale: 1.5, // Reduced scale to keep the file size smaller
+        scale: 2, // Better resolution
         useCORS: true,
         backgroundColor: '#FDFDFD',
         width: 1146,
         height: 810,
+        scrollX: 0,
+        scrollY: 0,
         windowWidth: 1146,
         windowHeight: 810
       });
       
-      document.body.removeChild(clone);
+      document.body.removeChild(wrapper);
 
       // Convert canvas to a lightweight PNG or WebP data URL
       const imgData = canvas.toDataURL('image/png');
