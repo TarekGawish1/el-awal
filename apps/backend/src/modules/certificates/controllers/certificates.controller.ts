@@ -4,7 +4,7 @@ import { CertificatesService } from '../services/certificates.service';
 import { ApiTags, ApiOperation, ApiConsumes } from '@nestjs/swagger';
 
 @ApiTags('Certificates')
-@Controller('v1/certificates')
+@Controller('certificates')
 export class CertificatesController {
   constructor(private readonly certificatesService: CertificatesService) {}
 
