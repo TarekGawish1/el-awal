@@ -17,6 +17,8 @@ interface Props {
 export const CertificateTemplateA = forwardRef<HTMLDivElement, Props>(({ data }, ref) => {
   const isMale = data.gender === 'MALE';
   const studentTitle = isMale ? 'الطالب' : 'الطالبة';
+  const getGrammarText1 = () => isMale ? 'لأدائه المتميز وتفوقه' : 'لأدائها المتميز وتفوقها';
+  const getGrammarText2 = () => isMale ? 'متمنيًا له' : 'متمنيًا لها';
 
   return (
     <div
@@ -49,6 +51,15 @@ export const CertificateTemplateA = forwardRef<HTMLDivElement, Props>(({ data },
         >
           {data.studentName || 'اسم الطالب'}
         </h2>
+
+        {/* Achievement Paragraph */}
+        <div className="max-w-[850px] text-center mt-4">
+          <p className="text-[1.8rem] text-[#4A4A4A] leading-[1.8] font-bold" style={{ fontFamily: "'Amiri', serif" }}>
+            وذلك تقديرًا {getGrammarText1()} العلمي الملحوظ في مادة 
+            <span className="text-[#1D4ED8] mx-2">{data.subject || '......'}</span>، 
+            {getGrammarText2()} مستقبلًا واعدًا ومزيدًا من النجاح والتألق.
+          </p>
+        </div>
       </div>
     </div>
   );
