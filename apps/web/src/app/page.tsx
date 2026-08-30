@@ -730,29 +730,17 @@ const CERTIFICATES_BY_STAGE = [
   {
     stageId: 'secondary',
     stageName: 'أبطال المرحلة الثانوية',
-    certificates: [
-      { id: 1, title: 'المركز الأول - الصف الثالث الثانوي', student: 'محمد أحمد', image: 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate' },
-      { id: 2, title: 'التفوق في الرياضيات', student: 'مريم محمود', image: 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate' },
-      { id: 3, title: 'الدرجة النهائية - الترم الأول', student: 'يوسف طارق', image: 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate' },
-      { id: 4, title: 'المركز الأول - الصف الأول الثانوي', student: 'فاطمة علي', image: 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate' }
-    ]
+    certificates: []
   },
   {
     stageId: 'preparatory',
     stageName: 'أبطال المرحلة الإعدادية',
-    certificates: [
-      { id: 5, title: 'المركز الأول - الصف الثالث الإعدادي', student: 'عمر حسين', image: 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate' },
-      { id: 6, title: 'التميز في الجبر', student: 'نور ياسر', image: 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate' },
-      { id: 7, title: 'الدرجة النهائية', student: 'زياد طارق', image: 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate' },
-    ]
+    certificates: []
   },
   {
     stageId: 'primary',
     stageName: 'أبطال المرحلة الابتدائية',
-    certificates: [
-      { id: 8, title: 'الأول على المدرسة - الصف السادس', student: 'جنى محمد', image: 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate' },
-      { id: 9, title: 'عبقري الرياضيات', student: 'ياسين أحمد', image: 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate' },
-    ]
+    certificates: []
   }
 ];
 
@@ -891,7 +879,7 @@ function CertificatesSection() {
         </div>
 
         <div className="space-y-16">
-          {stagesData.map((stage, stageIndex) => (
+          {stagesData.filter(stage => stage.certificates && stage.certificates.length > 0).map((stage, stageIndex) => (
             <motion.div
               key={stage.stageId}
               className="relative"
