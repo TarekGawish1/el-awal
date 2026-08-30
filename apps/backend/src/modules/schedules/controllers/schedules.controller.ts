@@ -17,6 +17,7 @@ import { GenerateSessionsDto } from '../dto/generate-sessions.dto';
 import { CreateSessionDto } from '../dto/create-session.dto';
 import { UpdateSessionDto } from '../dto/update-session.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
+import { Public } from '../../../core/security/decorators/public.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { UserRole } from '@prisma/client';
 
@@ -25,6 +26,13 @@ import { UserRole } from '@prisma/client';
 @Controller('schedules')
 export class SchedulesController {
   constructor(private readonly schedulesService: SchedulesService) {}
+
+  @Public()
+  @Get('public/centers')
+  @ApiOperation({ summary: 'Get all public center schedules grouped by grade' })
+  async getPublicCenterSchedules() {
+    return this.schedulesService.getPublicCenterSchedules();
+  }
 
   @Post()
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)

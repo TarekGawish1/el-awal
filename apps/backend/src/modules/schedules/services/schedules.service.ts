@@ -1001,4 +1001,57 @@ export class SchedulesService {
     generatedSessions.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
     return generatedSessions;
   }
+
+  /**
+   * Retrieves public center schedules across all active groups
+   */
+  async getPublicCenterSchedules() {
+    const groups = await this.prisma.academicGroup.findMany({
+      where: {
+        isActive: true,
+      },
+      include: {
+        schedules: {
+          orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+        },
+      },
+    });
+
+    const dayMap = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+
+    return groups
+      .filter((g) => g.schedules.length > 0)
+      .map((group) => {
+        // Group schedules by location/center
+        const locationSchedules: Record<string, { days: Set<string>; time: string }> = {};
+        
+        group.schedules.forEach((schedule) => {
+          const loc = schedule.location || 'سنتر';
+          if (!locationSchedules[loc]) {
+            locationSchedules[loc] = { days: new Set<string>(), time: schedule.startTime };
+          }
+          locationSchedules[loc].days.add(dayMap[schedule.dayOfWeek]);
+        });
+
+        const formattedSchedules = Object.keys(locationSchedules).map((loc) => {
+          const daysArray = Array.from(locationSchedules[loc].days);
+          let daysStr = daysArray.join(' و ');
+          if (daysArray.length > 2) {
+             daysStr = daysArray.slice(0, -1).join(' و ') + ' و ' + daysArray.slice(-1);
+          }
+          return {
+            center: loc,
+            days: daysStr,
+            time: locationSchedules[loc].time,
+          };
+        });
+
+        return {
+          groupId: group.id,
+          groupName: group.name,
+          gradeLevel: group.gradeLevel,
+          schedules: formattedSchedules,
+        };
+      });
+  }
 }

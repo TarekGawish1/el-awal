@@ -45,6 +45,7 @@ export const API_ENDPOINTS = {
     UPDATE_SESSION: (id: string) => `/schedules/session/${id}`,
     DELETE_SESSION: (id: string) => `/schedules/session/${id}`,
     GENERATE_SESSIONS: (groupId: string) => `/schedules/group/${groupId}/generate-sessions`,
+    PUBLIC_CENTERS: '/schedules/public/centers',
   },
   STUDENTS: {
     LIST: '/students',

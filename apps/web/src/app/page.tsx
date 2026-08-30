@@ -385,7 +385,9 @@ function CoursesSection() {
 
 function CenterScheduleSection() {
   const [selectedStage, setSelectedStage] = useState('secondary');
-  const [selectedGrade, setSelectedGrade] = useState('sec-1');
+  const [selectedGrade, setSelectedGrade] = useState('الصف الأول الثانوي');
+  const [schedulesMap, setSchedulesMap] = useState<Record<string, { center: string, days: string, time: string }[]>>({});
+  const [isLoading, setIsLoading] = useState(true);
 
   const STAGES = [
     { id: 'primary', name: 'المرحلة الابتدائية' },
@@ -395,57 +397,52 @@ function CenterScheduleSection() {
 
   const GRADES = {
     primary: [
-      { id: 'prim-5', name: 'الصف الخامس الابتدائي' },
-      { id: 'prim-6', name: 'الصف السادس الابتدائي' },
+      { id: 'الصف الرابع الابتدائي', name: 'الصف الرابع الابتدائي' },
+      { id: 'الصف الخامس الابتدائي', name: 'الصف الخامس الابتدائي' },
+      { id: 'الصف السادس الابتدائي', name: 'الصف السادس الابتدائي' },
     ],
     preparatory: [
-      { id: 'prep-1', name: 'الصف الأول الإعدادي' },
-      { id: 'prep-2', name: 'الصف الثاني الإعدادي' },
-      { id: 'prep-3', name: 'الصف الثالث الإعدادي' },
+      { id: 'الصف الأول الإعدادي', name: 'الصف الأول الإعدادي' },
+      { id: 'الصف الثاني الإعدادي', name: 'الصف الثاني الإعدادي' },
+      { id: 'الصف الثالث الإعدادي', name: 'الصف الثالث الإعدادي' },
     ],
     secondary: [
-      { id: 'sec-1', name: 'الصف الأول الثانوي' },
-      { id: 'sec-2', name: 'الصف الثاني الثانوي' },
-      { id: 'sec-3', name: 'الصف الثالث الثانوي' },
+      { id: 'الصف الأول الثانوي', name: 'الصف الأول الثانوي' },
+      { id: 'الصف الثاني الثانوي', name: 'الصف الثاني الثانوي' },
+      { id: 'الصف الثالث الثانوي', name: 'الصف الثالث الثانوي' },
     ]
   };
 
-  const SCHEDULE_DATA: Record<string, { center: string, days: string, time: string }[]> = {
-    'prim-5': [
-      { center: 'سنتر الأوائل - مدينة نصر', days: 'السبت والثلاثاء', time: '2:00 ظهراً' },
-    ],
-    'prim-6': [
-      { center: 'سنتر الأوائل - مدينة نصر', days: 'الأحد والأربعاء', time: '2:00 ظهراً' },
-    ],
-    'prep-1': [
-      { center: 'سنتر الأوائل - مدينة نصر', days: 'الإثنين والخميس', time: '3:00 عصراً' },
-    ],
-    'prep-2': [
-      { center: 'سنتر الأوائل - مدينة نصر', days: 'الأحد والأربعاء', time: '4:00 عصراً' },
-    ],
-    'prep-3': [
-      { center: 'سنتر القمة - مصر الجديدة', days: 'السبت والثلاثاء', time: '5:00 عصراً' },
-    ],
-    'sec-1': [
-      { center: 'سنتر الأوائل - مدينة نصر', days: 'السبت والثلاثاء', time: '4:00 عصراً' },
-      { center: 'سنتر القمة - مصر الجديدة', days: 'الأحد والأربعاء', time: '6:00 مساءً' },
-    ],
-    'sec-2': [
-      { center: 'سنتر الأوائل - مدينة نصر', days: 'السبت والثلاثاء', time: '6:00 مساءً' },
-      { center: 'سنتر الفرسان - المعادي', days: 'الإثنين والخميس', time: '5:00 عصراً' },
-    ],
-    'sec-3': [
-      { center: 'سنتر الأوائل - مدينة نصر', days: 'الجمعة', time: '9:00 صباحاً (مكثف)' },
-      { center: 'سنتر القمة - مصر الجديدة', days: 'الأحد والأربعاء', time: '8:00 مساءً' },
-    ],
-  };
+  useEffect(() => {
+    async function fetchSchedules() {
+      try {
+        setIsLoading(true);
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+        const res = await fetch(`${baseUrl}/schedules/public/centers`);
+        if (res.ok) {
+           const data = await res.json();
+           const newMap: Record<string, any[]> = {};
+           data.forEach((item: any) => {
+             // map by gradeLevel
+             newMap[item.gradeLevel] = item.schedules;
+           });
+           setSchedulesMap(newMap);
+        }
+      } catch (err) {
+        console.error('Failed to fetch schedules:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchSchedules();
+  }, []);
 
   const handleStageChange = (stageId: string) => {
     setSelectedStage(stageId);
     setSelectedGrade(GRADES[stageId as keyof typeof GRADES][0].id);
   };
 
-  const currentSchedules = SCHEDULE_DATA[selectedGrade] || [];
+  const currentSchedules = schedulesMap[selectedGrade] || [];
   const currentGrades = GRADES[selectedStage as keyof typeof GRADES] || [];
 
   return (
@@ -525,47 +522,61 @@ function CenterScheduleSection() {
           </div>
 
           {/* Schedule List */}
-          <div className="p-6 sm:p-8">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={selectedGrade}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.3 }}
-                className="grid grid-cols-1 md:grid-cols-2 gap-6"
-              >
-                {currentSchedules.map((item, index) => (
-                  <div key={index} className="bg-slate-50 border border-slate-100 rounded-2xl p-6 hover:shadow-lg hover:border-blue-100 transition-all group">
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="text-xl font-bold text-slate-900 mb-4">{item.center}</h4>
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-3 text-slate-600 font-medium">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                            {item.days}
-                          </div>
-                          <div className="flex items-center gap-3 text-slate-600 font-medium">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            {item.time}
+          <div className="p-6 sm:p-8 min-h-[250px]">
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center h-full gap-4 text-slate-400">
+                <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <p>جاري تحميل المواعيد...</p>
+              </div>
+            ) : currentSchedules.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full gap-4 text-slate-400 py-10">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <p className="text-lg font-medium">لا توجد مواعيد متاحة حالياً لهذا الصف</p>
+              </div>
+            ) : (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={selectedGrade}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  transition={{ duration: 0.3 }}
+                  className="grid grid-cols-1 md:grid-cols-2 gap-6"
+                >
+                  {currentSchedules.map((item, index) => (
+                    <div key={index} className="bg-slate-50 border border-slate-100 rounded-2xl p-6 hover:shadow-lg hover:border-blue-100 transition-all group">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="text-xl font-bold text-slate-900 mb-4">{item.center}</h4>
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-3 text-slate-600 font-medium">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              {item.days}
+                            </div>
+                            <div className="flex items-center gap-3 text-slate-600 font-medium">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              {item.time}
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </motion.div>
-            </AnimatePresence>
+                  ))}
+                </motion.div>
+              </AnimatePresence>
+            )}
 
             <div className="mt-10 text-center">
               <Link href="/login" className="bg-slate-900 hover:bg-blue-600 text-white px-10 py-4 rounded-full font-bold text-lg shadow-lg shadow-slate-900/20 hover:shadow-blue-600/30 transition-all hover:-translate-y-1 inline-flex items-center justify-center gap-3 w-full sm:w-auto">
