@@ -731,27 +731,27 @@ const CERTIFICATES_BY_STAGE = [
     stageId: 'secondary',
     stageName: 'أبطال المرحلة الثانوية',
     certificates: [
-      { id: 1, title: 'المركز الأول - الصف الثالث الثانوي', student: 'محمد أحمد', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' },
-      { id: 2, title: 'التفوق في الرياضيات', student: 'مريم محمود', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' },
-      { id: 3, title: 'الدرجة النهائية - الترم الأول', student: 'يوسف طارق', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' },
-      { id: 4, title: 'المركز الأول - الصف الأول الثانوي', student: 'فاطمة علي', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' }
+      { id: 1, title: 'المركز الأول - الصف الثالث الثانوي', student: 'محمد أحمد', image: 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate' },
+      { id: 2, title: 'التفوق في الرياضيات', student: 'مريم محمود', image: 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate' },
+      { id: 3, title: 'الدرجة النهائية - الترم الأول', student: 'يوسف طارق', image: 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate' },
+      { id: 4, title: 'المركز الأول - الصف الأول الثانوي', student: 'فاطمة علي', image: 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate' }
     ]
   },
   {
     stageId: 'preparatory',
     stageName: 'أبطال المرحلة الإعدادية',
     certificates: [
-      { id: 5, title: 'المركز الأول - الصف الثالث الإعدادي', student: 'عمر حسين', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' },
-      { id: 6, title: 'التميز في الجبر', student: 'نور ياسر', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' },
-      { id: 7, title: 'الدرجة النهائية', student: 'زياد طارق', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' },
+      { id: 5, title: 'المركز الأول - الصف الثالث الإعدادي', student: 'عمر حسين', image: 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate' },
+      { id: 6, title: 'التميز في الجبر', student: 'نور ياسر', image: 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate' },
+      { id: 7, title: 'الدرجة النهائية', student: 'زياد طارق', image: 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate' },
     ]
   },
   {
     stageId: 'primary',
     stageName: 'أبطال المرحلة الابتدائية',
     certificates: [
-      { id: 8, title: 'الأول على المدرسة - الصف السادس', student: 'جنى محمد', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' },
-      { id: 9, title: 'عبقري الرياضيات', student: 'ياسين أحمد', image: 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير' },
+      { id: 8, title: 'الأول على المدرسة - الصف السادس', student: 'جنى محمد', image: 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate' },
+      { id: 9, title: 'عبقري الرياضيات', student: 'ياسين أحمد', image: 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate' },
     ]
   }
 ];
@@ -774,7 +774,7 @@ function CertificatesSection() {
             id: c.id,
             title: c.subject ? `التفوق في ${c.subject}` : 'شهادة تقدير',
             student: c.studentName || 'طالب',
-            image: c.fileUrl || 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير'
+            image: c.fileUrl || 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate'
           });
 
           const newSecondary = saved.filter((c: any) => c.stage === 'الثانوية').map(mapCert);
