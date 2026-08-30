@@ -31,8 +31,8 @@ export const CertificateTemplateA = forwardRef<HTMLDivElement, Props>(({ data },
       }}
     >
       <div 
-        className="absolute w-full flex flex-col items-center justify-center gap-6"
-        style={{ top: '350px' }} // Adjusted higher
+        className="absolute w-full flex flex-col items-center justify-center gap-4"
+        style={{ top: '230px' }} // Adjusted much higher
       >
         {/* Presenter Sentence */}
         <p className="text-[2.2rem] text-[#4A4A4A] font-bold" style={{ fontFamily: "'Amiri', serif" }}>
