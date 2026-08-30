@@ -832,8 +832,14 @@ function CertificatesSection() {
                 </h3>
               </div>
 
-              {/* Continuous Marquee */}
-              <div className="flex overflow-hidden -mx-6 md:-mx-4 pb-6 px-6 md:px-4">
+              {/* Continuous Marquee with Fade Edges */}
+              <div 
+                className="flex overflow-hidden -mx-6 md:-mx-4 pb-6 px-6 md:px-4"
+                style={{
+                  WebkitMaskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)',
+                  maskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)'
+                }}
+              >
                 <motion.div
                   className="flex gap-6 w-max"
                   animate={{ x: ["0%", "25%"] }}
