@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Download, Loader2, ZoomIn, ZoomOut, Maximize2, RefreshCw } from 'lucide-react';
-import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { CertificateTemplateA, CertificateData } from './CertificateTemplateA';
 
@@ -19,6 +18,8 @@ export function CertificateBuilder() {
     issueDate: new Date().toLocaleDateString('ar-EG'),
     year: new Date().getFullYear().toString(),
     teacherName: 'أحمد غريب', // Default or from profile
+    stage: '',
+    grade: '',
     yearPos: { x: 143, y: 573 },
     scorePos: { x: 577, y: 636 },
     datePos: { x: 388, y: 620 },
@@ -58,6 +59,8 @@ export function CertificateBuilder() {
       issueDate: new Date().toLocaleDateString('ar-EG'),
       year: new Date().getFullYear().toString(),
       teacherName: 'أحمد غريب',
+      stage: '',
+      grade: '',
       yearPos: { x: 143, y: 573 },
       scorePos: { x: 577, y: 636 },
       datePos: { x: 388, y: 620 },
@@ -77,7 +80,7 @@ export function CertificateBuilder() {
       document.body.appendChild(clone);
 
       const canvas = await html2canvas(clone, {
-        scale: 3, // High resolution for print
+        scale: 1.5, // Reduced scale to keep the file size smaller
         useCORS: true,
         backgroundColor: '#FDFDFD',
         width: 1146,
@@ -88,17 +91,25 @@ export function CertificateBuilder() {
       
       document.body.removeChild(clone);
 
-      const imgData = canvas.toDataURL('image/jpeg', 1.0);
+      // Convert canvas to a lightweight PNG or WebP data URL
+      // (Using image/png is fine, but toDataURL may result in a larger size. We can use canvas.toBlob for better compression if needed)
+      const imgData = canvas.toDataURL('image/png');
       
-      // A4 landscape dimensions in mm: 297 x 210
-      const pdf = new jsPDF({
-        orientation: 'landscape',
-        unit: 'mm',
-        format: 'a4'
-      });
+      // Trigger download
+      const link = document.createElement('a');
+      link.href = imgData;
+      link.download = `شهادة-${data.studentName || 'طالب'}.png`;
+      link.click();
       
-      pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210);
-      pdf.save(`شهادة-${data.studentName || 'طالب'}.pdf`);
+      // TODO: To upload this image to your bucket, you can convert it to a Blob and send it to your API:
+      /*
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        const formData = new FormData();
+        formData.append('file', blob, `شهادة-${data.studentName}.png`);
+        // await fetch('/api/upload', { method: 'POST', body: formData });
+      }, 'image/png');
+      */
       
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -159,6 +170,39 @@ export function CertificateBuilder() {
                   { label: 'اللغة الإنجليزية', value: 'اللغة الإنجليزية' }
                 ]}
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">المرحلة الدراسية</label>
+                <Select 
+                  value={data.stage} 
+                  onChange={(e) => handleChange('stage', e.target.value)} 
+                  options={[
+                    { label: 'اختر المرحلة...', value: '' },
+                    { label: 'الابتدائية', value: 'الابتدائية' },
+                    { label: 'الإعدادية', value: 'الإعدادية' },
+                    { label: 'الثانوية', value: 'الثانوية' },
+                    { label: 'الجامعية', value: 'الجامعية' },
+                  ]}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">الصف الدراسي</label>
+                <Select 
+                  value={data.grade} 
+                  onChange={(e) => handleChange('grade', e.target.value)} 
+                  options={[
+                    { label: 'اختر الصف...', value: '' },
+                    { label: 'الصف الأول', value: 'الصف الأول' },
+                    { label: 'الصف الثاني', value: 'الصف الثاني' },
+                    { label: 'الصف الثالث', value: 'الصف الثالث' },
+                    { label: 'الصف الرابع', value: 'الصف الرابع' },
+                    { label: 'الصف الخامس', value: 'الصف الخامس' },
+                    { label: 'الصف السادس', value: 'الصف السادس' },
+                  ]}
+                />
+              </div>
             </div>
 
             <div>
@@ -275,7 +319,7 @@ export function CertificateBuilder() {
                 disabled={isGenerating || !data.studentName || !data.subject}
               >
                 {isGenerating ? <Loader2 className="w-5 h-5 ml-2 animate-spin" /> : <Download className="w-5 h-5 ml-2" />}
-                إنشاء وتحميل PDF
+                إنشاء وتحميل الصورة
               </Button>
             </div>
           </div>

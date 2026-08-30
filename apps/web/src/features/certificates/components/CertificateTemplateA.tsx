@@ -8,6 +8,8 @@ export interface CertificateData {
   issueDate: string;
   year: string;
   teacherName: string;
+  stage: string; // Educational Stage
+  grade: string; // Grade Level
   yearPos: { x: number, y: number };
   scorePos: { x: number, y: number };
   datePos: { x: number, y: number };
