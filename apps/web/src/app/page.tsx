@@ -730,17 +730,17 @@ const CERTIFICATES_BY_STAGE = [
   {
     stageId: 'secondary',
     stageName: 'أبطال المرحلة الثانوية',
-    certificates: []
+    certificates: [] as any[]
   },
   {
     stageId: 'preparatory',
     stageName: 'أبطال المرحلة الإعدادية',
-    certificates: []
+    certificates: [] as any[]
   },
   {
     stageId: 'primary',
     stageName: 'أبطال المرحلة الابتدائية',
-    certificates: []
+    certificates: [] as any[]
   }
 ];
 
