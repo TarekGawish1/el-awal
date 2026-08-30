@@ -832,32 +832,42 @@ function CertificatesSection() {
                 </h3>
               </div>
 
-              {/* Horizontal Scroll Container (Netflix Style) */}
-              <div className="flex overflow-x-auto gap-6 pb-6 -mx-6 px-6 md:mx-0 md:px-0 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                {stage.certificates.map((cert) => (
-                  <div
-                    key={cert.id}
-                    className="shrink-0 w-[280px] sm:w-[320px] snap-center bg-white rounded-2xl p-3 border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all group"
-                  >
-                    <div className="relative overflow-hidden rounded-xl bg-slate-100 aspect-[4/3] mb-4">
-                      <img
-                        src={cert.image}
-                        alt={cert.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
-                        <div className="text-white">
-                          <div className="font-bold text-lg">{cert.student}</div>
-                          <div className="text-sm text-slate-200">{cert.title}</div>
+              {/* Continuous Marquee */}
+              <div className="flex overflow-hidden -mx-6 md:-mx-4 pb-6 px-6 md:px-4">
+                <motion.div
+                  className="flex gap-6 w-max"
+                  animate={{ x: ["0%", "25%"] }}
+                  transition={{
+                    repeat: Infinity,
+                    ease: "linear",
+                    duration: 20,
+                  }}
+                >
+                  {[...stage.certificates, ...stage.certificates, ...stage.certificates, ...stage.certificates].map((cert, index) => (
+                    <div
+                      key={`${cert.id}-${index}`}
+                      className="shrink-0 w-[280px] sm:w-[320px] bg-white rounded-2xl p-3 border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all group"
+                    >
+                      <div className="relative overflow-hidden rounded-xl bg-slate-100 aspect-[4/3] mb-4">
+                        <img
+                          src={cert.image}
+                          alt={cert.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+                          <div className="text-white">
+                            <div className="font-bold text-lg">{cert.student}</div>
+                            <div className="text-sm text-slate-200">{cert.title}</div>
+                          </div>
                         </div>
                       </div>
+                      <div className="text-center px-2 pb-2">
+                        <h4 className="font-bold text-slate-900 truncate">{cert.student}</h4>
+                        <p className="text-sm text-slate-500 truncate">{cert.title}</p>
+                      </div>
                     </div>
-                    <div className="text-center px-2 pb-2">
-                      <h4 className="font-bold text-slate-900 truncate">{cert.student}</h4>
-                      <p className="text-sm text-slate-500 truncate">{cert.title}</p>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </motion.div>
               </div>
             </motion.div>
           ))}
