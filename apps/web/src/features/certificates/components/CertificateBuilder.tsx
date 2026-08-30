@@ -172,7 +172,7 @@ export function CertificateBuilder() {
           grade: data.grade,
           issueDate: data.issueDate,
           createdAt: new Date().toISOString(),
-          // Store minimal representation if needed, but avoiding large base64 strings
+          image: imgData,
           data: { ...data }
         };
         const existingCerts = JSON.parse(localStorage.getItem('saved_certificates') || '[]');
