@@ -66,8 +66,8 @@ export const CertificateTemplateA = forwardRef<HTMLDivElement, Props>(({ data },
       <div 
         className="absolute flex flex-col items-center justify-center"
         style={{ 
-          top: '640px', // Approximate vertical position of the seal
-          left: '50%', // Assuming it's in the center
+          top: '615px', // Moved up slightly
+          left: '50%', 
           transform: 'translate(-50%, -50%)',
           width: '120px',
           height: '120px'
@@ -75,6 +75,20 @@ export const CertificateTemplateA = forwardRef<HTMLDivElement, Props>(({ data },
       >
         <span className="text-[3.5rem] font-bold text-[#0A192F] leading-none" style={{ fontFamily: "'Tajawal', sans-serif" }}>
           {data.score || '0'}
+        </span>
+      </div>
+
+      {/* Year (Placed in the red ribbon seal) */}
+      <div 
+        className="absolute flex flex-col items-center justify-center"
+        style={{ 
+          top: '635px', // Below 'YEAR OF'
+          left: '160px', // Center of the left seal (approximate)
+          transform: 'translate(-50%, -50%)',
+        }}
+      >
+        <span className="text-[1.8rem] font-bold text-[#0A192F] leading-none" style={{ fontFamily: "'Tajawal', sans-serif" }}>
+          {data.year}
         </span>
       </div>
     </div>
