@@ -10,6 +10,7 @@ export interface CertificateData {
   teacherName: string;
   yearPos: { x: number, y: number };
   scorePos: { x: number, y: number };
+  datePos: { x: number, y: number };
 }
 
 interface Props {
@@ -91,6 +92,21 @@ export const CertificateTemplateA = forwardRef<HTMLDivElement, Props>(({ data },
       >
         <span className="text-[1.8rem] font-bold text-[#0A192F] leading-none" style={{ fontFamily: "'Tajawal', sans-serif" }}>
           {data.year}
+        </span>
+      </div>
+
+      {/* Date (Placed above the horizontal line) */}
+      <div 
+        className="absolute flex flex-col items-center justify-center"
+        style={{ 
+          top: `${data.datePos?.y || 620}px`,
+          left: `${data.datePos?.x || 388}px`,
+          transform: 'translate(-50%, -50%)',
+        }}
+        dir="ltr"
+      >
+        <span className="text-[1.5rem] font-bold text-[#4A4A4A] leading-none" style={{ fontFamily: "'Tajawal', sans-serif" }}>
+          {data.issueDate}
         </span>
       </div>
     </div>

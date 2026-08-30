@@ -19,8 +19,8 @@ export function CertificateBuilder() {
     issueDate: new Date().toLocaleDateString('ar-EG'),
     year: new Date().getFullYear().toString(),
     teacherName: 'أحمد غريب', // Default or from profile
-    yearPos: { x: 200, y: 540 },
-    scorePos: { x: 573, y: 640 },
+    yearPos: { x: 143, y: 573 },
+    scorePos: { x: 577, y: 636 },
   });
 
   const [isGenerating, setIsGenerating] = useState(false);
@@ -57,8 +57,8 @@ export function CertificateBuilder() {
       issueDate: new Date().toLocaleDateString('ar-EG'),
       year: new Date().getFullYear().toString(),
       teacherName: 'أحمد غريب',
-      yearPos: { x: 200, y: 540 },
-      scorePos: { x: 573, y: 640 },
+      yearPos: { x: 143, y: 573 },
+      scorePos: { x: 577, y: 636 },
     });
   };
 
