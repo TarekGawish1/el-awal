@@ -31,8 +31,8 @@ export function CertificateBuilder() {
     const updateScale = () => {
       if (containerRef.current) {
         const containerWidth = containerRef.current.clientWidth;
-        // 1123 is the fixed width of the certificate
-        const desiredScale = Math.min((containerWidth - 40) / 1123, 1);
+        // 1146 is the fixed width of the certificate
+        const desiredScale = Math.min((containerWidth - 40) / 1146, 1);
         setScale(desiredScale);
       }
     };
@@ -74,10 +74,10 @@ export function CertificateBuilder() {
         scale: 3, // High resolution for print
         useCORS: true,
         backgroundColor: '#FDFDFD',
-        width: 1123,
-        height: 794,
-        windowWidth: 1123,
-        windowHeight: 794
+        width: 1146,
+        height: 810,
+        windowWidth: 1146,
+        windowHeight: 810
       });
       
       document.body.removeChild(clone);
@@ -222,7 +222,7 @@ export function CertificateBuilder() {
               </Button>
               <Button variant="outline" size="sm" className="mr-4" onClick={() => {
                 if (containerRef.current) {
-                  const desiredScale = Math.min((containerRef.current.clientWidth - 40) / 1123, 1);
+                  const desiredScale = Math.min((containerRef.current.clientWidth - 40) / 1146, 1);
                   setScale(desiredScale);
                 }
               }}>
@@ -242,8 +242,8 @@ export function CertificateBuilder() {
               className="origin-center transition-transform duration-200 ease-out shadow-2xl rounded-sm"
               style={{ 
                 transform: `scale(${scale})`,
-                width: '1123px',
-                height: '794px',
+                width: '1146px',
+                height: '810px',
               }}
             >
               <CertificateTemplateA data={data} ref={certificateRef} />
