@@ -808,6 +808,10 @@ function CertificatesSection() {
           console.warn("Could not fetch API certificates", apiError);
         }
 
+        // Ensure arrays
+        if (!Array.isArray(apiCerts)) apiCerts = [];
+        if (!Array.isArray(localCerts)) localCerts = [];
+
         // Merge backend certs with local certs (fallback)
         const mappedApiCerts = apiCerts.map((c: any) => ({
           id: c.id,
