@@ -37,12 +37,6 @@ const MOCK_STUDENTS = [
   { id: 3, name: 'عمر طارق جاويش', gender: 'MALE', stage: 'الإعدادية', grade: 'الصف الثالث' },
   { id: 4, name: 'منى محمود عبدلله', gender: 'FEMALE', stage: 'الإعدادية', grade: 'الصف الثالث' },
   { id: 5, name: 'مصطفى السيد محمود', gender: 'MALE', stage: 'الابتدائية', grade: 'الصف السادس' },
-  { id: 6, name: 'حنين طه محمد', gender: 'FEMALE', stage: 'الثانوية', grade: 'الصف الثالث' },
-  { id: 7, name: 'نور احمد طه', gender: 'FEMALE', stage: 'الثانوية', grade: 'الصف الثالث' },
-  { id: 8, name: 'ميرنا يحيى عبد المنعم', gender: 'FEMALE', stage: 'الثانوية', grade: 'الصف الثالث' },
-  { id: 9, name: 'شهد وائل السعيد', gender: 'FEMALE', stage: 'الثانوية', grade: 'الصف الثالث' },
-  { id: 10, name: 'جنى صلاح عبد الرازق', gender: 'FEMALE', stage: 'الثانوية', grade: 'الصف الثالث' },
-  { id: 11, name: 'حنين محمد سندي', gender: 'FEMALE', stage: 'الثانوية', grade: 'الصف الثالث' },
 ];
 
 export function CertificateBuilder() {
