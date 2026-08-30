@@ -164,6 +164,28 @@ export function CertificateBuilder() {
       // Upload to Backend (Cloudflare R2 Bucket + Database)
       canvas.toBlob(async (blob) => {
         if (!blob) return;
+        
+        // Save to localStorage immediately for instant UI update
+        try {
+          const savedCerts = JSON.parse(localStorage.getItem('saved_certificates') || '[]');
+          const newCertificate = {
+            id: Date.now().toString(),
+            studentName: data.studentName || 'طالب',
+            subject: data.subject || 'عام',
+            score: data.score || '100',
+            stage: data.stage || '',
+            grade: data.grade || '',
+            issueDate: data.issueDate || '',
+            createdAt: new Date().toISOString(),
+            image: imgData,
+            data: { ...data }
+          };
+          savedCerts.push(newCertificate);
+          localStorage.setItem('saved_certificates', JSON.stringify(savedCerts));
+        } catch(e) {
+          console.error('Error saving to localStorage', e);
+        }
+
         const formData = new FormData();
         formData.append('file', blob, `certificate-${Date.now()}.png`);
         formData.append('studentName', data.studentName || 'طالب');
