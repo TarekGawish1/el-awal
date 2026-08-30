@@ -770,19 +770,19 @@ function CertificatesSection() {
           image: c.image || 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير'
         });
 
-        const newSecondary = saved.filter((c: any) => c.stage === 'الثانوية').map(mapCert);
-        const newPreparatory = saved.filter((c: any) => c.stage === 'الإعدادية').map(mapCert);
-        const newPrimary = saved.filter((c: any) => c.stage === 'الابتدائية').map(mapCert);
+        const newSecondary = saved.filter((c: any) => c.stage === 'الثانوية' || (c.data && c.data.stage === 'الثانوية')).map(mapCert);
+        const newPreparatory = saved.filter((c: any) => c.stage === 'الإعدادية' || (c.data && c.data.stage === 'الإعدادية')).map(mapCert);
+        const newPrimary = saved.filter((c: any) => c.stage === 'الابتدائية' || (c.data && c.data.stage === 'الابتدائية')).map(mapCert);
 
-        setStagesData(prev => prev.map(stage => {
-          if (stage.stageId === 'secondary') {
-            return { ...stage, certificates: [...newSecondary, ...stage.certificates] };
+        setStagesData(CERTIFICATES_BY_STAGE.map(stage => {
+          if (stage.stageId === 'secondary' && newSecondary.length > 0) {
+            return { ...stage, certificates: newSecondary };
           }
-          if (stage.stageId === 'preparatory') {
-            return { ...stage, certificates: [...newPreparatory, ...stage.certificates] };
+          if (stage.stageId === 'preparatory' && newPreparatory.length > 0) {
+            return { ...stage, certificates: newPreparatory };
           }
-          if (stage.stageId === 'primary') {
-            return { ...stage, certificates: [...newPrimary, ...stage.certificates] };
+          if (stage.stageId === 'primary' && newPrimary.length > 0) {
+            return { ...stage, certificates: newPrimary };
           }
           return stage;
         }));

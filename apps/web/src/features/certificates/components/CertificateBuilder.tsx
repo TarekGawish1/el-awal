@@ -161,6 +161,17 @@ export function CertificateBuilder() {
       link.download = `شهادة-${data.studentName || 'طالب'}.png`;
       link.click();
       
+      // Create a tiny thumbnail for localStorage (max ~5-10kb) so dashboard shows the image
+      const thumbCanvas = document.createElement('canvas');
+      const thumbCtx = thumbCanvas.getContext('2d');
+      thumbCanvas.width = 300;
+      thumbCanvas.height = 212; // proportional to 1146x810
+      if (thumbCtx) {
+        thumbCtx.drawImage(canvas, 0, 0, thumbCanvas.width, thumbCanvas.height);
+      }
+      // Compress strongly as JPEG
+      const thumbImgData = thumbCanvas.toDataURL('image/jpeg', 0.5);
+
       // Save certificate metadata to localStorage
       try {
         const newCertificate = {
@@ -172,7 +183,7 @@ export function CertificateBuilder() {
           grade: data.grade,
           issueDate: data.issueDate,
           createdAt: new Date().toISOString(),
-          // Remove imgData from localStorage to prevent QuotaExceededError (5MB limit)
+          image: thumbImgData,
           data: { ...data }
         };
         const existingCerts = JSON.parse(localStorage.getItem('saved_certificates') || '[]');
