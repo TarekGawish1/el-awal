@@ -9,6 +9,27 @@ import { Download, Loader2, ZoomIn, ZoomOut, Maximize2, RefreshCw } from 'lucide
 import html2canvas from 'html2canvas';
 import { CertificateTemplateA, CertificateData } from './CertificateTemplateA';
 
+const STAGE_GRADES = {
+  'الابتدائية': [
+    { label: 'الصف الأول', value: 'الصف الأول' },
+    { label: 'الصف الثاني', value: 'الصف الثاني' },
+    { label: 'الصف الثالث', value: 'الصف الثالث' },
+    { label: 'الصف الرابع', value: 'الصف الرابع' },
+    { label: 'الصف الخامس', value: 'الصف الخامس' },
+    { label: 'الصف السادس', value: 'الصف السادس' },
+  ],
+  'الإعدادية': [
+    { label: 'الصف الأول', value: 'الصف الأول' },
+    { label: 'الصف الثاني', value: 'الصف الثاني' },
+    { label: 'الصف الثالث', value: 'الصف الثالث' },
+  ],
+  'الثانوية': [
+    { label: 'الصف الأول', value: 'الصف الأول' },
+    { label: 'الصف الثاني', value: 'الصف الثاني' },
+    { label: 'الصف الثالث', value: 'الصف الثالث' },
+  ],
+};
+
 // TODO: Replace with real API fetch based on stage and grade
 const MOCK_STUDENTS = [
   { id: 1, name: 'أحمد محمد علي', gender: 'MALE', stage: 'الثانوية', grade: 'الصف الأول' },
@@ -169,13 +190,15 @@ export function CertificateBuilder() {
                   <label className="block text-sm font-medium text-slate-700 mb-1">المرحلة الدراسية</label>
                   <Select 
                     value={data.stage} 
-                    onChange={(e) => handleChange('stage', e.target.value)} 
+                    onChange={(e) => {
+                      handleChange('stage', e.target.value);
+                      handleChange('grade', ''); // Reset grade when stage changes
+                    }} 
                     options={[
                       { label: 'اختر المرحلة...', value: '' },
                       { label: 'الابتدائية', value: 'الابتدائية' },
                       { label: 'الإعدادية', value: 'الإعدادية' },
                       { label: 'الثانوية', value: 'الثانوية' },
-                      { label: 'الجامعية', value: 'الجامعية' },
                     ]}
                   />
                 </div>
@@ -186,13 +209,9 @@ export function CertificateBuilder() {
                     onChange={(e) => handleChange('grade', e.target.value)} 
                     options={[
                       { label: 'اختر الصف...', value: '' },
-                      { label: 'الصف الأول', value: 'الصف الأول' },
-                      { label: 'الصف الثاني', value: 'الصف الثاني' },
-                      { label: 'الصف الثالث', value: 'الصف الثالث' },
-                      { label: 'الصف الرابع', value: 'الصف الرابع' },
-                      { label: 'الصف الخامس', value: 'الصف الخامس' },
-                      { label: 'الصف السادس', value: 'الصف السادس' },
+                      ...(data.stage && STAGE_GRADES[data.stage as keyof typeof STAGE_GRADES] ? STAGE_GRADES[data.stage as keyof typeof STAGE_GRADES] : []),
                     ]}
+                    disabled={!data.stage}
                   />
                 </div>
               </div>
