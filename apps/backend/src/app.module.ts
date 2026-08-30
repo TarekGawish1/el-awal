@@ -24,6 +24,7 @@ import { TeachersModule } from './modules/teachers/teachers.module';
 import { AcademicPeriodsModule } from './modules/academic-periods/academic-periods.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ContactMessagesModule } from './modules/contact-messages/contact-messages.module';
+import { CertificatesModule } from './modules/certificates/certificates.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { ContactMessagesModule } from './modules/contact-messages/contact-messag
     SyncModule,
     HealthModule,
     ContactMessagesModule,
+    CertificatesModule,
   ],
 })
 export class AppModule {}

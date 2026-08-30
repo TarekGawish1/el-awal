@@ -760,36 +760,46 @@ function CertificatesSection() {
   const [stagesData, setStagesData] = useState(CERTIFICATES_BY_STAGE);
 
   useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('saved_certificates') || '[]');
-      if (saved.length > 0) {
-        const mapCert = (c: any) => ({
-          id: c.id,
-          title: c.subject ? `التفوق في ${c.subject}` : 'شهادة تقدير',
-          student: c.studentName || 'طالب',
-          image: c.image || 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير'
-        });
+    const fetchCertificates = async () => {
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+        const res = await fetch(`${baseUrl}/certificates/public`);
+        if (!res.ok) return;
+        
+        const data = await res.json();
+        const saved = data || [];
 
-        const newSecondary = saved.filter((c: any) => c.stage === 'الثانوية' || (c.data && c.data.stage === 'الثانوية')).map(mapCert);
-        const newPreparatory = saved.filter((c: any) => c.stage === 'الإعدادية' || (c.data && c.data.stage === 'الإعدادية')).map(mapCert);
-        const newPrimary = saved.filter((c: any) => c.stage === 'الابتدائية' || (c.data && c.data.stage === 'الابتدائية')).map(mapCert);
+        if (saved.length > 0) {
+          const mapCert = (c: any) => ({
+            id: c.id,
+            title: c.subject ? `التفوق في ${c.subject}` : 'شهادة تقدير',
+            student: c.studentName || 'طالب',
+            image: c.fileUrl || 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير'
+          });
 
-        setStagesData(CERTIFICATES_BY_STAGE.map(stage => {
-          if (stage.stageId === 'secondary' && newSecondary.length > 0) {
-            return { ...stage, certificates: newSecondary };
-          }
-          if (stage.stageId === 'preparatory' && newPreparatory.length > 0) {
-            return { ...stage, certificates: newPreparatory };
-          }
-          if (stage.stageId === 'primary' && newPrimary.length > 0) {
-            return { ...stage, certificates: newPrimary };
-          }
-          return stage;
-        }));
+          const newSecondary = saved.filter((c: any) => c.stage === 'الثانوية').map(mapCert);
+          const newPreparatory = saved.filter((c: any) => c.stage === 'الإعدادية').map(mapCert);
+          const newPrimary = saved.filter((c: any) => c.stage === 'الابتدائية').map(mapCert);
+
+          setStagesData(CERTIFICATES_BY_STAGE.map(stage => {
+            if (stage.stageId === 'secondary' && newSecondary.length > 0) {
+              return { ...stage, certificates: newSecondary };
+            }
+            if (stage.stageId === 'preparatory' && newPreparatory.length > 0) {
+              return { ...stage, certificates: newPreparatory };
+            }
+            if (stage.stageId === 'primary' && newPrimary.length > 0) {
+              return { ...stage, certificates: newPrimary };
+            }
+            return stage;
+          }));
+        }
+      } catch (e) {
+        console.error('Failed to fetch certificates:', e);
       }
-    } catch (e) {
-      console.error(e);
-    }
+    };
+    
+    fetchCertificates();
   }, []);
 
   return (

@@ -152,7 +152,7 @@ export function CertificateBuilder() {
       
       document.body.removeChild(wrapper);
 
-      // Convert canvas to a lightweight PNG or WebP data URL
+      // Convert canvas to a lightweight PNG or WebP data URL for local download
       const imgData = canvas.toDataURL('image/png');
       
       // Trigger download
@@ -161,46 +161,32 @@ export function CertificateBuilder() {
       link.download = `شهادة-${data.studentName || 'طالب'}.png`;
       link.click();
       
-      // Create a tiny thumbnail for localStorage (max ~5-10kb) so dashboard shows the image
-      const thumbCanvas = document.createElement('canvas');
-      const thumbCtx = thumbCanvas.getContext('2d');
-      thumbCanvas.width = 300;
-      thumbCanvas.height = 212; // proportional to 1146x810
-      if (thumbCtx) {
-        thumbCtx.drawImage(canvas, 0, 0, thumbCanvas.width, thumbCanvas.height);
-      }
-      // Compress strongly as JPEG
-      const thumbImgData = thumbCanvas.toDataURL('image/jpeg', 0.5);
-
-      // Save certificate metadata to localStorage
-      try {
-        const newCertificate = {
-          id: Date.now().toString(),
-          studentName: data.studentName,
-          subject: data.subject,
-          score: data.score,
-          stage: data.stage,
-          grade: data.grade,
-          issueDate: data.issueDate,
-          createdAt: new Date().toISOString(),
-          image: thumbImgData,
-          data: { ...data }
-        };
-        const existingCerts = JSON.parse(localStorage.getItem('saved_certificates') || '[]');
-        localStorage.setItem('saved_certificates', JSON.stringify([newCertificate, ...existingCerts]));
-      } catch (err) {
-        console.error('Error saving certificate to localStorage:', err);
-      }
-      
-      // TODO: To upload this image to your bucket, you can convert it to a Blob and send it to your API:
-      /*
+      // Upload to Backend (Cloudflare R2 Bucket + Database)
       canvas.toBlob(async (blob) => {
         if (!blob) return;
         const formData = new FormData();
-        formData.append('file', blob, `شهادة-${data.studentName}.png`);
-        // await fetch('/api/upload', { method: 'POST', body: formData });
+        formData.append('file', blob, `certificate-${Date.now()}.png`);
+        formData.append('studentName', data.studentName || 'طالب');
+        formData.append('gender', data.gender || 'MALE');
+        formData.append('subject', data.subject || 'عام');
+        formData.append('score', data.score || '100');
+        formData.append('issueDate', data.issueDate || '');
+        formData.append('year', data.year || '');
+        formData.append('stage', data.stage || '');
+        formData.append('grade', data.grade || '');
+        formData.append('teacherName', data.teacherName || '');
+
+        try {
+          const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+          await fetch(`${baseUrl}/certificates`, { 
+            method: 'POST', 
+            body: formData 
+          });
+          console.log('Certificate uploaded successfully to R2 bucket and database.');
+        } catch(e) {
+          console.error("Failed to upload certificate", e);
+        }
       }, 'image/png');
-      */
       
     } catch (error) {
       console.error('Error generating PDF:', error);

@@ -1092,6 +1092,8 @@ model Certificate {
   score         String    @map("score") @db.VarChar(50)
   issueDate     String    @map("issue_date") @db.VarChar(50)
   year          String    @map("year") @db.VarChar(10)
+  stage         String?   @map("stage") @db.VarChar(100)
+  grade         String?   @map("grade") @db.VarChar(100)
   teacherId     String?   @map("teacher_id") @db.Uuid
   teacherName   String    @map("teacher_name") @db.VarChar(255)
   fileUrl       String?   @map("file_url") @db.Text
