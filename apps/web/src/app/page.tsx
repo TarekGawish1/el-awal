@@ -760,9 +760,56 @@ function CertificatesSection() {
   const [stagesData, setStagesData] = useState(CERTIFICATES_BY_STAGE);
 
   useEffect(() => {
-    const fetchCertificates = async () => {
+    const syncAndFetchCertificates = async () => {
       try {
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+
+        // 1. Get local storage certificates
+        let localCerts: any[] = [];
+        try {
+          localCerts = JSON.parse(localStorage.getItem('saved_certificates') || '[]');
+        } catch(localError) {
+          console.warn("Could not parse local certificates", localError);
+        }
+
+        // 2. Sync unsynced local certificates to backend
+        const syncedFlags = JSON.parse(localStorage.getItem('synced_certificates') || '{}');
+        let needsRefetch = false;
+
+        for (const cert of localCerts) {
+          if (!syncedFlags[cert.id]) {
+            try {
+              // Upload to backend using the thumbnail base64 as fileUrl
+              const formData = new FormData();
+              formData.append('studentName', cert.studentName || 'طالب');
+              formData.append('subject', cert.subject || 'عام');
+              formData.append('score', cert.score || '100');
+              formData.append('issueDate', cert.issueDate || '');
+              formData.append('year', cert.year || '');
+              formData.append('stage', cert.stage || (cert.data && cert.data.stage) || '');
+              formData.append('grade', cert.grade || (cert.data && cert.data.grade) || '');
+              formData.append('fileUrl', cert.image); // Sending base64 as url fallback
+
+              const uploadRes = await fetch(`${baseUrl}/certificates`, {
+                method: 'POST',
+                body: formData
+              });
+
+              if (uploadRes.ok) {
+                syncedFlags[cert.id] = true;
+                needsRefetch = true;
+              }
+            } catch (err) {
+              console.error("Failed to sync cert", err);
+            }
+          }
+        }
+
+        if (needsRefetch) {
+          localStorage.setItem('synced_certificates', JSON.stringify(syncedFlags));
+        }
+
+        // 3. Fetch all certificates from backend (which now includes the synced ones)
         let apiCerts = [];
         try {
           const res = await fetch(`${baseUrl}/certificates/public`);
@@ -773,16 +820,7 @@ function CertificatesSection() {
           console.warn("Could not fetch API certificates", apiError);
         }
 
-        // Get local storage certificates to prevent data loss for older certs
-        let localCerts = [];
-        try {
-          localCerts = JSON.parse(localStorage.getItem('saved_certificates') || '[]');
-        } catch(localError) {
-          console.warn("Could not parse local certificates", localError);
-        }
-
-        // Merge them
-        // Map API certs
+        // Merge backend certs with local certs (fallback)
         const mappedApiCerts = apiCerts.map((c: any) => ({
           id: c.id,
           title: c.subject ? `التفوق في ${c.subject}` : 'شهادة تقدير',
@@ -791,7 +829,6 @@ function CertificatesSection() {
           stage: c.stage
         }));
 
-        // Map Local certs
         const mappedLocalCerts = localCerts.map((c: any) => ({
           id: c.id,
           title: c.subject ? `التفوق في ${c.subject}` : 'شهادة تقدير',
@@ -800,7 +837,6 @@ function CertificatesSection() {
           stage: c.stage || (c.data && c.data.stage)
         }));
 
-        // Combine and filter duplicates by name (if they were uploaded later)
         const combined = [...mappedApiCerts, ...mappedLocalCerts];
         const uniqueSaved = Array.from(new Map(combined.map(item => [item.student, item])).values());
 
@@ -823,11 +859,11 @@ function CertificatesSection() {
           }));
         }
       } catch (e) {
-        console.error('Failed to fetch/merge certificates:', e);
+        console.error('Failed to sync/fetch certificates:', e);
       }
     };
     
-    fetchCertificates();
+    syncAndFetchCertificates();
   }, []);
 
   return (
