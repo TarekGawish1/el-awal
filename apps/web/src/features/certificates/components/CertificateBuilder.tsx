@@ -172,7 +172,7 @@ export function CertificateBuilder() {
           grade: data.grade,
           issueDate: data.issueDate,
           createdAt: new Date().toISOString(),
-          image: imgData,
+          // Remove imgData from localStorage to prevent QuotaExceededError (5MB limit)
           data: { ...data }
         };
         const existingCerts = JSON.parse(localStorage.getItem('saved_certificates') || '[]');
