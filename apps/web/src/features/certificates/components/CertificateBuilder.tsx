@@ -21,6 +21,7 @@ export function CertificateBuilder() {
     teacherName: 'أحمد غريب', // Default or from profile
     yearPos: { x: 143, y: 573 },
     scorePos: { x: 577, y: 636 },
+    datePos: { x: 388, y: 620 },
   });
 
   const [isGenerating, setIsGenerating] = useState(false);
@@ -59,6 +60,7 @@ export function CertificateBuilder() {
       teacherName: 'أحمد غريب',
       yearPos: { x: 143, y: 573 },
       scorePos: { x: 577, y: 636 },
+      datePos: { x: 388, y: 620 },
     });
   };
 
@@ -236,6 +238,28 @@ export function CertificateBuilder() {
                         type="number" 
                         value={data.yearPos.y} 
                         onChange={(e) => setData(p => ({ ...p, yearPos: { ...p.yearPos, y: Number(e.target.value) } }))} 
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-2">موقع التاريخ (Date)</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400">X:</span>
+                      <Input 
+                        type="number" 
+                        value={data.datePos.x} 
+                        onChange={(e) => setData(p => ({ ...p, datePos: { ...p.datePos, x: Number(e.target.value) } }))} 
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400">Y:</span>
+                      <Input 
+                        type="number" 
+                        value={data.datePos.y} 
+                        onChange={(e) => setData(p => ({ ...p, datePos: { ...p.datePos, y: Number(e.target.value) } }))} 
                       />
                     </div>
                   </div>
