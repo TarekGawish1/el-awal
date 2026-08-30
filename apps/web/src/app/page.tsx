@@ -770,8 +770,8 @@ function CertificatesSection() {
           image: c.image || 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير'
         });
 
-        const newSecondary = saved.filter((c: any) => c.stage === 'الثانوية' || (c.data && c.data.stage === 'الحانوية')).map(mapCert);
-        const newPreparatory = saved.filter((c: any) => c.stage === 'إلإعحداحدية' || (c.data && c.data.stage === 'إلإعادادية')).map(mapCert);
+        const newSecondary = saved.filter((c: any) => c.stage === 'الثانوية' || (c.data && c.data.stage === 'الثانوية')).map(mapCert);
+        const newPreparatory = saved.filter((c: any) => c.stage === 'الإعدادية' || (c.data && c.data.stage === 'الإعدادية')).map(mapCert);
         const newPrimary = saved.filter((c: any) => c.stage === 'الابتدائية' || (c.data && c.data.stage === 'الابتدائية')).map(mapCert);
 
         setStagesData(CERTIFICATES_BY_STAGE.map(stage => {
