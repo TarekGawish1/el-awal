@@ -19,6 +19,8 @@ export function CertificateBuilder() {
     issueDate: new Date().toLocaleDateString('ar-EG'),
     year: new Date().getFullYear().toString(),
     teacherName: 'أحمد غريب', // Default or from profile
+    yearPos: { x: 200, y: 540 },
+    scorePos: { x: 573, y: 640 },
   });
 
   const [isGenerating, setIsGenerating] = useState(false);
@@ -55,6 +57,8 @@ export function CertificateBuilder() {
       issueDate: new Date().toLocaleDateString('ar-EG'),
       year: new Date().getFullYear().toString(),
       teacherName: 'أحمد غريب',
+      yearPos: { x: 200, y: 540 },
+      scorePos: { x: 573, y: 640 },
     });
   };
 
@@ -186,6 +190,56 @@ export function CertificateBuilder() {
                   value={data.year} 
                   onChange={(e) => handleChange('year', e.target.value)} 
                 />
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-100">
+              <h3 className="text-sm font-bold text-slate-800 mb-3">تعديل أماكن العناصر (X / Y)</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-2">موقع الدرجة (Score)</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400">X:</span>
+                      <Input 
+                        type="number" 
+                        value={data.scorePos.x} 
+                        onChange={(e) => setData(p => ({ ...p, scorePos: { ...p.scorePos, x: Number(e.target.value) } }))} 
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400">Y:</span>
+                      <Input 
+                        type="number" 
+                        value={data.scorePos.y} 
+                        onChange={(e) => setData(p => ({ ...p, scorePos: { ...p.scorePos, y: Number(e.target.value) } }))} 
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-2">موقع السنة (Year)</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400">X:</span>
+                      <Input 
+                        type="number" 
+                        value={data.yearPos.x} 
+                        onChange={(e) => setData(p => ({ ...p, yearPos: { ...p.yearPos, x: Number(e.target.value) } }))} 
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400">Y:</span>
+                      <Input 
+                        type="number" 
+                        value={data.yearPos.y} 
+                        onChange={(e) => setData(p => ({ ...p, yearPos: { ...p.yearPos, y: Number(e.target.value) } }))} 
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             

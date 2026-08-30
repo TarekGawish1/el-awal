@@ -8,6 +8,8 @@ export interface CertificateData {
   issueDate: string;
   year: string;
   teacherName: string;
+  yearPos: { x: number, y: number };
+  scorePos: { x: number, y: number };
 }
 
 interface Props {
@@ -66,8 +68,8 @@ export const CertificateTemplateA = forwardRef<HTMLDivElement, Props>(({ data },
       <div 
         className="absolute flex flex-col items-center justify-center"
         style={{ 
-          top: '640px', // Reverted back
-          left: '50%', 
+          top: `${data.scorePos?.y || 640}px`,
+          left: `${data.scorePos?.x || 573}px`, // 573 is approx 50% of 1146
           transform: 'translate(-50%, -50%)',
           width: '120px',
           height: '120px'
@@ -82,8 +84,8 @@ export const CertificateTemplateA = forwardRef<HTMLDivElement, Props>(({ data },
       <div 
         className="absolute flex flex-col items-center justify-center"
         style={{ 
-          top: '540px', // Below 'YEAR OF'
-          left: '200px', // Centered in the left seal
+          top: `${data.yearPos?.y || 540}px`,
+          left: `${data.yearPos?.x || 200}px`,
           transform: 'translate(-50%, -50%)',
         }}
       >
