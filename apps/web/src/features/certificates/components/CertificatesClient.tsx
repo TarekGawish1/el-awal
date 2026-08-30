@@ -32,6 +32,14 @@ export function CertificatesClient() {
     }
   }, []);
 
+  const handleDelete = (id: string) => {
+    if (window.confirm('هل أنت متأكد من حذف هذه الشهادة؟')) {
+      const updated = certificates.filter(cert => cert.id !== id);
+      setCertificates(updated);
+      localStorage.setItem('saved_certificates', JSON.stringify(updated));
+    }
+  };
+
   const filteredCertificates = certificates.filter(cert => 
     cert.studentName?.includes(searchTerm) || 
     cert.subject?.includes(searchTerm)
@@ -120,15 +128,23 @@ export function CertificatesClient() {
                 </div>
                 <div className="mt-auto flex items-center justify-between text-sm text-slate-500 border-t border-slate-100 pt-4">
                   <span>{cert.stage} - {cert.grade}</span>
-                  {cert.data?.image || (cert as any).image ? (
-                    <a 
-                      href={cert.data?.image || (cert as any).image} 
-                      download={`شهادة-${cert.studentName}.png`}
-                      className="text-blue-600 hover:text-blue-700 font-medium hover:underline text-xs"
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={() => handleDelete(cert.id)}
+                      className="text-red-500 hover:text-red-700 font-medium hover:underline text-xs"
                     >
-                      تحميل
-                    </a>
-                  ) : null}
+                      حذف
+                    </button>
+                    {cert.data?.image || (cert as any).image ? (
+                      <a 
+                        href={cert.data?.image || (cert as any).image} 
+                        download={`شهادة-${cert.studentName}.png`}
+                        className="text-blue-600 hover:text-blue-700 font-medium hover:underline text-xs"
+                      >
+                        تحميل
+                      </a>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             </Card>
