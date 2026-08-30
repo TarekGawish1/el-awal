@@ -15,6 +15,9 @@ interface Props {
 }
 
 export const CertificateTemplateA = forwardRef<HTMLDivElement, Props>(({ data }, ref) => {
+  const isMale = data.gender === 'MALE';
+  const studentTitle = isMale ? 'الطالب' : 'الطالبة';
+
   return (
     <div
       ref={ref}
@@ -27,16 +30,21 @@ export const CertificateTemplateA = forwardRef<HTMLDivElement, Props>(({ data },
         fontFamily: "'Amiri', 'Tajawal', system-ui, serif",
       }}
     >
-      {/* Student Name Overlay */}
       <div 
-        className="absolute w-full text-center flex flex-col items-center justify-center"
-        style={{ top: '430px' }} // Approximate position, we will adjust this
+        className="absolute w-full flex flex-col items-center justify-center gap-6"
+        style={{ top: '350px' }} // Adjusted higher
       >
+        {/* Presenter Sentence */}
+        <p className="text-[2.2rem] text-[#4A4A4A] font-bold" style={{ fontFamily: "'Amiri', serif" }}>
+          يسر الأستاذ {data.teacherName} أن يمنح هذه الشهادة إلى {studentTitle}
+        </p>
+
+        {/* Student Name */}
         <h2 
-          className="text-[3.5rem] font-bold pb-3 px-12 max-w-[900px] leading-tight" 
+          className="text-[4rem] font-bold pb-3 px-12 max-w-[900px] leading-tight" 
           style={{ 
             fontFamily: "'Amiri', serif",
-            color: '#1D4ED8' // We can change this to match the preferred color
+            color: '#1D4ED8' // Blue color
           }}
         >
           {data.studentName || 'اسم الطالب'}
