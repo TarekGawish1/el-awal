@@ -1083,21 +1083,20 @@ model ContactMessage {
   @@map("contact_messages")
 }
 
- m o d e l   C e r t i f i c a t e   { 
-     i d                     S t r i n g       @ i d   @ d e f a u l t ( d b g e n e r a t e d ( " g e n _ r a n d o m _ u u i d ( ) " ) )   @ m a p ( " i d " )   @ d b . U u i d 
-     s t u d e n t I d       S t r i n g ?     @ m a p ( " s t u d e n t _ i d " )   @ d b . U u i d 
-     s t u d e n t N a m e   S t r i n g       @ m a p ( " s t u d e n t _ n a m e " )   @ d b . V a r C h a r ( 2 5 5 ) 
-     g e n d e r             S t r i n g       @ m a p ( " g e n d e r " )   @ d b . V a r C h a r ( 1 0 ) 
-     s u b j e c t           S t r i n g       @ m a p ( " s u b j e c t " )   @ d b . V a r C h a r ( 2 5 5 ) 
-     s c o r e               S t r i n g       @ m a p ( " s c o r e " )   @ d b . V a r C h a r ( 5 0 ) 
-     i s s u e D a t e       S t r i n g       @ m a p ( " i s s u e _ d a t e " )   @ d b . V a r C h a r ( 5 0 ) 
-     y e a r                 S t r i n g       @ m a p ( " y e a r " )   @ d b . V a r C h a r ( 1 0 ) 
-     t e a c h e r I d       S t r i n g ?     @ m a p ( " t e a c h e r _ i d " )   @ d b . U u i d 
-     t e a c h e r N a m e   S t r i n g       @ m a p ( " t e a c h e r _ n a m e " )   @ d b . V a r C h a r ( 2 5 5 ) 
-     f i l e U r l           S t r i n g ?     @ m a p ( " f i l e _ u r l " )   @ d b . T e x t 
-     c r e a t e d A t       D a t e T i m e   @ d e f a u l t ( n o w ( ) )   @ m a p ( " c r e a t e d _ a t " )   @ d b . T i m e s t a m p t z ( 6 ) 
-     u p d a t e d A t       D a t e T i m e   @ u p d a t e d A t   @ m a p ( " u p d a t e d _ a t " )   @ d b . T i m e s t a m p t z ( 6 ) 
- 
-     @ @ m a p ( " c e r t i f i c a t e s " ) 
- }  
- 
+model Certificate {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  studentId     String?   @map("student_id") @db.Uuid
+  studentName   String    @map("student_name") @db.VarChar(255)
+  gender        String    @map("gender") @db.VarChar(10)
+  subject       String    @map("subject") @db.VarChar(255)
+  score         String    @map("score") @db.VarChar(50)
+  issueDate     String    @map("issue_date") @db.VarChar(50)
+  year          String    @map("year") @db.VarChar(10)
+  teacherId     String?   @map("teacher_id") @db.Uuid
+  teacherName   String    @map("teacher_name") @db.VarChar(255)
+  fileUrl       String?   @map("file_url") @db.Text
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("certificates")
+}
