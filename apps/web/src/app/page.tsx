@@ -832,8 +832,9 @@ function CertificatesSection() {
           const newSecondary = uniqueSaved.filter((c: any) => c.stage === 'الثانوية');
           const newPreparatory = uniqueSaved.filter((c: any) => c.stage === 'الإعدادية');
           const newPrimary = uniqueSaved.filter((c: any) => c.stage === 'الابتدائية');
+          const newOther = uniqueSaved.filter((c: any) => !['الثانوية', 'الإعدادية', 'الابتدائية'].includes(c.stage));
 
-          setStagesData(CERTIFICATES_BY_STAGE.map(stage => {
+          const nextStages = CERTIFICATES_BY_STAGE.map(stage => {
             if (stage.stageId === 'secondary' && newSecondary.length > 0) {
               return { ...stage, certificates: newSecondary };
             }
@@ -844,7 +845,19 @@ function CertificatesSection() {
               return { ...stage, certificates: newPrimary };
             }
             return stage;
-          }));
+          });
+
+          if (newOther.length > 0) {
+            nextStages.push({
+              stageId: 'other',
+              stageName: 'شهادات أخرى',
+              certificates: newOther
+            });
+          }
+
+          setStagesData(nextStages);
+        } else {
+          setStagesData(CERTIFICATES_BY_STAGE); // Reset if nothing found
         }
       } catch (e) {
         console.error('Failed to sync/fetch certificates:', e);
@@ -862,6 +875,9 @@ function CertificatesSection() {
       </div>
 
       <div className="container mx-auto px-6 relative z-10">
+        <div className="bg-red-100/50 text-red-600 text-[10px] p-2 text-center rounded-lg mb-4">
+          Debug: LocalStorage={typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('saved_certificates') || '[]').length : 0} | StagesData={stagesData.reduce((acc, s) => acc + (s.certificates?.length || 0), 0)}
+        </div>
         <div className="text-center max-w-2xl mx-auto mb-16">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
