@@ -161,6 +161,26 @@ export function CertificateBuilder() {
       link.download = `شهادة-${data.studentName || 'طالب'}.png`;
       link.click();
       
+      // Save certificate metadata to localStorage
+      try {
+        const newCertificate = {
+          id: Date.now().toString(),
+          studentName: data.studentName,
+          subject: data.subject,
+          score: data.score,
+          stage: data.stage,
+          grade: data.grade,
+          issueDate: data.issueDate,
+          createdAt: new Date().toISOString(),
+          // Store minimal representation if needed, but avoiding large base64 strings
+          data: { ...data }
+        };
+        const existingCerts = JSON.parse(localStorage.getItem('saved_certificates') || '[]');
+        localStorage.setItem('saved_certificates', JSON.stringify([newCertificate, ...existingCerts]));
+      } catch (err) {
+        console.error('Error saving certificate to localStorage:', err);
+      }
+      
       // TODO: To upload this image to your bucket, you can convert it to a Blob and send it to your API:
       /*
       canvas.toBlob(async (blob) => {
