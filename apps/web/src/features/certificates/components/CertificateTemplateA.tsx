@@ -61,6 +61,22 @@ export const CertificateTemplateA = forwardRef<HTMLDivElement, Props>(({ data },
           </p>
         </div>
       </div>
+
+      {/* Score / Grade (Placed over the gold seal) */}
+      <div 
+        className="absolute flex flex-col items-center justify-center"
+        style={{ 
+          top: '640px', // Approximate vertical position of the seal
+          left: '50%', // Assuming it's in the center
+          transform: 'translate(-50%, -50%)',
+          width: '120px',
+          height: '120px'
+        }}
+      >
+        <span className="text-[3.5rem] font-bold text-[#0A192F] leading-none" style={{ fontFamily: "'Tajawal', sans-serif" }}>
+          {data.score || '0'}
+        </span>
+      </div>
     </div>
   );
 });
