@@ -746,6 +746,41 @@ const CERTIFICATES_BY_STAGE = [
 ];
 
 function CertificatesSection() {
+  const [stagesData, setStagesData] = useState(CERTIFICATES_BY_STAGE);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('saved_certificates') || '[]');
+      if (saved.length > 0) {
+        const mapCert = (c: any) => ({
+          id: c.id,
+          title: c.subject ? `التفوق في ${c.subject}` : 'شهادة تقدير',
+          student: c.studentName || 'طالب',
+          image: c.image || 'https://placehold.co/600x400/e2e8f0/475569?text=شهادة+تقدير'
+        });
+
+        const newSecondary = saved.filter((c: any) => c.stage === 'الثانوية').map(mapCert);
+        const newPreparatory = saved.filter((c: any) => c.stage === 'الإعدادية').map(mapCert);
+        const newPrimary = saved.filter((c: any) => c.stage === 'الابتدائية').map(mapCert);
+
+        setStagesData(prev => prev.map(stage => {
+          if (stage.stageId === 'secondary') {
+            return { ...stage, certificates: [...newSecondary, ...stage.certificates] };
+          }
+          if (stage.stageId === 'preparatory') {
+            return { ...stage, certificates: [...newPreparatory, ...stage.certificates] };
+          }
+          if (stage.stageId === 'primary') {
+            return { ...stage, certificates: [...newPrimary, ...stage.certificates] };
+          }
+          return stage;
+        }));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
   return (
     <section className="py-24 bg-slate-50 relative overflow-hidden" id="certificates" dir="rtl">
       <div className="absolute top-0 right-0 w-full h-full overflow-hidden pointer-events-none z-0 opacity-40">
@@ -771,7 +806,7 @@ function CertificatesSection() {
         </div>
 
         <div className="space-y-16">
-          {CERTIFICATES_BY_STAGE.map((stage, stageIndex) => (
+          {stagesData.map((stage, stageIndex) => (
             <motion.div
               key={stage.stageId}
               className="relative"

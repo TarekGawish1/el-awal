@@ -94,26 +94,42 @@ export function CertificatesClient() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredCertificates.map(cert => (
-            <Card key={cert.id} className="p-5 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center">
-                  <Award className="w-6 h-6" />
+            <Card key={cert.id} className="overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+              {cert.data?.image || (cert as any).image ? (
+                <div className="relative w-full aspect-[1.41] bg-slate-100 border-b border-slate-100">
+                  <img 
+                    src={cert.data?.image || (cert as any).image} 
+                    alt={`شهادة ${cert.studentName}`}
+                    className="w-full h-full object-cover"
+                  />
                 </div>
-                <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-md">
-                  {cert.issueDate}
-                </span>
-              </div>
-              <h3 className="text-lg font-bold text-slate-800 mb-1">{cert.studentName}</h3>
-              <div className="flex items-center gap-2 text-sm text-slate-600 mb-4">
-                <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs">{cert.subject}</span>
-                <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded text-xs">{cert.score} درجة</span>
-              </div>
-              <div className="flex items-center justify-between text-sm text-slate-500 border-t border-slate-100 pt-4">
-                <span>{cert.stage} - {cert.grade}</span>
-                {/* 
-                  Note: A "Download" button would normally be here, 
-                  but we aren't storing the base64 image or rendering it here yet. 
-                */}
+              ) : null}
+              <div className="p-5 flex-1 flex flex-col">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center">
+                    <Award className="w-6 h-6" />
+                  </div>
+                  <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-md">
+                    {cert.issueDate}
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-slate-800 mb-1">{cert.studentName}</h3>
+                <div className="flex items-center gap-2 text-sm text-slate-600 mb-4 flex-wrap">
+                  <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs">{cert.subject}</span>
+                  <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded text-xs">{cert.score} درجة</span>
+                </div>
+                <div className="mt-auto flex items-center justify-between text-sm text-slate-500 border-t border-slate-100 pt-4">
+                  <span>{cert.stage} - {cert.grade}</span>
+                  {cert.data?.image || (cert as any).image ? (
+                    <a 
+                      href={cert.data?.image || (cert as any).image} 
+                      download={`شهادة-${cert.studentName}.png`}
+                      className="text-blue-600 hover:text-blue-700 font-medium hover:underline text-xs"
+                    >
+                      تحميل
+                    </a>
+                  ) : null}
+                </div>
               </div>
             </Card>
           ))}
