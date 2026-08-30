@@ -66,7 +66,7 @@ export const CertificateTemplateA = forwardRef<HTMLDivElement, Props>(({ data },
       <div 
         className="absolute flex flex-col items-center justify-center"
         style={{ 
-          top: '615px', // Moved up slightly
+          top: '640px', // Reverted back
           left: '50%', 
           transform: 'translate(-50%, -50%)',
           width: '120px',
@@ -82,8 +82,8 @@ export const CertificateTemplateA = forwardRef<HTMLDivElement, Props>(({ data },
       <div 
         className="absolute flex flex-col items-center justify-center"
         style={{ 
-          top: '635px', // Below 'YEAR OF'
-          left: '160px', // Center of the left seal (approximate)
+          top: '540px', // Below 'YEAR OF'
+          left: '200px', // Centered in the left seal
           transform: 'translate(-50%, -50%)',
         }}
       >
