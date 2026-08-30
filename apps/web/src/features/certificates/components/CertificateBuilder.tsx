@@ -9,6 +9,15 @@ import { Download, Loader2, ZoomIn, ZoomOut, Maximize2, RefreshCw } from 'lucide
 import html2canvas from 'html2canvas';
 import { CertificateTemplateA, CertificateData } from './CertificateTemplateA';
 
+// TODO: Replace with real API fetch based on stage and grade
+const MOCK_STUDENTS = [
+  { id: 1, name: 'أحمد محمد علي', gender: 'MALE', stage: 'الثانوية', grade: 'الصف الأول' },
+  { id: 2, name: 'سارة خالد أحمد', gender: 'FEMALE', stage: 'الثانوية', grade: 'الصف الأول' },
+  { id: 3, name: 'عمر طارق جاويش', gender: 'MALE', stage: 'الإعدادية', grade: 'الصف الثالث' },
+  { id: 4, name: 'منى محمود عبدلله', gender: 'FEMALE', stage: 'الإعدادية', grade: 'الصف الثالث' },
+  { id: 5, name: 'مصطفى السيد محمود', gender: 'MALE', stage: 'الابتدائية', grade: 'الصف السادس' },
+];
+
 export function CertificateBuilder() {
   const [data, setData] = useState<CertificateData>({
     studentName: '',
@@ -27,6 +36,17 @@ export function CertificateBuilder() {
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [scale, setScale] = useState(1);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const filteredStudents = React.useMemo(() => {
+    if (!data.stage || !data.grade) return [];
+    return MOCK_STUDENTS.filter(s => 
+      s.stage === data.stage && 
+      s.grade === data.grade && 
+      s.name.includes(data.studentName)
+    );
+  }, [data.stage, data.grade, data.studentName]);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const certificateRef = useRef<HTMLDivElement>(null);
 
@@ -35,18 +55,25 @@ export function CertificateBuilder() {
     const updateScale = () => {
       if (containerRef.current) {
         const containerWidth = containerRef.current.clientWidth;
-        // 1146 is the fixed width of the certificate
-        const desiredScale = Math.min((containerWidth - 40) / 1146, 1);
-        setScale(desiredScale);
+        // Template A is 1146px wide (from viewBox)
+        const targetWidth = 1146; 
+        
+        // Add some padding (e.g., 32px) so it doesn't touch the edges
+        const availableWidth = containerWidth - 32;
+        
+        // If container is smaller than target, scale down
+        // If larger, we could scale up, but usually we cap at scale 1 (or allow slight upscale)
+        const newScale = Math.min(availableWidth / targetWidth, 1.2); 
+        setScale(newScale);
       }
     };
-    
+
     updateScale();
     window.addEventListener('resize', updateScale);
     return () => window.removeEventListener('resize', updateScale);
   }, []);
 
-  const handleChange = (field: keyof CertificateData, value: string) => {
+  const handleChange = (field: keyof CertificateData, value: any) => {
     setData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -69,9 +96,12 @@ export function CertificateBuilder() {
 
   const handleGenerate = async () => {
     if (!certificateRef.current) return;
+    
     setIsGenerating(true);
+    
     try {
-      // Create a clone to render without CSS transforms affecting html2canvas
+      // Create a clone of the node without the transform scale
+      // html2canvas works best on unscaled elements
       const clone = certificateRef.current.cloneNode(true) as HTMLElement;
       clone.style.transform = 'none';
       clone.style.position = 'absolute';
@@ -92,7 +122,6 @@ export function CertificateBuilder() {
       document.body.removeChild(clone);
 
       // Convert canvas to a lightweight PNG or WebP data URL
-      // (Using image/png is fine, but toDataURL may result in a larger size. We can use canvas.toBlob for better compression if needed)
       const imgData = canvas.toDataURL('image/png');
       
       // Trigger download
@@ -113,298 +142,305 @@ export function CertificateBuilder() {
       
     } catch (error) {
       console.error('Error generating PDF:', error);
+      // Optional: Add toast notification for error
     } finally {
       setIsGenerating(false);
     }
   };
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-      
-      {/* Form Section */}
-      <div className="xl:col-span-4 space-y-6 order-2 xl:order-1">
-        <Card className="p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-slate-800">بيانات الشهادة</h2>
-            <Button variant="ghost" size="sm" onClick={handleReset} className="text-slate-500 hover:text-slate-700">
-              <RefreshCw className="w-4 h-4 ml-2" />
-              إعادة تعيين
-            </Button>
-          </div>
-          
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">اسم الطالب</label>
-              <Input 
-                value={data.studentName} 
-                onChange={(e) => handleChange('studentName', e.target.value)} 
-                placeholder="مثال: أحمد محمد علي"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">النوع</label>
-              <Select 
-                value={data.gender}
-                onChange={(e) => handleChange('gender', e.target.value as any)}
-                options={[
-                  { label: 'ذكر (الطالب / أدائه)', value: 'MALE' },
-                  { label: 'أنثى (الطالبة / أدائها)', value: 'FEMALE' }
-                ]}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">المادة</label>
-              <Select 
-                value={data.subject} 
-                onChange={(e) => handleChange('subject', e.target.value)} 
-                options={[
-                  { label: 'اختر المادة...', value: '' },
-                  { label: 'الإحصاء', value: 'الإحصاء' },
-                  { label: 'الرياضيات', value: 'الرياضيات' },
-                  { label: 'الفيزياء', value: 'الفيزياء' },
-                  { label: 'الكيمياء', value: 'الكيمياء' },
-                  { label: 'الأحياء', value: 'الأحياء' },
-                  { label: 'اللغة العربية', value: 'اللغة العربية' },
-                  { label: 'اللغة الإنجليزية', value: 'اللغة الإنجليزية' }
-                ]}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">المرحلة الدراسية</label>
-                <Select 
-                  value={data.stage} 
-                  onChange={(e) => handleChange('stage', e.target.value)} 
-                  options={[
-                    { label: 'اختر المرحلة...', value: '' },
-                    { label: 'الابتدائية', value: 'الابتدائية' },
-                    { label: 'الإعدادية', value: 'الإعدادية' },
-                    { label: 'الثانوية', value: 'الثانوية' },
-                    { label: 'الجامعية', value: 'الجامعية' },
-                  ]}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">الصف الدراسي</label>
-                <Select 
-                  value={data.grade} 
-                  onChange={(e) => handleChange('grade', e.target.value)} 
-                  options={[
-                    { label: 'اختر الصف...', value: '' },
-                    { label: 'الصف الأول', value: 'الصف الأول' },
-                    { label: 'الصف الثاني', value: 'الصف الثاني' },
-                    { label: 'الصف الثالث', value: 'الصف الثالث' },
-                    { label: 'الصف الرابع', value: 'الصف الرابع' },
-                    { label: 'الصف الخامس', value: 'الصف الخامس' },
-                    { label: 'الصف السادس', value: 'الصف السادس' },
-                  ]}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">الدرجة</label>
-              <Input 
-                type="number"
-                value={data.score} 
-                onChange={(e) => handleChange('score', e.target.value)} 
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">اسم المعلم المانح</label>
-              <Input 
-                value={data.teacherName} 
-                onChange={(e) => handleChange('teacherName', e.target.value)} 
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">التاريخ</label>
-                <Input 
-                  value={data.issueDate} 
-                  onChange={(e) => handleChange('issueDate', e.target.value)} 
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">السنة</label>
-                <Input 
-                  value={data.year} 
-                  onChange={(e) => handleChange('year', e.target.value)} 
-                />
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-slate-100">
-              <h3 className="text-sm font-bold text-slate-800 mb-3">تعديل أماكن العناصر (X / Y)</h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-2">موقع الدرجة (Score)</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-400">X:</span>
-                      <Input 
-                        type="number" 
-                        value={data.scorePos.x} 
-                        onChange={(e) => setData(p => ({ ...p, scorePos: { ...p.scorePos, x: Number(e.target.value) } }))} 
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-400">Y:</span>
-                      <Input 
-                        type="number" 
-                        value={data.scorePos.y} 
-                        onChange={(e) => setData(p => ({ ...p, scorePos: { ...p.scorePos, y: Number(e.target.value) } }))} 
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-2">موقع السنة (Year)</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-400">X:</span>
-                      <Input 
-                        type="number" 
-                        value={data.yearPos.x} 
-                        onChange={(e) => setData(p => ({ ...p, yearPos: { ...p.yearPos, x: Number(e.target.value) } }))} 
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-400">Y:</span>
-                      <Input 
-                        type="number" 
-                        value={data.yearPos.y} 
-                        onChange={(e) => setData(p => ({ ...p, yearPos: { ...p.yearPos, y: Number(e.target.value) } }))} 
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-2">موقع التاريخ (Date)</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-400">X:</span>
-                      <Input 
-                        type="number" 
-                        value={data.datePos.x} 
-                        onChange={(e) => setData(p => ({ ...p, datePos: { ...p.datePos, x: Number(e.target.value) } }))} 
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-400">Y:</span>
-                      <Input 
-                        type="number" 
-                        value={data.datePos.y} 
-                        onChange={(e) => setData(p => ({ ...p, datePos: { ...p.datePos, y: Number(e.target.value) } }))} 
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
+    <div className="max-w-7xl mx-auto py-8">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+        
+        {/* Form Section */}
+        <div className="xl:col-span-4 space-y-6 order-2 xl:order-1">
+          <Card className="p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-slate-800">بيانات الشهادة</h2>
+              <Button variant="ghost" size="sm" onClick={handleReset} className="text-slate-500 hover:text-slate-700">
+                <RefreshCw className="w-4 h-4 ml-2" />
+                إعادة تعيين
+              </Button>
             </div>
             
-            <div className="pt-6 mt-4 border-t border-slate-100">
-              <Button 
-                variant="primary" 
-                className="w-full py-6 text-lg font-bold" 
-                onClick={handleGenerate}
-                disabled={isGenerating || !data.studentName || !data.subject}
-              >
-                {isGenerating ? <Loader2 className="w-5 h-5 ml-2 animate-spin" /> : <Download className="w-5 h-5 ml-2" />}
-                إنشاء وتحميل الصورة
-              </Button>
-            </div>
-          </div>
-        </Card>
-      </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">المرحلة الدراسية</label>
+                  <Select 
+                    value={data.stage} 
+                    onChange={(e) => handleChange('stage', e.target.value)} 
+                    options={[
+                      { label: 'اختر المرحلة...', value: '' },
+                      { label: 'الابتدائية', value: 'الابتدائية' },
+                      { label: 'الإعدادية', value: 'الإعدادية' },
+                      { label: 'الثانوية', value: 'الثانوية' },
+                      { label: 'الجامعية', value: 'الجامعية' },
+                    ]}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">الصف الدراسي</label>
+                  <Select 
+                    value={data.grade} 
+                    onChange={(e) => handleChange('grade', e.target.value)} 
+                    options={[
+                      { label: 'اختر الصف...', value: '' },
+                      { label: 'الصف الأول', value: 'الصف الأول' },
+                      { label: 'الصف الثاني', value: 'الصف الثاني' },
+                      { label: 'الصف الثالث', value: 'الصف الثالث' },
+                      { label: 'الصف الرابع', value: 'الصف الرابع' },
+                      { label: 'الصف الخامس', value: 'الصف الخامس' },
+                      { label: 'الصف السادس', value: 'الصف السادس' },
+                    ]}
+                  />
+                </div>
+              </div>
 
-      {/* Preview Section */}
-      <div className="xl:col-span-8 order-1 xl:order-2">
-        <Card className="flex flex-col h-full bg-slate-50/50 border border-slate-200 shadow-sm overflow-hidden">
-          {/* Toolbar */}
-          <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-white">
-            <h3 className="font-semibold text-slate-700">معاينة حية</h3>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setScale(s => Math.max(0.3, s - 0.1))}>
-                <ZoomOut className="w-4 h-4" />
-              </Button>
-              <span className="text-sm font-medium text-slate-600 w-12 text-center">
-                {Math.round(scale * 100)}%
-              </span>
-              <Button variant="outline" size="sm" onClick={() => setScale(s => Math.min(1.5, s + 0.1))}>
-                <ZoomIn className="w-4 h-4" />
-              </Button>
-              <Button variant="outline" size="sm" className="mr-4" onClick={() => {
-                if (containerRef.current) {
-                  const desiredScale = Math.min((containerRef.current.clientWidth - 40) / 1146, 1);
-                  setScale(desiredScale);
-                }
-              }}>
-                <Maximize2 className="w-4 h-4 ml-2" />
-                احتواء
-              </Button>
-            </div>
-          </div>
+              <div className="relative">
+                <label className="block text-sm font-medium text-slate-700 mb-1">اسم الطالب</label>
+                <Input 
+                  value={data.studentName} 
+                  onChange={(e) => {
+                    handleChange('studentName', e.target.value);
+                    setShowSuggestions(true);
+                  }} 
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                  placeholder={(!data.stage || !data.grade) ? "اختر المرحلة والصف أولاً..." : "ابحث عن اسم الطالب..."}
+                  disabled={!data.stage || !data.grade}
+                />
+                {showSuggestions && filteredStudents.length > 0 && (
+                  <div className="absolute top-[100%] mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
+                    {filteredStudents.map(student => (
+                      <div 
+                        key={student.id} 
+                        className="px-4 py-3 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 transition-colors"
+                        onMouseDown={(e) => {
+                          e.preventDefault(); // Prevent onBlur from firing before click
+                          handleChange('studentName', student.name);
+                          handleChange('gender', student.gender as any);
+                          setShowSuggestions(false);
+                        }}
+                      >
+                        {student.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-          {/* Canvas Area */}
-          <div 
-            ref={containerRef}
-            className="flex-1 overflow-auto flex items-center justify-center p-6 bg-slate-100/50 relative min-h-[600px]"
-          >
-            {/* The Scaled Wrapper */}
-            <div 
-              className="origin-center transition-transform duration-200 ease-out shadow-2xl rounded-sm"
-              style={{ 
-                transform: `scale(${scale})`,
-                width: '1146px',
-                height: '810px',
-              }}
-            >
-              <CertificateTemplateA data={data} ref={certificateRef} />
-            </div>
-          </div>
-        </Card>
-      </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">النوع</label>
+                <Select 
+                  value={data.gender}
+                  onChange={(e) => handleChange('gender', e.target.value as any)}
+                  options={[
+                    { label: 'ذكر (الطالب / أدائه)', value: 'MALE' },
+                    { label: 'أنثى (الطالبة / أدائها)', value: 'FEMALE' }
+                  ]}
+                />
+              </div>
 
-      {/* Certificate History */}
-      <div className="xl:col-span-12 mt-8 order-3">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-slate-800">الشهادات السابقة</h2>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">المادة</label>
+                <Select 
+                  value={data.subject} 
+                  onChange={(e) => handleChange('subject', e.target.value)} 
+                  options={[
+                    { label: 'اختر المادة...', value: '' },
+                    { label: 'الإحصاء', value: 'الإحصاء' },
+                    { label: 'الرياضيات', value: 'الرياضيات' },
+                    { label: 'الفيزياء', value: 'الفيزياء' },
+                    { label: 'الكيمياء', value: 'الكيمياء' },
+                    { label: 'الأحياء', value: 'الأحياء' },
+                    { label: 'اللغة العربية', value: 'اللغة العربية' },
+                    { label: 'اللغة الإنجليزية', value: 'اللغة الإنجليزية' },
+                  ]}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">الدرجة</label>
+                <Input 
+                  value={data.score} 
+                  onChange={(e) => handleChange('score', e.target.value)} 
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">اسم المعلم المانح</label>
+                <Input 
+                  value={data.teacherName} 
+                  onChange={(e) => handleChange('teacherName', e.target.value)} 
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">التاريخ</label>
+                  <Input 
+                    value={data.issueDate} 
+                    onChange={(e) => handleChange('issueDate', e.target.value)} 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">السنة</label>
+                  <Input 
+                    value={data.year} 
+                    onChange={(e) => handleChange('year', e.target.value)} 
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100">
+                <h3 className="text-sm font-bold text-slate-800 mb-3">تعديل أماكن العناصر (X / Y)</h3>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-2">موقع الدرجة (Score)</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-400">X:</span>
+                        <Input 
+                          type="number" 
+                          value={data.scorePos.x} 
+                          onChange={(e) => setData(p => ({ ...p, scorePos: { ...p.scorePos, x: Number(e.target.value) } }))} 
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-400">Y:</span>
+                        <Input 
+                          type="number" 
+                          value={data.scorePos.y} 
+                          onChange={(e) => setData(p => ({ ...p, scorePos: { ...p.scorePos, y: Number(e.target.value) } }))} 
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-2">موقع السنة (Year)</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-400">X:</span>
+                        <Input 
+                          type="number" 
+                          value={data.yearPos.x} 
+                          onChange={(e) => setData(p => ({ ...p, yearPos: { ...p.yearPos, x: Number(e.target.value) } }))} 
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-400">Y:</span>
+                        <Input 
+                          type="number" 
+                          value={data.yearPos.y} 
+                          onChange={(e) => setData(p => ({ ...p, yearPos: { ...p.yearPos, y: Number(e.target.value) } }))} 
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-2">موقع التاريخ (Date)</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-400">X:</span>
+                        <Input 
+                          type="number" 
+                          value={data.datePos.x} 
+                          onChange={(e) => setData(p => ({ ...p, datePos: { ...p.datePos, x: Number(e.target.value) } }))} 
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-400">Y:</span>
+                        <Input 
+                          type="number" 
+                          value={data.datePos.y} 
+                          onChange={(e) => setData(p => ({ ...p, datePos: { ...p.datePos, y: Number(e.target.value) } }))} 
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="pt-6 mt-4 border-t border-slate-100">
+                <Button 
+                  className="w-full py-6 text-lg bg-indigo-500 hover:bg-indigo-600 shadow-md"
+                  onClick={handleGenerate}
+                  disabled={isGenerating || !data.studentName || !data.subject}
+                >
+                  {isGenerating ? <Loader2 className="w-5 h-5 ml-2 animate-spin" /> : <Download className="w-5 h-5 ml-2" />}
+                  إنشاء وتحميل الصورة
+                </Button>
+              </div>
+            </div>
+          </Card>
         </div>
-        <Card className="bg-white shadow-sm border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-right text-sm text-slate-600">
-              <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
-                <tr>
-                  <th className="py-4 px-6 text-right">اسم الطالب</th>
-                  <th className="py-4 px-6 text-right">المادة</th>
-                  <th className="py-4 px-6 text-center">الدرجة</th>
-                  <th className="py-4 px-6 text-center">التاريخ</th>
-                  <th className="py-4 px-6 text-center">السنة</th>
-                  <th className="py-4 px-6 text-left">الإجراءات</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {/* Mock data for now until API is connected */}
-                <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-500">
-                    لا توجد شهادات سابقة بعد.
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </div>
 
+        {/* Preview Section */}
+        <div className="xl:col-span-8 order-1 xl:order-2">
+          <Card className="p-4 bg-slate-50 overflow-hidden">
+            <div className="flex items-center justify-between mb-4 px-2">
+              <h3 className="text-lg font-semibold text-slate-700">المعاينة الحية</h3>
+              
+              <div className="flex items-center bg-white rounded-md shadow-sm border border-slate-200">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setScale(s => Math.max(s - 0.1, 0.3))}
+                  className="rounded-none rounded-r-md px-3"
+                  title="تصغير"
+                >
+                  <ZoomOut className="w-4 h-4 text-slate-600" />
+                </Button>
+                
+                <span className="text-xs font-medium text-slate-600 px-3 min-w-[3rem] text-center">
+                  {Math.round(scale * 100)}%
+                </span>
+                
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setScale(s => Math.min(s + 0.1, 2))}
+                  className="rounded-none px-3 border-r border-slate-200"
+                  title="تكبير"
+                >
+                  <ZoomIn className="w-4 h-4 text-slate-600" />
+                </Button>
+                
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setScale(1)}
+                  className="rounded-none rounded-l-md px-3 border-r border-slate-200"
+                  title="الحجم الطبيعي"
+                >
+                  <Maximize2 className="w-4 h-4 text-slate-600" />
+                </Button>
+              </div>
+            </div>
+
+            <div 
+              ref={containerRef}
+              className="w-full flex justify-center overflow-x-auto custom-scrollbar pb-4 bg-slate-100 rounded-lg shadow-inner"
+              style={{ minHeight: '600px' }}
+            >
+              <div 
+                className="transition-transform duration-200 ease-out origin-top flex-shrink-0"
+                style={{ 
+                  transform: `scale(${scale})`,
+                  width: '1146px',
+                  height: '810px'
+                }}
+              >
+                <CertificateTemplateA ref={certificateRef} data={data} />
+              </div>
+            </div>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
