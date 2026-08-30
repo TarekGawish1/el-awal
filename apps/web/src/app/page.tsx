@@ -763,23 +763,51 @@ function CertificatesSection() {
     const fetchCertificates = async () => {
       try {
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
-        const res = await fetch(`${baseUrl}/certificates/public`);
-        if (!res.ok) return;
-        
-        const data = await res.json();
-        const saved = data || [];
+        let apiCerts = [];
+        try {
+          const res = await fetch(`${baseUrl}/certificates/public`);
+          if (res.ok) {
+            apiCerts = await res.json() || [];
+          }
+        } catch (apiError) {
+          console.warn("Could not fetch API certificates", apiError);
+        }
 
-        if (saved.length > 0) {
-          const mapCert = (c: any) => ({
-            id: c.id,
-            title: c.subject ? `التفوق في ${c.subject}` : 'شهادة تقدير',
-            student: c.studentName || 'طالب',
-            image: c.fileUrl || 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate'
-          });
+        // Get local storage certificates to prevent data loss for older certs
+        let localCerts = [];
+        try {
+          localCerts = JSON.parse(localStorage.getItem('saved_certificates') || '[]');
+        } catch(localError) {
+          console.warn("Could not parse local certificates", localError);
+        }
 
-          const newSecondary = saved.filter((c: any) => c.stage === 'الثانوية').map(mapCert);
-          const newPreparatory = saved.filter((c: any) => c.stage === 'الإعدادية').map(mapCert);
-          const newPrimary = saved.filter((c: any) => c.stage === 'الابتدائية').map(mapCert);
+        // Merge them
+        // Map API certs
+        const mappedApiCerts = apiCerts.map((c: any) => ({
+          id: c.id,
+          title: c.subject ? `التفوق في ${c.subject}` : 'شهادة تقدير',
+          student: c.studentName || 'طالب',
+          image: c.fileUrl || 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate',
+          stage: c.stage
+        }));
+
+        // Map Local certs
+        const mappedLocalCerts = localCerts.map((c: any) => ({
+          id: c.id,
+          title: c.subject ? `التفوق في ${c.subject}` : 'شهادة تقدير',
+          student: c.studentName || 'طالب',
+          image: c.image || 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate',
+          stage: c.stage || (c.data && c.data.stage)
+        }));
+
+        // Combine and filter duplicates by name (if they were uploaded later)
+        const combined = [...mappedApiCerts, ...mappedLocalCerts];
+        const uniqueSaved = Array.from(new Map(combined.map(item => [item.student, item])).values());
+
+        if (uniqueSaved.length > 0) {
+          const newSecondary = uniqueSaved.filter((c: any) => c.stage === 'الثانوية');
+          const newPreparatory = uniqueSaved.filter((c: any) => c.stage === 'الإعدادية');
+          const newPrimary = uniqueSaved.filter((c: any) => c.stage === 'الابتدائية');
 
           setStagesData(CERTIFICATES_BY_STAGE.map(stage => {
             if (stage.stageId === 'secondary' && newSecondary.length > 0) {
@@ -795,7 +823,7 @@ function CertificatesSection() {
           }));
         }
       } catch (e) {
-        console.error('Failed to fetch certificates:', e);
+        console.error('Failed to fetch/merge certificates:', e);
       }
     };
     
