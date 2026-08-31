@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { Plus, Search, Layers, AlertCircle, BookOpen, MapPin, GraduationCap, Calendar, RotateCcw, ChevronDown, ChevronUp, Filter, X, Link2 } from 'lucide-react';
+import { Plus, Search, Layers, AlertCircle, BookOpen, MapPin, Calendar, RotateCcw, Filter, X, Link2 } from 'lucide-react';
 import { useGroups } from '../hooks/useGroups';
 import { useStoredAcademicPeriod } from '../hooks/useAcademicPeriod';
 import { GroupCard } from './GroupCard';
@@ -48,28 +48,22 @@ export function GroupList() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isFiltersOpen]);
 
-  const [expandedStages, setExpandedStages] = useState<Record<string, boolean>>({});
-  const [expandedGrades, setExpandedGrades] = useState<Record<string, boolean>>({});
-
   // Calculate available grade options dynamically based on selected stages
   const availableGradeOptions = useMemo(() => {
     let gradesList: string[] = [];
 
     if (selectedStages.length > 0) {
-      // If stages are selected, only show grades that belong to those stages
       selectedStages.forEach((stage) => {
         if (STAGE_GRADES_MAP[stage]) {
           gradesList.push(...STAGE_GRADES_MAP[stage]);
         }
       });
     } else {
-      // If no stage selected, show all grades
       Object.values(STAGE_GRADES_MAP).forEach((grades) => {
         gradesList.push(...grades);
       });
     }
 
-    // Also include any custom grades present in the teacher's groups
     if (groups && Array.isArray(groups)) {
       groups.forEach((g) => {
         if (g.gradeLevel && !gradesList.includes(g.gradeLevel)) {
@@ -87,11 +81,8 @@ export function GroupList() {
     }));
   }, [selectedStages, groups]);
 
-  // Handle stage change & automatically prune/keep valid grades
   const handleStagesChange = useCallback((newStages: string[]) => {
     setSelectedStages(newStages);
-
-    // If newStages is not empty, filter out any selected grades that don't belong to the new stages
     if (newStages.length > 0) {
       setSelectedGrades((prevGrades) =>
         prevGrades.filter((grade) => {
@@ -102,16 +93,14 @@ export function GroupList() {
     }
   }, []);
 
-  // Handle grade change
   const handleGradesChange = useCallback((newGrades: string[]) => {
     setSelectedGrades(newGrades);
   }, []);
 
-  // Dynamic Academic Years from groups + standard defaults
   const availableYears = useMemo(() => {
     const yearsSet = new Set<string>();
     yearsSet.add('2026-2027');
-    yearsSet.add('2026-2027');
+    yearsSet.add('2025-2026');
     yearsSet.add('2024-2025');
 
     if (groups && Array.isArray(groups)) {
@@ -132,7 +121,6 @@ export function GroupList() {
       }));
   }, [groups]);
 
-  // Academic Term options (الفصل الدراسي الأول و الثاني فقط)
   const availableTerms = useMemo(
     () => [
       {
@@ -149,12 +137,10 @@ export function GroupList() {
     []
   );
 
-  // Extract all unique places / locations from groups
   const availableLocations = useMemo(() => {
     if (!groups || !Array.isArray(groups)) return [];
     const locSet = new Set<string>();
     groups.forEach((g) => {
-      // Only consider locations from groups matching current stage/grade filters if any
       const stage = getStageName(g.gradeLevel);
       const stageMatch = selectedStages.length === 0 || selectedStages.includes(stage);
       const gradeMatch = selectedGrades.length === 0 || selectedGrades.includes(g.gradeLevel);
@@ -168,7 +154,6 @@ export function GroupList() {
       }
     });
 
-    // If no locations found with filters, fallback to all locations in all groups
     if (locSet.size === 0) {
       groups.forEach((g) => {
         g.schedules?.forEach((s) => {
@@ -182,11 +167,9 @@ export function GroupList() {
     return Array.from(locSet);
   }, [groups, selectedStages, selectedGrades]);
 
-  // Filter groups by search query, stages, grades, locations, academic year, and academic term
   const filteredGroups = useMemo(() => {
     if (!groups) return [];
     return groups.filter((group) => {
-      // 1. Search Query
       const q = searchQuery.trim().toLowerCase();
       const matchesSearch =
         !q ||
@@ -196,25 +179,19 @@ export function GroupList() {
         (group.schedules &&
           group.schedules.some((s) => s.location && s.location.toLowerCase().includes(q)));
 
-      // 2. Stage Filter (Multi-select)
       const stage = getStageName(group.gradeLevel);
       const matchesStage = selectedStages.length === 0 || selectedStages.includes(stage);
-
-      // 3. Grade / السنة الدراسية Filter (Multi-select)
       const matchesGrade = selectedGrades.length === 0 || selectedGrades.includes(group.gradeLevel);
-
-      // 4. Location Filter (Multi-select)
+      
       const matchesLocation =
         selectedLocations.length === 0 ||
         (group.schedules &&
           group.schedules.some((s) => s.location && selectedLocations.includes(s.location)));
 
-      // 5. Academic Year Filter (Multi-select)
       const matchesYear =
         selectedYears.length === 0 ||
         (group.academicYear && selectedYears.includes(group.academicYear));
 
-      // 6. Academic Term Filter (Multi-select)
       const matchesTerm =
         selectedTerms.length === 0 ||
         (group.academicTerm && selectedTerms.includes(group.academicTerm));
@@ -223,7 +200,6 @@ export function GroupList() {
     });
   }, [groups, searchQuery, selectedStages, selectedGrades, selectedLocations, selectedYears, selectedTerms]);
 
-  // Group by stage and then by grade
   const groupedGroups = useMemo(() => {
     return filteredGroups.reduce((acc, group) => {
       const stage = getStageName(group.gradeLevel);
@@ -234,42 +210,10 @@ export function GroupList() {
     }, {} as Record<string, Record<string, Group[]>>);
   }, [filteredGroups]);
 
-  // Sort stages
   const availableStages = useMemo(() => {
     return Object.keys(groupedGroups).sort(
       (a, b) => STAGE_ORDER.indexOf(a) - STAGE_ORDER.indexOf(b)
     );
-  }, [groupedGroups]);
-
-  const isStageExpanded = useCallback((stage: string) => {
-    if (expandedStages[stage] !== undefined) {
-      return expandedStages[stage];
-    }
-    return availableStages.indexOf(stage) === 0;
-  }, [expandedStages, availableStages]);
-
-  const toggleStage = useCallback((stage: string) => {
-    setExpandedStages(prev => {
-      const isExpanded = prev[stage] !== undefined ? prev[stage] : availableStages.indexOf(stage) === 0;
-      return { ...prev, [stage]: !isExpanded };
-    });
-  }, [availableStages]);
-
-  const isGradeExpanded = useCallback((stage: string, grade: string) => {
-    if (expandedGrades[grade] !== undefined) {
-      return expandedGrades[grade];
-    }
-    const stageGrades = Object.keys(groupedGroups[stage] || {}).sort();
-    return stageGrades.indexOf(grade) === 0;
-  }, [expandedGrades, groupedGroups]);
-
-  const toggleGrade = useCallback((stage: string, grade: string) => {
-    setExpandedGrades(prev => {
-      const isExpanded = prev[grade] !== undefined 
-        ? prev[grade] 
-        : (Object.keys(groupedGroups[stage] || {}).sort().indexOf(grade) === 0);
-      return { ...prev, [grade]: !isExpanded };
-    });
   }, [groupedGroups]);
 
   const hasActiveFilters =
@@ -290,19 +234,19 @@ export function GroupList() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 pb-12">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">إدارة المجموعات</h1>
+          <h1 className="text-2xl font-bold text-slate-800">المجموعات الدراسية</h1>
           <p className="text-slate-500 mt-1">إدارة مجموعاتك الدراسية والطلاب المسجلين بها</p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
-          <Button onClick={() => setIsLinkModalOpen(true)} variant="outline" className="w-full sm:w-auto border-primary-200 text-primary-700 hover:bg-primary-50">
+          <Button onClick={() => setIsLinkModalOpen(true)} variant="outline" className="w-full sm:w-auto border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold shadow-sm">
             <Link2 className="w-4 h-4 ml-2" />
             إنشاء رابط تسجيل للمجموعة
           </Button>
-          <Button onClick={() => setIsCreateModalOpen(true)} className="w-full sm:w-auto">
+          <Button onClick={() => setIsCreateModalOpen(true)} className="w-full sm:w-auto font-semibold shadow-sm">
             <Plus className="w-4 h-4 ml-2" />
             مجموعة جديدة
           </Button>
@@ -310,68 +254,76 @@ export function GroupList() {
       </div>
 
       {/* Filters Toolbar */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-          {/* Search Input */}
-          <div className="md:col-span-5 relative">
-            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-              <Search className="h-4 w-4 text-slate-400" />
-            </div>
-            <Input
-              className="pr-10 h-10 text-xs sm:text-sm"
-              placeholder="بحث بالاسم أو الصف أو المكان..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+      <div className="flex flex-col md:flex-row gap-3 items-center bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
+        {/* Search Input */}
+        <div className="flex-1 w-full relative">
+          <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+            <Search className="h-4 w-4 text-slate-400" />
           </div>
+          <Input
+            className="pr-10 h-11 bg-slate-50 border-transparent hover:bg-slate-100 focus:bg-white transition-colors rounded-xl text-sm"
+            placeholder="ابحث عن مجموعة بالاسم أو الصف..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
 
-          {/* Academic Year */}
-          <div className="md:col-span-3">
+        {/* Essential Filters */}
+        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 scrollbar-hide">
+          <div className="w-36 shrink-0">
             <MultiSelectDropdown
               placeholder="العام الدراسي"
-              allSelectedLabel="جميع الأعوام الدراسية"
+              allSelectedLabel="جميع الأعوام"
               options={availableYears}
               selectedValues={selectedYears}
               onChange={setSelectedYears}
             />
           </div>
-
-          {/* Academic Term */}
-          <div className="md:col-span-3">
+          
+          <div className="w-44 shrink-0">
             <MultiSelectDropdown
-              placeholder="الفصل الدراسي"
-              allSelectedLabel="جميع الفصول الدراسية"
-              options={availableTerms}
-              selectedValues={selectedTerms}
-              onChange={setSelectedTerms}
+              placeholder="الصف الدراسي"
+              allSelectedLabel="جميع الصفوف"
+              withSearch={availableGradeOptions.length > 5}
+              options={availableGradeOptions}
+              selectedValues={selectedGrades}
+              onChange={handleGradesChange}
             />
           </div>
 
           {/* Advanced Filters Button */}
-          <div className="md:col-span-1 relative" ref={filtersRef}>
+          <div className="shrink-0 relative" ref={filtersRef}>
             <button
               onClick={() => setIsFiltersOpen(!isFiltersOpen)}
-              className={`w-full h-11 flex items-center justify-center gap-2 rounded-xl border transition-all ${
-                isFiltersOpen 
+              className={`h-11 w-11 flex items-center justify-center rounded-xl border transition-all ${
+                isFiltersOpen || selectedStages.length > 0 || selectedLocations.length > 0 || selectedTerms.length > 0
                 ? 'bg-primary-50 text-primary-600 border-primary-200' 
-                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 shadow-sm'
               }`}
               title="فلاتر متقدمة"
             >
-              <Filter className="w-5 h-5" />
+              <Filter className="w-4 h-4" />
             </button>
 
             {/* Advanced Filters Popover */}
             {isFiltersOpen && (
-              <div className="absolute top-full left-0 mt-2 w-[calc(100vw-32px)] sm:w-[320px] bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-[100] space-y-4 origin-top-left rtl:origin-top-right">
+              <div className="absolute top-full left-0 mt-2 w-[calc(100vw-32px)] sm:w-[320px] bg-white rounded-2xl shadow-xl border border-slate-100 p-5 z-[100] space-y-4 origin-top-left rtl:origin-top-right">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-bold text-slate-800 text-sm">فلاتر متقدمة</h3>
+                  <h3 className="font-bold text-slate-800 text-sm">فلاتر إضافية</h3>
                   <button onClick={() => setIsFiltersOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors bg-slate-50 p-1.5 rounded-md">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
                 
-                <div className="space-y-3">
+                <div className="space-y-4">
+                  <MultiSelectDropdown
+                    placeholder="الفصل الدراسي"
+                    allSelectedLabel="جميع الفصول الدراسية"
+                    options={availableTerms}
+                    selectedValues={selectedTerms}
+                    onChange={setSelectedTerms}
+                  />
+
                   <MultiSelectDropdown
                     placeholder="المرحلة التعليمية"
                     allSelectedLabel="جميع المراحل التعليمية"
@@ -382,15 +334,6 @@ export function GroupList() {
                     ]}
                     selectedValues={selectedStages}
                     onChange={handleStagesChange}
-                  />
-
-                  <MultiSelectDropdown
-                    placeholder="الصف الدراسي"
-                    allSelectedLabel="جميع الصفوف الدراسية"
-                    withSearch={availableGradeOptions.length > 5}
-                    options={availableGradeOptions}
-                    selectedValues={selectedGrades}
-                    onChange={handleGradesChange}
                   />
 
                   <MultiSelectDropdown
@@ -406,142 +349,125 @@ export function GroupList() {
                     onChange={setSelectedLocations}
                   />
                 </div>
+                
+                {(selectedStages.length > 0 || selectedLocations.length > 0 || selectedTerms.length > 0) && (
+                   <button
+                    onClick={() => {
+                      setSelectedStages([]);
+                      setSelectedLocations([]);
+                      setSelectedTerms([]);
+                    }}
+                    className="w-full mt-2 text-xs text-primary-600 font-medium py-2 hover:bg-primary-50 rounded-lg transition-colors"
+                   >
+                     مسح الفلاتر الإضافية
+                   </button>
+                )}
               </div>
             )}
           </div>
         </div>
-
-        {/* Active Filters Summary & Reset */}
-        {hasActiveFilters && (
-          <div className="flex items-center justify-between pt-2 border-t border-slate-50 text-xs">
-            <div className="text-slate-500">
-              تم العثور على <span className="font-bold text-primary-600">{filteredGroups.length}</span> مجموعة
-            </div>
-            <button
-              onClick={resetFilters}
-              className="inline-flex items-center gap-1 text-slate-500 hover:text-primary-600 transition-colors font-medium cursor-pointer"
-            >
-              <RotateCcw className="w-3 h-3" />
-              إعادة تعيين الفلاتر
-            </button>
-          </div>
-        )}
       </div>
+
+      {hasActiveFilters && (
+        <div className="flex items-center justify-between text-sm px-1">
+          <div className="text-slate-500">
+            تم العثور على <span className="font-bold text-slate-800">{filteredGroups.length}</span> مجموعة
+          </div>
+          <button
+            onClick={resetFilters}
+            className="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-800 transition-colors font-medium cursor-pointer"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            إعادة تعيين الفلاتر
+          </button>
+        </div>
+      )}
 
       {/* Content Section */}
       {isError ? (
-        <Alert variant="error">
-          <AlertCircle className="w-5 h-5 ml-2" />
+        <Alert variant="error" className="border-red-100 bg-red-50 text-red-800">
+          <AlertCircle className="w-5 h-5 ml-2 text-red-500" />
           <div className="flex-1">
-            <p className="font-semibold">فشل في تحميل المجموعات</p>
-            <p className="text-sm opacity-90">{(error as any)?.message || 'يرجى المحاولة مرة أخرى لاحقاً.'}</p>
+            <p className="font-semibold text-sm">تعذر تحميل المجموعات</p>
+            <p className="text-xs mt-1 opacity-90">{(error as any)?.message || 'يرجى المحاولة مرة أخرى لاحقاً.'}</p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => refetch()} className="mr-4">
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="mr-4 bg-white border-red-200 text-red-600 hover:bg-red-50">
             إعادة المحاولة
           </Button>
         </Alert>
       ) : isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="bg-white rounded-xl border border-slate-100 p-5 h-48 flex flex-col">
-              <Skeleton className="h-6 w-3/4 mb-4" />
-              <Skeleton className="h-4 w-1/2 mb-2" />
-              <Skeleton className="h-4 w-full mb-auto" />
-              <div className="flex gap-4 mt-4 pt-4 border-t border-slate-50">
-                <Skeleton className="h-4 w-1/4" />
-                <Skeleton className="h-4 w-1/4" />
+            <div key={i} className="bg-white rounded-2xl border border-slate-100 p-5 h-48 flex flex-col shadow-sm">
+              <Skeleton className="h-6 w-1/2 mb-4 rounded-md" />
+              <Skeleton className="h-4 w-3/4 mb-2 rounded-md" />
+              <Skeleton className="h-4 w-1/3 mb-auto rounded-md" />
+              <div className="flex justify-between mt-4 pt-4 border-t border-slate-50">
+                <Skeleton className="h-4 w-16 rounded-md" />
+                <Skeleton className="h-4 w-24 rounded-md" />
               </div>
             </div>
           ))}
         </div>
       ) : groups?.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-xl border border-dashed border-slate-300">
-          <div className="mx-auto w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+        <div className="text-center py-20 bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
+          <div className="mx-auto w-16 h-16 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center mb-5">
             <Layers className="w-8 h-8 text-slate-400" />
           </div>
-          <h3 className="text-lg font-bold text-slate-800 mb-2">لا توجد مجموعات بعد</h3>
-          <p className="text-slate-500 max-w-md mx-auto mb-6">
-            قم بإنشاء مجموعتك الأولى لتبدأ في إدارة الطلاب وتسجيل الحضور والغياب.
+          <h3 className="text-lg font-bold text-slate-800 mb-2">لا توجد مجموعات دراسية</h3>
+          <p className="text-slate-500 max-w-sm mx-auto mb-8 text-sm leading-relaxed">
+            قم بإنشاء مجموعتك الأولى لتبدأ في إدارة الطلاب وتسجيل الحضور والغياب وتنظيم المواعيد.
           </p>
-          <Button onClick={() => setIsCreateModalOpen(true)}>
+          <Button onClick={() => setIsCreateModalOpen(true)} className="px-8 shadow-sm">
             <Plus className="w-4 h-4 ml-2" />
-            إنشاء مجموعتك الأولى
+            إنشاء مجموعة جديدة
           </Button>
         </div>
       ) : filteredGroups.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-xl border border-slate-100">
-          <Search className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <h3 className="text-lg font-medium text-slate-700">لا توجد نتائج مطابقة</h3>
-          <p className="text-slate-500 mt-1">لم يتم العثور على مجموعات تطابق خيارات الفلترة المحددة</p>
-          <Button variant="outline" size="sm" onClick={resetFilters} className="mt-4">
-            <RotateCcw className="w-3.5 h-3.5 ml-1.5" />
-            إعادة تعيين الفلاتر
+        <div className="text-center py-16 bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
+          <Search className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+          <h3 className="text-base font-bold text-slate-700">لا توجد نتائج مطابقة</h3>
+          <p className="text-slate-500 mt-1 text-sm">لم يتم العثور على مجموعات تطابق خيارات الفلترة المحددة</p>
+          <Button variant="outline" size="sm" onClick={resetFilters} className="mt-6 bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm">
+            <RotateCcw className="w-3.5 h-3.5 ml-2" />
+            مسح الفلاتر
           </Button>
         </div>
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-12">
           {availableStages.map((stage) => {
-            const isExpanded = isStageExpanded(stage);
+            const stageGrades = Object.keys(groupedGroups[stage]).sort();
+            if (stageGrades.length === 0) return null;
+            
             return (
-              <div key={stage} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 transition-all">
-                <div 
-                  className={`flex items-center justify-between cursor-pointer ${isExpanded ? 'mb-6 pb-4 border-b border-slate-100' : ''}`}
-                  onClick={() => toggleStage(stage)}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="bg-primary-50 p-2 rounded-lg text-primary-600">
-                      <BookOpen className="w-5 h-5" />
-                    </div>
-                    <h2 className="text-xl font-bold text-slate-800">{stage}</h2>
-                  </div>
-                  <div className="text-slate-400 hover:text-primary-600 transition-colors bg-slate-50 p-2 rounded-full">
-                    {isExpanded ? (
-                      <ChevronUp className="w-5 h-5" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5" />
-                    )}
-                  </div>
+              <div key={stage} className="space-y-8">
+                <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                  <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">{stage}</h2>
+                  <span className="bg-slate-100 text-slate-600 text-xs font-bold px-2 py-0.5 rounded-full">
+                    {Object.values(groupedGroups[stage]).flat().length}
+                  </span>
                 </div>
 
-                {isExpanded && (
-                  <div className="space-y-8">
-                    {Object.keys(groupedGroups[stage]).sort().map((grade) => {
-                      const isGradeExp = isGradeExpanded(stage, grade);
-                      return (
-                        <div key={grade}>
-                          <div 
-                            className="flex items-center justify-between cursor-pointer mb-4 group"
-                            onClick={() => toggleGrade(stage, grade)}
-                          >
-                            <h3 className="text-lg font-bold text-slate-700 flex items-center group-hover:text-primary-600 transition-colors">
-                              <div className="w-2 h-2 rounded-full bg-primary-500 ml-2"></div>
-                              {grade || 'بدون صف'}
-                            </h3>
-                            <div className="text-slate-400 group-hover:text-primary-600 transition-colors bg-slate-50 p-1.5 rounded-full">
-                              {isGradeExp ? (
-                                <ChevronUp className="w-4 h-4" />
-                              ) : (
-                                <ChevronDown className="w-4 h-4" />
-                              )}
-                            </div>
-                          </div>
-                          
-                          {isGradeExp && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                              {groupedGroups[stage][grade].map((group) => (
-                                <GroupCard
-                                  key={group.id}
-                                  group={group}
-                                  onClick={() => setSelectedGroupId(group.id)}
-                                />
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                <div className="space-y-8">
+                  {stageGrades.map((grade) => (
+                    <div key={grade} className="space-y-4">
+                      <h3 className="text-lg font-bold text-slate-700 flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-primary-400"></div>
+                        {grade || 'بدون صف'}
+                      </h3>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {groupedGroups[stage][grade].map((group) => (
+                          <GroupCard
+                            key={group.id}
+                            group={group}
+                            onClick={() => setSelectedGroupId(group.id)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             );
           })}
