@@ -28,7 +28,6 @@ export function useStudentProfile() {
         return null;
       }
     },
-    enabled: !!studentId,
   });
 }
 
