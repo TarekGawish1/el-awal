@@ -880,9 +880,7 @@ function CertificatesSection() {
       </div>
 
       <div className="container mx-auto px-6 relative z-10">
-        <div className="bg-red-100/50 text-red-600 text-[10px] p-2 text-center rounded-lg mb-4">
-          Debug: LocalStorage={typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('saved_certificates') || '[]').length : 0} | StagesData={stagesData.reduce((acc, s) => acc + (s.certificates?.length || 0), 0)}
-        </div>
+
         <div className="text-center max-w-2xl mx-auto mb-16">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
