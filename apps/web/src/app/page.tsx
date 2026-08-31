@@ -430,14 +430,19 @@ function CoursesSection() {
                     </div>
                   )}
 
-                  <div className="space-y-4">
-                    <div className="text-2xl font-black text-slate-900">اشترك الآن للوصول الكامل</div>
-                    <Link href="/login" className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all shadow-md hover:shadow-lg">
+                  <div className="space-y-3 lg:space-y-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-3xl font-black text-slate-900">{selectedCourse.price || '150'} ج.م</span>
+                      <span className="text-sm text-slate-400 line-through">{selectedCourse.originalPrice || '250'} ج.م</span>
+                    </div>
+                    
+                    <div className="text-xl lg:text-2xl font-black text-slate-900">اشترك الآن للوصول الكامل</div>
+                    <Link href="/login" className="flex items-center justify-center gap-2 w-full py-3 lg:py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all shadow-md hover:shadow-lg">
                       <span>الاشتراك في الكورس</span>
                     </Link>
                     <p className="text-xs text-center text-slate-500">يتيح لك الاشتراك الوصول لجميع الدروس والواجبات</p>
                     
-                    <div className="pt-4 mt-4 border-t border-slate-200 space-y-3">
+                    <div className="pt-4 mt-4 border-t border-slate-200 space-y-3 hidden lg:block">
                       <h4 className="font-bold text-slate-800 text-sm">ماذا يتضمن هذا الكورس؟</h4>
                       <ul className="text-sm text-slate-600 space-y-2">
                         <li className="flex items-center gap-2"><PlayCircle className="w-4 h-4 text-blue-500" /> شروحات فيديو مسجلة ومباشرة</li>
@@ -642,11 +647,16 @@ function CoursesSection() {
                 {/* Content Area */}
                 <div className="p-6 sm:p-8 flex-1 flex flex-col bg-white">
                   <h3 className="text-2xl font-bold text-slate-900 mb-3">{course.title}</h3>
-                  <p className="text-slate-600 text-base leading-relaxed mb-6 flex-1 line-clamp-3">
+                  <p className="text-slate-600 text-base leading-relaxed mb-4 flex-1 line-clamp-3">
                     {course.description}
                   </p>
 
-                  <div className="mt-auto flex flex-col gap-2">
+                  <div className="flex items-center gap-2 mb-4 mt-auto">
+                    <span className="text-2xl font-black text-slate-900">{course.price || '150'} ج.م</span>
+                    <span className="text-sm text-slate-400 line-through">{course.originalPrice || '250'} ج.م</span>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
                     {course.hasFreeVideo && course.freeVideoUrl && (
                        <button onClick={() => setSelectedCourse(course)} className="hover:bg-emerald-50 flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-emerald-100 text-emerald-700 font-bold transition-colors group-hover:border-emerald-200">
                          <PlayCircle className="h-5 w-5" />
