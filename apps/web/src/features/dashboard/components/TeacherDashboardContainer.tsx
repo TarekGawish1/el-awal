@@ -9,7 +9,6 @@ import { DashboardErrorState } from './DashboardErrorState';
 import { CurrentNextClass } from './CurrentNextClass';
 import { TodayScheduleTimeline } from './TodayScheduleTimeline';
 import { NeedsAttentionUnified } from './NeedsAttentionUnified';
-import { QuickActions } from './QuickActions';
 import { DEFAULT_DASHBOARD_FILTERS } from '../hooks/useTeacherDashboard';
 
 export function TeacherDashboardContainer() {
@@ -99,8 +98,6 @@ export function TeacherDashboardContainer() {
         </div>
 
       </div>
-
-      <QuickActions />
     </div>
   );
 }

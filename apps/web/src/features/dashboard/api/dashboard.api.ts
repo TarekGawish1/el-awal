@@ -138,6 +138,7 @@ export async function fetchTeacherDashboardOverview(
 
   if (filters.startDate) queryParams.startDate = filters.startDate;
   if (filters.endDate) queryParams.endDate = filters.endDate;
+  if (filters.layout) queryParams.layout = filters.layout;
 
   try {
     return await apiClient<TeacherDashboardData>(API_ENDPOINTS.TEACHER.DASHBOARD_OVERVIEW, {

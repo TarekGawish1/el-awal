@@ -7,7 +7,6 @@ export { DashboardHeader } from './components/DashboardHeader';
 export { CurrentNextClass } from './components/CurrentNextClass';
 export { TodayScheduleTimeline } from './components/TodayScheduleTimeline';
 export { NeedsAttentionUnified } from './components/NeedsAttentionUnified';
-export { QuickActions } from './components/QuickActions';
 export { DashboardOfflineBanner } from './components/DashboardOfflineBanner';
 export { DashboardErrorState } from './components/DashboardErrorState';
 export { DashboardEmptyState } from './components/DashboardEmptyState';

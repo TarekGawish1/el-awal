@@ -153,33 +153,38 @@ export class TeachersService {
     const activeSessionsCount = todaySessionItems.filter((s) => s.status === 'IN_PROGRESS').length;
 
     // 4. Attendance Trends
-    const sevenDaysAgo = new Date(now);
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    let attendanceTrends = [];
+    let weeklyAttendanceRate = 95.0;
+    
+    if (query.layout !== 'home') {
+      const sevenDaysAgo = new Date(now);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    const recentAttendanceRecords = await this.prisma.attendanceRecord.findMany({
-      where: {
-        session: {
-          groupId: { in: groupIds },
-          sessionDate: { gte: sevenDaysAgo },
+      const recentAttendanceRecords = await this.prisma.attendanceRecord.findMany({
+        where: {
+          session: {
+            groupId: { in: groupIds },
+            sessionDate: { gte: sevenDaysAgo },
+          },
         },
-      },
-    });
+      });
 
-    const totalRecentRecords = recentAttendanceRecords.length;
-    const totalRecentPresent = recentAttendanceRecords.filter(
-      (r) => r.status === AttendanceStatus.PRESENT,
-    ).length;
-    const weeklyAttendanceRate =
-      totalRecentRecords > 0
-        ? Math.round((totalRecentPresent / totalRecentRecords) * 100 * 10) / 10
-        : 95.0;
+      const totalRecentRecords = recentAttendanceRecords.length;
+      const totalRecentPresent = recentAttendanceRecords.filter(
+        (r) => r.status === AttendanceStatus.PRESENT,
+      ).length;
+      weeklyAttendanceRate =
+        totalRecentRecords > 0
+          ? Math.round((totalRecentPresent / totalRecentRecords) * 100 * 10) / 10
+          : 95.0;
 
-    const attendanceTrends = [
-      { period: 'الأسبوع 1', rate: 92.0, dateLabel: '1 - 7 أغسطس' },
-      { period: 'الأسبوع 2', rate: 94.5, dateLabel: '8 - 14 أغسطس' },
-      { period: 'الأسبوع 3', rate: 91.8, dateLabel: '15 - 21 أغسطس' },
-      { period: 'هذا الأسبوع', rate: weeklyAttendanceRate, dateLabel: 'الحالي' },
-    ];
+      attendanceTrends = [
+        { period: 'الأسبوع 1', rate: 92.0, dateLabel: '1 - 7 أغسطس' },
+        { period: 'الأسبوع 2', rate: 94.5, dateLabel: '8 - 14 أغسطس' },
+        { period: 'الأسبوع 3', rate: 91.8, dateLabel: '15 - 21 أغسطس' },
+        { period: 'هذا الأسبوع', rate: weeklyAttendanceRate, dateLabel: 'الحالي' },
+      ];
+    }
 
     // 5. Pending Assessments Grading
     const pendingSubmissions = await this.prisma.assessmentSubmission.findMany({
@@ -284,35 +289,39 @@ export class TeachersService {
     atRiskStudents.push(...Array.from(studentAbsenceMap.values()).slice(0, 5));
 
     // 7. Group Performance
-    const groupPerformance = await Promise.all(
-      teacherGroups.map(async (group) => {
-        const totalGroupSessions = await this.prisma.lessonSession.count({
-          where: { groupId: group.id },
-        });
+    let groupPerformance = [];
+    
+    if (query.layout !== 'home') {
+      groupPerformance = await Promise.all(
+        teacherGroups.map(async (group) => {
+          const totalGroupSessions = await this.prisma.lessonSession.count({
+            where: { groupId: group.id },
+          });
 
-        const totalGroupPresent = await this.prisma.attendanceRecord.count({
-          where: {
-            session: { groupId: group.id },
-            status: AttendanceStatus.PRESENT,
-          },
-        });
+          const totalGroupPresent = await this.prisma.attendanceRecord.count({
+            where: {
+              session: { groupId: group.id },
+              status: AttendanceStatus.PRESENT,
+            },
+          });
 
-        const totalAttendanceSlots = totalGroupSessions * (group.enrollments.length || 1);
-        const attendanceRate =
-          totalAttendanceSlots > 0
-            ? Math.min(100, Math.round((totalGroupPresent / totalAttendanceSlots) * 100))
-            : 96;
+          const totalAttendanceSlots = totalGroupSessions * (group.enrollments.length || 1);
+          const attendanceRate =
+            totalAttendanceSlots > 0
+              ? Math.min(100, Math.round((totalGroupPresent / totalAttendanceSlots) * 100))
+              : 96;
 
-        return {
-          groupId: group.id,
-          groupName: group.name,
-          gradeLevel: group.gradeLevel,
-          enrolledCount: group.enrollments.length,
-          attendanceRate,
-          averageExamScore: 88.0,
-        };
-      }),
-    );
+          return {
+            groupId: group.id,
+            groupName: group.name,
+            gradeLevel: group.gradeLevel,
+            enrolledCount: group.enrollments.length,
+            attendanceRate,
+            averageExamScore: 88.0,
+          };
+        }),
+      );
+    }
 
     return {
       kpis: {

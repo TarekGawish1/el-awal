@@ -9,6 +9,7 @@ export const DEFAULT_DASHBOARD_FILTERS: DashboardFilterState = {
   academicYear: '2026-2027',
   groupId: 'ALL',
   dateRange: 'week',
+  layout: 'home',
 };
 
 /**

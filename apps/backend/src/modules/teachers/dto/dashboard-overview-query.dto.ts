@@ -31,4 +31,9 @@ export class DashboardOverviewQueryDto {
   @IsOptional()
   @IsString()
   endDate?: string;
+
+  @ApiPropertyOptional({ example: 'home' })
+  @IsOptional()
+  @IsString()
+  layout?: string;
 }

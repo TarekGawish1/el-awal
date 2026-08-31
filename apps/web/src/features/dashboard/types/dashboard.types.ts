@@ -16,6 +16,7 @@ export interface DashboardFilterState {
   dateRange: DateRangePreset;
   startDate?: string;
   endDate?: string;
+  layout?: 'home' | 'full';
 }
 
 export interface DashboardKpiData {
