@@ -4,15 +4,14 @@
 
 export { TeacherDashboardContainer } from './components/TeacherDashboardContainer';
 export { DashboardHeader } from './components/DashboardHeader';
-export { DashboardFilters } from './components/DashboardFilters';
-export { DashboardKpiGrid } from './components/DashboardKpiGrid';
-export { TodaySessionsSection } from './components/TodaySessionsSection';
-export { AttendanceTrendSection } from './components/AttendanceTrendSection';
-export { AttentionSection } from './components/AttentionSection';
-export { GroupPerformanceSection } from './components/GroupPerformanceSection';
+export { CurrentNextClass } from './components/CurrentNextClass';
+export { TodayScheduleTimeline } from './components/TodayScheduleTimeline';
+export { NeedsAttentionUnified } from './components/NeedsAttentionUnified';
+export { QuickActions } from './components/QuickActions';
 export { DashboardOfflineBanner } from './components/DashboardOfflineBanner';
 export { DashboardErrorState } from './components/DashboardErrorState';
 export { DashboardEmptyState } from './components/DashboardEmptyState';
+export { PendingReservationsSection } from './components/PendingReservationsSection'; // Still used by reservations page
 
 export { useTeacherDashboard, useTeacherGroups } from './hooks/useTeacherDashboard';
 export { fetchTeacherGroups, fetchTeacherDashboardOverview } from './api/dashboard.api';

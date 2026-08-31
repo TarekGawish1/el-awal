@@ -1,64 +1,24 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React from 'react';
 import { useAuth } from '@/features/auth';
-import { DashboardFilterState, DateRangePreset } from '../types/dashboard.types';
-import { useTeacherDashboard, useTeacherGroups, DEFAULT_DASHBOARD_FILTERS } from '../hooks/useTeacherDashboard';
-import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
+import { useTeacherDashboard } from '../hooks/useTeacherDashboard';
 import { DashboardHeader } from './DashboardHeader';
-import { DashboardFilters } from './DashboardFilters';
-import { DashboardKpiGrid } from './DashboardKpiGrid';
-import { TodaySessionsSection } from './TodaySessionsSection';
-import { AttendanceTrendSection } from './AttendanceTrendSection';
-import { GroupPerformanceSection } from './GroupPerformanceSection';
-import { AttentionSection } from './AttentionSection';
 import { DashboardOfflineBanner } from './DashboardOfflineBanner';
 import { DashboardErrorState } from './DashboardErrorState';
-import { DashboardEmptyState } from './DashboardEmptyState';
-import { PendingReservationsSection } from './PendingReservationsSection';
+import { CurrentNextClass } from './CurrentNextClass';
+import { TodayScheduleTimeline } from './TodayScheduleTimeline';
+import { NeedsAttentionUnified } from './NeedsAttentionUnified';
+import { QuickActions } from './QuickActions';
+import { DEFAULT_DASHBOARD_FILTERS } from '../hooks/useTeacherDashboard';
 
 export function TeacherDashboardContainer() {
-  const router = useRouter();
   const { user } = useAuth();
 
-  // Fetch groups for filter dropdown
-  const { data: groups = [], isLoading: isGroupsLoading } = useTeacherGroups();
+  // We only care about TODAY for the Home page, so we use default/empty filters
+  // that backend interprets as today. Or explicitly pass a dateRange if needed by hook.
+  const filters = DEFAULT_DASHBOARD_FILTERS; 
 
-  // Active synchronized academic period
-  const {
-    selectedYears,
-    setSelectedYears,
-    selectedTerms,
-    setSelectedTerms,
-    activeYear,
-    activeTerm,
-  } = useStoredAcademicPeriod(groups as any);
-
-  // Read initial filter values from URL params or active academic period
-  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const initialFilters: DashboardFilterState = {
-    academicYear: searchParams?.get('academicYear') || activeYear,
-    academicTerm: searchParams?.get('academicTerm') || 'ALL',
-    groupId: searchParams?.get('groupId') || DEFAULT_DASHBOARD_FILTERS.groupId,
-    dateRange: (searchParams?.get('dateRange') as DateRangePreset) || DEFAULT_DASHBOARD_FILTERS.dateRange,
-    startDate: searchParams?.get('startDate') || undefined,
-    endDate: searchParams?.get('endDate') || undefined,
-  };
-
-  const [filters, setFilters] = useState<DashboardFilterState>(initialFilters);
-
-  // Sync current filters with active academic period if not explicitly overridden in URL
-  React.useEffect(() => {
-    if (!searchParams?.get('academicYear') && activeYear) {
-      setFilters((prev) => (prev.academicYear !== activeYear ? { ...prev, academicYear: activeYear } : prev));
-    }
-    if (!searchParams?.get('academicTerm') && activeTerm) {
-      setFilters((prev) => (prev.academicTerm !== activeTerm ? { ...prev, academicTerm: activeTerm } : prev));
-    }
-  }, [activeYear, activeTerm, searchParams]);
-
-  // Fetch primary dashboard overview
   const {
     data: dashboardData,
     isLoading,
@@ -69,140 +29,78 @@ export function TeacherDashboardContainer() {
     isOffline,
   } = useTeacherDashboard(filters);
 
-  // Handle filter changes and sync to URL params (local filter view only, does not mutate global system active period)
-  const handleFilterChange = (updated: Partial<DashboardFilterState>) => {
-    const newFilters = { ...filters, ...updated };
-    setFilters(newFilters);
-
-    const params = new URLSearchParams();
-    if (newFilters.academicYear) params.set('academicYear', newFilters.academicYear);
-    if (newFilters.academicTerm && newFilters.academicTerm !== 'ALL') params.set('academicTerm', newFilters.academicTerm);
-    if (newFilters.groupId && newFilters.groupId !== 'ALL') params.set('groupId', newFilters.groupId);
-    if (newFilters.dateRange) params.set('dateRange', newFilters.dateRange);
-    if (newFilters.startDate) params.set('startDate', newFilters.startDate);
-    if (newFilters.endDate) params.set('endDate', newFilters.endDate);
-
-    const queryString = params.toString();
-    router.replace(queryString ? `?${queryString}` : '/teacher/dashboard');
-  };
-
-  const handleResetFilters = () => {
-    setFilters(DEFAULT_DASHBOARD_FILTERS);
-    router.replace('/teacher/dashboard');
-  };
-
-  const isFiltered = Boolean(
-    filters.groupId !== 'ALL' ||
-    filters.dateRange !== 'week' ||
-    filters.academicYear !== DEFAULT_DASHBOARD_FILTERS.academicYear ||
-    (filters.academicTerm && filters.academicTerm !== 'ALL')
-  );
-
   // Permission Denied Check (403)
   const isForbidden = isError && (error as { statusCode?: number })?.statusCode === 403;
 
+  if (isForbidden) {
+    return (
+      <div className="p-8 text-center bg-white border border-error-200 rounded-lg shadow-sm">
+        <h3 className="text-lg font-bold text-error-700 mb-2">غير مصرح بالوصول (403)</h3>
+        <p className="text-sm text-neutral-600 mb-4">
+          هذه اللوحة مخصصة لحسابات المدرسين فقط. لا تملك الصلاحيات الكافية لعرض هذه البيانات.
+        </p>
+        <a href="/login" className="text-sm font-semibold text-primary-600 underline">
+          العودة لصفحة تسجيل الدخول
+        </a>
+      </div>
+    );
+  }
+
+  if (isError && !dashboardData) {
+    return (
+      <DashboardErrorState
+        errorMessage={error?.message}
+        onRetry={() => refetch()}
+        isRetrying={isFetching}
+      />
+    );
+  }
+
   return (
-    <div className="space-y-6 pb-12">
-      {/* 1. Offline / Degraded State Banner */}
+    <div className="space-y-6 pb-24 sm:pb-12 max-w-7xl mx-auto">
+      {/* Offline Indicator */}
       {isOffline && (
         <DashboardOfflineBanner lastUpdatedTimestamp={dashboardData?.lastUpdatedTimestamp} />
       )}
 
-      {/* 2. Top-level Header & Quick Refresh */}
+      {/* Header */}
       <DashboardHeader
         teacherName={user?.fullName}
         isFetching={isFetching && !isLoading}
         isOffline={isOffline}
         lastUpdatedTimestamp={dashboardData?.lastUpdatedTimestamp}
         onRefresh={() => refetch()}
+        todaySessionsCount={dashboardData?.todaySessions?.length || 0}
       />
 
-      {/* 3. Global Filter Bar */}
-      <DashboardFilters
-        filters={filters}
-        groups={groups}
-        isGroupsLoading={isGroupsLoading}
-        onFilterChange={handleFilterChange}
-        onResetFilters={handleResetFilters}
-        isFiltered={isFiltered}
-      />
-
-      {/* 4. Partial Loading Progress Bar */}
-      {isFetching && !isLoading && (
-        <div className="w-full bg-neutral-100 h-1 overflow-hidden rounded-full">
-          <div className="bg-primary-600 h-full w-1/3 animate-pulse rounded-full" />
+      {/* Main Workspace Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mt-6">
+        
+        {/* Left Column: Chronological Focus (60% on desktop) */}
+        <div className="lg:col-span-7 flex flex-col gap-8">
+          <CurrentNextClass 
+            sessions={dashboardData?.todaySessions} 
+            isLoading={isLoading} 
+          />
+          
+          <TodayScheduleTimeline 
+            sessions={dashboardData?.todaySessions} 
+            isLoading={isLoading} 
+          />
         </div>
-      )}
 
-      {/* 4.5 Pending Reservations */}
-      {!isForbidden && !isError && (
-        <PendingReservationsSection />
-      )}
-
-      {/* 5. Permission Denied State (403) */}
-      {isForbidden ? (
-        <div className="p-8 text-center bg-white border border-error-200 rounded-lg shadow-sm">
-          <h3 className="text-lg font-bold text-error-700 mb-2">غير مصرح بالوصول (403)</h3>
-          <p className="text-sm text-neutral-600 mb-4">
-            هذه اللوحة مخصصة لحسابات المدرسين فقط. لا تملك الصلاحيات الكافية لعرض هذه البيانات.
-          </p>
-          <a href="/login" className="text-sm font-semibold text-primary-600 underline">
-            العودة لصفحة تسجيل الدخول
-          </a>
+        {/* Right Column: Task Focus (40% on desktop) */}
+        <div className="lg:col-span-5 flex flex-col gap-8">
+          <NeedsAttentionUnified 
+            atRiskStudents={dashboardData?.atRiskStudents}
+            pendingGrading={dashboardData?.pendingGradingList}
+            isLoading={isLoading}
+          />
         </div>
-      ) : isError && !dashboardData ? (
-        /* 6. API Error State with Retry */
-        <DashboardErrorState
-          errorMessage={error?.message}
-          onRetry={() => refetch()}
-          isRetrying={isFetching}
-        />
-      ) : !isLoading && dashboardData?.kpis.totalActiveStudents === 0 && !isFiltered ? (
-        /* 7. First-Time / Onboarding Empty State */
-        <DashboardEmptyState isFiltered={false} />
-      ) : !isLoading && dashboardData?.kpis.todaySessionsCount === 0 && isFiltered && dashboardData?.todaySessions.length === 0 ? (
-        /* 8. Filtered Empty State */
-        <DashboardEmptyState isFiltered={true} onResetFilters={handleResetFilters} />
-      ) : (
-        /* 9. Fully Loaded & Responsive Decision-Support Hierarchy */
-        <div className="space-y-6">
-          {/* Level 1: Primary 4 KPIs */}
-          <DashboardKpiGrid kpis={dashboardData?.kpis} isLoading={isLoading} />
 
-          {/* Level 2 & 4: Today's Sessions & Attendance Trends */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-            <div className="lg:col-span-5 flex flex-col">
-              <TodaySessionsSection
-                sessions={dashboardData?.todaySessions}
-                isLoading={isLoading}
-              />
-            </div>
-            <div className="lg:col-span-7 flex flex-col">
-              <AttendanceTrendSection
-                trends={dashboardData?.attendanceTrends}
-                isLoading={isLoading}
-              />
-            </div>
-          </div>
+      </div>
 
-          {/* Level 2 & 3: Attention Alerts & Group Performance */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-            <div className="lg:col-span-6 flex flex-col">
-              <AttentionSection
-                atRiskStudents={dashboardData?.atRiskStudents}
-                pendingGrading={dashboardData?.pendingGradingList}
-                isLoading={isLoading}
-              />
-            </div>
-            <div className="lg:col-span-6 flex flex-col">
-              <GroupPerformanceSection
-                groups={dashboardData?.groupPerformance}
-                isLoading={isLoading}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      <QuickActions />
     </div>
   );
 }
