@@ -81,15 +81,16 @@ export function NeedsAttentionUnified({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between px-1">
-        <h3 className="font-bold text-lg text-neutral-900">يحتاج انتباهك</h3>
-        <span className="text-xs font-bold text-neutral-500 bg-neutral-200/50 px-2 py-0.5 rounded-full">
+    <Card className="border-neutral-100 shadow-sm overflow-hidden bg-white">
+      <CardHeader className="p-4 sm:px-5 sm:pt-5 sm:pb-4 border-b border-neutral-50 flex flex-row items-center justify-between space-y-0">
+        <CardTitle className="font-bold text-lg text-neutral-900">يحتاج انتباهك</CardTitle>
+        <span className="text-xs font-bold text-neutral-500 bg-neutral-100 px-2.5 py-0.5 rounded-full">
           {totalItems}
         </span>
-      </div>
+      </CardHeader>
       
-      <div className="divide-y divide-neutral-100">
+      <CardContent className="p-0">
+        <div className="divide-y divide-neutral-50">
           {itemsToShow.map((item, index) => {
             if (item.type === 'reservation') {
               const res = item.data as any;
@@ -158,12 +159,13 @@ export function NeedsAttentionUnified({
         </div>
 
         {totalItems > itemsToShow.length && (
-          <div className="pt-3 text-center">
+          <div className="p-3 text-center border-t border-neutral-50 bg-neutral-50/50">
             <span className="text-xs text-neutral-400 font-medium">
               وهناك {totalItems - itemsToShow.length} عناصر أخرى...
             </span>
           </div>
         )}
+      </CardContent>
 
       {/* Payment Confirmation Modal */}
       {acceptModalData && (
@@ -179,6 +181,6 @@ export function NeedsAttentionUnified({
         isOpen={!!selectedStudentId}
         onClose={() => setSelectedStudentId(null)}
       />
-    </div>
+    </Card>
   );
 }
