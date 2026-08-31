@@ -182,7 +182,7 @@ export class CoursesService {
           include: {
             lessons: {
               orderBy: { orderIndex: 'asc' },
-              select: { id: true }
+              select: { id: true, bunnyVideoId: true }
             }
           }
         },
@@ -205,8 +205,9 @@ export class CoursesService {
       return {
         ...courseData,
         totalLessons,
-        hasFreeVideo: totalLessons >= 10,
-        freeVideoLessonId: (totalLessons >= 10 && firstLesson) ? firstLesson.id : null,
+        hasFreeVideo: totalLessons >= 1, // Changed to 1 for testing as user expects it to show
+        freeVideoLessonId: (totalLessons >= 1 && firstLesson) ? firstLesson.id : null,
+        freeVideoBunnyId: (totalLessons >= 1 && firstLesson) ? firstLesson.bunnyVideoId : null,
       };
     });
 

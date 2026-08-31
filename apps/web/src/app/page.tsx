@@ -317,6 +317,7 @@ const COURSES = [
 function CoursesSection() {
   const [courses, setCourses] = useState<any[]>(COURSES);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchCourses() {
@@ -334,6 +335,7 @@ function CoursesSection() {
               color: index % 3 === 0 ? 'from-blue-500 to-cyan-500' : index % 3 === 1 ? 'from-indigo-500 to-purple-500' : 'from-emerald-500 to-teal-500',
               hasFreeVideo: c.hasFreeVideo,
               freeVideoLessonId: c.freeVideoLessonId,
+              freeVideoBunnyId: c.freeVideoBunnyId,
             }));
             setCourses(mapped);
           }
@@ -347,8 +349,40 @@ function CoursesSection() {
     fetchCourses();
   }, []);
 
+  const bunnyLibraryId = process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID || '364377';
+
   return (
     <section className="py-24 bg-white relative overflow-hidden" id="courses" dir="rtl">
+      {/* Video Modal */}
+      <AnimatePresence>
+        {selectedVideo && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          >
+            <div className="relative w-full max-w-4xl bg-black rounded-2xl overflow-hidden shadow-2xl aspect-video">
+              <button
+                onClick={() => setSelectedVideo(null)}
+                className="absolute top-4 right-4 z-10 w-10 h-10 bg-white/20 hover:bg-white/40 rounded-full flex items-center justify-center text-white transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              <iframe
+                src={`https://iframe.mediadelivery.net/embed/${bunnyLibraryId}/${selectedVideo}?autoplay=true&preload=true`}
+                loading="lazy"
+                className="w-full h-full border-0"
+                allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+                allowFullScreen
+              ></iframe>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="absolute top-0 right-0 w-full h-full overflow-hidden pointer-events-none z-0 opacity-40">
         <div className="absolute -top-[10%] right-[10%] w-[30%] h-[40%] rounded-full bg-blue-50 blur-[100px]" />
         <div className="absolute bottom-[10%] -left-[5%] w-[40%] h-[30%] rounded-full bg-indigo-50 blur-[120px]" />
@@ -387,14 +421,28 @@ function CoursesSection() {
                 className="group relative bg-white rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_rgb(0,0,0,0.08)] transition-all overflow-hidden flex flex-col"
               >
                 {/* Image/Gradient Area */}
-                <div className={`h-48 w-full bg-gradient-to-br ${course.color} relative overflow-hidden flex items-start justify-start p-6`}>
+                <div className={`h-48 w-full bg-gradient-to-br ${course.color || 'from-blue-500 to-cyan-500'} relative overflow-hidden flex items-start justify-start p-6`}>
                   <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
+                  
+                  {course.hasFreeVideo && course.freeVideoBunnyId ? (
+                     <div 
+                       onClick={() => setSelectedVideo(course.freeVideoBunnyId)}
+                       className="absolute inset-0 z-20 flex items-center justify-center cursor-pointer bg-black/10 group-hover:bg-black/30 transition-colors"
+                     >
+                       <div className="w-16 h-16 bg-white/30 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white ml-1" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                          </svg>
+                       </div>
+                     </div>
+                  ) : (
+                    <div className="absolute -bottom-6 -left-6 text-white/20 text-9xl font-black -rotate-12 pointer-events-none">
+                      {index === 0 ? '∑' : index === 1 ? '∫' : '∞'}
+                    </div>
+                  )}
+
                   <div className="relative z-10 bg-white/25 backdrop-blur-md px-4 py-1.5 rounded-full text-white text-sm font-bold shadow-sm self-start">
                     {course.badge}
-                  </div>
-                  {/* Decorative Math Icon */}
-                  <div className="absolute -bottom-6 -left-6 text-white/20 text-9xl font-black -rotate-12 pointer-events-none">
-                    {index === 0 ? '∑' : index === 1 ? '∫' : '∞'}
                   </div>
                 </div>
 
@@ -406,14 +454,14 @@ function CoursesSection() {
                   </p>
 
                   <div className="mt-auto flex flex-col gap-2">
-                    {course.hasFreeVideo && course.freeVideoLessonId && (
-                       <Link href={`/login?redirect=/student/courses/${course.id}`} className="hover:bg-emerald-50 flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-emerald-100 text-emerald-700 font-bold transition-colors group-hover:border-emerald-200">
+                    {course.hasFreeVideo && course.freeVideoBunnyId && (
+                       <button onClick={() => setSelectedVideo(course.freeVideoBunnyId)} className="hover:bg-emerald-50 flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-emerald-100 text-emerald-700 font-bold transition-colors group-hover:border-emerald-200">
                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                             <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                          </svg>
                          <span>شاهد الدرس الأول مجاناً</span>
-                       </Link>
+                       </button>
                     )}
                     <Link href="/login" className="hover:bg-blue-50 flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-slate-100 text-slate-700 font-bold transition-colors group-hover:border-blue-100">
                       <span>اشترك الآن</span>
