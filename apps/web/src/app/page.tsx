@@ -802,7 +802,8 @@ function CertificatesSection() {
         try {
           const res = await fetch(`${baseUrl}/certificates/public`);
           if (res.ok) {
-            apiCerts = await res.json() || [];
+            const json = await res.json();
+            apiCerts = json?.data || json || [];
           }
         } catch (apiError) {
           console.warn("Could not fetch API certificates", apiError);
