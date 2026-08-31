@@ -34,7 +34,7 @@ export default function StudentRegistrationPage() {
                   إنشاء حساب طالب
                 </h2>
                 <p className="mt-0.5 text-xs text-neutral-500">
-                  أدخل بياناتك لإنشاء حساب الطالب وحساب ولي الأمر
+                  أدخل بياناتك لإنشاء حسابك والانضمام للمنصة
                 </p>
               </div>
               <StudentRegistrationForm />
