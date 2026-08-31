@@ -438,11 +438,8 @@ export default function DashboardLayout({
                   {user?.fullName ? user.fullName.charAt(0) : 'م'}
                 </div>
                 <div className="flex-col items-start hidden sm:flex text-start">
-                  <span className="text-sm font-bold text-neutral-900 leading-none mb-1">
+                  <span className="text-sm font-bold text-neutral-900 leading-none">
                     {user?.fullName || 'المستخدم'}
-                  </span>
-                  <span className="text-[11px] font-medium text-neutral-500 leading-none">
-                    {getRoleLabel(user?.role)}
                   </span>
                 </div>
                 <ChevronDown className={`hidden sm:block w-4 h-4 text-neutral-400 transition-transform ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
@@ -458,7 +455,6 @@ export default function DashboardLayout({
                   <div className="absolute end-0 top-full mt-2 w-56 bg-white border border-neutral-100 rounded-xl shadow-lg z-50 overflow-hidden flex flex-col p-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="px-3 py-2.5 border-b border-neutral-100 sm:hidden">
                       <p className="text-sm font-bold text-neutral-900 truncate">{user?.fullName || 'المستخدم'}</p>
-                      <p className="text-[11px] font-medium text-neutral-500 mt-0.5">{getRoleLabel(user?.role)}</p>
                     </div>
                     
                     <button
