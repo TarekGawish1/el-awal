@@ -22,6 +22,7 @@ interface SavedCertificate {
 export function CertificatesClient() {
   const [certificates, setCertificates] = useState<SavedCertificate[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedStage, setSelectedStage] = useState('الكل');
 
   useEffect(() => {
     try {
@@ -49,10 +50,13 @@ export function CertificatesClient() {
     }
   };
 
-  const filteredCertificates = certificates.filter(cert => 
-    cert.studentName?.includes(searchTerm) || 
-    cert.subject?.includes(searchTerm)
-  );
+  const filteredCertificates = certificates.filter(cert => {
+    const matchesSearch = cert.studentName?.includes(searchTerm) || cert.subject?.includes(searchTerm);
+    const matchesStage = selectedStage === 'الكل' || cert.stage === selectedStage;
+    return matchesSearch && matchesStage;
+  });
+
+  const stages = ['الكل', 'الثانوية', 'الإعدادية', 'الابتدائية'];
 
   return (
     <div className="space-y-6">
@@ -72,6 +76,21 @@ export function CertificatesClient() {
       </div>
 
       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
+          {stages.map(stage => (
+            <button
+              key={stage}
+              onClick={() => setSelectedStage(stage)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                selectedStage === stage 
+                  ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' 
+                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              {stage}
+            </button>
+          ))}
+        </div>
         <div className="relative w-full md:w-80">
           <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
             <Search className="h-4 w-4 text-slate-400" />

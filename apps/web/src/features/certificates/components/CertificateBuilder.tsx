@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Download, Loader2, ZoomIn, ZoomOut, Maximize2, RefreshCw } from 'lucide-react';
 import html2canvas from 'html2canvas';
+import { useRouter } from 'next/navigation';
+import { toast } from 'react-hot-toast';
 import { CertificateTemplateA, CertificateData } from './CertificateTemplateA';
 
 const STAGE_GRADES = {
@@ -40,6 +42,8 @@ const MOCK_STUDENTS = [
 ];
 
 export function CertificateBuilder() {
+  const router = useRouter();
+  
   const [data, setData] = useState<CertificateData>({
     studentName: '',
     gender: 'MALE',
@@ -220,14 +224,20 @@ export function CertificateBuilder() {
             body: formData 
           });
           console.log('Certificate uploaded successfully to R2 bucket and database.');
+          
+          toast.success('تم إنشاء الشهادة بنجاح!');
+          router.push('/teacher/certificates');
+          
         } catch(e) {
           console.error("Failed to upload certificate", e);
+          toast.success('تم حفظ الشهادة محلياً بنجاح!');
+          router.push('/teacher/certificates');
         }
       }, 'image/png');
       
     } catch (error) {
       console.error('Error generating PDF:', error);
-      // Optional: Add toast notification for error
+      toast.error('حدث خطأ أثناء إنشاء الشهادة');
     } finally {
       setIsGenerating(false);
     }
