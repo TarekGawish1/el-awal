@@ -81,38 +81,32 @@ export function NeedsAttentionUnified({
   }
 
   return (
-    <Card className="border-neutral-200 shadow-sm overflow-hidden">
-      <CardHeader className="p-4 sm:p-5 border-b border-neutral-100 flex flex-row items-center justify-between space-y-0">
-        <CardTitle className="font-bold text-lg text-neutral-800">يحتاج انتباهك</CardTitle>
-        <span className="text-xs font-bold text-neutral-500 bg-neutral-100 px-2.5 py-0.5 rounded-full">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between px-1">
+        <h3 className="font-bold text-lg text-neutral-900">يحتاج انتباهك</h3>
+        <span className="text-xs font-bold text-neutral-500 bg-neutral-200/50 px-2 py-0.5 rounded-full">
           {totalItems}
         </span>
-      </CardHeader>
+      </div>
       
-      <CardContent className="p-0">
-        <div className="divide-y divide-neutral-100">
+      <div className="divide-y divide-neutral-100">
           {itemsToShow.map((item, index) => {
             if (item.type === 'reservation') {
               const res = item.data as any;
               return (
-                <div key={`res-${res.id}`} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 hover:bg-neutral-50/50 transition-colors">
-                  <div className="flex items-start sm:items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
-                      <UserPlus className="w-4 h-4 text-amber-600" />
+                <div key={`res-${res.id}`} className="flex items-start justify-between py-3 hover:bg-neutral-50/50 transition-colors px-1">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center shrink-0 mt-0.5">
+                      <UserPlus className="w-3.5 h-3.5 text-amber-600" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-neutral-900">طلب انضمام جديد</h4>
-                      <p className="text-xs text-neutral-500 mt-0.5">{res.student?.user?.fullName || 'طالب جديد'} • {res.group?.name}</p>
+                      <h4 className="text-sm font-bold text-neutral-900">{res.student?.user?.fullName || 'طالب جديد'}</h4>
+                      <p className="text-xs text-neutral-500 mt-0.5">طلب انضمام • {res.group?.name}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-3 sm:mt-0">
-                    <Button size="sm" variant="outline" className="h-8 text-xs font-semibold bg-white" onClick={() => setSelectedStudentId(res.studentId || res.student?.id)}>
-                      معاينة الطالب
-                    </Button>
-                    <Button size="sm" className="h-8 text-xs font-semibold bg-primary-600 hover:bg-primary-700 text-white" onClick={() => setAcceptModalData({ id: res.id, studentName: res.student?.user?.fullName || 'غير معروف' })}>
-                      مراجعة وقبول
-                    </Button>
-                  </div>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs font-semibold text-primary-600 hover:text-primary-700 hover:bg-primary-50 px-2" onClick={() => setAcceptModalData({ id: res.id, studentName: res.student?.user?.fullName || 'غير معروف' })}>
+                    مراجعة
+                  </Button>
                 </div>
               );
             }
@@ -120,18 +114,18 @@ export function NeedsAttentionUnified({
             if (item.type === 'grading') {
               const grading = item.data as PendingGradingAlert;
               return (
-                <div key={`grad-${grading.assessmentId}`} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 hover:bg-neutral-50/50 transition-colors">
-                  <div className="flex items-start sm:items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-                      <FileCheck className="w-4 h-4 text-blue-600" />
+                <div key={`grad-${grading.assessmentId}`} className="flex items-start justify-between py-3 hover:bg-neutral-50/50 transition-colors px-1">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center shrink-0 mt-0.5">
+                      <FileCheck className="w-3.5 h-3.5 text-blue-600" />
                     </div>
                     <div>
                       <h4 className="text-sm font-bold text-neutral-900">{grading.assessmentTitle}</h4>
-                      <p className="text-xs text-neutral-500 mt-0.5">{grading.pendingCount} إجابات في انتظار المراجعة • {grading.groupName}</p>
+                      <p className="text-xs text-neutral-500 mt-0.5">{grading.pendingCount} إجابات تحتاج تصحيح • {grading.groupName}</p>
                     </div>
                   </div>
-                  <Link href={`/teacher/assessments/${grading.assessmentId}/submissions`} className="mt-3 sm:mt-0">
-                    <Button size="sm" variant="outline" className="w-full sm:w-auto h-8 text-xs font-semibold bg-white text-blue-700 hover:text-blue-800 border-blue-200 hover:bg-blue-50">
+                  <Link href={`/teacher/assessments/${grading.assessmentId}/submissions`}>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2">
                       تصحيح
                     </Button>
                   </Link>
@@ -142,17 +136,17 @@ export function NeedsAttentionUnified({
             if (item.type === 'risk') {
               const risk = item.data as AtRiskStudentAlert;
               return (
-                <div key={`risk-${risk.id}`} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 hover:bg-neutral-50/50 transition-colors">
-                  <div className="flex items-start sm:items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-error-50 flex items-center justify-center shrink-0">
-                      <UserX className="w-4 h-4 text-error-600" />
+                <div key={`risk-${risk.id}`} className="flex items-start justify-between py-3 hover:bg-neutral-50/50 transition-colors px-1">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-error-50 flex items-center justify-center shrink-0 mt-0.5">
+                      <UserX className="w-3.5 h-3.5 text-error-600" />
                     </div>
                     <div>
                       <h4 className="text-sm font-bold text-neutral-900">{risk.studentName}</h4>
-                      <p className="text-xs text-neutral-500 mt-0.5">غياب {risk.consecutiveAbsences} حصص متتالية • {risk.groupName}</p>
+                      <p className="text-xs text-neutral-500 mt-0.5">غياب {risk.consecutiveAbsences} حصص متتالية</p>
                     </div>
                   </div>
-                  <Button size="sm" variant="ghost" className="h-8 text-xs font-semibold text-neutral-500 hover:text-neutral-800 mt-3 sm:mt-0 w-full sm:w-auto" onClick={() => setSelectedStudentId(risk.studentId)}>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs font-semibold text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 px-2" onClick={() => setSelectedStudentId(risk.studentId)}>
                     عرض الطالب
                   </Button>
                 </div>
@@ -164,13 +158,12 @@ export function NeedsAttentionUnified({
         </div>
 
         {totalItems > itemsToShow.length && (
-          <div className="p-3 text-center border-t border-neutral-100 bg-neutral-50">
-            <span className="text-xs text-neutral-500 font-medium">
+          <div className="pt-3 text-center">
+            <span className="text-xs text-neutral-400 font-medium">
               وهناك {totalItems - itemsToShow.length} عناصر أخرى...
             </span>
           </div>
         )}
-      </CardContent>
 
       {/* Payment Confirmation Modal */}
       {acceptModalData && (
@@ -181,12 +174,11 @@ export function NeedsAttentionUnified({
         />
       )}
 
-      {/* Student Details Modal */}
       <StudentDetailsModal
         studentId={selectedStudentId}
         isOpen={!!selectedStudentId}
         onClose={() => setSelectedStudentId(null)}
       />
-    </Card>
+    </div>
   );
 }

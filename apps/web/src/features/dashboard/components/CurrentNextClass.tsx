@@ -157,7 +157,7 @@ export function CurrentNextClass({ sessions = [], isLoading = false }: CurrentNe
               <Link href={`/teacher/attendance?sessionId=${activeSession.id}&groupId=${activeSession.groupId}`}>
                 <Button size="lg" variant="outline" className="w-full sm:w-auto md:w-full h-14 text-base font-bold text-primary-700 border-primary-200 hover:bg-primary-50 gap-2">
                   <PlayCircle className="w-5 h-5" />
-                  فتح الحصة
+                  عرض تفاصيل الحصة
                 </Button>
               </Link>
             )}

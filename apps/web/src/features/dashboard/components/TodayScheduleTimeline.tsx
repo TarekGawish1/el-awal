@@ -35,12 +35,12 @@ export function TodayScheduleTimeline({ sessions = [], isLoading = false }: Toda
   });
 
   return (
-    <Card className="border-none shadow-none bg-transparent">
-      <CardHeader className="px-0 pt-0 pb-4 flex flex-row items-center justify-between">
+    <Card className="border-neutral-200 shadow-sm overflow-hidden bg-white">
+      <CardHeader className="p-4 sm:p-5 border-b border-neutral-100">
         <CardTitle className="text-lg font-bold text-neutral-900">جدول النهارده</CardTitle>
       </CardHeader>
-      <CardContent className="px-0">
-        <div className="relative border-r-2 border-neutral-100 pr-4 space-y-6 before:hidden">
+      <CardContent className="p-5 sm:p-6">
+        <div className="relative border-r-2 border-neutral-100 pr-6 space-y-8 before:hidden">
           {sortedSessions.map((session, index) => {
             const isLive = session.status === 'IN_PROGRESS';
             const isCompleted = session.status === 'COMPLETED';
@@ -49,12 +49,12 @@ export function TodayScheduleTimeline({ sessions = [], isLoading = false }: Toda
               <div key={session.id} className="relative">
                 {/* Timeline node */}
                 <span 
-                  className={`absolute -right-[21px] top-1.5 w-2.5 h-2.5 rounded-full ring-4 ring-white ${
+                  className={`absolute -right-[29px] top-1.5 w-3 h-3 rounded-full ring-4 ring-white ${
                     isLive ? 'bg-primary-500 animate-pulse' : isCompleted ? 'bg-neutral-300' : 'bg-neutral-200 border-2 border-neutral-400'
                   }`} 
                 />
                 
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1.5">
                   <div className="flex items-center gap-2">
                     <span className={`text-sm font-bold tracking-tight ${isLive ? 'text-primary-600' : isCompleted ? 'text-neutral-400 line-through' : 'text-neutral-700'}`}>
                       {formatArabicTime(session.startTime)}
