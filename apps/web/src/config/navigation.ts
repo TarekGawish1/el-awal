@@ -130,7 +130,7 @@ export const PARENT_NAVIGATION_ITEMS: NavItemConfig[] = PARENT_NAVIGATION_SECTIO
  * Returns grouped navigation sections for a given role filtered by the active network status.
  * In offline mode, all `onlineOnly: true` items are omitted. Empty sections are pruned.
  */
-export function getNavigationSectionsForRole(role?: string, isOnline: boolean = true): NavSectionConfig[] {
+export function getNavigationSectionsForRole(role?: string, isOnline: boolean = true, attendanceMode?: string): NavSectionConfig[] {
   const baseSections =
     role === 'STUDENT'
       ? STUDENT_NAVIGATION_SECTIONS
@@ -141,7 +141,15 @@ export function getNavigationSectionsForRole(role?: string, isOnline: boolean = 
   return baseSections
     .map((section) => ({
       ...section,
-      items: isOnline ? section.items : section.items.filter((item) => !item.onlineOnly),
+      items: (isOnline ? section.items : section.items.filter((item) => !item.onlineOnly)).filter((item) => {
+        if (role === 'STUDENT' && attendanceMode === 'ONLINE') {
+          // Hide center-specific items for ONLINE students
+          if (item.href === '/student/group' || item.href === '/student/attendance') {
+            return false;
+          }
+        }
+        return true;
+      }),
     }))
     .filter((section) => section.items.length > 0);
 }
@@ -150,7 +158,7 @@ export function getNavigationSectionsForRole(role?: string, isOnline: boolean = 
  * Returns flat navigation items for a given role filtered by the active network status.
  * In offline mode, all `onlineOnly: true` items are omitted.
  */
-export function getNavigationItemsForRole(role?: string, isOnline: boolean = true): NavItemConfig[] {
-  const sections = getNavigationSectionsForRole(role, isOnline);
+export function getNavigationItemsForRole(role?: string, isOnline: boolean = true, attendanceMode?: string): NavItemConfig[] {
+  const sections = getNavigationSectionsForRole(role, isOnline, attendanceMode);
   return sections.flatMap((section) => section.items).filter((item) => !item.isAction);
 }

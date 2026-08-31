@@ -37,6 +37,7 @@ import { syncEngine } from '@/lib/offline/sync-engine';
 import { NotificationBell } from '@/features/notifications/components/NotificationBell';
 import { WhatsAppConnectionManager } from '@/components/admin/WhatsAppConnectionManager';
 import { isRouteAllowedForRole, getRoleLandingRoute } from '@/features/auth/utils/role-routing';
+import { useStudentProfile } from '@/features/student-portal/hooks/useStudentPortal';
 
 export default function DashboardLayout({
   children,
@@ -121,7 +122,8 @@ export default function DashboardLayout({
     }
   };
 
-  const navigationSections = getNavigationSectionsForRole(user?.role, isOnline);
+  const { data: studentProfile } = useStudentProfile();
+  const navigationSections = getNavigationSectionsForRole(user?.role, isOnline, studentProfile?.attendanceMode);
 
   // Pending join-request count badge (teacher/secretariat only) — pushed live via WebSocket
   const isReservationsRole = user?.role === 'TEACHER' || user?.role === 'SECRETARIAT';

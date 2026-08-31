@@ -13,6 +13,7 @@ export function useStudentProfile() {
 
   return useQuery<StudentDetail | null>({
     queryKey: ['student-profile', studentId],
+    enabled: !!studentId && user?.role === 'STUDENT',
     queryFn: async (): Promise<StudentDetail | null> => {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       if (!isOnline && studentId) {

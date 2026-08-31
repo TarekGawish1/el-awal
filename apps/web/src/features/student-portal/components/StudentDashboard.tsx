@@ -142,13 +142,15 @@ export function StudentDashboard() {
           </div>
         </div>
 
-        <div className="z-10 flex-shrink-0 bg-white p-3 rounded-xl shadow-md w-32 h-32 flex items-center justify-center relative group cursor-pointer transition-transform hover:scale-105">
-          <div className="text-center">
-            <QrCode className="w-12 h-12 text-primary-600 mx-auto mb-2" />
-            <span className="text-[10px] font-bold text-slate-800">بطاقة الـ QR</span>
+        {profile?.attendanceMode !== 'ONLINE' && (
+          <div className="z-10 flex-shrink-0 bg-white p-3 rounded-xl shadow-md w-32 h-32 flex items-center justify-center relative group cursor-pointer transition-transform hover:scale-105">
+            <div className="text-center">
+              <QrCode className="w-12 h-12 text-primary-600 mx-auto mb-2" />
+              <span className="text-[10px] font-bold text-slate-800">بطاقة الـ QR</span>
+            </div>
+            <Link href="/student/attendance" className="absolute inset-0" />
           </div>
-          <Link href="/student/attendance" className="absolute inset-0" />
-        </div>
+        )}
       </div>
 
       {profile?.attendanceMode !== 'ONLINE' && (!enrolledGroups.length || enrolledGroups[0].status === 'PENDING') ? (
