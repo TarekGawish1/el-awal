@@ -76,6 +76,7 @@ enum AttendanceMode {
 }
 
 enum CourseEnrollmentStatus {
+  PENDING
   ACTIVE
   COMPLETED
   DROPPED

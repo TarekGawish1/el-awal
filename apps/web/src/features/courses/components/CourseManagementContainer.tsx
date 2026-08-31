@@ -17,6 +17,10 @@ import {
   Edit,
   Eye,
   GraduationCap,
+  CheckCircle,
+  XCircle,
+  Clock,
+  UserCheck
 } from 'lucide-react';
 import { useTeacherCourses, useDeleteCourse } from '../hooks/useCourses';
 import { CourseDetail } from '../types/courses.types';
@@ -30,6 +34,7 @@ export function CourseManagementContainer() {
   const deleteMutation = useDeleteCourse();
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'COURSES' | 'ENROLLMENTS'>('COURSES');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGrade, setSelectedGrade] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
@@ -100,7 +105,35 @@ export function CourseManagementContainer() {
         </div>
       </div>
 
-      {/* Search & Filters */}
+      {/* Tabs */}
+      <div className="flex border-b border-slate-200">
+        <button
+          onClick={() => setActiveTab('COURSES')}
+          className={`flex items-center gap-2 px-6 py-4 text-sm font-bold border-b-2 transition-colors ${
+            activeTab === 'COURSES'
+              ? 'border-primary-600 text-primary-600 bg-primary-50/50'
+              : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+          }`}
+        >
+          <BookOpen className="w-4 h-4" />
+          المناهج والكورسات
+        </button>
+        <button
+          onClick={() => setActiveTab('ENROLLMENTS')}
+          className={`flex items-center gap-2 px-6 py-4 text-sm font-bold border-b-2 transition-colors ${
+            activeTab === 'ENROLLMENTS'
+              ? 'border-primary-600 text-primary-600 bg-primary-50/50'
+              : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          الاشتراكات والطلبات الأونلاين
+        </button>
+      </div>
+
+      {activeTab === 'COURSES' && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+          {/* Search & Filters */}
       <div className="p-4 bg-white border border-slate-200 rounded-2xl flex flex-col sm:flex-row gap-3 items-center shadow-sm">
         <div className="relative flex-1 w-full">
           <input
@@ -265,6 +298,14 @@ export function CourseManagementContainer() {
           })}
         </div>
       )}
+        </div>
+      )}
+
+      {activeTab === 'ENROLLMENTS' && (
+        <div className="animate-in fade-in slide-in-from-bottom-2">
+          <CourseEnrollmentsView />
+        </div>
+      )}
 
       {/* Create Course Modal */}
       {isCreateModalOpen && (
@@ -292,6 +333,135 @@ export function CourseManagementContainer() {
         }}
         onClose={() => setCourseToDelete(null)}
       />
+    </div>
+  );
+}
+
+function CourseEnrollmentsView() {
+  const [filter, setFilter] = useState<'PENDING' | 'ACTIVE'>('PENDING');
+
+  // MOCK DATA: In a real scenario, this would be fetched from API
+  const requests = [
+    { id: '1', studentName: 'أحمد محمود', courseName: 'الصف الثالث الثانوي - الجبر والهندسة الفراغية', date: '2026-08-31', status: 'PENDING' },
+    { id: '2', studentName: 'سارة خالد', courseName: 'الصف الأول الثانوي - تفاضل', date: '2026-08-30', status: 'PENDING' },
+    { id: '3', studentName: 'يوسف طارق', courseName: 'الصف الثاني الثانوي - الميكانيكا', date: '2026-08-29', status: 'PENDING' },
+  ];
+  
+  const activeStudents = [
+    { id: '4', studentName: 'محمد علي', courseName: 'الصف الثالث الثانوي - الجبر والهندسة الفراغية', date: '2026-08-15', progress: 45 },
+    { id: '5', studentName: 'نور ياسر', courseName: 'الصف الأول الثانوي - تفاضل', date: '2026-08-10', progress: 80 },
+    { id: '6', studentName: 'مريم أحمد', courseName: 'الصف الأول الثانوي - تفاضل', date: '2026-08-05', progress: 100 },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex gap-3">
+        <button
+          onClick={() => setFilter('PENDING')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm ${
+            filter === 'PENDING' ? 'bg-amber-500 text-white border border-amber-600' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <Clock className="w-4 h-4" />
+          طلبات الاشتراك الجديدة ({requests.length})
+        </button>
+        <button
+          onClick={() => setFilter('ACTIVE')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm ${
+            filter === 'ACTIVE' ? 'bg-emerald-600 text-white border border-emerald-700' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <UserCheck className="w-4 h-4" />
+          الطلاب المشتركين فعلياً ({activeStudents.length})
+        </button>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        {filter === 'PENDING' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-right">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs font-semibold">
+                <tr>
+                  <th className="px-6 py-4">اسم الطالب</th>
+                  <th className="px-6 py-4">الكورس المطلوب</th>
+                  <th className="px-6 py-4">تاريخ الطلب</th>
+                  <th className="px-6 py-4 text-left">إجراءات</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {requests.map((req) => (
+                  <tr key={req.id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-slate-800 text-sm">{req.studentName}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-xs font-medium text-primary-600 bg-primary-50 inline-flex px-2 py-1 rounded-md border border-primary-100">
+                        {req.courseName}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-xs text-slate-500 font-mono">
+                      {req.date}
+                    </td>
+                    <td className="px-6 py-4 text-left">
+                      <div className="flex items-center justify-end gap-2">
+                        <button className="p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200" title="قبول الاشتراك">
+                          <CheckCircle className="w-4 h-4" />
+                        </button>
+                        <button className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors border border-rose-200" title="رفض الطلب">
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {filter === 'ACTIVE' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-right">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs font-semibold">
+                <tr>
+                  <th className="px-6 py-4">اسم الطالب</th>
+                  <th className="px-6 py-4">الكورس المشترك به</th>
+                  <th className="px-6 py-4">تاريخ الانضمام</th>
+                  <th className="px-6 py-4">نسبة الإنجاز</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {activeStudents.map((student) => (
+                  <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-slate-800 text-sm">{student.studentName}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-xs font-medium text-slate-700 bg-slate-100 inline-flex px-2 py-1 rounded-md border border-slate-200">
+                        {student.courseName}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-xs text-slate-500 font-mono">
+                      {student.date}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-full max-w-[100px] h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full ${student.progress === 100 ? 'bg-emerald-500' : 'bg-primary-500'}`} 
+                            style={{ width: `${student.progress}%` }} 
+                          />
+                        </div>
+                        <span className="text-xs font-bold text-slate-600 w-8">{student.progress}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
