@@ -367,9 +367,17 @@ function OnlineCoursesCatalog({ gradeLevel, academicStage }: { gradeLevel?: stri
                <Badge className="bg-white/20 text-white border-none">{course.academicTerm === 'FIRST_TERM' ? 'ترم أول' : 'ترم ثاني'}</Badge>
             </div>
             <div className="p-5 flex-1 flex flex-col">
-              <h4 className="font-bold text-lg text-slate-800 mb-2 line-clamp-1 group-hover:text-primary-600 transition-colors">{course.title}</h4>
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <h4 className="font-bold text-lg text-slate-800 line-clamp-1 group-hover:text-primary-600 transition-colors">{course.title}</h4>
+                {course.price ? (
+                  <span className="font-bold text-primary-600 shrink-0 text-sm bg-primary-50 px-2 py-0.5 rounded-md">{course.price} ج.م</span>
+                ) : (
+                  <span className="font-bold text-emerald-600 shrink-0 text-sm bg-emerald-50 px-2 py-0.5 rounded-md">مجاني</span>
+                )}
+              </div>
+              <p className="text-xs font-semibold text-slate-400 mb-2">المعلم: {course.teacherName || 'غير محدد'}</p>
               <p className="text-slate-500 text-sm line-clamp-2 mb-4 flex-1">{course.description || 'شرح مبسط ومفصل للمنهج'}</p>
-              <Link href={`/student/courses`} className="w-full text-center bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 rounded-xl transition-colors">
+              <Link href={`/student/courses/${course.id}`} className="w-full text-center bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 rounded-xl transition-colors">
                 اشترك الآن
               </Link>
             </div>
