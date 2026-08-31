@@ -25,7 +25,11 @@ import {
   Users,
   UserCheck,
   HeartHandshake,
+  Send,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { apiClient } from '@/lib/api/client';
+import { API_ENDPOINTS } from '@/lib/api/endpoints';
 import {
   useNotificationSettings,
   useUpdateNotificationSettings,
@@ -47,9 +51,29 @@ export default function NotificationCenterPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [readFilter, setReadFilter] = useState<'ALL' | 'UNREAD' | 'READ'>('ALL');
   const [roleFilter, setRoleFilter] = useState<'ALL' | 'TEACHER' | 'STUDENT' | 'PARENT'>('ALL');
+  const [isDispatchingSchedule, setIsDispatchingSchedule] = useState(false);
 
   const { data: settings, isLoading: isSettingsLoading } = useNotificationSettings();
   const updateSettings = useUpdateNotificationSettings();
+
+  const handleTestDailySchedule = async () => {
+    try {
+      setIsDispatchingSchedule(true);
+      const res = await apiClient<{ success: boolean; message: string; dispatchedCount?: number }>(
+        API_ENDPOINTS.NOTIFICATIONS.TRIGGER_DAILY_SCHEDULE,
+        { method: 'POST' },
+      );
+      if (res.success) {
+        toast.success(res.message || 'تم إرسال جدول الحصص اليومي عبر الواتساب بنجاح! 🚀');
+      } else {
+        toast.error(res.message || 'فشل إرسال جدول الحصص');
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'فشل إرسال جدول الحصص');
+    } finally {
+      setIsDispatchingSchedule(false);
+    }
+  };
 
   const {
     data: infiniteFeedData,
@@ -703,13 +727,13 @@ export default function NotificationCenterPage() {
                   </button>
                 </div>
 
-                {/* Teacher WhatsApp Number Field */}
-                <div className="pt-2.5 border-t border-slate-200/70 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs">
+                {/* Teacher WhatsApp Number Field & Test Trigger Button */}
+                <div className="pt-2.5 border-t border-slate-200/70 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs">
                   <div className="flex items-center gap-2 text-slate-600">
                     <Smartphone size={14} className="text-teal-600 shrink-0" />
                     <span>رقم هاتف المعلم لاستلام جدول الصباح عبر الواتساب:</span>
                   </div>
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
                     <input
                       type="tel"
                       dir="ltr"
@@ -724,9 +748,24 @@ export default function NotificationCenterPage() {
                       }}
                       className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-mono text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 w-full sm:w-44"
                     />
-                    <span className="text-[10px] text-slate-400 shrink-0 whitespace-nowrap">
-                      (حفظ تلقائي عند التغيير)
-                    </span>
+                    <button
+                      type="button"
+                      disabled={isDispatchingSchedule}
+                      onClick={handleTestDailySchedule}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 active:scale-95 text-white font-medium text-xs shadow-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                    >
+                      {isDispatchingSchedule ? (
+                        <>
+                          <Loader2 size={13} className="animate-spin" />
+                          <span>جاري الإرسال...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send size={13} />
+                          <span>إرسال جدول اليوم الآن (تجربة)</span>
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
               </div>

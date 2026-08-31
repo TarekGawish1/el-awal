@@ -32,6 +32,7 @@ import { Public } from '../../../core/security/decorators/public.decorator';
 import { UserRole } from '@prisma/client';
 
 import { NotificationSettingsService, NotificationSystemSettings } from '../services/notification-settings.service';
+import { SchedulersService } from '../../../jobs/schedulers';
 
 @ApiTags('Notifications')
 @ApiBearerAuth('JWT-auth')
@@ -42,6 +43,7 @@ export class NotificationsController {
     private readonly webPushService: WebPushService,
     private readonly whatsappService: WhatsAppService,
     private readonly settingsService: NotificationSettingsService,
+    private readonly schedulersService: SchedulersService,
   ) {}
 
   // ─── In-App Notification Feed ─────────────────────────────────────────────
@@ -175,5 +177,14 @@ export class NotificationsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.settingsService.updateSettings(dto, user.email || user.phone || user.id || 'Admin');
+  }
+
+  @Post('trigger-daily-schedule')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Trigger teacher daily schedule agenda dispatch immediately (testing / manual dispatch)' })
+  @ApiResponse({ status: 200, description: 'Returns dispatch confirmation' })
+  async triggerDailySchedule() {
+    return this.schedulersService.runTeacherDailySchedule(true);
   }
 }

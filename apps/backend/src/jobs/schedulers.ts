@@ -374,9 +374,11 @@ export class SchedulersService implements OnModuleInit {
   /**
    * Sends each teacher a morning agenda with their sessions for today.
    * Runs daily at 07:00 Africa/Cairo.
+   * @param force If true, bypasses deduplication and sends even if 0 sessions scheduled (e.g. manual/test trigger).
    */
-  async runTeacherDailySchedule(): Promise<void> {
-    this.logger.log('[TeacherSchedule] Compiling daily agendas...');
+  async runTeacherDailySchedule(force = false): Promise<{ success: boolean; message: string; dispatchedCount: number }> {
+    this.logger.log(`[TeacherSchedule] Compiling daily agendas (force=${force})...`);
+    let dispatchedCount = 0;
 
     try {
       const { start, end, dateStr } = getCairoTodayBounds();
@@ -388,18 +390,20 @@ export class SchedulersService implements OnModuleInit {
       });
 
       for (const teacher of teachers) {
-        // Deduplicate: ensure teacher receives at most one morning agenda per day
-        const alreadySentToday = await this.prisma.notification.findFirst({
-          where: {
-            recipientId: teacher.user.id,
-            notificationType: NotificationType.TEACHER_DAILY_SCHEDULE,
-            createdAt: { gte: start, lte: end },
-          },
-        });
-        if (alreadySentToday) continue;
+        // Deduplicate: ensure teacher receives at most one morning agenda per day unless forced
+        if (!force) {
+          const alreadySentToday = await this.prisma.notification.findFirst({
+            where: {
+              recipientId: teacher.user.id,
+              notificationType: NotificationType.TEACHER_DAILY_SCHEDULE,
+              createdAt: { gte: start, lte: end },
+            },
+          });
+          if (alreadySentToday) continue;
+        }
 
         // Query candidate sessions around today's window
-        const sessions = await this.prisma.lessonSession.findMany({
+        let sessions = await this.prisma.lessonSession.findMany({
           where: {
             group: { teacherId: teacher.id },
             sessionDate: { gte: start, lte: end },
@@ -409,12 +413,26 @@ export class SchedulersService implements OnModuleInit {
           orderBy: { startTime: 'asc' },
         });
 
-        if (sessions.length === 0) continue;
+        // If forced and 0 sessions for today, pull latest active group sessions for demonstration
+        if (sessions.length === 0 && force) {
+          sessions = await this.prisma.lessonSession.findMany({
+            where: {
+              group: { teacherId: teacher.id },
+              isCancelled: false,
+            },
+            include: { group: { select: { name: true, gradeLevel: true } } },
+            orderBy: { startTime: 'asc' },
+            take: 3,
+          });
+        }
 
-        const agendaLines = sessions.map(
-          (s, i) =>
-            `${s.group.name} (${s.group.gradeLevel}) — الساعة ${s.startTime || '—'}`,
-        );
+        if (sessions.length === 0 && !force) continue;
+
+        const agendaLines = sessions.length > 0
+          ? sessions.map(
+              (s, i) => `${s.group.name} (${s.group.gradeLevel}) — الساعة ${s.startTime || '—'}`,
+            )
+          : ['لا توجد حصص مجدولة لهذا اليوم'];
 
         const body = [
           `صباح الخير أستاذ ${teacher.user.fullName} 👋`,
@@ -449,9 +467,22 @@ export class SchedulersService implements OnModuleInit {
             sessions: agendaLines,
           },
         });
+
+        dispatchedCount++;
       }
-    } catch (error) {
+
+      return {
+        success: true,
+        message: `تم إرسال الجدول اليومي بنجاح (${dispatchedCount} معلم)`,
+        dispatchedCount,
+      };
+    } catch (error: any) {
       this.logger.error('[TeacherSchedule] Error in cron job', error);
+      return {
+        success: false,
+        message: error?.message || 'فشل إرسال الجدول اليومي',
+        dispatchedCount: 0,
+      };
     }
   }
 
