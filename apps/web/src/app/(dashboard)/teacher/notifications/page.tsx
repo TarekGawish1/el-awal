@@ -719,7 +719,7 @@ export default function NotificationCenterPage() {
                       onBlur={(e) => {
                         const val = e.target.value.trim();
                         if (val !== (settings?.teacherRecipientPhone || '')) {
-                          handleToggle('teacherRecipientPhone', val as any);
+                          updateSettings.mutate({ teacherRecipientPhone: val });
                         }
                       }}
                       className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-mono text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 w-full sm:w-44"
