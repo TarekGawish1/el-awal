@@ -177,11 +177,40 @@ export class CoursesService {
         teacher: {
           include: { user: { select: { fullName: true } } },
         },
+        modules: {
+          orderBy: { orderIndex: 'asc' },
+          include: {
+            lessons: {
+              orderBy: { orderIndex: 'asc' },
+              select: { id: true }
+            }
+          }
+        },
         _count: { select: { modules: true, enrollments: true } },
       },
     });
 
-    return CursorPaginationHelper.formatResponse(courses, limit);
+    const mappedCourses = courses.map(c => {
+      let totalLessons = 0;
+      let firstLesson = null;
+      for (const m of c.modules) {
+        for (const l of m.lessons) {
+          totalLessons++;
+          if (!firstLesson) firstLesson = l;
+        }
+      }
+      
+      const { modules, ...courseData } = c;
+      
+      return {
+        ...courseData,
+        totalLessons,
+        hasFreeVideo: totalLessons >= 10,
+        freeVideoLessonId: (totalLessons >= 10 && firstLesson) ? firstLesson.id : null,
+      };
+    });
+
+    return CursorPaginationHelper.formatResponse(mappedCourses, limit);
   }
 
   /**

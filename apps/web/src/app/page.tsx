@@ -315,6 +315,38 @@ const COURSES = [
 ];
 
 function CoursesSection() {
+  const [courses, setCourses] = useState<any[]>(COURSES);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchCourses() {
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.al-awal.online/api/v1';
+        const res = await fetch(`${baseUrl}/courses/catalog?limit=6`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.data && data.data.length > 0) {
+            const mapped = data.data.map((c: any, index: number) => ({
+              id: c.id,
+              title: c.title,
+              description: c.description || 'شرح مبسط ومفصل للمنهج مع تدريبات مكثفة.',
+              badge: c.academicTerm === 'FIRST_TERM' ? 'ترم أول' : 'ترم ثاني',
+              color: index % 3 === 0 ? 'from-blue-500 to-cyan-500' : index % 3 === 1 ? 'from-indigo-500 to-purple-500' : 'from-emerald-500 to-teal-500',
+              hasFreeVideo: c.hasFreeVideo,
+              freeVideoLessonId: c.freeVideoLessonId,
+            }));
+            setCourses(mapped);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch courses:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchCourses();
+  }, []);
+
   return (
     <section className="py-24 bg-white relative overflow-hidden" id="courses" dir="rtl">
       <div className="absolute top-0 right-0 w-full h-full overflow-hidden pointer-events-none z-0 opacity-40">
@@ -339,45 +371,62 @@ function CoursesSection() {
           </motion.div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {COURSES.map((course, index) => (
-            <motion.div
-              key={course.id}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
-              className="group relative bg-white rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_rgb(0,0,0,0.08)] transition-all overflow-hidden flex flex-col"
-            >
-              {/* Image/Gradient Area */}
-              <div className={`h-48 w-full bg-gradient-to-br ${course.color} relative overflow-hidden flex items-start justify-start p-6`}>
-                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
-                <div className="relative z-10 bg-white/25 backdrop-blur-md px-4 py-1.5 rounded-full text-white text-sm font-bold shadow-sm self-start">
-                  {course.badge}
+        {isLoading ? (
+          <div className="flex justify-center items-center py-20">
+            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {courses.map((course, index) => (
+              <motion.div
+                key={course.id}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
+                className="group relative bg-white rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_rgb(0,0,0,0.08)] transition-all overflow-hidden flex flex-col"
+              >
+                {/* Image/Gradient Area */}
+                <div className={`h-48 w-full bg-gradient-to-br ${course.color} relative overflow-hidden flex items-start justify-start p-6`}>
+                  <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
+                  <div className="relative z-10 bg-white/25 backdrop-blur-md px-4 py-1.5 rounded-full text-white text-sm font-bold shadow-sm self-start">
+                    {course.badge}
+                  </div>
+                  {/* Decorative Math Icon */}
+                  <div className="absolute -bottom-6 -left-6 text-white/20 text-9xl font-black -rotate-12 pointer-events-none">
+                    {index === 0 ? '∑' : index === 1 ? '∫' : '∞'}
+                  </div>
                 </div>
-                {/* Decorative Math Icon */}
-                <div className="absolute -bottom-6 -left-6 text-white/20 text-9xl font-black -rotate-12 pointer-events-none">
-                  {index === 0 ? '∑' : index === 1 ? '∫' : '∞'}
+
+                {/* Content Area */}
+                <div className="p-6 sm:p-8 flex-1 flex flex-col bg-white">
+                  <h3 className="text-2xl font-bold text-slate-900 mb-3">{course.title}</h3>
+                  <p className="text-slate-600 text-base leading-relaxed mb-6 flex-1 line-clamp-3">
+                    {course.description}
+                  </p>
+
+                  <div className="mt-auto flex flex-col gap-2">
+                    {course.hasFreeVideo && course.freeVideoLessonId && (
+                       <Link href={`/login?redirect=/student/courses/${course.id}`} className="hover:bg-emerald-50 flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-emerald-100 text-emerald-700 font-bold transition-colors group-hover:border-emerald-200">
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                         </svg>
+                         <span>شاهد الدرس الأول مجاناً</span>
+                       </Link>
+                    )}
+                    <Link href="/login" className="hover:bg-blue-50 flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-slate-100 text-slate-700 font-bold transition-colors group-hover:border-blue-100">
+                      <span>اشترك الآن</span>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 rtl:rotate-180 text-blue-600 transition-transform group-hover:-translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                      </svg>
+                    </Link>
+                  </div>
                 </div>
-              </div>
-
-              {/* Content Area */}
-              <div className="p-6 sm:p-8 flex-1 flex flex-col bg-white">
-                <h3 className="text-2xl font-bold text-slate-900 mb-3">{course.title}</h3>
-                <p className="text-slate-600 text-base leading-relaxed mb-6 flex-1">
-                  {course.description}
-                </p>
-
-                <Link href="/login" className="mt-auto hover:bg-blue-50 flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-slate-100 text-slate-700 font-bold transition-colors group-hover:border-blue-100">
-                  <span>اشترك الآن</span>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 rtl:rotate-180 text-blue-600 transition-transform group-hover:-translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                  </svg>
-                </Link>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
