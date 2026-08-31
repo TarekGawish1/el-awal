@@ -338,7 +338,7 @@ function CoursesSection() {
               color: index % 3 === 0 ? 'from-blue-500 to-cyan-500' : index % 3 === 1 ? 'from-indigo-500 to-purple-500' : 'from-emerald-500 to-teal-500',
               hasFreeVideo: c.hasFreeVideo,
               freeVideoLessonId: c.freeVideoLessonId,
-              freeVideoBunnyId: c.freeVideoBunnyId,
+              freeVideoUrl: c.freeVideoUrl,
             }));
             setCourses(mapped);
           }
@@ -351,8 +351,6 @@ function CoursesSection() {
     }
     fetchCourses();
   }, []);
-
-  const bunnyLibraryId = process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID || '364377';
 
   return (
     <section className="py-24 bg-white relative overflow-hidden" id="courses" dir="rtl">
@@ -375,7 +373,7 @@ function CoursesSection() {
                 </svg>
               </button>
               <iframe
-                src={`https://iframe.mediadelivery.net/embed/${bunnyLibraryId}/${selectedVideo}?autoplay=true&preload=true`}
+                src={`${selectedVideo}${selectedVideo.includes('?') ? '&' : '?'}autoplay=true&preload=true`}
                 loading="lazy"
                 className="w-full h-full border-0"
                 allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
@@ -427,9 +425,9 @@ function CoursesSection() {
                 <div className={`h-48 w-full bg-gradient-to-br ${course.color || 'from-blue-500 to-cyan-500'} relative overflow-hidden flex items-start justify-start p-6`}>
                   <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
                   
-                  {course.hasFreeVideo && course.freeVideoBunnyId ? (
+                  {course.hasFreeVideo && course.freeVideoUrl ? (
                      <div 
-                       onClick={() => setSelectedVideo(course.freeVideoBunnyId)}
+                       onClick={() => setSelectedVideo(course.freeVideoUrl)}
                        className="absolute inset-0 z-20 flex items-center justify-center cursor-pointer bg-black/10 group-hover:bg-black/30 transition-colors"
                      >
                        <div className="w-16 h-16 bg-white/30 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
@@ -457,8 +455,8 @@ function CoursesSection() {
                   </p>
 
                   <div className="mt-auto flex flex-col gap-2">
-                    {course.hasFreeVideo && course.freeVideoBunnyId && (
-                       <button onClick={() => setSelectedVideo(course.freeVideoBunnyId)} className="hover:bg-emerald-50 flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-emerald-100 text-emerald-700 font-bold transition-colors group-hover:border-emerald-200">
+                    {course.hasFreeVideo && course.freeVideoUrl && (
+                       <button onClick={() => setSelectedVideo(course.freeVideoUrl)} className="hover:bg-emerald-50 flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-emerald-100 text-emerald-700 font-bold transition-colors group-hover:border-emerald-200">
                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                             <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

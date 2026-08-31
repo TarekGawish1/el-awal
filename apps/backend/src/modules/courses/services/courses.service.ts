@@ -207,7 +207,7 @@ export class CoursesService {
         totalLessons,
         hasFreeVideo: totalLessons >= 1, // Changed to 1 for testing as user expects it to show
         freeVideoLessonId: (totalLessons >= 1 && firstLesson) ? firstLesson.id : null,
-        freeVideoBunnyId: (totalLessons >= 1 && firstLesson) ? firstLesson.bunnyVideoId : null,
+        freeVideoUrl: (totalLessons >= 1 && firstLesson && firstLesson.bunnyVideoId) ? this.bunnyVideoService.getEmbedUrl(firstLesson.bunnyVideoId) : null,
       };
     });
 
