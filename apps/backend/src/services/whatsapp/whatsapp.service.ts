@@ -316,11 +316,15 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
           this.connectionStatus = 'close';
           this.connectedNumber = null;
           const statusCode = lastDisconnect?.error?.output?.statusCode;
-          const { DisconnectReason: DR } = this.baileys as { DisconnectReason: Record<string, unknown> };
-          const isLoggedOut = statusCode === (DR.loggedOut as number);
+          const { DisconnectReason: DR } = (this.baileys || {}) as { DisconnectReason?: Record<string, unknown> };
+          const isLoggedOut =
+            (DR && statusCode === (DR.loggedOut as number)) ||
+            (DR && statusCode === (DR.connectionReplaced as number)) ||
+            statusCode === 401 ||
+            statusCode === 440;
 
           if (isLoggedOut) {
-            this.logger.warn('🔐 WhatsApp session logged out. Clearing PG auth and restarting...');
+            this.logger.warn(`🔐 WhatsApp session expired/replaced (code=${statusCode}). Clearing PG auth and generating fresh QR...`);
             await this.clearAuthSession();
           } else {
             this.logger.warn(`🔄 WhatsApp disconnected (code=${statusCode}). Reconnecting in 5s...`);
