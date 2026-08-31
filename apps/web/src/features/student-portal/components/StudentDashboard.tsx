@@ -12,6 +12,7 @@ import { StudentRecentAssessments } from './StudentRecentAssessments';
 import { StudentLatestHomework } from './StudentLatestHomework';
 import { GroupReservation } from './GroupReservation';
 import { filterUpcomingGroupExams } from '../utils/assessments';
+import { useEffect } from 'react';
 
 export function StudentDashboard() {
   const { data: profile, isLoading: isProfileLoading } = useStudentProfile();
@@ -150,12 +151,16 @@ export function StudentDashboard() {
         </div>
       </div>
 
-      {(!enrolledGroups.length || enrolledGroups[0].status === 'PENDING') ? (
+      {profile?.attendanceMode !== 'ONLINE' && (!enrolledGroups.length || enrolledGroups[0].status === 'PENDING') ? (
         <GroupReservation pendingEnrollment={enrolledGroups[0]?.status === 'PENDING' ? enrolledGroups[0] : undefined} />
       ) : (
         <>
+          {profile?.attendanceMode === 'ONLINE' && (
+            <OnlineCoursesCatalog gradeLevel={profile.gradeLevel} academicStage={profile.academicStage || undefined} />
+          )}
+
           {/* Next Session Details Card */}
-          {nextSession && (
+          {nextSession && profile?.attendanceMode !== 'ONLINE' && (
         <Card className="border-none bg-gradient-to-r from-amber-500/10 to-orange-500/5 border border-amber-500/20 shadow-xs rounded-2xl overflow-hidden hover:shadow-md transition-shadow">
           <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -305,6 +310,70 @@ export function StudentDashboard() {
       </div>
       </>
       )}
+    </div>
+  );
+}
+
+function OnlineCoursesCatalog({ gradeLevel, academicStage }: { gradeLevel?: string, academicStage?: string }) {
+  const [courses, setCourses] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchCourses() {
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.al-awal.online/api/v1';
+        let url = `${baseUrl}/courses/catalog?limit=6`;
+        if (gradeLevel) url += `&gradeLevel=${encodeURIComponent(gradeLevel)}`;
+        if (academicStage) url += `&academicStage=${encodeURIComponent(academicStage)}`;
+        
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          setCourses(data.data || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch courses:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchCourses();
+  }, [gradeLevel, academicStage]);
+
+  if (isLoading) return <div className="py-8"><Skeleton className="h-64 w-full rounded-2xl" /></div>;
+
+  if (courses.length === 0) return (
+    <Card className="border-slate-100 shadow-sm mb-6">
+      <CardContent className="p-8 text-center">
+        <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+        <h3 className="text-lg font-bold text-slate-700">لا توجد كورسات متاحة حالياً</h3>
+        <p className="text-slate-500 mt-2">عفواً، لا يوجد كورسات أونلاين متاحة لمرحلتك الدراسية في الوقت الحالي.</p>
+      </CardContent>
+    </Card>
+  );
+
+  return (
+    <div className="mb-6 space-y-4">
+      <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+        <Monitor className="w-6 h-6 text-primary-600" />
+        الكورسات المتاحة لمرحلتك الدراسية
+      </h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {courses.map((course: any, index: number) => (
+          <div key={course.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col group hover:shadow-md transition-shadow">
+            <div className={`h-32 bg-gradient-to-br ${index % 3 === 0 ? 'from-blue-500 to-cyan-500' : index % 3 === 1 ? 'from-indigo-500 to-purple-500' : 'from-emerald-500 to-teal-500'} relative p-4 flex items-start justify-between`}>
+               <Badge className="bg-white/20 text-white border-none">{course.academicTerm === 'FIRST_TERM' ? 'ترم أول' : 'ترم ثاني'}</Badge>
+            </div>
+            <div className="p-5 flex-1 flex flex-col">
+              <h4 className="font-bold text-lg text-slate-800 mb-2 line-clamp-1 group-hover:text-primary-600 transition-colors">{course.title}</h4>
+              <p className="text-slate-500 text-sm line-clamp-2 mb-4 flex-1">{course.description || 'شرح مبسط ومفصل للمنهج'}</p>
+              <Link href={`/student/courses`} className="w-full text-center bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 rounded-xl transition-colors">
+                اشترك الآن
+              </Link>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
