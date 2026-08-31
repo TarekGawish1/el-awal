@@ -313,6 +313,7 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
         }
 
         if (connection === 'close') {
+          this.closeSocket();
           this.connectionStatus = 'close';
           this.connectedNumber = null;
           const statusCode = lastDisconnect?.error?.output?.statusCode;
@@ -345,9 +346,19 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
 
   private closeSocket() {
     try {
-      const sock = this.socket as { ev?: { removeAllListeners: () => void } } | null;
+      const sock = this.socket as {
+        ev?: { removeAllListeners: () => void };
+        end?: (err: unknown) => void;
+        ws?: { close: () => void };
+      } | null;
+
       if (sock?.ev) {
         sock.ev.removeAllListeners();
+      }
+      if (typeof sock?.end === 'function') {
+        sock.end(undefined);
+      } else if (sock?.ws && typeof sock.ws.close === 'function') {
+        sock.ws.close();
       }
     } catch {
       // ignore
