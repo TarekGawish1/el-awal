@@ -7,6 +7,7 @@ import {
   NotificationType,
 } from '@prisma/client';
 import * as cron from 'node-cron';
+import { WhatsAppService } from '../services/whatsapp/whatsapp.service';
 
 /**
  * SchedulersService — automated cron jobs for the El-Awal notification engine.
@@ -85,6 +86,7 @@ export class SchedulersService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly settingsService: NotificationSettingsService,
+    private readonly whatsapp: WhatsAppService,
   ) {}
 
   onModuleInit() {
@@ -468,12 +470,26 @@ export class SchedulersService implements OnModuleInit {
           },
         });
 
+        if (targetPhone && force) {
+          const waResult = await this.whatsapp.sendTrackedProtectedMessage(targetPhone, body);
+          this.logger.log(
+            `[TeacherSchedule] Direct WhatsApp dispatch to ${targetPhone}: outcome=${waResult.outcome}, reason=${waResult.failureReason || 'OK'}`,
+          );
+          if (waResult.outcome !== 'sent') {
+            return {
+              success: false,
+              message: `تعذر إرسال رسالة الواتساب: ${waResult.failureReason || waResult.outcome}`,
+              dispatchedCount: 0,
+            };
+          }
+        }
+
         dispatchedCount++;
       }
 
       return {
         success: true,
-        message: `تم إرسال الجدول اليومي بنجاح (${dispatchedCount} معلم)`,
+        message: `تم إرسال الجدول اليومي عبر الواتساب والإشعارات بنجاح (${dispatchedCount} معلم)`,
         dispatchedCount,
       };
     } catch (error: any) {

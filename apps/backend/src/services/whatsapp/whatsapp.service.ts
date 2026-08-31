@@ -195,30 +195,37 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
 
     const jid = this.normalizePhoneToJid(phone);
     const sock = this.socket as {
-      onWhatsApp: (jid: string) => Promise<Array<{ exists: boolean; jid: string }>>;
-      presenceSubscribe: (jid: string) => Promise<void>;
-      sendPresenceUpdate: (type: string, jid: string) => Promise<void>;
+      onWhatsApp?: (jid: string) => Promise<Array<{ exists: boolean; jid: string }>>;
+      presenceSubscribe?: (jid: string) => Promise<void>;
+      sendPresenceUpdate?: (type: string, jid: string) => Promise<void>;
       sendMessage: (jid: string, content: unknown) => Promise<unknown>;
     };
 
     try {
-      const [result] = await sock.onWhatsApp(jid).catch(() => [{ exists: false, jid }]);
-      if (!result?.exists) {
-        this.logger.warn(`[AntiBan] Number ${phone} is NOT registered on WhatsApp — skipping`);
-        return { outcome: 'not_registered' };
+      // Best-effort existence check without blocking send
+      try {
+        if (typeof sock.onWhatsApp === 'function') {
+          const results = await sock.onWhatsApp(jid);
+          if (Array.isArray(results) && results.length > 0 && results[0]?.exists === false) {
+            this.logger.warn(`[AntiBan] Number ${phone} is NOT registered on WhatsApp — skipping`);
+            return { outcome: 'not_registered' };
+          }
+        }
+      } catch (err: any) {
+        this.logger.debug(`onWhatsApp check skipped: ${err?.message}`);
       }
 
-      await sock.presenceSubscribe(jid).catch(() => undefined);
-      await sock.sendPresenceUpdate('composing', jid).catch(() => undefined);
+      await sock.presenceSubscribe?.(jid).catch(() => undefined);
+      await sock.sendPresenceUpdate?.('composing', jid).catch(() => undefined);
 
-      const typingDelay = this.randomBetween(2_000, 4_500);
+      const typingDelay = this.randomBetween(1_000, 2_500);
       await this.sleep(typingDelay);
-      await sock.sendPresenceUpdate('paused', jid).catch(() => undefined);
+      await sock.sendPresenceUpdate?.('paused', jid).catch(() => undefined);
 
       const response = await sock.sendMessage(jid, { text });
       const providerMessageId = (response as { key?: { id?: string } } | undefined)?.key?.id;
       this.logger.log(
-        `✅ [AntiBan] Protected message sent to ${jid} (typing delay: ${typingDelay}ms)`,
+        `✅ [AntiBan] Protected message sent successfully to ${jid} (providerId: ${providerMessageId})`,
       );
       return { outcome: 'sent', providerMessageId };
     } catch (error) {
