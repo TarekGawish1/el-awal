@@ -6,6 +6,7 @@ export interface StudentListItem {
   gradeLevel: string;
   academicStage?: string;
   academicStatus: AcademicStatus;
+  attendanceMode?: 'CENTER' | 'ONLINE';
   createdAt: string;
   updatedAt: string;
   user: {
