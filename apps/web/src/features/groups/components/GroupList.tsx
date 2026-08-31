@@ -269,7 +269,7 @@ export function GroupList() {
         </div>
 
         {/* Essential Filters */}
-        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 scrollbar-hide">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
           <div className="w-36 shrink-0">
             <MultiSelectDropdown
               placeholder="العام الدراسي"
