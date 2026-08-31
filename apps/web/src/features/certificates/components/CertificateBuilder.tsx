@@ -153,11 +153,22 @@ export function CertificateBuilder() {
       document.body.removeChild(wrapper);
 
       // Convert canvas to a lightweight PNG or WebP data URL for local download
-      const imgData = canvas.toDataURL('image/png');
+      const downloadImgData = canvas.toDataURL('image/png');
+      
+      // Highly compressed version for localStorage to prevent QuotaExceededError
+      // Canvas is currently at scale: 2 (2292x1620), we downscale it for the preview
+      const previewCanvas = document.createElement('canvas');
+      previewCanvas.width = 1146 / 2;
+      previewCanvas.height = 810 / 2;
+      const ctx = previewCanvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(canvas, 0, 0, previewCanvas.width, previewCanvas.height);
+      }
+      const previewImgData = previewCanvas.toDataURL('image/webp', 0.5);
       
       // Trigger download
       const link = document.createElement('a');
-      link.href = imgData;
+      link.href = downloadImgData;
       link.download = `شهادة-${data.studentName || 'طالب'}.png`;
       link.click();
       
@@ -177,13 +188,17 @@ export function CertificateBuilder() {
             grade: data.grade || '',
             issueDate: data.issueDate || '',
             createdAt: new Date().toISOString(),
-            image: imgData,
+            image: previewImgData, // Use the lightweight preview image
             data: { ...data }
           };
-          savedCerts.push(newCertificate);
-          localStorage.setItem('saved_certificates', JSON.stringify(savedCerts));
+          
+          // Keep only the latest 50 certificates to avoid exceeding localStorage limit
+          const updatedCerts = [newCertificate, ...savedCerts].slice(0, 50);
+          
+          localStorage.setItem('saved_certificates', JSON.stringify(updatedCerts));
         } catch(e) {
           console.error('Error saving to localStorage', e);
+          alert('حدث خطأ أثناء حفظ الشهادة محلياً، قد تكون الذاكرة ممتلئة.');
         }
 
         const formData = new FormData();
