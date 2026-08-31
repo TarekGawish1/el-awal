@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Param, Body, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CertificatesService } from '../services/certificates.service';
 import { ApiTags, ApiOperation, ApiConsumes } from '@nestjs/swagger';
@@ -26,5 +26,12 @@ export class CertificatesController {
     @UploadedFile() file?: Express.Multer.File,
   ) {
     return this.certificatesService.createCertificate(body, file);
+  }
+
+  @Delete(':id')
+  @Public()
+  @ApiOperation({ summary: 'Delete a certificate' })
+  async deleteCertificate(@Param('id') id: string) {
+    return this.certificatesService.deleteCertificate(id);
   }
 }

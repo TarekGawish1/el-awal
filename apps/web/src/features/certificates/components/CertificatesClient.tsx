@@ -32,11 +32,20 @@ export function CertificatesClient() {
     }
   }, []);
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm('هل أنت متأكد من حذف هذه الشهادة؟')) {
       const updated = certificates.filter(cert => cert.id !== id);
       setCertificates(updated);
       localStorage.setItem('saved_certificates', JSON.stringify(updated));
+      
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+        await fetch(`${baseUrl}/certificates/${id}`, {
+          method: 'DELETE',
+        });
+      } catch (err) {
+        console.error('Failed to delete certificate from backend:', err);
+      }
     }
   };
 

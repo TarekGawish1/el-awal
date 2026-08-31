@@ -48,4 +48,15 @@ export class CertificatesService {
       take: 100, // Fetch up to 100 recent certificates
     });
   }
+
+  async deleteCertificate(id: string) {
+    try {
+      return await this.prisma.certificate.delete({
+        where: { id }
+      });
+    } catch (error) {
+      this.logger.error(`Failed to delete certificate ${id}`, error);
+      return null;
+    }
+  }
 }
