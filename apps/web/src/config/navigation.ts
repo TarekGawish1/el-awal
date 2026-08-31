@@ -34,15 +34,10 @@ export interface NavSectionConfig {
 
 export const TEACHER_NAVIGATION_SECTIONS: NavSectionConfig[] = [
   {
-    id: 'top',
-    items: [
-      { label: 'لوحة التحكم', href: '/teacher/dashboard', icon: LayoutDashboard, onlineOnly: false },
-    ],
-  },
-  {
     id: 'workspace',
     title: 'مساحة العمل',
     items: [
+      { label: 'لوحة التحكم', href: '/teacher/dashboard', icon: LayoutDashboard, onlineOnly: false },
       { label: 'المجموعات الدراسية', href: '/teacher/groups', icon: Users, onlineOnly: false },
       { label: 'الجدول', href: '/teacher/schedules', icon: Calendar, onlineOnly: false },
       { label: 'رصد الحضور والـ QR', href: '/teacher/attendance', icon: QrCode, onlineOnly: false },
@@ -50,7 +45,7 @@ export const TEACHER_NAVIGATION_SECTIONS: NavSectionConfig[] = [
   },
   {
     id: 'academics',
-    title: 'التعليم والدروس',
+    title: 'التعليم',
     items: [
       { label: 'الواجبات والاختبارات', href: '/teacher/assessments', icon: FileText, onlineOnly: true },
       { label: 'المحتوى والدروس', href: '/teacher/content', icon: BookOpen, onlineOnly: true },
@@ -59,7 +54,7 @@ export const TEACHER_NAVIGATION_SECTIONS: NavSectionConfig[] = [
   },
   {
     id: 'students',
-    title: 'شؤون الطلاب',
+    title: 'الطلاب',
     items: [
       { label: 'سجل الطلاب', href: '/teacher/students', icon: GraduationCap, onlineOnly: false },
       { label: 'طلبات الانضمام', href: '/teacher/reservations', icon: ClipboardList, onlineOnly: false, badgeKey: 'reservations' },
@@ -75,7 +70,7 @@ export const TEACHER_NAVIGATION_SECTIONS: NavSectionConfig[] = [
   },
   {
     id: 'management',
-    title: 'إدارة ومزيد',
+    title: 'الإدارة',
     items: [
       { label: 'الماليات والمصروفات', href: '/teacher/finance', icon: DollarSign, onlineOnly: false },
       { label: 'الشهادات', href: '/teacher/certificates', icon: Award, onlineOnly: true },

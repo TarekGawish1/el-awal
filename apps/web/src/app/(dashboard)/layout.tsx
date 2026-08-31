@@ -21,6 +21,10 @@ import {
   RefreshCw,
   ListChecks,
   ChevronDown,
+  Cloud,
+  CloudOff,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { useAuth } from '@/features/auth';
 import { DashboardBreadcrumbs } from '@/features/dashboard/components/DashboardBreadcrumbs';
@@ -50,6 +54,7 @@ export default function DashboardLayout({
   const [isActivityDrawerOpen, setIsActivityDrawerOpen] = useState(false);
   const [isWhatsAppManagerOpen, setIsWhatsAppManagerOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isSyncMenuOpen, setIsSyncMenuOpen] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
   const pathname = usePathname();
@@ -197,7 +202,7 @@ export default function DashboardLayout({
                 <div key={sectionId} className="space-y-1.5">
                   {section.title && (
                     <div className="px-3 pb-1">
-                      <h3 className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider select-none">
+                      <h3 className="text-[11px] font-medium text-neutral-400 uppercase tracking-wider select-none">
                         {section.title}
                       </h3>
                     </div>
@@ -324,42 +329,94 @@ export default function DashboardLayout({
               <AcademicPeriodSwitcher />
             )}
 
-            {/* Pending Actions Button - visible while offline with queued mutations */}
-            {user?.role !== 'STUDENT' && user?.role !== 'PARENT' && !isOnline && pendingSyncCount > 0 && (
-              <button
-                onClick={() => setIsActivityDrawerOpen(true)}
-                className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border bg-purple-50 border-purple-200 text-purple-800 hover:bg-purple-100 shadow-xs shrink-0"
-                title="عرض العمليات المعلقة"
-                aria-label="عرض العمليات المعلقة"
-              >
-                <ListChecks className="w-3.5 h-3.5" />
-                <span className="hidden md:inline">عرض العمليات المعلقة</span>
-                <span className="bg-purple-600 text-white rounded-full px-1.5 py-0.2 text-[10px] font-mono font-black">
-                  {pendingSyncCount}
-                </span>
-              </button>
-            )}
-
-            {/* Sync Review Button (shows when online with pending items or on click) */}
+            {/* Unified Cloud/Sync Status Dropdown */}
             {user?.role !== 'STUDENT' && user?.role !== 'PARENT' && (
-              <button
-                onClick={() => setIsSyncReviewOpen(true)}
-                className={`flex items-center justify-center w-8 h-8 sm:w-auto sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-bold transition-all border shrink-0 ${
-                  pendingSyncCount > 0
-                    ? 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 shadow-xs animate-pulse'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                }`}
-                title="مراجعة المزامنة السحابية"
-                aria-label="مراجعة المزامنة السحابية"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span className="hidden md:inline ms-1.5">المزامنة</span>
-                {pendingSyncCount > 0 && (
-                  <span className="bg-amber-600 text-white rounded-full px-1.5 py-0.2 text-[10px] font-mono font-black ms-1">
-                    {pendingSyncCount}
-                  </span>
+              <div className="relative shrink-0">
+                <button
+                  onClick={() => setIsSyncMenuOpen(!isSyncMenuOpen)}
+                  className={`flex items-center justify-center w-8 h-8 sm:w-auto sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-bold transition-all border shrink-0 ${
+                    !isOnline
+                      ? 'bg-neutral-50 border-neutral-200 text-neutral-600 hover:bg-neutral-100'
+                      : pendingSyncCount > 0
+                      ? 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 shadow-xs'
+                      : 'bg-emerald-50 border-emerald-100 text-emerald-700 hover:bg-emerald-100'
+                  }`}
+                  title="حالة المزامنة السحابية"
+                  aria-haspopup="true"
+                  aria-expanded={isSyncMenuOpen}
+                >
+                  {!isOnline ? (
+                    <CloudOff className="w-4 h-4" />
+                  ) : pendingSyncCount > 0 ? (
+                    <RefreshCw className="w-4 h-4 animate-spin-slow" />
+                  ) : (
+                    <Cloud className="w-4 h-4" />
+                  )}
+                  {pendingSyncCount > 0 && (
+                    <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-mono font-black ms-1.5 ${!isOnline ? 'bg-neutral-200 text-neutral-700' : 'bg-amber-600 text-white'}`}>
+                      {pendingSyncCount}
+                    </span>
+                  )}
+                </button>
+
+                {isSyncMenuOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsSyncMenuOpen(false)}
+                      aria-hidden="true"
+                    />
+                    <div className="absolute end-0 top-full mt-2 w-64 bg-white border border-neutral-100 rounded-xl shadow-lg z-50 p-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="px-2 py-1.5 mb-2 border-b border-neutral-100 flex items-center gap-2">
+                        {!isOnline ? (
+                          <>
+                            <CloudOff className="w-4 h-4 text-neutral-500" />
+                            <span className="text-sm font-semibold text-neutral-700">يعمل بدون إنترنت</span>
+                          </>
+                        ) : pendingSyncCount > 0 ? (
+                          <>
+                            <AlertCircle className="w-4 h-4 text-amber-600" />
+                            <span className="text-sm font-semibold text-amber-700">توجد بيانات قيد المزامنة</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            <span className="text-sm font-semibold text-emerald-700">تمت المزامنة بنجاح</span>
+                          </>
+                        )}
+                      </div>
+                      
+                      <div className="space-y-1">
+                        {!isOnline && pendingSyncCount > 0 && (
+                          <button
+                            onClick={() => {
+                              setIsSyncMenuOpen(false);
+                              setIsActivityDrawerOpen(true);
+                            }}
+                            className="w-full flex items-center gap-2.5 px-2.5 py-2 text-sm font-medium text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
+                          >
+                            <ListChecks className="w-4 h-4" />
+                            <span>عرض العمليات المعلقة</span>
+                            <span className="ms-auto bg-purple-100 text-purple-700 rounded-full px-2 py-0.5 text-xs font-bold">
+                              {pendingSyncCount}
+                            </span>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => {
+                            setIsSyncMenuOpen(false);
+                            setIsSyncReviewOpen(true);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-2.5 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 rounded-lg transition-colors"
+                        >
+                          <RefreshCw className="w-4 h-4 text-neutral-500" />
+                          <span>مراجعة المزامنة السحابية</span>
+                        </button>
+                      </div>
+                    </div>
+                  </>
                 )}
-              </button>
+              </div>
             )}
 
             {/* Notification Bell Center */}
