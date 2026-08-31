@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowRight, PlayCircle, Lock, ChevronDown, X, BookOpen, Clock, Users, FileText, ClipboardList } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 
@@ -333,9 +334,10 @@ const GRADES: Record<string, string[]> = {
 function CoursesSection() {
   const [courses, setCourses] = useState<any[]>(COURSES);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
+  const [selectedCourse, setSelectedCourse] = useState<any | null>(null);
   const [selectedStage, setSelectedStage] = useState<string>('ALL');
   const [selectedGrade, setSelectedGrade] = useState<string>('ALL');
+  const [expandedModule, setExpandedModule] = useState<number | null>(0);
 
   useEffect(() => {
     async function fetchCourses() {
@@ -374,32 +376,136 @@ function CoursesSection() {
 
   return (
     <section className="py-24 bg-white relative overflow-hidden" id="courses" dir="rtl">
-      {/* Video Modal */}
+      {/* Udemy-like Course Preview Modal */}
       <AnimatePresence>
-        {selectedVideo && (
+        {selectedCourse && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto"
+            onClick={() => setSelectedCourse(null)}
           >
-            <div className="relative w-full max-w-4xl bg-black rounded-2xl overflow-hidden shadow-2xl aspect-video">
-              <button
-                onClick={() => setSelectedVideo(null)}
-                className="absolute top-4 right-4 z-10 w-10 h-10 bg-white/20 hover:bg-white/40 rounded-full flex items-center justify-center text-white transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-              <iframe
-                src={`${selectedVideo}${selectedVideo.includes('?') ? '&' : '?'}autoplay=true&preload=true`}
-                loading="lazy"
-                className="w-full h-full border-0"
-                allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
-                allowFullScreen
-              ></iframe>
-            </div>
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-5xl bg-white rounded-3xl overflow-hidden shadow-2xl my-8 flex flex-col max-h-[90vh]"
+            >
+              {/* Header */}
+              <div className="bg-slate-900 text-white p-6 sm:p-8 flex items-start justify-between shrink-0">
+                <div className="max-w-2xl">
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full">{selectedCourse.badge}</span>
+                  </div>
+                  <h2 className="text-2xl sm:text-3xl font-bold mb-2">{selectedCourse.title}</h2>
+                  <p className="text-slate-300 text-sm sm:text-base leading-relaxed">{selectedCourse.description}</p>
+                </div>
+                <button
+                  onClick={() => setSelectedCourse(null)}
+                  className="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors shrink-0"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
+                {/* Right Sidebar (Video & CTA) */}
+                <div className="w-full lg:w-1/3 bg-slate-50 border-b lg:border-b-0 lg:border-l border-slate-200 p-6 flex flex-col shrink-0 order-1 lg:order-2">
+                  {selectedCourse.hasFreeVideo && selectedCourse.freeVideoUrl ? (
+                    <div className="w-full aspect-video bg-black rounded-xl overflow-hidden shadow-md mb-6 relative group">
+                      <iframe
+                        src={`${selectedCourse.freeVideoUrl}${selectedCourse.freeVideoUrl.includes('?') ? '&' : '?'}autoplay=0`}
+                        loading="lazy"
+                        className="w-full h-full border-0 absolute inset-0"
+                        allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+                        allowFullScreen
+                      ></iframe>
+                    </div>
+                  ) : (
+                    <div className="w-full aspect-video bg-slate-200 rounded-xl flex items-center justify-center shadow-md mb-6">
+                      <PlayCircle className="w-12 h-12 text-slate-400" />
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
+                    <div className="text-2xl font-black text-slate-900">اشترك الآن للوصول الكامل</div>
+                    <Link href="/login" className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all shadow-md hover:shadow-lg">
+                      <span>الاشتراك في الكورس</span>
+                    </Link>
+                    <p className="text-xs text-center text-slate-500">يتيح لك الاشتراك الوصول لجميع الدروس والواجبات</p>
+                    
+                    <div className="pt-4 mt-4 border-t border-slate-200 space-y-3">
+                      <h4 className="font-bold text-slate-800 text-sm">ماذا يتضمن هذا الكورس؟</h4>
+                      <ul className="text-sm text-slate-600 space-y-2">
+                        <li className="flex items-center gap-2"><PlayCircle className="w-4 h-4 text-blue-500" /> شروحات فيديو مسجلة ومباشرة</li>
+                        <li className="flex items-center gap-2"><FileText className="w-4 h-4 text-blue-500" /> مذكرات وملخصات PDF</li>
+                        <li className="flex items-center gap-2"><ClipboardList className="w-4 h-4 text-blue-500" /> اختبارات إلكترونية وواجبات</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Left Content (Syllabus) */}
+                <div className="w-full lg:w-2/3 p-6 sm:p-8 overflow-y-auto order-2 lg:order-1">
+                  <h3 className="text-xl font-bold text-slate-900 mb-6">محتوى الكورس</h3>
+                  
+                  <div className="space-y-3">
+                    {/* Dummy Modules */}
+                    {[1, 2, 3].map((moduleIndex) => (
+                      <div key={moduleIndex} className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                        <button
+                          onClick={() => setExpandedModule(expandedModule === moduleIndex ? null : moduleIndex)}
+                          className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform ${expandedModule === moduleIndex ? 'rotate-180' : ''}`} />
+                            <span className="font-bold text-slate-800">الوحدة {moduleIndex === 1 ? 'الأولى' : moduleIndex === 2 ? 'الثانية' : 'الثالثة'}: {moduleIndex === 1 ? 'أساسيات المنهج' : 'التطبيقات المتقدمة'}</span>
+                          </div>
+                          <span className="text-xs font-medium text-slate-500">3 دروس</span>
+                        </button>
+                        
+                        <AnimatePresence>
+                          {expandedModule === moduleIndex && (
+                            <motion.div
+                              initial={{ height: 0 }}
+                              animate={{ height: 'auto' }}
+                              exit={{ height: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="p-2 space-y-1">
+                                {[1, 2, 3].map((lessonIndex) => {
+                                  const isFree = moduleIndex === 1 && lessonIndex === 1 && selectedCourse.hasFreeVideo;
+                                  return (
+                                    <div key={lessonIndex} className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 transition-colors group">
+                                      <div className="flex items-center gap-3">
+                                        {isFree ? (
+                                          <PlayCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                                        ) : (
+                                          <Lock className="w-4 h-4 text-slate-400 shrink-0" />
+                                        )}
+                                        <span className={`text-sm font-medium ${isFree ? 'text-slate-900' : 'text-slate-600'}`}>
+                                          الدرس {lessonIndex}: {lessonIndex === 1 ? 'مقدمة وشرح مبسط' : 'حل التمارين والأسئلة'}
+                                        </span>
+                                      </div>
+                                      {isFree && (
+                                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">معاينة مجانية</span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -515,13 +621,11 @@ function CoursesSection() {
                   
                   {course.hasFreeVideo && course.freeVideoUrl ? (
                      <div 
-                       onClick={() => setSelectedVideo(course.freeVideoUrl)}
+                       onClick={() => setSelectedCourse(course)}
                        className="absolute inset-0 z-20 flex items-center justify-center cursor-pointer bg-black/10 group-hover:bg-black/30 transition-colors"
                      >
                        <div className="w-16 h-16 bg-white/30 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white ml-1" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                          </svg>
+                          <PlayCircle className="h-8 w-8 text-white ml-1" />
                        </div>
                      </div>
                   ) : (
@@ -544,12 +648,9 @@ function CoursesSection() {
 
                   <div className="mt-auto flex flex-col gap-2">
                     {course.hasFreeVideo && course.freeVideoUrl && (
-                       <button onClick={() => setSelectedVideo(course.freeVideoUrl)} className="hover:bg-emerald-50 flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-emerald-100 text-emerald-700 font-bold transition-colors group-hover:border-emerald-200">
-                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                         </svg>
-                         <span>شاهد الدرس الأول مجاناً</span>
+                       <button onClick={() => setSelectedCourse(course)} className="hover:bg-emerald-50 flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-emerald-100 text-emerald-700 font-bold transition-colors group-hover:border-emerald-200">
+                         <PlayCircle className="h-5 w-5" />
+                         <span>شاهد الدرس الأول وتفاصيل الكورس</span>
                        </button>
                     )}
                     <Link href="/login" className="hover:bg-blue-50 flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-slate-100 text-slate-700 font-bold transition-colors group-hover:border-blue-100">
