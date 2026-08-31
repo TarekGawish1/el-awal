@@ -25,12 +25,52 @@ export function CertificatesClient() {
   const [selectedStage, setSelectedStage] = useState('الكل');
 
   useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('saved_certificates') || '[]');
-      setCertificates(saved);
-    } catch (err) {
-      console.error('Error parsing certificates from localStorage:', err);
-    }
+    const fetchAndMergeCertificates = async () => {
+      let localCerts: any[] = [];
+      try {
+        localCerts = JSON.parse(localStorage.getItem('saved_certificates') || '[]');
+      } catch (err) {
+        console.error('Error parsing certificates from localStorage:', err);
+      }
+
+      let apiCerts: any[] = [];
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+        const res = await fetch(`${baseUrl}/certificates/public`);
+        if (res.ok) {
+          const json = await res.json();
+          apiCerts = json?.data || json || [];
+        }
+      } catch (err) {
+        console.error('Error fetching API certificates:', err);
+      }
+
+      const mappedApiCerts = apiCerts.map((c: any) => ({
+        id: c.id,
+        studentName: c.studentName,
+        subject: c.subject,
+        score: c.score,
+        stage: c.stage,
+        grade: c.grade,
+        issueDate: c.issueDate,
+        createdAt: c.createdAt,
+        image: c.fileUrl,
+      }));
+
+      const combined = [...mappedApiCerts, ...localCerts];
+      const uniqueSaved = Array.from(new Map(combined.map(item => [item.id, item])).values());
+      
+      // Sort by creation date (newest first)
+      uniqueSaved.sort((a: any, b: any) => {
+        const dateA = new Date(a.createdAt || 0).getTime();
+        const dateB = new Date(b.createdAt || 0).getTime();
+        return dateB - dateA;
+      });
+
+      setCertificates(uniqueSaved as SavedCertificate[]);
+    };
+
+    fetchAndMergeCertificates();
   }, []);
 
   const handleDelete = async (id: string) => {
@@ -175,7 +215,7 @@ export function CertificatesClient() {
                     >
                       حذف
                     </button>
-                    {cert.data?.image || (cert as any).image ? (
+                    {(cert.data?.image || (cert as any).image) ? (
                       <a 
                         href={cert.data?.image || (cert as any).image} 
                         download={`شهادة-${cert.studentName}.png`}
