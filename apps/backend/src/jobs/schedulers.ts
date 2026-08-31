@@ -439,10 +439,10 @@ export class SchedulersService implements OnModuleInit {
           : ['لا توجد حصص مجدولة لهذا اليوم'];
 
         const body = [
-          `صباح الخير أستاذ ${teacher.user.fullName} 👋`,
-          `جدولك اليوم (${dateStr}):`,
+          `أستاذ ${teacher.user.fullName}، صباح النور والبركة! 🌸`,
+          `مواعيد حصصك ومجموعاتك اليوم (${dateStr}):`,
           ...agendaLines.map((l, i) => `${i + 1}. ${l}`),
-          `\nبالتوفيق في يومك! 🌟`,
+          `\n🎓 منصة الأوّل التعليمية — تتمنى لك يوماً موفقاً ومثمراً 🌟`,
         ].join('\n');
 
         const settings = await this.settingsService.getSettings();
@@ -452,7 +452,7 @@ export class SchedulersService implements OnModuleInit {
           NotificationChannel.IN_APP,
           NotificationChannel.WEB_PUSH,
         ];
-        if (targetPhone) {
+        if (targetPhone && !force) {
           channels.push(NotificationChannel.WHATSAPP);
         }
 
@@ -473,8 +473,17 @@ export class SchedulersService implements OnModuleInit {
         });
 
         if (targetPhone && force) {
-          // Immediately process the single queued message without waiting for the 10s poll cycle
-          await this.whatsappDispatcher.processNextQueuedMessage();
+          const waResult = await this.whatsapp.sendTrackedProtectedMessage(targetPhone, body);
+          this.logger.log(
+            `[TeacherSchedule] Direct WhatsApp dispatch to ${targetPhone}: outcome=${waResult.outcome}, reason=${waResult.failureReason || 'OK'}`,
+          );
+          if (waResult.outcome !== 'sent') {
+            return {
+              success: false,
+              message: `تعذر إرسال رسالة الواتساب: ${waResult.failureReason || waResult.outcome}`,
+              dispatchedCount: 0,
+            };
+          }
         }
 
         dispatchedCount++;
