@@ -40,19 +40,25 @@ export const TEACHER_NAVIGATION_SECTIONS: NavSectionConfig[] = [
     ],
   },
   {
-    id: 'education-lessons',
-    title: 'التعليم والدروس',
+    id: 'workspace',
+    title: 'مساحة العمل',
     items: [
       { label: 'المجموعات الدراسية', href: '/teacher/groups', icon: Users, onlineOnly: false },
-      { label: 'جدول وحصص المعلم', href: '/teacher/schedules', icon: Calendar, onlineOnly: false },
-      { label: 'الواجبات والاختبارات', href: '/teacher/assessments', icon: FileText, onlineOnly: true },
-      { label: 'المحتوى والدروس', href: '/teacher/content', icon: BookOpen, onlineOnly: true },
-      { label: 'الكورسات أونلاين', href: '/teacher/courses', icon: Video, onlineOnly: true },
-      { label: 'الشهادات', href: '/teacher/certificates', icon: Award, onlineOnly: true },
+      { label: 'الجدول', href: '/teacher/schedules', icon: Calendar, onlineOnly: false },
+      { label: 'رصد الحضور والـ QR', href: '/teacher/attendance', icon: QrCode, onlineOnly: false },
     ],
   },
   {
-    id: 'student-affairs',
+    id: 'academics',
+    title: 'التعليم والدروس',
+    items: [
+      { label: 'الواجبات والاختبارات', href: '/teacher/assessments', icon: FileText, onlineOnly: true },
+      { label: 'المحتوى والدروس', href: '/teacher/content', icon: BookOpen, onlineOnly: true },
+      { label: 'الكورسات أونلاين', href: '/teacher/courses', icon: Video, onlineOnly: true },
+    ],
+  },
+  {
+    id: 'students',
     title: 'شؤون الطلاب',
     items: [
       { label: 'سجل الطلاب', href: '/teacher/students', icon: GraduationCap, onlineOnly: false },
@@ -60,19 +66,19 @@ export const TEACHER_NAVIGATION_SECTIONS: NavSectionConfig[] = [
     ],
   },
   {
-    id: 'records-finances',
-    title: 'السجلات والمالية',
+    id: 'communication',
+    title: 'التواصل',
     items: [
-      { label: 'رصد الحضور والـ QR', href: '/teacher/attendance', icon: QrCode, onlineOnly: false },
-      { label: 'الماليات والمصروفات', href: '/teacher/finance', icon: DollarSign, onlineOnly: false },
+      { label: 'مركز الإشعارات', href: '/teacher/notifications', icon: Bell, onlineOnly: false },
+      { label: 'رسائل الموقع', href: '/teacher/inquiries', icon: MessageSquareShare, onlineOnly: true },
     ],
   },
   {
-    id: 'communication-center',
-    title: 'مركز التواصل',
+    id: 'management',
+    title: 'إدارة ومزيد',
     items: [
-      { label: 'مركز الإشعارات والتحكم', href: '/teacher/notifications', icon: Bell, onlineOnly: false },
-      { label: 'رسائل الموقع', href: '/teacher/inquiries', icon: MessageSquareShare, onlineOnly: true },
+      { label: 'الماليات والمصروفات', href: '/teacher/finance', icon: DollarSign, onlineOnly: false },
+      { label: 'الشهادات', href: '/teacher/certificates', icon: Award, onlineOnly: true },
       {
         label: 'ربط وإدارة الواتساب',
         href: '#whatsapp-manager',

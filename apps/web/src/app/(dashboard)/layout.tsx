@@ -49,7 +49,7 @@ export default function DashboardLayout({
   const [isSyncConfirmationOpen, setIsSyncConfirmationOpen] = useState(false);
   const [isActivityDrawerOpen, setIsActivityDrawerOpen] = useState(false);
   const [isWhatsAppManagerOpen, setIsWhatsAppManagerOpen] = useState(false);
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
   const pathname = usePathname();
@@ -189,103 +189,74 @@ export default function DashboardLayout({
           </div>
 
           {/* Categorized Navigation Links */}
-          <nav className="p-3 overflow-y-auto flex-1 space-y-3" aria-label="القائمة الرئيسية">
+          <nav className="px-3 py-4 overflow-y-auto flex-1 space-y-6" aria-label="القائمة الرئيسية">
             {navigationSections.map((section, sIdx) => {
               const sectionId = section.id || `sec-${sIdx}`;
-              const hasActiveChild = section.items.some(
-                (item) =>
-                  !item.isAction &&
-                  (pathname === item.href ||
-                    (item.href !== '/teacher/dashboard' &&
-                      item.href !== '/student/dashboard' &&
-                      item.href !== '/parent/dashboard' &&
-                      pathname?.startsWith(item.href)))
-              );
-
-              const isCollapsed = Boolean(collapsedSections[sectionId]);
 
               return (
-                <div key={sectionId} className="space-y-1">
+                <div key={sectionId} className="space-y-1.5">
                   {section.title && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCollapsedSections((prev) => ({
-                          ...prev,
-                          [sectionId]: !prev[sectionId],
-                        }));
-                      }}
-                      className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-bold text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100/70 rounded-md transition-colors uppercase tracking-wider select-none group cursor-pointer"
-                      aria-expanded={!isCollapsed}
-                      aria-label={`تبديل قسم ${section.title}`}
-                    >
-                      <span>{section.title}</span>
-                      <ChevronDown
-                        className={`w-3.5 h-3.5 text-neutral-400 group-hover:text-neutral-600 transition-transform duration-200 ${
-                          isCollapsed ? '-rotate-90 rtl:rotate-90' : 'rotate-0'
-                        }`}
-                      />
-                    </button>
-                  )}
-                  {!isCollapsed && (
-                    <div className="space-y-1">
-                      {section.items.map((item) => {
-                        const Icon = item.icon;
-                        const isActive =
-                          !item.isAction &&
-                          (pathname === item.href ||
-                            (item.href !== '/teacher/dashboard' &&
-                              item.href !== '/student/dashboard' &&
-                              item.href !== '/parent/dashboard' &&
-                              pathname?.startsWith(item.href)));
-
-                        if (item.isAction) {
-                          return (
-                            <button
-                              key={item.href}
-                              type="button"
-                              onClick={() => {
-                                if (item.actionId === 'whatsapp-manager') {
-                                  setIsWhatsAppManagerOpen(true);
-                                }
-                                setIsMobileSidebarOpen(false);
-                              }}
-                              className="w-full flex items-center gap-3 px-3.5 py-2 rounded-md text-sm font-semibold text-emerald-700 hover:bg-emerald-50 transition-all border border-emerald-200/80 bg-emerald-50/40 shadow-2xs group cursor-pointer"
-                            >
-                              <svg className="w-4 h-4 text-emerald-600 shrink-0 group-hover:scale-110 transition-transform" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.888-.788-1.489-1.761-1.663-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
-                              </svg>
-                              <span>{item.label}</span>
-                            </button>
-                          );
-                        }
-
-                        return (
-                          <Link
-                            key={item.href}
-                            href={item.href}
-                            onClick={() => setIsMobileSidebarOpen(false)}
-                            className={`flex items-center gap-3 px-3.5 py-2 rounded-md text-sm font-medium transition-all ${
-                              isActive
-                                ? 'bg-primary-50 text-primary-700 font-semibold border-e-4 border-primary-600 shadow-xs'
-                                : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
-                            }`}
-                          >
-                            <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-primary-600' : 'text-neutral-400'}`} />
-                            <span className="truncate">{item.label}</span>
-                            {item.badgeKey === 'reservations' && pendingReservationsCount > 0 && (
-                              <span
-                                className="ms-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold leading-none"
-                                aria-label={`${pendingReservationsCount} طلب انضمام قيد الانتظار`}
-                              >
-                                {pendingReservationsCount > 99 ? '99+' : pendingReservationsCount}
-                              </span>
-                            )}
-                          </Link>
-                        );
-                      })}
+                    <div className="px-3 pb-1">
+                      <h3 className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider select-none">
+                        {section.title}
+                      </h3>
                     </div>
                   )}
+                  <div className="space-y-1">
+                    {section.items.map((item) => {
+                      const Icon = item.icon;
+                      const isActive =
+                        !item.isAction &&
+                        (pathname === item.href ||
+                          (item.href !== '/teacher/dashboard' &&
+                            item.href !== '/student/dashboard' &&
+                            item.href !== '/parent/dashboard' &&
+                            pathname?.startsWith(item.href)));
+
+                      if (item.isAction) {
+                        return (
+                          <button
+                            key={item.href}
+                            type="button"
+                            onClick={() => {
+                              if (item.actionId === 'whatsapp-manager') {
+                                setIsWhatsAppManagerOpen(true);
+                              }
+                              setIsMobileSidebarOpen(false);
+                            }}
+                            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-md text-sm font-medium text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 transition-colors group cursor-pointer"
+                          >
+                            <Icon className="w-4 h-4 shrink-0 text-neutral-400 group-hover:text-neutral-600" />
+                            <span>{item.label}</span>
+                          </button>
+                        );
+                      }
+
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setIsMobileSidebarOpen(false)}
+                          className={`flex items-center gap-3 px-3.5 py-2.5 rounded-md text-sm font-medium transition-all ${
+                            isActive
+                              ? 'bg-primary-50/80 text-primary-700 font-semibold border-s-4 border-primary-600'
+                              : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+                          }`}
+                        >
+                          <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-primary-600' : 'text-neutral-400'}`} />
+                          <span className="truncate">{item.label}</span>
+                          {item.badgeKey === 'reservations' && pendingReservationsCount > 0 && (
+                            <span
+                              className="ms-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold leading-none"
+                              aria-label={`${pendingReservationsCount} طلب انضمام قيد الانتظار`}
+                            >
+                              {pendingReservationsCount > 99 ? '99+' : pendingReservationsCount}
+                            </span>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })}
@@ -391,21 +362,6 @@ export default function DashboardLayout({
               </button>
             )}
 
-            {/* WhatsApp Gateway Quick Manager (Teachers & Secretariat) - Accessible in sidebar on mobile */}
-            {(user?.role === 'TEACHER' || user?.role === 'SECRETARIAT') && (
-              <button
-                onClick={() => setIsWhatsAppManagerOpen(true)}
-                className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100 shadow-xs shrink-0"
-                title="إدارة ربط واتساب (WhatsApp Gateway)"
-                aria-label="إدارة ربط واتساب"
-              >
-                <svg className="w-3.5 h-3.5 text-emerald-600" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.888-.788-1.489-1.761-1.663-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
-              </svg>
-              <span className="hidden md:inline">واتساب</span>
-            </button>
-            )}
-
             {/* Notification Bell Center */}
             <div className="shrink-0">
               <NotificationBell />
@@ -413,43 +369,55 @@ export default function DashboardLayout({
 
             <div className="h-6 w-px bg-neutral-200 mx-0.5 hidden sm:block shrink-0"></div>
 
-            <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
-              <div className="relative cursor-pointer shrink-0">
+            {/* Profile Dropdown */}
+            <div className="relative shrink-0">
+              <button
+                onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                className="flex items-center gap-1 sm:gap-2.5 p-1 rounded-lg hover:bg-neutral-50 transition-colors"
+                aria-haspopup="true"
+                aria-expanded={isProfileMenuOpen}
+              >
                 <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-primary-50 border border-primary-100 text-primary-700 font-bold flex items-center justify-center text-xs sm:text-sm shadow-xs transition-transform hover:scale-105">
                   {user?.fullName ? user.fullName.charAt(0) : 'م'}
                 </div>
-              </div>
-
-              <div className="flex flex-col items-start hidden sm:flex text-start">
-                <span className="text-sm font-bold text-neutral-900 leading-none mb-1">
-                  {user?.fullName || 'المستخدم'}
-                </span>
-                <span className="text-[11px] font-medium text-neutral-500 leading-none">
-                  {getRoleLabel(user?.role)}
-                </span>
-              </div>
-
-              {/* Desktop logout button */}
-              <button
-                onClick={() => logout()}
-                className="flex items-center gap-2 px-3 py-2 ms-1 text-sm font-medium text-neutral-500 hover:text-error-600 hover:bg-error-50 rounded-md transition-colors hidden sm:flex shrink-0 cursor-pointer"
-                title="تسجيل الخروج"
-                aria-label="تسجيل الخروج"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>تسجيل الخروج</span>
+                <div className="flex-col items-start hidden sm:flex text-start">
+                  <span className="text-sm font-bold text-neutral-900 leading-none mb-1">
+                    {user?.fullName || 'المستخدم'}
+                  </span>
+                  <span className="text-[11px] font-medium text-neutral-500 leading-none">
+                    {getRoleLabel(user?.role)}
+                  </span>
+                </div>
+                <ChevronDown className={`hidden sm:block w-4 h-4 text-neutral-400 transition-transform ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
               </button>
+
+              {isProfileMenuOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsProfileMenuOpen(false)}
+                    aria-hidden="true"
+                  />
+                  <div className="absolute end-0 top-full mt-2 w-56 bg-white border border-neutral-100 rounded-xl shadow-lg z-50 overflow-hidden flex flex-col p-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="px-3 py-2.5 border-b border-neutral-100 sm:hidden">
+                      <p className="text-sm font-bold text-neutral-900 truncate">{user?.fullName || 'المستخدم'}</p>
+                      <p className="text-[11px] font-medium text-neutral-500 mt-0.5">{getRoleLabel(user?.role)}</p>
+                    </div>
+                    
+                    <button
+                      onClick={() => {
+                        setIsProfileMenuOpen(false);
+                        logout();
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 mt-1 text-sm font-medium text-error-600 hover:bg-error-50 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>تسجيل الخروج</span>
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
-            
-            {/* Mobile logout button */}
-            <button
-              onClick={() => logout()}
-              className="p-1.5 sm:p-2 text-neutral-500 hover:text-error-600 hover:bg-error-50 rounded-lg transition-colors sm:hidden shrink-0 flex items-center justify-center cursor-pointer"
-              title="تسجيل الخروج"
-              aria-label="تسجيل الخروج"
-            >
-              <LogOut className="w-5 h-5" />
-            </button>
           </div>
         </header>
 
