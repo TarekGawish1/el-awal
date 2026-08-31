@@ -185,6 +185,7 @@ export interface OutboxMutationRecord {
   status: MutationStatus;
   conflictStrategy?: 'CLIENT_WINS' | 'SERVER_WINS' | 'MONOTONIC' | 'MANUAL_REVIEW';
   lastError?: string;
+  lastAttemptAt?: number;
   optimisticId?: string;
   type?: string;
   /** Local-only snapshot used to restore IndexedDB when a pending edit is undone. */
@@ -1387,10 +1388,18 @@ class OfflineDatabase {
     receiptNumber?: string;
     paymentMethod?: string;
   }): Promise<PaymentEntity> {
+    // Duplicate guard: check if this booklet payment is already recorded or queued
+    const { isRecorded } = await this.isBookletPaymentRecordedOffline(params.studentId, params.bookletId);
+    if (isRecorded) {
+      throw new Error('DUPLICATE_PAYMENT: تم تسجيل سداد هذه المذكرة مسبقاً لهذا الطالب');
+    }
+
     const now = new Date();
     const periodYear = now.getFullYear();
     const periodMonth = now.getMonth() + 1;
-    const paymentId = `pay-bkt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const paymentId = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? `pay-bkt-${crypto.randomUUID()}`
+      : `pay-bkt-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
     const booklet = await this.getBookletByIdOffline(params.bookletId);
     const student = await this.getStudentByIdOffline(params.studentId);
@@ -1450,7 +1459,7 @@ class OfflineDatabase {
 
     // 3. Enqueue Outbox Mutation for upstream sync
     await this.enqueueMutation({
-      id: `mut-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `mut-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
       domain: 'finance',
       endpoint: '/subscriptions/payment',
       method: 'POST',
@@ -1498,7 +1507,9 @@ class OfflineDatabase {
     try {
       const { store } = await this.getStore('outbox_mutations', 'readwrite');
       store.put(mutation);
-    } catch {}
+    } catch (e) {
+      console.error('CRITICAL: Failed to persist outbox mutation to IndexedDB:', mutation.id, e);
+    }
   }
 
   public async getPendingMutations(userId?: string): Promise<OutboxMutationRecord[]> {
@@ -1542,11 +1553,13 @@ class OfflineDatabase {
     status: MutationStatus,
     error?: string,
   ): Promise<void> {
+    const now = Date.now();
     const mem = this.memoryOutbox.get(id);
     if (mem) {
       mem.status = status;
       if (error) mem.lastError = error;
       if (status === 'FAILED') mem.retryCount = (mem.retryCount || 0) + 1;
+      if (status === 'SYNCING' || status === 'FAILED') mem.lastAttemptAt = now;
       this.memoryOutbox.set(id, mem);
     }
     if (!this.isSupported()) return;
@@ -1559,9 +1572,12 @@ class OfflineDatabase {
         record.status = status;
         if (error) record.lastError = error;
         if (status === 'FAILED') record.retryCount = (record.retryCount || 0) + 1;
+        if (status === 'SYNCING' || status === 'FAILED') record.lastAttemptAt = now;
         store.put(record);
       };
-    } catch {}
+    } catch (e) {
+      console.warn('Failed to update mutation status in IndexedDB:', id, status, e);
+    }
   }
 
   /**
@@ -1960,7 +1976,7 @@ class OfflineDatabase {
       student.academicStatus = 'ACTIVE';
       student.paymentRecords = student.paymentRecords || [];
       student.paymentRecords.push({
-        id: paymentRecord.id || `pay-${Date.now()}`,
+        id: paymentRecord.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `pay-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`),
         periodYear: paymentRecord.periodYear,
         periodMonth: paymentRecord.periodMonth,
         amountPaid: paymentRecord.amountPaid,
@@ -2705,25 +2721,10 @@ class OfflineDatabase {
         markedAt: now,
       };
 
-      await this.enqueueMutation({
-        id: crypto.randomUUID(),
-        type: 'RECORD_ATTENDANCE',
-        domain: 'attendance',
-        endpoint: `/attendance/sessions/${cleanSessionId}/scan-qr`,
-        method: 'POST',
-        payload: {
-          sessionId: cleanSessionId,
-          studentId: cleanStudentId,
-          qrCodeToken: data.qrCodeToken,
-          status: 'PRESENT',
-          recordingMethod: recordedMethod,
-          clientTimestamp: now,
-        },
-        status: 'PENDING',
-        clientTimestamp: now,
-        retryCount: 0,
-        conflictStrategy: 'CLIENT_WINS',
-      });
+      // We DO NOT enqueue a separate RECORD_ATTENDANCE mutation here.
+      // The backend /sync/homework (and /sync/batch) handles RECORD_HOMEWORK_ONSITE
+      // by transactionally upserting both the HomeworkRecord and the AttendanceRecord.
+      // Enqueuing a second mutation would break atomicity and cause duplicate logic.
     }
 
     return { homeworkRecord, attendanceRecord };

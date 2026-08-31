@@ -92,6 +92,8 @@ function generateClientOperationId(): string {
 class OfflineSyncEngine {
   private isOnlineState: boolean = typeof navigator !== 'undefined' ? navigator.onLine : true;
   private isSyncingState: boolean = false;
+  /** Promise-based mutex: all concurrent flushOutbox() callers await the same active sync. */
+  private activeSyncPromise: Promise<{ synced: number; failed: number }> | null = null;
   private listeners: Set<SyncEngineEventListener> = new Set();
   private syncTimer: NodeJS.Timeout | null = null;
   private lastSyncedAt: number | null = null;
@@ -466,7 +468,9 @@ class OfflineSyncEngine {
       clearTimeout(timeoutId);
       return res.ok;
     } catch {
-      return true; // Fallback to navigator.onLine if ping endpoint not deployed yet
+      // If the ping fails (CORS, DNS, network error), fall back to navigator.onLine
+      // instead of assuming online — prevents false-positive that burns retry counters
+      return typeof navigator !== 'undefined' ? navigator.onLine : false;
     }
   }
 
@@ -565,12 +569,37 @@ class OfflineSyncEngine {
     force?: boolean;
   }): Promise<{ synced: number; failed: number }> {
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : this.isOnlineState;
-    if (!isOnline || this.isSyncingState) {
+    if (!isOnline) {
       return { synced: 0, failed: 0 };
     }
     if (this.syncConfirmationRequired && !options?.force) {
       return { synced: 0, failed: 0 };
     }
+
+    // Promise-based mutex: if a sync is already running, await its result
+    // instead of silently returning {0, 0} (prevents race conditions)
+    if (this.activeSyncPromise) {
+      return this.activeSyncPromise;
+    }
+
+    const syncExecution = this.executeFlush(options);
+    this.activeSyncPromise = syncExecution;
+
+    try {
+      return await syncExecution;
+    } finally {
+      this.activeSyncPromise = null;
+    }
+  }
+
+  /**
+   * Internal flush implementation — always called via flushOutbox() which
+   * provides the mutex guarantee.
+   */
+  private async executeFlush(options?: {
+    mutationIds?: string[];
+    force?: boolean;
+  }): Promise<{ synced: number; failed: number }> {
 
     // ── Pre-flight authentication guard ──────────────────────────────────────
     // Proactively refresh the access token before starting any network work so
@@ -603,6 +632,21 @@ class OfflineSyncEngine {
       const allowed = new Set(options.mutationIds);
       pending = pending.filter((m) => allowed.has(m.id));
     }
+
+    // Filter out mutations that were recently attempted and failed — enforce
+    // a bounded exponential backoff between retry attempts for the same mutation
+    // to prevent aggressive server hammering. (30s, 60s, 120s... max ~32 mins)
+    const BASE_RETRY_DELAY_MS = 30_000;
+    const now = Date.now();
+    pending = pending.filter((m) => {
+      if (m.status === 'FAILED' && m.lastAttemptAt) {
+        const backoffMultiplier = Math.pow(2, Math.min(m.retryCount || 0, 6));
+        const requiredDelay = BASE_RETRY_DELAY_MS * backoffMultiplier;
+        return (now - m.lastAttemptAt) >= requiredDelay;
+      }
+      return true;
+    });
+
     if (pending.length === 0) {
       return { synced: 0, failed: 0 };
     }
@@ -745,11 +789,6 @@ class OfflineSyncEngine {
       }
 
       // 4. Batch Onsite Homework and Attendance Sync via API_ENDPOINTS.SYNC.BATCH
-      const pendingMutations = await offlineDb.outbox_mutations
-        .where('status')
-        .equals('PENDING')
-        .toArray();
-
       const attendanceAndHomeworkItems = pending.filter(
         (m) =>
           m.type === 'RECORD_HOMEWORK_ONSITE' ||
@@ -1343,14 +1382,12 @@ class OfflineSyncEngine {
       errorMessage?.includes('تكرار') ||
       errorMessage?.includes('مسجل مسبقاً');
 
-    if (mutation.retryCount >= 3 || isValidationError) {
+    if (isValidationError) {
       await offlineDb.recordConflict({
-        id: generateClientOperationId(),
+        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : generateClientOperationId(),
         operationId: mutation.id,
         domain: mutation.domain,
-        reason: isValidationError
-          ? `تعذر إتمام العملية على الخادم: ${errorMessage}`
-          : `تجاوز الحد الأقصى للمحاولات (3): ${errorMessage}`,
+        reason: `تعذر إتمام العملية على الخادم: ${errorMessage}`,
         payload: mutation.payload,
         timestamp: Date.now(),
         resolved: false,
@@ -1381,6 +1418,22 @@ class OfflineSyncEngine {
       await offlineDb.removeMutation(mutation.id);
     } else {
       await offlineDb.updateMutationStatus(mutation.id, 'FAILED', errorMessage);
+      // For persistent network/server errors (>= 3 retries), optionally record a conflict 
+      // so the user is aware, but DO NOT remove it from the outbox. It will keep retrying with backoff.
+      if (mutation.retryCount >= 3) {
+        const existingConflicts = await offlineDb.getUnresolvedConflicts();
+        if (!existingConflicts.some(c => c.operationId === mutation.id)) {
+           await offlineDb.recordConflict({
+             id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : generateClientOperationId(),
+             operationId: mutation.id,
+             domain: mutation.domain,
+             reason: `تأخر مزامنة العملية بسبب مشاكل في الاتصال أو الخادم: ${errorMessage}`,
+             payload: mutation.payload,
+             timestamp: Date.now(),
+             resolved: false,
+           });
+        }
+      }
     }
   }
 }

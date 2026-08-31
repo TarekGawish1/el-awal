@@ -481,7 +481,7 @@ export function useScanPaymentQr() {
             : 350;
 
         const paymentRecord: any = {
-          id: `offline-pay-${Date.now()}`,
+          id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `offline-pay-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
           studentId,
           groupId: groupId || group?.id || null,
           periodYear,
