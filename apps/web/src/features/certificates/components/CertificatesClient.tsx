@@ -129,6 +129,18 @@ export function CertificatesClient() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <Link href="/teacher/certificates/new">
+            <Card className="h-full min-h-[300px] border-2 border-dashed border-slate-300 hover:border-indigo-500 hover:bg-indigo-50/50 transition-all cursor-pointer flex flex-col items-center justify-center text-slate-500 hover:text-indigo-600 group">
+              <div className="w-16 h-16 rounded-full bg-slate-100 group-hover:bg-indigo-100 flex items-center justify-center mb-4 transition-colors">
+                <Plus className="w-8 h-8" />
+              </div>
+              <h3 className="text-lg font-bold">إنشاء شهادة جديدة</h3>
+              <p className="text-sm mt-2 text-center px-4 opacity-70">
+                اضغط هنا لتصميم وإصدار شهادة تقدير جديدة لطلابك
+              </p>
+            </Card>
+          </Link>
+          
           {filteredCertificates.map(cert => (
             <Card key={cert.id} className="overflow-hidden hover:shadow-md transition-shadow flex flex-col">
               {cert.data?.image || (cert as any).image ? (
