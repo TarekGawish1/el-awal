@@ -8,6 +8,7 @@ import {
 } from '@prisma/client';
 import * as cron from 'node-cron';
 import { WhatsAppService } from '../services/whatsapp/whatsapp.service';
+import { WhatsAppDispatcherService } from '../modules/whatsapp/services/whatsapp-dispatcher.service';
 
 /**
  * SchedulersService — automated cron jobs for the El-Awal notification engine.
@@ -87,6 +88,7 @@ export class SchedulersService implements OnModuleInit {
     private readonly notifications: NotificationsService,
     private readonly settingsService: NotificationSettingsService,
     private readonly whatsapp: WhatsAppService,
+    private readonly whatsappDispatcher: WhatsAppDispatcherService,
   ) {}
 
   onModuleInit() {
@@ -471,17 +473,8 @@ export class SchedulersService implements OnModuleInit {
         });
 
         if (targetPhone && force) {
-          const waResult = await this.whatsapp.sendTrackedProtectedMessage(targetPhone, body);
-          this.logger.log(
-            `[TeacherSchedule] Direct WhatsApp dispatch to ${targetPhone}: outcome=${waResult.outcome}, reason=${waResult.failureReason || 'OK'}`,
-          );
-          if (waResult.outcome !== 'sent') {
-            return {
-              success: false,
-              message: `تعذر إرسال رسالة الواتساب: ${waResult.failureReason || waResult.outcome}`,
-              dispatchedCount: 0,
-            };
-          }
+          // Immediately process the single queued message without waiting for the 10s poll cycle
+          await this.whatsappDispatcher.processNextQueuedMessage();
         }
 
         dispatchedCount++;
