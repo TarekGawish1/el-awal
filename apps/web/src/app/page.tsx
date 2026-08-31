@@ -317,19 +317,39 @@ const COURSES = [
   }
 ];
 
+const STAGES = [
+  { id: 'ALL', label: 'الكل' },
+  { id: 'SECONDARY', label: 'ثانوي' },
+  { id: 'MIDDLE', label: 'إعدادي' },
+  { id: 'PRIMARY', label: 'ابتدائي' }
+];
+
+const GRADES: Record<string, string[]> = {
+  SECONDARY: ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي'],
+  MIDDLE: ['الصف الأول الإعدادي', 'الصف الثاني الإعدادي', 'الصف الثالث الإعدادي'],
+  PRIMARY: ['الصف الخامس الابتدائي', 'الصف السادس الابتدائي']
+};
+
 function CoursesSection() {
   const [courses, setCourses] = useState<any[]>(COURSES);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
+  const [selectedStage, setSelectedStage] = useState<string>('ALL');
+  const [selectedGrade, setSelectedGrade] = useState<string>('ALL');
 
   useEffect(() => {
     async function fetchCourses() {
+      setIsLoading(true);
       try {
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.al-awal.online/api/v1';
-        const res = await fetch(`${baseUrl}/courses/catalog?limit=6`);
+        let url = `${baseUrl}/courses/catalog?limit=20`;
+        if (selectedStage !== 'ALL') url += `&academicStage=${encodeURIComponent(selectedStage)}`;
+        if (selectedGrade !== 'ALL') url += `&gradeLevel=${encodeURIComponent(selectedGrade)}`;
+        
+        const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
-          if (data.data && data.data.length > 0) {
+          if (data.data) {
             const mapped = data.data.map((c: any, index: number) => ({
               id: c.id,
               title: c.title,
@@ -350,7 +370,7 @@ function CoursesSection() {
       }
     }
     fetchCourses();
-  }, []);
+  }, [selectedStage, selectedGrade]);
 
   return (
     <section className="py-24 bg-white relative overflow-hidden" id="courses" dir="rtl">
@@ -406,9 +426,77 @@ function CoursesSection() {
           </motion.div>
         </div>
 
+        {/* Filters */}
+        <div className="mb-12 flex flex-col items-center gap-6">
+          <div className="flex flex-wrap items-center justify-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-100">
+            {STAGES.map((stage) => (
+              <button
+                key={stage.id}
+                onClick={() => {
+                  setSelectedStage(stage.id);
+                  setSelectedGrade('ALL');
+                }}
+                className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${
+                  selectedStage === stage.id
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                    : 'text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {stage.label}
+              </button>
+            ))}
+          </div>
+
+          <AnimatePresence mode="wait">
+            {selectedStage !== 'ALL' && GRADES[selectedStage] && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                className="flex flex-wrap items-center justify-center gap-2"
+              >
+                <button
+                  onClick={() => setSelectedGrade('ALL')}
+                  className={`px-5 py-2 rounded-xl font-semibold text-sm transition-colors border ${
+                    selectedGrade === 'ALL'
+                      ? 'bg-slate-800 text-white border-slate-800'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  جميع الصفوف
+                </button>
+                {GRADES[selectedStage].map((grade) => (
+                  <button
+                    key={grade}
+                    onClick={() => setSelectedGrade(grade)}
+                    className={`px-5 py-2 rounded-xl font-semibold text-sm transition-colors border ${
+                      selectedGrade === grade
+                        ? 'bg-slate-800 text-white border-slate-800'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    {grade}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
         {isLoading ? (
           <div className="flex justify-center items-center py-20">
             <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        ) : courses.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-slate-800 mb-2">لا توجد كورسات متاحة حالياً</h3>
+            <p className="text-slate-500">لم يتم إضافة كورسات تطابق اختيارك في الوقت الحالي.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
