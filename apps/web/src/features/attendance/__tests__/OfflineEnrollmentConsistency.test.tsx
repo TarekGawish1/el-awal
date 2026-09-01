@@ -21,6 +21,12 @@ vi.mock('@/lib/offline/db', () => {
 });
 
 vi.mock('@/lib/api/client', () => ({}));
+vi.mock('@/lib/api/endpoints', () => ({}));
+vi.mock('@/lib/offline/sync-engine', () => ({
+  syncEngine: {
+    syncNow: vi.fn(),
+  }
+}));
 vi.mock('@/features/attendance/api/attendance.api', () => ({
   attendanceApi: {
     recordAttendance: vi.fn(),

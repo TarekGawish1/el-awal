@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SyncService } from '../services/sync.service';
+import { CoursesService } from '../../courses/services/courses.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { GroupEnrollmentStatus } from '@prisma/client';
 
@@ -35,7 +36,7 @@ describe('SyncService - Offline Enrollment Defense in Depth', () => {
       providers: [
         SyncService,
         { provide: PrismaService, useValue: prismaMock },
-        { provide: 'COURSES_SERVICE_TOKEN', useValue: {} },
+        { provide: CoursesService, useValue: {} },
         { provide: 'CACHE_MANAGER', useValue: { get: jest.fn(), set: jest.fn(), del: jest.fn() } },
         { provide: 'SYNC_CACHE_SERVICE', useValue: {} },
       ],
