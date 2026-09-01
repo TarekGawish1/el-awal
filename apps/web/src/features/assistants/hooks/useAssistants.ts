@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api/client';
+import { apiClient as api } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
 
 export interface Assistant {

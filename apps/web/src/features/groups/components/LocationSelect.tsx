@@ -47,7 +47,7 @@ export function LocationSelect({
     const set = new Set<string>();
     DEFAULT_LOCATIONS.forEach((l) => set.add(l));
     groupLocations.forEach((l) => set.add(l));
-    customLocations.forEach((l) => set.add(l));
+    customLocations.forEach((l: string) => set.add(l));
     if (value && value.trim()) {
       set.add(value.trim());
     }
