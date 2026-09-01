@@ -2,7 +2,8 @@ import { Injectable, Logger, NotFoundException, BadRequestException, ConflictExc
 import { IsString, IsOptional, IsArray, IsEnum, IsEmail } from 'class-validator';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../../core/database/prisma.service';
-import { AssistantPermission, AssistantStatus, UserRole, NotificationType, NotificationChannel, NotificationStatus } from '@prisma/client';
+import { AssistantPermission, AssistantStatus, UserRole, NotificationType, NotificationChannel } from '@prisma/client';
+import { NotificationsService } from '../../notifications/services/notifications.service';
 
 export class InviteAssistantDto {
   @IsOptional()
@@ -62,7 +63,10 @@ export class UpdateAssistantDto {
 export class AssistantsService {
   private readonly logger = new Logger(AssistantsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   async listAssistants(teacherId: string) {
     const assistants = await this.prisma.teacherAssistant.findMany({
@@ -107,25 +111,30 @@ export class AssistantsService {
           isActive: true,
         }
       });
-
-      // Send WhatsApp credentials notification via worker queue
-      const messageText = `مرحباً ${user.fullName}،\nتم إنشاء حساب سكرتارية ومساعد لك.\n\nبيانات الدخول:\n- الهاتف: ${user.phone}\n- كلمة المرور: ${dto.password}\n\nرابط المنصة: https://al-awal.online/login`;
-      
-      await this.prisma.notification.create({
-        data: {
-          recipientId: user.id,
-          type: 'SYSTEM',
-          notificationType: NotificationType.GENERAL_ANNOUNCEMENT,
-          title: 'بيانات حساب المساعد',
-          message: messageText,
-          channels: [NotificationChannel.WHATSAPP],
-          whatsappStatus: NotificationStatus.PENDING,
-          data: { phone: dto.phone },
-        },
-      });
+    } else {
+      // If user exists (e.g. was previously added or deleted), update their password and name if provided
+      const updateData: any = {};
+      if (dto.password) {
+        updateData.passwordHash = await bcrypt.hash(dto.password, 10);
+      }
+      if (dto.fullName) {
+        updateData.fullName = dto.fullName;
+      }
+      if (dto.email && !user.email) {
+        updateData.email = dto.email;
+      }
+      if (user.role !== UserRole.SECRETARIAT && user.role !== UserRole.TEACHER) {
+        updateData.role = UserRole.SECRETARIAT;
+      }
+      if (Object.keys(updateData).length > 0) {
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: updateData,
+        });
+      }
     }
 
-    if (user.role !== UserRole.SECRETARIAT) {
+    if (user.role !== UserRole.SECRETARIAT && user.role !== UserRole.TEACHER) {
       throw new BadRequestException(`User is registered as ${user.role}. Only Secretariat accounts can be assistants.`);
     }
 
@@ -143,13 +152,37 @@ export class AssistantsService {
       data: {
         teacherId,
         assistantId: user.id,
-        status: AssistantStatus.ACTIVE, // Fast-tracking to ACTIVE for simplicity in MVP
+        status: AssistantStatus.ACTIVE,
         permissions: dto.permissions || [],
       },
       include: {
         assistant: { select: { id: true, fullName: true, phone: true } },
       },
     });
+
+    // Send WhatsApp notification with credentials
+    if (user.phone || dto.phone) {
+      const targetPhone = user.phone || dto.phone!;
+      const passText = dto.password ? `\n- كلمة المرور: ${dto.password}` : '';
+      const messageText = `مرحباً ${user.fullName}،\nتم إضافتك كمساعد وسكرتارية في منصة الأوّل.\n\nبيانات الدخول:\n- الهاتف: ${targetPhone}${passText}\n\nرابط المنصة: https://al-awal.online/login`;
+      
+      try {
+        await this.notificationsService.sendNotification({
+          recipientId: user.id,
+          type: 'ASSISTANT_CREDENTIALS',
+          notificationType: NotificationType.GENERAL_ANNOUNCEMENT,
+          title: 'بيانات حساب المساعد',
+          body: messageText,
+          channels: [NotificationChannel.WHATSAPP, NotificationChannel.IN_APP],
+          data: {
+            phone: targetPhone,
+          },
+        });
+        this.logger.log(`WhatsApp credentials notification queued for assistant ${user.fullName} (${targetPhone})`);
+      } catch (notifErr) {
+        this.logger.error(`Failed to send WhatsApp notification to assistant: ${notifErr}`);
+      }
+    }
 
     return newAssistant;
   }
@@ -179,21 +212,28 @@ export class AssistantsService {
       });
 
       if (dto.password || dto.phone) {
-        const passText = dto.password ? `\n- كلمة المرور: ${dto.password}` : '\n- كلمة المرور: (لم تتغير)';
-        const messageText = `مرحباً ${updatedUser.fullName}،\nتم تحديث بيانات حساب المساعد الخاص بك.\n\nبيانات الدخول:${passText}\n- الهاتف: ${updatedUser.phone}\n\nرابط المنصة: https://al-awal.online/login`;
-        
-        await this.prisma.notification.create({
-          data: {
-            recipientId: updatedUser.id,
-            type: 'SYSTEM',
-            notificationType: NotificationType.GENERAL_ANNOUNCEMENT,
-            title: 'تحديث بيانات حساب المساعد',
-            message: messageText,
-            channels: [NotificationChannel.WHATSAPP],
-            whatsappStatus: NotificationStatus.PENDING,
-            data: { phone: updatedUser.phone },
-          },
-        });
+        const targetPhone = updatedUser.phone || dto.phone;
+        if (targetPhone) {
+          const passText = dto.password ? `\n- كلمة المرور: ${dto.password}` : '\n- كلمة المرور: (لم تتغير)';
+          const messageText = `مرحباً ${updatedUser.fullName}،\nتم تحديث بيانات حساب المساعد الخاص بك في منصة الأوّل.\n\nبيانات الدخول:${passText}\n- الهاتف: ${updatedUser.phone}\n\nرابط المنصة: https://al-awal.online/login`;
+          
+          try {
+            await this.notificationsService.sendNotification({
+              recipientId: updatedUser.id,
+              type: 'ASSISTANT_CREDENTIALS',
+              notificationType: NotificationType.GENERAL_ANNOUNCEMENT,
+              title: 'تحديث بيانات حساب المساعد',
+              body: messageText,
+              channels: [NotificationChannel.WHATSAPP, NotificationChannel.IN_APP],
+              data: {
+                phone: targetPhone,
+              },
+            });
+            this.logger.log(`WhatsApp credentials update notification queued for assistant ${updatedUser.fullName} (${targetPhone})`);
+          } catch (notifErr) {
+            this.logger.error(`Failed to send WhatsApp update notification to assistant: ${notifErr}`);
+          }
+        }
       }
     }
 
