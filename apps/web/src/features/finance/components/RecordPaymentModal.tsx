@@ -221,7 +221,7 @@ export function RecordPaymentModal({
             ) : (
               <DollarSign className="w-5 h-5 text-primary" />
             )}
-            تسجيل عملية سداد
+            تسجيل مصروف / سداد
           </h2>
           <button
             onClick={onClose}

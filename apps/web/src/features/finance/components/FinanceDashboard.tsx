@@ -1,102 +1,104 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useGroups } from '@/features/groups/hooks/useGroups';
-import { useGroupDefaulters, usePayments, useDeletePayment } from '../hooks/useFinance';
+import { useGroupDefaulters, usePayments, useDeletePayment, useFinanceAnalytics } from '../hooks/useFinance';
+import { FinanceHeader } from './dashboard/FinanceHeader';
+import { FinancialKpiCards } from './dashboard/FinancialKpiCards';
+import { FinanceQuickActions } from './dashboard/FinanceQuickActions';
+import { FinanceFiltersBar } from './FinanceFiltersBar';
+import { RevenueBreakdownTable } from './dashboard/RevenueBreakdownTable';
+import { GroupFinancialList } from './dashboard/GroupFinancialList';
+import { OverdueStudentsWarning } from './dashboard/OverdueStudentsWarning';
+import { PaymentLedgerTable } from './dashboard/PaymentLedgerTable';
+import { FinanceQrScannerModal } from './dashboard/FinanceQrScannerModal';
+import { RecordPaymentModal } from './RecordPaymentModal';
 import { StudentHistoryModal } from './StudentHistoryModal';
-import { FinanceQrScanner } from './FinanceQrScanner';
-import { Card, CardHeader, CardContent } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
-import { Skeleton } from '@/components/ui/Skeleton';
-import { Alert } from '@/components/ui/Alert';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
-import { 
-  Users, 
-  DollarSign, 
-  AlertTriangle, 
-  History, 
-  Trash2, 
-  Calendar, 
-  Wallet, 
-  CheckCircle2,
-} from 'lucide-react';
 import { BookletManagementSection } from '@/features/booklets/components/BookletManagementSection';
-import { FinanceTabs, FinanceTab } from './FinanceTabs';
 import { FinancialMatrixLedger } from './FinancialMatrixLedger';
-import { ManualPaymentTab } from './ManualPaymentTab';
 import { FinanceAnalyticsTab } from './FinanceAnalyticsTab';
+import { DEFAULT_ACADEMIC_TERM, STORAGE_TERM_KEY, STORAGE_YEAR_KEY } from '@/features/groups/hooks/useAcademicPeriod';
 import toast from 'react-hot-toast';
 
-const ARABIC_MONTHS = [
-  'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
-  'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
-];
+function readStoredValue(key: string, fallback: string) {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || 'null');
+    return Array.isArray(value) && value[0] ? value[0] : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 export function FinanceDashboard() {
   const searchParams = useSearchParams();
   const paramGroupId = searchParams.get('groupId');
-  const paramYear = searchParams.get('year');
-  const paramMonth = searchParams.get('month');
   const paramTab = searchParams.get('tab');
   const paramStage = searchParams.get('stage') || '';
   const paramGradeLevel = searchParams.get('gradeLevel') || '';
 
+  const defaultYear = `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
+  const [academicYear, setAcademicYear] = useState(() => readStoredValue(STORAGE_YEAR_KEY, defaultYear));
+  const [academicTerm, setAcademicTerm] = useState<'FIRST_TERM' | 'SECOND_TERM'>(() => readStoredValue(STORAGE_TERM_KEY, DEFAULT_ACADEMIC_TERM) as 'FIRST_TERM' | 'SECOND_TERM');
+
   const [selectedGroupId, setSelectedGroupId] = useState<string>(paramGroupId || '');
-  const [periodYear, setPeriodYear] = useState<number>(
-    paramYear && !isNaN(Number(paramYear)) ? Number(paramYear) : new Date().getFullYear()
+  const [periodMonth, setPeriodMonth] = useState<number>(new Date().getMonth() + 1);
+  const [stage, setStage] = useState(paramStage);
+  const [gradeLevel, setGradeLevel] = useState(paramGradeLevel);
+  const [search, setSearch] = useState('');
+
+  const [activeTab, setActiveTab] = useState<any>(
+    paramTab === 'booklets' ? 'BOOKLETS' : paramTab === 'matrix' ? 'MATRIX' : paramTab === 'analytics' ? 'ANALYTICS' : 'OVERVIEW'
   );
-  const [periodMonth, setPeriodMonth] = useState<number>(
-    paramMonth && !isNaN(Number(paramMonth)) ? Number(paramMonth) : new Date().getMonth() + 1
-  );
-  const [activeTab, setActiveTab] = useState<FinanceTab>(
-    paramTab === 'booklets' ? 'BOOKLETS' : paramTab === 'matrix' ? 'MATRIX' : paramTab === 'analytics' ? 'ANALYTICS' : 'QR'
-  );
+
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const [historyStudentId, setHistoryStudentId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (paramGroupId) {
-      setSelectedGroupId(paramGroupId);
-    }
-    if (paramYear && !isNaN(Number(paramYear))) {
-      setPeriodYear(Number(paramYear));
-    }
-    if (paramMonth && !isNaN(Number(paramMonth))) {
-      setPeriodMonth(Number(paramMonth));
-    }
-    if (paramTab === 'booklets') {
-      setActiveTab('BOOKLETS');
-    } else if (paramTab === 'matrix') {
-      setActiveTab('MATRIX');
-    } else if (paramTab === 'analytics') {
-      setActiveTab('ANALYTICS');
-    }
-  }, [paramGroupId, paramYear, paramMonth, paramTab]);
+    const sync = () => {
+      setAcademicYear(readStoredValue(STORAGE_YEAR_KEY, defaultYear));
+      setAcademicTerm(readStoredValue(STORAGE_TERM_KEY, DEFAULT_ACADEMIC_TERM) as 'FIRST_TERM' | 'SECOND_TERM');
+    };
+    window.addEventListener('el_awal_academic_period_changed', sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener('el_awal_academic_period_changed', sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, [defaultYear]);
 
-  const { data: groups = [], isLoading: isGroupsLoading } = useGroups();
-  
-  const { 
-    data: defaultersData, 
-    isLoading: isDefaultersLoading,
-    isError: isDefaultersError
-  } = useGroupDefaulters(selectedGroupId, periodYear, periodMonth);
-  
-  const { 
-    data: paymentsData,
-    isLoading: isPaymentsLoading,
-  } = usePayments({ 
-    groupId: selectedGroupId || undefined, 
-    periodYear, 
-    periodMonth,
-    limit: 100
+  useEffect(() => {
+    if (paramGroupId) setSelectedGroupId(paramGroupId);
+    if (paramTab === 'booklets') setActiveTab('BOOKLETS');
+    else if (paramTab === 'matrix') setActiveTab('MATRIX');
+    else if (paramTab === 'analytics') setActiveTab('ANALYTICS');
+  }, [paramGroupId, paramTab]);
+
+  const { data: groups = [] } = useGroups();
+  const startYear = Number(academicYear.split('-')[0]) || new Date().getFullYear();
+  const periodYear = academicTerm === 'FIRST_TERM' && periodMonth === 1 ? startYear + 1 : academicTerm === 'SECOND_TERM' ? startYear + 1 : startYear;
+
+  const { data: analytics } = useFinanceAnalytics({
+    academicPeriodId: `${academicYear}:${academicTerm}`,
+    academicYear,
+    academicTerm,
+    stage: stage || undefined,
+    gradeLevel: gradeLevel || undefined,
+    groupId: selectedGroupId || undefined,
+    periodMonth: periodMonth || undefined,
   });
 
-  const [paymentToDelete, setPaymentToDelete] = useState<{ id: string; studentName: string } | null>(null);
+  const { data: defaultersData, isLoading: isDefaultersLoading } = useGroupDefaulters(selectedGroupId, periodYear, periodMonth);
+  const { data: paymentsData, isLoading: isPaymentsLoading } = usePayments({ groupId: selectedGroupId || undefined, periodYear, periodMonth, limit: 100 });
   const { mutate: deletePayment, isPending: isDeleting } = useDeletePayment();
 
-  const handleDelete = (id: string, studentName: string) => {
-    setPaymentToDelete({ id, studentName });
+  const [paymentToDelete, setPaymentToDelete] = useState<{ id: string; studentName: string } | null>(null);
+
+  const handleDelete = (payment: any) => {
+    setPaymentToDelete({ id: payment.id, studentName: payment.student?.user?.fullName || '' });
   };
 
   const handleConfirmDelete = () => {
@@ -110,215 +112,121 @@ export function FinanceDashboard() {
     });
   };
 
-  const months = Array.from({ length: 12 }, (_, i) => i + 1);
-  const years = [new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1];
+  const handleActionClick = (id: string) => {
+    if (id === 'QR') setIsQrModalOpen(true);
+    else if (id === 'MANUAL') setIsRecordModalOpen(true);
+    else setActiveTab(id);
+  };
+
+  const allStudents = (defaultersData?.defaulters || []).map((student) => ({
+    id: student.studentId,
+    fullName: student.fullName,
+    studentCode: student.studentCode || undefined,
+    gradeLevel: student.gradeLevel,
+    groupId: selectedGroupId,
+  }));
+
+  const visibleGroups = useMemo(() => {
+    const value = search.trim().toLocaleLowerCase();
+    return (analytics?.groups || []).filter((group) => {
+      if (!value) return true;
+      return group.name.toLocaleLowerCase().includes(value) || group.gradeLevel.toLocaleLowerCase().includes(value);
+    });
+  }, [analytics?.groups, search]);
 
   const payments = paymentsData?.pages[0]?.data || [];
-  return (
-    <div className="max-w-6xl mx-auto py-4 sm:py-8 px-2 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
-      {/* Header */}
-      <div className="bg-white p-5 sm:p-8 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-full h-2 bg-gradient-to-r from-primary-400 to-primary-600"></div>
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">إدارة المصروفات وسداد الطلاب</h1>
-          <p className="mt-1 sm:mt-3 text-slate-500 text-sm sm:text-lg">
-            امسح رمز الـ QR الخاص بأي طالب مباشرة لتسجيل سداد المصروفات فورياً وتحديد مجموعته أو مذكراته تلقائياً.
-          </p>
-        </div>
-      </div>
 
-      <FinanceTabs activeTab={activeTab} onChange={setActiveTab} />
+  return (
+    <div className="max-w-7xl mx-auto py-4 sm:py-8 px-2 sm:px-6 lg:px-8 space-y-5 sm:space-y-6 animate-in fade-in duration-300">
+      <FinanceHeader />
+
+      <FinanceQuickActions activeTab={activeTab} onChange={handleActionClick} />
 
       {activeTab === 'BOOKLETS' ? (
         <BookletManagementSection groups={groups} />
       ) : activeTab === 'MATRIX' ? (
-        <FinancialMatrixLedger groups={groups} initialStage={paramStage} initialGradeLevel={paramGradeLevel} initialGroupId={paramGroupId || ''} />
+        <FinancialMatrixLedger groups={groups} initialStage={stage} initialGradeLevel={gradeLevel} initialGroupId={selectedGroupId || ''} />
       ) : activeTab === 'ANALYTICS' ? (
         <FinanceAnalyticsTab groups={groups} />
-      ) : activeTab === 'MANUAL' ? (
-        <ManualPaymentTab groups={groups} initialPeriodYear={periodYear} initialPeriodMonth={periodMonth} initialGroupId={selectedGroupId} />
       ) : (
         <>
-          {/* Filters Toolbar */}
-          <div className="bg-white p-4 sm:p-5 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 flex flex-wrap gap-4 items-end">
-            <div className="flex-1 min-w-[250px] py-2 text-slate-500 text-xs flex items-center gap-2 bg-slate-50/70 px-4 rounded-xl border border-slate-100">
-              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></div>
-              <span className="font-medium text-slate-600">
-                الماسح الذكي يتعرف تلقائياً على مجموعة الطالب وقيمة اشتراكه أو مذكراته فور قراءة الرمز.
-              </span>
-            </div>
+          <FinanceFiltersBar
+            groups={groups}
+            stage={stage}
+            gradeLevel={gradeLevel}
+            groupId={selectedGroupId}
+            academicYear={academicYear}
+            academicTerm={academicTerm}
+            periodMonth={periodMonth}
+            search={search}
+            onStageChange={(s) => { setStage(s); setGradeLevel(''); setSelectedGroupId(''); }}
+            onGradeChange={(g) => { setGradeLevel(g); setSelectedGroupId(''); }}
+            onGroupChange={setSelectedGroupId}
+            onTermChange={(t) => {
+              setAcademicTerm(t);
+              try {
+                localStorage.setItem(STORAGE_TERM_KEY, JSON.stringify([t]));
+                window.dispatchEvent(new Event('el_awal_academic_period_changed'));
+              } catch {}
+            }}
+            onMonthChange={setPeriodMonth}
+            onSearchChange={setSearch}
+          />
 
-            {/* Period Selector */}
-            <div className="flex gap-2 w-full sm:w-auto">
-              <div className="w-1/2 sm:w-28">
-                <label className="block text-xs font-semibold text-neutral-700 mb-1.5 flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5 text-primary-600" />
-                  الشهر
-                </label>
-                <select
-                  className="w-full h-11 rounded-xl border border-slate-200 px-3 text-sm font-semibold focus:ring-2 focus:ring-primary/20 bg-white"
-                  value={periodMonth}
-                  onChange={(e) => setPeriodMonth(Number(e.target.value))}
-                >
-                  {months.map((m) => (
-                    <option key={m} value={m}>
-                      {m} ({ARABIC_MONTHS[m - 1]})
-                    </option>
-                  ))}
-                </select>
-              </div>
+          {analytics?.overview && <FinancialKpiCards overview={analytics.overview} />}
 
-              <div className="w-1/2 sm:w-28">
-                <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
-                  السنة
-                </label>
-                <select
-                  className="w-full h-11 rounded-xl border border-slate-200 px-3 text-sm font-semibold focus:ring-2 focus:ring-primary/20 bg-white"
-                  value={periodYear}
-                  onChange={(e) => setPeriodYear(Number(e.target.value))}
-                >
-                  {years.map((y) => (
-                    <option key={y} value={y}>
-                      {y}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Main Mode View */}
-          <div className="space-y-6">
-            <Card className="rounded-2xl sm:rounded-3xl border-slate-100 overflow-hidden shadow-sm">
-              <CardContent className="p-6">
-                <FinanceQrScanner
-                  groupId={selectedGroupId || undefined}
-                  periodYear={periodYear}
-                  periodMonth={periodMonth}
-                />
-              </CardContent>
-            </Card>
-          </div>
-          {/* Bottom Dual Lists: Defaulters & Paid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Defaulters Section */}
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col h-[450px] overflow-hidden">
-              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h2 className="font-bold text-slate-800 flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-red-500" />
-                  الطلاب المتأخرين {selectedGroupId ? `(${defaultersData?.totalDefaulters || 0})` : ''}
-                </h2>
-              </div>
-            
-            <div className="p-4 flex-1 overflow-y-auto">
-              {!selectedGroupId ? (
-                <div className="text-center py-12">
-                  <div className="w-12 h-12 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <Users className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-sm font-bold text-slate-800">اختر مجموعة</h3>
-                  <p className="text-xs text-slate-500 mt-1">اختر مجموعة من القائمة لعرض المتأخرين فيها.</p>
-                </div>
-              ) : isDefaultersLoading ? (
-                <div className="space-y-3">
-                  <Skeleton className="h-16 w-full rounded-lg" />
-                  <Skeleton className="h-16 w-full rounded-lg" />
-                </div>
-              ) : isDefaultersError ? (
-                <Alert variant="error"><p>حدث خطأ أثناء جلب البيانات</p></Alert>
-              ) : defaultersData?.defaulters.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-12 h-12 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <DollarSign className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-sm font-bold text-slate-800">لا يوجد متأخرين</h3>
-                  <p className="text-xs text-slate-500 mt-1">جميع طلاب هذه المجموعة سددوا مصروفات هذا الشهر.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {defaultersData?.defaulters.map((student) => (
-                    <div key={student.studentId} className="flex items-center justify-between p-3 rounded-xl border border-red-100 bg-red-50/30">
-                      <div>
-                        <p className="font-bold text-sm text-slate-800">{student.fullName}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">المطلوب: {student.monthlyFeeExpected} ج.م</p>
-                      </div>
-                      <Button variant="outline" size="sm" className="h-8 text-xs bg-white rounded-lg" onClick={() => setHistoryStudentId(student.studentId)}>
-                        <History className="w-3 h-3 ml-1" />
-                        سجل السداد
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Paid Students Section */}
-          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col h-[450px] overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h2 className="font-bold text-slate-800 flex items-center gap-2">
-                <Wallet className="w-5 h-5 text-green-500" />
-                سجل المدفوعات المسجلة ({payments.length})
-              </h2>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-12">
+              <OverdueStudentsWarning 
+                students={defaultersData?.defaulters || []} 
+                groupId={selectedGroupId} 
+                isLoading={isDefaultersLoading}
+                onOpenHistory={setHistoryStudentId}
+              />
             </div>
             
-            <div className="p-4 flex-1 overflow-y-auto">
-              {isPaymentsLoading ? (
-                <div className="space-y-3">
-                  <Skeleton className="h-16 w-full rounded-lg" />
-                  <Skeleton className="h-16 w-full rounded-lg" />
-                </div>
-              ) : payments.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-12 h-12 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <History className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-sm font-bold text-slate-800">لا توجد دفعات مسجلة</h3>
-                  <p className="text-xs text-slate-500 mt-1">لم يتم تسجيل أي دفعات لهذا الشهر بعد.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {payments.map((payment) => (
-                    <div key={payment.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50 hover:bg-slate-100 transition-colors">
-                      <div>
-                        <p className="font-bold text-sm text-slate-800">{payment.student?.user?.fullName || 'طالب'}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge variant="success" className="text-[10px] h-5">تم الدفع {payment.amountPaid} ج.م</Badge>
-                          {payment.group?.name && (
-                            <span className="text-[10px] font-medium text-slate-600 bg-slate-200/60 px-1.5 py-0.5 rounded">
-                              {payment.group.name}
-                            </span>
-                          )}
-                          {payment.receiptNumber && (
-                            <span className="text-[10px] text-slate-500">إيصال: {payment.receiptNumber}</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button 
-                          className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
-                          onClick={() => setHistoryStudentId(payment.studentId)}
-                          title="سجل الطالب"
-                        >
-                          <History className="w-4 h-4" />
-                        </button>
-                        <button 
-                          className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                          onClick={() => handleDelete(payment.id, payment.student?.user?.fullName || '')}
-                          disabled={isDeleting}
-                          title="حذف الدفعة"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+            <div className="lg:col-span-5 space-y-6">
+              {analytics?.overview && <RevenueBreakdownTable overview={analytics.overview} />}
             </div>
-          </div>
+
+            <div className="lg:col-span-7 space-y-6">
+              <GroupFinancialList 
+                groups={visibleGroups} 
+                onOpenGroup={(g) => { setSelectedGroupId(g.id); setStage(''); setGradeLevel(''); }} 
+              />
+            </div>
+
+            <div className="lg:col-span-12">
+              <PaymentLedgerTable 
+                payments={payments as any} 
+                isLoading={isPaymentsLoading}
+                onOpenHistory={setHistoryStudentId}
+                onDeletePayment={handleDelete}
+                isDeleting={isDeleting}
+              />
+            </div>
           </div>
         </>
+      )}
+
+      {/* Modals */}
+      <FinanceQrScannerModal 
+        isOpen={isQrModalOpen}
+        onClose={() => setIsQrModalOpen(false)}
+        groupId={selectedGroupId}
+        periodYear={periodYear}
+        periodMonth={periodMonth}
+      />
+      
+      {isRecordModalOpen && (
+        <RecordPaymentModal 
+          isOpen 
+          onClose={() => setIsRecordModalOpen(false)} 
+          groupId={selectedGroupId} 
+          periodYear={periodYear} 
+          periodMonth={periodMonth} 
+          allStudents={allStudents} 
+        />
       )}
 
       {historyStudentId && (
