@@ -37,6 +37,9 @@ describe('AssessmentsService', () => {
       findUnique: jest.fn(),
     },
     studentAnswer: {
+      findFirst: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
       updateMany: jest.fn(),
       findMany: jest.fn(),
     },
@@ -60,6 +63,13 @@ describe('AssessmentsService', () => {
     prisma = module.get<PrismaService>(PrismaService);
     eventEmitter = module.get<EventEmitter2>(EventEmitter2);
     jest.clearAllMocks();
+
+    mockPrismaService.$transaction.mockImplementation((cb: any) => {
+      if (typeof cb === 'function') {
+        return cb(mockPrismaService);
+      }
+      return Promise.all(cb);
+    });
   });
 
   describe('getAssessmentById (Zero-Leak Projection)', () => {
@@ -679,6 +689,81 @@ describe('AssessmentsService', () => {
       await expect(
         service.submitAssessment(assessmentId, studentUser, { answers: [] }),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('gradeSubmission (Manual Scoring & Dynamic Recomputation)', () => {
+    const submissionId = 'sub-grade-1';
+    const teacherId = 'teacher-1';
+
+    it('rejects grading if question score exceeds question max points', async () => {
+      mockPrismaService.assessmentSubmission.findUnique.mockResolvedValue({
+        id: submissionId,
+        assessment: {
+          teacherId,
+          totalScore: 10,
+          passingScore: 5,
+          questions: [
+            { id: 'q1', points: 5 },
+            { id: 'q2', points: 5 },
+          ],
+        },
+        answers: [],
+      });
+
+      await expect(
+        service.gradeSubmission(submissionId, teacherId, false, {
+          manualGrades: [{ questionId: 'q1', pointsEarned: 8 }],
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('updates scores, marks submission GRADED, and evaluates isPassed', async () => {
+      mockPrismaService.assessmentSubmission.findUnique.mockResolvedValue({
+        id: submissionId,
+        assessmentId: 'exam-1',
+        studentId: 'student-1',
+        assessment: {
+          teacherId,
+          totalScore: 10,
+          passingScore: 5,
+          questions: [
+            { id: 'q1', points: 5 },
+            { id: 'q2', points: 5 },
+          ],
+        },
+        answers: [],
+      });
+
+      mockPrismaService.studentAnswer.findFirst.mockResolvedValue({ id: 'ans-1' });
+      mockPrismaService.studentAnswer.update.mockResolvedValue({});
+      mockPrismaService.studentAnswer.findMany.mockResolvedValue([
+        { pointsEarned: 4 },
+        { pointsEarned: 3 },
+      ]);
+      mockPrismaService.assessmentSubmission.update.mockResolvedValue({
+        id: submissionId,
+        assessmentId: 'exam-1',
+        status: SubmissionStatus.GRADED,
+        scoreObtained: 7,
+        isPassed: true,
+        teacherFeedback: 'أحسنت',
+        gradedAt: new Date(),
+        answers: [],
+        student: { user: { fullName: 'طالب مجتهد' } },
+      });
+
+      const res = await service.gradeSubmission(submissionId, teacherId, false, {
+        manualGrades: [
+          { questionId: 'q1', pointsEarned: 4, teacherFeedback: 'ممتاز' },
+          { questionId: 'q2', pointsEarned: 3 },
+        ],
+        feedback: 'أحسنت',
+      });
+
+      expect(res.status).toBe(SubmissionStatus.GRADED);
+      expect(res.scoreObtained).toBe(7);
+      expect(res.isPassed).toBe(true);
     });
   });
 });

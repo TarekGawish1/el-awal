@@ -177,12 +177,15 @@ export interface AssessmentSubmissionDetail {
     };
   };
   assessment: AssessmentDetail;
+  attemptNumber?: number;
   status: SubmissionStatus;
   scoreObtained: number | null;
   isPassed: boolean;
   isAutoGraded: boolean;
   submittedAt: string | null;
   gradedAt: string | null;
+  teacherFeedback?: string | null;
+  feedback?: string | null;
   answers: StudentAnswer[];
 }
 

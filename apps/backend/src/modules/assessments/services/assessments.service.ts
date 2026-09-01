@@ -1073,7 +1073,9 @@ export class AssessmentsService {
     const submission = await this.prisma.assessmentSubmission.findUnique({
       where: { id: submissionId },
       include: {
-        assessment: true,
+        assessment: {
+          include: { questions: true },
+        },
         answers: true,
       },
     });
@@ -1091,20 +1093,50 @@ export class AssessmentsService {
       );
     }
 
+    // Validate per-question score limits against question max points
+    const questionMap = new Map(submission.assessment.questions.map((q) => [q.id, q]));
+    for (const grade of dto.manualGrades) {
+      const q = questionMap.get(grade.questionId);
+      if (q && grade.pointsEarned > Number(q.points)) {
+        throw new BadRequestException(
+          `الدرجة الممنوحة للسؤال (${grade.pointsEarned}) تتجاوز الحد الأقصى للسؤال (${Number(q.points)})`,
+        );
+      }
+    }
+
     return this.prisma.$transaction(async (tx) => {
-      // 1. Update manual grades for specified questions
+      // 1. Update or create grades for specified questions
       for (const grade of dto.manualGrades) {
-        await tx.studentAnswer.updateMany({
+        const existingAnswer = await tx.studentAnswer.findFirst({
           where: {
             submissionId,
             questionId: grade.questionId,
           },
-          data: {
-            pointsEarned: grade.pointsEarned,
-            teacherFeedback: grade.teacherFeedback,
-            isCorrect: grade.pointsEarned > 0,
-          },
         });
+
+        if (existingAnswer) {
+          await tx.studentAnswer.update({
+            where: { id: existingAnswer.id },
+            data: {
+              pointsEarned: grade.pointsEarned,
+              teacherFeedback: grade.teacherFeedback,
+              isCorrect: grade.pointsEarned > 0,
+            },
+          });
+        } else {
+          const q = questionMap.get(grade.questionId);
+          await tx.studentAnswer.create({
+            data: {
+              submissionId,
+              questionId: grade.questionId,
+              selectedAnswer: '',
+              pointsEarned: grade.pointsEarned,
+              maxPointsSnapshot: q?.points ?? 1,
+              teacherFeedback: grade.teacherFeedback,
+              isCorrect: grade.pointsEarned > 0,
+            },
+          });
+        }
       }
 
       // 2. Recompute total score across all answers
@@ -1116,6 +1148,16 @@ export class AssessmentsService {
         (sum, a) => sum + (Number(a.pointsEarned) || 0),
         0,
       );
+
+      const maxTotal = Number(submission.assessment.totalScore);
+      if (totalScore > maxTotal) {
+        throw new BadRequestException(
+          `مجموع الدرجات (${totalScore}) يتجاوز الدرجة الكلية للاختبار (${maxTotal})`,
+        );
+      }
+
+      const passingScore = Number(submission.assessment.passingScore || 0);
+      const isPassed = totalScore >= passingScore;
 
       // 3. Mark submission as GRADED
       const updatedSubmission = await tx.assessmentSubmission.update({
@@ -1142,19 +1184,20 @@ export class AssessmentsService {
       });
 
       this.logger.log(
-        `Submission [${submissionId}] manually graded. Score: ${totalScore}/${submission.assessment.totalScore}`,
+        `Submission [${submissionId}] manually graded. Score: ${totalScore}/${maxTotal}`,
       );
 
       return {
         id: updatedSubmission.id,
         assessmentId: updatedSubmission.assessmentId,
-        student: updatedSubmission.student,
+        student: (updatedSubmission as any).student,
         status: updatedSubmission.status,
         scoreObtained: Number(updatedSubmission.scoreObtained),
-        totalScore: Number(submission.assessment.totalScore),
+        totalScore: maxTotal,
+        isPassed,
         teacherFeedback: updatedSubmission.teacherFeedback,
         gradedAt: updatedSubmission.gradedAt,
-        answers: updatedSubmission.answers,
+        answers: (updatedSubmission as any).answers,
       };
     });
   }
