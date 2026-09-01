@@ -16,6 +16,7 @@ import { PrismaService } from '../../../core/database/prisma.service';
 import { WhatsAppService } from '../../../services/whatsapp/whatsapp.service';
 import {
   formatAbsenceMessage,
+  formatAssistantCredentialsMessage,
   formatExamFailedMessage,
   formatGenericMessage,
   formatGroupReservationPendingMessage,
@@ -371,6 +372,14 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
         studentName: (data?.studentName as string) || 'الطالب',
         groupName: data?.groupName as string | undefined,
         centerName: (data?.centerName as string) || 'منصة الأوّل التعليمية',
+      });
+    } else if (notification.type === 'ASSISTANT_CREDENTIALS') {
+      message = formatAssistantCredentialsMessage({
+        assistantName: (data?.assistantName as string) || notification.recipient?.fullName || '',
+        phone: (data?.phone as string) || '',
+        password: data?.password as string | undefined,
+        platformUrl: (data?.platformUrl as string) || process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online/login',
+        isUpdate: Boolean(data?.isUpdate),
       });
     } else {
       switch (notification.notificationType) {

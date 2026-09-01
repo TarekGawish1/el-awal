@@ -280,6 +280,10 @@ export class WhatsAppWorker implements OnModuleInit, OnModuleDestroy {
         );
 
       default: {
+        if (notification.type === 'ASSISTANT_CREDENTIALS') {
+          return notification.message;
+        }
+
         // Generic spintax with title + body variation
         const phone = data?.phone as string | undefined;
         const paymentAmount = data?.amount as number | undefined;

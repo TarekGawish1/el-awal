@@ -38,6 +38,13 @@ const GREETINGS = [
   'مساء الخير / صباح الخير، ولي أمر الطالب الكريم،',
 ];
 
+const ASSISTANT_GREETINGS = [
+  'السلام عليكم ورحمة الله وبركاته،',
+  'تحية طيبة وبعد، أ/ المساعد المحترم،',
+  'أهلاً وسهلاً بحضرتك،',
+  'مساء الخير / صباح الخير،',
+];
+
 const CLOSINGS = [
   'يرجى التواصل مع إدارة السنتر لمزيد من المتابعة.',
   'شاكرين حسن تعاونكم وحرصكم الدائم على مسيرة أبنائكم.',
@@ -510,3 +517,40 @@ export function formatGenericMessage(title: string, body: string): string {
   if (sig) parts.push('\n' + sig);
   return parts.join('\n');
 }
+
+export function formatAssistantCredentialsMessage(data: {
+  assistantName: string;
+  phone: string;
+  password?: string;
+  platformUrl?: string;
+  isUpdate?: boolean;
+}): string {
+  const greeting = pickRandom(ASSISTANT_GREETINGS);
+  const name = data.assistantName ? `أ/ ${data.assistantName}` : 'المساعد المحترم';
+  const actionText = data.isUpdate
+    ? 'تم تحديث بيانات حساب المساعد الخاص بك في منصة الأوّل.'
+    : 'تم إضافتك كمساعد وسكرتارية في منصة الأوّل.';
+
+  const passLine = data.password ? `\n- 🔑 كلمة المرور: \`${data.password}\`` : (data.isUpdate ? '\n- 🔑 كلمة المرور: (لم تتغير)' : '');
+  const url = data.platformUrl || 'https://al-awal.online/login';
+
+  const lines = [
+    greeting,
+    '',
+    `*بيانات حساب المساعد*`,
+    '',
+    `مرحباً ${name}،`,
+    actionText,
+    '',
+    `📌 *بيانات الدخول:*`,
+    `- 📱 الهاتف: \`${data.phone}\`${passLine}`,
+    '',
+    `🔗 رابط تسجيل الدخول: ${url}`,
+    '',
+    'نتمنى لك التوفيق دائماً 🌟',
+    '— إدارة منصة الأوّل 🎓',
+  ];
+
+  return lines.join('\n');
+}
+
