@@ -13,6 +13,7 @@ describe('SyncService - Offline Payments Duplicate Prevention', () => {
   const mockUpdate = jest.fn();
   const mockFindUnique = jest.fn();
   const mockFindFirst = jest.fn();
+  const mockBookletFindUnique = jest.fn();
   
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -31,13 +32,13 @@ describe('SyncService - Offline Payments Duplicate Prevention', () => {
             findUnique: jest.fn().mockResolvedValue({ monthlyFee: 500 }),
           },
           studentProfile: {
-            findUnique: jest.fn().mockResolvedValue({ id: 'student-1', groupEnrollments: [] }),
+            findUnique: jest.fn().mockResolvedValue({ id: 'student-1', groupId: 'group-1', groupEnrollments: [{ groupId: 'group-1' }] }),
           },
           groupEnrollment: {
             updateMany: jest.fn(),
           },
           booklet: {
-            findUnique: mockFindUnique, // Re-use this for simplicity
+            findUnique: mockBookletFindUnique,
           }
         });
       }),
@@ -258,7 +259,7 @@ describe('SyncService - Offline Payments Duplicate Prevention', () => {
 
   it('10. Booklet stale price resolution', async () => {
     mockFindUnique.mockResolvedValueOnce(null); // op
-    mockFindUnique.mockResolvedValueOnce({ id: 'booklet-1', price: 100, groupId: 'group-1' }); // booklet
+    mockBookletFindUnique.mockResolvedValueOnce({ id: 'booklet-1', price: 100, groupId: 'group-1' }); // booklet
     mockFindFirst.mockResolvedValueOnce(null); // existing payment
 
     // Client expects 50, Server expects 100
@@ -274,7 +275,8 @@ describe('SyncService - Offline Payments Duplicate Prevention', () => {
     };
     mockCreate.mockResolvedValueOnce({ id: 'payment-9' });
 
-    await syncService.syncPaymentsBatch(user, { operations: [bookletOp] } as any);
+    const result = await syncService.syncPaymentsBatch(user, { operations: [bookletOp] } as any);
+    console.log("TEST 10 RESULT:", JSON.stringify(result, null, 2));
 
     expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
