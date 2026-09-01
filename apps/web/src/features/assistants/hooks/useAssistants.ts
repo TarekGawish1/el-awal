@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient as api } from '@/lib/api/client';
+import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
 
 export interface Assistant {
@@ -26,14 +26,17 @@ export function useAssistants() {
   const query = useQuery({
     queryKey,
     queryFn: async () => {
-      const { data } = await api.get<Assistant[]>(API_ENDPOINTS.TEACHER.ASSISTANTS.LIST);
+      const data = await apiClient<Assistant[]>(API_ENDPOINTS.TEACHER.ASSISTANTS.LIST);
       return data;
     },
   });
 
   const inviteMutation = useMutation({
     mutationFn: async (payload: { phone?: string; email?: string }) => {
-      const { data } = await api.post<Assistant>(API_ENDPOINTS.TEACHER.ASSISTANTS.INVITE, payload);
+      const data = await apiClient<Assistant>(API_ENDPOINTS.TEACHER.ASSISTANTS.INVITE, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
       return data;
     },
     onSuccess: () => {
@@ -43,7 +46,10 @@ export function useAssistants() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, payload }: { id: string; payload: Partial<Assistant> }) => {
-      const { data } = await api.put<Assistant>(API_ENDPOINTS.TEACHER.ASSISTANTS.MANAGE(id), payload);
+      const data = await apiClient<Assistant>(API_ENDPOINTS.TEACHER.ASSISTANTS.MANAGE(id), {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
       return data;
     },
     onSuccess: () => {
@@ -53,7 +59,9 @@ export function useAssistants() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await api.delete(API_ENDPOINTS.TEACHER.ASSISTANTS.MANAGE(id));
+      await apiClient(API_ENDPOINTS.TEACHER.ASSISTANTS.MANAGE(id), {
+        method: 'DELETE',
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
