@@ -10,9 +10,9 @@ import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
 import { AttendanceReportCard } from '@/features/attendance/components/AttendanceReportCard';
 import { QrScanner } from '@/features/attendance/components/QrScanner';
-import { ManualAttendanceRoster } from '@/features/attendance/components/ManualAttendanceRoster';
 import { QrHomeworkScanner } from '@/features/attendance/components/QrHomeworkScanner';
 import { SearchableSessionCombobox } from '@/features/attendance/components/SearchableSessionCombobox';
+import { SessionLogbook } from '@/features/attendance/components/SessionLogbook';
 
 import { useTeacherSessions } from '@/features/schedules/hooks/useSchedules';
 import { RotateCcw, MapPin, Calendar, Users, QrCode, ClipboardList, BookOpen, Sparkles, ClipboardCheck, SlidersHorizontal, X, Clock } from 'lucide-react';
@@ -65,7 +65,7 @@ function TeacherAttendanceContent() {
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>(paramSessionId || '');
-  const [activeTab, setActiveTab] = useState<'QR' | 'MANUAL' | 'QR_HOMEWORK'>('QR');
+  const [activeTab, setActiveTab] = useState<'QR' | 'QR_HOMEWORK' | 'LOGBOOK'>('QR');
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
 
   const { data: groups } = useGroups();
@@ -570,15 +570,15 @@ function TeacherAttendanceContent() {
                   QR للواجب
                 </button>
                 <button
-                  onClick={() => setActiveTab('MANUAL')}
+                  onClick={() => setActiveTab('LOGBOOK')}
                   className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold rounded-lg transition-all ${
-                    activeTab === 'MANUAL' 
+                    activeTab === 'LOGBOOK' 
                     ? 'bg-white text-primary-700 shadow-sm border border-slate-200' 
                     : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
                   }`}
                 >
                   <ClipboardList className="w-4 h-4" />
-                  يدوي
+                  الدفتر الشامل
                 </button>
               </div>
             </div>
@@ -589,12 +589,7 @@ function TeacherAttendanceContent() {
              <div className="absolute top-0 right-0 h-1.5 w-full bg-gradient-to-r from-transparent via-primary-500/20 to-primary-500 rounded-t-2xl"></div>
             {activeTab === 'QR' && <QrScanner sessionId={selectedSessionId} />}
             {activeTab === 'QR_HOMEWORK' && <QrHomeworkScanner sessionId={selectedSessionId} />}
-            {activeTab === 'MANUAL' && (
-              <ManualAttendanceRoster 
-                sessionId={selectedSessionId} 
-                records={report?.records || []} 
-              />
-            )}
+            {activeTab === 'LOGBOOK' && <SessionLogbook sessionId={selectedSessionId} />}
           </div>
           
         </div>
