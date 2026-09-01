@@ -65,6 +65,7 @@ export function QrHomeworkScanner({
   } | null>(null);
   
   const [checkedCount, setCheckedCount] = useState<number>(0);
+  const [localHomeworkRecords, setLocalHomeworkRecords] = useState<any[]>([]);
   const { data: sessionReport } = useSessionReport(sessionId);
 
   useEffect(() => {
@@ -107,6 +108,7 @@ export function QrHomeworkScanner({
       .getHomeworkRecordsForSession(sessionId, assessmentId)
       .then((records) => {
         if (isMounted) {
+          setLocalHomeworkRecords(records);
           const localCount = records.length;
           const serverCount = sessionReport?.homeworkRecords?.length ?? 0;
           setCheckedCount(Math.max(localCount, serverCount));
@@ -304,6 +306,18 @@ export function QrHomeworkScanner({
       });
       toast.success(`تم استلام الواجب: ${studentName}`);
 
+      // Update local homework records state
+      setLocalHomeworkRecords((prev) => {
+        const newRecords = [...prev];
+        const existingIdx = newRecords.findIndex((r) => r.studentId === scannedStudent.id);
+        if (existingIdx !== -1) {
+          newRecords[existingIdx].status = status;
+        } else {
+          newRecords.push({ studentId: scannedStudent.id, status });
+        }
+        return newRecords;
+      });
+
       if (onSuccess) {
         onSuccess(scannedStudent);
       }
@@ -316,6 +330,41 @@ export function QrHomeworkScanner({
         setLocked(false);
         setFlashType(null);
       }, 1000);
+    }
+  };
+
+  const handleManualRecord = async (student: any, status: 'CHECKED_ONSITE' | 'NOT_SUBMITTED' | 'INCOMPLETE' | 'EXCUSED') => {
+    try {
+      const studentName = student.fullName || student.studentName || 'طالب';
+      const studentCode = student.studentCode || '';
+
+      await offlineDb.recordHomeworkOnsiteOffline({
+        assessmentId,
+        studentId: student.studentId || student.id,
+        sessionId,
+        status,
+        recordedMethod: 'MANUAL',
+        studentName,
+        studentCode,
+        qrCodeToken: student.qrCodeToken || '',
+      });
+
+      toast.success(`تم استلام الواجب: ${studentName}`);
+      
+      setLocalHomeworkRecords((prev) => {
+        const newRecords = [...prev];
+        const existingIdx = newRecords.findIndex((r) => r.studentId === (student.studentId || student.id));
+        if (existingIdx !== -1) {
+          newRecords[existingIdx].status = status;
+        } else {
+          newRecords.push({ studentId: student.studentId || student.id, status });
+          setCheckedCount((c) => c + 1);
+        }
+        return newRecords;
+      });
+
+    } catch (err: any) {
+      toast.error('حدث خطأ أثناء رصد الواجب يدوياً');
     }
   };
 
@@ -504,53 +553,90 @@ export function QrHomeworkScanner({
           )}
 
           <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                <span>الطلاب الذين تم مسحهم مؤخراً ({recentChecked.length})</span>
+            <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
+              <h4 className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                <ClipboardCheck className="w-4 h-4 text-primary-500" />
+                <span>قائمة الطلاب (تسجيل يدوي)</span>
               </h4>
+              <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-bold">
+                {sessionReport?.records?.length || 0} طالب
+              </span>
             </div>
 
-            {recentChecked.length === 0 ? (
+            {(!sessionReport?.records || sessionReport.records.length === 0) ? (
               <div className="text-center py-8 text-slate-400 text-xs">
-                لم يتم فحص أي واجب بعد.
+                لا توجد بيانات طلاب لهذه الحصة بعد.
               </div>
             ) : (
-              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                {recentChecked.map((item, idx) => (
-                  <div
-                    key={`${item.studentId}-${idx}`}
-                    className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100 hover:bg-slate-100/70 transition-colors text-xs"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${
-                        item.status === 'حل الواجب' ? 'bg-emerald-100 text-emerald-700' :
-                        item.status === 'لم يحل' ? 'bg-rose-100 text-rose-700' :
-                        item.status === 'ناقص' ? 'bg-amber-100 text-amber-700' :
-                        'bg-slate-200 text-slate-700'
-                      }`}>
-                        {item.status === 'حل الواجب' ? '✓' : item.status === 'لم يحل' ? '✗' : item.status === 'ناقص' ? '!' : '-'}
+              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                {sessionReport.records.map((student: any) => {
+                  const record = localHomeworkRecords.find((r) => r.studentId === student.studentId);
+                  const status = record?.status;
+                  
+                  return (
+                    <div
+                      key={student.studentId}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 hover:bg-slate-100/70 transition-colors text-xs"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
+                          status === 'CHECKED_ONSITE' ? 'bg-emerald-100 text-emerald-700' :
+                          status === 'NOT_SUBMITTED' ? 'bg-rose-100 text-rose-700' :
+                          status === 'INCOMPLETE' ? 'bg-amber-100 text-amber-700' :
+                          status === 'EXCUSED' ? 'bg-slate-200 text-slate-700' :
+                          'bg-white text-slate-300 border border-slate-200'
+                        }`}>
+                          {status === 'CHECKED_ONSITE' ? '✓' : status === 'NOT_SUBMITTED' ? '✗' : status === 'INCOMPLETE' ? '!' : status === 'EXCUSED' ? '-' : '?'}
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-800 text-sm">{student.fullName || student.studentName}</p>
+                          {student.studentCode && (
+                            <p className="text-[10px] text-slate-400 font-mono mt-0.5">{student.studentCode}</p>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-bold text-slate-800">{item.studentName}</p>
-                        {item.studentCode && (
-                          <p className="text-[10px] text-slate-400 font-mono">{item.studentCode}</p>
-                        )}
-                      </div>
-                    </div>
 
-                    <div className="text-left flex flex-col items-end">
-                      <Badge variant={
-                        item.status === 'حل الواجب' ? 'success' :
-                        item.status === 'لم يحل' ? 'error' :
-                        item.status === 'ناقص' ? 'warning' : 'outline'
-                      } className="text-[10px] py-0.5 px-2 font-semibold">
-                        {item.status}
-                      </Badge>
-                      <p className="text-[10px] text-slate-400 mt-0.5 font-mono">{item.time}</p>
+                      <div className="flex items-center gap-1 rtl:sm:mr-auto">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleManualRecord(student, 'CHECKED_ONSITE')}
+                          className={`h-8 w-8 p-0 rounded-lg ${status === 'CHECKED_ONSITE' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'text-emerald-600 hover:bg-emerald-50'}`}
+                          title="حل الواجب"
+                        >
+                          ✓
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleManualRecord(student, 'NOT_SUBMITTED')}
+                          className={`h-8 w-8 p-0 rounded-lg ${status === 'NOT_SUBMITTED' ? 'bg-rose-100 text-rose-700 hover:bg-rose-200' : 'text-rose-600 hover:bg-rose-50'}`}
+                          title="لم يحل"
+                        >
+                          ✗
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleManualRecord(student, 'INCOMPLETE')}
+                          className={`h-8 w-8 p-0 rounded-lg ${status === 'INCOMPLETE' ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'text-amber-600 hover:bg-amber-50'}`}
+                          title="ناقص"
+                        >
+                          !
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleManualRecord(student, 'EXCUSED')}
+                          className={`h-8 w-8 p-0 rounded-lg ${status === 'EXCUSED' ? 'bg-slate-200 text-slate-700 hover:bg-slate-300' : 'text-slate-500 hover:bg-slate-100'}`}
+                          title="بعذر"
+                        >
+                          -
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
