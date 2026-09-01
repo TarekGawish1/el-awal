@@ -1197,6 +1197,7 @@ export class SyncService {
       }
 
       let clientExpected = Number(op.amountExpected ?? op.amount ?? 0);
+      let finalAmountPaid = 0;
 
       const periodYear = op.periodYear || op.billingPeriodYear || new Date().getFullYear();
       const periodMonth = op.periodMonth || op.billingPeriodMonth || (new Date().getMonth() + 1);
@@ -1246,6 +1247,7 @@ export class SyncService {
             let authoritativeExpected = booklet && Number(booklet.price) > 0 ? Number(booklet.price) : clientExpected;
             let amountPaid = incomingAmountPaid !== undefined ? incomingAmountPaid : authoritativeExpected;
             let amountExpected = authoritativeExpected;
+            finalAmountPaid = amountPaid;
 
             if (booklet && student.gradeLevel && booklet.gradeLevel && student.gradeLevel !== booklet.gradeLevel) {
               result.conflicts.push({
@@ -1372,6 +1374,7 @@ export class SyncService {
             
             let amountPaid = incomingAmountPaid !== undefined ? incomingAmountPaid : authoritativeExpected;
             let amountExpected = authoritativeExpected;
+            finalAmountPaid = amountPaid;
 
             let existingPayment: any = null;
             if (resolvedGroupId) {
@@ -1503,7 +1506,7 @@ export class SyncService {
             groupId: resolvedGroupId,
             periodYear,
             periodMonth,
-            amountPaid,
+            amountPaid: finalAmountPaid,
             paymentStatus: PaymentStatus.PAID,
           });
 

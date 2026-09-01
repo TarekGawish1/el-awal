@@ -35,6 +35,9 @@ describe('SyncService - Offline Payments Duplicate Prevention', () => {
           },
           groupEnrollment: {
             updateMany: jest.fn(),
+          },
+          booklet: {
+            findUnique: mockFindUnique, // Re-use this for simplicity
           }
         });
       }),
@@ -134,6 +137,7 @@ describe('SyncService - Offline Payments Duplicate Prevention', () => {
 
     // Offline device sends another 300
     const partialOp = { ...baseOp, id: 'test-op-3', amountPaid: 300, amountExpected: 500 };
+    mockUpdate.mockResolvedValueOnce({ id: 'payment-1' });
 
     const result = await syncService.syncPaymentsBatch(user, { operations: [partialOp] } as any);
     
@@ -160,6 +164,7 @@ describe('SyncService - Offline Payments Duplicate Prevention', () => {
 
     // Offline device sends 100 extra (not a full payment attempt)
     const overOp = { ...baseOp, id: 'test-op-4', amountPaid: 100, amountExpected: 500 };
+    mockUpdate.mockResolvedValueOnce({ id: 'payment-1' });
 
     const result = await syncService.syncPaymentsBatch(user, { operations: [overOp] } as any);
     
@@ -170,6 +175,112 @@ describe('SyncService - Offline Payments Duplicate Prevention', () => {
         amountPaid: 600, // 500 + 100
         amountExpected: 500,
         paymentStatus: PaymentStatus.PAID, // remains PAID
+      })
+    }));
+  });
+
+  it('6. Server fee beats stale client fee', async () => {
+    mockFindUnique.mockResolvedValueOnce(null);
+    mockFindFirst.mockResolvedValueOnce(null);
+
+    // Server expects 500 (mocked in beforeEach)
+    // Client sends 350
+    const staleOp = { ...baseOp, id: 'test-op-5', amountPaid: 350, amountExpected: 350 };
+    mockCreate.mockResolvedValueOnce({ id: 'payment-5' });
+
+    await syncService.syncPaymentsBatch(user, { operations: [staleOp] } as any);
+
+    expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        amountPaid: 350, // Preserved
+        amountExpected: 500, // Corrected by server
+        paymentStatus: PaymentStatus.PENDING,
+      })
+    }));
+  });
+
+  it('7. Stale client fee + full server amount', async () => {
+    mockFindUnique.mockResolvedValueOnce(null);
+    mockFindFirst.mockResolvedValueOnce(null);
+
+    // Server expects 500. Client thinks it's 350 but sends 500.
+    const staleOp = { ...baseOp, id: 'test-op-6', amountPaid: 500, amountExpected: 350 };
+    mockCreate.mockResolvedValueOnce({ id: 'payment-6' });
+
+    await syncService.syncPaymentsBatch(user, { operations: [staleOp] } as any);
+
+    expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        amountPaid: 500,
+        amountExpected: 500,
+        paymentStatus: PaymentStatus.PAID,
+      })
+    }));
+  });
+
+  it('8. Explicit zero payment is preserved', async () => {
+    mockFindUnique.mockResolvedValueOnce(null);
+    mockFindFirst.mockResolvedValueOnce(null);
+
+    // Explicitly sending 0
+    const zeroOp = { ...baseOp, id: 'test-op-7', amountPaid: 0, amountExpected: 500 };
+    mockCreate.mockResolvedValueOnce({ id: 'payment-7' });
+
+    await syncService.syncPaymentsBatch(user, { operations: [zeroOp] } as any);
+
+    expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        amountPaid: 0, // MUST REMAIN 0, NOT 500
+        amountExpected: 500,
+        paymentStatus: PaymentStatus.PENDING,
+      })
+    }));
+  });
+
+  it('9. Missing amount fallback to default', async () => {
+    mockFindUnique.mockResolvedValueOnce(null);
+    mockFindFirst.mockResolvedValueOnce(null);
+
+    // No amount provided
+    const missingOp = { ...baseOp, id: 'test-op-8', amountPaid: undefined, amountExpected: undefined, amount: undefined };
+    mockCreate.mockResolvedValueOnce({ id: 'payment-8' });
+
+    await syncService.syncPaymentsBatch(user, { operations: [missingOp] } as any);
+
+    expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        amountPaid: 500, // Fell back to server expected
+        amountExpected: 500,
+        paymentStatus: PaymentStatus.PAID,
+      })
+    }));
+  });
+
+  it('10. Booklet stale price resolution', async () => {
+    mockFindUnique.mockResolvedValueOnce(null); // op
+    mockFindUnique.mockResolvedValueOnce({ id: 'booklet-1', price: 100, groupId: 'group-1' }); // booklet
+    mockFindFirst.mockResolvedValueOnce(null); // existing payment
+
+    // Client expects 50, Server expects 100
+    const bookletOp = { 
+      id: 'test-op-9', 
+      clientTempId: 'ct-9',
+      studentId: 'student-1',
+      groupId: 'group-1',
+      bookletId: 'booklet-1', 
+      amountPaid: 50, 
+      amountExpected: 50,
+      paymentType: 'BOOKLET',
+    };
+    mockCreate.mockResolvedValueOnce({ id: 'payment-9' });
+
+    await syncService.syncPaymentsBatch(user, { operations: [bookletOp] } as any);
+
+    expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        amountPaid: 50, // Preserved incoming contribution
+        amountExpected: 100, // Server corrected expected amount
+        paymentStatus: PaymentStatus.PENDING,
       })
     }));
   });
