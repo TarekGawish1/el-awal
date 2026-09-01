@@ -176,6 +176,9 @@ export class AssistantsService {
           channels: [NotificationChannel.WHATSAPP, NotificationChannel.IN_APP],
           data: {
             phone: targetPhone,
+            assistantName: user.fullName,
+            password: dto.password,
+            isUpdate: false,
           },
         });
         this.logger.log(`WhatsApp credentials notification queued for assistant ${user.fullName} (${targetPhone})`);
@@ -227,6 +230,9 @@ export class AssistantsService {
               channels: [NotificationChannel.WHATSAPP, NotificationChannel.IN_APP],
               data: {
                 phone: targetPhone,
+                assistantName: updatedUser.fullName,
+                password: dto.password,
+                isUpdate: true,
               },
             });
             this.logger.log(`WhatsApp credentials update notification queued for assistant ${updatedUser.fullName} (${targetPhone})`);
