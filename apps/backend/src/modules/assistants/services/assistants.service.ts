@@ -1,19 +1,45 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { IsString, IsOptional, IsArray, IsEnum, IsEmail } from 'class-validator';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AssistantPermission, AssistantStatus, UserRole, NotificationType, NotificationChannel, NotificationStatus } from '@prisma/client';
 
 export class InviteAssistantDto {
+  @IsOptional()
+  @IsString()
   phone?: string;
+
+  @IsOptional()
+  @IsEmail()
   email?: string;
+
+  @IsOptional()
+  @IsString()
   fullName?: string;
+
+  @IsOptional()
+  @IsString()
   password?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsEnum(AssistantPermission, { each: true })
   permissions?: AssistantPermission[];
 }
 
 export class UpdateAssistantDto {
+  @IsOptional()
+  @IsEnum(AssistantStatus)
   status?: AssistantStatus;
+
+  @IsOptional()
+  @IsArray()
+  @IsEnum(AssistantPermission, { each: true })
   permissions?: AssistantPermission[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   assignedGroupIds?: string[];
 }
 
