@@ -21,7 +21,9 @@ vi.mock('@/lib/offline/db', () => {
 });
 
 vi.mock('@/lib/api/client', () => ({}));
-vi.mock('@/lib/api/endpoints', () => ({}));
+vi.mock('@/lib/api/endpoints', () => ({
+  API_BASE_URL: 'http://localhost:3000'
+}));
 vi.mock('@/lib/offline/sync-engine', () => ({
   syncEngine: {
     syncNow: vi.fn(),
