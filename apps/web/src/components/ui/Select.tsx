@@ -31,7 +31,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     const selectedOption = options.find((opt) => opt.value === value);
 
     const handleSelect = (val: string) => {
-      onChange?.({ target: { value: val } } as React.ChangeEvent<HTMLSelectElement>);
+      onChange?.({ target: { value: val, name: props.name } } as React.ChangeEvent<HTMLSelectElement>);
       setIsOpen(false);
     };
 
