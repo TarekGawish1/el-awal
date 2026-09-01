@@ -1,10 +1,13 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AssistantPermission, AssistantStatus, UserRole } from '@prisma/client';
 
 export class InviteAssistantDto {
   phone?: string;
   email?: string;
+  fullName?: string;
+  password?: string;
 }
 
 export class UpdateAssistantDto {
@@ -44,10 +47,24 @@ export class AssistantsService {
     }
 
     const whereClause = dto.phone ? { phone: dto.phone } : { email: dto.email };
-    const user = await this.prisma.user.findUnique({ where: whereClause as any });
+    let user = await this.prisma.user.findUnique({ where: whereClause as any });
 
     if (!user) {
-      throw new NotFoundException('No user found with the provided contact information. They must register an account first.');
+      if (!dto.fullName || !dto.password) {
+        throw new NotFoundException('No user found. To create a new account, please provide a full name and password.');
+      }
+      
+      const passwordHash = await bcrypt.hash(dto.password, 10);
+      user = await this.prisma.user.create({
+        data: {
+          phone: dto.phone,
+          email: dto.email,
+          fullName: dto.fullName,
+          passwordHash,
+          role: UserRole.SECRETARIAT,
+          isActive: true,
+        }
+      });
     }
 
     if (user.role !== UserRole.SECRETARIAT) {

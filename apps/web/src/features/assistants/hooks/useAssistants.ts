@@ -32,7 +32,7 @@ export function useAssistants() {
   });
 
   const inviteMutation = useMutation({
-    mutationFn: async (payload: { phone?: string; email?: string }) => {
+    mutationFn: async (payload: { phone?: string; email?: string; fullName?: string; password?: string }) => {
       const data = await apiClient<Assistant>(API_ENDPOINTS.TEACHER.ASSISTANTS.INVITE, {
         method: 'POST',
         body: JSON.stringify(payload),
