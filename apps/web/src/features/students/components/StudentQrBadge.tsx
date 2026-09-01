@@ -187,7 +187,6 @@ export function StudentQrBadge({
   };
 
   return (
-  return (
     <div className="flex flex-row items-stretch border-none rounded-3xl shadow-sm ring-1 ring-slate-100 relative overflow-hidden bg-white max-w-sm mx-auto">
       <div ref={badgeRef} className="flex-1 flex flex-col items-center justify-center p-4 relative bg-white">
         <div className="absolute top-0 right-0 w-full h-1.5 bg-gradient-to-r from-primary-400 to-primary-600"></div>
