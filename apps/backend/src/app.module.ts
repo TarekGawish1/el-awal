@@ -25,6 +25,7 @@ import { AcademicPeriodsModule } from './modules/academic-periods/academic-perio
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ContactMessagesModule } from './modules/contact-messages/contact-messages.module';
 import { CertificatesModule } from './modules/certificates/certificates.module';
+import { AssistantsModule } from './modules/assistants/assistants.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { CertificatesModule } from './modules/certificates/certificates.module';
     HealthModule,
     ContactMessagesModule,
     CertificatesModule,
+    AssistantsModule,
   ],
 })
 export class AppModule {}

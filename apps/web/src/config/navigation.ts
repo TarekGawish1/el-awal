@@ -74,6 +74,7 @@ export const TEACHER_NAVIGATION_SECTIONS: NavSectionConfig[] = [
     items: [
       { label: 'الماليات والمصروفات', href: '/teacher/finance', icon: DollarSign, onlineOnly: false },
       { label: 'الشهادات', href: '/teacher/certificates', icon: Award, onlineOnly: true },
+      { label: 'إدارة المساعدين', href: '/teacher/assistants', icon: Users, onlineOnly: true, roleRequirement: 'TEACHER' },
       {
         label: 'ربط وإدارة الواتساب',
         href: '#whatsapp-manager',
@@ -131,7 +132,12 @@ export const PARENT_NAVIGATION_ITEMS: NavItemConfig[] = PARENT_NAVIGATION_SECTIO
  * Returns grouped navigation sections for a given role filtered by the active network status.
  * In offline mode, all `onlineOnly: true` items are omitted. Empty sections are pruned.
  */
-export function getNavigationSectionsForRole(role?: string, isOnline: boolean = true, attendanceMode?: string): NavSectionConfig[] {
+export function getNavigationSectionsForRole(
+  role?: string, 
+  isOnline: boolean = true, 
+  attendanceMode?: string,
+  permissions?: string[]
+): NavSectionConfig[] {
   const baseSections =
     role === 'STUDENT'
       ? STUDENT_NAVIGATION_SECTIONS
@@ -149,6 +155,30 @@ export function getNavigationSectionsForRole(role?: string, isOnline: boolean = 
             return false;
           }
         }
+
+        // Handle granular teacher assistant permissions
+        if (role === 'SECRETARIAT') {
+          if ((item as any).roleRequirement === 'TEACHER') return false;
+          
+          if (item.href === '/teacher/students' || item.href === '/teacher/reservations') {
+            return permissions?.includes('MANAGE_STUDENTS');
+          }
+          if (item.href === '/teacher/finance') {
+            return permissions?.includes('VIEW_FINANCE') || permissions?.includes('MANAGE_FINANCE');
+          }
+          if (item.href === '/teacher/attendance') {
+            return permissions?.includes('MANAGE_ATTENDANCE');
+          }
+          if (item.href === '/teacher/groups' || item.href === '/teacher/schedules') {
+            return permissions?.includes('MANAGE_GROUPS');
+          }
+          if (item.href === '/teacher/assessments') {
+            return permissions?.includes('MANAGE_ASSESSMENTS');
+          }
+        } else if (role === 'TEACHER') {
+          // Teachers see everything
+        }
+
         return true;
       }),
     }))
@@ -159,7 +189,12 @@ export function getNavigationSectionsForRole(role?: string, isOnline: boolean = 
  * Returns flat navigation items for a given role filtered by the active network status.
  * In offline mode, all `onlineOnly: true` items are omitted.
  */
-export function getNavigationItemsForRole(role?: string, isOnline: boolean = true, attendanceMode?: string): NavItemConfig[] {
-  const sections = getNavigationSectionsForRole(role, isOnline, attendanceMode);
+export function getNavigationItemsForRole(
+  role?: string, 
+  isOnline: boolean = true, 
+  attendanceMode?: string,
+  permissions?: string[]
+): NavItemConfig[] {
+  const sections = getNavigationSectionsForRole(role, isOnline, attendanceMode, permissions);
   return sections.flatMap((section) => section.items).filter((item) => !item.isAction);
 }
