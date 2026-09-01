@@ -42,7 +42,7 @@ export function AssistantsList() {
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
-            {assistants.map((assistant) => (
+            {assistants.map((assistant: Assistant) => (
               <tr key={assistant.id} className="hover:bg-neutral-50/50 transition-colors">
                 <td className="px-6 py-4">
                   <div className="font-bold text-neutral-800">{assistant.assistant.fullName}</div>
