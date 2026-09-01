@@ -592,8 +592,7 @@ function TeacherAttendanceContent() {
             {activeTab === 'MANUAL' && (
               <ManualAttendanceRoster 
                 sessionId={selectedSessionId} 
-                records={report?.records || []}
-                homeworkRecords={report?.homeworkRecords || []}
+                records={report?.records || []} 
               />
             )}
           </div>

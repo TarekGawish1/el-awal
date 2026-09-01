@@ -11,11 +11,10 @@ import { FileText, Edit2, CheckCircle2 } from 'lucide-react';
 interface ManualAttendanceRosterProps {
   sessionId: string;
   records: AttendanceRecord[];
-  homeworkRecords?: any[];
   isCompact?: boolean;
 }
 
-export function ManualAttendanceRoster({ sessionId, records, homeworkRecords = [], isCompact = false }: ManualAttendanceRosterProps) {
+export function ManualAttendanceRoster({ sessionId, records, isCompact = false }: ManualAttendanceRosterProps) {
   const [localRecords, setLocalRecords] = useState<Record<string, AttendanceStatus>>({});
   const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
   const [hasChanges, setHasChanges] = useState(false);
@@ -93,22 +92,6 @@ export function ManualAttendanceRoster({ sessionId, records, homeworkRecords = [
     });
   };
 
-  // Sort records: ABSENT first, then unrecorded, then EXCUSED, then PRESENT
-  const sortedRecords = [...records].sort((a, b) => {
-    const statusA = localRecords[a.studentId] || a.status;
-    const statusB = localRecords[b.studentId] || b.status;
-    
-    const getWeight = (status?: string | null) => {
-      if (status === 'ABSENT') return 1;
-      if (!status) return 2;
-      if (status === 'EXCUSED') return 3;
-      if (status === 'PRESENT') return 4;
-      return 5;
-    };
-    
-    return getWeight(statusA) - getWeight(statusB);
-  });
-
   return (
     <div className={`space-y-6 ${isCompact ? 'max-h-[600px] overflow-y-auto' : ''}`}>
       <div className={`flex justify-between items-center ${isCompact ? 'mb-3 pb-2 border-b border-slate-100 sticky top-0 bg-white z-10' : 'mb-6'}`}>
@@ -143,7 +126,7 @@ export function ManualAttendanceRoster({ sessionId, records, homeworkRecords = [
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
-            {sortedRecords.length === 0 ? (
+            {records.length === 0 ? (
               <tr>
                 <td colSpan={3} className="px-6 py-12 text-center text-slate-500">
                   <div className="flex flex-col items-center justify-center space-y-2">
@@ -155,54 +138,34 @@ export function ManualAttendanceRoster({ sessionId, records, homeworkRecords = [
                 </td>
               </tr>
             ) : (
-              sortedRecords.map((record) => {
+              records.map((record) => {
                 const currentStatus = localRecords[record.studentId] || record.status;
                 const currentNote = localNotes[record.studentId];
-                const homework = homeworkRecords?.find(h => h.studentId === record.studentId);
-                const hwStatus = homework?.status;
 
                 return (
                   <tr key={record.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="px-6 py-4 font-medium text-slate-900">
                       <div>
                         <p className="font-bold text-slate-800">{record.fullName}</p>
-                        
-                        <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                          {hwStatus && (
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
-                              hwStatus === 'CHECKED_ONSITE' ? 'bg-emerald-100 text-emerald-700' :
-                              hwStatus === 'NOT_SUBMITTED' ? 'bg-rose-100 text-rose-700' :
-                              hwStatus === 'INCOMPLETE' ? 'bg-amber-100 text-amber-700' :
-                              'bg-slate-100 text-slate-600'
-                            }`}>
-                              الواجب: {
-                                hwStatus === 'CHECKED_ONSITE' ? 'محلول' : 
-                                hwStatus === 'NOT_SUBMITTED' ? 'لم يحل' : 
-                                hwStatus === 'INCOMPLETE' ? 'ناقص' : 'بعذر'
-                              }
-                            </span>
-                          )}
-
-                          {currentStatus === 'EXCUSED' && currentNote && (
-                            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 text-[10px]">
-                              <FileText className="w-3 h-3 text-amber-600 shrink-0" />
-                              <span className="truncate max-w-[150px]">{currentNote}</span>
-                              <button
-                                type="button"
-                                onClick={() => setExcuseModalStudent({
-                                  studentId: record.studentId,
-                                  fullName: record.fullName,
-                                  studentCode: record.studentCode,
-                                  currentNote: currentNote,
-                                })}
-                                className="text-amber-700 hover:text-amber-900 mr-1 p-0.5 rounded"
-                                title="تعديل العذر"
-                              >
-                                <Edit2 className="w-2.5 h-2.5" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                        {currentStatus === 'EXCUSED' && currentNote && (
+                          <div className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+                            <FileText className="w-3 h-3 text-amber-600 shrink-0" />
+                            <span className="truncate max-w-[200px]">{currentNote}</span>
+                            <button
+                              type="button"
+                              onClick={() => setExcuseModalStudent({
+                                studentId: record.studentId,
+                                fullName: record.fullName,
+                                studentCode: record.studentCode,
+                                currentNote: currentNote,
+                              })}
+                              className="text-amber-700 hover:text-amber-900 mr-1 p-0.5 rounded"
+                              title="تعديل العذر"
+                            >
+                              <Edit2 className="w-2.5 h-2.5" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 font-mono text-xs text-slate-500">
@@ -258,16 +221,14 @@ export function ManualAttendanceRoster({ sessionId, records, homeworkRecords = [
 
       {/* Mobile Card Roster View */}
       <div className="block md:hidden space-y-3">
-        {sortedRecords.length === 0 ? (
+        {records.length === 0 ? (
           <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-100 text-slate-500 text-sm">
             لا يوجد طلاب مسجلين في هذه المجموعة.
           </div>
         ) : (
-          sortedRecords.map((record) => {
+          records.map((record) => {
             const currentStatus = localRecords[record.studentId] || record.status;
             const currentNote = localNotes[record.studentId];
-            const homework = homeworkRecords?.find(h => h.studentId === record.studentId);
-            const hwStatus = homework?.status;
 
             return (
               <div
@@ -285,25 +246,9 @@ export function ManualAttendanceRoster({ sessionId, records, homeworkRecords = [
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="font-bold text-sm text-slate-900">{record.fullName}</h4>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded inline-block">
-                        {record.studentCode}
-                      </span>
-                      {hwStatus && (
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                          hwStatus === 'CHECKED_ONSITE' ? 'bg-emerald-100 text-emerald-700' :
-                          hwStatus === 'NOT_SUBMITTED' ? 'bg-rose-100 text-rose-700' :
-                          hwStatus === 'INCOMPLETE' ? 'bg-amber-100 text-amber-700' :
-                          'bg-slate-100 text-slate-600'
-                        }`}>
-                          الواجب: {
-                            hwStatus === 'CHECKED_ONSITE' ? 'محلول' : 
-                            hwStatus === 'NOT_SUBMITTED' ? 'لم يحل' : 
-                            hwStatus === 'INCOMPLETE' ? 'ناقص' : 'بعذر'
-                          }
-                        </span>
-                      )}
-                    </div>
+                    <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded mt-0.5 inline-block">
+                      {record.studentCode}
+                    </span>
                   </div>
 
                   {currentStatus === 'EXCUSED' && currentNote && (
