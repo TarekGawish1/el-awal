@@ -290,6 +290,21 @@ class OfflineDatabase {
   private memoryBooklets: Map<string, BookletEntity> = new Map();
   private memoryHomeworkRecords: Map<string, HomeworkRecordEntity> = new Map();
 
+  public async getPendingEntityIds(): Promise<Set<string>> {
+    const pendingMutations = await this.getPendingMutations();
+    const pendingIds = new Set<string>();
+    for (const m of pendingMutations) {
+      if (m.optimisticId) pendingIds.add(m.optimisticId);
+      if (m.payload?.id) pendingIds.add(String(m.payload.id));
+      if (m.payload?.studentId) pendingIds.add(String(m.payload.studentId));
+      if (m.payload?.groupId) pendingIds.add(String(m.payload.groupId));
+      if (m.payload?.sessionId) pendingIds.add(String(m.payload.sessionId));
+      if (m.payload?.assessmentId) pendingIds.add(String(m.payload.assessmentId));
+      if (m.payload?.bookletId) pendingIds.add(String(m.payload.bookletId));
+    }
+    return pendingIds;
+  }
+
   private isSupported(): boolean {
     return typeof window !== 'undefined' && 'indexedDB' in window && typeof indexedDB?.open === 'function';
   }
@@ -537,28 +552,23 @@ class OfflineDatabase {
    * that do not exist on the server and are NOT pending upload in outbox_mutations.
    */
   public async syncStudentsSnapshot(serverStudents: StudentEntity[]): Promise<void> {
-    // 1. Collect IDs of any local student creations currently pending in outbox
-    const pendingMutations = await this.getPendingMutations();
-    const pendingStudentIds = new Set<string>();
-    for (const m of pendingMutations) {
-      if (m.domain === 'students' && m.method === 'POST') {
-        if (m.optimisticId) pendingStudentIds.add(m.optimisticId);
-        if (m.payload?.id) pendingStudentIds.add(m.payload.id);
-      }
-    }
+    // 1. Collect IDs of any local entities currently pending in outbox
+    const pendingIds = await this.getPendingEntityIds();
 
     const serverStudentIds = new Set(serverStudents.map((s) => s.id));
 
     // 2. Memory store reconciliation
     const allMemoryIds = Array.from(this.memoryStudents.keys());
     for (const memId of allMemoryIds) {
-      if (!serverStudentIds.has(memId) && !pendingStudentIds.has(memId)) {
+      if (!serverStudentIds.has(memId) && !pendingIds.has(memId)) {
         this.memoryStudents.delete(memId);
       }
     }
     for (const s of serverStudents) {
-      const existing = this.memoryStudents.get(s.id) || {};
-      this.memoryStudents.set(s.id, { ...existing, ...s, updatedAt: Date.now() });
+      if (!pendingIds.has(s.id)) {
+        const existing = this.memoryStudents.get(s.id) || {};
+        this.memoryStudents.set(s.id, { ...existing, ...s, updatedAt: Date.now() });
+      }
     }
 
     if (!this.isSupported()) return;
@@ -573,17 +583,20 @@ class OfflineDatabase {
       });
 
       for (const localStudent of allLocalStudents) {
-        if (!serverStudentIds.has(localStudent.id) && !pendingStudentIds.has(localStudent.id)) {
+        if (!serverStudentIds.has(localStudent.id) && !pendingIds.has(localStudent.id)) {
           store.delete(localStudent.id);
         }
       }
 
       for (const s of serverStudents) {
-        store.put(s);
+        if (!pendingIds.has(s.id)) {
+          store.put(s);
+        }
       }
     } catch (e) {
       console.warn('Error during syncStudentsSnapshot:', e);
     }
+    await this.clearRosters();
   }
 
   public async putStudent(student: StudentEntity): Promise<void> {
@@ -629,6 +642,49 @@ class OfflineDatabase {
     } catch {}
   }
 
+  public async syncGroupsSnapshot(serverGroups: GroupEntity[]): Promise<void> {
+    const pendingIds = await this.getPendingEntityIds();
+    const serverGroupIds = new Set(serverGroups.map((g) => g.id));
+
+    const allMemoryIds = Array.from(this.memoryGroups.keys());
+    for (const memId of allMemoryIds) {
+      if (!serverGroupIds.has(memId) && !pendingIds.has(memId)) {
+        this.memoryGroups.delete(memId);
+      }
+    }
+    for (const g of serverGroups) {
+      if (!pendingIds.has(g.id)) {
+        const existing = this.memoryGroups.get(g.id) || {};
+        this.memoryGroups.set(g.id, { ...existing, ...g, updatedAt: Date.now() });
+      }
+    }
+
+    if (!this.isSupported()) return;
+
+    try {
+      const { store } = await this.getStore('groups', 'readwrite');
+      const allLocalGroups: GroupEntity[] = await new Promise((resolve) => {
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => resolve([]);
+      });
+
+      for (const localGroup of allLocalGroups) {
+        if (!serverGroupIds.has(localGroup.id) && !pendingIds.has(localGroup.id)) {
+          store.delete(localGroup.id);
+        }
+      }
+
+      for (const g of serverGroups) {
+        if (!pendingIds.has(g.id)) {
+          store.put(g);
+        }
+      }
+    } catch (e) {
+      console.warn('Error during syncGroupsSnapshot:', e);
+    }
+  }
+
   public async removeGroup(id: string): Promise<void> {
     this.memoryGroups.delete(id);
     this.memoryRosters.delete(id);
@@ -640,12 +696,15 @@ class OfflineDatabase {
   }
 
   public async bulkPutSessions(sessions: SessionEntity[]): Promise<void> {
-    sessions.forEach((s) => this.memorySessions.set(s.id, s));
+    const pendingIds = await this.getPendingEntityIds();
+    sessions.forEach((s) => {
+      if (!pendingIds.has(s.id)) this.memorySessions.set(s.id, s);
+    });
     if (!this.isSupported() || sessions.length === 0) return;
     try {
       const { store } = await this.getStore('sessions', 'readwrite');
       for (const s of sessions) {
-        store.put(s);
+        if (!pendingIds.has(s.id)) store.put(s);
       }
     } catch {}
   }
@@ -671,12 +730,15 @@ class OfflineDatabase {
   }
 
   public async bulkPutPayments(payments: PaymentEntity[]): Promise<void> {
-    payments.forEach((p) => this.memoryPayments.set(p.id, p));
+    const pendingIds = await this.getPendingEntityIds();
+    payments.forEach((p) => {
+      if (!pendingIds.has(p.id)) this.memoryPayments.set(p.id, p);
+    });
     if (!this.isSupported() || payments.length === 0) return;
     try {
       const { store } = await this.getStore('payments', 'readwrite');
       for (const p of payments) {
-        store.put(p);
+        if (!pendingIds.has(p.id)) store.put(p);
       }
     } catch {}
   }
@@ -1548,6 +1610,37 @@ class OfflineDatabase {
     }
   }
 
+  public async recoverOrphanedSyncingMutations(userId: string): Promise<void> {
+    if (!this.isSupported()) return;
+    try {
+      const { store } = await this.getStore('outbox_mutations', 'readwrite');
+      const all: OutboxMutationRecord[] = await new Promise((resolve, reject) => {
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+      const now = Date.now();
+      for (const m of all) {
+        if (m.userId === userId && m.status === 'SYNCING') {
+          // If stuck for more than 2 minutes
+          if (!m.lastAttemptAt || (now - m.lastAttemptAt) > 120000) {
+            m.status = 'FAILED';
+            m.lastError = 'Recovered from orphaned SYNCING state';
+            store.put(m);
+            const mem = this.memoryOutbox.get(m.id);
+            if (mem) {
+              mem.status = 'FAILED';
+              mem.lastError = 'Recovered from orphaned SYNCING state';
+              this.memoryOutbox.set(m.id, mem);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to recover orphaned syncing mutations', e);
+    }
+  }
+
   public async updateMutationStatus(
     id: string,
     status: MutationStatus,
@@ -1702,22 +1795,48 @@ class OfflineDatabase {
   }
 
   public async getRoster(groupId: string): Promise<OfflineRosterRecord | null> {
+    const buildFromStudents = async () => {
+      const group = await this.getGroupByIdOffline(groupId);
+      if (!group) return null;
+      const students = await this.getStudentsOffline({ groupId });
+      return {
+        groupId,
+        groupName: group.name,
+        gradeLevel: group.gradeLevel,
+        monthlyFee: group.monthlyFee,
+        students: students.map(s => ({
+          id: s.id,
+          fullName: s.fullName || s.user?.fullName || '',
+          studentCode: s.studentCode,
+          qrCodeToken: s.qrCodeToken || s.id,
+          gradeLevel: s.gradeLevel || group.gradeLevel,
+          emergencyPhone: s.emergencyPhone || s.parentPhone || s.phone || '',
+          parentPhone: s.parentPhone || '',
+          academicStatus: s.academicStatus || 'ACTIVE'
+        })),
+        updatedAt: Date.now()
+      };
+    };
+
     if (!this.isSupported()) {
-      return this.memoryRosters.get(groupId) || null;
+      return this.memoryRosters.get(groupId) || await buildFromStudents();
     }
     try {
       const { store } = await this.getStore('offline_roster_cache', 'readonly');
       return new Promise((resolve) => {
         const req = store.get(groupId);
-        req.onsuccess = () => resolve(req.result || this.memoryRosters.get(groupId) || null);
-        req.onerror = () => resolve(this.memoryRosters.get(groupId) || null);
+        req.onsuccess = async () => resolve(req.result || this.memoryRosters.get(groupId) || await buildFromStudents());
+        req.onerror = async () => resolve(this.memoryRosters.get(groupId) || await buildFromStudents());
       });
     } catch {
-      return this.memoryRosters.get(groupId) || null;
+      return this.memoryRosters.get(groupId) || await buildFromStudents();
     }
   }
 
   public async getAllCachedRosters(): Promise<OfflineRosterRecord[]> {
+    // Note: this only returns explicitly cached rosters.
+    // Dynamic rosters built on-the-fly via getRoster are not returned here,
+    // which is fine since this is only used as a fallback lookup.
     if (!this.isSupported()) {
       return Array.from(this.memoryRosters.values());
     }
@@ -1731,6 +1850,15 @@ class OfflineDatabase {
     } catch {
       return Array.from(this.memoryRosters.values());
     }
+  }
+
+  public async clearRosters(): Promise<void> {
+    this.memoryRosters.clear();
+    if (!this.isSupported()) return;
+    try {
+      const { store } = await this.getStore('offline_roster_cache', 'readwrite');
+      store.clear();
+    } catch {}
   }
 
   public async findStudentByQrToken(

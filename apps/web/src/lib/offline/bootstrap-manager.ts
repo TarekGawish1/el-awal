@@ -93,9 +93,15 @@ class BootstrapManager {
     this.notify('START', 0, 'بدء تنزيل مساحة العمل للعمل بدون إنترنت...');
 
     try {
-      const lastSyncTime = options?.forceFull
-        ? null
-        : await offlineDb.getMetadata<number>('lastBootstrapTimestamp');
+      return await navigator.locks.request('bootstrap_sync', { ifAvailable: true }, async (lock) => {
+        if (!lock) {
+          console.warn('Bootstrap is already running in another tab. Skipping.');
+          return { success: false, isDelta: false };
+        }
+
+        const lastSyncTime = options?.forceFull
+          ? null
+          : await offlineDb.getMetadata<number>('lastBootstrapTimestamp');
 
       const queryUrl = lastSyncTime
         ? `${API_ENDPOINTS.SYNC.BOOTSTRAP}?since=${lastSyncTime}`
@@ -148,26 +154,20 @@ class BootstrapManager {
       this.notify('PROGRESS', 50, 'حفظ سجلات الطلاب والمجموعات والحصص محلياً...');
 
       // 1. Ingest Students
-      // Full snapshot → reconcile with server and prune orphaned local records.
-      // Delta snapshot → upsert only; never prune, because the server only returns
-      //   the changed subset and deleting the rest would corrupt local state.
+      // We ALWAYS treat students and groups as a full snapshot to properly handle deletions and un-enrollments
       if (payload.students.length > 0) {
-        if (isDeltaResponse) {
-          await offlineDb.bulkPutStudents(payload.students);
-        } else {
-          await offlineDb.syncStudentsSnapshot(payload.students);
-          if (qc) {
-            qc.setQueryData(['students'], {
-              data: payload.students,
-              meta: { total: payload.students.length, hasMore: false },
-            });
-          }
+        await offlineDb.syncStudentsSnapshot(payload.students);
+        if (qc) {
+          qc.setQueryData(['students'], {
+            data: payload.students,
+            meta: { total: payload.students.length, hasMore: false },
+          });
         }
       }
 
       // 2. Ingest Groups & Schedules
       if (payload.groups.length > 0) {
-        await offlineDb.bulkPutGroups(payload.groups);
+        await offlineDb.syncGroupsSnapshot(payload.groups);
         if (qc) {
           qc.setQueryData(['groups'], payload.groups);
         }
@@ -234,19 +234,22 @@ class BootstrapManager {
 
       // 9. Ingest Homework Records
       if (payload.homework.length > 0) {
+        const pendingIds = await offlineDb.getPendingEntityIds();
         for (const hw of payload.homework) {
-          await offlineDb.homework_records.put({
-            id: hw.id,
-            assessmentId: hw.assessmentId,
-            studentId: hw.studentId,
-            sessionId: hw.sessionId,
-            status: hw.status,
-            score: hw.score !== null && hw.score !== undefined ? Number(hw.score) : undefined,
-            feedback: hw.feedback,
-            recordedMethod: hw.recordedMethod,
-            clientTimestamp: hw.clientTimestamp ? new Date(hw.clientTimestamp).getTime() : Date.now(),
-            syncStatus: 'SYNCED',
-          });
+          if (!pendingIds.has(hw.id)) {
+            await offlineDb.homework_records.put({
+              id: hw.id,
+              assessmentId: hw.assessmentId,
+              studentId: hw.studentId,
+              sessionId: hw.sessionId,
+              status: hw.status,
+              score: hw.score !== null && hw.score !== undefined ? Number(hw.score) : undefined,
+              feedback: hw.feedback,
+              recordedMethod: hw.recordedMethod,
+              clientTimestamp: hw.clientTimestamp ? new Date(hw.clientTimestamp).getTime() : Date.now(),
+              syncStatus: 'SYNCED',
+            });
+          }
         }
       }
 
@@ -300,6 +303,7 @@ class BootstrapManager {
         isDelta: isDeltaResponse,
         counts,
       };
+      }); // End of navigator.locks.request
     } catch (err: any) {
       this.isBootstrappingState = false;
       this.lastError = err?.message || 'حدث خطأ أثناء تنزيل بيانات العمل بدون إنترنت';

@@ -356,7 +356,6 @@ export class SyncService {
       const groupsWhere: any = {
         id: { in: allTeacherGroupIds },
         isActive: true,
-        ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
       };
 
       groups = await this.prisma.academicGroup.findMany({
@@ -387,14 +386,6 @@ export class SyncService {
               academicStatus: 'ACTIVE',
               user: { isActive: true },
             },
-            ...(sinceDate
-              ? {
-                  OR: [
-                    { enrolledAt: { gte: sinceDate } },
-                    { student: { updatedAt: { gte: sinceDate } } },
-                  ],
-                }
-              : {}),
           },
           include: {
             student: {
