@@ -97,7 +97,7 @@ describe('LoginContainer Component', () => {
     expect(mockReplace).toHaveBeenCalledWith('/teacher/dashboard');
   });
 
-  it('redirects already authenticated SECRETARIAT user to /secretariat/dashboard', () => {
+  it('redirects already authenticated SECRETARIAT user to /teacher/dashboard', () => {
     vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({ LogoutConfirmation: <></>, 
       user: {
         id: 'usr-2',
@@ -119,6 +119,6 @@ describe('LoginContainer Component', () => {
 
     render(<LoginContainer />);
 
-    expect(mockReplace).toHaveBeenCalledWith('/secretariat/dashboard');
+    expect(mockReplace).toHaveBeenCalledWith('/teacher/dashboard');
   });
 });

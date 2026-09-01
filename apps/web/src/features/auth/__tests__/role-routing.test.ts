@@ -7,8 +7,8 @@ describe('Role Routing Utilities', () => {
       expect(getRoleLandingRoute('TEACHER')).toBe('/teacher/dashboard');
     });
 
-    it('should map SECRETARIAT to /secretariat/dashboard', () => {
-      expect(getRoleLandingRoute('SECRETARIAT')).toBe('/secretariat/dashboard');
+    it('should map SECRETARIAT to /teacher/dashboard', () => {
+      expect(getRoleLandingRoute('SECRETARIAT')).toBe('/teacher/dashboard');
     });
 
     it('should map STUDENT to /student/dashboard', () => {
@@ -30,10 +30,13 @@ describe('Role Routing Utilities', () => {
       expect(isRouteAllowedForRole('/student/attendance', 'TEACHER')).toBe(false);
     });
 
-    it('allows SECRETARIAT to access secretariat, teacher, and student course learning preview routes', () => {
-      expect(isRouteAllowedForRole('/secretariat/dashboard', 'SECRETARIAT')).toBe(true);
+    it('allows SECRETARIAT to access teacher portal routes while blocking assistants and activity-log', () => {
+      expect(isRouteAllowedForRole('/teacher/dashboard', 'SECRETARIAT')).toBe(true);
+      expect(isRouteAllowedForRole('/teacher/students', 'SECRETARIAT')).toBe(true);
       expect(isRouteAllowedForRole('/teacher/courses', 'SECRETARIAT')).toBe(true);
       expect(isRouteAllowedForRole('/student/courses/c-1/learn', 'SECRETARIAT')).toBe(true);
+      expect(isRouteAllowedForRole('/teacher/assistants', 'SECRETARIAT')).toBe(false);
+      expect(isRouteAllowedForRole('/teacher/activity-log', 'SECRETARIAT')).toBe(false);
       expect(isRouteAllowedForRole('/parent/dashboard', 'SECRETARIAT')).toBe(false);
     });
 

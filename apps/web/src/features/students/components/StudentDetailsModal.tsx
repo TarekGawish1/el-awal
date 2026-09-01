@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { formatWhatsAppNumber } from '@/lib/utils/formatters';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { CreatorBadge } from '@/components/ui/CreatorBadge';
 
 interface StudentDetailsModalProps {
   studentId: string | null;
@@ -83,6 +84,13 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
                   </span>
                 )}
               </div>
+              <CreatorBadge
+                createdByName={(student as any)?.createdByName}
+                createdAt={student?.createdAt}
+                updatedByName={(student as any)?.updatedByName}
+                updatedAt={student?.updatedAt}
+                className="mt-2"
+              />
             </div>
           </div>
           <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">

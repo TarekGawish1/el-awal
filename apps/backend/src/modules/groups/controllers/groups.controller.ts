@@ -33,7 +33,7 @@ export class GroupsController {
     @Body() dto: CreateGroupDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.groupsService.createGroup(user.teacherProfileId || user.id, dto);
+    return this.groupsService.createGroup(user.teacherProfileId || user.id, dto, user);
   }
 
   @Get()

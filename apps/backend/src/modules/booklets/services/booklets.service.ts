@@ -69,6 +69,8 @@ export class BookletsService {
     const academicYear = dto.academicYear || teacherProfile?.activeAcademicYear || '2026-2027';
     const academicTerm = dto.academicTerm || teacherProfile?.activeAcademicTerm || 'FIRST_TERM';
 
+    const creatorName = user.fullName || (user.role === UserRole.SECRETARIAT ? 'المساعد' : 'المعلم');
+
     const booklet = await this.prisma.booklet.create({
       data: {
         title: dto.title.trim(),
@@ -80,6 +82,10 @@ export class BookletsService {
         academicTerm,
         stockCount: dto.stockCount !== undefined ? dto.stockCount : null,
         isActive: true,
+        createdById: user.id,
+        createdByName: creatorName,
+        updatedById: user.id,
+        updatedByName: creatorName,
       },
       include: {
         group: { select: { id: true, name: true, gradeLevel: true } },
@@ -120,11 +126,7 @@ export class BookletsService {
     }
 
     if (query.groupId) {
-      // If group is filtered, return booklets specific to this group OR general for the grade
-      where.OR = [
-        { groupId: query.groupId },
-        { groupId: null },
-      ];
+      where.groupId = query.groupId;
     }
 
     if (query.academicYear) {
@@ -137,27 +139,29 @@ export class BookletsService {
 
     if (query.isActive !== undefined) {
       where.isActive = query.isActive;
-    } else if (user.role === UserRole.STUDENT || user.role === UserRole.PARENT) {
-      where.isActive = true;
+    }
+
+    if (query.search) {
+      where.title = { contains: query.search, mode: 'insensitive' };
     }
 
     const booklets = await this.prisma.booklet.findMany({
       where,
+      orderBy: { createdAt: 'desc' },
       include: {
         group: { select: { id: true, name: true, gradeLevel: true } },
         payments: {
-          where: { paymentStatus: PaymentStatus.PAID },
-          select: { id: true, amountPaid: true },
+          select: {
+            amountPaid: true,
+          },
         },
       },
-      orderBy: [{ createdAt: 'desc' }],
     });
 
     return booklets.map((b) => {
       const salesCount = b.payments.length;
       const totalRevenue = b.payments.reduce((acc, p) => acc + Number(p.amountPaid), 0);
       const { payments, ...rest } = b;
-
       return {
         ...rest,
         price: Number(b.price),
@@ -171,18 +175,19 @@ export class BookletsService {
    * Retrieves single booklet details with detailed payment history.
    */
   async findOne(id: string, user: AuthenticatedUser) {
+    const teacherProfileId = await this.resolveTeacherProfileId(user);
+
     const booklet = await this.prisma.booklet.findUnique({
       where: { id },
       include: {
         group: { select: { id: true, name: true, gradeLevel: true } },
         payments: {
-          where: { paymentStatus: PaymentStatus.PAID },
+          orderBy: { createdAt: 'desc' },
           include: {
             student: {
-              include: { user: { select: { fullName: true, phone: true } } },
+              include: { user: { select: { fullName: true } } },
             },
           },
-          orderBy: { createdAt: 'desc' },
         },
       },
     });
@@ -237,6 +242,8 @@ export class BookletsService {
       }
     }
 
+    const updaterName = user.fullName || (user.role === UserRole.SECRETARIAT ? 'المساعد' : 'المعلم');
+
     const updated = await this.prisma.booklet.update({
       where: { id },
       data: {
@@ -246,11 +253,12 @@ export class BookletsService {
         ...(dto.groupId !== undefined ? { groupId: dto.groupId } : {}),
         ...(dto.stockCount !== undefined ? { stockCount: dto.stockCount } : {}),
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+        updatedById: user.id,
+        updatedByName: updaterName,
       },
       include: {
         group: { select: { id: true, name: true, gradeLevel: true } },
         payments: {
-          where: { paymentStatus: PaymentStatus.PAID },
           select: { id: true, amountPaid: true },
         },
       },

@@ -7,9 +7,8 @@ import { UserRole } from '../types/auth.types';
 export function getRoleLandingRoute(role: UserRole): string {
   switch (role) {
     case 'TEACHER':
-      return '/teacher/dashboard';
     case 'SECRETARIAT':
-      return '/secretariat/dashboard';
+      return '/teacher/dashboard';
     case 'STUDENT':
       return '/student/dashboard';
     case 'PARENT':
@@ -28,8 +27,14 @@ export function isRouteAllowedForRole(path: string, role: UserRole): boolean {
     );
   }
   if (role === 'SECRETARIAT') {
+    // Only Primary Teacher can manage assistants and view activity audit history
+    if (
+      path.startsWith('/teacher/assistants') ||
+      path.startsWith('/teacher/activity-log')
+    ) {
+      return false;
+    }
     return (
-      path.startsWith('/secretariat') ||
       path.startsWith('/teacher') ||
       path.startsWith('/courses') ||
       /^\/student\/courses\/[^/]+\/learn/.test(path)

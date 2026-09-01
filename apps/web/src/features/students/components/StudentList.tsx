@@ -15,6 +15,7 @@ import { Search, RotateCcw, Users, Calendar, BookOpen, ChevronRight, ChevronLeft
 import { Pagination } from '@/components/ui/Pagination';
 import { StudentDetailsModal } from './StudentDetailsModal';
 import { StudentPasswordModal } from './StudentPasswordModal';
+import { CreatorBadge } from '@/components/ui/CreatorBadge';
 
 const STAGE_GRADES_MAP: Record<string, string[]> = {
   'المرحلة الابتدائية': [
@@ -552,9 +553,17 @@ export function StudentList() {
                     className="hover:bg-slate-50/80 transition-colors duration-200 cursor-pointer"
                   >
                     <td className="px-4 py-2.5">
-                      <span className="font-bold text-slate-700 text-xs hover:text-primary-600 transition-colors">
-                        {student.user.fullName}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className="font-bold text-slate-700 text-xs hover:text-primary-600 transition-colors">
+                          {student.user.fullName}
+                        </span>
+                        <CreatorBadge
+                          createdByName={(student as any).createdByName}
+                          updatedByName={(student as any).updatedByName}
+                          compact
+                          className="mt-0.5"
+                        />
+                      </div>
                     </td>
                     <td className="px-4 py-2.5">
                       <span className="text-[11px] text-slate-600 font-mono" dir="ltr">

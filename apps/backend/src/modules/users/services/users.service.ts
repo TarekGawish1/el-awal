@@ -21,6 +21,10 @@ export class UsersService {
         studentProfile: true,
         parentProfile: true,
         secretariatProfile: true,
+        assistantToTeachers: {
+          where: { status: 'ACTIVE' },
+          select: { permissions: true, teacherId: true },
+        },
       },
     });
 
@@ -28,6 +32,11 @@ export class UsersService {
       throw new NotFoundException('User profile not found');
     }
 
-    return user;
+    const permissions = user.assistantToTeachers?.[0]?.permissions || [];
+
+    return {
+      ...user,
+      permissions,
+    };
   }
 }

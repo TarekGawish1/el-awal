@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { CancelPaymentModal, PaymentSummaryInfo } from './CancelPaymentModal';
+import { CreatorBadge } from '@/components/ui/CreatorBadge';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -148,7 +149,10 @@ export function StudentHistoryModal({ isOpen, onClose, studentId }: Props) {
 
                     <div className="flex flex-col items-end justify-between border-t sm:border-t-0 sm:border-r border-slate-100 pt-3 sm:pt-0 sm:pr-4 text-xs text-slate-500">
                       <div className="text-left w-full sm:w-auto space-y-1">
-                        <div>المسجل: {record.recordedBy?.fullName || 'المعلم'}</div>
+                        <CreatorBadge
+                          recordedByName={record.recordedBy?.fullName || 'المعلم'}
+                          createdAt={record.createdAt}
+                        />
                         <div>التاريخ: {new Date(record.createdAt).toLocaleDateString('ar-EG')}</div>
                         {record.receiptNumber && <div>رقم الإيصال: {record.receiptNumber}</div>}
                       </div>

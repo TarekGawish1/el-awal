@@ -26,6 +26,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { ContactMessagesModule } from './modules/contact-messages/contact-messages.module';
 import { CertificatesModule } from './modules/certificates/certificates.module';
 import { AssistantsModule } from './modules/assistants/assistants.module';
+import { AuditModule } from './modules/audit/audit.module';
 
 @Module({
   imports: [
@@ -41,7 +42,7 @@ import { AssistantsModule } from './modules/assistants/assistants.module';
     // Realtime WebSocket transport (Socket.IO)
     RealtimeModule,
 
-    // 15 Domain Feature Modules + Health
+    // 15 Domain Feature Modules + Health + Audit
     AuthModule,
     UsersModule,
     StudentsModule,
@@ -63,6 +64,7 @@ import { AssistantsModule } from './modules/assistants/assistants.module';
     ContactMessagesModule,
     CertificatesModule,
     AssistantsModule,
+    AuditModule,
   ],
 })
 export class AppModule {}
