@@ -1180,10 +1180,14 @@ export class SyncService {
         continue;
       }
 
-      let amountPaid = Number(op.amountPaid ?? op.amount ?? 0);
-      let amountExpected = Number(op.amountExpected ?? op.amount ?? 0);
+      let incomingAmountPaid: number | undefined = undefined;
+      if (op.amountPaid !== undefined && op.amountPaid !== null) {
+        incomingAmountPaid = Number(op.amountPaid);
+      } else if (op.amount !== undefined && op.amount !== null) {
+        incomingAmountPaid = Number(op.amount);
+      }
 
-      if (isNaN(amountPaid) || !isFinite(amountPaid) || amountPaid < 0) {
+      if (incomingAmountPaid !== undefined && (isNaN(incomingAmountPaid) || !isFinite(incomingAmountPaid) || incomingAmountPaid < 0)) {
         result.failedCount++;
         result.conflicts.push({
           operationId: opId,
@@ -1191,6 +1195,8 @@ export class SyncService {
         });
         continue;
       }
+
+      let clientExpected = Number(op.amountExpected ?? op.amount ?? 0);
 
       const periodYear = op.periodYear || op.billingPeriodYear || new Date().getFullYear();
       const periodMonth = op.periodMonth || op.billingPeriodMonth || (new Date().getMonth() + 1);
@@ -1237,10 +1243,9 @@ export class SyncService {
               where: { id: op.bookletId },
             });
 
-            if (amountPaid <= 0 && booklet && Number(booklet.price) > 0) {
-              amountPaid = Number(booklet.price);
-              amountExpected = Number(booklet.price);
-            }
+            let authoritativeExpected = booklet && Number(booklet.price) > 0 ? Number(booklet.price) : clientExpected;
+            let amountPaid = incomingAmountPaid !== undefined ? incomingAmountPaid : authoritativeExpected;
+            let amountExpected = authoritativeExpected;
 
             if (booklet && student.gradeLevel && booklet.gradeLevel && student.gradeLevel !== booklet.gradeLevel) {
               result.conflicts.push({
@@ -1312,11 +1317,7 @@ export class SyncService {
                 },
               });
             } else {
-              let finalExpected = amountExpected;
-              if (finalExpected <= 0 && booklet && Number(booklet.price) > 0) {
-                finalExpected = Number(booklet.price);
-              }
-              const finalStatus = amountPaid >= finalExpected && finalExpected > 0 ? PaymentStatus.PAID : PaymentStatus.PENDING;
+              const finalStatus = amountPaid >= amountExpected && amountExpected > 0 ? PaymentStatus.PAID : PaymentStatus.PENDING;
 
               savedPaymentRecord = await tx.studentPaymentRecord.create({
                 data: {
@@ -1328,7 +1329,7 @@ export class SyncService {
                   periodYear,
                   periodMonth,
                   amountPaid,
-                  amountExpected: finalExpected,
+                  amountExpected: amountExpected,
                   paymentStatus: finalStatus,
                   paymentMethod: op.paymentMethod || 'CASH',
                   currency: op.currency || 'EGP',
@@ -1356,6 +1357,22 @@ export class SyncService {
             }
           } else {
             // Flow B: Ingest Monthly Tuition Payment
+            let authoritativeExpected = clientExpected;
+            if (resolvedGroupId && typeof tx.academicGroup?.findUnique === 'function') {
+              try {
+                const group = await tx.academicGroup.findUnique({
+                  where: { id: resolvedGroupId },
+                  select: { monthlyFee: true },
+                });
+                if (group && Number(group.monthlyFee) > 0) {
+                  authoritativeExpected = Number(group.monthlyFee);
+                }
+              } catch {}
+            }
+            
+            let amountPaid = incomingAmountPaid !== undefined ? incomingAmountPaid : authoritativeExpected;
+            let amountExpected = authoritativeExpected;
+
             let existingPayment: any = null;
             if (resolvedGroupId) {
               existingPayment = await tx.studentPaymentRecord.findFirst({
@@ -1393,7 +1410,7 @@ export class SyncService {
 
             if (existingPayment) {
               const existingPaid = Number(existingPayment.amountPaid || 0);
-              const existingExpected = Number(existingPayment.amountExpected || 0);
+              const existingExpected = Math.max(Number(existingPayment.amountExpected || 0), amountExpected);
               
               const isExistingFullyPaid = existingPaid >= existingExpected && existingExpected > 0;
               const isIncomingFullPayment = amountPaid >= amountExpected && amountExpected > 0;
@@ -1436,21 +1453,7 @@ export class SyncService {
                   })
                 : existingPayment;
             } else {
-              let finalExpected = amountExpected;
-              if (finalExpected <= 0 && resolvedGroupId) {
-                try {
-                  const group = await tx.academicGroup.findUnique({
-                    where: { id: resolvedGroupId },
-                    select: { monthlyFee: true },
-                  });
-                  if (group && Number(group.monthlyFee) > 0) {
-                    finalExpected = Number(group.monthlyFee);
-                  }
-                } catch {
-                  // non-blocking
-                }
-              }
-              const finalStatus = amountPaid >= finalExpected && finalExpected > 0 ? PaymentStatus.PAID : PaymentStatus.PENDING;
+              const finalStatus = amountPaid >= amountExpected && amountExpected > 0 ? PaymentStatus.PAID : PaymentStatus.PENDING;
 
               savedPaymentRecord = await tx.studentPaymentRecord.create({
                 data: {
@@ -1461,7 +1464,7 @@ export class SyncService {
                   periodYear,
                   periodMonth,
                   amountPaid,
-                  amountExpected: finalExpected,
+                  amountExpected: amountExpected,
                   paymentStatus: finalStatus,
                   paymentMethod: op.paymentMethod || 'CASH',
                   currency: op.currency || 'EGP',

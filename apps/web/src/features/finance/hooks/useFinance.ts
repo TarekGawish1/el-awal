@@ -216,18 +216,20 @@ export function useRecordPayment() {
             };
           }
 
+          const parsedAmountPaid = payload.amountPaid !== undefined && payload.amountPaid !== null ? Number(payload.amountPaid) : undefined;
+          
+          const resolvedExpectedBookletAmount = booklet && Number(booklet.price) > 0 ? Number(booklet.price) : 50;
+
           const resolvedBookletAmount =
-            payload.amountPaid !== undefined && Number(payload.amountPaid) > 0
-              ? Number(payload.amountPaid)
-              : booklet && Number(booklet.price) > 0
-              ? Number(booklet.price)
-              : 50;
+            parsedAmountPaid !== undefined && !isNaN(parsedAmountPaid)
+              ? parsedAmountPaid
+              : resolvedExpectedBookletAmount;
 
           const paymentRecord = await offlineDb.recordBookletPaymentOffline({
             studentId: payload.studentId,
             bookletId: payload.bookletId,
             amountPaid: resolvedBookletAmount,
-            amountExpected: resolvedBookletAmount,
+            amountExpected: resolvedExpectedBookletAmount,
             groupId: payload.groupId,
             notes: payload.notes,
             receiptNumber: payload.receiptNumber,
@@ -270,12 +272,14 @@ export function useRecordPayment() {
           : null;
 
         const groupFee = Number(group?.monthlyFee ?? (group as any)?.fee ?? (group as any)?.price ?? 0);
-        const resolvedAmount =
-          payload.amountPaid !== undefined && Number(payload.amountPaid) > 0
-            ? Number(payload.amountPaid)
-            : groupFee > 0
-            ? groupFee
-            : 350;
+        
+        const parsedAmountPaid = payload.amountPaid !== undefined && payload.amountPaid !== null ? Number(payload.amountPaid) : undefined;
+        const resolvedExpected = groupFee > 0 ? groupFee : 350;
+
+        const resolvedAmountPaid =
+          parsedAmountPaid !== undefined && !isNaN(parsedAmountPaid)
+            ? parsedAmountPaid
+            : resolvedExpected;
 
         const paymentRecord: any = {
           id: `offline-pay-${Date.now()}`,
@@ -283,10 +287,10 @@ export function useRecordPayment() {
           groupId: payload.groupId || group?.id || null,
           periodYear,
           periodMonth,
-          amountExpected: resolvedAmount,
-          amountPaid: resolvedAmount,
+          amountExpected: resolvedExpected,
+          amountPaid: resolvedAmountPaid,
           currency: 'EGP',
-          paymentStatus: 'PAID' as any,
+          paymentStatus: resolvedAmountPaid >= resolvedExpected && resolvedExpected > 0 ? 'PAID' : 'PENDING',
           paymentMethod: payload.paymentMethod || 'CASH',
           receiptNumber: payload.receiptNumber || null,
           recordedById: 'offline-teacher',
@@ -305,9 +309,9 @@ export function useRecordPayment() {
           {
             ...payload,
             type: 'CREATE_PAYMENT',
-            amount: resolvedAmount,
-            amountPaid: resolvedAmount,
-            amountExpected: resolvedAmount,
+            amount: resolvedAmountPaid,
+            amountPaid: resolvedAmountPaid,
+            amountExpected: resolvedExpected,
             paymentType: 'TUITION',
             paymentMethod: payload.paymentMethod || 'CASH',
             clientTimestamp: Date.now(),
