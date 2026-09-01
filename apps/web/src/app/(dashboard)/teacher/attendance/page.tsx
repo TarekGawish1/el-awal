@@ -619,7 +619,7 @@ function TeacherAttendanceContent() {
                  </p>
                  <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl mt-2 text-sm font-bold text-slate-700">
                    <Clock className="w-4 h-4 text-slate-400" />
-                   موعد الحصة: {formatTime12h(activeSessionObj?.startTime)}
+                   موعد الحصة: {formatTime12h(activeSessionObj?.startTime || undefined)}
                  </div>
                </div>
              ) : (
