@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useRef, useEffect } from 'react';
-import { Clock, Users, FileText, QrCode, Sparkles, BookOpen, AlertTriangle } from 'lucide-react';
+import { useMemo, useRef, useEffect, useState } from 'react';
+import { Clock, Users, FileText, QrCode, Sparkles, BookOpen, AlertTriangle, CalendarDays, Plus, ChevronDown } from 'lucide-react';
 import { LessonSessionItem } from '../types/schedules.types';
 import {
   formatArabicTime12H,
@@ -49,6 +49,7 @@ export function DailyCalendarView({
   const dateStr = toLocalDateStr(currentDate);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const firstSessionRef = useRef<HTMLDivElement>(null);
+  const [showAllHours, setShowAllHours] = useState(false);
 
   const daySessions = useMemo(() => {
     return sessions.filter((s) => {
@@ -73,6 +74,35 @@ export function DailyCalendarView({
     });
     return minH < 24 ? minH : null;
   }, [daySessions]);
+
+  const renderedHours = useMemo(() => {
+    if (showAllHours || daySessions.length === 0) return HOURS;
+    
+    let minH = 24;
+    let maxH = 0;
+    
+    daySessions.forEach(s => {
+      let h = 16;
+      if (s.startTime) h = parseInt(s.startTime.split(':')[0], 10);
+      if (!isNaN(h)) {
+        minH = Math.min(minH, h);
+        maxH = Math.max(maxH, h);
+      }
+      if (s.endTime) {
+        let endH = parseInt(s.endTime.split(':')[0], 10);
+        if (!isNaN(endH)) maxH = Math.max(maxH, endH);
+      }
+    });
+    
+    // Fallback if parsing fails
+    if (minH === 24) return HOURS;
+    
+    // Add 1 hour padding
+    minH = Math.max(6, minH - 1);
+    maxH = Math.min(23, maxH + 1);
+    
+    return HOURS.filter(h => h.hour24 >= minH && h.hour24 <= maxH);
+  }, [daySessions, showAllHours]);
 
   // Auto-scroll to the first lesson of the day on mount/date change
   useEffect(() => {
@@ -137,17 +167,40 @@ export function DailyCalendarView({
         <Button
           size="sm"
           onClick={() => onAddSessionForDate?.(dateStr, '16:00')}
-          className="shadow-xs text-xs shrink-0"
+          className="shadow-xs text-xs font-bold rounded-xl shrink-0"
         >
-          + إضافة حصة لهذا اليوم
+          <Plus className="w-3.5 h-3.5 ml-1.5" />
+          إضافة حصة
         </Button>
       </div>
 
-      {/* Hourly Timeline */}
-      <div ref={scrollContainerRef} className="overflow-y-auto max-h-[640px] divide-y divide-slate-100">
-        {HOURS.map((hour) => {
-          const hourSessions = sessionsByHour.get(hour.hour24) || [];
-          const isEarliestHour = hour.hour24 === earliestHour;
+      {daySessions.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 px-4 text-center">
+          <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+            <CalendarDays className="w-8 h-8 text-slate-300" />
+          </div>
+          <h3 className="text-lg font-black text-slate-800 mb-2">لا توجد حصص مجدولة لهذا اليوم</h3>
+          <p className="text-sm text-slate-500 mb-6">يمكنك إضافة حصة جديدة أو الانتقال ليوم آخر.</p>
+          <Button onClick={() => onAddSessionForDate?.(dateStr, '16:00')} className="rounded-xl shadow-sm">
+            <Plus className="w-4 h-4 ml-2" />
+            إضافة حصة جديدة
+          </Button>
+        </div>
+      ) : (
+        <div ref={scrollContainerRef} className="overflow-y-auto max-h-[640px] divide-y divide-slate-100">
+          {/* Top padding / expand toggle */}
+          {!showAllHours && renderedHours[0]?.hour24 > 6 && (
+            <div className="py-2 flex justify-center bg-slate-50/50">
+              <button onClick={() => setShowAllHours(true)} className="text-[10px] font-bold text-slate-400 hover:text-primary-600 flex items-center gap-1">
+                <ChevronDown className="w-3 h-3 rotate-180" />
+                إظهار الساعات السابقة
+              </button>
+            </div>
+          )}
+
+          {renderedHours.map((hour) => {
+            const hourSessions = sessionsByHour.get(hour.hour24) || [];
+            const isEarliestHour = hour.hour24 === earliestHour;
 
           return (
             <div
@@ -267,8 +320,19 @@ export function DailyCalendarView({
               </div>
             </div>
           );
-        })}
-      </div>
+          })}
+          
+          {/* Bottom padding / expand toggle */}
+          {!showAllHours && renderedHours[renderedHours.length - 1]?.hour24 < 23 && (
+            <div className="py-2 flex justify-center bg-slate-50/50">
+              <button onClick={() => setShowAllHours(true)} className="text-[10px] font-bold text-slate-400 hover:text-primary-600 flex items-center gap-1">
+                <ChevronDown className="w-3 h-3" />
+                إظهار الساعات اللاحقة
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
