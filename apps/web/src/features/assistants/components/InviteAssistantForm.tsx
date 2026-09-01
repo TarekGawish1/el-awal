@@ -17,8 +17,8 @@ export function InviteAssistantForm() {
   const [formMode, setFormMode] = useState<'invite' | 'create'>('create');
   
   // Shared state
-  const [method, setMethod] = useState<'phone' | 'email'>('phone');
-  const [value, setValue] = useState(''); // phone or email value
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   
   // Creation state
   const [fullName, setFullName] = useState('');
@@ -30,16 +30,25 @@ export function InviteAssistantForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!value.trim()) return;
+    if (!phone.trim() && !email.trim()) {
+      setError('يرجى إدخال رقم الهاتف أو البريد الإلكتروني.');
+      return;
+    }
     setError('');
     setSuccess('');
 
     try {
-      const payload: any = { [method]: value.trim() };
+      const payload: any = {};
+      if (phone.trim()) payload.phone = phone.trim();
+      if (email.trim()) payload.email = email.trim();
       
       if (formMode === 'create') {
         if (!fullName.trim() || !password) {
           setError('يرجى إدخال اسم المساعد وكلمة المرور لإنشاء الحساب.');
+          return;
+        }
+        if (!phone.trim()) {
+          setError('يرجى إدخال رقم الهاتف لإنشاء الحساب.');
           return;
         }
         payload.fullName = fullName.trim();
@@ -49,8 +58,9 @@ export function InviteAssistantForm() {
 
       await inviteAssistant(payload);
       
-      setSuccess('تم إضافة المساعد بنجاح!');
-      setValue('');
+      setSuccess(formMode === 'create' ? 'تم إنشاء الحساب وإضافة المساعد بنجاح!' : 'تم إضافة المساعد بنجاح!');
+      setPhone('');
+      setEmail('');
       setFullName('');
       setPassword('');
       setPermissions([]);
@@ -96,35 +106,37 @@ export function InviteAssistantForm() {
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-          
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-neutral-700">طريقة التسجيل</label>
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 text-sm font-medium text-neutral-700 cursor-pointer">
-                <input type="radio" name="method" checked={method === 'phone'} onChange={() => setMethod('phone')} className="text-primary-600 focus:ring-primary-500" />
-                رقم الهاتف
-              </label>
-              <label className="flex items-center gap-2 text-sm font-medium text-neutral-700 cursor-pointer">
-                <input type="radio" name="method" checked={method === 'email'} onChange={() => setMethod('email')} className="text-primary-600 focus:ring-primary-500" />
-                البريد الإلكتروني
-              </label>
-            </div>
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-1">
-                {method === 'phone' ? 'رقم الهاتف' : 'البريد الإلكتروني'}
+                رقم الهاتف {formMode === 'create' && <span className="text-red-500">*</span>}
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-neutral-400">
-                  {method === 'phone' ? <Phone className="w-5 h-5" /> : <Mail className="w-5 h-5" />}
+                  <Phone className="w-5 h-5" />
                 </div>
                 <input
-                  type={method === 'phone' ? 'tel' : 'email'}
-                  value={value}
-                  onChange={(e) => setValue(e.target.value)}
-                  placeholder={method === 'phone' ? 'أدخل رقم الهاتف...' : 'أدخل البريد الإلكتروني...'}
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="أدخل رقم الهاتف..."
+                  className="w-full bg-neutral-50 border border-neutral-200 text-neutral-800 rounded-lg pr-10 pl-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-shadow"
+                  dir="ltr"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-1">البريد الإلكتروني (اختياري)</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-neutral-400">
+                  <Mail className="w-5 h-5" />
+                </div>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="أدخل البريد الإلكتروني..."
                   className="w-full bg-neutral-50 border border-neutral-200 text-neutral-800 rounded-lg pr-10 pl-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-shadow"
                   dir="ltr"
                 />
@@ -134,7 +146,7 @@ export function InviteAssistantForm() {
             {formMode === 'create' && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">الاسم الكامل للمساعد</label>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">الاسم الكامل للمساعد <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     value={fullName}
@@ -143,8 +155,8 @@ export function InviteAssistantForm() {
                     className="w-full bg-neutral-50 border border-neutral-200 text-neutral-800 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-shadow"
                   />
                 </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">كلمة المرور</label>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">كلمة المرور <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     value={password}
@@ -196,7 +208,7 @@ export function InviteAssistantForm() {
           <div className="flex justify-end pt-4 border-t border-neutral-100">
             <button
               type="submit"
-              disabled={!value.trim() || (formMode === 'create' && (!fullName.trim() || !password)) || isInviting}
+              disabled={(!phone.trim() && !email.trim()) || (formMode === 'create' && (!fullName.trim() || !password || !phone.trim())) || isInviting}
               className="w-full md:w-auto shrink-0 bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-8 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
             >
               {isInviting ? <Loader2 className="w-5 h-5 animate-spin" /> : <UserPlus className="w-5 h-5" />}
