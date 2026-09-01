@@ -278,6 +278,7 @@ model TeacherProfile {
   bio                String?  @map("bio") @db.Text
   activeAcademicYear String?  @default("2026-2027") @map("active_academic_year") @db.VarChar(30)
   activeAcademicTerm String?  @default("FIRST_TERM") @map("active_academic_term") @db.VarChar(30)
+  savedLocations     String[] @default([]) @map("saved_locations")
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 

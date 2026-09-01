@@ -417,4 +417,42 @@ export class TeachersService {
 
     return updated;
   }
+
+  async getSavedLocations(teacherId: string): Promise<string[]> {
+    const teacherProfile = await this.prisma.teacherProfile.findUnique({
+      where: { id: teacherId },
+      select: { savedLocations: true },
+    });
+
+    if (!teacherProfile) {
+      const primaryTeacher = await this.prisma.teacherProfile.findFirst({ select: { savedLocations: true } });
+      return primaryTeacher?.savedLocations || [];
+    }
+
+    return teacherProfile.savedLocations || [];
+  }
+
+  async updateSavedLocations(teacherId: string, locations: string[]): Promise<string[]> {
+    let targetId = teacherId;
+    const existing = await this.prisma.teacherProfile.findUnique({
+      where: { id: teacherId },
+    });
+
+    if (!existing) {
+      const primaryTeacher = await this.prisma.teacherProfile.findFirst();
+      if (primaryTeacher) {
+        targetId = primaryTeacher.id;
+      } else {
+        throw new Error('Teacher profile not found');
+      }
+    }
+
+    const updated = await this.prisma.teacherProfile.update({
+      where: { id: targetId },
+      data: { savedLocations: locations },
+      select: { savedLocations: true },
+    });
+
+    return updated.savedLocations;
+  }
 }

@@ -84,5 +84,30 @@ export class TeachersController {
   ) {
     return this.studentsService.resetStudentPassword(studentId, dto, user);
   }
+
+  @Get('saved-locations')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({
+    summary: 'Get saved center locations for the teacher',
+  })
+  @ApiResponse({ status: 200, description: 'List of saved location names' })
+  async getSavedLocations(@CurrentUser() user: AuthenticatedUser) {
+    const teacherId = user.teacherProfileId || user.id;
+    return this.teachersService.getSavedLocations(teacherId);
+  }
+
+  @Put('saved-locations')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({
+    summary: 'Update the list of saved center locations',
+  })
+  @ApiResponse({ status: 200, description: 'Updated list of saved location names' })
+  async updateSavedLocations(
+    @Body() dto: { locations: string[] },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const teacherId = user.teacherProfileId || user.id;
+    return this.teachersService.updateSavedLocations(teacherId, dto.locations);
+  }
 }
 

@@ -22,6 +22,7 @@ export const API_ENDPOINTS = {
   TEACHER: {
     DASHBOARD_OVERVIEW: '/teachers/dashboard/overview', // Recommended server aggregation contract
     ACADEMIC_PERIOD: '/teachers/academic-period',
+    SAVED_LOCATIONS: '/teachers/saved-locations',
   },
   ACADEMIC_PERIODS: {
     SWITCH: '/academic-periods/switch', // Password-gated switch of the active academic year/term

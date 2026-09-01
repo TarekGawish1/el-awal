@@ -3,14 +3,9 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { MapPin, ChevronDown, Plus, Check, X, Trash2 } from 'lucide-react';
 import { useGroups } from '../hooks/useGroups';
+import { useSavedLocations } from '../hooks/useSavedLocations';
 
-const STORAGE_KEY = 'el_awal_saved_locations';
-const DEFAULT_LOCATIONS = [
-  'السنتر الرئيسي',
-  'سنتر الأوائل - قاعة 1',
-  'سنتر الأوائل - قاعة 2',
-  'أونلاين (Online)',
-];
+const DEFAULT_LOCATIONS: string[] = [];
 
 interface LocationSelectProps {
   value?: string;
@@ -31,17 +26,7 @@ export function LocationSelect({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { data: groups } = useGroups();
-
-  // Load custom saved locations from localStorage
-  const [customLocations, setCustomLocations] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const { savedLocations: customLocations, addLocation, removeLocation, isLoading } = useSavedLocations();
 
   // Extract all existing locations from teacher's groups
   const groupLocations = useMemo(() => {
@@ -98,18 +83,12 @@ export function LocationSelect({
     setIsOpen(false);
   };
 
-  const handleAddNewLocation = (newLoc: string) => {
+  const handleAddNewLocation = async (newLoc: string) => {
     const trimmed = newLoc.trim();
     if (!trimmed) return;
 
     if (!customLocations.includes(trimmed)) {
-      const updated = [...customLocations, trimmed];
-      setCustomLocations(updated);
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      } catch (err) {
-        console.error('Failed to save custom location:', err);
-      }
+      await addLocation(trimmed);
     }
 
     onChange(trimmed);
@@ -117,15 +96,9 @@ export function LocationSelect({
     setIsOpen(false);
   };
 
-  const handleRemoveCustomLocation = (e: React.MouseEvent, locToRemove: string) => {
+  const handleRemoveCustomLocation = async (e: React.MouseEvent, locToRemove: string) => {
     e.stopPropagation();
-    const updated = customLocations.filter((l) => l !== locToRemove);
-    setCustomLocations(updated);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch (err) {
-      console.error('Failed to remove custom location:', err);
-    }
+    await removeLocation(locToRemove);
     if (value === locToRemove) {
       onChange('');
     }
@@ -261,6 +234,10 @@ export function LocationSelect({
                   </div>
                 );
               })
+            ) : isLoading ? (
+              <div className="py-4 text-center text-xs text-neutral-400">
+                جاري التحميل...
+              </div>
             ) : (
               <div className="py-4 text-center text-xs text-neutral-400">
                 لا توجد أماكن مطابقة
