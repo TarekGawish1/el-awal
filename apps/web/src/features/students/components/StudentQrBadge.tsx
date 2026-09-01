@@ -67,12 +67,19 @@ export function StudentQrBadge({
           ctx.fillStyle = '#0f172a';
           ctx.font = 'bold 26px sans-serif';
           ctx.textAlign = 'center';
-          ctx.fillText(data.fullName || '', 250, 450);
+          ctx.fillText(data.fullName || '', 250, 440);
 
           // Student Code
           ctx.fillStyle = '#2563eb';
-          ctx.font = 'bold 20px monospace';
-          ctx.fillText(data.studentCode || '', 250, 495);
+          ctx.font = 'bold 22px monospace';
+          ctx.fillText(`الكود: ${data.studentCode || ''}`, 250, 480);
+
+          // Password if available
+          if (loginPassword) {
+            ctx.fillStyle = '#475569';
+            ctx.font = 'bold 20px sans-serif';
+            ctx.fillText(`كلمة المرور: ${loginPassword}`, 250, 520);
+          }
 
           URL.revokeObjectURL(url);
           canvas.toBlob(resolve, 'image/png');
@@ -188,7 +195,26 @@ export function StudentQrBadge({
           <QRCode value={data.qrCodeToken} size={180} className="group-hover:scale-105 transition-transform duration-300" />
         </div>
         <div className="text-center w-full">
-          <h3 className="text-lg font-bold text-slate-900">{data.fullName}</h3>
+          <h3 className="text-lg font-bold text-slate-900 mb-3">{data.fullName}</h3>
+          
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-2 text-sm w-full text-start">
+            <div className="flex justify-between items-center">
+              <span className="text-slate-500 font-medium">كود الطالب:</span>
+              <span className="font-mono font-bold text-primary-600 bg-primary-50 px-2 py-0.5 rounded" dir="ltr">{data.studentCode}</span>
+            </div>
+            {loginPassword && (
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">كلمة المرور:</span>
+                <span className="font-mono font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded" dir="ltr">{loginPassword}</span>
+              </div>
+            )}
+            {loginPhone && !loginEmail && (
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">تسجيل الدخول بـ:</span>
+                <span className="font-mono font-bold text-slate-700 bg-slate-200 px-2 py-0.5 rounded text-xs" dir="ltr">{loginPhone}</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

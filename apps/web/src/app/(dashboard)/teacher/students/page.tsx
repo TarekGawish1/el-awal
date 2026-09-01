@@ -70,7 +70,7 @@ export default function TeacherStudentsPage() {
         </div>
       ) : createdStudent ? (
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 mb-8 flex flex-col items-center">
-          <div className="w-full max-w-sm mb-6">
+          <div className="w-full max-w-2xl mb-6">
             <StudentQrBadge
               studentId={createdStudent.id}
               studentPhone={createdStudent.phone}
