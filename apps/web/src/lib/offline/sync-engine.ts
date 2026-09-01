@@ -627,6 +627,9 @@ class OfflineSyncEngine {
       return { synced: 0, failed: 0 };
     }
 
+    // Recover any mutations stranded in SYNCING state by previous crashes or OS kills
+    await offlineDb.recoverOrphanedSyncingMutations(currentUser.id);
+
     let pending = await offlineDb.getPendingMutations(currentUser.id);
     if (options?.mutationIds) {
       const allowed = new Set(options.mutationIds);
