@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSessionReport } from '../hooks/use-attendance';
 import { offlineDb } from '@/lib/offline/db';
-import { ClipboardCheck, ClipboardList, CheckCircle2, XCircle, AlertTriangle, UserCheck } from 'lucide-react';
+import { ClipboardCheck, ClipboardList, CheckCircle2, XCircle, AlertTriangle, UserCheck, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 
 interface SessionLogbookProps {
@@ -13,6 +13,7 @@ interface SessionLogbookProps {
 export function SessionLogbook({ sessionId }: SessionLogbookProps) {
   const { data: sessionReport, isLoading } = useSessionReport(sessionId);
   const [homeworkRecords, setHomeworkRecords] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -67,6 +68,19 @@ export function SessionLogbook({ sessionId }: SessionLogbookProps) {
         </div>
       </div>
 
+      <div className="relative">
+        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+          <Search className="h-5 w-5 text-slate-400" />
+        </div>
+        <input
+          type="text"
+          placeholder="ابحث باسم الطالب أو الكود..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="block w-full pl-3 pr-10 py-3 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 sm:text-sm shadow-sm transition-all"
+        />
+      </div>
+
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-start">
@@ -85,7 +99,14 @@ export function SessionLogbook({ sessionId }: SessionLogbookProps) {
                   </td>
                 </tr>
               ) : (
-                students.map((student: any) => {
+                students
+                  .filter((st: any) => {
+                    const q = searchQuery.toLowerCase();
+                    const name = (st.fullName || st.studentName || '').toLowerCase();
+                    const code = (st.studentCode || '').toLowerCase();
+                    return name.includes(q) || code.includes(q);
+                  })
+                  .map((student: any) => {
                   const hwRecord = homeworkRecords.find((r) => r.studentId === student.studentId);
                   const attStatus = student.status;
                   const hwStatus = hwRecord?.status;
