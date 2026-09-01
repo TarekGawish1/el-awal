@@ -77,10 +77,10 @@ export function PaymentLedgerTable({ payments, isLoading, onOpenHistory, onDelet
           <tbody className="divide-y divide-slate-100">
             {payments.map((payment) => (
               <tr key={payment.id} className="hover:bg-slate-50/50 transition-colors">
-                <td className="px-5 py-3 font-bold text-slate-800">
+                <td className="px-5 py-3 font-bold text-slate-800 max-w-[150px] truncate" title={payment.student?.user?.fullName || 'طالب غير محدد'}>
                   {payment.student?.user?.fullName || 'طالب غير محدد'}
                 </td>
-                <td className="px-5 py-3 font-semibold text-slate-600">
+                <td className="px-5 py-3 font-semibold text-slate-600 max-w-[180px] truncate" title={payment.group?.name || 'غير محدد'}>
                   {payment.group?.name || 'غير محدد'}
                 </td>
                 <td className="px-5 py-3 text-xs">
@@ -136,11 +136,11 @@ export function PaymentLedgerTable({ payments, isLoading, onOpenHistory, onDelet
         {payments.map((payment) => (
           <div key={payment.id} className="p-4 hover:bg-slate-50/50 transition-colors">
             <div className="flex justify-between items-start mb-2">
-              <div>
-                <p className="font-bold text-slate-800 text-sm">{payment.student?.user?.fullName || 'طالب غير محدد'}</p>
-                <p className="text-[10px] font-semibold text-slate-500 mt-1">{payment.group?.name || 'مجموعة غير محددة'}</p>
+              <div className="flex-1 min-w-0 pr-2">
+                <p className="font-bold text-slate-800 text-sm truncate" title={payment.student?.user?.fullName || 'طالب غير محدد'}>{payment.student?.user?.fullName || 'طالب غير محدد'}</p>
+                <p className="text-[10px] font-semibold text-slate-500 mt-1 truncate" title={payment.group?.name || 'مجموعة غير محددة'}>{payment.group?.name || 'مجموعة غير محددة'}</p>
               </div>
-              <div className="text-right">
+              <div className="text-right whitespace-nowrap">
                 <p className="font-extrabold text-emerald-600">{payment.amountPaid} ج.م</p>
                 {payment.paymentStatus === 'REFUNDED' ? (
                   <Badge variant="error" className="text-[10px] mt-1">مسترد</Badge>

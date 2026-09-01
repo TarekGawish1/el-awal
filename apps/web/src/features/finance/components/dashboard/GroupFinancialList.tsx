@@ -35,9 +35,9 @@ export function GroupFinancialList({ groups, onOpenGroup }: { groups: FinanceAna
           <tbody className="divide-y divide-slate-100">
             {groups.map((group) => (
               <tr key={group.id} className="hover:bg-slate-50/50 transition-colors">
-                <td className="px-5 py-3">
-                  <p className="font-bold text-slate-800">{group.name}</p>
-                  <p className="text-[10px] font-semibold text-slate-500">{group.gradeLevel}</p>
+                <td className="px-5 py-3 max-w-[200px]">
+                  <p className="font-bold text-slate-800 truncate" title={group.name}>{group.name}</p>
+                  <p className="text-[10px] font-semibold text-slate-500 truncate" title={group.gradeLevel}>{group.gradeLevel}</p>
                 </td>
                 <td className="px-5 py-3 font-semibold text-slate-600">
                   <span className="flex items-center gap-1">
@@ -76,9 +76,9 @@ export function GroupFinancialList({ groups, onOpenGroup }: { groups: FinanceAna
         {groups.map((group) => (
           <div key={group.id} className="p-4 hover:bg-slate-50/50 transition-colors">
             <div className="flex justify-between items-start mb-3">
-              <div>
-                <p className="font-bold text-slate-800 text-sm">{group.name}</p>
-                <p className="text-[10px] font-semibold text-slate-500 mt-0.5">{group.gradeLevel}</p>
+              <div className="flex-1 min-w-0 pr-2">
+                <p className="font-bold text-slate-800 text-sm truncate" title={group.name}>{group.name}</p>
+                <p className="text-[10px] font-semibold text-slate-500 mt-0.5 truncate" title={group.gradeLevel}>{group.gradeLevel}</p>
               </div>
               <span className="flex items-center gap-1 text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-1 rounded-md">
                 <Users className="w-3.5 h-3.5" />
