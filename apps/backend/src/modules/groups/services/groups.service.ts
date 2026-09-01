@@ -53,7 +53,7 @@ export class GroupsService {
   /**
    * Creates a new physical academic group assigned to the authenticated teacher.
    */
-  async createGroup(teacherId: string, dto: CreateGroupDto) {
+  async createGroup(teacherId: string, dto: CreateGroupDto, currentUser?: AuthenticatedUser) {
     if (dto.id) {
       const existing = await this.prisma.academicGroup.findUnique({
         where: { id: dto.id },
@@ -76,6 +76,9 @@ export class GroupsService {
       }
     }
 
+    const creatorName = currentUser?.fullName || (currentUser?.role === UserRole.SECRETARIAT ? 'المساعد' : 'المعلم');
+    const creatorId = currentUser?.id || null;
+
     return this.prisma.academicGroup.create({
       data: {
         id: dto.id || undefined,
@@ -87,6 +90,10 @@ export class GroupsService {
         maxCapacity: dto.maxCapacity || 50,
         monthlyFee: dto.monthlyFee || 0.0,
         teacherId: effectiveTeacherId,
+        createdById: creatorId,
+        createdByName: creatorName,
+        updatedById: creatorId,
+        updatedByName: creatorName,
         schedules: dto.schedules?.length ? {
           create: dto.schedules.map(s => ({
             dayOfWeek: s.dayOfWeek,
@@ -191,12 +198,17 @@ export class GroupsService {
     await this.checkTeacherOwnership(group, user);
 
     const { schedules, ...updateData } = dto;
+    const updaterName = user?.fullName || (user?.role === UserRole.SECRETARIAT ? 'المساعد' : 'المعلم');
 
     return this.prisma.$transaction(async (tx) => {
       // update main group
       const updatedGroup = await tx.academicGroup.update({
         where: { id: groupId },
-        data: updateData,
+        data: {
+          ...updateData,
+          updatedById: user?.id || null,
+          updatedByName: updaterName,
+        },
       });
 
       // if schedules are provided, replace them

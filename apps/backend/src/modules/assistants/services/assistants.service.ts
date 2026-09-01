@@ -2,8 +2,9 @@ import { Injectable, Logger, NotFoundException, BadRequestException, ConflictExc
 import { IsString, IsOptional, IsArray, IsEnum, IsEmail } from 'class-validator';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../../core/database/prisma.service';
-import { AssistantPermission, AssistantStatus, UserRole, NotificationType, NotificationChannel } from '@prisma/client';
+import { AssistantPermission, AssistantStatus, UserRole, NotificationType, NotificationChannel, AuditAction } from '@prisma/client';
 import { NotificationsService } from '../../notifications/services/notifications.service';
+import { AuditService } from '../../audit/services/audit.service';
 
 export class InviteAssistantDto {
   @IsOptional()
@@ -66,6 +67,7 @@ export class AssistantsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly auditService: AuditService,
   ) {}
 
   async listAssistants(teacherId: string) {
@@ -187,6 +189,20 @@ export class AssistantsService {
       }
     }
 
+    // Record Audit Log
+    await this.auditService.logActivity({
+      userId: teacherId,
+      userRole: UserRole.TEACHER,
+      userName: 'المعلم',
+      teacherId,
+      action: AuditAction.CREATE,
+      entityType: 'ASSISTANT',
+      entityId: newAssistant.id,
+      entityName: user.fullName,
+      description: `تم إضافة وتعيين المساعد ${user.fullName} (${user.phone}) وتحديد صلاحياته`,
+      details: { permissions: dto.permissions },
+    });
+
     return newAssistant;
   }
 
@@ -255,12 +271,27 @@ export class AssistantsService {
       },
     });
 
+    // Record Audit Log
+    await this.auditService.logActivity({
+      userId: teacherId,
+      userRole: UserRole.TEACHER,
+      userName: 'المعلم',
+      teacherId,
+      action: AuditAction.UPDATE,
+      entityType: 'ASSISTANT',
+      entityId: updated.id,
+      entityName: updated.assistant.fullName,
+      description: `تم تعديل بيانات وصلاحيات المساعد ${updated.assistant.fullName}`,
+      details: { status: dto.status, permissions: dto.permissions },
+    });
+
     return updated;
   }
 
   async removeAssistant(teacherId: string, id: string) {
     const existing = await this.prisma.teacherAssistant.findUnique({
       where: { id },
+      include: { assistant: true },
     });
 
     if (!existing || existing.teacherId !== teacherId) {
@@ -269,6 +300,19 @@ export class AssistantsService {
 
     await this.prisma.teacherAssistant.delete({
       where: { id },
+    });
+
+    // Record Audit Log
+    await this.auditService.logActivity({
+      userId: teacherId,
+      userRole: UserRole.TEACHER,
+      userName: 'المعلم',
+      teacherId,
+      action: AuditAction.DELETE,
+      entityType: 'ASSISTANT',
+      entityId: id,
+      entityName: existing.assistant?.fullName || 'مساعد',
+      description: `تمت إزالة المساعد ${existing.assistant?.fullName || ''} نهائياً من إدارة المنصة`,
     });
 
     return { success: true };

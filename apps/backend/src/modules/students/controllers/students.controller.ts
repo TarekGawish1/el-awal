@@ -30,8 +30,11 @@ export class StudentsController {
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Register and onboard a new student with QR credential provisioning' })
   @ApiResponse({ status: 201, description: 'Student successfully onboarded' })
-  async createStudent(@Body() dto: CreateStudentDto) {
-    return this.studentsService.createStudent(dto);
+  async createStudent(
+    @Body() dto: CreateStudentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.studentsService.createStudent(dto, user);
   }
 
   @Get()

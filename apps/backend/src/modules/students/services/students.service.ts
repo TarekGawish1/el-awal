@@ -41,7 +41,10 @@ export class StudentsService {
    * Executed inside a Prisma $transaction. This is the administration/secretariat
    * path; students can also self-register via the auth student-registration flow.
    */
-  async createStudent(dto: CreateStudentDto) {
+  async createStudent(dto: CreateStudentDto, currentUser?: AuthenticatedUser) {
+    const creatorName = currentUser?.fullName || (currentUser?.role === UserRole.SECRETARIAT ? 'المساعد' : 'المعلم');
+    const creatorId = currentUser?.id || null;
+
     return this.prisma.$transaction(async (tx) => {
       // 0. Check if student already exists (Idempotent for offline sync retries)
       if (dto.id) {
@@ -64,6 +67,8 @@ export class StudentsService {
             createdAt: existingStudent.createdAt,
             hasParentLinked: existingStudent.parentLinks.length > 0,
             enrolledGroupId: existingStudent.groupEnrollments[0]?.groupId || null,
+            createdByName: existingStudent.createdByName,
+            updatedByName: existingStudent.updatedByName,
           };
         }
       }
@@ -115,6 +120,10 @@ export class StudentsService {
           emergencyPhone: dto.emergencyPhone,
           tempAccessPin: dto.password,
           pinExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          createdById: creatorId,
+          createdByName: creatorName,
+          updatedById: creatorId,
+          updatedByName: creatorName,
         },
       });
 
@@ -873,9 +882,14 @@ export class StudentsService {
 
     if (!student) throw new NotFoundException('Student profile not found');
 
+    const updaterName = user?.fullName || (user?.role === UserRole.SECRETARIAT ? 'المساعد' : 'المعلم');
     const updated = await this.prisma.studentProfile.update({
       where: { id },
-      data: { academicStatus: status },
+      data: {
+        academicStatus: status,
+        updatedById: user?.id,
+        updatedByName: updaterName,
+      },
       include: {
         user: true,
         parentLinks: { include: { parent: { include: { user: true } } } },
@@ -883,7 +897,7 @@ export class StudentsService {
       },
     });
 
-    this.logger.log(`Student [${id}] ${student.user.fullName} status updated to: ${status}`);
+    this.logger.log(`Student [${id}] ${student.user.fullName} status updated to: ${status} by ${updaterName}`);
     return updated;
   }
 

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Users, ArrowLeft } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { CreatorBadge } from '@/components/ui/CreatorBadge';
 import { Group } from '../types/groups.types';
 
 interface GroupCardProps {
@@ -47,6 +48,13 @@ export function GroupCard({ group, onClick }: GroupCardProps) {
               <span>{termText}</span>
             )}
           </div>
+
+          <CreatorBadge
+            createdByName={(group as any).createdByName}
+            updatedByName={(group as any).updatedByName}
+            compact
+            className="mt-2"
+          />
         </div>
 
         {/* Bottom: Students & Action */}

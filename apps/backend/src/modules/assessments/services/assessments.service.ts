@@ -1163,6 +1163,7 @@ export class AssessmentsService {
       const isPassed = totalScore >= passingScore;
 
       // 3. Mark submission as GRADED
+      const graderName = isSecretariat ? 'المساعد' : 'المعلم';
       const updatedSubmission = await tx.assessmentSubmission.update({
         where: { id: submissionId },
         data: {
@@ -1170,6 +1171,8 @@ export class AssessmentsService {
           scoreObtained: totalScore,
           teacherFeedback: dto.feedback,
           gradedAt: new Date(),
+          gradedById: teacherId,
+          gradedByName: graderName,
         },
         include: {
           answers: { include: { question: true } },

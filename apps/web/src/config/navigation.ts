@@ -13,6 +13,7 @@ import {
   Bell,
   MessageSquareShare,
   Award,
+  History,
 } from 'lucide-react';
 
 export interface NavItemConfig {
@@ -76,6 +77,7 @@ export const TEACHER_NAVIGATION_SECTIONS: NavSectionConfig[] = [
       { label: 'الماليات والمصروفات', href: '/teacher/finance', icon: DollarSign, onlineOnly: false },
       { label: 'الشهادات', href: '/teacher/certificates', icon: Award, onlineOnly: true },
       { label: 'إدارة المساعدين', href: '/teacher/assistants', icon: Users, onlineOnly: true, roleRequirement: 'TEACHER' },
+      { label: 'سجل النشاطات', href: '/teacher/activity-log', icon: History, onlineOnly: true, roleRequirement: 'TEACHER' },
       {
         label: 'ربط وإدارة الواتساب',
         href: '#whatsapp-manager',

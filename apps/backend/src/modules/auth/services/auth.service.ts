@@ -13,7 +13,6 @@ import { RegisterByGroupDto } from '../dto/register-by-group.dto';
 import { normalizeEgyptianPhone } from '../../../common/utils/phone.util';
 import { generateSecurePassword } from '../../../common/utils/password.util';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
-
 import { NotificationsService } from '../../notifications/services/notifications.service';
 import { NotificationChannel, NotificationType } from '@prisma/client';
 
@@ -308,6 +307,17 @@ export class AuthService {
       },
     });
 
+    let permissions: string[] = [];
+    if (user.role === UserRole.SECRETARIAT) {
+      const link = await this.prisma.teacherAssistant.findFirst({
+        where: { assistantId: user.id, status: 'ACTIVE' },
+        select: { permissions: true },
+      });
+      if (link?.permissions) {
+        permissions = link.permissions;
+      }
+    }
+
     return {
       accessToken,
       refreshToken,
@@ -323,6 +333,7 @@ export class AuthService {
         studentProfileId: user.studentProfile?.id,
         parentProfileId: user.parentProfile?.id,
         secretariatProfileId: user.secretariatProfile?.id,
+        permissions,
       },
     };
   }

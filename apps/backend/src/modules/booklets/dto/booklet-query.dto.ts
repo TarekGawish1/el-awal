@@ -43,4 +43,12 @@ export class BookletQueryDto {
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'بحث في عناوين المذكرات',
+    example: 'مذكرة النحو',
+  })
+  @IsOptional()
+  @IsString()
+  search?: string;
 }
