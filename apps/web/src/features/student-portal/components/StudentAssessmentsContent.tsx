@@ -15,7 +15,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import {
   FileText, Calendar, Clock, CheckCircle2, AlertCircle,
   ChevronLeft, Award, Play, HelpCircle, Send, Check, AlertTriangle, ArrowLeft, RefreshCcw,
-  UploadCloud, Camera, ImageIcon, Trash2, Maximize2, X,
+  UploadCloud, Camera, ImageIcon, Trash2, Maximize2, X, Lock, Eye, Timer
 } from 'lucide-react';
 import { parseEssayAnswer, formatEssayAnswer } from '@/features/assessments/utils/answer-parser';
 
@@ -46,6 +46,15 @@ export function StudentAssessmentsContent({
   const { data: assessmentsData, isLoading, isError } = useAssessments();
   const [activeAssessmentId, setActiveAssessmentId] = useState<string | null>(paramId || null);
   const [activeMode, setActiveMode] = useState<'NONE' | 'SOLVE' | 'REVIEW'>(paramId ? 'SOLVE' : 'NONE');
+
+  // Live ticking clock for countdown badges
+  const [nowMs, setNowMs] = useState<number>(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (paramId) {
@@ -82,6 +91,41 @@ export function StudentAssessmentsContent({
 
   const totalPages = Math.ceil(filteredAssessments.length / PAGE_SIZE);
   const paginatedAssessments = filteredAssessments.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  const getExamTimingStatus = (item: any) => {
+    const rawStart = item.startTime || item.startDate;
+    const rawEnd = item.endTime || item.dueDate || item.deadline;
+    const startTimeMs = rawStart ? new Date(rawStart).getTime() : null;
+    const endTimeMs = rawEnd ? new Date(rawEnd).getTime() : null;
+
+    const isUpcoming = Boolean(startTimeMs && startTimeMs > nowMs);
+    const isEnded = Boolean(endTimeMs && endTimeMs < nowMs);
+    const isActive = !isUpcoming && !isEnded;
+
+    let countdownFormatted = '';
+    if (isUpcoming && startTimeMs) {
+      const diffSecs = Math.max(0, Math.floor((startTimeMs - nowMs) / 1000));
+      const hours = Math.floor(diffSecs / 3600);
+      const mins = Math.floor((diffSecs % 3600) / 60);
+      const secs = diffSecs % 60;
+      if (hours >= 24) {
+        const days = Math.floor(hours / 24);
+        const remHours = hours % 24;
+        countdownFormatted = `${days} يوم ${remHours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      } else {
+        countdownFormatted = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      }
+    }
+
+    return {
+      isUpcoming,
+      isEnded,
+      isActive,
+      countdownFormatted,
+      startTime: rawStart ? new Date(rawStart) : null,
+      endTime: rawEnd ? new Date(rawEnd) : null,
+    };
+  };
 
   const getStatus = (item: any) => {
     const isPastDue = item.dueDate ? new Date(item.dueDate) < new Date() : false;
@@ -191,15 +235,23 @@ export function StudentAssessmentsContent({
                 {paginatedAssessments.map((item: any) => {
                   const { isPastDue } = getStatus(item);
                   const isExam = item.type === 'EXAM';
+                  const timing = getExamTimingStatus(item);
                   return (
                     <Card key={item.id} className="border-none shadow-sm shadow-slate-200/50 hover:shadow-md transition-shadow relative overflow-hidden flex flex-col justify-between">
                       <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-primary-500 to-primary-600"></div>
                       <CardContent className="p-6 flex-1 flex flex-col justify-between">
                         <div className="space-y-3">
-                          <div className="flex justify-between items-start gap-2">
-                            <Badge variant={isExam ? 'error' : 'default'} className={isExam ? 'bg-error-50 text-error-800' : 'bg-primary-50 text-primary-700'}>
-                              {isExam ? 'اختبار' : 'واجب'}
-                            </Badge>
+                          <div className="flex flex-wrap justify-between items-start gap-2">
+                            <div className="flex items-center gap-1.5">
+                              <Badge variant={isExam ? 'error' : 'default'} className={isExam ? 'bg-error-50 text-error-800' : 'bg-primary-50 text-primary-700'}>
+                                {isExam ? 'اختبار' : 'واجب'}
+                              </Badge>
+                              {isExam && item.timingType && (
+                                <Badge variant="outline" className="text-[11px] bg-slate-50 text-slate-700">
+                                  {item.timingType === 'FIXED_SESSION' ? '⏱️ جلسة موحدة' : '🗓️ نافذة مرنة'}
+                                </Badge>
+                              )}
+                            </div>
                             <Badge variant="outline" className="font-semibold">
                               {item.totalScore} درجة
                             </Badge>
@@ -208,15 +260,37 @@ export function StudentAssessmentsContent({
                           <h3 className="text-lg font-bold text-slate-800 leading-snug line-clamp-1">{item.title}</h3>
                           <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{item.description || 'لا يوجد وصف متاح.'}</p>
                           
+                          {/* Timing countdown badge for upcoming exams */}
+                          {isExam && timing.isUpcoming && (
+                            <div className="bg-indigo-50/80 border border-indigo-100 p-2.5 rounded-xl flex items-center gap-2 text-xs text-indigo-900 font-medium">
+                              <Clock className="w-4 h-4 text-indigo-600 animate-pulse shrink-0" />
+                              <span className="font-bold">يبدأ الاختبار بعد: </span>
+                              <span className="font-mono font-extrabold text-indigo-700">{timing.countdownFormatted}</span>
+                            </div>
+                          )}
+
+                          {isExam && timing.isEnded && (
+                            <div className="bg-rose-50 border border-rose-100 p-2.5 rounded-xl flex items-center gap-2 text-xs text-rose-800 font-medium">
+                              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                              <span className="font-bold">انتهى موعد الاختبار</span>
+                            </div>
+                          )}
+
                           <div className="pt-2 flex flex-col gap-1.5 text-xs text-slate-500">
                             <div className="flex items-center gap-1.5">
                               <Clock className="w-3.5 h-3.5 text-slate-400" />
                               <span>المدة: {item.durationMinutes ? `${item.durationMinutes} دقيقة` : 'غير محدد'}</span>
                             </div>
-                            {item.dueDate && (
-                              <div className={`flex items-center gap-1.5 ${isPastDue ? 'text-rose-600' : ''}`}>
+                            {isExam && timing.startTime && (
+                              <div className="flex items-center gap-1.5 text-slate-600">
                                 <Calendar className="w-3.5 h-3.5" />
-                                <span>تاريخ التسليم: {formatArabicDate(item.dueDate)} - {formatArabicTime(item.dueDate)}</span>
+                                <span>موعد البدء: {formatArabicDate(timing.startTime)} - {formatArabicTime(timing.startTime)}</span>
+                              </div>
+                            )}
+                            {(timing.endTime || item.dueDate) && (
+                              <div className={`flex items-center gap-1.5 ${timing.isEnded || isPastDue ? 'text-rose-600' : ''}`}>
+                                <Calendar className="w-3.5 h-3.5" />
+                                <span>{isExam ? 'موعد الإغلاق:' : 'تاريخ التسليم:'} {formatArabicDate(timing.endTime || item.dueDate)} - {formatArabicTime(timing.endTime || item.dueDate)}</span>
                               </div>
                             )}
                             <div className="flex items-center gap-1.5 text-primary-600 font-semibold mt-1">
@@ -231,17 +305,32 @@ export function StudentAssessmentsContent({
                             {item._count?.questions || 0} أسئلة
                           </span>
                           
-                          <Button
-                            onClick={() => {
-                              setActiveAssessmentId(item.id);
-                              setActiveMode('SOLVE'); 
-                            }}
-                            size="sm"
-                            className="rounded-xl px-4 text-xs font-semibold cursor-pointer"
-                          >
-                            <Play className="w-3 h-3 ml-1.5" />
-                            عرض وتفاصيل
-                          </Button>
+                          {isExam && timing.isUpcoming ? (
+                            <Button
+                              disabled
+                              size="sm"
+                              className="rounded-xl px-4 text-xs font-semibold opacity-60 cursor-not-allowed bg-slate-100 text-slate-500 border border-slate-200"
+                            >
+                              <Lock className="w-3.5 h-3.5 ml-1.5" />
+                              لم يحن الموعد بعد
+                            </Button>
+                          ) : (
+                            <Button
+                              onClick={() => {
+                                setActiveAssessmentId(item.id);
+                                setActiveMode('SOLVE'); 
+                              }}
+                              size="sm"
+                              className={`rounded-xl px-4 text-xs font-semibold cursor-pointer ${
+                                isExam && timing.isActive
+                                  ? 'bg-primary-600 hover:bg-primary-700 text-white shadow-sm'
+                                  : ''
+                              }`}
+                            >
+                              <Play className="w-3 h-3 ml-1.5" />
+                              {isExam ? (timing.isEnded ? 'عرض التفاصيل والنتيجة' : 'ابدأ الاختبار') : 'عرض وتفاصيل'}
+                            </Button>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -302,7 +391,7 @@ function AssessmentWrapper({
   const router = useRouter();
   const { user } = useAuth();
   const progressScopeId = user?.studentProfileId || user?.id || 'anon';
-  const { data: assessment, isLoading, isError, refetch } = useAssessment(assessmentId);
+  const { data: assessment, isLoading, isError, error, refetch } = useAssessment(assessmentId);
   const { mutate: submit, isPending: isSubmitting } = useSubmitAssessment();
   const [answers, setAnswers] = useState<{ [questionId: string]: string }>({});
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -333,12 +422,17 @@ function AssessmentWrapper({
   useEffect(() => {
     if (
       assessment &&
-      assessment.durationMinutes &&
       !localSubmission &&
       (retakeMode || !assessment.mySubmission)
     ) {
-      const minutes = Number(assessment.durationMinutes);
-      setTimeLeft(minutes * 60);
+      if (assessment.effectiveRemainingSeconds != null) {
+        setTimeLeft(assessment.effectiveRemainingSeconds);
+      } else if (assessment.durationMinutes) {
+        const minutes = Number(assessment.durationMinutes);
+        setTimeLeft(minutes * 60);
+      } else {
+        setTimeLeft(null);
+      }
     } else {
       setTimeLeft(null);
     }
@@ -533,8 +627,12 @@ function AssessmentWrapper({
   };
 
   const formatTimer = (seconds: number) => {
-    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
     const s = (seconds % 60).toString().padStart(2, '0');
+    if (h > 0) {
+      return `${h}:${m}:${s}`;
+    }
     return `${m}:${s}`;
   };
 
@@ -548,10 +646,55 @@ function AssessmentWrapper({
   }
 
   if (isError || !assessment) {
+    const errObj = (error as any);
+    const errMessage = errObj?.response?.data?.message || errObj?.message || '';
+    const errStartTime = errObj?.response?.data?.startTime || errObj?.startTime;
+    const isEarly = errMessage.includes('لم يحن') || String(errObj).includes('لم يحن');
+    const isLateError = errMessage.includes('انتهت فترة') || String(errObj).includes('انتهت فترة');
+
     return (
-      <div className="space-y-4">
-        <Button variant="outline" onClick={onBack} size="sm">رجوع</Button>
-        <Alert variant="error">فشل في تحميل تفاصيل الاختبار.</Alert>
+      <div className="space-y-6 max-w-xl mx-auto py-10" dir="rtl">
+        <Button variant="outline" onClick={onBack} size="sm">
+          <ChevronLeft className="w-4 h-4 ml-1" />
+          رجوع
+        </Button>
+        <Card className="border border-slate-200 shadow-sm rounded-3xl text-center p-8 space-y-4 bg-white">
+          {isEarly ? (
+            <>
+              <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+                <Lock className="w-8 h-8" />
+              </div>
+              <h2 className="text-xl font-extrabold text-slate-800">لم يحن موعد الاختبار بعد</h2>
+              <p className="text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
+                هذا الاختبار مغلق ومجدول ليبدأ في الموعد المحدد من قبل المعلم.
+              </p>
+              {errStartTime && (
+                <div className="bg-indigo-50/70 border border-indigo-100 p-4 rounded-2xl text-sm font-bold text-indigo-900 inline-block mt-2">
+                  <span>موعد بدء الاختبار: </span>
+                  <span className="font-mono text-indigo-700">{formatArabicDate(errStartTime)} - {formatArabicTime(errStartTime)}</span>
+                </div>
+              )}
+            </>
+          ) : isLateError ? (
+            <>
+              <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+                <AlertCircle className="w-8 h-8" />
+              </div>
+              <h2 className="text-xl font-extrabold text-slate-800">انتهت فترة الدخول للاختبار</h2>
+              <p className="text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
+                لقد انتهت النافذة الزمنية المحددة لدخول وتسليم هذا الاختبار ولم يعد بإمكانك البدء الآن.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto">
+                <AlertTriangle className="w-8 h-8" />
+              </div>
+              <h2 className="text-xl font-extrabold text-slate-800">تعذر فتح الاختبار</h2>
+              <p className="text-sm text-slate-500">{errMessage || 'حدث خطأ أثناء تحميل بيانات الاختبار.'}</p>
+            </>
+          )}
+        </Card>
       </div>
     );
   }
@@ -567,6 +710,20 @@ function AssessmentWrapper({
 
   return (
     <div className="space-y-6 pb-20 relative">
+      {/* Late joiner alert banner for FIXED_SESSION */}
+      {assessment.isLate && assessment.timingType === 'FIXED_SESSION' && !mySubmission && (
+        <div className="bg-amber-500/10 border-2 border-amber-400 text-amber-900 p-4 rounded-2xl flex items-center gap-3 shadow-xs animate-in fade-in">
+          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 animate-bounce" />
+          <div className="text-xs sm:text-sm font-bold leading-relaxed">
+            <span>تنبيه: دخلت متأخراً، سينتهي الاختبار للجميع عند </span>
+            <span className="underline decoration-amber-500 decoration-2 font-mono">
+              {assessment.endTime ? `${formatArabicDate(assessment.endTime)} - ${formatArabicTime(assessment.endTime)}` : 'الموعد المحدد'}
+            </span>
+            <span> (تم احتساب الوقت المتبقي لك تلقائياً).</span>
+          </div>
+        </div>
+      )}
+
       {/* Top action bar */}
       <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-100 shadow-2xs">
         <button onClick={onBack} className="flex items-center text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors cursor-pointer">
@@ -575,8 +732,14 @@ function AssessmentWrapper({
         </button>
 
         {timeLeft !== null && !mySubmission && (
-          <div className="flex items-center gap-2 bg-rose-50 border border-rose-100 text-rose-700 px-4 py-1.5 rounded-full text-sm font-bold font-mono">
-            <Clock className="w-4 h-4 animate-pulse" />
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold font-mono transition-all shadow-sm ${
+            timeLeft <= 120
+              ? 'bg-rose-500 text-white animate-pulse ring-4 ring-rose-200'
+              : timeLeft <= 300
+              ? 'bg-amber-100 text-amber-900 border border-amber-300'
+              : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+          }`}>
+            <Clock className={`w-4 h-4 ${timeLeft <= 120 ? 'animate-spin' : 'animate-pulse'}`} />
             <span>الوقت المتبقي: {formatTimer(timeLeft)}</span>
           </div>
         )}

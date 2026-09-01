@@ -1,10 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AssessmentsService } from '../services/assessments.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import {
   AssessmentType,
+  ExamTimingType,
   QuestionType,
   SubmissionStatus,
   UserRole,
@@ -556,6 +557,128 @@ describe('AssessmentsService', () => {
       await expect(service.submitHomework(assessmentId, studentUser, dto)).rejects.toThrow(
         'The lesson session does not belong to the assessment group',
       );
+    });
+  });
+
+  describe('Strict Exam Scheduling & Timing Enforcement', () => {
+    const assessmentId = 'exam-timing-1';
+    const studentUser: any = {
+      id: 'student-user-1',
+      studentProfileId: 'student-profile-1',
+      role: UserRole.STUDENT,
+    };
+
+    it('rejects student access with 403 before startTime', async () => {
+      const futureStartTime = new Date(Date.now() + 3600 * 1000); // 1 hour in future
+      const futureEndTime = new Date(Date.now() + 7200 * 1000);
+      mockPrismaService.assessment.findUnique.mockResolvedValue({
+        id: assessmentId,
+        title: 'اختبار موقوت',
+        type: AssessmentType.EXAM,
+        timingType: ExamTimingType.FIXED_SESSION,
+        startTime: futureStartTime,
+        endTime: futureEndTime,
+        durationMinutes: 60,
+        isPublished: true,
+        submissions: [],
+        questions: [],
+      });
+
+      await expect(service.getAssessmentById(assessmentId, studentUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('rejects unsubmitted student access with 403 after endTime', async () => {
+      const pastStartTime = new Date(Date.now() - 7200 * 1000);
+      const pastEndTime = new Date(Date.now() - 3600 * 1000); // ended 1 hour ago
+      mockPrismaService.assessment.findUnique.mockResolvedValue({
+        id: assessmentId,
+        title: 'اختبار موقوت منتهي',
+        type: AssessmentType.EXAM,
+        timingType: ExamTimingType.FIXED_SESSION,
+        startTime: pastStartTime,
+        endTime: pastEndTime,
+        durationMinutes: 60,
+        isPublished: true,
+        submissions: [],
+        questions: [],
+      });
+
+      await expect(service.getAssessmentById(assessmentId, studentUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('calculates remaining seconds and isLate correctly for FIXED_SESSION', async () => {
+      const pastStartTime = new Date(Date.now() - 10 * 60 * 1000); // started 10 mins ago
+      const futureEndTime = new Date(Date.now() + 20 * 60 * 1000); // ends in 20 mins
+      mockPrismaService.assessment.findUnique.mockResolvedValue({
+        id: assessmentId,
+        title: 'اختبار مباشر متزامن',
+        type: AssessmentType.EXAM,
+        timingType: ExamTimingType.FIXED_SESSION,
+        startTime: pastStartTime,
+        endTime: futureEndTime,
+        durationMinutes: 60, // 60 mins total duration, but only 20 mins remaining until endTime
+        isPublished: true,
+        submissions: [],
+        questions: [],
+      });
+
+      const result = await service.getAssessmentById(assessmentId, studentUser);
+
+      expect(result.timingType).toBe(ExamTimingType.FIXED_SESSION);
+      expect(result.isLate).toBe(true);
+      // Remaining seconds should be bounded by remaining time until endTime (~1200 seconds)
+      expect(result.effectiveRemainingSeconds).toBeLessThanOrEqual(1200);
+      expect(result.effectiveRemainingSeconds).toBeGreaterThan(1180);
+    });
+
+    it('calculates full durationMinutes remaining for FLEXIBLE_WINDOW on first entry', async () => {
+      const pastStartTime = new Date(Date.now() - 3600 * 1000); // window opened 1 hr ago
+      const futureEndTime = new Date(Date.now() + 24 * 3600 * 1000); // window closes in 24 hrs
+      mockPrismaService.assessment.findUnique.mockResolvedValue({
+        id: assessmentId,
+        title: 'اختبار نافذة مرنة',
+        type: AssessmentType.EXAM,
+        timingType: ExamTimingType.FLEXIBLE_WINDOW,
+        startTime: pastStartTime,
+        endTime: futureEndTime,
+        durationMinutes: 30, // 30 mins
+        isPublished: true,
+        submissions: [],
+        questions: [],
+      });
+
+      const result = await service.getAssessmentById(assessmentId, studentUser);
+
+      expect(result.timingType).toBe(ExamTimingType.FLEXIBLE_WINDOW);
+      expect(result.isLate).toBe(false);
+      // Student just started, so remaining time should be close to 30 * 60 = 1800 seconds
+      expect(result.effectiveRemainingSeconds).toBeLessThanOrEqual(1800);
+      expect(result.effectiveRemainingSeconds).toBeGreaterThan(1780);
+    });
+
+    it('rejects submission submitted after deadline plus grace period in FIXED_SESSION', async () => {
+      const pastEndTime = new Date(Date.now() - 120 * 1000); // ended 2 minutes ago (exceeds 60s buffer)
+      mockPrismaService.assessment.findUnique.mockResolvedValue({
+        id: assessmentId,
+        title: 'اختبار مباشر منتهي',
+        type: AssessmentType.EXAM,
+        timingType: ExamTimingType.FIXED_SESSION,
+        startTime: new Date(Date.now() - 3600 * 1000),
+        endTime: pastEndTime,
+        durationMinutes: 60,
+        isPublished: true,
+        allowMultipleAttempts: false,
+        questions: [],
+      });
+      mockPrismaService.assessmentSubmission.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.submitAssessment(assessmentId, studentUser, { answers: [] }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

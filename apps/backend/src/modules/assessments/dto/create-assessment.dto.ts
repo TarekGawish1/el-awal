@@ -15,7 +15,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { AssessmentType } from '@prisma/client';
+import { AssessmentType, ExamTimingType } from '@prisma/client';
 import { CreateQuestionDto } from './create-question.dto';
 
 export class CreateAssessmentDto {
@@ -60,6 +60,15 @@ export class CreateAssessmentDto {
   @IsEnum(AssessmentType)
   assessmentType?: AssessmentType;
 
+  @ApiPropertyOptional({
+    enum: ExamTimingType,
+    description: 'Timing mode: FIXED_SESSION (synchronized) or FLEXIBLE_WINDOW (individual duration)',
+    example: ExamTimingType.FIXED_SESSION,
+  })
+  @IsOptional()
+  @IsEnum(ExamTimingType)
+  timingType?: ExamTimingType;
+
   @ApiProperty({
     description: 'Total exam maximum score',
     example: 20.0,
@@ -89,6 +98,22 @@ export class CreateAssessmentDto {
 
   @ApiPropertyOptional({
     description: 'Start date and time (ISO format)',
+    example: '2026-09-30T22:00:00.000Z',
+  })
+  @IsOptional()
+  @IsDateString()
+  startTime?: string;
+
+  @ApiPropertyOptional({
+    description: 'End date and time (ISO format)',
+    example: '2026-09-30T23:59:59.000Z',
+  })
+  @IsOptional()
+  @IsDateString()
+  endTime?: string;
+
+  @ApiPropertyOptional({
+    description: 'Start date and time alias (ISO format)',
     example: '2026-09-30T22:00:00.000Z',
   })
   @IsOptional()

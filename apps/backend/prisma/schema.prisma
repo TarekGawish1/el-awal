@@ -110,6 +110,13 @@ enum AssessmentType {
   @@map("assessment_type")
 }
 
+enum ExamTimingType {
+  FIXED_SESSION
+  FLEXIBLE_WINDOW
+
+  @@map("exam_timing_type")
+}
+
 enum HomeworkDeliveryType {
   ONLINE
   ONSITE
@@ -785,6 +792,9 @@ model Assessment {
   isPublished     Boolean        @default(true) @map("is_published")
   allowMultipleAttempts Boolean  @default(false) @map("allow_multiple_attempts")
   homeworkDeliveryType HomeworkDeliveryType @default(ONSITE) @map("homework_delivery_type")
+  timingType      ExamTimingType? @default(FIXED_SESSION) @map("timing_type")
+  startTime       DateTime?      @map("start_time") @db.Timestamptz(6)
+  endTime         DateTime?      @map("end_time") @db.Timestamptz(6)
   startDate       DateTime?      @map("start_date") @db.Timestamptz(6)
   dueDate         DateTime?      @map("due_date") @db.Timestamptz(6)
   deadline        DateTime?      @map("deadline") @db.Timestamptz(6)
@@ -839,6 +849,7 @@ model AssessmentSubmission {
   studentId       String           @map("student_id") @db.Uuid
   attemptNumber   Int              @default(1) @map("attempt_number")
   status          SubmissionStatus @default(SUBMITTED) @map("status")
+  startedAt       DateTime?        @default(now()) @map("started_at") @db.Timestamptz(6)
   submittedAt     DateTime         @default(now()) @map("submitted_at") @db.Timestamptz(6)
   attachmentUrl   String?          @map("attachment_url") @db.Text
   fileKey         String?          @map("file_key") @db.VarChar(500)

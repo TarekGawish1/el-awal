@@ -23,6 +23,7 @@ import {
   GroupEnrollmentStatus,
   CourseEnrollmentStatus,
   AssessmentType,
+  ExamTimingType,
   NotificationChannel,
   NotificationType,
 } from '@prisma/client';
@@ -123,6 +124,16 @@ export class AssessmentsService {
         q.questionType === QuestionType.TRUE_FALSE,
     );
 
+    const rawStartTime = dto.startTime || dto.startDate;
+    const rawEndTime = dto.endTime || dto.deadline || dto.dueDate;
+    const startTimeDate = rawStartTime ? new Date(rawStartTime) : null;
+    const endTimeDate = rawEndTime ? new Date(rawEndTime) : null;
+    const timingType =
+      dto.timingType ||
+      (storedType === AssessmentType.EXAM
+        ? ExamTimingType.FIXED_SESSION
+        : undefined);
+
     const assessment = await this.prisma.$transaction(async (tx) => {
       const assessment = await tx.assessment.create({
         data: {
@@ -131,12 +142,15 @@ export class AssessmentsService {
           description: dto.description,
           type: storedType,
           assessmentType: storedAssessmentType,
+          timingType,
           totalScore: dto.totalScore,
           passingScore: dto.passingScore,
           durationMinutes: dto.durationMinutes,
-          dueDate: deadline ? new Date(deadline) : null,
-          deadline: deadline ? new Date(deadline) : null,
-          startDate: dto.startDate ? new Date(dto.startDate) : null,
+          startTime: startTimeDate,
+          endTime: endTimeDate,
+          startDate: startTimeDate,
+          dueDate: endTimeDate,
+          deadline: endTimeDate,
           academicStage: dto.academicStage,
           gradeLevel: dto.gradeLevel,
           groupId: dto.groupId,
@@ -379,8 +393,78 @@ export class AssessmentsService {
 
     const mySubmission = resolveOfficialSubmission(assessment.submissions);
     const isGraded = mySubmission?.status === SubmissionStatus.GRADED;
+    const hasSubmitted = mySubmission?.status === SubmissionStatus.SUBMITTED || isGraded;
     const isPrivileged =
       user.role === UserRole.TEACHER || user.role === UserRole.SECRETARIAT;
+
+    const effectiveStartTime = assessment.startTime || assessment.startDate;
+    const effectiveEndTime = assessment.endTime || assessment.dueDate || assessment.deadline;
+    const timingType =
+      assessment.timingType ||
+      (assessment.type === AssessmentType.EXAM
+        ? ExamTimingType.FIXED_SESSION
+        : null);
+    const now = new Date();
+
+    // Server-side timing enforcement for students attempting exams
+    if (user.role === UserRole.STUDENT && (assessment.type === AssessmentType.EXAM || timingType)) {
+      if (!hasSubmitted) {
+        if (effectiveStartTime && now.getTime() < effectiveStartTime.getTime()) {
+          throw new ForbiddenException({
+            message: 'لم يحن موعد الاختبار بعد',
+            startTime: effectiveStartTime.toISOString(),
+          });
+        }
+        if (effectiveEndTime && now.getTime() > effectiveEndTime.getTime()) {
+          throw new ForbiddenException({
+            message: 'انتهت فترة الدخول للاختبار',
+          });
+        }
+      }
+    }
+
+    // Compute effective student remaining time
+    const durationSecs = assessment.durationMinutes
+      ? assessment.durationMinutes * 60
+      : null;
+    let effectiveRemainingSeconds: number | null = null;
+    let isLate = false;
+
+    if (timingType === ExamTimingType.FIXED_SESSION) {
+      if (effectiveEndTime) {
+        const remainingUntilEnd = Math.floor(
+          (effectiveEndTime.getTime() - now.getTime()) / 1000,
+        );
+        const bounded = durationSecs
+          ? Math.min(durationSecs, remainingUntilEnd)
+          : remainingUntilEnd;
+        effectiveRemainingSeconds = Math.max(0, bounded);
+      } else {
+        effectiveRemainingSeconds = durationSecs;
+      }
+      if (effectiveStartTime && now.getTime() > effectiveStartTime.getTime()) {
+        isLate = true;
+      }
+    } else if (timingType === ExamTimingType.FLEXIBLE_WINDOW) {
+      const startedAtDate = mySubmission?.startedAt
+        ? new Date(mySubmission.startedAt)
+        : now;
+      if (durationSecs) {
+        const remainingFromStart = Math.floor(
+          (startedAtDate.getTime() + durationSecs * 1000 - now.getTime()) /
+            1000,
+        );
+        effectiveRemainingSeconds = Math.max(
+          0,
+          Math.min(durationSecs, remainingFromStart),
+        );
+      } else {
+        effectiveRemainingSeconds = null;
+      }
+      isLate = false;
+    } else {
+      effectiveRemainingSeconds = durationSecs;
+    }
 
     // Security projection: Redact answers if student has not completed & graded
     const sanitizedQuestions = assessment.questions.map((q) => {
@@ -404,13 +488,20 @@ export class AssessmentsService {
       description: assessment.description,
       type: assessment.type,
       assessmentType: assessment.assessmentType,
+      timingType,
+      startTime: effectiveStartTime,
+      endTime: effectiveEndTime,
+      serverTime: now.toISOString(),
+      effectiveRemainingSeconds,
+      isLate,
       totalScore: Number(assessment.totalScore),
       passingScore: assessment.passingScore
         ? Number(assessment.passingScore)
         : null,
       durationMinutes: assessment.durationMinutes,
+      startDate: effectiveStartTime,
       dueDate: effectiveDueDate,
-      deadline: assessment.deadline,
+      deadline: effectiveEndTime,
       isPublished: assessment.isPublished,
       allowMultipleAttempts: assessment.allowMultipleAttempts,
       teacher: assessment.teacher,
@@ -678,13 +769,70 @@ export class AssessmentsService {
 
     const attemptNumber = (priorSubmissions[0]?.attemptNumber ?? 0) + 1;
 
-    // 2. Validate submission deadline (session-linked homework is accepted until
-    //    the start of the next session, not the stored record date).
-    const effectiveDueDate = await this.resolveEffectiveDueDate(assessment);
-    if (effectiveDueDate && new Date() > effectiveDueDate) {
-      throw new BadRequestException(
-        'Assessment submission deadline has already passed',
-      );
+    // 2. Validate timing window & submission cutoff (with 60-second grace buffer)
+    const now = new Date();
+    const GRACE_PERIOD_MS = 60 * 1000; // 60s network latency allowance
+    const effectiveStartTime = assessment.startTime || assessment.startDate;
+    const effectiveEndTime = assessment.endTime || assessment.dueDate || assessment.deadline;
+    const timingType =
+      assessment.timingType ||
+      (assessment.type === AssessmentType.EXAM
+        ? ExamTimingType.FIXED_SESSION
+        : null);
+
+    if (
+      effectiveStartTime &&
+      now.getTime() < effectiveStartTime.getTime() - GRACE_PERIOD_MS
+    ) {
+      throw new BadRequestException({
+        message: 'لم يحن موعد الاختبار بعد',
+        startTime: effectiveStartTime.toISOString(),
+      });
+    }
+
+    if (timingType === ExamTimingType.FIXED_SESSION) {
+      if (
+        effectiveEndTime &&
+        now.getTime() > effectiveEndTime.getTime() + GRACE_PERIOD_MS
+      ) {
+        throw new BadRequestException({
+          message: 'انتهت المدة المحددة لتسليم الاختبار',
+          code: 'EXAM_TIME_EXPIRED',
+        });
+      }
+    } else if (timingType === ExamTimingType.FLEXIBLE_WINDOW) {
+      if (
+        effectiveEndTime &&
+        now.getTime() > effectiveEndTime.getTime() + GRACE_PERIOD_MS
+      ) {
+        throw new BadRequestException({
+          message: 'انتهت فترة الدخول وتسليم الاختبار',
+          code: 'EXAM_WINDOW_EXPIRED',
+        });
+      }
+      if (assessment.durationMinutes) {
+        const studentStartedAt =
+          priorSubmissions[0]?.startedAt || now;
+        const allowedDurationMs = assessment.durationMinutes * 60 * 1000;
+        const individualExpiry = studentStartedAt.getTime() + allowedDurationMs;
+        if (now.getTime() > individualExpiry + GRACE_PERIOD_MS) {
+          throw new BadRequestException({
+            message: 'انتهت المدة المحددة لتسليم الاختبار',
+            code: 'EXAM_TIME_EXPIRED',
+          });
+        }
+      }
+    } else {
+      // Session-linked homework due date check
+      const effectiveDueDate = await this.resolveEffectiveDueDate(assessment);
+      if (
+        effectiveDueDate &&
+        now.getTime() > effectiveDueDate.getTime() + GRACE_PERIOD_MS
+      ) {
+        throw new BadRequestException(
+          'Assessment submission deadline has already passed',
+        );
+      }
     }
 
     // 3. Auto-Grading Calculation
@@ -1195,18 +1343,49 @@ export class AssessmentsService {
       throw new ConflictException('Cannot unpublish an assessment that already has student submissions.');
     }
 
+    const rawStartTime =
+      dto.startTime !== undefined ? dto.startTime : dto.startDate;
+    const rawEndTime =
+      dto.endTime !== undefined
+        ? dto.endTime
+        : dto.deadline !== undefined
+          ? dto.deadline
+          : dto.dueDate;
+    const startTimeDate =
+      rawStartTime !== undefined
+        ? rawStartTime
+          ? new Date(rawStartTime)
+          : null
+        : undefined;
+    const endTimeDate =
+      rawEndTime !== undefined
+        ? rawEndTime
+          ? new Date(rawEndTime)
+          : null
+        : undefined;
+
     const updated = await this.prisma.assessment.update({
       where: { id: assessmentId },
       data: {
         ...(dto.title !== undefined && { title: dto.title }),
         ...(dto.description !== undefined && { description: dto.description }),
-        ...(dto.durationMinutes !== undefined && { durationMinutes: dto.durationMinutes }),
-        ...((dto.dueDate !== undefined || dto.deadline !== undefined) && {
-          dueDate: (dto.deadline || dto.dueDate) ? new Date(dto.deadline || dto.dueDate!) : null,
-          deadline: (dto.deadline || dto.dueDate) ? new Date(dto.deadline || dto.dueDate!) : null,
+        ...(dto.timingType !== undefined && { timingType: dto.timingType }),
+        ...(dto.durationMinutes !== undefined && {
+          durationMinutes: dto.durationMinutes,
+        }),
+        ...(startTimeDate !== undefined && {
+          startTime: startTimeDate,
+          startDate: startTimeDate,
+        }),
+        ...(endTimeDate !== undefined && {
+          endTime: endTimeDate,
+          dueDate: endTimeDate,
+          deadline: endTimeDate,
         }),
         ...(dto.isPublished !== undefined && { isPublished: dto.isPublished }),
-        ...(dto.allowMultipleAttempts !== undefined && { allowMultipleAttempts: dto.allowMultipleAttempts }),
+        ...(dto.allowMultipleAttempts !== undefined && {
+          allowMultipleAttempts: dto.allowMultipleAttempts,
+        }),
         ...(dto.courseId !== undefined && { courseId: dto.courseId || null }),
         ...(dto.assessmentType !== undefined && {
           assessmentType: dto.assessmentType,

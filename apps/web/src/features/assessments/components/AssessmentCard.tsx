@@ -22,6 +22,11 @@ export function AssessmentCard({ assessment }: AssessmentCardProps) {
             <Badge variant="info">
               {assessment.type === 'ASSIGNMENT' ? 'واجب' : 'اختبار'}
             </Badge>
+            {assessment.type === 'EXAM' && assessment.timingType && (
+              <Badge variant="outline" className="text-xs bg-slate-50 text-slate-700">
+                {assessment.timingType === 'FIXED_SESSION' ? '⏱️ جلسة متزامنة' : '🗓️ نافذة مرنة'}
+              </Badge>
+            )}
           </div>
           <div className="text-slate-500 text-sm font-medium bg-slate-50 px-2 py-1 rounded-md">
             {assessment.totalScore} درجة
@@ -46,13 +51,15 @@ export function AssessmentCard({ assessment }: AssessmentCardProps) {
               <span>{assessment.durationMinutes} دقيقة</span>
             </div>
           )}
-          {assessment.dueDate && (
+          {(assessment.endTime || assessment.dueDate) && (
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-slate-400" />
               <span dir="ltr">
-                {new Date(assessment.dueDate).toLocaleDateString('ar-EG', {
+                {new Date(assessment.endTime || assessment.dueDate!).toLocaleDateString('ar-EG', {
                   month: 'short',
-                  day: 'numeric'
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
                 })}
               </span>
             </div>

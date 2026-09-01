@@ -54,8 +54,11 @@ export const createAssessmentSchema = z.object({
   gradeLevel: z.string().optional().nullable(),
   title: z.string().min(3, 'عنوان الاختبار مطلوب ويجب أن يكون 3 أحرف على الأقل'),
   description: z.string().optional(),
+  timingType: z.enum(['FIXED_SESSION', 'FLEXIBLE_WINDOW']).optional(),
   totalScore: z.coerce.number().min(1, 'الدرجة الكلية يجب أن تكون 1 على الأقل'),
   passingScore: z.coerce.number().min(0, 'درجة النجاح يجب أن تكون 0 على الأقل'),
+  startTime: z.string().optional().nullable(),
+  endTime: z.string().optional().nullable(),
   startDate: z.string().optional().nullable(),
   dueDate: z.string().optional().nullable(),
   durationMinutes: z.coerce.number().min(1, 'المدة يجب أن تكون دقيقة واحدة على الأقل').optional().nullable(),
@@ -69,6 +72,20 @@ export const createAssessmentSchema = z.object({
       message: 'درجة النجاح لا يمكن أن تكون أكبر من الدرجة الكلية',
       path: ['passingScore'],
     });
+  }
+
+  const effectiveStart = data.startTime || data.startDate;
+  const effectiveEnd = data.endTime || data.dueDate;
+  if (effectiveStart && effectiveEnd) {
+    const startDateObj = new Date(effectiveStart);
+    const endDateObj = new Date(effectiveEnd);
+    if (!isNaN(startDateObj.getTime()) && !isNaN(endDateObj.getTime()) && startDateObj >= endDateObj) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'وقت بدء الاختبار يجب أن يكون قبل وقت الإغلاق',
+        path: ['endTime'],
+      });
+    }
   }
 });
 

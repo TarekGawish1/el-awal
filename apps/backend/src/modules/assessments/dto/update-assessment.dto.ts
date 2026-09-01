@@ -1,6 +1,6 @@
 import { IsOptional, IsString, MinLength, IsInt, Min, IsDateString, IsBoolean, IsUUID, IsEnum } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { AssessmentType } from '@prisma/client';
+import { AssessmentType, ExamTimingType } from '@prisma/client';
 
 export class UpdateAssessmentDto {
   @ApiPropertyOptional({
@@ -22,6 +22,15 @@ export class UpdateAssessmentDto {
   description?: string;
 
   @ApiPropertyOptional({
+    enum: ExamTimingType,
+    description: 'Timing mode: FIXED_SESSION (synchronized) or FLEXIBLE_WINDOW (individual duration)',
+    example: ExamTimingType.FIXED_SESSION,
+  })
+  @IsOptional()
+  @IsEnum(ExamTimingType)
+  timingType?: ExamTimingType;
+
+  @ApiPropertyOptional({
     description: 'Test duration limit in minutes',
     example: 45,
   })
@@ -29,6 +38,30 @@ export class UpdateAssessmentDto {
   @IsInt()
   @Min(1)
   durationMinutes?: number;
+
+  @ApiPropertyOptional({
+    description: 'Start date and time (ISO format)',
+    example: '2026-09-30T22:00:00.000Z',
+  })
+  @IsOptional()
+  @IsDateString()
+  startTime?: string;
+
+  @ApiPropertyOptional({
+    description: 'End date and time (ISO format)',
+    example: '2026-09-30T23:59:59.000Z',
+  })
+  @IsOptional()
+  @IsDateString()
+  endTime?: string;
+
+  @ApiPropertyOptional({
+    description: 'Start date and time alias (ISO format)',
+    example: '2026-09-30T22:00:00.000Z',
+  })
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
 
   @ApiPropertyOptional({
     description: 'Submission cut-off date and time (ISO format)',

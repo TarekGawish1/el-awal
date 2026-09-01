@@ -144,6 +144,9 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
       totalScore: 100,
       passingScore: 50,
       durationMinutes: 60,
+      timingType: 'FIXED_SESSION',
+      startTime: '',
+      endTime: '',
       isAutoGraded: true,
       allowMultipleAttempts: false,
       questions: [
@@ -299,7 +302,7 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
     let isValid = false;
     
     if (currentStep === 'metadata') {
-      isValid = await trigger(['title', 'description', 'totalScore', 'passingScore', 'startDate', 'durationMinutes']);
+      isValid = await trigger(['title', 'description', 'totalScore', 'passingScore', 'startTime', 'endTime', 'startDate', 'dueDate', 'durationMinutes']);
     } else if (currentStep === 'questions') {
       if (type === 'ASSIGNMENT' && homeworkMode === 'BOOKLET') {
         if (!startPage || !endPage) {
@@ -358,8 +361,20 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
     if (type === 'ASSIGNMENT') {
       delete payload.durationMinutes;
       delete payload.startDate;
+      delete payload.startTime;
+      delete payload.endTime;
+      delete payload.timingType;
     } else {
+      if (payload.startTime) {
+        payload.startDate = payload.startTime;
+      }
+      if (payload.endTime) {
+        payload.dueDate = payload.endTime;
+        payload.deadline = payload.endTime;
+      }
       if (!payload.startDate) delete payload.startDate;
+      if (!payload.startTime) delete payload.startTime;
+      if (!payload.endTime) delete payload.endTime;
       if (!payload.durationMinutes) delete payload.durationMinutes;
     }
     
@@ -723,24 +738,117 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                     )}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-5 bg-slate-50/80 p-5 rounded-2xl border border-slate-200">
                     <div>
-                      <Label className="mb-2 block">موعد بدء الاختبار (اختياري)</Label>
-                      <DateTimePicker
-                        value={formDataValues.startDate}
-                        onChange={(val) => {
-                          methods.setValue('startDate', val, { shouldValidate: true, shouldDirty: true });
-                        }}
-                        placeholder="اختر موعد البدء..."
-                      />
+                      <Label className="mb-2 block font-bold text-slate-800">
+                        نظام توقيت وجدولة الاختبار <span className="text-red-500">*</span>
+                      </Label>
+                      <p className="text-xs text-slate-500 mb-3">
+                        حدد طريقة ضبط وتزامن وقت الاختبار للطلاب:
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            methods.setValue('timingType', 'FIXED_SESSION', { shouldDirty: true, shouldValidate: true });
+                          }}
+                          className={`p-4 rounded-xl border-2 text-right transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                            formDataValues.timingType !== 'FLEXIBLE_WINDOW'
+                              ? 'border-primary-500 bg-primary-50/50 text-primary-900 ring-2 ring-primary-100 shadow-sm'
+                              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-sm flex items-center gap-1.5">
+                              <span>⏱️</span>
+                              <span>جلسة اختبار مباشرة</span>
+                            </span>
+                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-primary-100 text-primary-800">
+                              موعد موحد متزامن
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 leading-relaxed">
+                            يبدأ الاختبار في موعد البدء ويغلق تلقائياً لجميع الطلاب عند موعد الإغلاق (المتأخر يُحسب له الوقت المتبقي فقط).
+                          </p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            methods.setValue('timingType', 'FLEXIBLE_WINDOW', { shouldDirty: true, shouldValidate: true });
+                          }}
+                          className={`p-4 rounded-xl border-2 text-right transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                            formDataValues.timingType === 'FLEXIBLE_WINDOW'
+                              ? 'border-primary-500 bg-primary-50/50 text-primary-900 ring-2 ring-primary-100 shadow-sm'
+                              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-sm flex items-center gap-1.5">
+                              <span>🗓️</span>
+                              <span>نافذة زمنية مرنة</span>
+                            </span>
+                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                              مدة فردية
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 leading-relaxed">
+                            يتاح الدخول في أي وقت بين موعد البدء وموعد الإغلاق، ويحصل كل طالب على كامل مدة الاختبار الفردية من لحظة دخوله.
+                          </p>
+                        </button>
+                      </div>
                     </div>
-                    <div>
-                      <Label className="mb-2 block">مدة الاختبار (بالدقائق)</Label>
-                      <Input 
-                        type="number"
-                        {...methods.register('durationMinutes')} 
-                        placeholder="اتركه فارغاً لاختبار بدون وقت محدد"
-                      />
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                      <div>
+                        <Label className="mb-2 block font-medium text-xs text-slate-700">
+                          موعد بدء الاختبار <span className="text-red-500">*</span>
+                        </Label>
+                        <DateTimePicker
+                          value={formDataValues.startTime || formDataValues.startDate}
+                          onChange={(val) => {
+                            methods.setValue('startTime', val, { shouldValidate: true, shouldDirty: true });
+                            methods.setValue('startDate', val, { shouldValidate: true, shouldDirty: true });
+                          }}
+                          placeholder="تاريخ ووقت البدء..."
+                        />
+                        {errors.startTime && (
+                          <p className="text-red-500 text-xs mt-1">{errors.startTime.message}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <Label className="mb-2 block font-medium text-xs text-slate-700">
+                          موعد إغلاق الاختبار <span className="text-red-500">*</span>
+                        </Label>
+                        <DateTimePicker
+                          value={formDataValues.endTime || formDataValues.dueDate}
+                          onChange={(val) => {
+                            methods.setValue('endTime', val, { shouldValidate: true, shouldDirty: true });
+                            methods.setValue('dueDate', val, { shouldValidate: true, shouldDirty: true });
+                            methods.setValue('deadline', val, { shouldValidate: true, shouldDirty: true });
+                          }}
+                          placeholder="تاريخ ووقت الإغلاق..."
+                        />
+                        {errors.endTime && (
+                          <p className="text-red-500 text-xs mt-1">{errors.endTime.message}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <Label className="mb-2 block font-medium text-xs text-slate-700">
+                          مدة الاختبار (بالدقائق) <span className="text-red-500">*</span>
+                        </Label>
+                        <Input 
+                          type="number"
+                          {...methods.register('durationMinutes')} 
+                          placeholder="مثال: 60"
+                          className={errors.durationMinutes ? 'border-red-500' : ''}
+                        />
+                        {errors.durationMinutes && (
+                          <p className="text-red-500 text-xs mt-1">{errors.durationMinutes.message}</p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}

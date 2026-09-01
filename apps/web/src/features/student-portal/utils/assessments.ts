@@ -7,13 +7,12 @@
  */
 export function filterUpcomingGroupExams(assessments: any[]): any[] {
   const now = Date.now();
-  return (assessments || []).filter(
-    (a) =>
-      a &&
-      !a.courseId &&
-      !a.lessonId &&
-      (a.group || (a.targetGroups && a.targetGroups.length > 0)) &&
-      a.type === 'EXAM' &&
-      !(a.dueDate && new Date(a.dueDate).getTime() < now),
-  );
+  return (assessments || []).filter((a) => {
+    if (!a || a.courseId || a.lessonId) return false;
+    if (!(a.group || (a.targetGroups && a.targetGroups.length > 0))) return false;
+    if (a.type !== 'EXAM') return false;
+    const cutoff = a.endTime || a.dueDate || a.deadline;
+    if (cutoff && new Date(cutoff).getTime() < now) return false;
+    return true;
+  });
 }

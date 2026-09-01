@@ -4,6 +4,11 @@ export enum QuestionType {
   ESSAY = 'ESSAY',
 }
 
+export enum ExamTimingType {
+  FIXED_SESSION = 'FIXED_SESSION',
+  FLEXIBLE_WINDOW = 'FLEXIBLE_WINDOW',
+}
+
 export enum SubmissionStatus {
   PENDING = 'PENDING',
   SUBMITTED = 'SUBMITTED',
@@ -28,9 +33,13 @@ export interface AssessmentListItem {
   title: string;
   type: 'EXAM' | 'ASSIGNMENT';
   assessmentType?: 'HOMEWORK' | 'EXAM' | 'QUIZ' | 'ASSIGNMENT';
+  timingType?: 'FIXED_SESSION' | 'FLEXIBLE_WINDOW' | null;
   totalScore: number;
   passingScore: number;
   isPublished: boolean;
+  startTime?: string | null;
+  endTime?: string | null;
+  startDate?: string | null;
   dueDate: string | null;
   deadline?: string | null;
   durationMinutes: number | null;
@@ -56,6 +65,7 @@ export interface AssessmentDetail {
   title: string;
   type: 'EXAM' | 'ASSIGNMENT';
   assessmentType?: 'HOMEWORK' | 'EXAM' | 'QUIZ' | 'ASSIGNMENT';
+  timingType?: 'FIXED_SESSION' | 'FLEXIBLE_WINDOW' | null;
   description: string | null;
   groupId: string | null;
   courseId: string | null;
@@ -65,9 +75,15 @@ export interface AssessmentDetail {
   isPublished: boolean;
   isAutoGraded: boolean;
   allowMultipleAttempts: boolean;
+  startTime?: string | null;
+  endTime?: string | null;
+  startDate?: string | null;
   dueDate: string | null;
   deadline?: string | null;
   durationMinutes: number | null;
+  serverTime?: string;
+  effectiveRemainingSeconds?: number | null;
+  isLate?: boolean;
   questions: AssessmentQuestion[];
   mySubmission?: any;
   attemptCount?: number;
@@ -81,18 +97,25 @@ export interface AssessmentDetail {
 
 export interface CreateAssessmentPayload {
   groupId?: string;
-  courseId?: string;
+  targetGroupIds?: string[];
+  courseId?: string | null;
+  academicStage?: string | null;
+  gradeLevel?: string | null;
   title: string;
   type: string;
   assessmentType?: 'HOMEWORK' | 'EXAM' | 'QUIZ' | 'ASSIGNMENT';
+  timingType?: 'FIXED_SESSION' | 'FLEXIBLE_WINDOW';
   description?: string;
   totalScore: number;
   passingScore: number;
+  startTime?: string | null;
+  endTime?: string | null;
+  startDate?: string | null;
   dueDate?: string;
   deadline?: string;
-  durationMinutes?: number;
+  durationMinutes?: number | null;
   isPublished: boolean;
-  isAutoGraded: boolean;
+  isAutoGraded?: boolean;
   allowMultipleAttempts?: boolean;
   questions: Omit<AssessmentQuestion, 'id'>[];
 }
@@ -102,12 +125,17 @@ export interface UpdateAssessmentPayload {
   description?: string;
   totalScore?: number;
   passingScore?: number;
-  durationMinutes?: number;
+  timingType?: 'FIXED_SESSION' | 'FLEXIBLE_WINDOW';
+  durationMinutes?: number | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  startDate?: string | null;
   dueDate?: string;
   deadline?: string;
   isPublished?: boolean;
   allowMultipleAttempts?: boolean;
   assessmentType?: 'HOMEWORK' | 'EXAM' | 'QUIZ' | 'ASSIGNMENT';
+  courseId?: string | null;
 }
 
 export interface AssessmentSubmissionListItem {

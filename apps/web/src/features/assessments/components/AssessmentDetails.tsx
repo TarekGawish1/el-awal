@@ -85,6 +85,11 @@ export function AssessmentDetails({ assessmentId }: { assessmentId: string }) {
                 <Badge variant="default" className="bg-primary/10 text-primary hover:bg-primary/20">
                   {assessment.totalScore} درجة
                 </Badge>
+                {assessment.type === 'EXAM' && (
+                  <Badge variant="outline" className="text-xs bg-slate-50 text-slate-700">
+                    {assessment.timingType === 'FLEXIBLE_WINDOW' ? '🗓️ نافذة زمنية مرنة' : '⏱️ موعد موحد متزامن'}
+                  </Badge>
+                )}
               </div>
               <h1 className="text-2xl font-bold text-slate-800">{assessment.title}</h1>
               {assessment.description && (
@@ -133,7 +138,7 @@ export function AssessmentDetails({ assessmentId }: { assessmentId: string }) {
                 <Clock className="w-5 h-5 text-purple-500" />
               </div>
               <div>
-                <p className="text-xs text-slate-500">المدة</p>
+                <p className="text-xs text-slate-500">المدة الفردية</p>
                 <p className="font-bold text-slate-800">
                   {assessment.durationMinutes ? `${assessment.durationMinutes} دقيقة` : 'غير محدد'}
                 </p>
@@ -145,11 +150,18 @@ export function AssessmentDetails({ assessmentId }: { assessmentId: string }) {
                 <Calendar className="w-5 h-5 text-amber-500" />
               </div>
               <div>
-                <p className="text-xs text-slate-500">تاريخ التسليم</p>
-                <p className="font-bold text-slate-800">
-                  {assessment.dueDate 
-                    ? new Date(assessment.dueDate).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-                    : 'غير محدد'}
+                <p className="text-xs text-slate-500">{assessment.type === 'EXAM' ? 'فترة الاختبار' : 'تاريخ التسليم'}</p>
+                <p className="font-bold text-slate-800 text-xs leading-relaxed">
+                  {assessment.startTime || assessment.startDate
+                    ? `${new Date(assessment.startTime || assessment.startDate!).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                    : ''}
+                  {(assessment.endTime || assessment.dueDate) && (
+                    <span>
+                      {assessment.startTime || assessment.startDate ? ' إلى ' : ''}
+                      {new Date(assessment.endTime || assessment.dueDate!).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                  {!assessment.startTime && !assessment.startDate && !assessment.endTime && !assessment.dueDate && 'غير محدد'}
                 </p>
               </div>
             </div>
