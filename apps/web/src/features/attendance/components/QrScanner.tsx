@@ -9,12 +9,15 @@ import { ExternalStudentModal } from './ExternalStudentModal';
 import { parseStudentQr } from '@/lib/qr/qr-parser';
 import { initQrDetector } from '@/lib/qr/qr-detector-init';
 import toast from 'react-hot-toast';
+import { useSessionReport } from '../hooks/use-attendance';
+import { ManualAttendanceRoster } from './ManualAttendanceRoster';
 
 interface QrScannerProps {
   sessionId: string;
 }
 
 export function QrScanner({ sessionId }: QrScannerProps) {
+  const { data: sessionReport } = useSessionReport(sessionId);
   const [lastScanResult, setLastScanResult] = useState<{
     success?: boolean;
     duplicate?: boolean;
@@ -312,9 +315,10 @@ export function QrScanner({ sessionId }: QrScannerProps) {
   };
 
   return (
-    <div className="flex flex-col items-center py-4">
-      <div
-        className={`w-full max-w-sm aspect-square bg-slate-900 rounded-3xl overflow-hidden border border-slate-100 shadow-sm relative transition-all duration-300 ring-4 ${
+    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start py-4">
+      <div className="md:col-span-6 flex flex-col items-center">
+        <div
+          className={`w-full max-w-sm aspect-square bg-slate-900 rounded-3xl overflow-hidden border border-slate-100 shadow-sm relative transition-all duration-300 ring-4 ${
           flashType === 'success'
             ? 'ring-emerald-500 shadow-lg shadow-emerald-500/20'
             : flashType === 'duplicate'
@@ -442,6 +446,17 @@ export function QrScanner({ sessionId }: QrScannerProps) {
             </div>
           </Alert>
         ) : null}
+      </div>
+      </div>
+
+      <div className="md:col-span-6">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
+          <ManualAttendanceRoster 
+            sessionId={sessionId} 
+            records={sessionReport?.records || []} 
+            isCompact={true}
+          />
+        </div>
       </div>
     </div>
   );

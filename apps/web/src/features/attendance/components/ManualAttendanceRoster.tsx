@@ -11,9 +11,10 @@ import { FileText, Edit2, CheckCircle2 } from 'lucide-react';
 interface ManualAttendanceRosterProps {
   sessionId: string;
   records: AttendanceRecord[];
+  isCompact?: boolean;
 }
 
-export function ManualAttendanceRoster({ sessionId, records }: ManualAttendanceRosterProps) {
+export function ManualAttendanceRoster({ sessionId, records, isCompact = false }: ManualAttendanceRosterProps) {
   const [localRecords, setLocalRecords] = useState<Record<string, AttendanceStatus>>({});
   const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
   const [hasChanges, setHasChanges] = useState(false);
@@ -92,15 +93,17 @@ export function ManualAttendanceRoster({ sessionId, records }: ManualAttendanceR
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-xl font-bold text-slate-800">سجل حضور المجموعة</h3>
+    <div className={`space-y-6 ${isCompact ? 'max-h-[600px] overflow-y-auto' : ''}`}>
+      <div className={`flex justify-between items-center ${isCompact ? 'mb-3 pb-2 border-b border-slate-100 sticky top-0 bg-white z-10' : 'mb-6'}`}>
+        <h3 className={`${isCompact ? 'text-sm' : 'text-xl'} font-bold text-slate-800`}>
+          {isCompact ? 'تسجيل الغياب يدويًا' : 'سجل حضور المجموعة'}
+        </h3>
         <Button 
           onClick={handleSave} 
           disabled={!hasChanges || isPending}
-          className="rounded-xl px-6"
+          className={`rounded-xl ${isCompact ? 'h-8 px-4 text-xs' : 'px-6'}`}
         >
-          {isPending ? 'جاري الحفظ...' : 'حفظ الحضور'}
+          {isPending ? 'جاري الحفظ...' : 'حفظ التعديلات'}
         </Button>
       </div>
 
