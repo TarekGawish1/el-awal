@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient as api } from '@/lib/api/client';
+import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
 
 export function useSavedLocations() {
@@ -9,7 +9,7 @@ export function useSavedLocations() {
   const { data: savedLocations = [], isLoading } = useQuery({
     queryKey,
     queryFn: async () => {
-      const { data } = await api.get<string[]>(API_ENDPOINTS.TEACHER.SAVED_LOCATIONS);
+      const data = await apiClient<string[]>(API_ENDPOINTS.TEACHER.SAVED_LOCATIONS);
       return data;
     },
     staleTime: 5 * 60 * 1000,
@@ -17,7 +17,10 @@ export function useSavedLocations() {
 
   const { mutateAsync: updateLocations } = useMutation({
     mutationFn: async (locations: string[]) => {
-      const { data } = await api.put<string[]>(API_ENDPOINTS.TEACHER.SAVED_LOCATIONS, { locations });
+      const data = await apiClient<string[]>(API_ENDPOINTS.TEACHER.SAVED_LOCATIONS, {
+        method: 'PUT',
+        body: JSON.stringify({ locations }),
+      });
       return data;
     },
     onSuccess: (newLocations) => {
@@ -33,7 +36,7 @@ export function useSavedLocations() {
   };
 
   const removeLocation = async (location: string) => {
-    const newLocations = savedLocations.filter((l) => l !== location);
+    const newLocations = savedLocations.filter((l: string) => l !== location);
     await updateLocations(newLocations);
   };
 
