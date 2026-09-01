@@ -111,10 +111,10 @@ function Navbar() {
 
         {/* Links (Desktop) */}
         <div className="hidden md:flex items-center gap-8">
-          <a href="#" className="text-blue-600 font-bold transition-colors">الرئيسية</a>
-          <a href="#" className="text-slate-600 font-medium hover:text-blue-600 transition-colors">الكورسات</a>
-          <a href="#" className="text-slate-600 font-medium hover:text-blue-600 transition-colors">من نحن</a>
-          <a href="#" className="text-slate-600 font-medium hover:text-blue-600 transition-colors">تواصل معنا</a>
+          <a href="#" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-blue-600 font-bold transition-colors">الرئيسية</a>
+          <a href="#courses" onClick={(e) => { e.preventDefault(); document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth' }); }} className="text-slate-600 font-medium hover:text-blue-600 transition-colors">الكورسات</a>
+          <a href="#about" onClick={(e) => { e.preventDefault(); document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' }); }} className="text-slate-600 font-medium hover:text-blue-600 transition-colors">من نحن</a>
+          <a href="#contact" onClick={(e) => { e.preventDefault(); document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' }); }} className="text-slate-600 font-medium hover:text-blue-600 transition-colors">تواصل معنا</a>
         </div>
 
         {/* CTA Buttons */}

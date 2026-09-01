@@ -65,6 +65,11 @@ export class AttendanceRepository {
       },
     });
 
+    // Conflict Resolution: If a manual override exists, the QR scan must NOT silently claim success.
+    if (existingRecord.status !== 'PRESENT' && existingRecord.recordingMethod === 'MANUAL') {
+      throw new Error(`CONFLICT_MANUAL_OVERRIDE: Student was manually marked ${existingRecord.status}`);
+    }
+
     this.logger.debug(
       `Idempotent QR Scan: student ${studentId} was already marked ${existingRecord.status} for session ${sessionId}`,
     );

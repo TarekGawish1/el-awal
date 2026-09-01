@@ -628,6 +628,27 @@ export class AssessmentsService {
       throw new BadRequestException('Cannot submit to an unpublished assessment');
     }
 
+    if (dto.idempotencyKey) {
+      const existingSubmission = await this.prisma.assessmentSubmission.findUnique({
+        where: { operationId: dto.idempotencyKey },
+      });
+
+      if (existingSubmission) {
+        this.logger.debug(`Idempotent submission replay for assessment ${assessmentId} with key ${dto.idempotencyKey}`);
+        return {
+          submissionId: existingSubmission.id,
+          assessmentId,
+          status: existingSubmission.status,
+          scoreObtained: existingSubmission.scoreObtained != null ? Number(existingSubmission.scoreObtained) : null,
+          totalScore: Number(assessment.totalScore),
+          isAutoGraded: existingSubmission.isAutoGraded,
+          submittedAt: existingSubmission.submittedAt,
+          gradedAt: existingSubmission.gradedAt,
+          isIdempotentReplay: true,
+        };
+      }
+    }
+
     // Verify enrollment entitlement
     if (assessment.groupId && assessment.group && assessment.group.enrollments.length === 0) {
       throw new ForbiddenException('You are not enrolled in the academic group for this assessment');
@@ -724,6 +745,7 @@ export class AssessmentsService {
           isAutoGraded,
           gradedAt,
           attachmentUrl: dto.attachmentUrl,
+          operationId: dto.idempotencyKey || undefined,
           answers: {
             create: answersToCreate,
           },

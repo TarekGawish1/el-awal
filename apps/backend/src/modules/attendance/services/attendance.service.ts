@@ -113,12 +113,25 @@ export class AttendanceService {
       ? `حضور استثنائي / تعويض (المجموعة الأصلية: ${student.groupEnrollments[0]?.group?.name || 'أخرى'})`
       : undefined;
 
-    const result = await this.attendanceRepository.recordQrScan(
-      session.id,
-      student.id,
-      user.id,
-      notes,
-    );
+    let result;
+    try {
+      result = await this.attendanceRepository.recordQrScan(
+        session.id,
+        student.id,
+        user.id,
+        notes,
+      );
+    } catch (error: any) {
+      if (error.message.includes('CONFLICT_MANUAL_OVERRIDE')) {
+        throw new BadRequestException({
+          statusCode: 400,
+          error: 'MANUAL_OVERRIDE_EXISTS',
+          message: error.message.replace('CONFLICT_MANUAL_OVERRIDE: ', 'عذراً، '), // Return a friendly error message to the client
+          studentName: student.user.fullName,
+        });
+      }
+      throw error;
+    }
 
     // 5. Emit domain event if this was the first successful scan
     if (!result.isDuplicate) {

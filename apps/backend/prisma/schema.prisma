@@ -848,6 +848,7 @@ model AssessmentSubmission {
   isAutoGraded    Boolean          @default(false) @map("is_auto_graded")
   gradedAt        DateTime?        @map("graded_at") @db.Timestamptz(6)
   teacherFeedback String?          @map("teacher_feedback") @db.Text
+  operationId     String?          @unique(map: "uq_submission_operation") @map("operation_id") @db.Uuid
 
   assessment Assessment     @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
   student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Restrict)
@@ -1045,6 +1046,7 @@ model StudentPaymentRecord {
   paymentStatus  PaymentStatus @default(PENDING) @map("payment_status")
   paymentMethod  String        @default("CASH") @map("payment_method") @db.VarChar(50)
   receiptNumber  String?       @map("receipt_number") @db.VarChar(100)
+  operationId    String?       @unique @map("operation_id") @db.VarChar(100)
   recordedById   String        @map("recorded_by_id") @db.Uuid
   notes          String?       @map("notes") @db.Text
   createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)

@@ -382,7 +382,7 @@ export class PaymentsService {
           gradeLevel: true,
           groupEnrollments: {
             where: { status: GroupEnrollmentStatus.ACTIVE, group: groupWhere },
-            select: { groupId: true },
+            select: { groupId: true, enrolledAt: true },
           },
         },
       }),
@@ -425,12 +425,32 @@ export class PaymentsService {
     const primaryGroupByStudent = new Map<string, string | null>();
     const studentCountByGroup = new Map<string, number>();
     const studentCountByGrade = new Map<string, number>();
+    const tuitionExpectedByGroup = new Map<string, number>();
+    const startYear = parseInt(academicYear.split('-')[0], 10) || new Date().getFullYear();
+
     for (const student of students) {
       const enrollmentGroupIds = student.groupEnrollments.map((enrollment) => enrollment.groupId);
       primaryGroupByStudent.set(student.id, enrollmentGroupIds[0] || null);
       studentCountByGrade.set(student.gradeLevel, (studentCountByGrade.get(student.gradeLevel) || 0) + 1);
-      for (const groupId of enrollmentGroupIds) {
+      
+      for (const enrollment of student.groupEnrollments) {
+        const groupId = enrollment.groupId;
         studentCountByGroup.set(groupId, (studentCountByGroup.get(groupId) || 0) + 1);
+        
+        const group = groups.find(g => g.id === groupId);
+        if (group) {
+          let billableMonths = 0;
+          for (const m of billingMonths) {
+            const mYear = m >= 8 ? startYear : startYear + 1;
+            const monthStart = new Date(mYear, m - 1, 1);
+            const enrollmentDate = new Date(enrollment.enrolledAt);
+            if (monthStart >= new Date(enrollmentDate.getFullYear(), enrollmentDate.getMonth(), 1)) {
+              billableMonths++;
+            }
+          }
+          const expected = Number(group.monthlyFee) * billableMonths;
+          tuitionExpectedByGroup.set(groupId, (tuitionExpectedByGroup.get(groupId) || 0) + expected);
+        }
       }
     }
 
@@ -447,7 +467,7 @@ export class PaymentsService {
 
     const groupRows = groups.map((group) => {
       const studentCount = studentCountByGroup.get(group.id) || 0;
-      const tuitionExpected = round2(Number(group.monthlyFee) * studentCount * billingMonths.length);
+      const tuitionExpected = round2(tuitionExpectedByGroup.get(group.id) || 0);
       const bookletsExpected = round2(
         booklets
           .filter((booklet) => booklet.gradeLevel === group.gradeLevel && (!booklet.groupId || booklet.groupId === group.id))

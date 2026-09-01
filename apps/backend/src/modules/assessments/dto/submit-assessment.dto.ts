@@ -37,4 +37,12 @@ export class SubmitAssessmentDto {
   @IsOptional()
   @IsString()
   attachmentUrl?: string;
+
+  @ApiPropertyOptional({
+    description: 'Idempotency key for this submission operation to prevent duplicates',
+    example: 'op-12345-67890',
+  })
+  @IsOptional()
+  @IsString()
+  idempotencyKey?: string;
 }

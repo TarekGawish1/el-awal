@@ -123,19 +123,10 @@ describe('SyncService - syncHomeworkBatch', () => {
       }),
     });
 
-    // Verify AttendanceRecord automatic roll-call creation
-    expect(mockPrismaService.attendanceRecord.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        sessionId: 'session-uuid-1',
-        studentId: 'student-uuid-1',
-        status: AttendanceStatus.PRESENT,
-        recordingMethod: RecordingMethod.QR_SCAN,
-        recordedById: 'teacher-uuid-1',
-      }),
-    });
+
   });
 
-  it('should update existing homework record idempotently on re-sync and upgrade attendance to PRESENT if needed', async () => {
+  it('should update existing homework record idempotently on re-sync', async () => {
     mockPrismaService.lessonSession.findUnique.mockResolvedValue({
       id: 'session-uuid-1',
     });
@@ -185,14 +176,6 @@ describe('SyncService - syncHomeworkBatch', () => {
         status: HomeworkSubmissionStatus.CHECKED_ONSITE,
         score: 10,
         feedback: 'تم الحل بنجاح',
-      }),
-    });
-
-    expect(mockPrismaService.attendanceRecord.update).toHaveBeenCalledWith({
-      where: { id: 'att-existing-1' },
-      data: expect.objectContaining({
-        status: AttendanceStatus.PRESENT,
-        recordingMethod: RecordingMethod.QR_SCAN,
       }),
     });
   });

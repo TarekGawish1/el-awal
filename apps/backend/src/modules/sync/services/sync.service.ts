@@ -1163,7 +1163,17 @@ export class SyncService {
       }
 
       let amountPaid = Number(op.amountPaid ?? op.amount ?? 0);
-      let amountExpected = Number(op.amountExpected ?? op.amount ?? op.amountPaid ?? 0);
+      let amountExpected = Number(op.amountExpected ?? op.amount ?? 0);
+
+      if (isNaN(amountPaid) || !isFinite(amountPaid) || amountPaid < 0) {
+        result.failedCount++;
+        result.conflicts.push({
+          operationId: opId,
+          reason: 'Invalid payment amount',
+        });
+        continue;
+      }
+
       const periodYear = op.periodYear || op.billingPeriodYear || new Date().getFullYear();
       const periodMonth = op.periodMonth || op.billingPeriodMonth || (new Date().getMonth() + 1);
       const paymentDate = op.collectedAt
@@ -1252,30 +1262,31 @@ export class SyncService {
               },
             });
 
-            if (existingBookletPayment && existingBookletPayment.paymentStatus === PaymentStatus.PAID) {
+            const existingOp = await tx.studentPaymentRecord.findUnique({
+              where: { operationId: opId },
+            });
+            if (existingOp) {
               result.duplicatesIgnored++;
               result.processedOperationIds.push(opId);
               if (result.idMappings) {
-                if (op.clientTempId) result.idMappings[op.clientTempId] = existingBookletPayment.id;
-                if (op.id) result.idMappings[op.id] = existingBookletPayment.id;
+                if (op.clientTempId) result.idMappings[op.clientTempId] = existingOp.id;
+                if (op.id) result.idMappings[op.id] = existingOp.id;
               }
-              result.processedPayments?.push({
-                id: existingBookletPayment.id,
-                studentId: op.studentId,
-                bookletId: op.bookletId,
-                paymentType: 'BOOKLET',
-                amountPaid: existingBookletPayment.amountPaid,
-                paymentStatus: PaymentStatus.PAID,
-              });
               return;
-            } else if (existingBookletPayment) {
+            }
+
+            if (existingBookletPayment) {
+              const newTotalPaid = Number(existingBookletPayment.amountPaid) + amountPaid;
+              const newExpected = Math.max(amountExpected, Number(existingBookletPayment.amountExpected || 0));
+              const newStatus = newTotalPaid >= newExpected && newExpected > 0 ? PaymentStatus.PAID : PaymentStatus.PENDING;
+
               savedPaymentRecord = await tx.studentPaymentRecord.update({
                 where: { id: existingBookletPayment.id },
                 data: {
-                  amountPaid,
-                  amountExpected: Math.max(amountExpected, Number(existingBookletPayment.amountExpected || 0)),
-                  paymentStatus: op.paymentStatus || PaymentStatus.PAID,
-                  paymentMethod: op.paymentMethod || 'CASH',
+                  amountPaid: newTotalPaid,
+                  amountExpected: newExpected,
+                  paymentStatus: newStatus,
+                  paymentMethod: op.paymentMethod || existingBookletPayment.paymentMethod,
                   receiptNumber: op.receiptNumber || existingBookletPayment.receiptNumber,
                   notes: op.notes || existingBookletPayment.notes,
                   recordedById: recorderId,
@@ -1283,8 +1294,15 @@ export class SyncService {
                 },
               });
             } else {
+              let finalExpected = amountExpected;
+              if (finalExpected <= 0 && booklet && Number(booklet.price) > 0) {
+                finalExpected = Number(booklet.price);
+              }
+              const finalStatus = amountPaid >= finalExpected && finalExpected > 0 ? PaymentStatus.PAID : PaymentStatus.PENDING;
+
               savedPaymentRecord = await tx.studentPaymentRecord.create({
                 data: {
+                  operationId: opId,
                   studentId: op.studentId,
                   groupId: resolvedGroupId || null,
                   bookletId: op.bookletId,
@@ -1292,8 +1310,8 @@ export class SyncService {
                   periodYear,
                   periodMonth,
                   amountPaid,
-                  amountExpected,
-                  paymentStatus: op.paymentStatus || PaymentStatus.PAID,
+                  amountExpected: finalExpected,
+                  paymentStatus: finalStatus,
                   paymentMethod: op.paymentMethod || 'CASH',
                   currency: op.currency || 'EGP',
                   receiptNumber: op.receiptNumber || `REC-BKT-${randomUUID().slice(0, 8)}`,
@@ -1304,11 +1322,10 @@ export class SyncService {
                 },
               });
 
-              // Decrement booklet stock if tracked
               if (typeof tx.booklet?.update === 'function') {
                 try {
-                  const booklet = await tx.booklet.findUnique({ where: { id: op.bookletId } });
-                  if (booklet && booklet.stockCount !== null && booklet.stockCount > 0) {
+                  const b = await tx.booklet.findUnique({ where: { id: op.bookletId } });
+                  if (b && b.stockCount !== null && b.stockCount > 0) {
                     await tx.booklet.update({
                       where: { id: op.bookletId },
                       data: { stockCount: { decrement: 1 } },
@@ -1321,25 +1338,6 @@ export class SyncService {
             }
           } else {
             // Flow B: Ingest Monthly Tuition Payment
-            if (amountPaid <= 0 && resolvedGroupId) {
-              try {
-                const group = await tx.academicGroup.findUnique({
-                  where: { id: resolvedGroupId },
-                  select: { monthlyFee: true },
-                });
-                if (group && Number(group.monthlyFee) > 0) {
-                  amountPaid = Number(group.monthlyFee);
-                  amountExpected = Number(group.monthlyFee);
-                }
-              } catch {
-                // non-blocking
-              }
-            }
-            if (amountPaid <= 0) {
-              amountPaid = 350;
-              amountExpected = 350;
-            }
-
             let existingPayment: any = null;
             if (resolvedGroupId) {
               existingPayment = await tx.studentPaymentRecord.findFirst({
@@ -1362,32 +1360,32 @@ export class SyncService {
               });
             }
 
-            if (existingPayment && existingPayment.paymentStatus === PaymentStatus.PAID) {
+            const existingOp = await tx.studentPaymentRecord.findUnique({
+              where: { operationId: opId },
+            });
+            if (existingOp) {
               result.duplicatesIgnored++;
               result.processedOperationIds.push(opId);
               if (result.idMappings) {
-                if (op.clientTempId) result.idMappings[op.clientTempId] = existingPayment.id;
-                if (op.id) result.idMappings[op.id] = existingPayment.id;
+                if (op.clientTempId) result.idMappings[op.clientTempId] = existingOp.id;
+                if (op.id) result.idMappings[op.id] = existingOp.id;
               }
-              result.processedPayments?.push({
-                id: existingPayment.id,
-                studentId: op.studentId,
-                groupId: resolvedGroupId,
-                periodYear,
-                periodMonth,
-                amountPaid: existingPayment.amountPaid,
-                paymentStatus: PaymentStatus.PAID,
-              });
               return;
-            } else if (existingPayment) {
+            }
+
+            if (existingPayment) {
+              const newTotalPaid = Number(existingPayment.amountPaid) + amountPaid;
+              const newExpected = Math.max(amountExpected, Number(existingPayment.amountExpected || 0));
+              const newStatus = newTotalPaid >= newExpected && newExpected > 0 ? PaymentStatus.PAID : PaymentStatus.PENDING;
+
               savedPaymentRecord = typeof tx.studentPaymentRecord?.update === 'function'
                 ? await tx.studentPaymentRecord.update({
                     where: { id: existingPayment.id },
                     data: {
-                      amountPaid,
-                      amountExpected: Math.max(amountExpected, Number(existingPayment.amountExpected || 0)),
-                      paymentStatus: op.paymentStatus || PaymentStatus.PAID,
-                      paymentMethod: op.paymentMethod || 'CASH',
+                      amountPaid: newTotalPaid,
+                      amountExpected: newExpected,
+                      paymentStatus: newStatus,
+                      paymentMethod: op.paymentMethod || existingPayment.paymentMethod,
                       receiptNumber: op.receiptNumber || existingPayment.receiptNumber,
                       notes: op.notes || existingPayment.notes,
                       recordedById: recorderId,
@@ -1396,16 +1394,33 @@ export class SyncService {
                   })
                 : existingPayment;
             } else {
+              let finalExpected = amountExpected;
+              if (finalExpected <= 0 && resolvedGroupId) {
+                try {
+                  const group = await tx.academicGroup.findUnique({
+                    where: { id: resolvedGroupId },
+                    select: { monthlyFee: true },
+                  });
+                  if (group && Number(group.monthlyFee) > 0) {
+                    finalExpected = Number(group.monthlyFee);
+                  }
+                } catch {
+                  // non-blocking
+                }
+              }
+              const finalStatus = amountPaid >= finalExpected && finalExpected > 0 ? PaymentStatus.PAID : PaymentStatus.PENDING;
+
               savedPaymentRecord = await tx.studentPaymentRecord.create({
                 data: {
+                  operationId: opId,
                   studentId: op.studentId,
                   groupId: resolvedGroupId || null,
                   paymentType: PaymentType.TUITION,
                   periodYear,
                   periodMonth,
                   amountPaid,
-                  amountExpected,
-                  paymentStatus: op.paymentStatus || PaymentStatus.PAID,
+                  amountExpected: finalExpected,
+                  paymentStatus: finalStatus,
                   paymentMethod: op.paymentMethod || 'CASH',
                   currency: op.currency || 'EGP',
                   receiptNumber: op.receiptNumber || `REC-${periodYear}-${String(periodMonth).padStart(2, '0')}-${randomUUID().slice(0, 8)}`,
@@ -2127,27 +2142,6 @@ export class SyncService {
                   },
                 });
               }
-
-              // 2. Guarantee Attendance Record is set to PRESENT
-              await tx.attendanceRecord.upsert({
-                where: {
-                  sessionId_studentId: {
-                    sessionId,
-                    studentId,
-                  },
-                },
-                update: {
-                  status: AttendanceStatus.PRESENT,
-                },
-                create: {
-                  sessionId,
-                  studentId,
-                  status: AttendanceStatus.PRESENT,
-                  recordingMethod: (recordedMethod as RecordingMethod) || RecordingMethod.QR_SCAN,
-                  recordedById: recorderId,
-                  recordedAt: recordDate,
-                },
-              });
             });
 
             results.push({ mutationId: mutation.id, status: 'SUCCESS' });
@@ -2447,39 +2441,6 @@ export class SyncService {
             result.syncedCount++;
           }
 
-          // 5. Automatic Attendance Roll-Call: Guarantee Attendance is set to PRESENT
-          const existingAttendance = await tx.attendanceRecord.findUnique({
-            where: {
-              sessionId_studentId: {
-                sessionId: op.sessionId,
-                studentId: resolvedStudentId,
-              },
-            },
-          });
-
-          if (existingAttendance) {
-            if (existingAttendance.status !== AttendanceStatus.PRESENT) {
-              await tx.attendanceRecord.update({
-                where: { id: existingAttendance.id },
-                data: {
-                  status: AttendanceStatus.PRESENT,
-                  recordingMethod: op.recordedMethod || existingAttendance.recordingMethod,
-                  recordedAt: clientDate,
-                },
-              });
-            }
-          } else {
-            await tx.attendanceRecord.create({
-              data: {
-                sessionId: op.sessionId,
-                studentId: resolvedStudentId,
-                status: AttendanceStatus.PRESENT,
-                recordingMethod: op.recordedMethod || RecordingMethod.QR_SCAN,
-                recordedById: recorderId,
-                recordedAt: clientDate,
-              },
-            });
-          }
 
           result.processedOperationIds.push(op.id);
         });

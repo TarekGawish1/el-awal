@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Query, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Body, Query, HttpCode, HttpStatus, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { SyncService } from '../services/sync.service';
 import { BatchProgressSyncDto } from '../dto/batch-progress-sync.dto';
@@ -130,6 +130,26 @@ export class SyncController {
     @Body() dto: UnifiedSyncBatchDto | any,
     @CurrentUser() user: AuthenticatedUser,
   ) {
+    if (user.role === UserRole.STUDENT) {
+      if (Array.isArray(dto)) {
+        const restrictedTypes = ['RECORD_HOMEWORK_ONSITE', 'RECORD_ATTENDANCE'];
+        const hasRestricted = dto.some(m => restrictedTypes.includes(m.type));
+        if (hasRestricted) {
+           throw new ForbiddenException('Students cannot submit teacher-level mutations');
+        }
+      } else {
+        if (dto.groups || dto.students || dto.attendance || dto.payments || dto.homework) {
+           throw new ForbiddenException('Students cannot submit teacher-level domains');
+        }
+        if (dto.mutations && Array.isArray(dto.mutations)) {
+          const restrictedTypes = ['RECORD_HOMEWORK_ONSITE', 'RECORD_ATTENDANCE'];
+          const hasRestricted = dto.mutations.some((m: any) => restrictedTypes.includes(m.type));
+          if (hasRestricted) {
+             throw new ForbiddenException('Students cannot submit teacher-level mutations');
+          }
+        }
+      }
+    }
     if (Array.isArray(dto)) {
       const mutationResults = await this.syncService.processMutationBatch(user, dto);
       return {
