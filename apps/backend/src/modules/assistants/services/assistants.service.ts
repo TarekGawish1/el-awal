@@ -38,9 +38,24 @@ export class UpdateAssistantDto {
   permissions?: AssistantPermission[];
 
   @IsOptional()
-  @IsArray()
   @IsString({ each: true })
   assignedGroupIds?: string[];
+
+  @IsOptional()
+  @IsString()
+  fullName?: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  password?: string;
 }
 
 @Injectable()
@@ -105,6 +120,7 @@ export class AssistantsService {
           message: messageText,
           channels: [NotificationChannel.WHATSAPP],
           whatsappStatus: NotificationStatus.PENDING,
+          data: { phone: dto.phone },
         },
       });
     }
@@ -141,10 +157,26 @@ export class AssistantsService {
   async updateAssistant(teacherId: string, id: string, dto: UpdateAssistantDto) {
     const existing = await this.prisma.teacherAssistant.findUnique({
       where: { id },
+      include: { assistant: true },
     });
 
     if (!existing || existing.teacherId !== teacherId) {
       throw new NotFoundException('Assistant relationship not found');
+    }
+
+    if (dto.fullName || dto.phone || dto.email || dto.password) {
+      const userData: any = {};
+      if (dto.fullName) userData.fullName = dto.fullName;
+      if (dto.phone) userData.phone = dto.phone;
+      if (dto.email) userData.email = dto.email;
+      if (dto.password) {
+        userData.passwordHash = await bcrypt.hash(dto.password, 10);
+      }
+      
+      await this.prisma.user.update({
+        where: { id: existing.assistantId },
+        data: userData,
+      });
     }
 
     const updated = await this.prisma.teacherAssistant.update({
