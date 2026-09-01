@@ -568,7 +568,6 @@ function TeacherAttendanceContent() {
                   <ClipboardCheck className="w-4 h-4" />
                   QR للواجب
                 </button>
-                </button>
               </div>
             </div>
           </div>
