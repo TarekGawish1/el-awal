@@ -173,10 +173,28 @@ export class AssistantsService {
         userData.passwordHash = await bcrypt.hash(dto.password, 10);
       }
       
-      await this.prisma.user.update({
+      const updatedUser = await this.prisma.user.update({
         where: { id: existing.assistantId },
         data: userData,
       });
+
+      if (dto.password || dto.phone) {
+        const passText = dto.password ? `\n- كلمة المرور: ${dto.password}` : '\n- كلمة المرور: (لم تتغير)';
+        const messageText = `مرحباً ${updatedUser.fullName}،\nتم تحديث بيانات حساب المساعد الخاص بك.\n\nبيانات الدخول:${passText}\n- الهاتف: ${updatedUser.phone}\n\nرابط المنصة: https://al-awal.online/login`;
+        
+        await this.prisma.notification.create({
+          data: {
+            recipientId: updatedUser.id,
+            type: 'SYSTEM',
+            notificationType: NotificationType.GENERAL_ANNOUNCEMENT,
+            title: 'تحديث بيانات حساب المساعد',
+            message: messageText,
+            channels: [NotificationChannel.WHATSAPP],
+            whatsappStatus: NotificationStatus.PENDING,
+            data: { phone: updatedUser.phone },
+          },
+        });
+      }
     }
 
     const updated = await this.prisma.teacherAssistant.update({
