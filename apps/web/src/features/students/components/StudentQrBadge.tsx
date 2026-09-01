@@ -187,105 +187,107 @@ export function StudentQrBadge({
   };
 
   return (
-    <div className="flex flex-col sm:flex-row items-stretch border-none rounded-3xl shadow-sm ring-1 ring-slate-100 relative overflow-hidden bg-gradient-to-b sm:bg-gradient-to-l from-white to-slate-50">
-      <div ref={badgeRef} className="flex flex-col items-center justify-center w-full sm:w-1/2 p-6 sm:p-8 relative bg-white border-b sm:border-b-0 sm:border-l border-slate-100">
-        <div className="absolute top-0 sm:top-auto sm:right-0 sm:inset-y-0 w-full sm:w-1.5 h-1.5 sm:h-full bg-gradient-to-r sm:bg-gradient-to-b from-primary-400 to-primary-600"></div>
+  return (
+    <div className="flex flex-row items-stretch border-none rounded-3xl shadow-sm ring-1 ring-slate-100 relative overflow-hidden bg-white max-w-sm mx-auto">
+      <div ref={badgeRef} className="flex-1 flex flex-col items-center justify-center p-4 relative bg-white">
+        <div className="absolute top-0 right-0 w-full h-1.5 bg-gradient-to-r from-primary-400 to-primary-600"></div>
 
-        <div className="bg-white p-4 rounded-2xl shadow-sm ring-1 ring-slate-100 mb-4 group hover:shadow-md transition-shadow sm:mt-2">
-          <QRCode value={data.qrCodeToken} size={180} className="group-hover:scale-105 transition-transform duration-300" />
+        <div className="bg-white p-3 rounded-2xl shadow-sm ring-1 ring-slate-100 mb-3 group hover:shadow-md transition-shadow mt-2">
+          <QRCode value={data.qrCodeToken} size={140} className="group-hover:scale-105 transition-transform duration-300" />
         </div>
+        
         <div className="text-center w-full">
-          <h3 className="text-lg font-bold text-slate-900 mb-3">{data.fullName}</h3>
+          <h3 className="text-base font-bold text-slate-900 mb-2">{data.fullName}</h3>
           
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-2 text-sm w-full text-start">
+          <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 space-y-1.5 text-xs w-full text-start">
             <div className="flex justify-between items-center">
               <span className="text-slate-500 font-medium">كود الطالب:</span>
-              <span className="font-mono font-bold text-primary-600 bg-primary-50 px-2 py-0.5 rounded" dir="ltr">{data.studentCode}</span>
+              <span className="font-mono font-bold text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded" dir="ltr">{data.studentCode}</span>
             </div>
             {loginPassword && (
               <div className="flex justify-between items-center">
                 <span className="text-slate-500 font-medium">كلمة المرور:</span>
-                <span className="font-mono font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded" dir="ltr">{loginPassword}</span>
+                <span className="font-mono font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded" dir="ltr">{loginPassword}</span>
               </div>
             )}
             {loginPhone && !loginEmail && (
               <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">تسجيل الدخول بـ:</span>
-                <span className="font-mono font-bold text-slate-700 bg-slate-200 px-2 py-0.5 rounded text-xs" dir="ltr">{loginPhone}</span>
+                <span className="text-slate-500 font-medium">الدخول بـ:</span>
+                <span className="font-mono font-bold text-slate-700 bg-slate-200 px-1.5 py-0.5 rounded text-[10px]" dir="ltr">{loginPhone}</span>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      <div className="flex flex-col justify-center w-full sm:w-1/2 p-6 sm:p-8">
+      <div className="w-16 flex flex-col items-center justify-center p-2 bg-slate-50 border-r border-slate-100 border-dashed">
         {showConfirm ? (
-          <div className="flex flex-col items-center space-y-4 p-5 bg-amber-50 border border-amber-200 rounded-2xl w-full">
-            <p className="text-sm text-amber-800 text-center font-medium leading-relaxed">
-              سيؤدي هذا إلى إبطال رمز الاستجابة السريعة (QR) الحالي. هل أنت متأكد أنك تريد المتابعة؟
-            </p>
-            <div className="flex flex-col space-y-2 w-full">
-              <Button
-                size="sm"
-                className="w-full rounded-xl bg-amber-600 hover:bg-amber-700 text-white border-none shadow-sm"
-                onClick={handleRegenerate}
-                disabled={isRegenerating}
-              >
-                {isRegenerating ? 'جاري التوليد...' : 'تأكيد'}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full rounded-xl bg-white"
-                onClick={() => setShowConfirm(false)}
-                disabled={isRegenerating}
-              >
-                إلغاء
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="w-full space-y-3">
+          <div className="flex flex-col items-center gap-2 w-full">
+            <Button
+              size="icon"
+              className="w-10 h-10 rounded-xl bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
+              onClick={handleRegenerate}
+              disabled={isRegenerating}
+              title="تأكيد"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </Button>
             <Button
               variant="outline"
-              className="w-full rounded-xl border-dashed border-2 hover:border-primary-500 hover:text-primary-600 hover:bg-primary-50 transition-all font-medium py-5"
-              onClick={() => setShowConfirm(true)}
+              size="icon"
+              className="w-10 h-10 rounded-xl bg-white"
+              onClick={() => setShowConfirm(false)}
+              disabled={isRegenerating}
+              title="إلغاء"
             >
-              <svg className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-3 w-full">
+            <button
+              onClick={() => setShowConfirm(true)}
+              className="w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-primary-600 hover:bg-primary-50 hover:border-primary-200 transition-all flex items-center justify-center shadow-sm"
+              title="إعادة توليد الـ QR"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              إعادة توليد الـ QR
-            </Button>
+            </button>
 
             <button
               onClick={handleDownload}
               disabled={isDownloading}
-              className="flex items-center justify-center w-full rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-medium py-3 px-4 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              className="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-900 text-white transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              title="تنزيل الكود"
             >
               {isDownloading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2 rtl:ml-2 rtl:mr-0"></div>
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
               ) : (
-                <svg className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
               )}
-              {isDownloading ? 'جاري التنزيل...' : 'تنزيل الكود'}
             </button>
 
             {studentPhone && (
               <button
                 onClick={handleShareWhatsApp}
                 disabled={isSharing}
-                className="flex items-center justify-center w-full rounded-xl bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-4 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className="w-10 h-10 rounded-xl bg-green-500 hover:bg-green-600 text-white transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                title="مشاركة عبر واتساب"
               >
                 {isSharing ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2 rtl:ml-2 rtl:mr-0"></div>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 ) : (
-                  <svg className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" viewBox="0 0 24 24" fill="currentColor">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                   </svg>
                 )}
-                {isSharing ? 'جاري التحضير...' : 'مشاركة عبر واتساب'}
               </button>
             )}
           </div>
