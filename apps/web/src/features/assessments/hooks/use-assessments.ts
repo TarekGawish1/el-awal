@@ -102,7 +102,7 @@ export function useCreateAssessment() {
           description: payload.description,
           totalScore: payload.totalScore,
           passingScore: payload.passingScore,
-          durationMinutes: payload.durationMinutes,
+          durationMinutes: payload.durationMinutes ?? undefined,
           dueDate: payload.dueDate,
           isPublished: payload.isPublished ?? true,
           questions: (payload.questions || []).map((q, idx) => ({

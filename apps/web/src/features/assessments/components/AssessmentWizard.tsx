@@ -826,7 +826,6 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                           onChange={(val) => {
                             methods.setValue('endTime', val, { shouldValidate: true, shouldDirty: true });
                             methods.setValue('dueDate', val, { shouldValidate: true, shouldDirty: true });
-                            methods.setValue('deadline', val, { shouldValidate: true, shouldDirty: true });
                           }}
                           placeholder="تاريخ ووقت الإغلاق..."
                         />
