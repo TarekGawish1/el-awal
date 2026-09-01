@@ -186,13 +186,13 @@ export function TeacherSessionsCalendar() {
         </div>
 
         {/* Global Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
           <Button
             variant="outline"
             onClick={() => setIsGenerateOpen(true)}
-            className="border-purple-200 text-purple-700 hover:bg-purple-50 rounded-2xl text-xs font-bold"
+            className="border-slate-200 text-slate-700 hover:bg-slate-50 rounded-2xl text-sm font-bold h-11 px-5"
           >
-            <Wand2 className="w-4 h-4 ml-1.5" />
+            <Wand2 className="w-4 h-4 ml-2 text-purple-500" />
             توليد جدول الحصص
           </Button>
 
@@ -202,18 +202,161 @@ export function TeacherSessionsCalendar() {
               setCreateTimePrefill(undefined);
               setIsCreateOpen(true);
             }}
-            className="rounded-2xl shadow-md shadow-primary/20 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-400"
+            className="rounded-2xl shadow-lg shadow-primary/20 text-sm font-black bg-primary-600 hover:bg-primary-700 text-white border-primary-600 h-11 px-6 transition-transform hover:scale-105"
           >
-            <Plus className="w-4 h-4 ml-1.5" />
-            + إضافة حصة جديدة
+            <Plus className="w-5 h-5 ml-2" />
+            إضافة حصة جديدة
           </Button>
+        </div>
+      </div>
+
+      {/* Main Top Header Controls (Toolbar) */}
+      <div className="bg-white p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4 relative z-20">
+        {/* RIGHT SIDE: Current Date & Navigation */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 min-w-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <h2 className="text-base sm:text-xl font-black text-slate-800 tracking-tight truncate min-w-0 min-w-[140px]">
+              {headerDateLabel}
+            </h2>
+
+            <div className="flex items-center gap-1.5 shrink-0 bg-slate-50 p-1 rounded-2xl border border-slate-100">
+              {/* Note: In RTL, Next (Forward in time) is Left arrow, Prev (Backward in time) is Right arrow */}
+              <button
+                onClick={handlePrev}
+                className="w-8 h-8 rounded-xl hover:bg-white hover:shadow-xs text-slate-600 flex items-center justify-center transition-all cursor-pointer"
+                title="السابق"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleToday}
+                className="px-3 py-1 rounded-xl hover:bg-white hover:shadow-xs text-xs font-black text-slate-700 transition-all shrink-0 cursor-pointer"
+              >
+                اليوم
+              </button>
+              <button
+                onClick={handleNext}
+                className="w-8 h-8 rounded-xl hover:bg-white hover:shadow-xs text-slate-600 flex items-center justify-center transition-all cursor-pointer"
+                title="التالي"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* LEFT SIDE: Search, Filters, View Switcher */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full xl:w-auto">
+          {/* Search */}
+          <div className="relative w-full sm:w-56">
+            <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="بحث في الحصص..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full h-10 pr-9 pl-3 text-xs font-bold bg-slate-50 rounded-2xl border border-slate-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+            />
+          </div>
+
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            {/* Filter Dropdown */}
+            <div className="relative group/filter flex-1 sm:flex-none">
+              <button className={`w-full sm:w-auto h-10 px-4 rounded-2xl border flex items-center justify-center gap-2 text-xs font-black transition-all ${
+                selectedGrades.length > 0 
+                  ? 'bg-primary-50 border-primary-200 text-primary-700' 
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}>
+                <Filter className="w-4 h-4" />
+                الفلاتر
+                {selectedGrades.length > 0 && (
+                  <span className="bg-primary-600 text-white text-[10px] px-1.5 py-0.5 rounded-md leading-none">
+                    {selectedGrades.length}
+                  </span>
+                )}
+              </button>
+              
+              {/* Dropdown Menu */}
+              <div className="absolute left-0 sm:right-0 top-full mt-2 w-64 bg-white rounded-3xl shadow-xl border border-slate-100 p-4 opacity-0 invisible group-hover/filter:opacity-100 group-hover/filter:visible transition-all z-50 transform origin-top translate-y-2 group-hover/filter:translate-y-0">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-extrabold text-slate-800">تصفية الصفوف</h4>
+                  {selectedGrades.length > 0 && (
+                    <button
+                      onClick={() => setSelectedGrades([])}
+                      className="text-[10px] text-rose-600 hover:underline font-bold bg-rose-50 px-2 py-1 rounded-md"
+                    >
+                      مسح الفلاتر
+                    </button>
+                  )}
+                </div>
+                
+                {distinctGrades.length === 0 ? (
+                  <p className="text-xs text-slate-400 text-center py-4">لا توجد صفوف متاحة</p>
+                ) : (
+                  <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                    {distinctGrades.map((grade) => {
+                      const isChecked = selectedGrades.includes(grade);
+                      return (
+                        <button
+                          key={grade}
+                          onClick={() => toggleGradeFilter(grade)}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all text-start cursor-pointer ${
+                            isChecked
+                              ? 'bg-primary-50 text-primary-700 border border-primary-100'
+                              : 'hover:bg-slate-50 text-slate-600'
+                          }`}
+                        >
+                          <span>{grade}</span>
+                          {isChecked && <Check className="w-3.5 h-3.5" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* View Mode Switcher */}
+            <div className="p-1 bg-slate-100 rounded-2xl flex items-center flex-1 sm:flex-none">
+              <button
+                onClick={() => setViewMode('daily')}
+                className={`flex-1 sm:flex-none px-4 py-1.5 rounded-xl text-xs font-black transition-all text-center cursor-pointer ${
+                  viewMode === 'daily'
+                    ? 'bg-white text-primary-700 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                يومي
+              </button>
+              <button
+                onClick={() => setViewMode('weekly')}
+                className={`flex-1 sm:flex-none px-4 py-1.5 rounded-xl text-xs font-black transition-all text-center cursor-pointer ${
+                  viewMode === 'weekly'
+                    ? 'bg-white text-primary-700 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                أسبوعي
+              </button>
+              <button
+                onClick={() => setViewMode('monthly')}
+                className={`flex-1 sm:flex-none px-4 py-1.5 rounded-xl text-xs font-black transition-all text-center cursor-pointer ${
+                  viewMode === 'monthly'
+                    ? 'bg-white text-primary-700 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                شهري
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Main Google Calendar Grid Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Sidebar Panel (3 cols) */}
-        <div className="lg:col-span-4 xl:col-span-3 space-y-5">
+        {/* Left Sidebar Panel (3 cols) - Hidden on mobile, visible on lg+ */}
+        <div className="hidden lg:block lg:col-span-4 xl:col-span-3 space-y-5">
           {/* Mini Month Calendar */}
           <MiniCalendar
             currentDate={currentDate}
@@ -264,140 +407,10 @@ export function TeacherSessionsCalendar() {
               </div>
             </div>
           )}
-
-          {/* Grade Level Filter Categories */}
-          <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-xs space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <Filter className="w-3.5 h-3.5 text-primary-600" />
-                تصفية الصفوف الدراسية
-              </h4>
-              {selectedGrades.length > 0 && (
-                <button
-                  onClick={() => setSelectedGrades([])}
-                  className="text-[11px] text-primary-600 hover:underline font-bold"
-                >
-                  إلغاء التحديد
-                </button>
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              {distinctGrades.map((grade) => {
-                const isChecked = selectedGrades.length === 0 || selectedGrades.includes(grade);
-                const color = GRADE_COLOR_MAP[grade] || {
-                  dot: 'bg-primary-500',
-                  text: 'text-slate-700',
-                  bg: 'bg-slate-50',
-                };
-
-                return (
-                  <button
-                    key={grade}
-                    onClick={() => toggleGradeFilter(grade)}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all text-start cursor-pointer ${
-                      selectedGrades.includes(grade)
-                        ? `${color.bg} ${color.text} border border-black/5`
-                        : 'hover:bg-slate-50 text-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className={`w-2.5 h-2.5 rounded-full ${color.dot}`} />
-                      <span>{grade}</span>
-                    </div>
-                    {selectedGrades.includes(grade) && <Check className="w-3.5 h-3.5" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
         </div>
 
         {/* Right Main Calendar Body (9 cols) */}
         <div className="lg:col-span-8 xl:col-span-9 space-y-4">
-          {/* Main Top Header Controls */}
-          <div className="bg-white p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl border border-slate-100 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            {/* Date Navigation */}
-            <div className="flex items-center justify-between sm:justify-start gap-2 min-w-0">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <button
-                  onClick={handleToday}
-                  className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition-colors shrink-0 cursor-pointer"
-                >
-                  اليوم
-                </button>
-
-                <div className="flex items-center gap-0.5 shrink-0">
-                  <button
-                    onClick={handlePrev}
-                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl hover:bg-slate-100 text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
-                    title="السابق"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={handleNext}
-                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl hover:bg-slate-100 text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
-                    title="التالي"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <h2 className="text-xs sm:text-base font-black text-slate-800 tracking-tight truncate min-w-0">
-                  {headerDateLabel}
-                </h2>
-              </div>
-            </div>
-
-            {/* View Mode Switcher */}
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              {/* Search (Desktop only) */}
-              <div className="relative hidden xl:block w-48">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="بحث في الحصص..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-9 pr-8 pl-3 text-xs bg-slate-50 rounded-xl border border-slate-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
-
-              <div className="p-1 bg-slate-100/90 rounded-2xl flex items-center gap-1 w-full sm:w-auto grid grid-cols-3 sm:flex">
-                <button
-                  onClick={() => setViewMode('daily')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all text-center cursor-pointer ${
-                    viewMode === 'daily'
-                      ? 'bg-white text-primary-700 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  يومي
-                </button>
-                <button
-                  onClick={() => setViewMode('weekly')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all text-center cursor-pointer ${
-                    viewMode === 'weekly'
-                      ? 'bg-white text-primary-700 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  أسبوعي
-                </button>
-                <button
-                  onClick={() => setViewMode('monthly')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all text-center cursor-pointer ${
-                    viewMode === 'monthly'
-                      ? 'bg-white text-primary-700 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  شهري
-                </button>
-              </div>
-            </div>
-          </div>
 
           {/* Calendar View Area */}
           {isLoading ? (

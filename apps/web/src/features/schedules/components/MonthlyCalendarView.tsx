@@ -167,8 +167,8 @@ export function MonthlyCalendarView({
               </div>
 
               {/* Day Sessions Pills */}
-              <div className="space-y-1 overflow-y-auto overflow-x-hidden no-scrollbar max-h-[85px] w-full">
-                {daySessions.map((session) => {
+              <div className="space-y-1 overflow-y-auto overflow-x-hidden no-scrollbar w-full mt-1">
+                {daySessions.slice(0, 2).map((session) => {
                   const isCancelled = !!session.isCancelled;
                   const gradeTheme = getGradeLevelTheme(session.group?.gradeLevel, session.group?.name);
                   const layoutMap = calculateOverlappingColumns(daySessions);
@@ -208,6 +208,12 @@ export function MonthlyCalendarView({
                     </div>
                   );
                 })}
+                
+                {daySessions.length > 2 && (
+                  <div className="text-[10px] font-bold text-slate-500 bg-slate-100/80 rounded-md py-0.5 text-center mt-0.5 cursor-pointer hover:bg-slate-200 transition-colors">
+                    + {daySessions.length - 2} حصص أخرى
+                  </div>
+                )}
               </div>
             </div>
           );

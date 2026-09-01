@@ -20,20 +20,6 @@ interface WeeklyCalendarViewProps {
   onAddSessionForDate?: (dateStr: string, timeStr?: string) => void;
 }
 
-const START_HOUR = 6; // 06:00 AM
-const END_HOUR = 24; // 11:00 PM (hour24: 23 is 11:00 PM)
-const TOTAL_HOURS = END_HOUR - START_HOUR; // 18 hours
-const HOUR_HEIGHT = 88; // pixels per hour
-
-const HOURS = Array.from({ length: TOTAL_HOURS }, (_, i) => {
-  const h24 = START_HOUR + i;
-  const period = h24 >= 12 ? 'م' : 'ص';
-  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
-  const label = `${h12 < 10 ? '0' : ''}${h12}:00 ${period}`;
-  const labelEn = `${h12 < 10 ? '0' : ''}${h12}:00 ${h24 >= 12 ? 'PM' : 'AM'}`;
-  return { hour24: h24, label, labelEn };
-});
-
 export function WeeklyCalendarView({
   currentDate,
   sessions,
@@ -41,6 +27,42 @@ export function WeeklyCalendarView({
   onAddSessionForDate,
 }: WeeklyCalendarViewProps) {
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const HOUR_HEIGHT = 88; // pixels per hour
+
+  const { minHour, maxHour } = React.useMemo(() => {
+    let minM = 24 * 60;
+    let maxM = 0;
+    sessions.forEach(s => {
+      const start = parseTimeToMinutes(s.startTime);
+      if (start !== null) minM = Math.min(minM, start);
+      let end = parseTimeToMinutes(s.endTime);
+      if (!end || end <= (start || 0)) end = (start || 16 * 60) + 90;
+      if (end !== null) maxM = Math.max(maxM, end);
+    });
+    
+    if (minM === 24 * 60) return { minHour: 8, maxHour: 18 }; // default working hours
+    
+    let minH = Math.floor(minM / 60);
+    let maxH = Math.ceil(maxM / 60);
+    
+    // Add 1 hour padding
+    minH = Math.max(6, minH - 1);
+    maxH = Math.min(24, maxH + 1);
+    return { minHour: minH, maxHour: maxH };
+  }, [sessions]);
+
+  const TOTAL_HOURS = maxHour - minHour;
+  
+  const HOURS = React.useMemo(() => {
+    return Array.from({ length: TOTAL_HOURS }, (_, i) => {
+      const h24 = minHour + i;
+      const period = h24 >= 12 ? 'م' : 'ص';
+      const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+      const label = `${h12 < 10 ? '0' : ''}${h12}:00 ${period}`;
+      const labelEn = `${h12 < 10 ? '0' : ''}${h12}:00 ${h24 >= 12 ? 'PM' : 'AM'}`;
+      return { hour24: h24, label, labelEn };
+    });
+  }, [minHour, TOTAL_HOURS]);
 
   // Auto-scroll to earliest session of the week or daytime default
   React.useEffect(() => {
@@ -53,17 +75,11 @@ export function WeeklyCalendarView({
         });
 
         if (earliestMinutes < 24 * 60) {
-          const startMinutes = START_HOUR * 60;
+          const startMinutes = minHour * 60;
           const targetPx = ((earliestMinutes - startMinutes) / 60) * HOUR_HEIGHT;
           const scrollOffset = Math.max(0, targetPx - 60);
           scrollContainerRef.current.scrollTo({
             top: scrollOffset,
-            behavior: 'smooth',
-          });
-        } else {
-          const defaultPx = (12 - START_HOUR) * HOUR_HEIGHT;
-          scrollContainerRef.current.scrollTo({
-            top: Math.max(0, defaultPx),
             behavior: 'smooth',
           });
         }
@@ -71,7 +87,7 @@ export function WeeklyCalendarView({
     }, 150);
 
     return () => clearTimeout(timer);
-  }, [sessions, currentDate]);
+  }, [sessions, currentDate, minHour]);
 
   // Calculate 7 days for the current week starting Saturday
   const weekDays = useMemo(() => {
@@ -132,7 +148,7 @@ export function WeeklyCalendarView({
       endMin = startMin + 90; // default 1.5 hours duration
     }
 
-    const startHourFraction = Math.max(0, (startMin - START_HOUR * 60) / 60);
+    const startHourFraction = Math.max(0, (startMin - minHour * 60) / 60);
     const durationHours = Math.max(0.75, (endMin - startMin) / 60);
 
     const topPx = startHourFraction * HOUR_HEIGHT;
@@ -146,8 +162,8 @@ export function WeeklyCalendarView({
     const rect = e.currentTarget.getBoundingClientRect();
     const clickY = e.clientY - rect.top;
     const clickedHour = Math.min(
-      END_HOUR - 1,
-      Math.max(START_HOUR, Math.floor(clickY / HOUR_HEIGHT) + START_HOUR),
+      maxHour - 1,
+      Math.max(minHour, Math.floor(clickY / HOUR_HEIGHT) + minHour),
     );
     const timePad = clickedHour < 10 ? `0${clickedHour}:00` : `${clickedHour}:00`;
     onAddSessionForDate(dateStr, timePad);
@@ -156,7 +172,7 @@ export function WeeklyCalendarView({
   return (
     <div className="bg-white rounded-3xl border border-slate-100 shadow-xs overflow-hidden flex flex-col min-w-0">
       {/* Scrollable Container covering Header and Continuous Calendar Body */}
-      <div ref={scrollContainerRef} className="overflow-x-auto overflow-y-auto max-h-[720px]">
+      <div ref={scrollContainerRef} className="overflow-x-auto overflow-y-auto custom-scrollbar" style={{ maxHeight: 'calc(100vh - 280px)', minHeight: '400px' }}>
         <div className="min-w-[760px] sm:min-w-[860px] flex flex-col">
           {/* Top Days Header Row */}
           <div className="flex border-b border-slate-100 bg-slate-50/90 sticky top-0 z-20 backdrop-blur-sm">
