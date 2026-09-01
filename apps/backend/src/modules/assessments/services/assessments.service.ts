@@ -836,29 +836,32 @@ export class AssessmentsService {
     }
 
     // 3. Auto-Grading Calculation
-    const questionMap = new Map(assessment.questions.map((q) => [q.id, q]));
+    const answerSubmissionMap = new Map(
+      dto.answers.map((a) => [a.questionId, a.answerGiven]),
+    );
     let totalScoreObtained = 0;
     let hasPendingEssay = false;
     const answersToCreate = [];
 
-    for (const ans of dto.answers) {
-      const question = questionMap.get(ans.questionId);
-      if (!question) continue;
+    for (const question of assessment.questions) {
+      const studentGivenAnswer = answerSubmissionMap.get(question.id) || '';
 
       if (
         question.questionType === QuestionType.MULTIPLE_CHOICE ||
         question.questionType === QuestionType.TRUE_FALSE
       ) {
-        const isCorrect =
-          ans.answerGiven.trim().toLowerCase() ===
-          question.correctAnswer.trim().toLowerCase();
+        const isCorrect = isAnswerCorrect(
+          question.questionType,
+          studentGivenAnswer,
+          question.correctAnswer,
+        );
 
         const pointsEarned = isCorrect ? Number(question.points) : 0;
         totalScoreObtained += pointsEarned;
 
         answersToCreate.push({
           questionId: question.id,
-          selectedAnswer: ans.answerGiven,
+          selectedAnswer: studentGivenAnswer,
           isCorrect,
           pointsEarned,
           maxPointsSnapshot: question.points,
@@ -867,7 +870,7 @@ export class AssessmentsService {
         hasPendingEssay = true;
         answersToCreate.push({
           questionId: question.id,
-          selectedAnswer: ans.answerGiven,
+          selectedAnswer: studentGivenAnswer,
           isCorrect: null,
           pointsEarned: null,
           maxPointsSnapshot: question.points,
@@ -1534,4 +1537,148 @@ export class AssessmentsService {
       this.logger.error(`Failed to notify students about assessment [${assessment.id}]`, error);
     }
   }
+
+  /**
+   * Batch re-evaluate auto-graded (MCQ / True-False) questions for all submissions of an assessment.
+   */
+  async reEvaluateAutoGradedSubmissions(
+    assessmentId: string,
+    teacherId: string,
+    isSecretariat: boolean,
+  ) {
+    const assessment = await this.prisma.assessment.findUnique({
+      where: { id: assessmentId },
+      include: {
+        questions: true,
+        submissions: {
+          include: {
+            answers: true,
+          },
+        },
+      },
+    });
+
+    if (!assessment) {
+      throw new NotFoundException(`Assessment [${assessmentId}] not found`);
+    }
+
+    if (!isSecretariat && assessment.teacherId !== teacherId) {
+      throw new ForbiddenException(
+        'You do not have permission to re-evaluate this assessment',
+      );
+    }
+
+    const hasEssayQuestions = assessment.questions.some(
+      (q) => q.questionType === QuestionType.ESSAY,
+    );
+
+    let updatedSubmissionsCount = 0;
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const submission of assessment.submissions) {
+        let totalScore = 0;
+        let hasPendingManualEssay = false;
+
+        for (const question of assessment.questions) {
+          const ans = submission.answers.find((a) => a.questionId === question.id);
+          const maxPoints = Number(question.points);
+
+          if (
+            question.questionType === QuestionType.MULTIPLE_CHOICE ||
+            question.questionType === QuestionType.TRUE_FALSE
+          ) {
+            const isCorrect = isAnswerCorrect(
+              question.questionType,
+              ans?.selectedAnswer,
+              question.correctAnswer,
+            );
+            const pointsEarned = isCorrect ? maxPoints : 0;
+            totalScore += pointsEarned;
+
+            if (ans) {
+              await tx.studentAnswer.update({
+                where: { id: ans.id },
+                data: {
+                  isCorrect,
+                  pointsEarned,
+                  maxPointsSnapshot: question.points,
+                },
+              });
+            } else {
+              await tx.studentAnswer.create({
+                data: {
+                  submissionId: submission.id,
+                  questionId: question.id,
+                  selectedAnswer: '',
+                  isCorrect,
+                  pointsEarned,
+                  maxPointsSnapshot: question.points,
+                },
+              });
+            }
+          } else if (question.questionType === QuestionType.ESSAY) {
+            if (ans && ans.pointsEarned !== null) {
+              totalScore += Number(ans.pointsEarned);
+            } else {
+              hasPendingManualEssay = true;
+            }
+          }
+        }
+
+        const isFullyGraded = !hasPendingManualEssay;
+
+        await tx.assessmentSubmission.update({
+          where: { id: submission.id },
+          data: {
+            ...(isFullyGraded
+              ? {
+                  status: SubmissionStatus.GRADED,
+                  scoreObtained: totalScore,
+                  isAutoGraded: !hasEssayQuestions,
+                  gradedAt: submission.gradedAt || new Date(),
+                }
+              : {
+                  status: submission.status,
+                }),
+          },
+        });
+
+        updatedSubmissionsCount++;
+      }
+    });
+
+    this.logger.log(
+      `Re-evaluated ${updatedSubmissionsCount} submissions for assessment [${assessmentId}]`,
+    );
+
+    return {
+      success: true,
+      assessmentId,
+      reEvaluatedCount: updatedSubmissionsCount,
+      message: `تمت إعادة تقييم ${updatedSubmissionsCount} تسليم بنجاح`,
+    };
+  }
 }
+
+/**
+ * Normalizes and compares student answer with model answer for MCQ & True/False questions.
+ */
+export function isAnswerCorrect(
+  questionType: QuestionType,
+  answerGiven: string | null | undefined,
+  correctAnswer: string | null | undefined,
+): boolean {
+  if (!answerGiven || !correctAnswer) return false;
+  const a = answerGiven.trim().toLowerCase();
+  const c = correctAnswer.trim().toLowerCase();
+  if (a === c) return true;
+
+  if (questionType === QuestionType.TRUE_FALSE) {
+    const trueVariants = ['true', 'صح', 'صحيحة', 'صواب', '1', 'نعم'];
+    const falseVariants = ['false', 'خطأ', 'خاطئة', 'غلط', '0', 'لا'];
+    if (trueVariants.includes(a) && trueVariants.includes(c)) return true;
+    if (falseVariants.includes(a) && falseVariants.includes(c)) return true;
+  }
+  return false;
+}
+

@@ -4,9 +4,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Check, X, Save, AlertCircle, MessageSquare, ExternalLink, 
   ImageIcon, Award, CheckCircle2, XCircle, HelpCircle, 
-  Maximize2, Sparkles, RefreshCw, UserCheck
+  Maximize2, Sparkles, RefreshCw, UserCheck, Bot
 } from 'lucide-react';
-import { useSubmissionDetail, useGradeSubmission } from '../hooks/use-assessments';
+import { useSubmissionDetail, useGradeSubmission, useReEvaluateAssessment } from '../hooks/use-assessments';
 import { QuestionType, SubmissionStatus } from '../types/assessments.types';
 import { parseEssayAnswer } from '../utils/answer-parser';
 import { Button } from '@/components/ui/Button';
@@ -25,9 +25,29 @@ interface QuestionGradeState {
   error?: string;
 }
 
+function isAnswerMatch(
+  questionType: QuestionType,
+  answerGiven?: string | null,
+  correctAnswer?: string | null,
+): boolean {
+  if (!answerGiven || !correctAnswer) return false;
+  const a = answerGiven.trim().toLowerCase();
+  const c = correctAnswer.trim().toLowerCase();
+  if (a === c) return true;
+
+  if (questionType === QuestionType.TRUE_FALSE) {
+    const trueVariants = ['true', 'صح', 'صحيحة', 'صواب', '1', 'نعم'];
+    const falseVariants = ['false', 'خطأ', 'خاطئة', 'غلط', '0', 'لا'];
+    if (trueVariants.includes(a) && trueVariants.includes(c)) return true;
+    if (falseVariants.includes(a) && falseVariants.includes(c)) return true;
+  }
+  return false;
+}
+
 export function SubmissionDetails({ submissionId }: { submissionId: string }) {
   const { data: submission, isLoading, isError, error, refetch } = useSubmissionDetail(submissionId);
   const { mutate: gradeSubmission, isPending } = useGradeSubmission();
+  const { mutate: reEvaluateAssessment, isPending: isReEvaluating } = useReEvaluateAssessment();
 
   const [activeTab, setActiveTab] = useState<'all' | 'essay' | 'mcq'>('all');
   const [gradesState, setGradesState] = useState<Record<string, QuestionGradeState>>({});
@@ -46,16 +66,24 @@ export function SubmissionDetails({ submissionId }: { submissionId: string }) {
 
       questions.forEach((q) => {
         const ans = answerMap.get(q.id!);
+        const maxPoints = Number(q.points) || 1;
+        const isAutoGradedType = q.questionType === QuestionType.MULTIPLE_CHOICE || q.questionType === QuestionType.TRUE_FALSE;
         let initialScore: number | '' = '';
         
         if (ans && ans.pointsAwarded !== null && ans.pointsAwarded !== undefined) {
           initialScore = Number(ans.pointsAwarded);
-        } else if (ans && ans.isCorrect === true) {
-          initialScore = Number(q.points);
-        } else if (ans && ans.isCorrect === false) {
-          initialScore = 0;
-        } else if (q.questionType !== QuestionType.ESSAY && !ans?.answerGiven) {
-          initialScore = 0;
+        } else if (isAutoGradedType) {
+          if (ans?.isCorrect === true) {
+            initialScore = maxPoints;
+          } else if (ans?.isCorrect === false) {
+            initialScore = 0;
+          } else if (ans?.answerGiven) {
+            initialScore = isAnswerMatch(q.questionType, ans.answerGiven, q.correctAnswer) ? maxPoints : 0;
+          } else {
+            initialScore = 0;
+          }
+        } else if (q.questionType === QuestionType.ESSAY) {
+          initialScore = ans?.pointsAwarded !== null && ans?.pointsAwarded !== undefined ? Number(ans.pointsAwarded) : '';
         }
 
         initial[q.id!] = {
@@ -130,6 +158,16 @@ export function SubmissionDetails({ submissionId }: { submissionId: string }) {
         error: undefined,
       }
     }));
+  };
+
+  // Trigger batch re-evaluation
+  const handleReEvaluate = () => {
+    if (!assessment?.id) return;
+    reEvaluateAssessment(assessment.id, {
+      onSuccess: () => {
+        refetch();
+      }
+    });
   };
 
   // Dynamic Live Calculation
@@ -269,6 +307,12 @@ export function SubmissionDetails({ submissionId }: { submissionId: string }) {
                 <Badge variant={isGraded ? 'success' : 'warning'} className="text-xs px-3 py-1 font-bold">
                   {isGraded ? '✓ تم اعتماد التصحيح' : '⏳ بانتظار الاعتماد'}
                 </Badge>
+                {submission.isAutoGraded && (
+                  <Badge variant="outline" className="text-xs border-emerald-300 text-emerald-800 bg-emerald-50 font-bold flex items-center gap-1">
+                    <Bot className="w-3.5 h-3.5" />
+                    مصصح تلقائياً بالكامل
+                  </Badge>
+                )}
                 <Badge variant="outline" className="text-xs border-slate-200 text-slate-700 bg-slate-50">
                   {assessment?.type === 'ASSIGNMENT' ? 'واجب منزلي' : 'اختبار دراسي'}
                 </Badge>
@@ -292,32 +336,48 @@ export function SubmissionDetails({ submissionId }: { submissionId: string }) {
               )}
             </div>
 
-            {/* Live Dynamic Score Box */}
-            <div className="bg-gradient-to-br from-slate-50 to-slate-100/80 border border-slate-200/80 rounded-2xl p-5 w-full md:w-auto min-w-[260px] shadow-xs">
-              <div className="flex items-center justify-between gap-4 mb-2">
-                <span className="text-xs font-bold text-slate-500">الدرجة المحسوبة المباشرة:</span>
-                <span className={`text-xs font-extrabold px-2.5 py-0.5 rounded-full ${
-                  isPassing 
-                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
-                    : 'bg-rose-100 text-rose-800 border border-rose-200'
-                }`}>
-                  {isPassing ? 'ناجح' : 'راسب'}
-                </span>
+            {/* Live Dynamic Score Box & Re-evaluate button */}
+            <div className="flex flex-col items-end gap-3 w-full md:w-auto">
+              <div className="bg-gradient-to-br from-slate-50 to-slate-100/80 border border-slate-200/80 rounded-2xl p-5 w-full md:w-auto min-w-[260px] shadow-xs">
+                <div className="flex items-center justify-between gap-4 mb-2">
+                  <span className="text-xs font-bold text-slate-500">الدرجة المحسوبة المباشرة:</span>
+                  <span className={`text-xs font-extrabold px-2.5 py-0.5 rounded-full ${
+                    isPassing 
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                      : 'bg-rose-100 text-rose-800 border border-rose-200'
+                  }`}>
+                    {isPassing ? 'ناجح' : 'راسب'}
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-black font-mono text-slate-900">
+                    {totalAwardedScore}
+                  </span>
+                  <span className="text-sm font-bold text-slate-400">
+                    / {totalMaxScore} درجة
+                  </span>
+                </div>
+                <div className="mt-2.5 pt-2.5 border-t border-slate-200/60 flex items-center justify-between text-xs">
+                  <span className="text-slate-500 font-medium">النسبة المئوية:</span>
+                  <span className={`font-mono font-extrabold text-sm ${isPassing ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {percentage}%
+                  </span>
+                </div>
               </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-black font-mono text-slate-900">
-                  {totalAwardedScore}
-                </span>
-                <span className="text-sm font-bold text-slate-400">
-                  / {totalMaxScore} درجة
-                </span>
-              </div>
-              <div className="mt-2.5 pt-2.5 border-t border-slate-200/60 flex items-center justify-between text-xs">
-                <span className="text-slate-500 font-medium">النسبة المئوية:</span>
-                <span className={`font-mono font-extrabold text-sm ${isPassing ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {percentage}%
-                </span>
-              </div>
+
+              {assessment?.id && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isReEvaluating}
+                  onClick={handleReEvaluate}
+                  className="text-xs font-bold text-slate-600 border-slate-200 hover:bg-slate-100 flex items-center gap-1.5 cursor-pointer self-stretch md:self-auto"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isReEvaluating ? 'animate-spin' : ''}`} />
+                  <span>إعادة التصحيح التلقائي للاختبار</span>
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -372,11 +432,20 @@ export function SubmissionDetails({ submissionId }: { submissionId: string }) {
           const isAutoGradedType = question.questionType === QuestionType.MULTIPLE_CHOICE || question.questionType === QuestionType.TRUE_FALSE;
           const isEssay = question.questionType === QuestionType.ESSAY;
 
+          const hasAnswer = Boolean(answer?.answerGiven && answer.answerGiven.trim().length > 0);
+          const isCorrect = isAutoGradedType && hasAnswer && (
+            answer?.isCorrect === true || isAnswerMatch(question.questionType, answer?.answerGiven, question.correctAnswer)
+          );
+
           return (
             <div 
               key={qId} 
               className={`bg-white rounded-2xl border shadow-xs transition-all overflow-hidden ${
-                qGrade.error ? 'border-red-400 ring-2 ring-red-100' : 'border-slate-200'
+                qGrade.error 
+                  ? 'border-red-400 ring-2 ring-red-100' 
+                  : isAutoGradedType
+                    ? (hasAnswer ? (isCorrect ? 'border-emerald-200' : 'border-rose-200') : 'border-slate-200')
+                    : 'border-slate-200'
               }`}
             >
               {/* Question Top Bar */}
@@ -387,9 +456,41 @@ export function SubmissionDetails({ submissionId }: { submissionId: string }) {
                       {question.questionNumber}
                     </div>
                     <div>
-                      <Badge variant="outline" className="text-[11px] mb-1.5 bg-slate-50 text-slate-600 font-medium">
-                        {isEssay ? 'سؤال مقالي' : question.questionType === QuestionType.TRUE_FALSE ? 'صواب أو خطأ' : 'اختيار من متعدد'}
-                      </Badge>
+                      <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                        <Badge variant="outline" className="text-[11px] bg-slate-50 text-slate-600 font-medium">
+                          {isEssay ? 'سؤال مقالي' : question.questionType === QuestionType.TRUE_FALSE ? 'صواب أو خطأ' : 'اختيار من متعدد'}
+                        </Badge>
+
+                        {/* Automatic Grading Status Badge */}
+                        {isAutoGradedType && (
+                          hasAnswer ? (
+                            isCorrect ? (
+                              <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold flex items-center gap-1">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                إجابة صحيحة (تم التصحيح تلقائياً)
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-rose-100 text-rose-800 border border-rose-200 text-[11px] font-bold flex items-center gap-1">
+                                <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                                إجابة خاطئة (تم التصحيح تلقائياً)
+                              </Badge>
+                            )
+                          ) : (
+                            <Badge className="bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-bold flex items-center gap-1">
+                              <HelpCircle className="w-3.5 h-3.5 text-amber-600" />
+                              متروك بدون إجابة (صفر)
+                            </Badge>
+                          )
+                        )}
+
+                        {isEssay && (
+                          <Badge className="bg-blue-100 text-blue-800 border border-blue-200 text-[11px] font-bold flex items-center gap-1">
+                            <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
+                            سؤال مقالي (يتطلب تقييم المعلم)
+                          </Badge>
+                        )}
+                      </div>
+
                       <h3 className="text-base md:text-lg font-bold text-slate-800 leading-relaxed whitespace-pre-wrap">
                         {question.questionText}
                       </h3>
@@ -405,12 +506,12 @@ export function SubmissionDetails({ submissionId }: { submissionId: string }) {
 
                 {/* Pre-defined Correct Answer for Teacher reference */}
                 {isAutoGradedType && question.correctAnswer && (
-                  <div className="mr-11 mb-3 p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs flex items-center gap-2 text-slate-700">
+                  <div className="mr-11 mb-3 p-3 bg-slate-50 rounded-xl border border-slate-200/80 text-xs flex items-center gap-2 text-slate-700">
                     <Check className="w-4 h-4 text-emerald-600 shrink-0" />
                     <span className="font-bold">الإجابة النموذجية الصحيحة:</span>
-                    <span className="font-semibold text-emerald-800">
+                    <span className="font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                       {question.questionType === QuestionType.TRUE_FALSE 
-                        ? (question.correctAnswer === 'true' ? 'صحيحة' : 'خاطئة')
+                        ? (['true', 'صح', 'صحيحة', 'صواب', '1'].includes(question.correctAnswer.trim().toLowerCase()) ? 'صح / صواب' : 'خطأ')
                         : question.correctAnswer}
                     </span>
                   </div>
@@ -419,30 +520,30 @@ export function SubmissionDetails({ submissionId }: { submissionId: string }) {
                 {/* Student's Given Answer Section */}
                 <div className="mr-11 mt-3">
                   <span className="text-xs font-bold text-slate-500 block mb-1.5">إجابة الطالب:</span>
-                  {answer?.answerGiven ? (
+                  {hasAnswer ? (
                     <div className={`p-4 rounded-xl border ${
                       isAutoGradedType
-                        ? (answer.isCorrect ? 'bg-emerald-50/60 border-emerald-200 text-emerald-900' : 'bg-rose-50/60 border-rose-200 text-rose-900')
+                        ? (isCorrect ? 'bg-emerald-50/70 border-emerald-300 text-emerald-950' : 'bg-rose-50/70 border-rose-300 text-rose-950')
                         : 'bg-slate-50/70 border-slate-200 text-slate-800'
                     }`}>
                       {question.questionType === QuestionType.TRUE_FALSE && (
                         <div className="font-bold text-sm flex items-center gap-2">
-                          {answer.answerGiven === 'true' ? (
-                            <span className="text-emerald-700 flex items-center gap-1">✓ إجابة: صحيحة</span>
+                          {['true', 'صح', 'صحيحة', 'صواب', '1'].includes(answer!.answerGiven!.trim().toLowerCase()) ? (
+                            <span className="text-emerald-800 flex items-center gap-1">✓ إجابة الطالب: صواب / صحيحة</span>
                           ) : (
-                            <span className="text-rose-700 flex items-center gap-1">✗ إجابة: خاطئة</span>
+                            <span className="text-rose-800 flex items-center gap-1">✗ إجابة الطالب: خطأ</span>
                           )}
                         </div>
                       )}
 
                       {question.questionType === QuestionType.MULTIPLE_CHOICE && (
                         <div className="font-bold text-sm">
-                          {answer.answerGiven}
+                          {answer!.answerGiven}
                         </div>
                       )}
 
                       {isEssay && (() => {
-                        const { text, imageUrl } = parseEssayAnswer(answer.answerGiven);
+                        const { text, imageUrl } = parseEssayAnswer(answer!.answerGiven);
                         return (
                           <div className="space-y-3">
                             {text ? (
@@ -500,9 +601,16 @@ export function SubmissionDetails({ submissionId }: { submissionId: string }) {
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
                   {/* Score input & shortcuts */}
                   <div className="md:col-span-4 space-y-2">
-                    <Label className="block text-xs font-bold text-slate-700">
-                      الدرجة الممنوحة <span className="text-red-500">*</span>
-                    </Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="block text-xs font-bold text-slate-700">
+                        الدرجة الممنوحة <span className="text-red-500">*</span>
+                      </Label>
+                      {isAutoGradedType && (
+                        <span className="text-[11px] text-slate-500 font-semibold">
+                          (تعديل / اعتماد)
+                        </span>
+                      )}
+                    </div>
                     <div className="relative flex items-center">
                       <Input
                         type="number"
@@ -621,7 +729,7 @@ export function SubmissionDetails({ submissionId }: { submissionId: string }) {
                 }`}
               >
                 <Save className="w-4 h-4 ml-2" />
-                {isPending ? 'جاري حفظ واعتماد الدرجات...' : 'حفظ الدرجات'}
+                {isPending ? 'جاري حفظ واعتماد الدرجات...' : 'حفظ واعتماد الدرجات'}
               </Button>
             </div>
           </div>

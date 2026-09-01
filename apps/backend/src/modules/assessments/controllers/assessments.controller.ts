@@ -173,4 +173,19 @@ export class AssessmentsController {
       dto,
     );
   }
+
+  @Post(':id/re-evaluate')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Batch re-evaluate auto-graded questions for all submissions' })
+  async reEvaluateSubmissions(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const isSecretariat = user.role === UserRole.SECRETARIAT;
+    return this.assessmentsService.reEvaluateAutoGradedSubmissions(
+      id,
+      user.teacherProfileId || user.id,
+      isSecretariat,
+    );
+  }
 }

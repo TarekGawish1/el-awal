@@ -72,6 +72,7 @@ export const API_ENDPOINTS = {
     SUBMISSION_DETAIL: (submissionId: string) => `/assessments/submissions/${submissionId}`,
     GRADE_SUBMISSION: (submissionId: string) => `/assessments/submissions/${submissionId}/grade`,
     SUBMIT: (id: string) => `/assessments/${id}/submit`,
+    RE_EVALUATE: (id: string) => `/assessments/${id}/re-evaluate`,
   },
   COURSES: {
     CATALOG: '/courses/catalog',

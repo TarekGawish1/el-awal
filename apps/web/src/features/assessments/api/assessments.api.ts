@@ -68,3 +68,9 @@ export async function submitAssessment(id: string, payload: { answers: { questio
     body: JSON.stringify(payload),
   });
 }
+
+export async function reEvaluateAssessmentSubmissions(id: string): Promise<any> {
+  return await apiClient<any>(API_ENDPOINTS.ASSESSMENTS.RE_EVALUATE(id), {
+    method: 'POST',
+  });
+}

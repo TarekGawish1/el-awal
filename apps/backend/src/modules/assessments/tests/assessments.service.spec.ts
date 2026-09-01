@@ -766,4 +766,50 @@ describe('AssessmentsService', () => {
       expect(res.isPassed).toBe(true);
     });
   });
+
+  describe('reEvaluateAutoGradedSubmissions', () => {
+    it('re-evaluates all MCQ and True/False answers against updated model answers', async () => {
+      const assessmentId = 'exam-reeval-1';
+      const teacherId = 'teacher-1';
+
+      mockPrismaService.assessment.findUnique.mockResolvedValue({
+        id: assessmentId,
+        teacherId,
+        totalScore: 10,
+        passingScore: 5,
+        questions: [
+          {
+            id: 'q-mcq-1',
+            questionType: QuestionType.MULTIPLE_CHOICE,
+            correctAnswer: 'ب',
+            points: 5,
+          },
+          {
+            id: 'q-tf-2',
+            questionType: QuestionType.TRUE_FALSE,
+            correctAnswer: 'صحيحة',
+            points: 5,
+          },
+        ],
+        submissions: [
+          {
+            id: 'sub-1',
+            status: SubmissionStatus.SUBMITTED,
+            answers: [
+              { id: 'ans-1', questionId: 'q-mcq-1', selectedAnswer: 'ب' },
+              { id: 'ans-2', questionId: 'q-tf-2', selectedAnswer: 'true' },
+            ],
+          },
+        ],
+      });
+
+      mockPrismaService.studentAnswer.update.mockResolvedValue({});
+      mockPrismaService.assessmentSubmission.update.mockResolvedValue({});
+
+      const result = await service.reEvaluateAutoGradedSubmissions(assessmentId, teacherId, false);
+
+      expect(result.success).toBe(true);
+      expect(result.reEvaluatedCount).toBe(1);
+    });
+  });
 });

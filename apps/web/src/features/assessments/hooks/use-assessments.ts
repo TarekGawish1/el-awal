@@ -8,6 +8,7 @@ import {
   fetchSubmissionDetail,
   gradeSubmission,
   submitAssessment,
+  reEvaluateAssessmentSubmissions,
 } from '../api/assessments.api';
 import {
   AssessmentListItem,
@@ -337,6 +338,24 @@ export function useSubmitAssessment() {
       // The student dashboard homework tile reads the group-sessions payload, so it must
       // refresh to reflect the newly submitted homework state.
       queryClient.invalidateQueries({ queryKey: ['student-group-sessions'] });
+    },
+  });
+}
+
+export function useReEvaluateAssessment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (assessmentId: string) => {
+      return reEvaluateAssessmentSubmissions(assessmentId);
+    },
+    onSuccess: (_, assessmentId) => {
+      queryClient.invalidateQueries({ queryKey: assessmentKeys.submissions(assessmentId) });
+      queryClient.invalidateQueries({ queryKey: assessmentKeys.detail(assessmentId) });
+      toast.success('تمت إعادة تصحيح إجابات الطلاب للأسئلة الموضوعية بنجاح 🔄');
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || 'فشلت عملية إعادة التصحيح');
     },
   });
 }
