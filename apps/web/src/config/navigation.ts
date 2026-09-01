@@ -24,6 +24,7 @@ export interface NavItemConfig {
   isAction?: boolean;
   actionId?: 'whatsapp-manager' | string;
   badgeKey?: 'reservations' | string;
+  roleRequirement?: string;
 }
 
 export interface NavSectionConfig {
