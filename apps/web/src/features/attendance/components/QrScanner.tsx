@@ -454,6 +454,7 @@ export function QrScanner({ sessionId }: QrScannerProps) {
           <ManualAttendanceRoster 
             sessionId={sessionId} 
             records={sessionReport?.records || []} 
+            homeworkRecords={sessionReport?.homeworkRecords || []}
             isCompact={true}
           />
         </div>
