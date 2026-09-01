@@ -157,6 +157,16 @@ export class AutoAbsenceCron implements OnModuleInit, OnModuleDestroy {
                 data: homeworkData,
                 skipDuplicates: true,
               });
+              
+              missingHomeworkIds.forEach(studentId => {
+                this.eventEmitter.emit('student.homework.missing', {
+                  studentId,
+                  assessmentTitle: assessment.title,
+                  groupName: session.group?.name || '',
+                  date: session.sessionDate,
+                });
+              });
+
               this.logger.log(`AutoAbsence: Marked ${missingHomeworkIds.length} students as NOT_SUBMITTED homework for session ${session.id}`);
             }
           }

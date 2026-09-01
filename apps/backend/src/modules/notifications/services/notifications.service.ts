@@ -365,6 +365,118 @@ export class NotificationsService {
   }
 
   /**
+   * Handles student missing homework and notifies linked parent guardian accounts.
+   */
+  @OnEvent('student.homework.missing', { async: true })
+  async handleHomeworkMissingEvent(payload: {
+    studentId: string;
+    assessmentTitle: string;
+    groupName?: string;
+    date?: Date;
+  }) {
+    this.logger.log(`Processing missing homework notification for student [${payload.studentId}]`);
+
+    const student = await this.prisma.studentProfile.findUnique({
+      where: { id: payload.studentId },
+      include: {
+        user: { select: { fullName: true } },
+        parentLinks: {
+          include: {
+            parent: {
+              include: { user: { select: { id: true, phone: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    if (!student || student.parentLinks.length === 0) return;
+
+    const studentName = student.user.fullName;
+    const dateStr = (payload.date || new Date()).toISOString().split('T')[0];
+    const groupText = payload.groupName ? `في مجموعة (${payload.groupName})` : '';
+    const body = `نود إحاطتكم بأن الطالب (${studentName}) لم يقم بتسليم الواجب (${payload.assessmentTitle}) ${groupText} بتاريخ ${dateStr}. يرجى المتابعة والحرص على أداء الواجبات.`;
+
+    for (const link of student.parentLinks) {
+      const parentUserId = link.parent.user.id;
+      const parentPhone = link.parent.user.phone;
+
+      const channels: NotificationChannel[] = [NotificationChannel.IN_APP];
+      if (parentPhone) {
+        channels.push(NotificationChannel.WHATSAPP);
+      }
+
+      await this.sendNotification({
+        recipientId: parentUserId,
+        notificationType: NotificationType.HOMEWORK_MISSING_PARENT,
+        type: 'HOMEWORK_MISSING_PARENT',
+        title: '⚠️ تنبيه عدم حل الواجب',
+        body,
+        channels,
+        data: {
+          studentId: payload.studentId,
+          phone: parentPhone,
+        },
+        referenceEntityId: payload.studentId,
+      });
+    }
+  }
+
+  /**
+   * Handles repeated lateness and notifies linked parent guardian accounts.
+   */
+  @OnEvent('student.repeated.lateness', { async: true })
+  async handleRepeatedLatenessEvent(payload: {
+    studentId: string;
+    groupName: string;
+  }) {
+    this.logger.log(`Processing repeated lateness notification for student [${payload.studentId}]`);
+
+    const student = await this.prisma.studentProfile.findUnique({
+      where: { id: payload.studentId },
+      include: {
+        user: { select: { fullName: true } },
+        parentLinks: {
+          include: {
+            parent: {
+              include: { user: { select: { id: true, phone: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    if (!student || student.parentLinks.length === 0) return;
+
+    const studentName = student.user.fullName;
+    const body = `نود إحاطتكم بأن الطالب (${studentName}) يتأخر بشكل متكرر عن موعد حصص مجموعة (${payload.groupName}) (3 مرات متتالية). يرجى التأكيد على الحضور في الموعد المحدد لضمان تحقيق أقصى استفادة.`;
+
+    for (const link of student.parentLinks) {
+      const parentUserId = link.parent.user.id;
+      const parentPhone = link.parent.user.phone;
+
+      const channels: NotificationChannel[] = [NotificationChannel.IN_APP];
+      if (parentPhone) {
+        channels.push(NotificationChannel.WHATSAPP);
+      }
+
+      await this.sendNotification({
+        recipientId: parentUserId,
+        notificationType: NotificationType.GENERAL_ANNOUNCEMENT,
+        type: 'REPEATED_LATENESS_PARENT',
+        title: '⏰ تنبيه تأخير متكرر',
+        body,
+        channels,
+        data: {
+          studentId: payload.studentId,
+          phone: parentPhone,
+        },
+        referenceEntityId: payload.studentId,
+      });
+    }
+  }
+
+  /**
    * Handles assessment graded notifications — notifies student and guardians.
    */
   @OnEvent('assessment.graded', { async: true })
@@ -427,8 +539,8 @@ export class NotificationsService {
       const parentPhone = link.parent.user.phone;
 
       const channels: NotificationChannel[] = [NotificationChannel.IN_APP];
-      // WhatsApp alert for failed exams (score < 50%)
-      if (isFailed && parentPhone) {
+      // WhatsApp alert for all exams
+      if (parentPhone) {
         channels.push(NotificationChannel.WHATSAPP);
       }
 
@@ -437,8 +549,8 @@ export class NotificationsService {
         notificationType: isFailed
           ? NotificationType.EXAM_FAILED_ALERT_PARENT
           : NotificationType.GENERAL_ANNOUNCEMENT,
-        type: 'ASSESSMENT_GRADED',
-        title: isFailed ? '❌ تنبيه: رسوب في الاختبار' : '📊 تم رصد درجات الاختبار',
+        type: isFailed ? 'EXAM_FAILED_ALERT_PARENT' : 'EXAM_PASSED_ALERT_PARENT',
+        title: isFailed ? '❌ تنبيه: درجات الاختبار' : '📊 نتيجة الاختبار',
         body,
         channels,
         data: {

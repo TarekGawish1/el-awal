@@ -140,6 +140,44 @@ export class AttendanceService {
         studentId: student.id,
         status: AttendanceStatus.PRESENT,
       });
+      
+      // Repeated lateness detection (3 consecutive times)
+      if (session.startTime) {
+        const recordedAtInCairo = new Date(result.record.recordedAt.toLocaleString('en-US', { timeZone: 'Africa/Cairo' }));
+        const [startH, startM] = session.startTime.split(':').map(Number);
+        
+        // Treat as late if more than 10 minutes past start time
+        const isLate = recordedAtInCairo.getHours() > startH || 
+          (recordedAtInCairo.getHours() === startH && recordedAtInCairo.getMinutes() > startM + 10);
+        
+        if (isLate) {
+          const last3Records = await this.prisma.attendanceRecord.findMany({
+            where: { studentId: student.id, status: AttendanceStatus.PRESENT },
+            orderBy: { session: { sessionDate: 'desc' } },
+            take: 3,
+            include: { session: true }
+          });
+          
+          let consecutiveLateCount = 0;
+          for (const record of last3Records) {
+            if (!record.session.startTime) break;
+            const recTime = new Date(record.recordedAt.toLocaleString('en-US', { timeZone: 'Africa/Cairo' }));
+            const [sH, sM] = record.session.startTime.split(':').map(Number);
+            if (recTime.getHours() > sH || (recTime.getHours() === sH && recTime.getMinutes() > sM + 10)) {
+              consecutiveLateCount++;
+            } else {
+              break;
+            }
+          }
+          
+          if (consecutiveLateCount >= 3) {
+            this.eventEmitter.emit('student.repeated.lateness', {
+              studentId: student.id,
+              groupName: session.group.name,
+            });
+          }
+        }
+      }
     }
 
     // 6. Compute real-time session statistics
