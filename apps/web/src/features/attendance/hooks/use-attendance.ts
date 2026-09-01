@@ -402,27 +402,16 @@ export function useScanQrAttendance() {
             (effectiveToken && r.qrCodeToken && r.qrCodeToken === effectiveToken),
         );
 
-        const sessionRoster = sessionGroupId ? await offlineDb.getRoster(sessionGroupId) : null;
-        const isEnrolledInSessionRoster = sessionRoster?.students?.some(
-          (s: any) =>
-            s.id === studentId ||
-            s.studentId === studentId ||
-            (s.studentCode && student.studentCode && String(s.studentCode).trim().toLowerCase() === String(student.studentCode).trim().toLowerCase()) ||
-            (effectiveToken && s.qrCodeToken && s.qrCodeToken === effectiveToken),
-        );
-
         const studentGroupIds: string[] = Array.isArray(student.groupIds)
           ? student.groupIds
-          : [student.groupId, localMatch.groupId].filter((id): id is string => Boolean(id));
+          : [student.groupId].filter((id): id is string => Boolean(id));
 
         const isDirectGroupMatch =
           !sessionGroupId ||
           studentGroupIds.includes(sessionGroupId) ||
-          student.groupId === sessionGroupId ||
-          localMatch.groupId === sessionGroupId;
+          student.groupId === sessionGroupId;
 
-        const isStudentEnrolledInSession =
-          isEnrolledInSessionRecords || isEnrolledInSessionRoster || isDirectGroupMatch;
+        const isStudentEnrolledInSession = isDirectGroupMatch;
 
         // Check Cohort Enrollment (External Student Detection) ONLY if truly NOT enrolled in this session's group
         if (!allowCrossGroup && !isStudentEnrolledInSession && sessionGroupId && studentGroupId && sessionGroupId !== studentGroupId) {
@@ -572,27 +561,16 @@ export function useScanQrAttendance() {
               (effectiveToken && r.qrCodeToken && r.qrCodeToken === effectiveToken),
           );
 
-          const sessionRoster = sessionGroupId ? await offlineDb.getRoster(sessionGroupId) : null;
-          const isEnrolledInSessionRoster = sessionRoster?.students?.some(
-            (s: any) =>
-              s.id === studentId ||
-              s.studentId === studentId ||
-              (s.studentCode && student.studentCode && String(s.studentCode).trim().toLowerCase() === String(student.studentCode).trim().toLowerCase()) ||
-              (effectiveToken && s.qrCodeToken && s.qrCodeToken === effectiveToken),
-          );
-
           const studentGroupIds: string[] = Array.isArray(student.groupIds)
             ? student.groupIds
-            : [student.groupId, localMatch.groupId].filter((id): id is string => Boolean(id));
+            : [student.groupId].filter((id): id is string => Boolean(id));
 
           const isDirectGroupMatch =
             !sessionGroupId ||
             studentGroupIds.includes(sessionGroupId) ||
-            student.groupId === sessionGroupId ||
-            localMatch.groupId === sessionGroupId;
+            student.groupId === sessionGroupId;
 
-          const isStudentEnrolledInSession =
-            isEnrolledInSessionRecords || isEnrolledInSessionRoster || isDirectGroupMatch;
+          const isStudentEnrolledInSession = isDirectGroupMatch;
 
           if (!allowCrossGroup && !isStudentEnrolledInSession && sessionGroupId && studentGroupId && sessionGroupId !== studentGroupId) {
             return {

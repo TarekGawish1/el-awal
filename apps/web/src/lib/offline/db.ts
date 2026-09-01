@@ -1816,22 +1816,7 @@ class OfflineDatabase {
       return false;
     };
 
-    // 0. If preferredGroupId is passed, check that group's roster first for instant cohort match
-    if (preferredGroupId) {
-      const preferredRoster = await this.getRoster(preferredGroupId);
-      if (preferredRoster?.students) {
-        const foundInPreferred = preferredRoster.students.find(matchesStudent);
-        if (foundInPreferred) {
-          return {
-            student: foundInPreferred,
-            groupId: preferredGroupId,
-            groupName: preferredRoster.groupName || 'المجموعة الحالية',
-          };
-        }
-      }
-    }
-
-    // 1. Direct student store index check (by id or token)
+    // 1. Direct student store index check (by id or token) - AUTHORITATIVE
     const candidateList = Array.from(candidateIds);
     for (const candidate of candidateList) {
       const student = await this.getStudentByIdOffline(candidate);
@@ -1854,7 +1839,7 @@ class OfflineDatabase {
       }
     }
 
-    // 2. Search all students by qrCodeToken, studentCode, id, or phone
+    // 2. Search all students by qrCodeToken, studentCode, id, or phone - AUTHORITATIVE
     const allStudents = await this.getStudentsOffline();
     const foundDirect = allStudents.find(matchesStudent);
 
@@ -1876,7 +1861,22 @@ class OfflineDatabase {
       };
     }
 
-    // 3. Offline roster cache fallback
+    // 3. If preferredGroupId is passed, check that group's roster fallback
+    if (preferredGroupId) {
+      const preferredRoster = await this.getRoster(preferredGroupId);
+      if (preferredRoster?.students) {
+        const foundInPreferred = preferredRoster.students.find(matchesStudent);
+        if (foundInPreferred) {
+          return {
+            student: foundInPreferred,
+            groupId: preferredGroupId,
+            groupName: preferredRoster.groupName || 'المجموعة الحالية',
+          };
+        }
+      }
+    }
+
+    // 4. Offline roster cache global fallback (ONLY if student is completely missing from `students` store)
     const rosters = await this.getAllCachedRosters();
     for (const roster of rosters) {
       const found = roster.students.find(matchesStudent);

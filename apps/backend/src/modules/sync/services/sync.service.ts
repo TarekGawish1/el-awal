@@ -1013,7 +1013,7 @@ export class SyncService {
             return;
           }
 
-          // 3. Verify group enrollment if not cross-group allowed
+          // 3. Verify group enrollment
           if (!op.allowCrossGroup) {
             const enrollment = await tx.groupEnrollment.findUnique({
               where: {
@@ -1028,6 +1028,24 @@ export class SyncService {
               result.conflicts.push({
                 operationId: op.id,
                 reason: `Student [${resolvedStudentId}] is not actively enrolled in group [${session.groupId}]`,
+                entityId: resolvedStudentId,
+              });
+              result.failedCount++;
+              return;
+            }
+          } else {
+            // Verify they belong to AT LEAST ONE valid active group (legitimate guest)
+            const anyActiveEnrollment = await tx.groupEnrollment.findFirst({
+              where: {
+                studentId: resolvedStudentId,
+                status: GroupEnrollmentStatus.ACTIVE,
+              },
+            });
+
+            if (!anyActiveEnrollment) {
+              result.conflicts.push({
+                operationId: op.id,
+                reason: `Student [${resolvedStudentId}] has no active group enrollments to qualify for cross-group attendance`,
                 entityId: resolvedStudentId,
               });
               result.failedCount++;
@@ -1374,8 +1392,32 @@ export class SyncService {
             }
 
             if (existingPayment) {
-              const newTotalPaid = Number(existingPayment.amountPaid) + amountPaid;
-              const newExpected = Math.max(amountExpected, Number(existingPayment.amountExpected || 0));
+              const existingPaid = Number(existingPayment.amountPaid || 0);
+              const existingExpected = Number(existingPayment.amountExpected || 0);
+              
+              const isExistingFullyPaid = existingPaid >= existingExpected && existingExpected > 0;
+              const isIncomingFullPayment = amountPaid >= amountExpected && amountExpected > 0;
+
+              if (isExistingFullyPaid && isIncomingFullPayment) {
+                // Business-level duplicate detection:
+                // This period is already fully paid, and an offline device is submitting another full payment.
+                // This happens when two secretaries scan the same student offline.
+                // We ignore the incoming payment to prevent corrupting the balance, but record a conflict.
+                result.conflicts.push({
+                  operationId: opId,
+                  reason: 'DUPLICATE_BUSINESS_PAYMENT: This tuition period is already fully paid.',
+                  entityId: existingPayment.id,
+                });
+                result.duplicatesIgnored++;
+                result.processedOperationIds.push(opId);
+                if (result.idMappings && op.clientTempId) {
+                  result.idMappings[op.clientTempId] = existingPayment.id;
+                }
+                return; // short-circuit without modifying the DB
+              }
+
+              const newTotalPaid = existingPaid + amountPaid;
+              const newExpected = Math.max(amountExpected, existingExpected);
               const newStatus = newTotalPaid >= newExpected && newExpected > 0 ? PaymentStatus.PAID : PaymentStatus.PENDING;
 
               savedPaymentRecord = typeof tx.studentPaymentRecord?.update === 'function'
@@ -2384,6 +2426,38 @@ export class SyncService {
             });
             result.failedCount++;
             return;
+          }
+
+          // 3.5 Verify Group Enrollment (Defense in Depth)
+          const isEnrolled = await tx.groupEnrollment.findUnique({
+            where: {
+              groupId_studentId: {
+                groupId: session.groupId,
+                studentId: resolvedStudentId,
+              },
+            },
+          });
+
+          if (!isEnrolled || isEnrolled.status !== GroupEnrollmentStatus.ACTIVE) {
+            // Check if they were admitted as a cross-group guest (attendance record exists)
+            const guestAttendance = await tx.attendanceRecord.findUnique({
+              where: {
+                sessionId_studentId: {
+                  sessionId: op.sessionId,
+                  studentId: resolvedStudentId,
+                },
+              },
+            });
+
+            if (!guestAttendance) {
+              result.conflicts.push({
+                operationId: op.id,
+                reason: `Student [${resolvedStudentId}] is not enrolled in session group [${session.groupId}] and has no guest attendance record`,
+                entityId: resolvedStudentId,
+              });
+              result.failedCount++;
+              return;
+            }
           }
 
           const clientDate = op.clientTimestamp ? new Date(op.clientTimestamp) : new Date();
