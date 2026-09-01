@@ -498,9 +498,19 @@ export function SubmissionDetails({ submissionId }: { submissionId: string }) {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <Badge variant="default" className="bg-slate-100 text-slate-800 font-mono font-bold text-xs px-2.5 py-1">
-                      الدرجة المخصصة: {maxPoints}
-                    </Badge>
+                    {isAutoGradedType ? (
+                      <Badge className={`font-mono font-bold text-xs px-2.5 py-1 ${
+                        hasAnswer 
+                          ? (isCorrect ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' : 'bg-rose-100 text-rose-900 border border-rose-300')
+                          : 'bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}>
+                        الدرجة: {isCorrect ? maxPoints : 0} / {maxPoints}
+                      </Badge>
+                    ) : (
+                      <Badge variant="default" className="bg-slate-100 text-slate-800 font-mono font-bold text-xs px-2.5 py-1">
+                        الدرجة المخصصة: {maxPoints}
+                      </Badge>
+                    )}
                   </div>
                 </div>
 
@@ -597,85 +607,92 @@ export function SubmissionDetails({ submissionId }: { submissionId: string }) {
               </div>
 
               {/* Per-Question Grading Controls Box */}
-              <div className="bg-slate-50/90 p-4 md:p-5 border-t border-slate-100">
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
-                  {/* Score input & shortcuts */}
-                  <div className="md:col-span-4 space-y-2">
-                    <div className="flex items-center justify-between">
+              {isEssay ? (
+                <div className="bg-slate-50/90 p-4 md:p-5 border-t border-slate-100">
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+                    {/* Score input & shortcuts for Essay */}
+                    <div className="md:col-span-4 space-y-2">
                       <Label className="block text-xs font-bold text-slate-700">
                         الدرجة الممنوحة <span className="text-red-500">*</span>
                       </Label>
-                      {isAutoGradedType && (
-                        <span className="text-[11px] text-slate-500 font-semibold">
-                          (تعديل / اعتماد)
-                        </span>
-                      )}
-                    </div>
-                    <div className="relative flex items-center">
-                      <Input
-                        type="number"
-                        step="any"
-                        min={0}
-                        max={maxPoints}
-                        value={qGrade.pointsEarned}
-                        onChange={(e) => handleScoreChange(qId, maxPoints, e.target.value)}
-                        placeholder="0"
-                        className={`font-mono font-bold text-base text-left pl-14 ${
-                          qGrade.error ? 'border-red-500 bg-red-50/50' : 'bg-white'
-                        }`}
-                      />
-                      <div className="absolute left-3 text-xs font-bold font-mono text-slate-400 pointer-events-none">
-                        / {maxPoints}
+                      <div className="relative flex items-center">
+                        <Input
+                          type="number"
+                          step="any"
+                          min={0}
+                          max={maxPoints}
+                          value={qGrade.pointsEarned}
+                          onChange={(e) => handleScoreChange(qId, maxPoints, e.target.value)}
+                          placeholder="0"
+                          className={`font-mono font-bold text-base text-left pl-14 ${
+                            qGrade.error ? 'border-red-500 bg-red-50/50' : 'bg-white'
+                          }`}
+                        />
+                        <div className="absolute left-3 text-xs font-bold font-mono text-slate-400 pointer-events-none">
+                          / {maxPoints}
+                        </div>
                       </div>
-                    </div>
-                    {qGrade.error && (
-                      <p className="text-red-500 text-xs font-medium">{qGrade.error}</p>
-                    )}
+                      {qGrade.error && (
+                        <p className="text-red-500 text-xs font-medium">{qGrade.error}</p>
+                      )}
 
-                    {/* Quick Preset Buttons */}
-                    <div className="flex items-center gap-1.5 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => applyPresetScore(qId, maxPoints)}
-                        className="text-[11px] font-bold px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
-                      >
-                        الدرجة كاملة ({maxPoints})
-                      </button>
-                      {maxPoints > 1 && (
+                      {/* Quick Preset Buttons */}
+                      <div className="flex items-center gap-1.5 pt-1">
                         <button
                           type="button"
-                          onClick={() => applyPresetScore(qId, maxPoints / 2)}
-                          className="text-[11px] font-bold px-2 py-1 rounded-md bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors cursor-pointer"
+                          onClick={() => applyPresetScore(qId, maxPoints)}
+                          className="text-[11px] font-bold px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
                         >
-                          نصفها ({maxPoints / 2})
+                          الدرجة كاملة ({maxPoints})
                         </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => applyPresetScore(qId, 0)}
-                        className="text-[11px] font-bold px-2 py-1 rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors cursor-pointer"
-                      >
-                        صفر (0)
-                      </button>
+                        {maxPoints > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => applyPresetScore(qId, maxPoints / 2)}
+                            className="text-[11px] font-bold px-2 py-1 rounded-md bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors cursor-pointer"
+                          >
+                            نصفها ({maxPoints / 2})
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => applyPresetScore(qId, 0)}
+                          className="text-[11px] font-bold px-2 py-1 rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors cursor-pointer"
+                        >
+                          صفر (0)
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Per-question teacher feedback for Essay */}
+                    <div className="md:col-span-8 space-y-2">
+                      <Label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                        <MessageSquare className="w-3.5 h-3.5 text-slate-400" />
+                        <span>تعليق المعلم على هذا السؤال المقالي (اختياري)</span>
+                      </Label>
+                      <Input
+                        type="text"
+                        value={qGrade.teacherFeedback}
+                        onChange={(e) => handleFeedbackChange(qId, e.target.value)}
+                        placeholder="ملاحظات وتوجيهات للطالب على الإجابة المقالية..."
+                        className="bg-white text-xs"
+                      />
                     </div>
                   </div>
-
-                  {/* Per-question teacher feedback */}
-                  <div className="md:col-span-8 space-y-2">
-                    <Label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                      <MessageSquare className="w-3.5 h-3.5 text-slate-400" />
-                      <span>تعليق المعلم على هذا السؤال (اختياري)</span>
-                    </Label>
-                    <Input
-                      type="text"
-                      value={qGrade.teacherFeedback}
-                      onChange={(e) => handleFeedbackChange(qId, e.target.value)}
-                      placeholder="ملاحظات وتوجيهات للطالب على هذه النقطة..."
-                      className="bg-white text-xs"
-                    />
-                  </div>
                 </div>
-              </div>
+              ) : (
+                /* Compact Teacher Feedback Row for Auto-Graded Questions */
+                <div className="bg-slate-50/60 px-5 py-3 border-t border-slate-100 flex items-center gap-3">
+                  <MessageSquare className="w-4 h-4 text-slate-400 shrink-0" />
+                  <Input
+                    type="text"
+                    value={qGrade.teacherFeedback}
+                    onChange={(e) => handleFeedbackChange(qId, e.target.value)}
+                    placeholder="إضافة تعليق أو ملاحظة للطالب على هذا السؤال (اختياري)..."
+                    className="bg-white text-xs h-8"
+                  />
+                </div>
+              )}
             </div>
           );
         })}
