@@ -1,13 +1,14 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../../core/database/prisma.service';
-import { AssistantPermission, AssistantStatus, UserRole } from '@prisma/client';
+import { AssistantPermission, AssistantStatus, UserRole, NotificationType, NotificationChannel, NotificationStatus } from '@prisma/client';
 
 export class InviteAssistantDto {
   phone?: string;
   email?: string;
   fullName?: string;
   password?: string;
+  permissions?: AssistantPermission[];
 }
 
 export class UpdateAssistantDto {
@@ -65,6 +66,21 @@ export class AssistantsService {
           isActive: true,
         }
       });
+
+      // Send WhatsApp credentials notification via worker queue
+      const messageText = `مرحباً ${user.fullName}،\nتم إنشاء حساب سكرتارية ومساعد لك.\n\nبيانات الدخول:\n- الهاتف: ${user.phone}\n- كلمة المرور: ${dto.password}\n\nرابط المنصة: https://al-awal.online/login`;
+      
+      await this.prisma.notification.create({
+        data: {
+          recipientId: user.id,
+          type: 'SYSTEM',
+          notificationType: NotificationType.GENERAL_ANNOUNCEMENT,
+          title: 'بيانات حساب المساعد',
+          message: messageText,
+          channels: [NotificationChannel.WHATSAPP],
+          whatsappStatus: NotificationStatus.PENDING,
+        },
+      });
     }
 
     if (user.role !== UserRole.SECRETARIAT) {
@@ -86,7 +102,7 @@ export class AssistantsService {
         teacherId,
         assistantId: user.id,
         status: AssistantStatus.ACTIVE, // Fast-tracking to ACTIVE for simplicity in MVP
-        permissions: [],
+        permissions: dto.permissions || [],
       },
       include: {
         assistant: { select: { id: true, fullName: true, phone: true } },

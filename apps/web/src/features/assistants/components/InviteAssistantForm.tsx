@@ -1,6 +1,15 @@
 import React, { useState } from 'react';
 import { useAssistants } from '../hooks/useAssistants';
-import { UserPlus, Mail, Phone, Loader2, Info } from 'lucide-react';
+import { UserPlus, Mail, Phone, Loader2, Info, Check, ShieldAlert, Users, Calendar, Banknote } from 'lucide-react';
+
+const PERMISSION_LABELS: Record<string, { label: string, icon: any }> = {
+  MANAGE_STUDENTS: { label: 'شؤون الطلاب', icon: Users },
+  VIEW_FINANCE: { label: 'الاطلاع على الماليات', icon: Banknote },
+  MANAGE_FINANCE: { label: 'إدارة الماليات', icon: Banknote },
+  MANAGE_ATTENDANCE: { label: 'رصد الحضور', icon: Check },
+  MANAGE_GROUPS: { label: 'إدارة المجموعات', icon: Calendar },
+  MANAGE_ASSESSMENTS: { label: 'الواجبات والاختبارات', icon: ShieldAlert },
+};
 
 export function InviteAssistantForm() {
   const { inviteAssistant, isInviting } = useAssistants();
@@ -11,6 +20,7 @@ export function InviteAssistantForm() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
+  const [permissions, setPermissions] = useState<string[]>([]);
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -31,6 +41,7 @@ export function InviteAssistantForm() {
         }
         payload.fullName = fullName.trim();
         payload.password = password;
+        payload.permissions = permissions;
       }
 
       await inviteAssistant(payload);
@@ -39,6 +50,7 @@ export function InviteAssistantForm() {
       setValue('');
       setFullName('');
       setPassword('');
+      setPermissions([]);
       setShowCreateForm(false);
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || err.message;
@@ -131,6 +143,39 @@ export function InviteAssistantForm() {
                   className="w-full bg-white border border-neutral-300 text-neutral-800 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500 outline-none transition-shadow"
                   dir="ltr"
                 />
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-neutral-700 mb-2">صلاحيات المساعد</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {Object.entries(PERMISSION_LABELS).map(([key, config]) => {
+                  const hasPerm = permissions.includes(key);
+                  return (
+                    <label key={key} className="flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all hover:border-primary-300"
+                      style={{ borderColor: hasPerm ? 'var(--color-primary-500)' : '#e5e7eb', backgroundColor: hasPerm ? 'var(--color-primary-50)' : 'white' }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className={`p-1.5 rounded-lg ${hasPerm ? 'bg-primary-100 text-primary-700' : 'bg-neutral-100 text-neutral-500'}`}>
+                          <config.icon className="w-4 h-4" />
+                        </div>
+                        <span className={`text-xs font-medium ${hasPerm ? 'text-primary-900' : 'text-neutral-700'}`}>{config.label}</span>
+                      </div>
+                      <input 
+                        type="checkbox" 
+                        className="w-4 h-4 rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
+                        checked={hasPerm}
+                        onChange={(e) => {
+                          setPermissions(prev => 
+                            e.target.checked 
+                              ? [...prev, key]
+                              : prev.filter(p => p !== key)
+                          );
+                        }}
+                      />
+                    </label>
+                  );
+                })}
               </div>
             </div>
 
