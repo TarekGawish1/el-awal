@@ -14,6 +14,7 @@ vi.mock('next/navigation', () => ({
 // Mock dependencies
 vi.mock('@/features/groups/hooks/useGroups', () => ({
   useGroups: vi.fn(),
+  useGroupStudents: vi.fn(() => ({ groupEnrollments: [], isLoading: false })),
 }));
 
 vi.mock('@/features/booklets/hooks/useBooklets', () => ({

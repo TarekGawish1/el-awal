@@ -14,8 +14,18 @@ vi.mock('../hooks/useFinance', () => ({
 }));
 
 vi.mock('react-hot-toast', () => ({
-  default: { error: vi.fn(), success: vi.fn() },
 }));
+
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+vi.mock('@/features/groups/hooks/useGroups', () => ({
+  useGroups: vi.fn(),
+  useGroupStudents: vi.fn(() => ({ groupEnrollments: [], isLoading: false })),
+}));
+
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false } },
+});
 
 describe('RecordPaymentModal booklet eligibility', () => {
   beforeEach(() => {
@@ -47,13 +57,15 @@ describe('RecordPaymentModal booklet eligibility', () => {
 
   it('shows only booklets with the selected student grade and group membership', () => {
     render(
-      <RecordPaymentModal
-        isOpen={true}
-        onClose={vi.fn()}
-        groupId="group-1"
-        periodYear={2026}
-        periodMonth={8}
-      />,
+      <QueryClientProvider client={queryClient}>
+        <RecordPaymentModal
+          isOpen={true}
+          onClose={vi.fn()}
+          groupId="group-1"
+          periodYear={2026}
+          periodMonth={8}
+        />
+      </QueryClientProvider>,
     );
 
     fireEvent.click(screen.getByRole('button', { name: /سداد قيمة مذكرة/i }));

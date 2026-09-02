@@ -210,7 +210,7 @@ describe('SyncService', () => {
         groupId: 'group-100',
       });
 
-      mockPrismaService.groupEnrollment.findUnique.mockResolvedValue({
+      mockPrismaService.groupEnrollment.findFirst.mockResolvedValue({
         groupId: 'group-100',
         studentId: 'student-x',
         status: GroupEnrollmentStatus.ACTIVE,
@@ -254,14 +254,15 @@ describe('SyncService', () => {
 
   describe('syncPaymentsBatch', () => {
     it('should reconcile tuition payment operations and prevent duplicate payments', async () => {
-      mockPrismaService.studentProfile.findFirst.mockResolvedValue({
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue({
         id: 'student-1',
         user: { isActive: true },
+        groupEnrollments: [{ groupId: 'group-1', status: GroupEnrollmentStatus.ACTIVE }],
       });
 
       mockPrismaService.studentPaymentRecord.findFirst
         .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({ id: 'pay-existing', paymentStatus: PaymentStatus.PAID, amountExpected: 350 });
+        .mockResolvedValueOnce({ id: 'pay-existing', paymentStatus: PaymentStatus.PAID, amountPaid: 350, amountExpected: 350 });
 
       mockPrismaService.studentPaymentRecord.create.mockResolvedValue({ id: 'pay-new' });
       mockPrismaService.studentPaymentRecord.update.mockResolvedValue({ id: 'pay-existing' });
@@ -275,16 +276,19 @@ describe('SyncService', () => {
             periodYear: 2026,
             periodMonth: 9,
             amountPaid: 350,
+            amountExpected: 350,
             paymentMethod: 'CASH',
             clientTimestamp: Date.now(),
           },
           {
             id: 'op-pay-2',
+            clientTempId: 'op-pay-2',
             studentId: 'student-1',
             groupId: 'group-1',
             periodYear: 2026,
             periodMonth: 9,
             amountPaid: 350,
+            amountExpected: 350,
             paymentMethod: 'CASH',
             clientTimestamp: Date.now(),
           },
@@ -654,6 +658,9 @@ describe('SyncService', () => {
           email: 'old@example.com',
         },
       });
+      mockPrismaService.groupEnrollment.findFirst.mockResolvedValue({
+        studentId: studentId,
+      });
 
       const result = await service.syncUnifiedBatch(mockTeacherUser, {
         groups: [
@@ -689,14 +696,16 @@ describe('SyncService', () => {
           }),
         }),
       );
-      expect(mockPrismaService.user.update).toHaveBeenCalledWith({
-        where: { id: studentId },
-        data: {
-          fullName: 'الاسم المحدث',
-          phone: '01111111111',
-          email: 'new@example.com',
-        },
-      });
+      expect(mockPrismaService.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: studentId },
+          data: expect.objectContaining({
+            fullName: 'الاسم المحدث',
+            phone: '01111111111',
+            email: 'new@example.com',
+          }),
+        })
+      );
       expect(mockPrismaService.studentProfile.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: studentId },

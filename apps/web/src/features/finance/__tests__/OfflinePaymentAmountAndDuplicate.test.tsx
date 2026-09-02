@@ -210,7 +210,7 @@ describe('Offline Payment Amount Extraction & Duplicate Prevention', () => {
         groupId: 'group-bio-2026',
         periodYear: 2026,
         periodMonth: 9,
-        amountPaid: undefined, // Should be auto-resolved to group monthly fee (250)
+        amountPaid: undefined as unknown as number, // Should be auto-resolved to group monthly fee (250)
         paymentMethod: 'CASH',
       });
     });

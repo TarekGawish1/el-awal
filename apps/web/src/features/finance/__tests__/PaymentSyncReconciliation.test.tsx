@@ -78,7 +78,7 @@ describe('Payment Offline Recording & Sync Reconciliation', () => {
         amountPaid: 250,
         paymentMethod: 'CASH',
       },
-      timestamp: Date.now(),
+      clientTimestamp: Date.now(),
       retryCount: 0,
       status: 'PENDING',
       optimisticId: tempPaymentId,

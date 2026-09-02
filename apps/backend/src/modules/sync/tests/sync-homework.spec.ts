@@ -7,6 +7,7 @@ import {
   HomeworkSubmissionStatus,
   RecordingMethod,
   UserRole,
+  GroupEnrollmentStatus,
 } from '@prisma/client';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 
@@ -40,6 +41,7 @@ describe('SyncService - syncHomeworkBatch', () => {
       findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      upsert: jest.fn(),
     },
     groupEnrollment: {
       findUnique: jest.fn(),
@@ -83,6 +85,12 @@ describe('SyncService - syncHomeworkBatch', () => {
       user: { isActive: true },
     });
 
+    mockPrismaService.groupEnrollment.findUnique.mockResolvedValue({
+      groupId: 'group-uuid-1',
+      studentId: 'student-uuid-1',
+      status: GroupEnrollmentStatus.ACTIVE,
+    });
+
     mockPrismaService.homeworkRecord.findUnique.mockResolvedValue(null);
     mockPrismaService.homeworkRecord.create.mockResolvedValue({
       id: 'hw-record-uuid-1',
@@ -90,6 +98,10 @@ describe('SyncService - syncHomeworkBatch', () => {
     });
 
     mockPrismaService.attendanceRecord.findUnique.mockResolvedValue(null);
+    mockPrismaService.attendanceRecord.upsert.mockResolvedValue({
+      id: 'att-record-uuid-1',
+      status: AttendanceStatus.PRESENT,
+    });
     mockPrismaService.attendanceRecord.create.mockResolvedValue({
       id: 'att-record-uuid-1',
       status: AttendanceStatus.PRESENT,

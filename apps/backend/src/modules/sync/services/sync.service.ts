@@ -358,6 +358,10 @@ export class SyncService {
         id: { in: allTeacherGroupIds },
         isActive: true,
       };
+      
+      if (isDelta && sinceDate) {
+        groupsWhere.updatedAt = { gte: sinceDate };
+      }
 
       groups = await this.prisma.academicGroup.findMany({
         where: groupsWhere,
@@ -2248,6 +2252,29 @@ export class SyncService {
                   },
                 });
               }
+
+              // Also ensure Attendance is marked as PRESENT when homework is checked onsite
+              await tx.attendanceRecord.upsert({
+                where: {
+                  sessionId_studentId: {
+                    sessionId,
+                    studentId,
+                  },
+                },
+                update: {
+                  status: AttendanceStatus.PRESENT,
+                  recordingMethod: (recordedMethod as RecordingMethod) || RecordingMethod.QR_SCAN,
+                  recordedAt: recordDate,
+                },
+                create: {
+                  sessionId,
+                  studentId,
+                  status: AttendanceStatus.PRESENT,
+                  recordingMethod: (recordedMethod as RecordingMethod) || RecordingMethod.QR_SCAN,
+                  recordedById: user.id,
+                  recordedAt: recordDate,
+                },
+              });
             });
 
             results.push({ mutationId: mutation.id, status: 'SUCCESS' });
@@ -2607,9 +2634,29 @@ export class SyncService {
             });
             result.syncedCount++;
           }
+            await tx.attendanceRecord.upsert({
+              where: {
+                sessionId_studentId: {
+                  sessionId: op.sessionId,
+                  studentId: resolvedStudentId,
+                },
+              },
+              update: {
+                status: AttendanceStatus.PRESENT,
+                recordingMethod: op.recordedMethod || RecordingMethod.QR_SCAN,
+                recordedAt: clientDate,
+              },
+              create: {
+                sessionId: op.sessionId,
+                studentId: resolvedStudentId,
+                status: AttendanceStatus.PRESENT,
+                recordingMethod: op.recordedMethod || RecordingMethod.QR_SCAN,
+                recordedById: recorderId,
+                recordedAt: clientDate,
+              },
+            });
 
-
-          result.processedOperationIds.push(op.id);
+            result.processedOperationIds.push(op.id);
         });
       } catch (err: any) {
         this.logger.error(
