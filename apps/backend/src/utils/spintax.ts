@@ -491,6 +491,21 @@ export function formatTeacherAgendaMessage(
     '🎓 منصة الأول — يوم تعليمي موفق ومبارك بإذن الله 🌟',
   ];
 
+  const sig = pickRandom(sigs);
+  const cleanSessionLines = (sessionLines || []).filter(
+    (l) => typeof l === 'string' && l.trim() && !l.includes('لا توجد حصص مجدولة'),
+  );
+
+  if (cleanSessionLines.length === 0) {
+    const emptyIntros = [
+      `صباح الخير أستاذ *${teacherName}* 👋\nنود إعلامك بأنه لا توجد لديك أي حصص أو مجموعات مجدولة لهذا اليوم (*${dateStr}*). نتمنى لك يوماً سعيداً ومريحاً! 🌸`,
+      `مرحباً بحضرتك أستاذ *${teacherName}* ☀️\nجدولك اليوم (*${dateStr}*) فارغ — لا توجد حصص دراسية مجدولة لهذا اليوم. نتمنى لك وقتاً طيباً ومثمراً! 🌿`,
+      `أستاذ *${teacherName}*، صباح النور والبركة! 🌅\nلا توجد حصص مجدولة لك اليوم (*${dateStr}*). نتمنى لك يوماً سعيداً وموفقاً! 🌟`,
+    ];
+    const intro = pickRandom(emptyIntros);
+    return `${intro}\n\n${sig}`;
+  }
+
   const intros = [
     `صباح الخير أستاذ *${teacherName}* 👋\nإليك جدول حصصك ومجموعاتك المجدولة اليوم (*${dateStr}*):`,
     `مرحباً بحضرتك أستاذ *${teacherName}* ☀️\nجدولك ومواعيد الحصص اليوم (*${dateStr}*):`,
@@ -498,8 +513,7 @@ export function formatTeacherAgendaMessage(
   ];
 
   const intro = pickRandom(intros);
-  const sig = pickRandom(sigs);
-  const agenda = sessionLines
+  const agenda = cleanSessionLines
     .map((l, i) => (/^\d+[\.\-]/.test(l.trim()) ? l.trim() : `${i + 1}. ${l.trim()}`))
     .join('\n');
 
