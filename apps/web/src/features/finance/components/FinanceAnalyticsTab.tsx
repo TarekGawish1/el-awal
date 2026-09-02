@@ -102,13 +102,22 @@ function GroupAnalyticsCard({ group, onOpenInMatrix }: { group: FinanceAnalytics
 
 export function FinanceAnalyticsTab({ groups = [] }: { groups?: any[] }) {
   const router = useRouter();
+  const getDefaultMonth = (term: 'FIRST_TERM' | 'SECOND_TERM') => {
+    const currentMonth = new Date().getMonth() + 1;
+    const termMonths = term === 'FIRST_TERM' ? [8, 9, 10, 11, 12, 1] : [2, 3, 4, 5, 6, 7];
+    return termMonths.includes(currentMonth) ? currentMonth : termMonths[0];
+  };
+
   const defaultYear = `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
   const [academicYear, setAcademicYear] = useState(() => readStoredValue(STORAGE_YEAR_KEY, defaultYear));
   const [academicTerm, setAcademicTerm] = useState<'FIRST_TERM' | 'SECOND_TERM'>(() => readStoredValue(STORAGE_TERM_KEY, DEFAULT_ACADEMIC_TERM) as 'FIRST_TERM' | 'SECOND_TERM');
   const [stage, setStage] = useState('');
   const [gradeLevel, setGradeLevel] = useState('');
   const [groupId, setGroupId] = useState('');
-  const [periodMonth, setPeriodMonth] = useState<number | ''>('');
+  const [periodMonth, setPeriodMonth] = useState<number | ''>(() => {
+    const initialTerm = readStoredValue(STORAGE_TERM_KEY, DEFAULT_ACADEMIC_TERM) as 'FIRST_TERM' | 'SECOND_TERM';
+    return getDefaultMonth(initialTerm);
+  });
   const [search, setSearch] = useState('');
 
   useEffect(() => {
@@ -147,7 +156,7 @@ export function FinanceAnalyticsTab({ groups = [] }: { groups?: any[] }) {
   const setGradeAndReset = (value: string) => { setGradeLevel(value); setGroupId(''); };
   const setTermAndReset = (value: 'FIRST_TERM' | 'SECOND_TERM') => {
     setAcademicTerm(value);
-    setPeriodMonth('');
+    setPeriodMonth(getDefaultMonth(value));
     try {
       localStorage.setItem(STORAGE_TERM_KEY, JSON.stringify([value]));
       window.dispatchEvent(new Event('el_awal_academic_period_changed'));
