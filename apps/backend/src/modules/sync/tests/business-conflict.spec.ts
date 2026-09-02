@@ -88,7 +88,7 @@ describe('SyncService - Business Conflicts (Attendance/Homework)', () => {
     };
 
     const mockUpsertHomework = jest.fn();
-    prisma.homeworkRecord = { upsert: mockUpsertHomework } as any;
+    (prisma as any).homeworkRecord = { upsert: mockUpsertHomework };
 
     mockFindUniqueSession.mockResolvedValue({ id: 'session-1', groupId: 'group-1' });
     mockFindUniqueStudent.mockResolvedValue({

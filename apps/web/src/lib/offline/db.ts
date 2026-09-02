@@ -1561,6 +1561,15 @@ class OfflineDatabase {
       console.error('CRITICAL: Attempted to enqueue offline mutation without an authenticated user.', mutation);
       throw new Error('Authentication required to save offline changes.');
     }
+
+    const allowedDomains = ['attendance', 'finance'];
+    if (!allowedDomains.includes(mutation.domain)) {
+      throw new Error(`العمليات على (${mutation.domain}) غير مدعومة في وضع عدم الاتصال. يرجى الاتصال بالإنترنت.`);
+    }
+
+    if (mutation.type === 'RECORD_HOMEWORK_ONSITE' || mutation.payload?.type === 'RECORD_HOMEWORK_ONSITE' || mutation.endpoint?.includes('/sync/homework')) {
+      throw new Error('لا يمكن تسجيل الواجبات في وضع عدم الاتصال. يرجى الاتصال بالإنترنت.');
+    }
     
     mutation.userId = currentUser.id;
 
@@ -2772,6 +2781,11 @@ class OfflineDatabase {
     const now = Date.now();
     const cleanSessionId = String(data.sessionId).trim();
     const cleanStudentId = String(data.studentId).trim();
+
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    if (!isOnline) {
+      throw new Error('لا يمكن تسجيل الواجبات في وضع عدم الاتصال. يرجى الاتصال بالإنترنت.');
+    }
 
     // 1. Check existing homework record for (assessmentId, studentId, sessionId)
     const allHw = await this.getAllHomeworkRecords();

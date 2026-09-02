@@ -399,41 +399,7 @@ export function useCreateStudent() {
         return created;
       } catch (error) {
         if (typeof navigator !== 'undefined' && !navigator.onLine) {
-          const newId = generateUUIDv7();
-          const studentCode = 'STU-' + Math.floor(100000 + Math.random() * 900000);
-          const studentEntity: StudentEntity = {
-            id: newId,
-            userId: newId,
-            fullName: payload.fullName,
-            phone: payload.phone,
-            email: payload.email,
-            studentCode,
-            qrCodeToken: newId,
-            gradeLevel: payload.gradeLevel,
-            academicStage: payload.academicStage,
-            emergencyPhone: payload.parentPhone,
-            academicStatus: 'ACTIVE',
-            groupId: payload.initialGroupId,
-            user: {
-              id: newId,
-              fullName: payload.fullName,
-              phone: payload.phone,
-              email: payload.email,
-              isActive: true,
-            },
-            updatedAt: Date.now(),
-          };
-          await offlineDb.bulkPutStudents([studentEntity]);
-          queryClient.setQueryData(['students', newId], studentEntity as unknown as StudentDetail);
-          await syncEngine.enqueue(
-            'students',
-            API_ENDPOINTS.STUDENTS.CREATE,
-            'POST',
-            { ...payload, id: newId, clientGeneratedId: newId },
-            { optimisticId: newId },
-          );
-          toast.success('تم حفظ بيانات الطالب محلياً وسيتم إرسالها فور توفر الاتصال 💾');
-          return { id: newId, studentCode, qrCodeToken: newId, fullName: payload.fullName, isOfflineCreated: true };
+          throw new Error('فقد الاتصال بالإنترنت. يرجى إعادة المحاولة.');
         }
         throw error;
       }
@@ -456,61 +422,7 @@ export function useUpdateStudent() {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
       if (!isOnline) {
-        const existing = await offlineDb.getStudentByIdOffline(id);
-        if (!existing) {
-          throw new Error('تعذر العثور على بيانات الطالب المخزنة محلياً');
-        }
-
-        const updated: StudentEntity = {
-          ...existing,
-          fullName: payload.fullName ?? existing.fullName,
-          phone: payload.phone ?? existing.phone,
-          email: payload.email ?? existing.email,
-          gradeLevel: payload.gradeLevel ?? existing.gradeLevel,
-          academicStage: payload.academicStage ?? existing.academicStage,
-          emergencyPhone: payload.parentPhone ?? existing.emergencyPhone,
-          groupId: payload.initialGroupId ?? existing.groupId,
-          user: {
-            ...existing.user,
-            fullName: payload.fullName ?? existing.user?.fullName ?? existing.fullName,
-            phone: payload.phone ?? existing.user?.phone,
-            email: payload.email ?? existing.user?.email,
-          },
-          updatedAt: Date.now(),
-        };
-
-        await offlineDb.bulkPutStudents([updated]);
-        queryClient.setQueryData(['students', id], updated as unknown as StudentDetail);
-        queryClient.setQueriesData({ queryKey: ['students'] }, (old: any) => {
-          if (!old) return old;
-          const toListItem = (student: StudentEntity) => ({
-            ...student,
-            user: student.user || { fullName: student.fullName },
-          });
-          if (Array.isArray(old)) {
-            return old.map((student) => (student.id === id ? toListItem(updated) : student));
-          }
-          if (Array.isArray(old.data)) {
-            return {
-              ...old,
-              data: old.data.map((student: any) =>
-                student.id === id ? { ...student, ...toListItem(updated) } : student,
-              ),
-            };
-          }
-          return old;
-        });
-
-        await syncEngine.enqueue(
-          'students',
-          API_ENDPOINTS.STUDENTS.DETAIL(id),
-          'PATCH',
-          payload,
-          { rollbackData: existing },
-        );
-
-        toast.success('تم تعديل بيانات الطالب محلياً وسيتم إرسال التعديل فور الاتصال 💾');
-        return updated as unknown as StudentDetail;
+        throw new Error('لا يمكن إضافة أو تعديل بيانات الطلاب في وضع عدم الاتصال (Offline). يرجى الاتصال بالإنترنت.');
       }
 
       const { apiClient } = await import('@/lib/api/client');

@@ -69,12 +69,7 @@ describe('SyncService - Offline Student Update (Last Write Wins Vulnerability)',
       clientTimestamp: new Date('2026-08-30T10:00:00Z').toISOString() // Older timestamp
     };
 
-    try {
-      await syncService.syncUnifiedBatch(user, { students: [oldOfflineMutation] } as any);
-      fail('Expected syncUnifiedBatch to throw a ConflictException');
-    } catch (err: any) {
-      expect(err.message).toContain('was modified online since your last sync');
-    }
+    await expect(syncService.syncUnifiedBatch(user, { students: [oldOfflineMutation] } as any)).rejects.toThrow('was modified online since your last sync');
     
     // The vulnerability is fixed: The server rejects the update
     expect(mockUpdateUser).toHaveBeenCalledTimes(0);

@@ -488,6 +488,16 @@ class OfflineSyncEngine {
       rollbackData?: unknown;
     } = {},
   ): Promise<string> {
+    // ENFORCE STRICT OFFLINE BUSINESS BOUNDARY
+    const allowedDomains = ['attendance', 'finance'];
+    if (!allowedDomains.includes(domain)) {
+      throw new Error(`العمليات على (${domain}) غير مدعومة في وضع عدم الاتصال. يرجى الاتصال بالإنترنت.`);
+    }
+
+    if (payload?.type === 'RECORD_HOMEWORK_ONSITE' || endpoint.includes('/sync/homework')) {
+      throw new Error('لا يمكن تسجيل الواجبات في وضع عدم الاتصال. يرجى الاتصال بالإنترنت.');
+    }
+
     const id = generateClientOperationId();
     const mutation: OutboxMutationRecord = {
       id,
@@ -874,6 +884,11 @@ class OfflineSyncEngine {
         });
 
         try {
+          // Claim mutations atomically in local database before network call
+          for (const item of attendanceAndHomeworkItems) {
+            await offlineDb.updateMutationStatus(item.id, 'SYNCING');
+          }
+
           const res = await apiClient<any>(API_ENDPOINTS.SYNC.BATCH, {
             method: 'POST',
             body: JSON.stringify(batchPayload),
@@ -943,6 +958,11 @@ class OfflineSyncEngine {
               collectedAt: item.payload.collectedAt,
             };
           });
+
+          // Claim mutations atomically in local database before network call
+          for (const item of paymentItems) {
+            await offlineDb.updateMutationStatus(item.id, 'SYNCING');
+          }
 
           const res = await apiClient<any>(API_ENDPOINTS.SYNC.PAYMENTS, {
             method: 'POST',

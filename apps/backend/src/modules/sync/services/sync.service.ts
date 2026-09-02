@@ -2123,7 +2123,7 @@ export class SyncService {
               continue;
             }
 
-            const studentData = await this.prisma.studentProfile.findUnique({
+            const studentData = await this.prisma.studentProfile.findFirst({
               where: { id: targetStudentId },
               include: {
                 user: { select: { isActive: true } },
@@ -2303,7 +2303,7 @@ export class SyncService {
               continue;
             }
 
-            const studentData = await this.prisma.studentProfile.findUnique({
+            const studentData = await this.prisma.studentProfile.findFirst({
               where: { id: targetStudentId },
               include: {
                 user: { select: { isActive: true } },
