@@ -714,14 +714,17 @@ function CenterScheduleSection() {
     async function fetchSchedules() {
       try {
         setIsLoading(true);
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.al-awal.online/api/v1';
         const res = await fetch(`${baseUrl}/schedules/public/centers`);
         if (res.ok) {
            const data = await res.json();
            const newMap: Record<string, any[]> = {};
            data.forEach((item: any) => {
-             // map by gradeLevel
-             newMap[item.gradeLevel] = item.schedules;
+             // map by gradeLevel and accumulate schedules
+             if (!newMap[item.gradeLevel]) {
+               newMap[item.gradeLevel] = [];
+             }
+             newMap[item.gradeLevel].push(...item.schedules);
            });
            setSchedulesMap(newMap);
         }
@@ -1047,7 +1050,7 @@ function CertificatesSection() {
   useEffect(() => {
     const syncAndFetchCertificates = async () => {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.al-awal.online/api/v1';
 
         // 1. Get local storage certificates
         let localCerts: any[] = [];
