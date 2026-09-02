@@ -718,9 +718,10 @@ function CenterScheduleSection() {
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.al-awal.online/api/v1';
         const res = await fetch(`${baseUrl}/schedules/public/centers`);
         if (res.ok) {
-           const data = await res.json();
+           const json = await res.json();
+           const actualData = json?.data || json || [];
            const newMap: Record<string, any[]> = {};
-           data.forEach((item: any) => {
+           actualData.forEach((item: any) => {
              // map by gradeLevel and accumulate schedules
              if (!newMap[item.gradeLevel]) {
                newMap[item.gradeLevel] = [];
