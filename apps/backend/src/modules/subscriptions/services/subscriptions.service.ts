@@ -785,32 +785,57 @@ export class SubscriptionsService {
       },
     });
 
-    // 2. Find students who have PAID for this billing period
-    const paidRecords = await this.prisma.studentPaymentRecord.findMany({
+    // 2. Find payment records for this billing period
+    const groupFee = Number(group.monthlyFee);
+    const paymentRecords = await this.prisma.studentPaymentRecord.findMany({
       where: {
         groupId,
         periodYear,
         periodMonth,
-        paymentStatus: PaymentStatus.PAID,
+        paymentType: PaymentType.TUITION,
       },
-      select: { studentId: true },
+      select: {
+        id: true,
+        studentId: true,
+        amountPaid: true,
+        amountExpected: true,
+        paymentStatus: true,
+      },
     });
 
-    const paidStudentIds = new Set(paidRecords.map((r) => r.studentId));
+    const paymentMap = new Map<string, typeof paymentRecords[0]>();
+    for (const record of paymentRecords) {
+      paymentMap.set(record.studentId, record);
+    }
 
-    // 3. Filter unpaid students
+    // 3. Filter unpaid and partially paid students
     const defaulters = enrollments
-      .filter((e) => !paidStudentIds.has(e.studentId))
-      .map((e) => ({
-        studentId: e.student.id,
-        studentCode: e.student.studentCode,
-        fullName: e.student.user.fullName,
-        phone: e.student.user.phone,
-        gradeLevel: e.student.gradeLevel,
-        monthlyFeeExpected: Number(group.monthlyFee),
-        parentName: e.student.parentLinks[0]?.parent.user.fullName || null,
-        parentPhone: e.student.parentLinks[0]?.parent.user.phone || null,
-      }));
+      .filter((e) => {
+        const record = paymentMap.get(e.studentId);
+        if (!record) return true;
+        const amountPaid = Number(record.amountPaid || 0);
+        const isFullyPaid = (record.paymentStatus === PaymentStatus.PAID || record.paymentStatus === PaymentStatus.EXEMPT) && amountPaid >= groupFee;
+        return !isFullyPaid;
+      })
+      .map((e) => {
+        const record = paymentMap.get(e.studentId);
+        const amountPaid = Number(record?.amountPaid || 0);
+        const remainingAmount = Math.max(0, groupFee - amountPaid);
+        return {
+          studentId: e.student.id,
+          studentCode: e.student.studentCode,
+          fullName: e.student.user.fullName,
+          phone: e.student.user.phone,
+          gradeLevel: e.student.gradeLevel,
+          monthlyFeeExpected: groupFee,
+          amountPaid,
+          remainingAmount,
+          isPartiallyPaid: amountPaid > 0,
+          paymentRecordId: record?.id || null,
+          parentName: e.student.parentLinks[0]?.parent.user.fullName || null,
+          parentPhone: e.student.parentLinks[0]?.parent.user.phone || null,
+        };
+      });
 
     return {
       groupId: group.id,

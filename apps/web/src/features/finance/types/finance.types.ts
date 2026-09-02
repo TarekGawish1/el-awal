@@ -53,6 +53,10 @@ export interface Defaulter {
   phone: string | null;
   gradeLevel: string;
   monthlyFeeExpected: number;
+  amountPaid?: number;
+  remainingAmount?: number;
+  isPartiallyPaid?: boolean;
+  paymentRecordId?: string | null;
   parentName: string | null;
   parentPhone: string | null;
 }
@@ -137,8 +141,12 @@ export interface CursorPaginatedResponse<T> {
 
 export interface MatrixPaymentCell {
   isApplicable?: boolean;
+  paymentId?: string;
   isPaid: boolean;
+  isPartiallyPaid?: boolean;
   amountPaid: number;
+  amountExpected?: number;
+  remainingAmount?: number;
   paidAt?: string | Date;
   isStarted?: boolean;
 }
@@ -164,6 +172,7 @@ export interface MatrixLedgerResponse {
   months: number[];
   availableMonths?: number[];
   excludedMonths?: number[];
+  paymentTiming?: 'PREPAID' | 'POSTPAID';
   booklets: Array<{ id: string; title: string; price: number; gradeLevel: string }>;
   students: MatrixLedgerStudent[];
   totalStudents?: number;
@@ -177,6 +186,7 @@ export interface BillingConfigurationResponse {
   academicTerm: 'FIRST_TERM' | 'SECOND_TERM';
   availableMonths: number[];
   excludedMonths: number[];
+  paymentTiming?: 'PREPAID' | 'POSTPAID';
 }
 
 export interface FinanceAnalyticsBreakdown {
