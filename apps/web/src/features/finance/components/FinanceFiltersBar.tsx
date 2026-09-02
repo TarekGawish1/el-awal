@@ -52,8 +52,9 @@ export function FinanceFiltersBar({
   allowWholeTerm,
   allowWholeTermLabel,
 }: FinanceFiltersBarProps) {
+  const allKnownGrades = Object.values(GRADE_LEVELS_BY_STAGE).flat();
+  const stageGrades = stage ? GRADE_LEVELS_BY_STAGE[stage] || [] : allKnownGrades;
   const groupGrades = groups.map((group) => group.gradeLevel).filter(Boolean);
-  const stageGrades = GRADE_LEVELS_BY_STAGE[stage] || [];
   const grades = Array.from(new Set([...stageGrades, ...groupGrades.filter((grade) => !stage || inferStage(grade) === stage)]));
   const availableGroups = groups.filter((group) => {
     if (gradeLevel && group.gradeLevel !== gradeLevel) return false;
