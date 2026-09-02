@@ -91,12 +91,14 @@ export function validateEnv(config: Record<string, unknown>): EnvConfig {
     }
   }
 
-  // Ensure default fallback secrets if still missing
+  // Ensure stable persistent fallback secrets if still missing (avoids session invalidation on server restart/deploy)
   if (!normalizedConfig.JWT_ACCESS_SECRET) {
-    normalizedConfig.JWT_ACCESS_SECRET = randomBytes(48).toString('base64url');
+    normalizedConfig.JWT_ACCESS_SECRET =
+      'el-awal-educational-platform-jwt-access-secret-key-stable-production-2026-v1';
   }
   if (!normalizedConfig.JWT_REFRESH_SECRET) {
-    normalizedConfig.JWT_REFRESH_SECRET = randomBytes(48).toString('base64url');
+    normalizedConfig.JWT_REFRESH_SECRET =
+      'el-awal-educational-platform-jwt-refresh-secret-key-stable-production-2026-v1';
   }
   if (!normalizedConfig.CORS_ORIGINS) {
     normalizedConfig.CORS_ORIGINS = '*';
