@@ -9,6 +9,7 @@ import {
 import * as cron from 'node-cron';
 import { WhatsAppService } from '../services/whatsapp/whatsapp.service';
 import { WhatsAppDispatcherService } from '../modules/whatsapp/services/whatsapp-dispatcher.service';
+import { formatTeacherAgendaMessage } from '../utils/spintax';
 
 /**
  * SchedulersService — automated cron jobs for the El-Awal notification engine.
@@ -406,8 +407,8 @@ export class SchedulersService implements OnModuleInit {
           if (alreadySentToday) continue;
         }
 
-        // Query candidate sessions around today's window
-        let sessions = await this.prisma.lessonSession.findMany({
+        // Query candidate sessions strictly for today's window
+        const sessions = await this.prisma.lessonSession.findMany({
           where: {
             group: { teacherId: teacher.id },
             sessionDate: { gte: start, lte: end },
@@ -417,33 +418,28 @@ export class SchedulersService implements OnModuleInit {
           orderBy: { startTime: 'asc' },
         });
 
-        // If forced and 0 sessions for today, pull latest active group sessions for demonstration
-        if (sessions.length === 0 && force) {
-          sessions = await this.prisma.lessonSession.findMany({
-            where: {
-              group: { teacherId: teacher.id },
-              isCancelled: false,
-            },
-            include: { group: { select: { name: true, gradeLevel: true } } },
-            orderBy: { startTime: 'asc' },
-            take: 3,
-          });
-        }
+        const agendaLines = sessions.map(
+          (s) => `${s.group.name} (${s.group.gradeLevel}) — الساعة ${s.startTime || '—'}`,
+        );
 
-        if (sessions.length === 0 && !force) continue;
+        const hasSessions = sessions.length > 0;
+        const countLabel = sessions.length === 1 ? '1 حصة' : sessions.length === 2 ? 'حصتان' : `${sessions.length} حصص`;
+        const title = hasSessions
+          ? `📋 جدولك اليوم — ${countLabel}`
+          : '📋 جدولك اليوم — لا توجد حصص مجدولة';
 
-        const agendaLines = sessions.length > 0
-          ? sessions.map(
-              (s, i) => `${s.group.name} (${s.group.gradeLevel}) — الساعة ${s.startTime || '—'}`,
-            )
-          : ['لا توجد حصص مجدولة لهذا اليوم'];
-
-        const body = [
-          `أستاذ ${teacher.user.fullName}، صباح النور والبركة! 🌸`,
-          `مواعيد حصصك ومجموعاتك اليوم (${dateStr}):`,
-          ...agendaLines.map((l, i) => `${i + 1}. ${l}`),
-          `\n🎓 منصة الأوّل التعليمية — تتمنى لك يوماً موفقاً ومثمراً 🌟`,
-        ].join('\n');
+        const body = hasSessions
+          ? [
+              `أستاذ ${teacher.user.fullName}، صباح النور والبركة! 🌸`,
+              `مواعيد حصصك ومجموعاتك اليوم (${dateStr}):`,
+              ...agendaLines.map((l, i) => `${i + 1}. ${l}`),
+              `\n🎓 منصة الأوّل التعليمية — تتمنى لك يوماً موفقاً ومثمراً 🌟`,
+            ].join('\n')
+          : [
+              `أستاذ ${teacher.user.fullName}، صباح النور والبركة! 🌸`,
+              `لا توجد لديك أي حصص أو مجموعات مجدولة لهذا اليوم (${dateStr}).`,
+              `\n🎓 منصة الأوّل التعليمية — نتمنى لك يوماً سعيداً وموفقاً ومثمراً 🌟`,
+            ].join('\n');
 
         const settings = await this.settingsService.getSettings();
         const targetPhone = settings.teacherRecipientPhone?.trim() || teacher.user.phone;
@@ -460,7 +456,7 @@ export class SchedulersService implements OnModuleInit {
           recipientId: teacher.user.id,
           notificationType: NotificationType.TEACHER_DAILY_SCHEDULE,
           type: 'TEACHER_DAILY_SCHEDULE',
-          title: `📋 جدولك اليوم — ${sessions.length} حصة`,
+          title,
           body,
           channels,
           data: {
@@ -473,7 +469,12 @@ export class SchedulersService implements OnModuleInit {
         });
 
         if (targetPhone && force) {
-          const waResult = await this.whatsapp.sendTrackedProtectedMessage(targetPhone, body);
+          const waBody = formatTeacherAgendaMessage(
+            teacher.user.fullName,
+            dateStr,
+            agendaLines,
+          );
+          const waResult = await this.whatsapp.sendTrackedProtectedMessage(targetPhone, waBody);
           this.logger.log(
             `[TeacherSchedule] Direct WhatsApp dispatch to ${targetPhone}: outcome=${waResult.outcome}, reason=${waResult.failureReason || 'OK'}`,
           );
