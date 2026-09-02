@@ -198,10 +198,27 @@ export function RecordPaymentModal({
   };
 
   const eligibleBooklets = useMemo(() => {
-    if (!selectedStudentId) return [];
-    const student = getStudentBookletContext(selectedStudentId);
-    return booklets.filter((booklet) => isBookletEligibleForStudent(booklet, student));
-  }, [booklets, selectedStudentId, defaulters, groupEnrollments, allStudents, selectedGroupId, selectedGradeLevel]);
+    // 1. If a student is selected, filter specifically for this student
+    if (selectedStudentId) {
+      const student = getStudentBookletContext(selectedStudentId);
+      const studentBooklets = booklets.filter((booklet) => isBookletEligibleForStudent(booklet, student));
+      if (studentBooklets.length > 0) return studentBooklets;
+    }
+
+    // 2. If no student selected or no strict match, filter by selected group/grade/stage
+    return booklets.filter((booklet) => {
+      if (selectedGroupId && booklet.groupId && booklet.groupId !== selectedGroupId) {
+        return false;
+      }
+      if (selectedGradeLevel && booklet.gradeLevel !== selectedGradeLevel) {
+        return false;
+      }
+      if (selectedStage && inferStageFromGrade(booklet.gradeLevel) !== selectedStage) {
+        return false;
+      }
+      return true;
+    });
+  }, [booklets, selectedStudentId, selectedGroupId, selectedGradeLevel, selectedStage, defaulters, groupEnrollments, allStudents]);
 
   const handleStageChange = (newStage: string) => {
     setSelectedStage(newStage);
@@ -247,7 +264,6 @@ export function RecordPaymentModal({
     if (sId && paymentType === 'TUITION') {
       const student = availableStudents.find((st) => st.id === sId);
       if (student) {
-        // If student has a partial payment, default to the remaining due amount (e.g. 50 EGP)
         const amountToSet = student.isPartiallyPaid
           ? (student.remainingAmount ?? Math.max(0, (student.fee || groupFee) - (student.amountPaid || 0)))
           : (student.fee || groupFee);
@@ -275,9 +291,11 @@ export function RecordPaymentModal({
 
   const handlePaymentTypeChange = (type: 'TUITION' | 'BOOKLET') => {
     setPaymentType(type);
-    if (type === 'BOOKLET' && eligibleBooklets.length > 0) {
-      setValue('bookletId', eligibleBooklets[0].id);
-      setValue('amountPaid', Number(eligibleBooklets[0].price));
+    if (type === 'BOOKLET') {
+      if (eligibleBooklets.length > 0 && !selectedBookletId) {
+        setValue('bookletId', eligibleBooklets[0].id);
+        setValue('amountPaid', Number(eligibleBooklets[0].price));
+      }
     } else if (type === 'TUITION' && selectedStudentId) {
       const student = availableStudents.find((d) => d.id === selectedStudentId);
       if (student) {
@@ -599,13 +617,24 @@ export function RecordPaymentModal({
                   onChange={handleBookletChange}
                   disabled={isPending || isBookletsLoading}
                 >
-                  <option value="">-- اختر المذكرة --</option>
+                  <option value="">
+                    {isBookletsLoading
+                      ? 'جاري تحميل المذكرات...'
+                      : eligibleBooklets.length === 0
+                      ? (booklets.length === 0 ? '-- لا توجد مذكرات مضافة في النظام --' : '-- لا توجد مذكرات مطابقة لهذا الاختيار --')
+                      : `-- اختر المذكرة (${eligibleBooklets.length} متاح) --`}
+                  </option>
                   {eligibleBooklets.map((b) => (
                     <option key={b.id} value={b.id}>
-                      {b.title} - {b.gradeLevel} ({b.price} ج.م)
+                      {b.title} — {b.gradeLevel} ({b.price} ج.م)
                     </option>
                   ))}
                 </select>
+                {errors.bookletId && (
+                  <p className="text-red-500 text-xs mt-1 font-medium">
+                    {errors.bookletId.message}
+                  </p>
+                )}
               </div>
             )}
 
