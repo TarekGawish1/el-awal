@@ -44,6 +44,9 @@ export function FinanceDashboard() {
   const paramTab = searchParams.get('tab');
   const paramStage = searchParams.get('stage') || '';
   const paramGradeLevel = searchParams.get('gradeLevel') || '';
+  const paramMonth = searchParams.get('month');
+  const paramScan = searchParams.get('scan') === 'true' || searchParams.get('openQr') === 'true';
+  const paramRecord = searchParams.get('record') === 'true' || searchParams.get('manual') === 'true';
 
   const defaultYear = getCurrentAcademicYear();
   const defaultTerm = getCurrentAcademicTerm();
@@ -51,7 +54,7 @@ export function FinanceDashboard() {
   const [academicTerm, setAcademicTerm] = useState<'FIRST_TERM' | 'SECOND_TERM'>(() => readStoredValue(STORAGE_TERM_KEY, defaultTerm) as 'FIRST_TERM' | 'SECOND_TERM');
 
   const [selectedGroupId, setSelectedGroupId] = useState<string>(paramGroupId || '');
-  const [periodMonth, setPeriodMonth] = useState<number>(new Date().getMonth() + 1);
+  const [periodMonth, setPeriodMonth] = useState<number>(() => (paramMonth ? Number(paramMonth) : new Date().getMonth() + 1));
   const [stage, setStage] = useState(paramStage);
   const [gradeLevel, setGradeLevel] = useState(paramGradeLevel);
   const [search, setSearch] = useState('');
@@ -60,8 +63,8 @@ export function FinanceDashboard() {
     paramTab === 'booklets' ? 'BOOKLETS' : paramTab === 'matrix' ? 'MATRIX' : paramTab === 'analytics' ? 'ANALYTICS' : 'OVERVIEW'
   );
 
-  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
-  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(Boolean(paramScan));
+  const [isRecordModalOpen, setIsRecordModalOpen] = useState(Boolean(paramRecord));
   const [historyStudentId, setHistoryStudentId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -79,12 +82,16 @@ export function FinanceDashboard() {
 
   useEffect(() => {
     if (paramGroupId) setSelectedGroupId(paramGroupId);
+    if (paramMonth) setPeriodMonth(Number(paramMonth));
+    if (paramScan) setIsQrModalOpen(true);
+    if (paramRecord) setIsRecordModalOpen(true);
     if (paramTab === 'booklets') setActiveTab('BOOKLETS');
     else if (paramTab === 'matrix') setActiveTab('MATRIX');
     else if (paramTab === 'analytics') setActiveTab('ANALYTICS');
-  }, [paramGroupId, paramTab]);
+  }, [paramGroupId, paramMonth, paramScan, paramRecord, paramTab]);
 
   const { data: groups = [] } = useGroups();
+  const selectedGroup = groups.find((g) => g.id === selectedGroupId);
   const startYear = Number(academicYear.split('-')[0]) || new Date().getFullYear();
   const periodYear = academicTerm === 'FIRST_TERM' && periodMonth === 1 ? startYear + 1 : academicTerm === 'SECOND_TERM' ? startYear + 1 : startYear;
 
@@ -220,7 +227,9 @@ export function FinanceDashboard() {
       <FinanceQrScannerModal 
         isOpen={isQrModalOpen}
         onClose={() => setIsQrModalOpen(false)}
+        onSwitchToManual={() => setIsRecordModalOpen(true)}
         groupId={selectedGroupId}
+        groupName={selectedGroup?.name}
         periodYear={periodYear}
         periodMonth={periodMonth}
       />
