@@ -811,23 +811,44 @@ export class SubscriptionsService {
     // 3. Filter unpaid and partially paid students
     const defaulters = enrollments
       .filter((e) => {
+        const enrollmentDate = new Date(e.enrolledAt);
+        const enrollYear = enrollmentDate.getFullYear();
+        const enrollMonth = enrollmentDate.getMonth() + 1;
+        const enrollDay = enrollmentDate.getDate();
+
+        // 1. If period is before the student enrolled, do NOT ask him to pay!
+        if (periodYear < enrollYear || (periodYear === enrollYear && periodMonth < enrollMonth)) {
+          return false;
+        }
+
+        // 2. If enrolled in middle of month (> day 15), expect half month fee
+        const isJoiningMonth = periodYear === enrollYear && periodMonth === enrollMonth;
+        const expectedFee = isJoiningMonth && enrollDay > 15 ? Math.round(groupFee / 2) : groupFee;
+
         const record = paymentMap.get(e.studentId);
         if (!record) return true;
         const amountPaid = Number(record.amountPaid || 0);
-        const isFullyPaid = (record.paymentStatus === PaymentStatus.PAID || record.paymentStatus === PaymentStatus.EXEMPT) && amountPaid >= groupFee;
+        const isFullyPaid = (record.paymentStatus === PaymentStatus.PAID || record.paymentStatus === PaymentStatus.EXEMPT) && amountPaid >= expectedFee;
         return !isFullyPaid;
       })
       .map((e) => {
+        const enrollmentDate = new Date(e.enrolledAt);
+        const enrollYear = enrollmentDate.getFullYear();
+        const enrollMonth = enrollmentDate.getMonth() + 1;
+        const enrollDay = enrollmentDate.getDate();
+        const isJoiningMonth = periodYear === enrollYear && periodMonth === enrollMonth;
+        const expectedFee = isJoiningMonth && enrollDay > 15 ? Math.round(groupFee / 2) : groupFee;
+
         const record = paymentMap.get(e.studentId);
         const amountPaid = Number(record?.amountPaid || 0);
-        const remainingAmount = Math.max(0, groupFee - amountPaid);
+        const remainingAmount = Math.max(0, expectedFee - amountPaid);
         return {
           studentId: e.student.id,
           studentCode: e.student.studentCode,
           fullName: e.student.user.fullName,
           phone: e.student.user.phone,
           gradeLevel: e.student.gradeLevel,
-          monthlyFeeExpected: groupFee,
+          monthlyFeeExpected: expectedFee,
           amountPaid,
           remainingAmount,
           isPartiallyPaid: amountPaid > 0,

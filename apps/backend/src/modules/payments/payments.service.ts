@@ -223,6 +223,7 @@ export class PaymentsService {
         select: {
         id: true,
         studentCode: true,
+        createdAt: true,
         user: { select: { fullName: true, phone: true } },
         gradeLevel: true,
         groupEnrollments: {
@@ -230,6 +231,7 @@ export class PaymentsService {
           orderBy: { enrolledAt: 'asc' },
           select: {
             groupId: true,
+            enrolledAt: true,
             group: { select: { id: true, name: true, monthlyFee: true } },
           },
         },
@@ -308,31 +310,46 @@ export class PaymentsService {
     const resultStudents = students.map((student) => {
       const enrollment = student.groupEnrollments[0];
       const monthlyFee = Number(enrollment?.group.monthlyFee || 0);
-      const monthlyPayments: Record<number, { paymentId?: string; isPaid: boolean; isPartiallyPaid: boolean; amountPaid: number; amountExpected: number; remainingAmount: number; paidAt?: Date; isStarted: boolean }> = {};
+      const enrollmentDate = enrollment?.enrolledAt ? new Date(enrollment.enrolledAt) : new Date(student.createdAt);
+      const enrollYear = enrollmentDate.getFullYear();
+      const enrollMonth = enrollmentDate.getMonth() + 1;
+      const enrollDay = enrollmentDate.getDate();
+
+      const monthlyPayments: Record<number, { paymentId?: string; isApplicable?: boolean; isPaid: boolean; isPartiallyPaid: boolean; amountPaid: number; amountExpected: number; remainingAmount: number; paidAt?: Date; isStarted: boolean }> = {};
       const bookletPayments: Record<string, { paymentId?: string; isApplicable: boolean; isPaid: boolean; isPartiallyPaid: boolean; amountPaid: number; amountExpected: number; remainingAmount: number; paidAt?: Date }> = {};
       let totalDue = 0;
       let totalPaid = 0;
 
       for (const month of months) {
-        const key = `${student.id}:TUITION:${month}:${paymentYearForMonth(month)}`;
+        const monthYear = paymentYearForMonth(month);
+        const key = `${student.id}:TUITION:${month}:${monthYear}`;
         const payment = paymentMap.get(key);
         const amountPaid = payment?.amountPaid || 0;
-        const isPaid = Boolean(payment && (payment.isPaid || amountPaid >= monthlyFee) && amountPaid > 0);
-        const isPartiallyPaid = Boolean(amountPaid > 0 && amountPaid < monthlyFee);
+
+        // Check if month is before enrollment date
+        const isBeforeEnrollment = monthYear < enrollYear || (monthYear === enrollYear && month < enrollMonth);
+        const isJoiningMonth = monthYear === enrollYear && month === enrollMonth;
+        const isHalfMonth = isJoiningMonth && enrollDay > 15;
+        const effectiveFee = isBeforeEnrollment ? 0 : isHalfMonth ? Math.round(monthlyFee / 2) : monthlyFee;
+
+        const isPaid = isBeforeEnrollment ? false : Boolean(payment && (payment.isPaid || amountPaid >= effectiveFee) && (effectiveFee === 0 || amountPaid > 0));
+        const isPartiallyPaid = Boolean(!isBeforeEnrollment && amountPaid > 0 && amountPaid < effectiveFee);
         const isStarted = this.isMonthStarted(academicYear, academicTerm, month, paymentTiming);
+
         monthlyPayments[month] = {
           paymentId: payment?.paymentId,
+          isApplicable: !isBeforeEnrollment,
           isPaid,
           isPartiallyPaid,
           amountPaid,
-          amountExpected: monthlyFee,
-          remainingAmount: Math.max(0, monthlyFee - amountPaid),
+          amountExpected: effectiveFee,
+          remainingAmount: isBeforeEnrollment ? 0 : Math.max(0, effectiveFee - amountPaid),
           paidAt: payment?.paidAt,
           isStarted,
         };
         totalPaid += amountPaid;
-        if (isStarted) {
-          totalDue += Math.max(0, monthlyFee - amountPaid);
+        if (isStarted && !isBeforeEnrollment) {
+          totalDue += Math.max(0, effectiveFee - amountPaid);
         }
       }
 

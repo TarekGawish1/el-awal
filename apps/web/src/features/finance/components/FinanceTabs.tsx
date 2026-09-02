@@ -1,9 +1,9 @@
 'use client';
 
-import { BarChart3, BookOpen, ClipboardList, FileSpreadsheet, QrCode } from 'lucide-react';
+import { BarChart3, BookOpen, ClipboardList, FileSpreadsheet, QrCode, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
-export type FinanceTab = 'QR' | 'MANUAL' | 'BOOKLETS' | 'MATRIX' | 'ANALYTICS';
+export type FinanceTab = 'QR' | 'MANUAL' | 'BOOKLETS' | 'MATRIX' | 'ANALYTICS' | 'SETTINGS';
 
 interface FinanceTabsProps {
   activeTab: FinanceTab;
@@ -17,6 +17,7 @@ export function FinanceTabs({ activeTab, onChange }: FinanceTabsProps) {
     { id: 'BOOKLETS', label: 'المذكرات والملازم الدراسية', icon: BookOpen, className: 'sm:w-56' },
     { id: 'MATRIX', label: 'سجل المدفوعات الشامل', icon: FileSpreadsheet, className: 'sm:w-64' },
     { id: 'ANALYTICS', label: 'الإحصائيات والتقارير المالية', icon: BarChart3, className: 'sm:w-64' },
+    { id: 'SETTINGS', label: 'إعدادات المدفوعات', icon: Settings, className: 'sm:w-56' },
   ];
 
   return (

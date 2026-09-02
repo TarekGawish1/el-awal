@@ -1,4 +1,4 @@
-import { QrCode, ClipboardList, BookOpen, FileSpreadsheet, BarChart3 } from 'lucide-react';
+import { QrCode, ClipboardList, BookOpen, FileSpreadsheet, BarChart3, Settings } from 'lucide-react';
 import { FinanceTab } from '../FinanceTabs';
 
 interface QuickActionsProps {
@@ -14,6 +14,7 @@ export function FinanceQuickActions({ activeTab, onChange }: QuickActionsProps) 
     { id: 'BOOKLETS', label: 'المذكرات والملازم', icon: BookOpen },
     { id: 'MATRIX', label: 'سجل المدفوعات', icon: FileSpreadsheet },
     { id: 'ANALYTICS', label: 'التقارير المالية', icon: BarChart3 },
+    { id: 'SETTINGS', label: 'إعدادات المدفوعات', icon: Settings },
   ];
 
   return (

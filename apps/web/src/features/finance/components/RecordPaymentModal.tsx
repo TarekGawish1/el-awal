@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { X, DollarSign, BookOpen, CreditCard, Users, Filter, Loader2 } from 'lucide-react';
+import { X, DollarSign, BookOpen, CreditCard, Users, Filter, Loader2, Search } from 'lucide-react';
 import { useRecordPayment, useGroupDefaulters } from '../hooks/useFinance';
 import { useBooklets } from '@/features/booklets/hooks/useBooklets';
 import { useGroups, useGroupStudents } from '@/features/groups/hooks/useGroups';
@@ -37,7 +37,7 @@ interface Props {
     id: string;
     fullName: string;
     studentCode?: string;
-    gradeLevel?: string;
+    gradeLevel: string;
     groupId?: string;
     initialGroupId?: string;
     groupIds?: string[];
@@ -47,46 +47,29 @@ interface Props {
 export function RecordPaymentModal({
   isOpen,
   onClose,
-  groupId = '',
-  periodYear,
-  periodMonth,
+  groupId: initialGroupId = '',
+  periodYear: initialPeriodYear,
+  periodMonth: initialPeriodMonth,
   allStudents = [],
 }: Props) {
   const [paymentType, setPaymentType] = useState<'TUITION' | 'BOOKLET'>('TUITION');
+  const [selectedStage, setSelectedStage] = useState<string>('');
+  const [selectedGradeLevel, setSelectedGradeLevel] = useState<string>('');
+  const [selectedGroupId, setSelectedGroupId] = useState<string>(initialGroupId);
+  const [selectedAcademicTerm, setSelectedAcademicTerm] = useState<'FIRST_TERM' | 'SECOND_TERM'>('FIRST_TERM');
+  const [currentPeriodYear, setCurrentPeriodYear] = useState<number>(initialPeriodYear);
+  const [currentPeriodMonth, setCurrentPeriodMonth] = useState<number>(initialPeriodMonth);
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [showOnlyUnpaid, setShowOnlyUnpaid] = useState(true);
 
   const { data: allGroups = [] } = useGroups();
 
-  const [selectedStage, setSelectedStage] = useState<string>('');
-  const [selectedGradeLevel, setSelectedGradeLevel] = useState<string>('');
-  const [selectedGroupId, setSelectedGroupId] = useState<string>(groupId);
-  const [selectedAcademicTerm, setSelectedAcademicTerm] = useState<'FIRST_TERM' | 'SECOND_TERM'>(() => {
-    return periodMonth && (periodMonth >= 8 || periodMonth === 1) ? 'FIRST_TERM' : 'SECOND_TERM';
-  });
-  const [currentPeriodMonth, setCurrentPeriodMonth] = useState<number>(periodMonth || new Date().getMonth() + 1);
-  const [currentPeriodYear, setCurrentPeriodYear] = useState<number>(periodYear || new Date().getFullYear());
-
-  useEffect(() => {
-    if (groupId) {
-      setSelectedGroupId(groupId);
-      const found = allGroups.find((g) => g.id === groupId);
-      if (found) {
-        if (found.gradeLevel) setSelectedGradeLevel(found.gradeLevel);
-        const stage = inferStageFromGrade(found.gradeLevel);
-        if (stage) setSelectedStage(stage);
-      }
-    }
-  }, [groupId, allGroups]);
-
-  const stageGrades = GRADE_LEVELS_BY_STAGE[selectedStage] || [];
-  const groupGrades = allGroups.map((g) => g.gradeLevel).filter(Boolean);
   const availableGrades = useMemo(() => {
-    return Array.from(
-      new Set([
-        ...stageGrades,
-        ...groupGrades.filter((grade) => !selectedStage || inferStageFromGrade(grade) === selectedStage),
-      ]),
-    );
-  }, [selectedStage, stageGrades, groupGrades]);
+    if (selectedStage && GRADE_LEVELS_BY_STAGE[selectedStage as keyof typeof GRADE_LEVELS_BY_STAGE]) {
+      return GRADE_LEVELS_BY_STAGE[selectedStage as keyof typeof GRADE_LEVELS_BY_STAGE];
+    }
+    return Array.from(new Set(allGroups.map((g) => g.gradeLevel).filter(Boolean)));
+  }, [selectedStage, allGroups]);
 
   const filteredGroups = useMemo(() => {
     return allGroups.filter((g) => {
@@ -122,32 +105,48 @@ export function RecordPaymentModal({
   const currentGroupObj = allGroups.find((g) => g.id === selectedGroupId);
   const groupFee = Number(currentGroupObj?.monthlyFee) || 0;
 
-  // Available students list combining defaulters and enrolled students with proper fee and status
   const availableStudents = useMemo(() => {
     const map = new Map<
       string,
-      { id: string; name: string; fee: number; isPaid: boolean; studentCode?: string }
+      {
+        id: string;
+        name: string;
+        fee: number;
+        amountPaid: number;
+        remainingAmount: number;
+        isPaid: boolean;
+        isPartiallyPaid: boolean;
+        studentCode?: string;
+      }
     >();
 
-    // 1. Defaulters (unpaid students for the selected month)
     defaulters.forEach((d) => {
+      const amountPaid = d.amountPaid || 0;
+      const fee = d.monthlyFeeExpected || groupFee;
+      const remainingAmount = d.remainingAmount ?? Math.max(0, fee - amountPaid);
+      const isPartiallyPaid = Boolean(d.isPartiallyPaid || amountPaid > 0);
       map.set(d.studentId, {
         id: d.studentId,
         name: d.fullName,
-        fee: d.monthlyFeeExpected || groupFee,
+        fee,
+        amountPaid,
+        remainingAmount,
         isPaid: false,
+        isPartiallyPaid,
         studentCode: d.studentCode || undefined,
       });
     });
 
-    // 2. Enrolled students who already paid for this month
     groupEnrollments.forEach((e) => {
       if (e.student?.id && !map.has(e.student.id)) {
         map.set(e.student.id, {
           id: e.student.id,
           name: e.student.user?.name || 'طالب',
           fee: groupFee,
+          amountPaid: groupFee,
+          remainingAmount: 0,
           isPaid: true,
+          isPartiallyPaid: false,
           studentCode: e.student.code,
         });
       }
@@ -160,7 +159,10 @@ export function RecordPaymentModal({
             id: s.id,
             name: s.fullName,
             fee: groupFee,
+            amountPaid: 0,
+            remainingAmount: groupFee,
             isPaid: false,
+            isPartiallyPaid: false,
             studentCode: s.studentCode,
           });
         }
@@ -169,6 +171,17 @@ export function RecordPaymentModal({
 
     return Array.from(map.values());
   }, [defaulters, groupEnrollments, selectedGroupId, allStudents, groupFee]);
+
+  const filteredStudents = useMemo(() => {
+    return availableStudents.filter((s) => {
+      if (paymentType === 'TUITION' && showOnlyUnpaid && s.isPaid) {
+        return false;
+      }
+      if (!studentSearchQuery.trim()) return true;
+      const q = studentSearchQuery.trim().toLowerCase();
+      return s.name.toLowerCase().includes(q) || (s.studentCode && s.studentCode.toLowerCase().includes(q));
+    });
+  }, [availableStudents, showOnlyUnpaid, paymentType, studentSearchQuery]);
 
   const getStudentBookletContext = (studentId: string) => {
     const defaulter = defaulters.find((student) => student.studentId === studentId);
@@ -493,14 +506,38 @@ export function RecordPaymentModal({
                 <Label className="block text-xs font-bold text-slate-700">
                   الطالب <span className="text-red-500">*</span>
                 </Label>
-                {selectedGroupId && (
-                  <span className="text-[11px] font-semibold text-primary-600">
-                    {availableStudents.length} طالب متاح
-                  </span>
-                )}
+                <div className="flex items-center gap-2 text-[11px]">
+                  {selectedGroupId && (
+                    <span className="font-semibold text-primary-600">
+                      {filteredStudents.length} طالب متاح
+                    </span>
+                  )}
+                  {paymentType === 'TUITION' && (
+                    <button
+                      type="button"
+                      onClick={() => setShowOnlyUnpaid(!showOnlyUnpaid)}
+                      className="text-xs font-bold text-slate-500 hover:text-primary-600 transition-colors cursor-pointer"
+                    >
+                      {showOnlyUnpaid ? '(عرض جميع الطلاب)' : '(غير المسددين فقط)'}
+                    </button>
+                  )}
+                </div>
               </div>
+
+              {/* Instant Search Input */}
+              <div className="relative mb-2">
+                <Search className="absolute right-3 top-2.5 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="ابحث باسم الطالب أو الكود STU..."
+                  value={studentSearchQuery}
+                  onChange={(e) => setStudentSearchQuery(e.target.value)}
+                  className="w-full h-9 rounded-xl border border-slate-200 pr-9 pl-3 text-xs focus:ring-2 focus:ring-primary/20 bg-slate-50/60 focus:bg-white text-slate-800 transition-all placeholder:text-slate-400"
+                />
+              </div>
+
               <select
-                className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm focus:ring-2 focus:ring-primary/20 bg-white text-slate-800"
+                className="w-full h-10 rounded-xl border border-slate-200 px-3 text-xs font-semibold focus:ring-2 focus:ring-primary/20 bg-white text-slate-800"
                 value={selectedStudentId || ''}
                 onChange={handleStudentChange}
                 disabled={isPending || isDefaultersLoading || isEnrollmentsLoading}
@@ -508,13 +545,19 @@ export function RecordPaymentModal({
                 <option value="">
                   {isDefaultersLoading || isEnrollmentsLoading
                     ? 'جاري تحميل قائمة الطلاب...'
-                    : availableStudents.length === 0
-                    ? '-- لا يوجد طلاب في هذه المجموعة --'
+                    : filteredStudents.length === 0
+                    ? '-- لا يوجد طلاب مطابقين للبحث --'
                     : '-- اختر طالباً --'}
                 </option>
-                {availableStudents.map((s) => (
+                {filteredStudents.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name} {s.studentCode ? `[${s.studentCode}]` : ''} {s.isPaid ? `(مسدد بالفعل — ${s.fee} ج.م)` : `(${s.fee} ج.م — غير مسدد)`}
+                    {s.name} {s.studentCode ? `[${s.studentCode}]` : ''} — {
+                      s.isPaid
+                        ? `(مسدد بالفعل — ${s.fee} ج.م)`
+                        : s.isPartiallyPaid
+                        ? `(سداد جزئي: مدفوع ${s.amountPaid} ج.م • متبقي ${s.remainingAmount} ج.م)`
+                        : `(غير مسدد — المطلوب: ${s.fee} ج.م)`
+                    }
                   </option>
                 ))}
               </select>

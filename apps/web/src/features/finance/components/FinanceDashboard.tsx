@@ -19,6 +19,7 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { BookletManagementSection } from '@/features/booklets/components/BookletManagementSection';
 import { FinancialMatrixLedger } from './FinancialMatrixLedger';
 import { FinanceAnalyticsTab } from './FinanceAnalyticsTab';
+import { FinanceSettingsTab } from './FinanceSettingsTab';
 import {
   DEFAULT_ACADEMIC_TERM,
   STORAGE_TERM_KEY,
@@ -156,7 +157,9 @@ export function FinanceDashboard() {
 
       <FinanceQuickActions activeTab={activeTab} onChange={handleActionClick} />
 
-      {activeTab === 'BOOKLETS' ? (
+      {activeTab === 'SETTINGS' ? (
+        <FinanceSettingsTab />
+      ) : activeTab === 'BOOKLETS' ? (
         <BookletManagementSection groups={groups} />
       ) : activeTab === 'MATRIX' ? (
         <FinancialMatrixLedger groups={groups} initialStage={stage} initialGradeLevel={gradeLevel} initialGroupId={selectedGroupId || ''} />
