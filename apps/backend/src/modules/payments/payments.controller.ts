@@ -1,8 +1,9 @@
 import { Body, Controller, Get, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
+import { AssistantPermission, UserRole } from '@prisma/client';
 import { CurrentUser, AuthenticatedUser } from '../../core/security/decorators/current-user.decorator';
 import { Roles } from '../../core/security/decorators/roles.decorator';
+import { RequirePermissions } from '../../core/security/decorators/permissions.decorator';
 import { MatrixLedgerQueryDto } from './dto/matrix-ledger-query.dto';
 import { BillingConfigurationDto } from './dto/billing-configuration.dto';
 import { FinanceAnalyticsQueryDto } from './dto/finance-analytics-query.dto';
@@ -16,6 +17,7 @@ export class PaymentsController {
 
   @Get('analytics')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @RequirePermissions(AssistantPermission.VIEW_FINANCE)
   @ApiOperation({ summary: 'Get aggregated financial analytics for tuition, booklets, and per-group collection stats' })
   async getFinanceAnalytics(
     @Query() query: FinanceAnalyticsQueryDto,

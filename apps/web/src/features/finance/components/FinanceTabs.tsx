@@ -2,6 +2,7 @@
 
 import { BarChart3, BookOpen, ClipboardList, FileSpreadsheet, QrCode, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { usePermissions } from '@/core/hooks/usePermissions';
 
 export type FinanceTab = 'QR' | 'MANUAL' | 'BOOKLETS' | 'MATRIX' | 'ANALYTICS' | 'SETTINGS';
 
@@ -11,14 +12,19 @@ interface FinanceTabsProps {
 }
 
 export function FinanceTabs({ activeTab, onChange }: FinanceTabsProps) {
-  const tabs: Array<{ id: FinanceTab; label: string; icon: typeof QrCode; className?: string }> = [
+  const { can } = usePermissions();
+  const canViewStats = can('VIEW_FINANCE');
+
+  const allTabs: Array<{ id: FinanceTab; label: string; icon: typeof QrCode; className?: string; requiresView?: boolean }> = [
     { id: 'QR', label: 'الماسح الذكي (QR)', icon: QrCode },
     { id: 'MANUAL', label: 'رصد يدوي للمصروفات', icon: ClipboardList },
     { id: 'BOOKLETS', label: 'المذكرات والملازم الدراسية', icon: BookOpen, className: 'sm:w-56' },
     { id: 'MATRIX', label: 'سجل المدفوعات الشامل', icon: FileSpreadsheet, className: 'sm:w-64' },
-    { id: 'ANALYTICS', label: 'الإحصائيات والتقارير المالية', icon: BarChart3, className: 'sm:w-64' },
-    { id: 'SETTINGS', label: 'إعدادات المدفوعات', icon: Settings, className: 'sm:w-56' },
+    { id: 'ANALYTICS', label: 'الإحصائيات والتقارير المالية', icon: BarChart3, className: 'sm:w-64', requiresView: true },
+    { id: 'SETTINGS', label: 'إعدادات المدفوعات', icon: Settings, className: 'sm:w-56', requiresView: true },
   ];
+
+  const tabs = allTabs.filter((t) => !t.requiresView || canViewStats);
 
   return (
     <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-100 bg-white p-2 shadow-sm">

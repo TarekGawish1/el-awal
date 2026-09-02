@@ -51,18 +51,22 @@ export function useMatrixLedger(query: {
   });
 }
 
-export function useFinanceAnalytics(query: {
-  academicPeriodId?: string;
-  academicYear?: string;
-  academicTerm?: string;
-  stage?: string;
-  gradeLevel?: string;
-  groupId?: string;
-  periodMonth?: number;
-}) {
+export function useFinanceAnalytics(
+  query: {
+    academicPeriodId?: string;
+    academicYear?: string;
+    academicTerm?: string;
+    stage?: string;
+    gradeLevel?: string;
+    groupId?: string;
+    periodMonth?: number;
+  },
+  options?: { enabled?: boolean }
+) {
   return useQuery<FinanceAnalyticsResponse>({
     queryKey: financeKeys.financeAnalytics(query),
     queryFn: () => fetchFinanceAnalytics(query),
+    enabled: options?.enabled ?? true,
     staleTime: 30_000,
   });
 }

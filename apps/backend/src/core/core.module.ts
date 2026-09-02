@@ -7,6 +7,7 @@ import { DatabaseModule } from './database/database.module';
 import { SecurityModule } from './security/security.module';
 import { JwtAuthGuard } from './security/guards/jwt-auth.guard';
 import { RolesGuard } from './security/guards/roles.guard';
+import { PermissionsGuard } from './security/guards/permissions.guard';
 import { ResourceOwnershipGuard } from './security/guards/resource-ownership.guard';
 import { GlobalExceptionFilter } from './filters/global-exception.filter';
 import { PrismaClientExceptionFilter } from './filters/prisma-client-exception.filter';
@@ -67,6 +68,10 @@ import { AppLogger } from './logger/app-logger.service';
     {
       provide: APP_GUARD,
       useClass: RolesGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: PermissionsGuard,
     },
     {
       provide: APP_GUARD,

@@ -194,7 +194,12 @@ function calculateTotals(
   return { totalPaid, totalDue };
 }
 
+import { usePermissions } from '@/core/hooks/usePermissions';
+
 export function FinancialMatrixLedger({ groups = [], initialStage = '', initialGradeLevel = '', initialGroupId = '' }: { groups?: any[]; initialStage?: string; initialGradeLevel?: string; initialGroupId?: string }) {
+  const { can } = usePermissions();
+  const canManageBilling = can('VIEW_FINANCE');
+
   const defaultYear = getCurrentAcademicYear();
   const defaultTerm = getCurrentAcademicTerm();
   const [academicYear, setAcademicYear] = useState(() => readStoredValue(STORAGE_YEAR_KEY, defaultYear));
@@ -326,69 +331,71 @@ export function FinancialMatrixLedger({ groups = [], initialStage = '', initialG
 
       <FinanceFiltersBar groups={groups} stage={stage} gradeLevel={gradeLevel} groupId={groupId} academicYear={academicYear} academicTerm={academicTerm} search={search} onStageChange={setStageAndReset} onGradeChange={setGradeAndReset} onGroupChange={setGroupAndReset} onTermChange={setTermAndReset} onSearchChange={(value) => { setSearch(value); setPage(1); }} />
 
-      <Card>
-        <CardContent className="p-4 space-y-3.5">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-2">
-              <Settings className="w-4 h-4 text-primary-600" />
-              <span className="text-xs font-extrabold text-slate-800">
-                نظام توقيت استحقاق المصروفات وإنذارات التأخير:
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => updatePaymentTiming('PREPAID')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  currentPaymentTiming === 'PREPAID'
-                    ? 'bg-primary text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                دفع مقدم (مع بداية كل شهر)
-              </button>
-              <button
-                type="button"
-                onClick={() => updatePaymentTiming('POSTPAID')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  currentPaymentTiming === 'POSTPAID'
-                    ? 'bg-primary text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                دفع مؤجل (في نهاية كل شهر)
-              </button>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-extrabold text-slate-700">
-              الشهور المحتسبة في الترم الحالي:
-            </span>
-            {termMonths.map((month) => {
-              const excluded = excludedMonths.includes(month);
-              return (
-                <label
-                  key={month}
-                  className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors ${
-                    excluded
-                      ? 'border-slate-200 bg-slate-50 text-slate-400'
-                      : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+      {canManageBilling && (
+        <Card>
+          <CardContent className="p-4 space-y-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Settings className="w-4 h-4 text-primary-600" />
+                <span className="text-xs font-extrabold text-slate-800">
+                  نظام توقيت استحقاق المصروفات وإنذارات التأخير:
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => updatePaymentTiming('PREPAID')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    currentPaymentTiming === 'PREPAID'
+                      ? 'bg-primary text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  <input
-                    type="checkbox"
-                    checked={!excluded}
-                    onChange={() => toggleMonth(month)}
-                    className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600"
-                  />
-                  {month} {ARABIC_MONTHS[month - 1]}
-                </label>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+                  دفع مقدم (مع بداية كل شهر)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updatePaymentTiming('POSTPAID')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    currentPaymentTiming === 'POSTPAID'
+                      ? 'bg-primary text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  دفع مؤجل (في نهاية كل شهر)
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-extrabold text-slate-700">
+                الشهور المحتسبة في الترم الحالي:
+              </span>
+              {termMonths.map((month) => {
+                const excluded = excludedMonths.includes(month);
+                return (
+                  <label
+                    key={month}
+                    className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors ${
+                      excluded
+                        ? 'border-slate-200 bg-slate-50 text-slate-400'
+                        : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!excluded}
+                      onChange={() => toggleMonth(month)}
+                      className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600"
+                    />
+                    {month} {ARABIC_MONTHS[month - 1]}
+                  </label>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="overflow-hidden"><CardHeader><CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5 text-primary-600" />مصفوفة السداد ({totalStudents} طالب)</CardTitle><div className="flex gap-2"><Button type="button" size="sm" variant="outline" onClick={exportLedger}><Download className="h-4 w-4" />تصدير كشف Excel</Button><Button type="button" size="sm" variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4" />طباعة التقرير</Button></div></CardHeader><CardContent className="p-0">
           {!groupId && (!stage || !gradeLevel) ? <div className="p-12 text-center text-sm font-semibold text-slate-500">اختر المرحلة والصف أو المجموعة لعرض سجل المدفوعات.</div> : isLoading ? <div className="space-y-3 p-5"><Skeleton className="h-12 w-full" /><Skeleton className="h-20 w-full" /><Skeleton className="h-20 w-full" /></div> : isError ? <div className="p-5"><Alert variant="error">تعذر تحميل سجل المدفوعات الشامل.</Alert></div> : visibleStudents.length === 0 ? <div className="p-12 text-center text-sm font-semibold text-slate-500">لا توجد نتائج مطابقة للفلاتر الحالية.</div> : <div className="overflow-x-auto"><table className="min-w-max border-collapse text-right text-xs"><thead><tr className="bg-slate-50 text-slate-600"><th className="sticky right-0 z-20 min-w-56 border-b border-l border-slate-200 bg-slate-50 p-4 text-right">بيانات الطالب</th>{months.map((month) => <th key={month} className="min-w-28 border-b border-slate-200 p-3 text-center"><span className="block font-extrabold">اشتراك {month}</span><span className="mt-1 block text-[10px] font-normal">{ARABIC_MONTHS[month - 1]}</span></th>)}{booklets.map((booklet) => <th key={booklet.id} className="min-w-36 border-b border-slate-200 p-3 text-center"><span className="block font-extrabold">{booklet.title}</span><span className="mt-1 block text-[10px] font-normal">{formatAmount(booklet.price)}</span></th>)}<th className="min-w-32 border-b border-slate-200 p-3 text-center">الإجمالي والمتبقي</th><th className="min-w-32 border-b border-slate-200 p-3 text-center">إجراءات</th></tr></thead><tbody>{visibleStudents.map((student) => { const totals = calculateTotals(student, months, booklets, academicYear, academicTerm, currentPaymentTiming); return <tr key={student.id} className="border-b border-slate-100 hover:bg-slate-50/60"><td className="sticky right-0 z-10 border-l border-slate-200 bg-white p-4"><p className="font-extrabold text-slate-800">{student.fullName}</p><p className="mt-1 font-mono text-[10px] text-slate-500">{student.studentCode || student.id}</p><Badge variant="outline" size="sm" className="mt-2 max-w-52 truncate">{student.groupName}</Badge></td>{months.map((month) => <td key={month} className="border-l border-slate-100 p-2 text-center"><PaymentCell student={student} kind="TUITION" month={month} academicYear={academicYear} academicTerm={academicTerm} paymentTiming={currentPaymentTiming} onSelectPaidCell={(cell) => { if (cell?.paymentId) { setPaymentToCancel({ id: cell.paymentId, studentName: student.fullName, amountPaid: cell.amountPaid, paymentType: 'TUITION', periodMonth: month, periodYear: Number(academicYear.split('-')[0]), groupName: student.groupName }); } else { setHistoryStudentId(student.id); } }} /></td>)}{booklets.map((booklet) => <td key={booklet.id} className="border-l border-slate-100 p-2 text-center"><PaymentCell student={student} kind="BOOKLET" bookletId={booklet.id} academicYear={academicYear} academicTerm={academicTerm} paymentTiming={currentPaymentTiming} onSelectPaidCell={(cell) => { if (cell?.paymentId) { setPaymentToCancel({ id: cell.paymentId, studentName: student.fullName, amountPaid: cell.amountPaid, paymentType: 'BOOKLET', bookletTitle: booklet.title, groupName: student.groupName }); } else { setHistoryStudentId(student.id); } }} /></td>)}<td className="border-l border-slate-100 p-3 text-center"><Badge variant="success" className="mb-1">مدفوع {formatAmount(totals.totalPaid)}</Badge><Badge variant={totals.totalDue > 0 ? 'error' : 'neutral'}>متبقي {formatAmount(totals.totalDue)}</Badge></td><td className="p-3 text-center"><Button type="button" size="sm" variant="outline" onClick={() => setHistoryStudentId(student.id)}><FileText className="h-3.5 w-3.5" />كشف حساب</Button></td></tr>; })}</tbody></table></div>}

@@ -27,6 +27,7 @@ import {
   getCurrentAcademicTerm,
   getCurrentAcademicYear,
 } from '@/features/groups/hooks/useAcademicPeriod';
+import { usePermissions } from '@/core/hooks/usePermissions';
 import toast from 'react-hot-toast';
 
 function readStoredValue(key: string, fallback: string) {
@@ -40,6 +41,9 @@ function readStoredValue(key: string, fallback: string) {
 }
 
 export function FinanceDashboard() {
+  const { can } = usePermissions();
+  const canViewStats = can('VIEW_FINANCE');
+
   const searchParams = useSearchParams();
   const paramGroupId = searchParams.get('groupId');
   const paramTab = searchParams.get('tab');
@@ -60,9 +64,13 @@ export function FinanceDashboard() {
   const [gradeLevel, setGradeLevel] = useState(paramGradeLevel);
   const [search, setSearch] = useState('');
 
-  const [activeTab, setActiveTab] = useState<any>(
-    paramTab === 'booklets' ? 'BOOKLETS' : paramTab === 'matrix' ? 'MATRIX' : paramTab === 'analytics' ? 'ANALYTICS' : 'OVERVIEW'
-  );
+  const [activeTab, setActiveTab] = useState<any>(() => {
+    if (paramTab === 'booklets') return 'BOOKLETS';
+    if (paramTab === 'matrix') return 'MATRIX';
+    if (paramTab === 'analytics') return canViewStats ? 'ANALYTICS' : 'MATRIX';
+    if (paramTab === 'settings') return canViewStats ? 'SETTINGS' : 'MATRIX';
+    return canViewStats ? 'OVERVIEW' : 'MATRIX';
+  });
 
   const [isQrModalOpen, setIsQrModalOpen] = useState(Boolean(paramScan));
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(Boolean(paramRecord));
@@ -88,23 +96,27 @@ export function FinanceDashboard() {
     if (paramRecord) setIsRecordModalOpen(true);
     if (paramTab === 'booklets') setActiveTab('BOOKLETS');
     else if (paramTab === 'matrix') setActiveTab('MATRIX');
-    else if (paramTab === 'analytics') setActiveTab('ANALYTICS');
-  }, [paramGroupId, paramMonth, paramScan, paramRecord, paramTab]);
+    else if (paramTab === 'analytics') setActiveTab(canViewStats ? 'ANALYTICS' : 'MATRIX');
+    else if (!canViewStats && activeTab === 'OVERVIEW') setActiveTab('MATRIX');
+  }, [paramGroupId, paramMonth, paramScan, paramRecord, paramTab, canViewStats]);
 
   const { data: groups = [] } = useGroups();
   const selectedGroup = groups.find((g) => g.id === selectedGroupId);
   const startYear = Number(academicYear.split('-')[0]) || new Date().getFullYear();
   const periodYear = academicTerm === 'FIRST_TERM' && periodMonth === 1 ? startYear + 1 : academicTerm === 'SECOND_TERM' ? startYear + 1 : startYear;
 
-  const { data: analytics } = useFinanceAnalytics({
-    academicPeriodId: `${academicYear}:${academicTerm}`,
-    academicYear,
-    academicTerm,
-    stage: stage || undefined,
-    gradeLevel: gradeLevel || undefined,
-    groupId: selectedGroupId || undefined,
-    periodMonth: periodMonth || undefined,
-  });
+  const { data: analytics } = useFinanceAnalytics(
+    {
+      academicPeriodId: `${academicYear}:${academicTerm}`,
+      academicYear,
+      academicTerm,
+      stage: stage || undefined,
+      gradeLevel: gradeLevel || undefined,
+      groupId: selectedGroupId || undefined,
+      periodMonth: periodMonth || undefined,
+    },
+    { enabled: canViewStats }
+  );
 
   const { data: defaultersData, isLoading: isDefaultersLoading } = useGroupDefaulters(selectedGroupId, periodYear, periodMonth);
   const { data: paymentsData, isLoading: isPaymentsLoading } = usePayments({ groupId: selectedGroupId || undefined, periodYear, periodMonth, limit: 100 });

@@ -52,14 +52,23 @@ export class PaymentsService {
   }
 
   private async resolveTeacherId(user: AuthenticatedUser) {
-    if (user.role !== UserRole.TEACHER) return null;
-    if (user.teacherProfileId) return user.teacherProfileId;
-
-    const teacher = await this.prisma.teacherProfile.findFirst({
-      where: { OR: [{ id: user.id }, { user: { id: user.id } }] },
-      select: { id: true },
-    });
-    return teacher?.id || user.id;
+    if (user.role === UserRole.TEACHER) {
+      if (user.teacherProfileId) return user.teacherProfileId;
+      const teacher = await this.prisma.teacherProfile.findFirst({
+        where: { OR: [{ id: user.id }, { user: { id: user.id } }] },
+        select: { id: true },
+      });
+      return teacher?.id || user.id;
+    }
+    if (user.role === UserRole.SECRETARIAT) {
+      if (user.teacherProfileId) return user.teacherProfileId;
+      const link = await this.prisma.teacherAssistant.findFirst({
+        where: { assistantId: user.id, status: 'ACTIVE' },
+        select: { teacherId: true },
+      });
+      return link?.teacherId || null;
+    }
+    return null;
   }
 
   private parseBillingConfig(value: unknown, availableMonths: number[]) {

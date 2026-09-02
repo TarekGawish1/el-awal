@@ -1,5 +1,6 @@
 import { QrCode, ClipboardList, BookOpen, FileSpreadsheet, BarChart3, Settings } from 'lucide-react';
 import { FinanceTab } from '../FinanceTabs';
+import { usePermissions } from '@/core/hooks/usePermissions';
 
 interface QuickActionsProps {
   activeTab: FinanceTab | 'OVERVIEW';
@@ -7,15 +8,20 @@ interface QuickActionsProps {
 }
 
 export function FinanceQuickActions({ activeTab, onChange }: QuickActionsProps) {
-  const actions: Array<{ id: FinanceTab | 'OVERVIEW'; label: string; icon: any }> = [
-    { id: 'OVERVIEW', label: 'لوحة التحكم', icon: BarChart3 },
+  const { can } = usePermissions();
+  const canViewStats = can('VIEW_FINANCE');
+
+  const allActions: Array<{ id: FinanceTab | 'OVERVIEW'; label: string; icon: any; requiresView?: boolean }> = [
+    { id: 'OVERVIEW', label: 'لوحة التحكم', icon: BarChart3, requiresView: true },
     { id: 'QR', label: 'الماسح السريع (QR)', icon: QrCode },
     { id: 'MANUAL', label: '+ تسجيل مصروف', icon: ClipboardList },
     { id: 'BOOKLETS', label: 'المذكرات والملازم', icon: BookOpen },
     { id: 'MATRIX', label: 'سجل المدفوعات', icon: FileSpreadsheet },
-    { id: 'ANALYTICS', label: 'التقارير المالية', icon: BarChart3 },
-    { id: 'SETTINGS', label: 'إعدادات المدفوعات', icon: Settings },
+    { id: 'ANALYTICS', label: 'التقارير المالية', icon: BarChart3, requiresView: true },
+    { id: 'SETTINGS', label: 'إعدادات المدفوعات', icon: Settings, requiresView: true },
   ];
+
+  const actions = allActions.filter((a) => !a.requiresView || canViewStats);
 
   return (
     <div className="w-full overflow-x-auto pb-2 -mb-2 hide-scrollbar">
