@@ -2287,9 +2287,12 @@ export class SyncService {
             }
 
             if (!targetStudentId || !sessionId) {
-              throw new BadRequestException(
-                `Missing required parameters for RECORD_ATTENDANCE in mutation ${mutation.id}`,
-              );
+              results.push({
+                mutationId: mutation.id,
+                status: 'FAILED',
+                error: `Missing required parameters for RECORD_ATTENDANCE`,
+              });
+              continue;
             }
 
             // 2. Enforce Cross-Group Authorization Rules
@@ -2499,6 +2502,20 @@ export class SyncService {
             result.conflicts.push({
               operationId: op.id,
               reason: 'Student could not be resolved from token or ID',
+            });
+            result.failedCount++;
+            return;
+          }
+
+          const studentValidation = await tx.studentProfile.findFirst({
+            where: { id: resolvedStudentId },
+            include: { user: { select: { isActive: true } } },
+          });
+
+          if (!studentValidation || !studentValidation.user?.isActive) {
+            result.conflicts.push({
+              operationId: op.id,
+              reason: 'STUDENT_INACTIVE_OR_NOT_FOUND',
             });
             result.failedCount++;
             return;

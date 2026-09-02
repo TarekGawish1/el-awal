@@ -93,12 +93,7 @@ class BootstrapManager {
     this.notify('START', 0, 'بدء تنزيل مساحة العمل للعمل بدون إنترنت...');
 
     try {
-      return await navigator.locks.request('bootstrap_sync', { ifAvailable: true }, async (lock) => {
-        if (!lock) {
-          console.warn('Bootstrap is already running in another tab. Skipping.');
-          return { success: false, isDelta: false };
-        }
-
+      const doBootstrap = async () => {
         const lastSyncTime = options?.forceFull
           ? null
           : await offlineDb.getMetadata<number>('lastBootstrapTimestamp');
@@ -154,9 +149,13 @@ class BootstrapManager {
       this.notify('PROGRESS', 50, 'حفظ سجلات الطلاب والمجموعات والحصص محلياً...');
 
       // 1. Ingest Students
-      // We ALWAYS treat students and groups as a full snapshot to properly handle deletions and un-enrollments
+      // If it's a delta, only upsert. If it's full, sync snapshot (pruning missing).
       if (payload.students.length > 0) {
-        await offlineDb.syncStudentsSnapshot(payload.students);
+        if (isDeltaResponse) {
+          await offlineDb.bulkPutStudents(payload.students);
+        } else {
+          await offlineDb.syncStudentsSnapshot(payload.students);
+        }
         if (qc) {
           qc.setQueryData(['students'], {
             data: payload.students,
@@ -303,7 +302,19 @@ class BootstrapManager {
         isDelta: isDeltaResponse,
         counts,
       };
-      }); // End of navigator.locks.request
+      };
+      
+      if (typeof navigator !== 'undefined' && navigator.locks) {
+        return await navigator.locks.request('bootstrap_sync', { ifAvailable: true }, async (lock) => {
+          if (!lock) {
+            console.warn('Bootstrap is already running in another tab. Skipping.');
+            return { success: false, isDelta: false };
+          }
+          return await doBootstrap();
+        });
+      } else {
+        return await doBootstrap();
+      }
     } catch (err: any) {
       this.isBootstrappingState = false;
       this.lastError = err?.message || 'حدث خطأ أثناء تنزيل بيانات العمل بدون إنترنت';

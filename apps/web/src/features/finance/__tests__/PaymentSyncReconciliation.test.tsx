@@ -3,6 +3,12 @@ import { offlineDb } from '@/lib/offline/db';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { apiClient } from '@/lib/api/client';
 
+vi.mock('@/features/auth/store/auth.store', () => ({
+  useAuthStore: {
+    getState: vi.fn().mockReturnValue({ user: { id: 'teacher-1' }, isAuthenticated: true }),
+  },
+}));
+
 describe('Payment Offline Recording & Sync Reconciliation', () => {
   beforeEach(async () => {
     vi.clearAllMocks();

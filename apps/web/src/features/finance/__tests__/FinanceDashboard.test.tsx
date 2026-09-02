@@ -50,6 +50,7 @@ vi.mock('../hooks/useFinance', () => ({
   useDeletePayment: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useRecordPayment: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useScanPaymentQr: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useFinanceAnalytics: vi.fn(() => ({ data: { totalCollected: 1000, studentsPaid: 10, targetRevenue: 5000 }, isLoading: false })),
 }));
 
 describe('FinanceDashboard', () => {
@@ -93,14 +94,17 @@ describe('FinanceDashboard', () => {
     render(<FinanceDashboard />);
     
     // Header title and description
-    expect(screen.getByText('إدارة المصروفات وسداد الطلاب')).toBeInTheDocument();
+    expect(screen.getByText('الماليات والمصروفات')).toBeInTheDocument();
     
     // Tabs should be visible directly
-    expect(screen.getByRole('button', { name: /الماسح الذكي \(QR\)/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /رصد يدوي للمصروفات/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /المذكرات والملازم الدراسية/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /الماسح السريع \(QR\)/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /\+ تسجيل مصروف/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /المذكرات والملازم/i })).toBeInTheDocument();
 
-    // QR scanner is ready immediately
+    // Click QR button
+    fireEvent.click(screen.getByRole('button', { name: /الماسح السريع \(QR\)/i }));
+
+    // QR scanner is ready
     expect(screen.getByTestId('mock-qr-scanner')).toBeInTheDocument();
   });
 
@@ -108,14 +112,15 @@ describe('FinanceDashboard', () => {
     render(<FinanceDashboard />);
 
     // Switch to manual tab
-    fireEvent.click(screen.getByRole('button', { name: /رصد يدوي للمصروفات/i }));
+    fireEvent.click(screen.getByRole('button', { name: /\+ تسجيل مصروف/i }));
 
     // Group select label should be visible in manual tab
     expect(screen.getByText(/المجموعة الدراسية/i)).toBeInTheDocument();
 
+    // Select group
     fireEvent.change(screen.getByLabelText('المجموعة الدراسية'), { target: { value: 'group-1' } });
 
-    expect(screen.getByText(/الطلاب المتأخرين عن السداد - مجموعة الأوائل/i)).toBeInTheDocument();
+    expect(screen.getByText(/الطلاب المتأخرين عن السداد/i)).toBeInTheDocument();
     expect(screen.getAllByText('طالب متأخر').length).toBeGreaterThan(0);
   });
 
@@ -123,7 +128,7 @@ describe('FinanceDashboard', () => {
     render(<FinanceDashboard />);
 
     // Click on Booklets tab
-    fireEvent.click(screen.getByRole('button', { name: /المذكرات والملازم الدراسية/i }));
+    fireEvent.click(screen.getByRole('button', { name: /المذكرات والملازم/i }));
 
     // Header and booklet card should be rendered
     expect(screen.getByText('إدارة المذكرات والملازم الدراسية')).toBeInTheDocument();

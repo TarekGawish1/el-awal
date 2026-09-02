@@ -31,6 +31,13 @@ describe('SyncService - processMutationBatch (RECORD_ATTENDANCE)', () => {
   const mockUser: any = { id: 'teacher-1', role: UserRole.TEACHER };
 
   it('1. Existing studentId flow (legacy/cached)', async () => {
+    prisma.lessonSession.findUnique.mockResolvedValue({ groupId: 'group-1' });
+    prisma.studentProfile.findFirst.mockResolvedValue({
+      id: 'student-1',
+      user: { isActive: true },
+      groupEnrollments: [{ groupId: 'group-1' }],
+    });
+
     const mutations = [{
       id: 'mut-1',
       type: 'RECORD_ATTENDANCE',
@@ -113,6 +120,13 @@ describe('SyncService - processMutationBatch (RECORD_ATTENDANCE)', () => {
   });
 
   it('5. Duplicate/retry idempotency (upsert behaves cleanly)', async () => {
+    prisma.lessonSession.findUnique.mockResolvedValue({ groupId: 'group-1' });
+    prisma.studentProfile.findFirst.mockResolvedValue({
+      id: 'student-1',
+      user: { isActive: true },
+      groupEnrollments: [{ groupId: 'group-1' }],
+    });
+
     const mutations = [{
       id: 'mut-5',
       type: 'RECORD_ATTENDANCE',

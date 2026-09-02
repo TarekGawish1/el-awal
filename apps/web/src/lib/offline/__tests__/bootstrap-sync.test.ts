@@ -67,6 +67,8 @@ describe('Zero Cold-Start Bootstrap & Offline Repository Layer', () => {
       queryClient,
     });
 
+    console.log(result);
+    console.log(bootstrapManager.getLastError());
     expect(result.success).toBe(true);
     expect(result.counts?.students).toBe(2);
     expect(result.counts?.groups).toBe(2);

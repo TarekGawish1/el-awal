@@ -1560,18 +1560,14 @@ class OfflineDatabase {
     if (!currentUser?.id) {
       console.error('CRITICAL: Attempted to enqueue offline mutation without an authenticated user.', mutation);
       throw new Error('Authentication required to save offline changes.');
+    } else {
+      mutation.userId = currentUser.id;
     }
 
-    const allowedDomains = ['attendance', 'finance'];
+    const allowedDomains = ['attendance', 'finance', 'progress'];
     if (!allowedDomains.includes(mutation.domain)) {
       throw new Error(`العمليات على (${mutation.domain}) غير مدعومة في وضع عدم الاتصال. يرجى الاتصال بالإنترنت.`);
     }
-
-    if (mutation.type === 'RECORD_HOMEWORK_ONSITE' || mutation.payload?.type === 'RECORD_HOMEWORK_ONSITE' || mutation.endpoint?.includes('/sync/homework')) {
-      throw new Error('لا يمكن تسجيل الواجبات في وضع عدم الاتصال. يرجى الاتصال بالإنترنت.');
-    }
-    
-    mutation.userId = currentUser.id;
 
     this.memoryOutbox.set(mutation.id, { ...mutation });
     if (!this.isSupported()) return;
@@ -1620,6 +1616,15 @@ class OfflineDatabase {
   }
 
   public async recoverOrphanedSyncingMutations(userId: string): Promise<void> {
+    const now = Date.now();
+    for (const mem of this.memoryOutbox.values()) {
+      if (mem.userId === userId && mem.status === 'SYNCING') {
+        if (!mem.lastAttemptAt || (now - mem.lastAttemptAt) > 120000) {
+          mem.status = 'FAILED';
+          mem.lastError = 'Recovered from orphaned SYNCING state';
+        }
+      }
+    }
     if (!this.isSupported()) return;
     try {
       const { store } = await this.getStore('outbox_mutations', 'readwrite');
@@ -2781,11 +2786,6 @@ class OfflineDatabase {
     const now = Date.now();
     const cleanSessionId = String(data.sessionId).trim();
     const cleanStudentId = String(data.studentId).trim();
-
-    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
-    if (!isOnline) {
-      throw new Error('لا يمكن تسجيل الواجبات في وضع عدم الاتصال. يرجى الاتصال بالإنترنت.');
-    }
 
     // 1. Check existing homework record for (assessmentId, studentId, sessionId)
     const allHw = await this.getAllHomeworkRecords();

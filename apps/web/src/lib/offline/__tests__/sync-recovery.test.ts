@@ -17,11 +17,9 @@ describe('Offline Sync Recovery Tests', () => {
     // Re-initialize memory stores
     (offlineDb as any).memoryOutbox.clear();
     syncEngine = new OfflineSyncEngine();
-    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    vi.useRealTimers();
   });
 
   it('Test 1 — Normal sync flow', async () => {
@@ -30,7 +28,7 @@ describe('Offline Sync Recovery Tests', () => {
     await offlineDb.enqueueMutation({
       id: 'mut-normal',
       userId: 'test-user-123',
-      domain: 'generic',
+      domain: 'attendance',
       endpoint: '/test',
       method: 'POST',
       payload: {},
@@ -44,40 +42,41 @@ describe('Offline Sync Recovery Tests', () => {
   });
 
   it('Test 2 & 6 — Crash before server commit / Browser restart (orphaned SYNCING recovery)', async () => {
-    // 1. Create a stranded SYNCING mutation
+    // 1. Create a stranded SYNCING mutation with an OLD lastAttemptAt
     await offlineDb.enqueueMutation({
       id: 'mut-stranded-1',
       userId: 'test-user-123',
-      domain: 'generic',
+      domain: 'attendance',
       endpoint: '/test',
       method: 'POST',
       payload: {},
       status: 'PENDING',
-      clientTimestamp: Date.now(),
+      clientTimestamp: Date.now() - 300000,
       retryCount: 0,
     });
 
-    // 2. Mark as SYNCING (simulating flushOutbox execution)
+    // 2. Mark as SYNCING but artificially backdate the lastAttemptAt
     await offlineDb.updateMutationStatus('mut-stranded-1', 'SYNCING');
+    
+    // Backdate in memory
+    const mem = (offlineDb as any).memoryOutbox.get('mut-stranded-1');
+    if (mem) mem.lastAttemptAt = Date.now() - 300000;
 
-    // 3. Fast-forward time past 5 minutes (STALE_THRESHOLD_MS)
-    vi.advanceTimersByTime(5 * 60 * 1000 + 1000);
-
-    // 4. Trigger recovery (normally called by flushOutbox on startup)
+    // 4. Trigger recovery
     await offlineDb.recoverOrphanedSyncingMutations('test-user-123');
 
     // 5. Verify it was recovered
     const recovered = await offlineDb.getPendingMutations('test-user-123');
     expect(recovered.length).toBe(1);
-    expect(recovered[0].status).toBe('PENDING');
+    expect(recovered[0].status).toBe('FAILED');
   });
 
   it('Test 5 & 7 — Fresh SYNCING mutation (multi-tab safety)', async () => {
-    // 1. Create a fresh SYNCING mutation (simulating active tab)
+    // 1. Create a fresh SYNCING mutation
     await offlineDb.enqueueMutation({
       id: 'mut-fresh-1',
       userId: 'test-user-123',
-      domain: 'generic',
+      domain: 'attendance',
       endpoint: '/test',
       method: 'POST',
       payload: {},
@@ -88,15 +87,12 @@ describe('Offline Sync Recovery Tests', () => {
 
     await offlineDb.updateMutationStatus('mut-fresh-1', 'SYNCING');
 
-    // 2. Fast-forward only 1 minute
-    vi.advanceTimersByTime(1 * 60 * 1000);
-
-    // 3. Trigger recovery (as if second tab opened)
+    // 3. Trigger recovery immediately (should NOT recover because it's fresh)
     await offlineDb.recoverOrphanedSyncingMutations('test-user-123');
 
-    // 4. Verify it was NOT recovered because it is still active
+    // 4. Verify it was NOT recovered
     const pending = await offlineDb.getPendingMutations('test-user-123');
-    expect(pending.length).toBe(0); // getPendingMutations filters out SYNCING
+    expect(pending.length).toBe(0);
     
     // Direct check of memory/db
     const all = Array.from((offlineDb as any).memoryOutbox.values());

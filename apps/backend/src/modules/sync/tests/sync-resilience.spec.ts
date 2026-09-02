@@ -32,6 +32,7 @@ describe('SyncService - Resilience & Error Fallback Engine', () => {
       findUnique: jest.fn(),
     },
     studentPaymentRecord: {
+      findUnique: jest.fn(),
       findMany: jest.fn(),
       findFirst: jest.fn(),
       create: jest.fn(),
@@ -178,7 +179,7 @@ describe('SyncService - Resilience & Error Fallback Engine', () => {
     });
 
     it('handles duplicate payment sync operations idempotently without double-charging', async () => {
-      mockPrismaService.studentProfile.findUnique.mockResolvedValue({ id: 'student-1' });
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue({ id: 'student-1', user: { isActive: true } });
 
       // Existing paid record
       mockPrismaService.studentPaymentRecord.findFirst.mockResolvedValue({

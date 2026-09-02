@@ -83,10 +83,10 @@ describe('P0-001 User ID Capture', () => {
     });
     
     await syncEngine.enqueue(
-      'groups',
-      '/groups',
+      'finance',
+      '/payments',
       'POST',
-      { name: 'Group C' }
+      { name: 'Payment C' }
     );
 
     const pending = await offlineDb.getPendingMutations();
@@ -107,7 +107,7 @@ describe('P0-001 User ID Capture', () => {
     });
 
     // Path 1: syncEngine.enqueue
-    await syncEngine.enqueue('students', '/students', 'POST', { name: 'Student 1' });
+    await syncEngine.enqueue('attendance', '/attendance', 'POST', { name: 'Student 1' });
 
     // Path 2: offlineDb.outbox_mutations.add
     await offlineDb.outbox_mutations.add({

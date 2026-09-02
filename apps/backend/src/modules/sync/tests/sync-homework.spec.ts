@@ -41,6 +41,9 @@ describe('SyncService - syncHomeworkBatch', () => {
       create: jest.fn(),
       update: jest.fn(),
     },
+    groupEnrollment: {
+      findUnique: jest.fn(),
+    },
   };
 
   const mockCoursesService = {
@@ -77,6 +80,7 @@ describe('SyncService - syncHomeworkBatch', () => {
       id: 'student-uuid-1',
       studentCode: 'STU-001',
       fullName: 'أحمد علي',
+      user: { isActive: true },
     });
 
     mockPrismaService.homeworkRecord.findUnique.mockResolvedValue(null);
