@@ -247,7 +247,11 @@ export function RecordPaymentModal({
     if (sId && paymentType === 'TUITION') {
       const student = availableStudents.find((st) => st.id === sId);
       if (student) {
-        setValue('amountPaid', student.fee || groupFee);
+        // If student has a partial payment, default to the remaining due amount (e.g. 50 EGP)
+        const amountToSet = student.isPartiallyPaid
+          ? (student.remainingAmount ?? Math.max(0, (student.fee || groupFee) - (student.amountPaid || 0)))
+          : (student.fee || groupFee);
+        setValue('amountPaid', amountToSet);
       }
     } else if (sId && paymentType === 'BOOKLET') {
       const currentBooklet = booklets.find((booklet) => booklet.id === selectedBookletId);
@@ -275,9 +279,12 @@ export function RecordPaymentModal({
       setValue('bookletId', eligibleBooklets[0].id);
       setValue('amountPaid', Number(eligibleBooklets[0].price));
     } else if (type === 'TUITION' && selectedStudentId) {
-      const student = defaulters.find((d) => d.studentId === selectedStudentId);
+      const student = availableStudents.find((d) => d.id === selectedStudentId);
       if (student) {
-        setValue('amountPaid', student.monthlyFeeExpected);
+        const amountToSet = student.isPartiallyPaid
+          ? (student.remainingAmount ?? Math.max(0, (student.fee || groupFee) - (student.amountPaid || 0)))
+          : (student.fee || groupFee);
+        setValue('amountPaid', amountToSet);
       }
       setValue('bookletId', undefined);
     }
@@ -286,15 +293,20 @@ export function RecordPaymentModal({
   const watchAmountPaid = watch('amountPaid');
   const selectedStudent = availableStudents.find((s) => s.id === selectedStudentId);
   const selectedBooklet = booklets.find((b) => b.id === selectedBookletId);
+
+  const previouslyPaid = paymentType === 'TUITION' ? (selectedStudent?.amountPaid || 0) : 0;
+  const isPreviouslyPartial = paymentType === 'TUITION' && Boolean(selectedStudent?.isPartiallyPaid || previouslyPaid > 0);
+
   const currentExpectedAmount =
     paymentType === 'BOOKLET'
       ? Number(selectedBooklet?.price || 0)
       : Number(selectedStudent?.fee || groupFee || 0);
 
   const currentEnteredAmount = Number(watchAmountPaid || 0);
-  const remainingDue = Math.max(0, currentExpectedAmount - currentEnteredAmount);
-  const isPartialPayment = currentEnteredAmount > 0 && currentEnteredAmount < currentExpectedAmount;
-  const isFullPayment = currentEnteredAmount >= currentExpectedAmount && currentExpectedAmount > 0;
+  const totalCumulativePaid = previouslyPaid + currentEnteredAmount;
+  const remainingDue = Math.max(0, currentExpectedAmount - totalCumulativePaid);
+  const isFullPayment = totalCumulativePaid >= currentExpectedAmount && currentExpectedAmount > 0;
+  const isPartialPayment = totalCumulativePaid > 0 && totalCumulativePaid < currentExpectedAmount;
 
   if (!isOpen) return null;
 
@@ -320,8 +332,12 @@ export function RecordPaymentModal({
           : data.amountPaid
         : student?.fee || groupFee || data.amountPaid;
 
-    const isFull = data.amountPaid >= expected;
-    const remaining = Math.max(0, expected - data.amountPaid);
+    const studentPrevPaid = paymentType === 'TUITION' ? (student?.amountPaid || 0) : 0;
+    const currentInstallment = Number(data.amountPaid || 0);
+    const cumulativeTotal = studentPrevPaid + currentInstallment;
+
+    const isFull = cumulativeTotal >= expected;
+    const remaining = Math.max(0, expected - cumulativeTotal);
 
     recordPayment(
       {
@@ -331,7 +347,7 @@ export function RecordPaymentModal({
         paymentType,
         periodYear: currentPeriodYear,
         periodMonth: currentPeriodMonth,
-        amountPaid: data.amountPaid,
+        amountPaid: cumulativeTotal,
         amountExpected: expected,
         paymentStatus: isFull ? PaymentStatus.PAID : PaymentStatus.PENDING,
         paymentMethod: 'CASH',
@@ -340,8 +356,12 @@ export function RecordPaymentModal({
           data.notes ||
           (paymentType === 'BOOKLET' && booklet
             ? `سداد مذكرة: ${booklet.title}${!isFull ? ` (دفعة جزئية - متبقي ${remaining} ج.م)` : ''}`
+            : isPreviouslyPartial
+            ? isFull
+              ? `استكمال سداد باقي المصروفات بالكامل (${currentInstallment} ج.م)`
+              : `سداد دفعة إضافية (${currentInstallment} ج.م) — متبقي ${remaining} ج.م`
             : !isFull
-            ? `دفعة جزئية (متبقي ${remaining} ج.م)`
+            ? `دفعة جزئية (${currentInstallment} ج.م) — متبقي ${remaining} ج.م`
             : undefined),
       } as any,
       {
@@ -350,10 +370,10 @@ export function RecordPaymentModal({
             paymentType === 'BOOKLET'
               ? isFull
                 ? 'تم تسجيل سداد المذكرة بالكامل بنجاح 📚'
-                : `تم تسجيل سداد جزئي للمذكرة (${data.amountPaid} ج.م) — متبقي ${remaining} ج.م 📚`
+                : `تم تسجيل سداد جزئي للمذكرة (${currentInstallment} ج.م) — متبقي ${remaining} ج.م 📚`
               : isFull
-              ? 'تم تسجيل سداد المصروفات بالكامل بنجاح 💳'
-              : `تم تسجيل دفعة جزئية (${data.amountPaid} ج.م) — متبقي ${remaining} ج.م 💳`,
+              ? 'تم استكمال سداد المصروفات بالكامل بنجاح 💳'
+              : `تم تسجيل دفعة (${currentInstallment} ج.م) — متبقي ${remaining} ج.م 💳`,
           );
           reset();
           onClose();
@@ -593,24 +613,36 @@ export function RecordPaymentModal({
             <div>
               <div className="mb-1.5 flex items-center justify-between">
                 <Label className="block text-xs font-bold text-slate-700">
-                  المبلغ المحصل الآن (ج.م) <span className="text-red-500">*</span>
+                  {isPreviouslyPartial ? 'المبلغ المحصل الآن لاستكمال السداد (ج.م)' : 'المبلغ المحصل الآن (ج.م)'} <span className="text-red-500">*</span>
                 </Label>
                 {currentExpectedAmount > 0 && (
                   <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setValue('amountPaid', currentExpectedAmount)}
-                      className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-lg transition-colors"
-                    >
-                      سداد كامل ({currentExpectedAmount} ج.م)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setValue('amountPaid', Math.round(currentExpectedAmount / 2))}
-                      className="text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-lg transition-colors"
-                    >
-                      سداد النصف ({Math.round(currentExpectedAmount / 2)} ج.م)
-                    </button>
+                    {isPreviouslyPartial ? (
+                      <button
+                        type="button"
+                        onClick={() => setValue('amountPaid', selectedStudent?.remainingAmount ?? Math.max(0, currentExpectedAmount - previouslyPaid))}
+                        className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors border border-emerald-200 cursor-pointer"
+                      >
+                        سداد المتبقي كاملاً ({selectedStudent?.remainingAmount ?? Math.max(0, currentExpectedAmount - previouslyPaid)} ج.م)
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setValue('amountPaid', currentExpectedAmount)}
+                          className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
+                        >
+                          سداد كامل ({currentExpectedAmount} ج.م)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setValue('amountPaid', Math.round(currentExpectedAmount / 2))}
+                          className="text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
+                        >
+                          سداد النصف ({Math.round(currentExpectedAmount / 2)} ج.م)
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -631,7 +663,7 @@ export function RecordPaymentModal({
               {/* Dynamic Partial / Full Payment Calculation Summary */}
               {selectedStudentId && currentExpectedAmount > 0 && (
                 <div
-                  className={`mt-2 p-3 rounded-xl border text-xs transition-all ${
+                  className={`mt-2 p-3.5 rounded-xl border text-xs transition-all ${
                     isFullPayment
                       ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
                       : isPartialPayment
@@ -644,22 +676,27 @@ export function RecordPaymentModal({
                       {isFullPayment
                         ? '✅ سداد كامل للمبلغ'
                         : isPartialPayment
-                        ? '⚡ سداد جزئي (دفعة مقدمة)'
+                        ? '⚡ سداد جزئي (دفعة مقدمة / قسط)'
                         : 'ℹ️ تفاصيل الرسوم المستحقة'}
                     </span>
                     <span className="font-extrabold">
-                      المطلوب إجمالاً: {currentExpectedAmount} ج.م
+                      إجمالي الاشتراك: {currentExpectedAmount} ج.م
                     </span>
                   </div>
 
-                  {isPartialPayment && (
+                  {isPreviouslyPartial && (
                     <div className="mt-1.5 flex items-center justify-between text-[11px] font-semibold border-t border-amber-200/60 pt-1.5 text-amber-800">
-                      <span>المدفوع الآن: {currentEnteredAmount} ج.م</span>
-                      <span className="text-rose-700 font-bold">
-                        المتبقي للسداد لاحقاً: {remainingDue} ج.م
-                      </span>
+                      <span>المسدد سابقاً: {previouslyPaid} ج.م</span>
+                      <span className="text-blue-700 font-bold">المحصل الآن: {currentEnteredAmount} ج.م</span>
                     </div>
                   )}
+
+                  <div className="mt-1 flex items-center justify-between text-[11px] font-bold border-t border-slate-200/60 pt-1">
+                    <span>الإجمالي المسدد بعد هذه العملية: {totalCumulativePaid} ج.م</span>
+                    <span className={remainingDue === 0 ? 'text-emerald-700' : 'text-rose-700'}>
+                      {remainingDue === 0 ? '✅ تم سداد كامل المبلغ' : `المتبقي: ${remainingDue} ج.م`}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>

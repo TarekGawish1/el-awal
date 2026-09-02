@@ -239,15 +239,19 @@ export class SubscriptionsService {
 
     let payment: any;
     if (existingPayment) {
+      const exp = amountExpected !== undefined ? amountExpected : Number(existingPayment.amountExpected || 0);
+      const paid = Number(dto.amountPaid);
+      const isPaidInFull = (dto.paymentStatus === PaymentStatus.EXEMPT) || paid >= exp;
+
       payment = await this.prisma.studentPaymentRecord.update({
         where: { id: existingPayment.id },
         data: {
-          amountPaid: dto.amountPaid,
-          ...(amountExpected !== undefined ? { amountExpected } : {}),
-          paymentStatus: dto.paymentStatus || PaymentStatus.PAID,
+          amountPaid: paid,
+          amountExpected: exp,
+          paymentStatus: isPaidInFull ? PaymentStatus.PAID : (dto.paymentStatus || PaymentStatus.PENDING),
           paymentMethod: dto.paymentMethod || 'CASH',
-          receiptNumber: dto.receiptNumber,
-          notes: dto.notes,
+          receiptNumber: dto.receiptNumber || existingPayment.receiptNumber,
+          notes: dto.notes || existingPayment.notes,
           recordedById: user.id,
           updatedAt: new Date(),
         },
@@ -260,6 +264,10 @@ export class SubscriptionsService {
         },
       });
     } else {
+      const exp = amountExpected ?? 0;
+      const paid = Number(dto.amountPaid);
+      const isPaidInFull = (dto.paymentStatus === PaymentStatus.EXEMPT) || paid >= exp;
+
       payment = await this.prisma.studentPaymentRecord.create({
         data: {
           studentId: dto.studentId,
@@ -267,10 +275,10 @@ export class SubscriptionsService {
           paymentType: PaymentType.TUITION,
           periodYear,
           periodMonth,
-          amountExpected: amountExpected ?? 0,
-          amountPaid: dto.amountPaid,
+          amountExpected: exp,
+          amountPaid: paid,
           currency: 'EGP',
-          paymentStatus: dto.paymentStatus || PaymentStatus.PAID,
+          paymentStatus: isPaidInFull ? PaymentStatus.PAID : (dto.paymentStatus || PaymentStatus.PENDING),
           paymentMethod: dto.paymentMethod || 'CASH',
           receiptNumber: dto.receiptNumber,
           notes: dto.notes,
