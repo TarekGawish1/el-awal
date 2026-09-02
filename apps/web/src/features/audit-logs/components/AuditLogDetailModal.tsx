@@ -2,6 +2,24 @@ import React from 'react';
 import { X, Clock, User, Shield, Globe, Terminal, Layers } from 'lucide-react';
 import { AuditLogItem } from '../types/audit.types';
 
+const ENTITY_LABELS: Record<string, string> = {
+  STUDENT: 'شؤون الطلاب',
+  GROUP: 'المجموعات الدراسية',
+  BOOKLET: 'المذكرات والملازم',
+  PAYMENT: 'المدفوعات والمصروفات',
+  ATTENDANCE: 'الحضور والغياب',
+  ASSISTANT: 'المساعدين',
+  COURSE: 'الكورسات التعليمية',
+  CONTENT: 'الدروس والمحتوى',
+  ASSESSMENT: 'الواجبات والاختبارات',
+  CERTIFICATE: 'شهادات التقدير',
+  SCHEDULE: 'المواعيد والحصص',
+  NOTIFICATION: 'مركز الإشعارات',
+  SETTING: 'إعدادات النظام',
+  AUTH: 'جلسات الدخول',
+  SYSTEM: 'النظام العام',
+};
+
 interface AuditLogDetailModalProps {
   log: AuditLogItem | null;
   onClose: () => void;
@@ -68,10 +86,14 @@ export function AuditLogDetailModal({ log, onClose }: AuditLogDetailModalProps) 
             <div className="p-4 bg-neutral-50 rounded-xl border border-neutral-100">
               <div className="flex items-center gap-2 text-neutral-500 mb-1 text-xs font-bold">
                 <Layers className="w-4 h-4 text-primary-500" />
-                الكيان المتأثر
+                القسم / الكيان
               </div>
-              <div className="font-bold text-neutral-800">{log.entityName || log.entityType}</div>
-              <div className="text-xs text-neutral-500 mt-0.5">النوع: {log.entityType}</div>
+              <div className="font-bold text-neutral-800">
+                {log.entityName || (ENTITY_LABELS[log.entityType.toUpperCase()] || (log.entityType === 'V1' ? 'إجراء عام' : log.entityType))}
+              </div>
+              <div className="text-xs text-neutral-500 mt-0.5">
+                النوع: {ENTITY_LABELS[log.entityType.toUpperCase()] || (log.entityType === 'V1' ? 'إجراء عام' : log.entityType)}
+              </div>
             </div>
 
             <div className="p-4 bg-neutral-50 rounded-xl border border-neutral-100">

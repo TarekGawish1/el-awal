@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAssistants, Assistant } from '../hooks/useAssistants';
 import { Shield, Check, X, ShieldAlert, Users, Calendar, Banknote, AlertTriangle, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const PERMISSION_LABELS: Record<string, { label: string, icon: any }> = {
   MANAGE_STUDENTS: { label: 'شؤون الطلاب', icon: Users },
@@ -252,10 +253,21 @@ export function AssistantsList() {
                 <select 
                   className="w-full bg-neutral-50 border border-neutral-200 text-neutral-800 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500 outline-none cursor-pointer"
                   value={editingAssistant.status}
-                  onChange={(e) => updateAssistant({ 
-                    id: editingAssistant.id, 
-                    payload: { status: e.target.value as any } 
-                  })}
+                  onChange={async (e) => {
+                    const newStatus = e.target.value as any;
+                    const prevStatus = editingAssistant.status;
+                    setEditingAssistant({ ...editingAssistant, status: newStatus });
+                    try {
+                      await updateAssistant({ 
+                        id: editingAssistant.id, 
+                        payload: { status: newStatus } 
+                      });
+                      toast.success('تم تحديث حالة الحساب بنجاح');
+                    } catch (err: any) {
+                      setEditingAssistant({ ...editingAssistant, status: prevStatus });
+                      toast.error(err.message || 'تعذر تحديث الحالة');
+                    }
+                  }}
                 >
                   <option value="ACTIVE">نشط (يمكنه الدخول وممارسة مهامه)</option>
                   <option value="SUSPENDED">موقوف (لا يمكنه تسجيل الدخول للمنصة)</option>
@@ -270,29 +282,53 @@ export function AssistantsList() {
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {Object.entries(PERMISSION_LABELS).map(([key, config]) => {
-                    const hasPerm = editingAssistant.permissions.includes(key);
+                    const hasPerm = (editingAssistant.permissions || []).includes(key);
                     return (
-                      <label key={key} className="flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all hover:border-primary-300"
-                        style={{ borderColor: hasPerm ? 'var(--color-primary-500)' : '#e5e7eb', backgroundColor: hasPerm ? 'var(--color-primary-50)' : 'transparent' }}
+                      <label 
+                        key={key} 
+                        className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all select-none ${
+                          hasPerm 
+                            ? 'border-emerald-500 bg-emerald-50/50 shadow-xs' 
+                            : 'border-neutral-200 bg-white hover:border-neutral-300'
+                        }`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-lg ${hasPerm ? 'bg-primary-500 text-white shadow-sm' : 'bg-neutral-100 text-neutral-500'}`}>
+                          <div className={`p-2 rounded-lg transition-colors ${hasPerm ? 'bg-emerald-600 text-white shadow-xs' : 'bg-neutral-100 text-neutral-500'}`}>
                             <config.icon className="w-4 h-4" />
                           </div>
-                          <span className={`text-sm font-medium ${hasPerm ? 'text-primary-900' : 'text-neutral-700'}`}>{config.label}</span>
+                          <span className={`text-sm font-semibold transition-colors ${hasPerm ? 'text-emerald-950 font-bold' : 'text-neutral-700'}`}>{config.label}</span>
                         </div>
                         <input 
                           type="checkbox" 
-                          className="w-5 h-5 rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
+                          className="w-5 h-5 rounded border-neutral-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
                           checked={hasPerm}
-                          onChange={(e) => {
-                            const newPerms = e.target.checked 
-                              ? [...editingAssistant.permissions, key]
-                              : editingAssistant.permissions.filter(p => p !== key);
-                            updateAssistant({
-                              id: editingAssistant.id,
-                              payload: { permissions: newPerms }
+                          onChange={async (e) => {
+                            const isChecked = e.target.checked;
+                            const prevPerms = editingAssistant.permissions || [];
+                            const newPerms = isChecked 
+                              ? Array.from(new Set([...prevPerms, key]))
+                              : prevPerms.filter(p => p !== key);
+
+                            // 1. Optimistic update in UI state
+                            setEditingAssistant({
+                              ...editingAssistant,
+                              permissions: newPerms,
                             });
+
+                            // 2. Persist to API
+                            try {
+                              await updateAssistant({
+                                id: editingAssistant.id,
+                                payload: { permissions: newPerms }
+                              });
+                              toast.success(isChecked ? `تم منح صلاحية "${config.label}"` : `تم إلغاء صلاحية "${config.label}"`);
+                            } catch (err: any) {
+                              setEditingAssistant({
+                                ...editingAssistant,
+                                permissions: prevPerms,
+                              });
+                              toast.error(err.message || 'تعذر تحديث الصلاحيات');
+                            }
                           }}
                         />
                       </label>

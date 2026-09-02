@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AuditAction, UserRole } from '@prisma/client';
 import { AuditQueryDto } from '../dto/audit-query.dto';
@@ -19,16 +19,36 @@ export interface LogActivityParams {
 }
 
 @Injectable()
-export class AuditService {
+export class AuditService implements OnModuleInit {
   private readonly logger = new Logger(AuditService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  async onModuleInit() {
+    try {
+      // Clean up legacy invalid V1 sync logs
+      await this.prisma.auditLog.deleteMany({
+        where: {
+          OR: [
+            { entityType: { in: ['V1', 'v1', 'SYNC', 'sync'] } },
+            { description: { contains: 'V1' } },
+            { description: { contains: 'v1' } },
+          ],
+        },
+      });
+    } catch {}
+  }
 
   /**
    * Non-blocking activity logging
    */
   async logActivity(params: LogActivityParams): Promise<void> {
     try {
+      // Never log internal sync batch calls or V1 entities
+      if (['V1', 'v1', 'SYNC', 'sync'].includes(params.entityType)) {
+        return;
+      }
+
       // If teacherId is not passed and user is TEACHER, user.id is the teacherId
       let resolvedTeacherId = params.teacherId;
       if (!resolvedTeacherId && params.userRole === UserRole.TEACHER) {
@@ -79,6 +99,7 @@ export class AuditService {
         { teacherId },
         { userId: teacherId },
       ],
+      entityType: { notIn: ['V1', 'v1', 'SYNC', 'sync'] },
     };
 
     if (action) {
@@ -162,6 +183,7 @@ export class AuditService {
 
     const baseWhere = {
       OR: [{ teacherId }, { userId: teacherId }],
+      entityType: { notIn: ['V1', 'v1', 'SYNC', 'sync'] },
     };
 
     const [todayCount, weekCount, totalCount, assistantCount, actionDistribution, topPerformers] = await Promise.all([

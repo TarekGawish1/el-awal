@@ -16,10 +16,17 @@ export class AuditInterceptor implements NestInterceptor {
 
   private readonly IGNORED_PATHS = [
     '/api/health',
+    '/api/v1/health',
     '/api/auth/login',
+    '/api/v1/auth/login',
     '/api/auth/refresh',
+    '/api/v1/auth/refresh',
     '/api/audit-logs',
-    '/api/notifications/unread-count',
+    '/api/v1/audit-logs',
+    '/api/notifications',
+    '/api/v1/notifications',
+    '/api/sync',
+    '/api/v1/sync',
   ];
 
   private readonly SENSITIVE_KEYS = new Set([
@@ -66,7 +73,8 @@ export class AuditInterceptor implements NestInterceptor {
   }
 
   private resolveEntityType(url: string): string {
-    const cleanUrl = url.replace(/^\/api\//, '').split('?')[0];
+    // Strip /api/ and optional version prefix e.g. /api/v1/ or /api/
+    const cleanUrl = url.replace(/^\/api\/(v\d+\/)?/, '').replace(/^\/api\//, '').split('?')[0];
     const segment = cleanUrl.split('/')[0] || 'SYSTEM';
 
     const entityMap: Record<string, string> = {
@@ -87,7 +95,7 @@ export class AuditInterceptor implements NestInterceptor {
       auth: 'AUTH',
     };
 
-    return entityMap[segment.toLowerCase()] || segment.toUpperCase();
+    return entityMap[segment.toLowerCase()] || (segment.toLowerCase() === 'v1' ? 'SYSTEM' : segment.toUpperCase());
   }
 
   private generateDescription(
@@ -105,38 +113,69 @@ export class AuditInterceptor implements NestInterceptor {
     const entityLabels: Record<string, string> = {
       STUDENT: 'طالب',
       ASSISTANT: 'مساعد',
+      TEACHER: 'معلم',
       GROUP: 'مجموعة دراسية',
-      SCHEDULE: 'جدول حصص',
-      ATTENDANCE: 'سجل حضور',
+      SCHEDULE: 'مواعيد حصص',
+      ATTENDANCE: 'سجل حضور وغياب',
       COURSE: 'كورس تعليمي',
       CONTENT: 'محتوى دراسي',
-      ASSESSMENT: 'اختبار / واجب',
-      PAYMENT: 'دفعة مالية',
+      ASSESSMENT: 'اختبار أو واجب',
+      PAYMENT: 'مصروفات دراسية',
       NOTIFICATION: 'إشعار',
-      BOOKLET: 'مذكرة / ملزمة',
+      BOOKLET: 'مذكرة دراسية',
       CERTIFICATE: 'شهادة تقدير',
       SETTING: 'إعدادات النظام',
+      AUTH: 'جلسة تسجيل دخول',
+      SYSTEM: 'النظام',
     };
 
     const entityLabel = entityLabels[entityType] || entityType;
-    const targetName = body?.fullName || body?.name || body?.title || resBody?.fullName || resBody?.name || resBody?.title || '';
+    const targetName =
+      body?.fullName ||
+      body?.name ||
+      body?.title ||
+      body?.studentName ||
+      resBody?.fullName ||
+      resBody?.name ||
+      resBody?.title ||
+      '';
     const targetSuffix = targetName ? ` (${targetName})` : '';
 
     switch (action) {
       case AuditAction.CREATE:
+        if (entityType === 'STUDENT') return `قام ${performer} بتسجيل طالب جديد${targetSuffix}`;
+        if (entityType === 'GROUP') return `قام ${performer} بإنشاء مجموعة دراسية جديدة${targetSuffix}`;
+        if (entityType === 'BOOKLET') return `قام ${performer} بإضافة مذكرة دراسية جديدة${targetSuffix}`;
+        if (entityType === 'ASSISTANT') return `قام ${performer} بإضافة وتعيين مساعد جديد${targetSuffix}`;
+        if (entityType === 'PAYMENT') return `قام ${performer} بتسجيل واستلام دفعة مصروفات${targetSuffix}`;
+        if (entityType === 'ATTENDANCE') return `قام ${performer} بتسجيل حضور الحصة`;
+        if (entityType === 'ASSESSMENT') return `قام ${performer} بنشر اختبار أو واجب جديد${targetSuffix}`;
+        if (entityType === 'COURSE') return `قام ${performer} بإنشاء كورس تعليمي جديد${targetSuffix}`;
         return `قام ${performer} بإضافة ${entityLabel} جديد${targetSuffix}`;
+
       case AuditAction.UPDATE:
+        if (entityType === 'ATTENDANCE') return `قام ${performer} بتحديث درجات وسجل حضور الحصة`;
+        if (entityType === 'ASSISTANT') return `قام ${performer} بتعديل بيانات وصلاحيات المساعد${targetSuffix}`;
         return `قام ${performer} بتعديل بيانات ${entityLabel}${targetSuffix}`;
+
       case AuditAction.DELETE:
         return `قام ${performer} بحذف ${entityLabel}${targetSuffix}`;
+
       case AuditAction.SCAN_ATTENDANCE:
-        return `قام ${performer} برصد حضور ${targetSuffix || 'طالب'} عبر مسح الـ QR`;
-      case AuditAction.RECORD_PAYMENT:
-        return `قام ${performer} بتسجيل دفعة مالية${targetSuffix} بمبلغ ${body?.amount || ''} ج.م`;
+        return `قام ${performer} برصد حضور الطالب${targetSuffix} عبر مسح كود الـ QR`;
+
+      case AuditAction.RECORD_PAYMENT: {
+        const amount = body?.amountPaid || body?.amount || resBody?.amountPaid || resBody?.amount;
+        const amountText = amount ? ` بمبلغ ${amount} ج.م` : '';
+        return `قام ${performer} بتسجيل واستلام دفعة مالية${targetSuffix}${amountText}`;
+      }
+
       case AuditAction.GRADE_SUBMISSION:
         return `قام ${performer} برصد وتصحيح درجات ${entityLabel}${targetSuffix}`;
+
       case AuditAction.EXPORT:
-        return `قام ${performer} بتصدير تقرير وبيانات ${entityLabel}`;
+        return `قام ${performer} بتصدير كشف وبيانات ${entityLabel}`;
+
       default:
         return `قام ${performer} بإجراء ${action} على ${entityLabel}${targetSuffix}`;
     }
