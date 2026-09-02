@@ -26,16 +26,35 @@ export class AuditService implements OnModuleInit {
 
   async onModuleInit() {
     try {
-      // Clean up legacy invalid V1 sync logs
+      // 1. Delete legacy invalid V1 / sync logs
       await this.prisma.auditLog.deleteMany({
         where: {
           OR: [
             { entityType: { in: ['V1', 'v1', 'SYNC', 'sync'] } },
             { description: { contains: 'V1' } },
             { description: { contains: 'v1' } },
+            { description: { contains: 'بتعديل بيانات معلم' } },
           ],
         },
       });
+
+      // 2. Fix legacy logs that had generic 'المعلم' as userName
+      const genericLogs = await this.prisma.auditLog.findMany({
+        where: { userName: 'المعلم' },
+        select: { id: true, userId: true },
+      });
+      for (const log of genericLogs) {
+        const user = await this.prisma.user.findUnique({
+          where: { id: log.userId },
+          select: { fullName: true },
+        });
+        if (user?.fullName) {
+          await this.prisma.auditLog.update({
+            where: { id: log.id },
+            data: { userName: user.fullName },
+          });
+        }
+      }
     } catch {}
   }
 

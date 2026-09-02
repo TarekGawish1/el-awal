@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Clock, User, Shield, Globe, Terminal, Layers } from 'lucide-react';
+import { X, Clock, User, Shield, Globe, Layers } from 'lucide-react';
 import { AuditLogItem } from '../types/audit.types';
 
 const ENTITY_LABELS: Record<string, string> = {
@@ -35,7 +35,7 @@ export function AuditLogDetailModal({ log, onClose }: AuditLogDetailModalProps) 
 
   return (
     <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="p-5 border-b border-neutral-100 flex items-center justify-between bg-white sticky top-0 z-10">
           <div className="flex items-center gap-3">
@@ -44,7 +44,6 @@ export function AuditLogDetailModal({ log, onClose }: AuditLogDetailModalProps) 
             </div>
             <div>
               <h2 className="text-base font-bold text-neutral-800">تفاصيل العملية المسجلة</h2>
-              <p className="text-xs text-neutral-400 font-mono" dir="ltr">{log.id}</p>
             </div>
           </div>
           <button
@@ -56,9 +55,9 @@ export function AuditLogDetailModal({ log, onClose }: AuditLogDetailModalProps) 
         </div>
 
         {/* Body */}
-        <div className="p-6 overflow-y-auto space-y-6 text-sm">
+        <div className="p-6 overflow-y-auto space-y-5 text-sm">
           {/* Summary Box */}
-          <div className="p-4 bg-primary-50/50 border border-primary-100 rounded-2xl">
+          <div className="p-4 bg-primary-50/60 border border-primary-100 rounded-2xl">
             <p className="font-bold text-primary-950 text-base leading-relaxed">{log.description}</p>
           </div>
 
@@ -106,19 +105,6 @@ export function AuditLogDetailModal({ log, onClose }: AuditLogDetailModalProps) 
               </div>
             </div>
           </div>
-
-          {/* Technical Details / Changes */}
-          {log.details && Object.keys(log.details).length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 text-neutral-700 font-bold mb-2">
-                <Terminal className="w-4 h-4 text-neutral-500" />
-                البيانات التقنية ومحتوى التعديل
-              </div>
-              <div className="bg-neutral-900 text-neutral-100 rounded-xl p-4 overflow-x-auto text-xs font-mono" dir="ltr">
-                <pre>{JSON.stringify(log.details, null, 2)}</pre>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Footer */}
