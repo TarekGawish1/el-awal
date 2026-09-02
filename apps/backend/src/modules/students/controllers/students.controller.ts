@@ -13,6 +13,7 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { StudentsService } from '../services/students.service';
 import { CreateStudentDto } from '../dto/create-student.dto';
+import { UpdateStudentDto } from '../dto/update-student.dto';
 import { StudentQueryDto } from '../dto/student-query.dto';
 import { StudentQrCodeResponseDto } from '../dto/qr-code-response.dto';
 import { StudentGroupQueryDto } from '../dto/student-group-query.dto';
@@ -117,6 +118,17 @@ export class StudentsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.studentsService.reserveGroup(groupId, user);
+  }
+
+  @Patch(':id')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Update student basic profile and group enrollment' })
+  async updateStudent(
+    @Param('id') id: string,
+    @Body() dto: UpdateStudentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.studentsService.updateStudent(id, dto, user);
   }
 
   @Patch(':id/status')
