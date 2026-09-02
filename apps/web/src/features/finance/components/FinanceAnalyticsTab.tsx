@@ -10,7 +10,14 @@ import { useFinanceAnalytics } from '../hooks/useFinance';
 import { FinanceAnalyticsGroup } from '../types/finance.types';
 import { FinanceFiltersBar } from './FinanceFiltersBar';
 import { inferStageFromGrade } from '@/lib/constants/grades';
-import { DEFAULT_ACADEMIC_TERM, STORAGE_TERM_KEY, STORAGE_YEAR_KEY } from '@/features/groups/hooks/useAcademicPeriod';
+import {
+  DEFAULT_ACADEMIC_TERM,
+  DEFAULT_ACADEMIC_YEAR,
+  STORAGE_TERM_KEY,
+  STORAGE_YEAR_KEY,
+  getCurrentAcademicTerm,
+  getCurrentAcademicYear,
+} from '@/features/groups/hooks/useAcademicPeriod';
 
 const ARABIC_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 
@@ -102,19 +109,29 @@ function GroupAnalyticsCard({ group, onOpenInMatrix }: { group: FinanceAnalytics
 
 export function FinanceAnalyticsTab({ groups = [] }: { groups?: any[] }) {
   const router = useRouter();
-  const defaultYear = `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
+  const getDefaultMonth = (term: 'FIRST_TERM' | 'SECOND_TERM') => {
+    const currentMonth = new Date().getMonth() + 1;
+    const termMonths = term === 'FIRST_TERM' ? [8, 9, 10, 11, 12, 1] : [2, 3, 4, 5, 6, 7];
+    return termMonths.includes(currentMonth) ? currentMonth : termMonths[0];
+  };
+
+  const defaultYear = getCurrentAcademicYear();
+  const defaultTerm = getCurrentAcademicTerm();
   const [academicYear, setAcademicYear] = useState(() => readStoredValue(STORAGE_YEAR_KEY, defaultYear));
-  const [academicTerm, setAcademicTerm] = useState<'FIRST_TERM' | 'SECOND_TERM'>(() => readStoredValue(STORAGE_TERM_KEY, DEFAULT_ACADEMIC_TERM) as 'FIRST_TERM' | 'SECOND_TERM');
+  const [academicTerm, setAcademicTerm] = useState<'FIRST_TERM' | 'SECOND_TERM'>(() => readStoredValue(STORAGE_TERM_KEY, defaultTerm) as 'FIRST_TERM' | 'SECOND_TERM');
   const [stage, setStage] = useState('');
   const [gradeLevel, setGradeLevel] = useState('');
   const [groupId, setGroupId] = useState('');
-  const [periodMonth, setPeriodMonth] = useState<number | ''>('');
+  const [periodMonth, setPeriodMonth] = useState<number | ''>(() => {
+    const initialTerm = readStoredValue(STORAGE_TERM_KEY, defaultTerm) as 'FIRST_TERM' | 'SECOND_TERM';
+    return getDefaultMonth(initialTerm);
+  });
   const [search, setSearch] = useState('');
 
   useEffect(() => {
     const sync = () => {
       setAcademicYear(readStoredValue(STORAGE_YEAR_KEY, defaultYear));
-      setAcademicTerm(readStoredValue(STORAGE_TERM_KEY, DEFAULT_ACADEMIC_TERM) as 'FIRST_TERM' | 'SECOND_TERM');
+      setAcademicTerm(readStoredValue(STORAGE_TERM_KEY, defaultTerm) as 'FIRST_TERM' | 'SECOND_TERM');
     };
     window.addEventListener('el_awal_academic_period_changed', sync);
     window.addEventListener('storage', sync);
@@ -122,7 +139,7 @@ export function FinanceAnalyticsTab({ groups = [] }: { groups?: any[] }) {
       window.removeEventListener('el_awal_academic_period_changed', sync);
       window.removeEventListener('storage', sync);
     };
-  }, [defaultYear]);
+  }, [defaultYear, defaultTerm]);
 
   const query = {
     academicPeriodId: `${academicYear}:${academicTerm}`,
@@ -147,7 +164,7 @@ export function FinanceAnalyticsTab({ groups = [] }: { groups?: any[] }) {
   const setGradeAndReset = (value: string) => { setGradeLevel(value); setGroupId(''); };
   const setTermAndReset = (value: 'FIRST_TERM' | 'SECOND_TERM') => {
     setAcademicTerm(value);
-    setPeriodMonth('');
+    setPeriodMonth(getDefaultMonth(value));
     try {
       localStorage.setItem(STORAGE_TERM_KEY, JSON.stringify([value]));
       window.dispatchEvent(new Event('el_awal_academic_period_changed'));

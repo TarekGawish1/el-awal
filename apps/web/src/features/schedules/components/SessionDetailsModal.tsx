@@ -371,25 +371,34 @@ export function SessionDetailsModal({
                     </Link>
                   </div>
 
-                  {/* Payments / Finance QR Action */}
+                  {/* Payments / Finance QR & Manual Action */}
                   <div className="p-4 bg-indigo-50/80 rounded-2xl border border-indigo-200 flex flex-col justify-between gap-3 transition-all hover:bg-indigo-50 shadow-2xs">
                     <div className="space-y-1">
                       <div className="flex items-center gap-1.5 text-indigo-900 font-extrabold text-xs">
                         <Wallet className="w-4 h-4 text-indigo-600" />
-                        <span>رصد المدفوعات والـ QR</span>
+                        <span>رصد المدفوعات (QR ويدوي)</span>
                       </div>
                       <p className="text-[11px] text-indigo-700 font-medium">
                         تسجيل سداد المصروفات والاشتراكات الشهرية للمجموعة
                       </p>
                     </div>
 
-                    <Link
-                      href={`/teacher/finance?groupId=${session.groupId}&year=${sessionYear}&month=${sessionMonth}`}
-                      className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <Wallet className="w-3.5 h-3.5" />
-                      <span>رصد المدفوعات بالـ QR</span>
-                    </Link>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Link
+                        href={`/teacher/finance?groupId=${session.groupId}&year=${sessionYear}&month=${sessionMonth}&scan=true`}
+                        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <QrCode className="w-3.5 h-3.5" />
+                        <span>رصد بالـ QR</span>
+                      </Link>
+                      <Link
+                        href={`/teacher/finance?groupId=${session.groupId}&year=${sessionYear}&month=${sessionMonth}&record=true`}
+                        className="w-full py-2.5 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Wallet className="w-3.5 h-3.5" />
+                        <span>رصد يدوي</span>
+                      </Link>
+                    </div>
                   </div>
                 </div>
               );

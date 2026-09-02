@@ -11,7 +11,13 @@ import { RecordPaymentModal } from './RecordPaymentModal';
 import { StudentHistoryModal } from './StudentHistoryModal';
 import { CancelPaymentModal, PaymentSummaryInfo } from './CancelPaymentModal';
 import { useGroupDefaulters, usePayments } from '../hooks/useFinance';
-import { DEFAULT_ACADEMIC_TERM, STORAGE_TERM_KEY, STORAGE_YEAR_KEY } from '@/features/groups/hooks/useAcademicPeriod';
+import {
+  DEFAULT_ACADEMIC_TERM,
+  STORAGE_TERM_KEY,
+  STORAGE_YEAR_KEY,
+  getCurrentAcademicTerm,
+  getCurrentAcademicYear,
+} from '@/features/groups/hooks/useAcademicPeriod';
 
 const ARABIC_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 const STAGE_GRADES: Record<string, string[]> = {
@@ -42,9 +48,10 @@ interface ManualPaymentTabProps {
 }
 
 export function ManualPaymentTab({ groups, initialPeriodYear, initialPeriodMonth, initialGroupId = '' }: ManualPaymentTabProps) {
-  const defaultYear = `${initialPeriodYear}-${initialPeriodYear + 1}`;
+  const defaultYear = initialPeriodYear ? `${initialPeriodYear}-${initialPeriodYear + 1}` : getCurrentAcademicYear();
+  const defaultTerm = getCurrentAcademicTerm();
   const [academicYear, setAcademicYear] = useState(() => readStoredValue(STORAGE_YEAR_KEY, defaultYear));
-  const [academicTerm, setAcademicTerm] = useState<'FIRST_TERM' | 'SECOND_TERM'>(() => readStoredValue(STORAGE_TERM_KEY, DEFAULT_ACADEMIC_TERM) as 'FIRST_TERM' | 'SECOND_TERM');
+  const [academicTerm, setAcademicTerm] = useState<'FIRST_TERM' | 'SECOND_TERM'>(() => readStoredValue(STORAGE_TERM_KEY, defaultTerm) as 'FIRST_TERM' | 'SECOND_TERM');
   const [stage, setStage] = useState('');
   const [gradeLevel, setGradeLevel] = useState('');
   const [groupId, setGroupId] = useState(initialGroupId);
@@ -57,7 +64,7 @@ export function ManualPaymentTab({ groups, initialPeriodYear, initialPeriodMonth
   useEffect(() => {
     const sync = () => {
       const nextYear = readStoredValue(STORAGE_YEAR_KEY, defaultYear);
-      const nextTerm = readStoredValue(STORAGE_TERM_KEY, DEFAULT_ACADEMIC_TERM) as 'FIRST_TERM' | 'SECOND_TERM';
+      const nextTerm = readStoredValue(STORAGE_TERM_KEY, defaultTerm) as 'FIRST_TERM' | 'SECOND_TERM';
       setAcademicYear(nextYear);
       setAcademicTerm(nextTerm);
       setPeriodMonth((month) => TERM_MONTHS[nextTerm].includes(month) ? month : TERM_MONTHS[nextTerm][0]);
@@ -65,7 +72,7 @@ export function ManualPaymentTab({ groups, initialPeriodYear, initialPeriodMonth
     window.addEventListener('el_awal_academic_period_changed', sync);
     window.addEventListener('storage', sync);
     return () => { window.removeEventListener('el_awal_academic_period_changed', sync); window.removeEventListener('storage', sync); };
-  }, [defaultYear]);
+  }, [defaultYear, defaultTerm]);
 
   useEffect(() => {
     setGroupId(initialGroupId);

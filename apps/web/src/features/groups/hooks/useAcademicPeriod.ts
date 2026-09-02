@@ -96,10 +96,28 @@ export async function switchAcademicPeriodInDb(
 }
 
 /**
- * Static baseline fallback constants (no date calculations)
+ * Computes current academic term dynamically based on current date (Egyptian academic calendar):
+ * - FIRST_TERM: Months 8 (August) to 1 (January)
+ * - SECOND_TERM: Months 2 (February) to 7 (July)
  */
-export const DEFAULT_ACADEMIC_YEAR = APP_CONFIG.defaultAcademicYear || '2026-2027';
-export const DEFAULT_ACADEMIC_TERM = 'FIRST_TERM';
+export function getCurrentAcademicTerm(now: Date = new Date()): 'FIRST_TERM' | 'SECOND_TERM' {
+  const month = now.getMonth() + 1;
+  return (month >= 8 || month === 1) ? 'FIRST_TERM' : 'SECOND_TERM';
+}
+
+/**
+ * Computes current academic year dynamically based on current date:
+ * - Aug - Dec (months 8 - 12): `${year}-${year + 1}` (e.g. Sep 2026 -> '2026-2027')
+ * - Jan - Jul (months 1 - 7): `${year - 1}-${year}` (e.g. Feb 2027 -> '2026-2027')
+ */
+export function getCurrentAcademicYear(now: Date = new Date()): string {
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  return month >= 8 ? `${year}-${year + 1}` : `${year - 1}-${year}`;
+}
+
+export const DEFAULT_ACADEMIC_YEAR = APP_CONFIG.defaultAcademicYear || getCurrentAcademicYear();
+export const DEFAULT_ACADEMIC_TERM = getCurrentAcademicTerm();
 
 export function getDefaultAcademicYear(): string {
   return DEFAULT_ACADEMIC_YEAR;

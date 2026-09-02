@@ -19,7 +19,13 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { BookletManagementSection } from '@/features/booklets/components/BookletManagementSection';
 import { FinancialMatrixLedger } from './FinancialMatrixLedger';
 import { FinanceAnalyticsTab } from './FinanceAnalyticsTab';
-import { DEFAULT_ACADEMIC_TERM, STORAGE_TERM_KEY, STORAGE_YEAR_KEY } from '@/features/groups/hooks/useAcademicPeriod';
+import {
+  DEFAULT_ACADEMIC_TERM,
+  STORAGE_TERM_KEY,
+  STORAGE_YEAR_KEY,
+  getCurrentAcademicTerm,
+  getCurrentAcademicYear,
+} from '@/features/groups/hooks/useAcademicPeriod';
 import toast from 'react-hot-toast';
 
 function readStoredValue(key: string, fallback: string) {
@@ -38,13 +44,17 @@ export function FinanceDashboard() {
   const paramTab = searchParams.get('tab');
   const paramStage = searchParams.get('stage') || '';
   const paramGradeLevel = searchParams.get('gradeLevel') || '';
+  const paramMonth = searchParams.get('month');
+  const paramScan = searchParams.get('scan') === 'true' || searchParams.get('openQr') === 'true';
+  const paramRecord = searchParams.get('record') === 'true' || searchParams.get('manual') === 'true';
 
-  const defaultYear = `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
+  const defaultYear = getCurrentAcademicYear();
+  const defaultTerm = getCurrentAcademicTerm();
   const [academicYear, setAcademicYear] = useState(() => readStoredValue(STORAGE_YEAR_KEY, defaultYear));
-  const [academicTerm, setAcademicTerm] = useState<'FIRST_TERM' | 'SECOND_TERM'>(() => readStoredValue(STORAGE_TERM_KEY, DEFAULT_ACADEMIC_TERM) as 'FIRST_TERM' | 'SECOND_TERM');
+  const [academicTerm, setAcademicTerm] = useState<'FIRST_TERM' | 'SECOND_TERM'>(() => readStoredValue(STORAGE_TERM_KEY, defaultTerm) as 'FIRST_TERM' | 'SECOND_TERM');
 
   const [selectedGroupId, setSelectedGroupId] = useState<string>(paramGroupId || '');
-  const [periodMonth, setPeriodMonth] = useState<number>(new Date().getMonth() + 1);
+  const [periodMonth, setPeriodMonth] = useState<number>(() => (paramMonth ? Number(paramMonth) : new Date().getMonth() + 1));
   const [stage, setStage] = useState(paramStage);
   const [gradeLevel, setGradeLevel] = useState(paramGradeLevel);
   const [search, setSearch] = useState('');
@@ -53,14 +63,14 @@ export function FinanceDashboard() {
     paramTab === 'booklets' ? 'BOOKLETS' : paramTab === 'matrix' ? 'MATRIX' : paramTab === 'analytics' ? 'ANALYTICS' : 'OVERVIEW'
   );
 
-  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
-  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(Boolean(paramScan));
+  const [isRecordModalOpen, setIsRecordModalOpen] = useState(Boolean(paramRecord));
   const [historyStudentId, setHistoryStudentId] = useState<string | null>(null);
 
   useEffect(() => {
     const sync = () => {
       setAcademicYear(readStoredValue(STORAGE_YEAR_KEY, defaultYear));
-      setAcademicTerm(readStoredValue(STORAGE_TERM_KEY, DEFAULT_ACADEMIC_TERM) as 'FIRST_TERM' | 'SECOND_TERM');
+      setAcademicTerm(readStoredValue(STORAGE_TERM_KEY, defaultTerm) as 'FIRST_TERM' | 'SECOND_TERM');
     };
     window.addEventListener('el_awal_academic_period_changed', sync);
     window.addEventListener('storage', sync);
@@ -68,16 +78,20 @@ export function FinanceDashboard() {
       window.removeEventListener('el_awal_academic_period_changed', sync);
       window.removeEventListener('storage', sync);
     };
-  }, [defaultYear]);
+  }, [defaultYear, defaultTerm]);
 
   useEffect(() => {
     if (paramGroupId) setSelectedGroupId(paramGroupId);
+    if (paramMonth) setPeriodMonth(Number(paramMonth));
+    if (paramScan) setIsQrModalOpen(true);
+    if (paramRecord) setIsRecordModalOpen(true);
     if (paramTab === 'booklets') setActiveTab('BOOKLETS');
     else if (paramTab === 'matrix') setActiveTab('MATRIX');
     else if (paramTab === 'analytics') setActiveTab('ANALYTICS');
-  }, [paramGroupId, paramTab]);
+  }, [paramGroupId, paramMonth, paramScan, paramRecord, paramTab]);
 
   const { data: groups = [] } = useGroups();
+  const selectedGroup = groups.find((g) => g.id === selectedGroupId);
   const startYear = Number(academicYear.split('-')[0]) || new Date().getFullYear();
   const periodYear = academicTerm === 'FIRST_TERM' && periodMonth === 1 ? startYear + 1 : academicTerm === 'SECOND_TERM' ? startYear + 1 : startYear;
 
@@ -213,7 +227,9 @@ export function FinanceDashboard() {
       <FinanceQrScannerModal 
         isOpen={isQrModalOpen}
         onClose={() => setIsQrModalOpen(false)}
+        onSwitchToManual={() => setIsRecordModalOpen(true)}
         groupId={selectedGroupId}
+        groupName={selectedGroup?.name}
         periodYear={periodYear}
         periodMonth={periodMonth}
       />
