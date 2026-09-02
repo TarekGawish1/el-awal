@@ -576,8 +576,38 @@ class OfflineSyncEngine {
       return { synced: 0, failed: 0 };
     }
 
-    // Promise-based mutex: if a sync is already running, await its result
-    // instead of silently returning {0, 0} (prevents race conditions)
+    if (typeof navigator !== 'undefined' && navigator.locks) {
+      if (this.activeSyncPromise) {
+        return this.activeSyncPromise;
+      }
+
+      const lockPromise = new Promise<{ synced: number; failed: number }>((resolve, reject) => {
+        navigator.locks.request('offline_sync_lock', { mode: 'exclusive', ifAvailable: true }, async (lock) => {
+          if (!lock) {
+            // Another tab currently holds the lock and is flushing.
+            // Safely skip this execution to prevent multi-tab concurrency.
+            resolve({ synced: 0, failed: 0 });
+            return;
+          }
+          try {
+            const result = await this.executeFlush(options);
+            resolve(result);
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      this.activeSyncPromise = lockPromise;
+
+      try {
+        return await lockPromise;
+      } finally {
+        this.activeSyncPromise = null;
+      }
+    }
+
+    // Fallback for environments without Web Locks API
     if (this.activeSyncPromise) {
       return this.activeSyncPromise;
     }
