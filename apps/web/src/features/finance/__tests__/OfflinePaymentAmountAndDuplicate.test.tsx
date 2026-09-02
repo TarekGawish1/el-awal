@@ -6,6 +6,12 @@ import { useScanPaymentQr, useRecordPayment } from '../hooks/useFinance';
 import { offlineDb } from '@/lib/offline/db';
 import { syncEngine } from '@/lib/offline/sync-engine';
 
+vi.mock('@/features/auth/store/auth.store', () => ({
+  useAuthStore: {
+    getState: vi.fn().mockReturnValue({ user: { id: 'teacher-1' }, isAuthenticated: true }),
+  },
+}));
+
 describe('Offline Payment Amount Extraction & Duplicate Prevention', () => {
   let queryClient: QueryClient;
   let originalNavigatorOnLine: boolean;
@@ -204,7 +210,7 @@ describe('Offline Payment Amount Extraction & Duplicate Prevention', () => {
         groupId: 'group-bio-2026',
         periodYear: 2026,
         periodMonth: 9,
-        amountPaid: 0, // Should be auto-resolved to group monthly fee (250)
+        amountPaid: undefined, // Should be auto-resolved to group monthly fee (250)
         paymentMethod: 'CASH',
       });
     });

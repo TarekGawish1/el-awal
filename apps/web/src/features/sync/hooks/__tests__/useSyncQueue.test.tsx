@@ -23,6 +23,12 @@ describe('useSyncQueue - Realtime Cache Invalidation & Query Refetching', () => 
         queries: { retry: false },
       },
     });
+    const { useAuthStore } = await import('@/features/auth/store/auth.store');
+    useAuthStore.setState({
+      user: { id: 'test-user-id', fullName: 'Test User', role: 'TEACHER' },
+      isAuthenticated: true,
+      isInitialized: true,
+    });
   });
 
   const wrapper = ({ children }: { children: React.ReactNode }) => (

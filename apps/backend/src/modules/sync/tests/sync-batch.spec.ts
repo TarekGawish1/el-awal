@@ -105,6 +105,14 @@ describe('SyncService & SyncController - Batch Mutation Processing (RECORD_HOMEW
       score: 10,
     });
 
+    mockPrismaService.studentProfile.findFirst.mockResolvedValue({
+      id: 'student-uuid-1',
+      studentCode: 'STU-001',
+      fullName: 'أحمد علي',
+      user: { isActive: true },
+      groupEnrollments: [],
+    });
+
     mockPrismaService.attendanceRecord.upsert.mockResolvedValue({
       id: 'att-record-1',
       sessionId: 'session-uuid-1',
@@ -197,7 +205,7 @@ describe('SyncService & SyncController - Batch Mutation Processing (RECORD_HOMEW
             studentId: 'student-uuid-1',
             student: {
               studentCode: 'STU-001',
-              user: { id: 'u-1', fullName: 'زياد طارق', phone: '+201012345678' },
+              user: { id: 'u-1', fullName: 'زياد طارق', phone: '+201012345678', isActive: true },
             },
           },
         ],

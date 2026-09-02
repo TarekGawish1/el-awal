@@ -44,6 +44,14 @@ describe('SyncService', () => {
       findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn(),
     },
+    studentPaymentRecord: {
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
     academicGroup: {
       findFirst: jest.fn(),
       findMany: jest.fn().mockResolvedValue([]),
@@ -66,14 +74,7 @@ describe('SyncService', () => {
       findUnique: jest.fn(),
       update: jest.fn(),
     },
-    studentPaymentRecord: {
-      findFirst: jest.fn(),
-      findUnique: jest.fn(),
-      findMany: jest.fn().mockResolvedValue([]),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
+
     assessment: {
       findUnique: jest.fn(),
     },
@@ -156,6 +157,8 @@ describe('SyncService', () => {
       mockPrismaService.studentProfile.findFirst.mockResolvedValue({
         id: 'student-1',
         fullName: 'أحمد محمود',
+        user: { isActive: true },
+        groupEnrollments: [{ groupId: 'group-1', status: GroupEnrollmentStatus.ACTIVE }],
       });
 
       mockPrismaService.groupEnrollment.findUnique.mockResolvedValue({
@@ -213,6 +216,12 @@ describe('SyncService', () => {
         status: GroupEnrollmentStatus.ACTIVE,
       });
 
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue({
+        id: 'student-1',
+        user: { isActive: true },
+        groupEnrollments: [{ groupId: 'group-100', status: GroupEnrollmentStatus.ACTIVE }],
+      });
+
       // 10 operations: indices 0..6 unique (null), indices 7..9 duplicate (existing)
       for (let i = 0; i < 7; i++) {
         mockPrismaService.attendanceRecord.findUnique.mockResolvedValueOnce(null);
@@ -245,8 +254,9 @@ describe('SyncService', () => {
 
   describe('syncPaymentsBatch', () => {
     it('should reconcile tuition payment operations and prevent duplicate payments', async () => {
-      mockPrismaService.studentProfile.findUnique.mockResolvedValue({
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue({
         id: 'student-1',
+        user: { isActive: true },
       });
 
       mockPrismaService.studentPaymentRecord.findFirst

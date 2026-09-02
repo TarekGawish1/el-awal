@@ -59,7 +59,7 @@ describe('SyncService - Business Conflicts (Attendance/Homework)', () => {
 
     // Setup mocks to simulate the student NOT being enrolled (no active enrollments)
     mockFindUniqueSession.mockResolvedValue({ id: 'session-1', groupId: 'group-1' });
-    mockFindUniqueStudent.mockResolvedValue({
+    mockFindFirstStudent.mockResolvedValue({
       id: 'student-1',
       user: { isActive: true },
       groupEnrollments: [], // No active enrollments
@@ -91,7 +91,7 @@ describe('SyncService - Business Conflicts (Attendance/Homework)', () => {
     (prisma as any).homeworkRecord = { upsert: mockUpsertHomework };
 
     mockFindUniqueSession.mockResolvedValue({ id: 'session-1', groupId: 'group-1' });
-    mockFindUniqueStudent.mockResolvedValue({
+    mockFindFirstStudent.mockResolvedValue({
       id: 'student-1',
       user: { isActive: true },
       groupEnrollments: [], // No active enrollments

@@ -89,7 +89,7 @@ function generateClientOperationId(): string {
   });
 }
 
-class OfflineSyncEngine {
+export class OfflineSyncEngine {
   private isOnlineState: boolean = typeof navigator !== 'undefined' ? navigator.onLine : true;
   private isSyncingState: boolean = false;
   /** Promise-based mutex: all concurrent flushOutbox() callers await the same active sync. */
@@ -489,13 +489,9 @@ class OfflineSyncEngine {
     } = {},
   ): Promise<string> {
     // ENFORCE STRICT OFFLINE BUSINESS BOUNDARY
-    const allowedDomains = ['attendance', 'finance'];
+    const allowedDomains = ['attendance', 'finance', 'progress'];
     if (!allowedDomains.includes(domain)) {
       throw new Error(`العمليات على (${domain}) غير مدعومة في وضع عدم الاتصال. يرجى الاتصال بالإنترنت.`);
-    }
-
-    if (payload?.type === 'RECORD_HOMEWORK_ONSITE' || endpoint.includes('/sync/homework')) {
-      throw new Error('لا يمكن تسجيل الواجبات في وضع عدم الاتصال. يرجى الاتصال بالإنترنت.');
     }
 
     const id = generateClientOperationId();
