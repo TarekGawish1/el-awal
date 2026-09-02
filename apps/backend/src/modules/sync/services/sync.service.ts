@@ -2084,7 +2084,9 @@ export class SyncService {
               allowCrossGroup,
             } = mutation.payload || {};
 
-            if (!studentId && qrCodeToken) {
+            let targetStudentId = studentId;
+
+            if (!targetStudentId && qrCodeToken) {
               const student = await this.prisma.studentProfile.findFirst({
                 where: {
                   OR: [
@@ -2098,34 +2100,49 @@ export class SyncService {
               });
 
               if (!student) {
-                throw new BadRequestException('INVALID_QR_CODE');
+                results.push({ mutationId: mutation.id, status: 'FAILED', error: 'INVALID_QR_CODE' });
+                continue;
               }
-
-              // Check group enrollment vs session's group if cross-group not allowed
-              if (allowCrossGroup !== true && sessionId) {
-                const session = await this.prisma.lessonSession.findUnique({
-                  where: { id: sessionId },
-                  select: { groupId: true },
-                });
-                
-                if (session && session.groupId) {
-                  const isEnrolled = student.groupEnrollments.some(
-                    (enrollment) => enrollment.groupId === session.groupId,
-                  );
-                  if (!isEnrolled) {
-                    throw new BadRequestException('STUDENT_NOT_ENROLLED');
-                  }
-                }
-              }
-
-              studentId = student.id;
+              targetStudentId = student.id;
             }
 
-            if (!studentId || !sessionId) {
+            if (!targetStudentId || !sessionId) {
               throw new BadRequestException(
                 `Missing required parameters for RECORD_HOMEWORK_ONSITE in mutation ${mutation.id}`,
               );
             }
+
+            // 2. Validate Session and Student Enrollment
+            const session = await this.prisma.lessonSession.findUnique({
+              where: { id: sessionId },
+              select: { groupId: true },
+            });
+
+            if (!session) {
+              results.push({ mutationId: mutation.id, status: 'FAILED', error: 'SESSION_NOT_FOUND' });
+              continue;
+            }
+
+            const studentData = await this.prisma.studentProfile.findUnique({
+              where: { id: targetStudentId },
+              include: {
+                user: { select: { isActive: true } },
+                groupEnrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
+              }
+            });
+
+            if (!studentData || !studentData.user.isActive) {
+              results.push({ mutationId: mutation.id, status: 'FAILED', error: 'STUDENT_INACTIVE_OR_NOT_FOUND' });
+              continue;
+            }
+
+            const directEnrollment = studentData.groupEnrollments.some((e: any) => e.groupId === session.groupId);
+            if (!directEnrollment && !allowCrossGroup) {
+              results.push({ mutationId: mutation.id, status: 'FAILED', error: 'STUDENT_NOT_ENROLLED' });
+              continue;
+            }
+
+            studentId = targetStudentId;
 
             // If assessmentId is missing or default placeholder, resolve the default homework linked to this session
             const isPlaceholder =
@@ -2266,24 +2283,6 @@ export class SyncService {
                 results.push({ mutationId: mutation.id, status: 'FAILED', error: 'INVALID_QR_CODE' });
                 continue;
               }
-
-              // 2. Enforce Cross-Group Authorization Rules
-              const session = await this.prisma.lessonSession.findUnique({
-                where: { id: sessionId },
-                select: { groupId: true },
-              });
-
-              if (!session) {
-                results.push({ mutationId: mutation.id, status: 'FAILED', error: 'SESSION_NOT_FOUND' });
-                continue;
-              }
-
-              const directEnrollment = student.groupEnrollments.some((e: any) => e.groupId === session.groupId);
-              if (!directEnrollment && !allowCrossGroup) {
-                results.push({ mutationId: mutation.id, status: 'FAILED', error: 'STUDENT_NOT_ENROLLED' });
-                continue;
-              }
-
               targetStudentId = student.id;
             }
 
@@ -2291,6 +2290,36 @@ export class SyncService {
               throw new BadRequestException(
                 `Missing required parameters for RECORD_ATTENDANCE in mutation ${mutation.id}`,
               );
+            }
+
+            // 2. Enforce Cross-Group Authorization Rules
+            const session = await this.prisma.lessonSession.findUnique({
+              where: { id: sessionId },
+              select: { groupId: true },
+            });
+
+            if (!session) {
+              results.push({ mutationId: mutation.id, status: 'FAILED', error: 'SESSION_NOT_FOUND' });
+              continue;
+            }
+
+            const studentData = await this.prisma.studentProfile.findUnique({
+              where: { id: targetStudentId },
+              include: {
+                user: { select: { isActive: true } },
+                groupEnrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
+              }
+            });
+
+            if (!studentData || !studentData.user.isActive) {
+              results.push({ mutationId: mutation.id, status: 'FAILED', error: 'STUDENT_INACTIVE_OR_NOT_FOUND' });
+              continue;
+            }
+
+            const directEnrollment = studentData.groupEnrollments.some((e: any) => e.groupId === session.groupId);
+            if (!directEnrollment && !allowCrossGroup) {
+              results.push({ mutationId: mutation.id, status: 'FAILED', error: 'STUDENT_NOT_ENROLLED' });
+              continue;
             }
 
             const recordDate = new Date(clientTimestamp || Date.now());

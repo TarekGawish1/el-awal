@@ -1011,6 +1011,22 @@ class OfflineSyncEngine {
               syncedCount++;
             }
           }
+
+          if (res?.conflicts && res.conflicts.length > 0) {
+            for (const conf of res.conflicts) {
+              await offlineDb.recordConflict({
+                id: generateClientOperationId(),
+                operationId: conf.operationId,
+                domain: 'assessments',
+                reason: conf.reason,
+                payload: operations.find((o) => o.id === conf.operationId),
+                timestamp: Date.now(),
+                resolved: false,
+              });
+              await offlineDb.removeMutation(conf.operationId);
+              failedCount++;
+            }
+          }
         } catch (err: any) {
           console.error('Batch assessments sync failed:', err);
           for (const item of assessmentItems) {
@@ -1130,6 +1146,7 @@ class OfflineSyncEngine {
       finance: { endpoint: API_ENDPOINTS.SYNC.PAYMENTS, method: 'POST' },
       students: { endpoint: API_ENDPOINTS.STUDENTS.CREATE, method: 'POST' },
       groups: { endpoint: API_ENDPOINTS.GROUPS.CREATE, method: 'POST' },
+      assessments: { endpoint: API_ENDPOINTS.SYNC.ASSESSMENTS, method: 'POST' },
     };
 
     let count = 0;
