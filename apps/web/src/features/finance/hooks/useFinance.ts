@@ -46,7 +46,7 @@ export function useMatrixLedger(query: {
   return useQuery({
     queryKey: financeKeys.matrixLedger(query),
     queryFn: () => fetchMatrixLedger(query),
-    enabled: Boolean(query.stage && query.gradeLevel),
+    enabled: Boolean((query.stage && query.gradeLevel) || query.groupId),
     staleTime: 30_000,
   });
 }

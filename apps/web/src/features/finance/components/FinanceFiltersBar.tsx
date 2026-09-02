@@ -75,7 +75,7 @@ export function FinanceFiltersBar({
 
       <label className="text-xs font-bold text-slate-700">
         الصف الدراسي
-        <select aria-label="الصف الدراسي" value={gradeLevel} disabled={!stage} onChange={(event) => onGradeChange(event.target.value)} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400">
+        <select aria-label="الصف الدراسي" value={gradeLevel} onChange={(event) => onGradeChange(event.target.value)} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm">
           <option value="">اختر الصف</option>
           {grades.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
         </select>

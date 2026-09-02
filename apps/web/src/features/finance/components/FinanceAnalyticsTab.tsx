@@ -161,7 +161,25 @@ export function FinanceAnalyticsTab({ groups = [] }: { groups?: any[] }) {
   }, [analytics?.groups, search]);
 
   const setStageAndReset = (value: string) => { setStage(value); setGradeLevel(''); setGroupId(''); };
-  const setGradeAndReset = (value: string) => { setGradeLevel(value); setGroupId(''); };
+  const setGradeAndReset = (value: string) => {
+    setGradeLevel(value);
+    setGroupId('');
+    if (value && !stage) {
+      const inferred = inferStageFromGrade(value);
+      if (inferred) setStage(inferred);
+    }
+  };
+  const setGroupAndReset = (value: string) => {
+    setGroupId(value);
+    if (value) {
+      const selected = groups.find((g) => g.id === value);
+      if (selected) {
+        if (selected.gradeLevel) setGradeLevel(selected.gradeLevel);
+        const inferred = inferStageFromGrade(selected.gradeLevel);
+        if (inferred) setStage(inferred);
+      }
+    }
+  };
   const setTermAndReset = (value: 'FIRST_TERM' | 'SECOND_TERM') => {
     setAcademicTerm(value);
     setPeriodMonth(getDefaultMonth(value));
@@ -216,7 +234,7 @@ export function FinanceAnalyticsTab({ groups = [] }: { groups?: any[] }) {
         periodMonth={periodMonth || undefined}
         onStageChange={setStageAndReset}
         onGradeChange={setGradeAndReset}
-        onGroupChange={setGroupId}
+        onGroupChange={setGroupAndReset}
         onTermChange={setTermAndReset}
         onSearchChange={setSearch}
         onMonthChange={(value) => setPeriodMonth(value || '')}
