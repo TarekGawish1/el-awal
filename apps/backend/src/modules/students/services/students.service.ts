@@ -11,6 +11,7 @@ import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { CreateStudentDto } from '../dto/create-student.dto';
+import { UpdateStudentDto } from '../dto/update-student.dto';
 import { StudentQueryDto } from '../dto/student-query.dto';
 import { StudentQrCodeResponseDto } from '../dto/qr-code-response.dto';
 import { UserRole, GroupEnrollmentStatus, PaymentStatus, PaymentType, StudentAcademicStatus, NotificationChannel, NotificationType, NotificationStatus } from '@prisma/client';
@@ -211,6 +212,166 @@ export class StudentsService {
         hasParentLinked: !!parentLink,
         enrolledGroupId: initialEnrollment?.groupId || null,
       };
+    });
+  }
+
+  /**
+   * Updates student profile details and group enrollments
+   */
+  async updateStudent(studentId: string, dto: UpdateStudentDto, user: AuthenticatedUser) {
+    await this.assertStudentAccess(studentId, user, false, false);
+
+    const student = await this.prisma.studentProfile.findUnique({
+      where: { id: studentId },
+      include: {
+        user: true,
+        parentLinks: { include: { parent: { include: { user: true } } } },
+        groupEnrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } },
+      },
+    });
+
+    if (!student) {
+      throw new NotFoundException(`Student [${studentId}] not found`);
+    }
+
+    const updaterName = user?.fullName || (user?.role === UserRole.SECRETARIAT ? 'المساعد' : 'المعلم');
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Update Student User
+      if (dto.phone || dto.email || dto.fullName) {
+        await tx.user.update({
+          where: { id: student.id },
+          data: {
+            ...(dto.fullName && { fullName: dto.fullName }),
+            ...(dto.phone && { phone: dto.phone }),
+            ...(dto.email && { email: dto.email }),
+          },
+        });
+      }
+
+      // 2. Update Student Profile
+      if (dto.gradeLevel || dto.academicStage || dto.emergencyPhone || dto.dateOfBirth) {
+        await tx.studentProfile.update({
+          where: { id: student.id },
+          data: {
+            ...(dto.gradeLevel && { gradeLevel: dto.gradeLevel }),
+            ...(dto.academicStage && { academicStage: dto.academicStage }),
+            ...(dto.emergencyPhone && { emergencyPhone: dto.emergencyPhone }),
+            ...(dto.dateOfBirth && { dateOfBirth: new Date(dto.dateOfBirth) }),
+            updatedById: user.id,
+            updatedByName: updaterName,
+          },
+        });
+      }
+
+      // 3. Update Parent Info
+      if (dto.parentName || dto.parentPhone || dto.parentRelationship) {
+        const parentLink = student.parentLinks[0];
+        
+        if (parentLink) {
+          await tx.user.update({
+            where: { id: parentLink.parentId },
+            data: {
+              ...(dto.parentName && { fullName: dto.parentName }),
+              ...(dto.parentPhone && { phone: dto.parentPhone }),
+            },
+          });
+          if (dto.parentRelationship) {
+            await tx.parentProfile.update({
+              where: { id: parentLink.parentId },
+              data: { relationshipType: dto.parentRelationship },
+            });
+          }
+        } else if (dto.parentPhone) {
+          const parentPasswordHash = await bcrypt.hash('Parent123!', 10);
+          const parentUser = await tx.user.create({
+            data: {
+              fullName: dto.parentName || `ولي أمر ${dto.fullName || student.user.fullName}`,
+              phone: dto.parentPhone,
+              passwordHash: parentPasswordHash,
+              role: UserRole.PARENT,
+              isActive: true,
+              parentProfile: {
+                create: {
+                  relationshipType: dto.parentRelationship || 'Guardian',
+                },
+              },
+            },
+          });
+
+          await tx.parentStudentLink.create({
+            data: {
+              parentId: parentUser.id,
+              studentId: student.id,
+            },
+          });
+        }
+      }
+
+      // 4. Update Group Enrollment
+      if (dto.initialGroupId) {
+        const currentActiveEnrollments = student.groupEnrollments;
+        const isAlreadyInGroup = currentActiveEnrollments.some(e => e.groupId === dto.initialGroupId);
+        
+        if (!isAlreadyInGroup) {
+          for (const enrollment of currentActiveEnrollments) {
+            await tx.groupEnrollment.update({
+              where: { id: enrollment.id },
+              data: { status: 'DROPPED' as GroupEnrollmentStatus },
+            });
+          }
+
+          const group = await tx.academicGroup.findUnique({
+            where: { id: dto.initialGroupId },
+            include: { _count: { select: { enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } } } } },
+          });
+
+          if (!group) throw new NotFoundException(`Group [${dto.initialGroupId}] not found`);
+          
+          if (group._count.enrollments >= group.maxCapacity) {
+            throw new BadRequestException(`Group [${group.name}] has reached its max capacity`);
+          }
+
+          const existingEnrollment = await tx.groupEnrollment.findUnique({
+            where: { groupId_studentId: { groupId: dto.initialGroupId, studentId: student.id } }
+          });
+          
+          if (existingEnrollment) {
+            await tx.groupEnrollment.update({
+              where: { id: existingEnrollment.id },
+              data: { status: GroupEnrollmentStatus.ACTIVE }
+            });
+          } else {
+            await tx.groupEnrollment.create({
+              data: {
+                groupId: dto.initialGroupId,
+                studentId: student.id,
+                status: GroupEnrollmentStatus.ACTIVE,
+              },
+            });
+          }
+        }
+      }
+
+      return tx.studentProfile.findUnique({
+        where: { id: studentId },
+        include: {
+          user: { select: { id: true, fullName: true, phone: true, email: true, isActive: true } },
+          parentLinks: {
+            include: {
+              parent: {
+                include: { user: { select: { id: true, fullName: true, phone: true, isActive: true } } },
+              },
+            },
+          },
+          groupEnrollments: {
+            where: { status: { in: [GroupEnrollmentStatus.ACTIVE, 'PENDING'] } },
+            include: {
+              group: { select: { id: true, name: true, gradeLevel: true } },
+            },
+          },
+        },
+      });
     });
   }
 
