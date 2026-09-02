@@ -41,6 +41,29 @@ const ACTION_CONFIGS: Record<
   STATUS_CHANGE: { label: 'تغيير حالة', bg: 'bg-orange-50 border-orange-200', text: 'text-orange-700', icon: Edit3 },
 };
 
+const ENTITY_LABELS: Record<string, { label: string; color: string }> = {
+  STUDENT: { label: 'شؤون الطلاب', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  GROUP: { label: 'المجموعات الدراسية', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  BOOKLET: { label: 'المذكرات والملازم', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+  PAYMENT: { label: 'المدفوعات والمصروفات', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  ATTENDANCE: { label: 'الحضور والغياب', color: 'bg-teal-50 text-teal-700 border-teal-200' },
+  ASSISTANT: { label: 'المساعدين', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+  COURSE: { label: 'الكورسات التعليمية', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+  CONTENT: { label: 'الدروس والمحتوى', color: 'bg-sky-50 text-sky-700 border-sky-200' },
+  ASSESSMENT: { label: 'الواجبات والاختبارات', color: 'bg-violet-50 text-violet-700 border-violet-200' },
+  CERTIFICATE: { label: 'شهادات التقدير', color: 'bg-pink-50 text-pink-700 border-pink-200' },
+  SCHEDULE: { label: 'المواعيد والحصص', color: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
+  NOTIFICATION: { label: 'مركز الإشعارات', color: 'bg-rose-50 text-rose-700 border-rose-200' },
+  SETTING: { label: 'إعدادات النظام', color: 'bg-slate-100 text-slate-700 border-slate-200' },
+  AUTH: { label: 'جلسات الدخول', color: 'bg-neutral-100 text-neutral-700 border-neutral-200' },
+};
+
+function getEntityDisplay(type: string): { label: string; color: string } {
+  const upper = (type || '').toUpperCase();
+  if (ENTITY_LABELS[upper]) return ENTITY_LABELS[upper];
+  return { label: type === 'V1' || type === 'v1' ? 'إجراء عام' : type, color: 'bg-neutral-100 text-neutral-600 border-neutral-200' };
+}
+
 export function AuditLogsList({ logs, meta, isLoading, onPageChange }: AuditLogsListProps) {
   const [selectedLog, setSelectedLog] = useState<AuditLogItem | null>(null);
 
@@ -84,6 +107,7 @@ export function AuditLogsList({ logs, meta, isLoading, onPageChange }: AuditLogs
                 const config = ACTION_CONFIGS[log.action] || ACTION_CONFIGS.UPDATE;
                 const Icon = config.icon;
                 const isAssistant = log.userRole === 'SECRETARIAT';
+                const entity = getEntityDisplay(log.entityType);
 
                 const timeStr = new Date(log.createdAt).toLocaleTimeString('ar-EG', {
                   hour: '2-digit',
@@ -136,8 +160,8 @@ export function AuditLogsList({ logs, meta, isLoading, onPageChange }: AuditLogs
 
                     {/* Entity */}
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="inline-flex px-2 py-0.5 rounded text-[11px] font-medium bg-neutral-100 text-neutral-600">
-                        {log.entityType}
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border ${entity.color}`}>
+                        {entity.label}
                       </span>
                     </td>
 
