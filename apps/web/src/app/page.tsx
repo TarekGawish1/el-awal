@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, PlayCircle, Lock, ChevronDown, X, BookOpen, Clock, Users, FileText, ClipboardList } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
+import { submitContactMessage } from './actions';
 
 function IntroSequence({ onComplete }: { onComplete: () => void }) {
   useEffect(() => {
@@ -1389,8 +1390,6 @@ function ContactForm() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     startTransition(async () => {
-      // Import dynamically or assume it's imported at top
-      const { submitContactMessage } = await import('./actions');
       const result = await submitContactMessage(formData);
       if (result.error) {
         toast.error(result.error);

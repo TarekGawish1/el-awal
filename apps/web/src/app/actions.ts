@@ -11,7 +11,7 @@ export async function submitContactMessage(formData: FormData) {
     }
 
     // Call the backend API
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/contact-messages`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://api.al-awal.online/api/v1'}/contact-messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
