@@ -4,6 +4,7 @@ import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
@@ -1292,8 +1293,28 @@ export class SyncService {
             }
 
             if (existingBookletPayment) {
-              const newTotalPaid = Number(existingBookletPayment.amountPaid) + amountPaid;
-              const newExpected = Math.max(amountExpected, Number(existingBookletPayment.amountExpected || 0));
+              const existingPaid = Number(existingBookletPayment.amountPaid || 0);
+              const existingExpected = Math.max(Number(existingBookletPayment.amountExpected || 0), amountExpected);
+              
+              const isExistingFullyPaid = existingPaid >= existingExpected && existingExpected > 0;
+              const isIncomingFullPayment = amountPaid >= amountExpected && amountExpected > 0;
+
+              if (isExistingFullyPaid && isIncomingFullPayment) {
+                result.conflicts.push({
+                  operationId: opId,
+                  reason: 'DUPLICATE_BUSINESS_PAYMENT: This booklet is already fully paid.',
+                  entityId: existingBookletPayment.id,
+                });
+                result.duplicatesIgnored++;
+                result.processedOperationIds.push(opId);
+                if (result.idMappings && op.clientTempId) {
+                  result.idMappings[op.clientTempId] = existingBookletPayment.id;
+                }
+                return;
+              }
+
+              const newTotalPaid = existingPaid + amountPaid;
+              const newExpected = Math.max(amountExpected, existingExpected);
               const newStatus = newTotalPaid >= newExpected && newExpected > 0 ? PaymentStatus.PAID : PaymentStatus.PENDING;
 
               savedPaymentRecord = await tx.studentPaymentRecord.update({
@@ -1730,6 +1751,13 @@ export class SyncService {
 
             if (existing) {
               if (g.type === 'UPDATE_GROUP') {
+                if (g.clientTimestamp && existing.updatedAt) {
+                  const clientDate = new Date(g.clientTimestamp);
+                  if (existing.updatedAt > clientDate) {
+                    throw new ConflictException(`Group [${existing.id}] was modified online since your last sync.`);
+                  }
+                }
+                
                 await tx.academicGroup.update({
                   where: { id: existing.id },
                   data: {
@@ -1740,6 +1768,7 @@ export class SyncService {
                     description: g.description,
                     maxCapacity: g.maxCapacity ?? existing.maxCapacity,
                     monthlyFee: g.monthlyFee ?? existing.monthlyFee,
+                    updatedAt: new Date(),
                   },
                 });
               }
@@ -1804,12 +1833,33 @@ export class SyncService {
 
             if (existingStudent) {
               if (s.type === 'UPDATE_STUDENT') {
+                // Ensure teacher owns this student
+                if (effectiveTeacherId && typeof tx.groupEnrollment?.findFirst === 'function') {
+                  const hasAccess = await tx.groupEnrollment.findFirst({
+                    where: {
+                      studentId: existingStudent.id,
+                      group: { teacherId: effectiveTeacherId }
+                    }
+                  });
+                  if (!hasAccess) {
+                    throw new ConflictException(`FORBIDDEN: You do not own the academic group for student [${s.clientTempId}]`);
+                  }
+                }
+
+                if (s.clientTimestamp && existingStudent.user?.updatedAt) {
+                  const clientDate = new Date(s.clientTimestamp);
+                  if (existingStudent.user.updatedAt > clientDate) {
+                    throw new ConflictException(`Student [${existingStudent.id}] was modified online since your last sync.`);
+                  }
+                }
+
                 await tx.user.update({
                   where: { id: existingStudent.id },
                   data: {
                     fullName: s.fullName ?? s.name ?? existingStudent.user?.fullName,
                     phone: s.phone ?? existingStudent.user?.phone,
                     email: s.email ?? existingStudent.user?.email,
+                    updatedAt: new Date(),
                   },
                 });
                 await tx.studentProfile.update({
