@@ -83,10 +83,18 @@ function PaymentCell({
   onSelectPaidCell?: (cell: any) => void;
 }) {
   const cell = kind === 'TUITION' ? student.monthlyPayments[month || 0] : student.bookletPayments[bookletId || ''];
-  const started = kind === 'BOOKLET' || !month || isMonthStarted(academicYear, academicTerm, month, paymentTiming);
+  const started = kind === 'BOOKLET' || !month || (cell?.isStarted ?? isMonthStarted(academicYear, academicTerm, month, paymentTiming));
 
-  if (kind === 'BOOKLET' && cell?.isApplicable === false) {
-    return <span className="text-slate-300 font-bold">—</span>;
+  // 0. Not applicable (before enrollment date or booklet not for student's grade)
+  if (cell?.isApplicable === false) {
+    return (
+      <span
+        title={kind === 'TUITION' ? 'قبل تاريخ التحاق الطالب بالمجموعة' : 'غير مخصص لصف الطالب'}
+        className="text-lg font-bold text-slate-300 select-none"
+      >
+        —
+      </span>
+    );
   }
 
   // 1. Full Payment
@@ -110,7 +118,7 @@ function PaymentCell({
 
   // 2. Partial Payment
   if (cell && Number(cell.amountPaid) > 0) {
-    const expected = kind === 'TUITION' ? student.monthlyFee : cell.amountExpected || 0;
+    const expected = cell.amountExpected || (kind === 'TUITION' ? student.monthlyFee : 0);
     const remaining = Math.max(0, expected - Number(cell.amountPaid));
     return (
       <button
@@ -165,10 +173,12 @@ function calculateTotals(
   let totalDue = 0;
   months.forEach((month) => {
     const payment = student.monthlyPayments[month];
+    if (payment?.isApplicable === false) return;
     const amountPaid = payment?.amountPaid || 0;
+    const expected = payment?.amountExpected ?? student.monthlyFee;
     totalPaid += amountPaid;
-    if (isMonthStarted(academicYear, academicTerm, month, paymentTiming)) {
-      totalDue += Math.max(0, student.monthlyFee - amountPaid);
+    if (payment?.isStarted ?? isMonthStarted(academicYear, academicTerm, month, paymentTiming)) {
+      totalDue += Math.max(0, expected - amountPaid);
     }
   });
   booklets.filter((booklet) => booklet.gradeLevel === student.gradeLevel).forEach((booklet) => {
