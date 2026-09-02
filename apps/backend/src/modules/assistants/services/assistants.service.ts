@@ -190,16 +190,22 @@ export class AssistantsService {
     }
 
     // Record Audit Log
+    const teacher = await this.prisma.user.findUnique({
+      where: { id: teacherId },
+      select: { fullName: true },
+    });
+    const teacherName = teacher?.fullName || 'المعلم';
+
     await this.auditService.logActivity({
       userId: teacherId,
       userRole: UserRole.TEACHER,
-      userName: 'المعلم',
+      userName: teacherName,
       teacherId,
       action: AuditAction.CREATE,
       entityType: 'ASSISTANT',
       entityId: newAssistant.id,
       entityName: user.fullName,
-      description: `تم إضافة وتعيين المساعد ${user.fullName} (${user.phone}) وتحديد صلاحياته`,
+      description: `قام المعلم ${teacherName} بإضافة وتعيين المساعد (${user.fullName}) وتحديد صلاحياته`,
       details: { permissions: dto.permissions },
     });
 
@@ -272,16 +278,22 @@ export class AssistantsService {
     });
 
     // Record Audit Log
+    const teacher = await this.prisma.user.findUnique({
+      where: { id: teacherId },
+      select: { fullName: true },
+    });
+    const teacherName = teacher?.fullName || 'المعلم';
+
     await this.auditService.logActivity({
       userId: teacherId,
       userRole: UserRole.TEACHER,
-      userName: 'المعلم',
+      userName: teacherName,
       teacherId,
       action: AuditAction.UPDATE,
       entityType: 'ASSISTANT',
       entityId: updated.id,
       entityName: updated.assistant.fullName,
-      description: `تم تعديل بيانات وصلاحيات المساعد ${updated.assistant.fullName}`,
+      description: `قام المعلم ${teacherName} بتعديل بيانات وصلاحيات المساعد (${updated.assistant.fullName})`,
       details: { status: dto.status, permissions: dto.permissions },
     });
 
@@ -303,16 +315,22 @@ export class AssistantsService {
     });
 
     // Record Audit Log
+    const teacher = await this.prisma.user.findUnique({
+      where: { id: teacherId },
+      select: { fullName: true },
+    });
+    const teacherName = teacher?.fullName || 'المعلم';
+
     await this.auditService.logActivity({
       userId: teacherId,
       userRole: UserRole.TEACHER,
-      userName: 'المعلم',
+      userName: teacherName,
       teacherId,
       action: AuditAction.DELETE,
       entityType: 'ASSISTANT',
       entityId: id,
       entityName: existing.assistant?.fullName || 'مساعد',
-      description: `تمت إزالة المساعد ${existing.assistant?.fullName || ''} نهائياً من إدارة المنصة`,
+      description: `قام المعلم ${teacherName} بإزالة المساعد (${existing.assistant?.fullName || ''}) نهائياً من إدارة المنصة`,
     });
 
     return { success: true };

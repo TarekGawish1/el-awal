@@ -27,6 +27,9 @@ export class AuditInterceptor implements NestInterceptor {
     '/api/v1/notifications',
     '/api/sync',
     '/api/v1/sync',
+    '/api/v1/teacher/assistants',
+    '/api/teacher/assistants',
+    '/teacher/assistants',
   ];
 
   private readonly SENSITIVE_KEYS = new Set([
@@ -73,8 +76,12 @@ export class AuditInterceptor implements NestInterceptor {
   }
 
   private resolveEntityType(url: string): string {
-    // Strip /api/ and optional version prefix e.g. /api/v1/ or /api/
-    const cleanUrl = url.replace(/^\/api\/(v\d+\/)?/, '').replace(/^\/api\//, '').split('?')[0];
+    // Strip /api/ and optional version prefix e.g. /api/v1/ or /api/ and optional /teacher/
+    const cleanUrl = url
+      .replace(/^\/api\/(v\d+\/)?/, '')
+      .replace(/^\/api\//, '')
+      .replace(/^\/?teacher\//, '')
+      .split('?')[0];
     const segment = cleanUrl.split('/')[0] || 'SYSTEM';
 
     const entityMap: Record<string, string> = {
