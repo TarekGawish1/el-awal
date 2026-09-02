@@ -187,12 +187,26 @@ export function RecordPaymentModal({
     const defaulter = defaulters.find((student) => student.studentId === studentId);
     const enrollment = groupEnrollments.find((e) => e.student?.id === studentId);
     const fullStudent = allStudents.find((student) => student.id === studentId);
-    const groupIds = fullStudent?.groupIds || [
-      fullStudent?.groupId || fullStudent?.initialGroupId || (defaulter ? selectedGroupId : ''),
-    ].filter(Boolean);
+    
+    const groupIds = Array.from(
+      new Set([
+        selectedGroupId,
+        fullStudent?.groupId,
+        fullStudent?.initialGroupId,
+        ...(fullStudent?.groupIds || []),
+      ].filter(Boolean) as string[])
+    );
+
+    const gradeLevel =
+      enrollment?.student?.gradeLevel ||
+      fullStudent?.gradeLevel ||
+      defaulter?.gradeLevel ||
+      selectedGradeLevel ||
+      allGroups.find((g) => g.id === selectedGroupId)?.gradeLevel ||
+      '';
 
     return {
-      gradeLevel: fullStudent?.gradeLevel || defaulter?.gradeLevel || enrollment?.student?.gradeLevel || selectedGradeLevel,
+      gradeLevel,
       groupIds,
     };
   };
@@ -271,9 +285,11 @@ export function RecordPaymentModal({
       }
     } else if (sId && paymentType === 'BOOKLET') {
       const currentBooklet = booklets.find((booklet) => booklet.id === selectedBookletId);
-      if (currentBooklet && !isBookletEligibleForStudent(currentBooklet, getStudentBookletContext(sId))) {
-        setValue('bookletId', '');
-        setValue('amountPaid', 0);
+      if (currentBooklet) {
+        setValue('amountPaid', Number(currentBooklet.price));
+      } else if (eligibleBooklets.length > 0) {
+        setValue('bookletId', eligibleBooklets[0].id);
+        setValue('amountPaid', Number(eligibleBooklets[0].price));
       }
     }
   };
@@ -589,13 +605,14 @@ export function RecordPaymentModal({
                 </option>
                 {filteredStudents.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name} {s.studentCode ? `[${s.studentCode}]` : ''} — {
+                    {s.name} {s.studentCode ? `[${s.studentCode}]` : ''}
+                    {paymentType === 'TUITION' && (
                       s.isPaid
-                        ? `(مسدد بالفعل — ${s.fee} ج.م)`
+                        ? ` — (مسدد بالفعل — ${s.fee} ج.م)`
                         : s.isPartiallyPaid
-                        ? `(سداد جزئي: مدفوع ${s.amountPaid} ج.م • متبقي ${s.remainingAmount} ج.م)`
-                        : `(غير مسدد — المطلوب: ${s.fee} ج.م)`
-                    }
+                        ? ` — (سداد جزئي: مدفوع ${s.amountPaid} ج.م • متبقي ${s.remainingAmount} ج.م)`
+                        : ` — (غير مسدد — المطلوب: ${s.fee} ج.م)`
+                    )}
                   </option>
                 ))}
               </select>
