@@ -636,6 +636,16 @@ class OfflineSyncEngine {
       pending = pending.filter((m) => allowed.has(m.id));
     }
 
+    const now = Date.now();
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+    // Purge expired mutations (TTL 7 days)
+    const expiredMutations = pending.filter(m => now - m.timestamp > SEVEN_DAYS_MS);
+    for (const m of expiredMutations) {
+      await this.handleFailedMutation(m, 'Mutation expired (TTL 7 days exceeded)');
+    }
+    pending = pending.filter(m => now - m.timestamp <= SEVEN_DAYS_MS);
+
     // Filter out mutations that were recently attempted and failed — enforce
     // a bounded exponential backoff between retry attempts for the same mutation
     // to prevent aggressive server hammering. (30s, 60s, 120s... max ~32 mins)

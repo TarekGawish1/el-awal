@@ -58,6 +58,11 @@ export class SyncBatchGroupItemDto {
   @IsArray()
   @IsOptional()
   schedules?: any[];
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  clientTimestamp?: string;
 }
 
 export class SyncBatchStudentItemDto {
@@ -142,6 +147,11 @@ export class SyncBatchStudentItemDto {
   @IsString()
   @IsOptional()
   initialGroupId?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  clientTimestamp?: string;
 }
 
 export class SyncMutationItemDto {
