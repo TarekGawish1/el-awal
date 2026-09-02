@@ -426,7 +426,10 @@ export class PaymentsService {
           where: { teacherId_academicYear_academicTerm: { teacherId, academicYear, academicTerm } },
         })
       : null;
-    const excludedMonths = this.normalizeExcludedMonths(billingConfiguration?.excludedMonths, availableMonths);
+    const { excludedMonths, paymentTiming } = this.parseBillingConfig(
+      billingConfiguration?.excludedMonths,
+      availableMonths,
+    );
     const months = availableMonths.filter((month) => !excludedMonths.includes(month));
 
     const requestedMonth = Number(query.periodMonth) || 0;
@@ -528,17 +531,30 @@ export class PaymentsService {
         
         const group = groups.find(g => g.id === groupId);
         if (group) {
-          let billableMonths = 0;
+          const groupFee = Number(group.monthlyFee);
+          let studentExpected = 0;
+          const enrollmentDate = new Date(enrollment.enrolledAt);
+          const enrollYear = enrollmentDate.getFullYear();
+          const enrollMonth = enrollmentDate.getMonth() + 1;
+          const enrollDay = enrollmentDate.getDate();
+
           for (const m of billingMonths) {
             const mYear = m >= 8 ? startYear : startYear + 1;
-            const monthStart = new Date(mYear, m - 1, 1);
-            const enrollmentDate = new Date(enrollment.enrolledAt);
-            if (monthStart >= new Date(enrollmentDate.getFullYear(), enrollmentDate.getMonth(), 1)) {
-              billableMonths++;
+            // 1. Is month due based on PREPAID vs POSTPAID timing?
+            const isStarted = this.isMonthStarted(academicYear, academicTerm, m, paymentTiming);
+            if (!isStarted) continue;
+
+            // 2. Is month before enrollment date?
+            if (mYear < enrollYear || (mYear === enrollYear && m < enrollMonth)) {
+              continue;
             }
+
+            // 3. Pro-rate half month if enrolled after day 15
+            const isJoiningMonth = mYear === enrollYear && m === enrollMonth;
+            const fee = isJoiningMonth && enrollDay > 15 ? Math.round(groupFee / 2) : groupFee;
+            studentExpected += fee;
           }
-          const expected = Number(group.monthlyFee) * billableMonths;
-          tuitionExpectedByGroup.set(groupId, (tuitionExpectedByGroup.get(groupId) || 0) + expected);
+          tuitionExpectedByGroup.set(groupId, (tuitionExpectedByGroup.get(groupId) || 0) + studentExpected);
         }
       }
     }

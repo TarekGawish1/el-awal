@@ -808,29 +808,72 @@ export class SubscriptionsService {
       paymentMap.set(record.studentId, record);
     }
 
-    // 3. Filter unpaid and partially paid students
-    const defaulters = enrollments
-      .filter((e) => {
-        const enrollmentDate = new Date(e.enrolledAt);
-        const enrollYear = enrollmentDate.getFullYear();
-        const enrollMonth = enrollmentDate.getMonth() + 1;
-        const enrollDay = enrollmentDate.getDate();
+    // 3. Check billing configuration and payment timing
+    const billingConfig = await this.prisma.teacherBillingConfiguration.findUnique({
+      where: {
+        teacherId_academicYear_academicTerm: {
+          teacherId: group.teacherId,
+          academicYear: group.academicYear,
+          academicTerm: group.academicTerm,
+        },
+      },
+    });
 
-        // 1. If period is before the student enrolled, do NOT ask him to pay!
-        if (periodYear < enrollYear || (periodYear === enrollYear && periodMonth < enrollMonth)) {
-          return false;
+    let paymentTiming: 'PREPAID' | 'POSTPAID' = 'PREPAID';
+    let excludedMonths: number[] = [];
+    if (billingConfig?.excludedMonths) {
+      if (Array.isArray(billingConfig.excludedMonths)) {
+        excludedMonths = billingConfig.excludedMonths.map(Number).filter((n) => !isNaN(n));
+      } else if (typeof billingConfig.excludedMonths === 'object') {
+        const raw = billingConfig.excludedMonths as any;
+        if (Array.isArray(raw.excludedMonths)) {
+          excludedMonths = raw.excludedMonths.map(Number).filter((n: any) => !isNaN(n));
         }
+        if (raw.paymentTiming === 'POSTPAID' || raw.paymentTiming === 'PREPAID') {
+          paymentTiming = raw.paymentTiming;
+        }
+      }
+    }
 
-        // 2. If enrolled in middle of month (> day 15), expect half month fee
-        const isJoiningMonth = periodYear === enrollYear && periodMonth === enrollMonth;
-        const expectedFee = isJoiningMonth && enrollDay > 15 ? Math.round(groupFee / 2) : groupFee;
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    let isPeriodDue = false;
+    if (paymentTiming === 'POSTPAID') {
+      // POSTPAID: Due only after the month ends (past month)
+      isPeriodDue = periodYear < currentYear || (periodYear === currentYear && periodMonth < currentMonth);
+    } else {
+      // PREPAID: Due immediately as soon as the month starts (current or past month)
+      isPeriodDue = periodYear < currentYear || (periodYear === currentYear && periodMonth <= currentMonth);
+    }
 
-        const record = paymentMap.get(e.studentId);
-        if (!record) return true;
-        const amountPaid = Number(record.amountPaid || 0);
-        const isFullyPaid = (record.paymentStatus === PaymentStatus.PAID || record.paymentStatus === PaymentStatus.EXEMPT) && amountPaid >= expectedFee;
-        return !isFullyPaid;
-      })
+    const isMonthExcluded = excludedMonths.includes(periodMonth);
+
+    // 4. Filter unpaid and partially paid students (only if period is due and not excluded)
+    const defaulters = (!isPeriodDue || isMonthExcluded)
+      ? []
+      : enrollments
+          .filter((e) => {
+            const enrollmentDate = new Date(e.enrolledAt);
+            const enrollYear = enrollmentDate.getFullYear();
+            const enrollMonth = enrollmentDate.getMonth() + 1;
+            const enrollDay = enrollmentDate.getDate();
+
+            // 1. If period is before the student enrolled, do NOT ask him to pay!
+            if (periodYear < enrollYear || (periodYear === enrollYear && periodMonth < enrollMonth)) {
+              return false;
+            }
+
+            // 2. If enrolled in middle of month (> day 15), expect half month fee
+            const isJoiningMonth = periodYear === enrollYear && periodMonth === enrollMonth;
+            const expectedFee = isJoiningMonth && enrollDay > 15 ? Math.round(groupFee / 2) : groupFee;
+
+            const record = paymentMap.get(e.studentId);
+            if (!record) return true;
+            const amountPaid = Number(record.amountPaid || 0);
+            const isFullyPaid = (record.paymentStatus === PaymentStatus.PAID || record.paymentStatus === PaymentStatus.EXEMPT) && amountPaid >= expectedFee;
+            return !isFullyPaid;
+          })
       .map((e) => {
         const enrollmentDate = new Date(e.enrolledAt);
         const enrollYear = enrollmentDate.getFullYear();
