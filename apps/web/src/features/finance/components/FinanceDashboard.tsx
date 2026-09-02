@@ -19,7 +19,13 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { BookletManagementSection } from '@/features/booklets/components/BookletManagementSection';
 import { FinancialMatrixLedger } from './FinancialMatrixLedger';
 import { FinanceAnalyticsTab } from './FinanceAnalyticsTab';
-import { DEFAULT_ACADEMIC_TERM, STORAGE_TERM_KEY, STORAGE_YEAR_KEY } from '@/features/groups/hooks/useAcademicPeriod';
+import {
+  DEFAULT_ACADEMIC_TERM,
+  STORAGE_TERM_KEY,
+  STORAGE_YEAR_KEY,
+  getCurrentAcademicTerm,
+  getCurrentAcademicYear,
+} from '@/features/groups/hooks/useAcademicPeriod';
 import toast from 'react-hot-toast';
 
 function readStoredValue(key: string, fallback: string) {
@@ -39,9 +45,10 @@ export function FinanceDashboard() {
   const paramStage = searchParams.get('stage') || '';
   const paramGradeLevel = searchParams.get('gradeLevel') || '';
 
-  const defaultYear = `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
+  const defaultYear = getCurrentAcademicYear();
+  const defaultTerm = getCurrentAcademicTerm();
   const [academicYear, setAcademicYear] = useState(() => readStoredValue(STORAGE_YEAR_KEY, defaultYear));
-  const [academicTerm, setAcademicTerm] = useState<'FIRST_TERM' | 'SECOND_TERM'>(() => readStoredValue(STORAGE_TERM_KEY, DEFAULT_ACADEMIC_TERM) as 'FIRST_TERM' | 'SECOND_TERM');
+  const [academicTerm, setAcademicTerm] = useState<'FIRST_TERM' | 'SECOND_TERM'>(() => readStoredValue(STORAGE_TERM_KEY, defaultTerm) as 'FIRST_TERM' | 'SECOND_TERM');
 
   const [selectedGroupId, setSelectedGroupId] = useState<string>(paramGroupId || '');
   const [periodMonth, setPeriodMonth] = useState<number>(new Date().getMonth() + 1);
@@ -60,7 +67,7 @@ export function FinanceDashboard() {
   useEffect(() => {
     const sync = () => {
       setAcademicYear(readStoredValue(STORAGE_YEAR_KEY, defaultYear));
-      setAcademicTerm(readStoredValue(STORAGE_TERM_KEY, DEFAULT_ACADEMIC_TERM) as 'FIRST_TERM' | 'SECOND_TERM');
+      setAcademicTerm(readStoredValue(STORAGE_TERM_KEY, defaultTerm) as 'FIRST_TERM' | 'SECOND_TERM');
     };
     window.addEventListener('el_awal_academic_period_changed', sync);
     window.addEventListener('storage', sync);
@@ -68,7 +75,7 @@ export function FinanceDashboard() {
       window.removeEventListener('el_awal_academic_period_changed', sync);
       window.removeEventListener('storage', sync);
     };
-  }, [defaultYear]);
+  }, [defaultYear, defaultTerm]);
 
   useEffect(() => {
     if (paramGroupId) setSelectedGroupId(paramGroupId);

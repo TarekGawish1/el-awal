@@ -12,9 +12,15 @@ import { useMatrixLedger, useBillingConfiguration, useUpdateBillingConfiguration
 import { MatrixLedgerStudent } from '../types/finance.types';
 import { StudentHistoryModal } from './StudentHistoryModal';
 import { CancelPaymentModal, PaymentSummaryInfo } from './CancelPaymentModal';
-import { FinanceFiltersBar, TERM_MONTHS } from './FinanceFiltersBar';
+import {
+  DEFAULT_ACADEMIC_TERM,
+  STORAGE_TERM_KEY,
+  STORAGE_YEAR_KEY,
+  getCurrentAcademicTerm,
+  getCurrentAcademicYear,
+} from '@/features/groups/hooks/useAcademicPeriod';
 import { inferStageFromGrade } from '@/lib/constants/grades';
-import { DEFAULT_ACADEMIC_TERM, STORAGE_TERM_KEY, STORAGE_YEAR_KEY } from '@/features/groups/hooks/useAcademicPeriod';
+import { FinanceFiltersBar, TERM_MONTHS } from './FinanceFiltersBar';
 
 const ARABIC_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 
@@ -120,9 +126,10 @@ function calculateTotals(student: MatrixLedgerStudent, months: number[], booklet
 }
 
 export function FinancialMatrixLedger({ groups = [], initialStage = '', initialGradeLevel = '', initialGroupId = '' }: { groups?: any[]; initialStage?: string; initialGradeLevel?: string; initialGroupId?: string }) {
-  const defaultYear = new Date().getFullYear() + '-' + (new Date().getFullYear() + 1);
+  const defaultYear = getCurrentAcademicYear();
+  const defaultTerm = getCurrentAcademicTerm();
   const [academicYear, setAcademicYear] = useState(() => readStoredValue(STORAGE_YEAR_KEY, defaultYear));
-  const [academicTerm, setAcademicTerm] = useState<'FIRST_TERM' | 'SECOND_TERM'>(() => readStoredValue(STORAGE_TERM_KEY, DEFAULT_ACADEMIC_TERM) as 'FIRST_TERM' | 'SECOND_TERM');
+  const [academicTerm, setAcademicTerm] = useState<'FIRST_TERM' | 'SECOND_TERM'>(() => readStoredValue(STORAGE_TERM_KEY, defaultTerm) as 'FIRST_TERM' | 'SECOND_TERM');
   const [stage, setStage] = useState(initialStage);
   const [gradeLevel, setGradeLevel] = useState(initialGradeLevel);
   const [groupId, setGroupId] = useState(initialGroupId);
@@ -139,12 +146,12 @@ export function FinancialMatrixLedger({ groups = [], initialStage = '', initialG
   useEffect(() => {
     const sync = () => {
       setAcademicYear(readStoredValue(STORAGE_YEAR_KEY, defaultYear));
-      setAcademicTerm(readStoredValue(STORAGE_TERM_KEY, DEFAULT_ACADEMIC_TERM) as 'FIRST_TERM' | 'SECOND_TERM');
+      setAcademicTerm(readStoredValue(STORAGE_TERM_KEY, defaultTerm) as 'FIRST_TERM' | 'SECOND_TERM');
     };
     window.addEventListener('el_awal_academic_period_changed', sync);
     window.addEventListener('storage', sync);
     return () => { window.removeEventListener('el_awal_academic_period_changed', sync); window.removeEventListener('storage', sync); };
-  }, [defaultYear]);
+  }, [defaultYear, defaultTerm]);
 
   useEffect(() => {
     if (initialStage && initialStage !== stage) setStage(initialStage);
