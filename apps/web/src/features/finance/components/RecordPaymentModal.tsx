@@ -270,6 +270,19 @@ export function RecordPaymentModal({
     }
   };
 
+  const watchAmountPaid = watch('amountPaid');
+  const selectedStudent = availableStudents.find((s) => s.id === selectedStudentId);
+  const selectedBooklet = booklets.find((b) => b.id === selectedBookletId);
+  const currentExpectedAmount =
+    paymentType === 'BOOKLET'
+      ? Number(selectedBooklet?.price || 0)
+      : Number(selectedStudent?.fee || groupFee || 0);
+
+  const currentEnteredAmount = Number(watchAmountPaid || 0);
+  const remainingDue = Math.max(0, currentExpectedAmount - currentEnteredAmount);
+  const isPartialPayment = currentEnteredAmount > 0 && currentEnteredAmount < currentExpectedAmount;
+  const isFullPayment = currentEnteredAmount >= currentExpectedAmount && currentExpectedAmount > 0;
+
   if (!isOpen) return null;
 
   const onSubmit = (data: PaymentFormData) => {
@@ -278,7 +291,7 @@ export function RecordPaymentModal({
       return;
     }
 
-    const student = defaulters.find((d) => d.studentId === data.studentId);
+    const student = availableStudents.find((d) => d.id === data.studentId);
     const booklet = booklets.find((b) => b.id === data.bookletId);
     const studentContext = getStudentBookletContext(data.studentId);
 
@@ -292,7 +305,10 @@ export function RecordPaymentModal({
         ? booklet
           ? Number(booklet.price)
           : data.amountPaid
-        : student?.monthlyFeeExpected;
+        : student?.fee || groupFee || data.amountPaid;
+
+    const isFull = data.amountPaid >= expected;
+    const remaining = Math.max(0, expected - data.amountPaid);
 
     recordPayment(
       {
@@ -304,19 +320,27 @@ export function RecordPaymentModal({
         periodMonth: currentPeriodMonth,
         amountPaid: data.amountPaid,
         amountExpected: expected,
-        paymentStatus: PaymentStatus.PAID,
+        paymentStatus: isFull ? PaymentStatus.PAID : PaymentStatus.PENDING,
         paymentMethod: 'CASH',
         receiptNumber: data.receiptNumber,
         notes:
           data.notes ||
-          (paymentType === 'BOOKLET' && booklet ? `سداد مذكرة: ${booklet.title}` : undefined),
+          (paymentType === 'BOOKLET' && booklet
+            ? `سداد مذكرة: ${booklet.title}${!isFull ? ` (دفعة جزئية - متبقي ${remaining} ج.م)` : ''}`
+            : !isFull
+            ? `دفعة جزئية (متبقي ${remaining} ج.م)`
+            : undefined),
       } as any,
       {
         onSuccess: () => {
           toast.success(
             paymentType === 'BOOKLET'
-              ? 'تم تسجيل سداد المذكرة بنجاح 📚'
-              : 'تم تسجيل سداد المصروفات بنجاح 💳',
+              ? isFull
+                ? 'تم تسجيل سداد المذكرة بالكامل بنجاح 📚'
+                : `تم تسجيل سداد جزئي للمذكرة (${data.amountPaid} ج.م) — متبقي ${remaining} ج.م 📚`
+              : isFull
+              ? 'تم تسجيل سداد المصروفات بالكامل بنجاح 💳'
+              : `تم تسجيل دفعة جزئية (${data.amountPaid} ج.م) — متبقي ${remaining} ج.م 💳`,
           );
           reset();
           onClose();
@@ -522,22 +546,78 @@ export function RecordPaymentModal({
               </div>
             )}
 
+            {/* Amount Paid with Partial Payment Controls */}
             <div>
-              <Label className="mb-1.5 block text-xs font-bold text-slate-700">
-                المبلغ المحصل (ج.م) <span className="text-red-500">*</span>
-              </Label>
+              <div className="mb-1.5 flex items-center justify-between">
+                <Label className="block text-xs font-bold text-slate-700">
+                  المبلغ المحصل الآن (ج.م) <span className="text-red-500">*</span>
+                </Label>
+                {currentExpectedAmount > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setValue('amountPaid', currentExpectedAmount)}
+                      className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-lg transition-colors"
+                    >
+                      سداد كامل ({currentExpectedAmount} ج.م)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setValue('amountPaid', Math.round(currentExpectedAmount / 2))}
+                      className="text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-lg transition-colors"
+                    >
+                      سداد النصف ({Math.round(currentExpectedAmount / 2)} ج.م)
+                    </button>
+                  </div>
+                )}
+              </div>
               <Input
                 type="number"
                 step="any"
                 min="0"
                 {...register('amountPaid', { valueAsNumber: true })}
                 disabled={isPending}
-                className="font-bold text-emerald-700"
+                className="font-bold text-emerald-700 text-base"
               />
               {errors.amountPaid && (
                 <p className="text-red-500 text-xs mt-1 font-medium">
                   {errors.amountPaid.message}
                 </p>
+              )}
+
+              {/* Dynamic Partial / Full Payment Calculation Summary */}
+              {selectedStudentId && currentExpectedAmount > 0 && (
+                <div
+                  className={`mt-2 p-3 rounded-xl border text-xs transition-all ${
+                    isFullPayment
+                      ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
+                      : isPartialPayment
+                      ? 'bg-amber-50/80 border-amber-200 text-amber-900'
+                      : 'bg-slate-50 border-slate-200 text-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between font-bold">
+                    <span>
+                      {isFullPayment
+                        ? '✅ سداد كامل للمبلغ'
+                        : isPartialPayment
+                        ? '⚡ سداد جزئي (دفعة مقدمة)'
+                        : 'ℹ️ تفاصيل الرسوم المستحقة'}
+                    </span>
+                    <span className="font-extrabold">
+                      المطلوب إجمالاً: {currentExpectedAmount} ج.م
+                    </span>
+                  </div>
+
+                  {isPartialPayment && (
+                    <div className="mt-1.5 flex items-center justify-between text-[11px] font-semibold border-t border-amber-200/60 pt-1.5 text-amber-800">
+                      <span>المدفوع الآن: {currentEnteredAmount} ج.م</span>
+                      <span className="text-rose-700 font-bold">
+                        المتبقي للسداد لاحقاً: {remainingDue} ج.م
+                      </span>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 
@@ -572,11 +652,13 @@ export function RecordPaymentModal({
               </Button>
               <Button
                 type="submit"
-                disabled={isPending}
+                disabled={isPending || !selectedStudentId || currentEnteredAmount <= 0}
                 className={
                   paymentType === 'BOOKLET'
-                    ? 'bg-purple-600 hover:bg-purple-700 text-white'
-                    : 'bg-primary hover:bg-primary/90 text-white'
+                    ? 'bg-purple-600 hover:bg-purple-700 text-white font-bold'
+                    : isPartialPayment
+                    ? 'bg-amber-600 hover:bg-amber-700 text-white font-bold'
+                    : 'bg-primary hover:bg-primary/90 text-white font-bold'
                 }
               >
                 {isPending ? (
@@ -584,6 +666,8 @@ export function RecordPaymentModal({
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>جاري الحفظ...</span>
                   </div>
+                ) : isPartialPayment ? (
+                  `حفظ دفعة جزئية (${currentEnteredAmount} ج.م)`
                 ) : (
                   'حفظ عملية السداد'
                 )}
