@@ -59,6 +59,7 @@ export interface AuditQueryParams {
   action?: AuditAction | '';
   entityType?: string;
   userId?: string;
+  userRole?: string;
   startDate?: string;
   endDate?: string;
   page?: number;

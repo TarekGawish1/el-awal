@@ -1,5 +1,7 @@
-import React from 'react';
-import { Search, Filter, RotateCcw, User, Activity } from 'lucide-react';
+'use client';
+
+import React, { useState, useRef, useEffect } from 'react';
+import { Search, RotateCcw, User, ChevronDown, Check, Users, ShieldCheck } from 'lucide-react';
 import { AuditAction, AuditQueryParams, PerformerItem } from '../types/audit.types';
 
 interface AuditLogFiltersProps {
@@ -38,6 +40,64 @@ export function AuditLogFilters({
   onChange,
   onReset,
 }: AuditLogFiltersProps) {
+  const [isPerformerOpen, setIsPerformerOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsPerformerOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const teachers = performers.filter((p) => p.userRole === 'TEACHER');
+  const assistants = performers.filter((p) => p.userRole === 'SECRETARIAT');
+
+  // Active selected assistant IDs
+  const selectedUserIds = (filters.userId || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const isAllSelected = !filters.userId && !filters.userRole;
+  const isTeacherOnly = filters.userRole === 'TEACHER';
+  const isAllAssistants = filters.userRole === 'SECRETARIAT';
+
+  // Toggle individual assistant
+  const toggleAssistant = (assistantId: string) => {
+    let nextIds: string[];
+    if (isAllAssistants) {
+      nextIds = assistants.map((a) => a.userId).filter((id) => id !== assistantId);
+    } else if (selectedUserIds.includes(assistantId)) {
+      nextIds = selectedUserIds.filter((id) => id !== assistantId);
+    } else {
+      nextIds = [...selectedUserIds, assistantId];
+    }
+
+    if (nextIds.length === 0) {
+      onChange({ userId: '', userRole: '', page: 1 });
+    } else if (assistants.length > 0 && nextIds.length === assistants.length) {
+      onChange({ userId: '', userRole: 'SECRETARIAT', page: 1 });
+    } else {
+      onChange({ userId: nextIds.join(','), userRole: '', page: 1 });
+    }
+  };
+
+  // Label to display on the trigger button
+  const getPerformerTriggerLabel = () => {
+    if (isAllSelected) return 'الجميع (معلم ومساعدين)';
+    if (isTeacherOnly) return 'المعلم فقط';
+    if (isAllAssistants) return `جميع المساعدين (${assistants.length})`;
+    if (selectedUserIds.length === 1) {
+      const match = performers.find((p) => p.userId === selectedUserIds[0]);
+      return match ? `المساعد: ${match.userName}` : 'مساعد محدد';
+    }
+    if (selectedUserIds.length > 1) {
+      return `${selectedUserIds.length} مساعدين محددين`;
+    }
+    return 'الجميع (معلم ومساعدين)';
+  };
+
   return (
     <div className="bg-white p-5 rounded-2xl border border-neutral-100 shadow-sm mb-6 space-y-4">
       {/* Top Search Bar */}
@@ -54,6 +114,7 @@ export function AuditLogFilters({
         </div>
 
         <button
+          type="button"
           onClick={onReset}
           className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold text-neutral-600 bg-neutral-100 hover:bg-neutral-200 rounded-xl transition-colors shrink-0"
         >
@@ -96,21 +157,124 @@ export function AuditLogFilters({
           </select>
         </div>
 
-        {/* Performer / Assistant */}
-        <div>
-          <label className="block text-neutral-500 mb-1 font-bold">منفّذ العملية</label>
-          <select
-            value={filters.userId || ''}
-            onChange={(e) => onChange({ userId: e.target.value, page: 1 })}
-            className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-neutral-700 outline-none focus:ring-2 focus:ring-primary-500"
+        {/* Multi-Select Performer / Assistant */}
+        <div className="relative" ref={dropdownRef}>
+          <label className="block text-neutral-500 mb-1 font-bold">منفّذ العملية (تحديد متعدد)</label>
+          <button
+            type="button"
+            onClick={() => setIsPerformerOpen(!isPerformerOpen)}
+            className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 text-neutral-700 outline-none focus:ring-2 focus:ring-primary-500 flex items-center justify-between gap-2 text-right transition-colors"
           >
-            <option value="">الجميع (معلم ومساعدين)</option>
-            {performers.map((p) => (
-              <option key={p.userId} value={p.userId}>
-                {p.userName} ({p.userRole === 'SECRETARIAT' ? 'مساعد' : 'معلم'})
-              </option>
-            ))}
-          </select>
+            <span className="truncate font-semibold text-xs text-neutral-800">
+              {getPerformerTriggerLabel()}
+            </span>
+            <ChevronDown className={`w-4 h-4 text-neutral-400 shrink-0 transition-transform ${isPerformerOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {isPerformerOpen && (
+            <div className="absolute top-full right-0 mt-1.5 w-72 bg-white rounded-2xl shadow-xl border border-neutral-200 p-2.5 z-50 space-y-2 animate-in fade-in zoom-in-95 duration-150">
+              {/* Presets */}
+              <div className="space-y-1 pb-2 border-b border-neutral-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange({ userId: '', userRole: '', page: 1 });
+                    setIsPerformerOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+                    isAllSelected ? 'bg-primary-50 text-primary-700' : 'hover:bg-neutral-50 text-neutral-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    الجميع (معلم ومساعدين)
+                  </div>
+                  {isAllSelected && <Check className="w-4 h-4 text-primary-600" />}
+                </button>
+
+                {teachers.map((t) => {
+                  const isTeacherSelected =
+                    selectedUserIds.length === 1 && selectedUserIds[0] === t.userId && !filters.userRole;
+                  return (
+                    <button
+                      key={t.userId}
+                      type="button"
+                      onClick={() => {
+                        onChange({ userId: t.userId, userRole: '', page: 1 });
+                        setIsPerformerOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+                        isTeacherSelected ? 'bg-primary-50 text-primary-700' : 'hover:bg-neutral-50 text-neutral-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                        {t.userName} (المعلم)
+                      </div>
+                      {isTeacherSelected && <Check className="w-4 h-4 text-primary-600" />}
+                    </button>
+                  );
+                })}
+
+                {assistants.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onChange({ userId: '', userRole: 'SECRETARIAT', page: 1 });
+                      setIsPerformerOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+                      isAllAssistants ? 'bg-amber-50 text-amber-800' : 'hover:bg-neutral-50 text-neutral-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <User className="w-4 h-4 text-amber-600" />
+                      جميع المساعدين ({assistants.length})
+                    </div>
+                    {isAllAssistants && <Check className="w-4 h-4 text-amber-600" />}
+                  </button>
+                )}
+              </div>
+
+              {/* Individual Assistants Checklist */}
+              {assistants.length > 0 && (
+                <div className="space-y-1">
+                  <div className="px-2 py-1 text-[10px] font-extrabold text-neutral-400 uppercase tracking-wider">
+                    تحديد مساعدين معينين:
+                  </div>
+                  <div className="max-h-44 overflow-y-auto space-y-1 pr-1">
+                    {assistants.map((assistant) => {
+                      const isChecked =
+                        isAllAssistants || selectedUserIds.includes(assistant.userId);
+                      return (
+                        <label
+                          key={assistant.userId}
+                          className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer text-xs font-medium transition-colors select-none ${
+                            isChecked
+                              ? 'bg-primary-50/70 text-primary-950 font-bold'
+                              : 'hover:bg-neutral-50 text-neutral-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleAssistant(assistant.userId)}
+                              className="w-4 h-4 rounded border-neutral-300 text-primary-600 focus:ring-primary-500 cursor-pointer accent-primary-600"
+                            />
+                            <span>{assistant.userName}</span>
+                          </div>
+                          <span className="text-[10px] text-amber-700 bg-amber-100/70 px-1.5 py-0.5 rounded font-bold">
+                            مساعد
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Date Filter */}
