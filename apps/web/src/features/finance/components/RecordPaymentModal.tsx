@@ -119,25 +119,35 @@ export function RecordPaymentModal({
   const selectedStudentId = watch('studentId');
   const selectedBookletId = watch('bookletId');
   const defaulters = defaultersData?.defaulters || [];
+  const currentGroupObj = allGroups.find((g) => g.id === selectedGroupId);
+  const groupFee = Number(currentGroupObj?.monthlyFee) || 0;
 
+  // Available students list combining defaulters and enrolled students with proper fee and status
   const availableStudents = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; fee: number; studentCode?: string }>();
+    const map = new Map<
+      string,
+      { id: string; name: string; fee: number; isPaid: boolean; studentCode?: string }
+    >();
 
+    // 1. Defaulters (unpaid students for the selected month)
     defaulters.forEach((d) => {
       map.set(d.studentId, {
         id: d.studentId,
         name: d.fullName,
-        fee: d.monthlyFeeExpected,
+        fee: d.monthlyFeeExpected || groupFee,
+        isPaid: false,
         studentCode: d.studentCode || undefined,
       });
     });
 
+    // 2. Enrolled students who already paid for this month
     groupEnrollments.forEach((e) => {
       if (e.student?.id && !map.has(e.student.id)) {
         map.set(e.student.id, {
           id: e.student.id,
           name: e.student.user?.name || 'طالب',
-          fee: 0,
+          fee: groupFee,
+          isPaid: true,
           studentCode: e.student.code,
         });
       }
@@ -149,7 +159,8 @@ export function RecordPaymentModal({
           map.set(s.id, {
             id: s.id,
             name: s.fullName,
-            fee: 0,
+            fee: groupFee,
+            isPaid: false,
             studentCode: s.studentCode,
           });
         }
@@ -157,7 +168,7 @@ export function RecordPaymentModal({
     }
 
     return Array.from(map.values());
-  }, [defaulters, groupEnrollments, selectedGroupId, allStudents]);
+  }, [defaulters, groupEnrollments, selectedGroupId, allStudents, groupFee]);
 
   const getStudentBookletContext = (studentId: string) => {
     const defaulter = defaulters.find((student) => student.studentId === studentId);
@@ -221,9 +232,9 @@ export function RecordPaymentModal({
     const sId = e.target.value;
     setValue('studentId', sId);
     if (sId && paymentType === 'TUITION') {
-      const student = defaulters.find((d) => d.studentId === sId);
+      const student = availableStudents.find((st) => st.id === sId);
       if (student) {
-        setValue('amountPaid', student.monthlyFeeExpected);
+        setValue('amountPaid', student.fee || groupFee);
       }
     } else if (sId && paymentType === 'BOOKLET') {
       const currentBooklet = booklets.find((booklet) => booklet.id === selectedBookletId);
@@ -479,7 +490,7 @@ export function RecordPaymentModal({
                 </option>
                 {availableStudents.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name} {s.studentCode ? `[${s.studentCode}]` : ''} {s.fee ? `(${s.fee} ج.م)` : ''}
+                    {s.name} {s.studentCode ? `[${s.studentCode}]` : ''} {s.isPaid ? `(مسدد بالفعل — ${s.fee} ج.م)` : `(${s.fee} ج.م — غير مسدد)`}
                   </option>
                 ))}
               </select>
