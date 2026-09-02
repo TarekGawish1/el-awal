@@ -94,7 +94,25 @@ export function ManualPaymentTab({ groups, initialPeriodYear, initialPeriodMonth
   const recentPayments = paymentsData?.pages?.[0]?.data || [];
 
   const handleStageChange = (value: string) => { setStage(value); setGradeLevel(''); setGroupId(''); };
-  const handleGradeChange = (value: string) => { setGradeLevel(value); setGroupId(''); };
+  const handleGradeChange = (value: string) => {
+    setGradeLevel(value);
+    setGroupId('');
+    if (value && !stage) {
+      const inferred = inferStage(value);
+      if (inferred) setStage(inferred);
+    }
+  };
+  const handleGroupChange = (value: string) => {
+    setGroupId(value);
+    if (value) {
+      const selected = groups.find((g) => g.id === value);
+      if (selected) {
+        if (selected.gradeLevel) setGradeLevel(selected.gradeLevel);
+        const inferred = inferStage(selected.gradeLevel);
+        if (inferred) setStage(inferred);
+      }
+    }
+  };
   const handleTermChange = (value: 'FIRST_TERM' | 'SECOND_TERM') => {
     setAcademicTerm(value);
     setPeriodMonth(TERM_MONTHS[value][0]);
@@ -107,15 +125,67 @@ export function ManualPaymentTab({ groups, initialPeriodYear, initialPeriodMonth
     }
   };
 
-  const visibleGroups = groups.filter((group) => (!gradeLevel || group.gradeLevel === gradeLevel) && (stage === 'ALL' || inferStage(group.gradeLevel) === stage));
   const allStudents = (defaultersData?.defaulters || []).map((student) => ({ id: student.studentId, fullName: student.fullName, studentCode: student.studentCode || undefined, gradeLevel: student.gradeLevel, groupId }));
 
   return (
     <div className="space-y-5">
-      <FinanceFiltersBar groups={visibleGroups} stage={stage} gradeLevel={gradeLevel} groupId={groupId} academicYear={academicYear} academicTerm={academicTerm} periodMonth={periodMonth} search={search} onStageChange={handleStageChange} onGradeChange={handleGradeChange} onGroupChange={setGroupId} onTermChange={handleTermChange} onMonthChange={setPeriodMonth} onSearchChange={setSearch} />
+      <FinanceFiltersBar groups={groups} stage={stage} gradeLevel={gradeLevel} groupId={groupId} academicYear={academicYear} academicTerm={academicTerm} periodMonth={periodMonth} search={search} onStageChange={handleStageChange} onGradeChange={handleGradeChange} onGroupChange={handleGroupChange} onTermChange={handleTermChange} onMonthChange={setPeriodMonth} onSearchChange={setSearch} />
 
       <Card><CardHeader><div className="flex w-full items-center justify-between gap-3"><CardTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-rose-500" />الطلاب المتأخرين عن السداد{selectedGroup ? ` - ${selectedGroup.name}` : ''}</CardTitle>{groupId && <Button type="button" onClick={() => setIsRecordModalOpen(true)}>تسجيل دفعة</Button>}</div></CardHeader><CardContent>
-        {!groupId ? <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center"><Users className="mx-auto mb-2 h-8 w-8 text-slate-400" /><p className="text-sm font-bold text-slate-700">اختر مجموعة لعرض الطلاب المتأخرين</p><p className="mt-1 text-xs text-slate-500">يمكنك تصفية المرحلة والصف أولاً، ثم اختيار المجموعة المناسبة.</p></div> : isDefaultersLoading ? <div className="space-y-2"><div className="h-12 animate-pulse rounded-xl bg-slate-100" /><div className="h-12 animate-pulse rounded-xl bg-slate-100" /></div> : isDefaultersError ? <Alert variant="error">حدث خطأ أثناء تحميل قائمة المتأخرين.</Alert> : overdueStudents.length === 0 ? <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-8 text-center"><CheckCircle2 className="mx-auto mb-2 h-8 w-8 text-emerald-600" /><p className="text-sm font-bold text-emerald-800">جميع طلاب هذه المجموعة قاموا بسداد اشتراك هذا الشهر بالكامل.</p></div> : <div className="divide-y divide-slate-100 rounded-xl border border-slate-100">{overdueStudents.map((student) => <div key={student.studentId} className="flex items-center justify-between gap-3 p-3.5"><div><p className="text-sm font-bold text-slate-800">{student.fullName}</p><p className="mt-1 font-mono text-xs text-slate-400">{student.studentCode || 'بدون كود'}</p></div><div className="flex items-center gap-3"><span className="text-sm font-bold text-rose-600">{student.monthlyFeeExpected} ج.م</span><Button type="button" size="sm" variant="outline" onClick={() => setHistoryStudentId(student.studentId)}><History className="h-3.5 w-3.5" />كشف حساب</Button></div></div>)}</div>}
+        {!groupId ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+            <Users className="mx-auto mb-2 h-8 w-8 text-slate-400" />
+            <p className="text-sm font-bold text-slate-700">اختر مجموعة لعرض الطلاب المتأخرين</p>
+            <p className="mt-1 text-xs text-slate-500">يمكنك تصفية المرحلة والصف أولاً، ثم اختيار المجموعة المناسبة.</p>
+          </div>
+        ) : isDefaultersLoading ? (
+          <div className="space-y-2">
+            <div className="h-12 animate-pulse rounded-xl bg-slate-100" />
+            <div className="h-12 animate-pulse rounded-xl bg-slate-100" />
+          </div>
+        ) : isDefaultersError ? (
+          <Alert variant="error">حدث خطأ أثناء تحميل قائمة المتأخرين.</Alert>
+        ) : overdueStudents.length === 0 ? (
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-8 text-center">
+              <CheckCircle2 className="mx-auto mb-2 h-8 w-8 text-emerald-600" />
+              <p className="text-sm font-bold text-emerald-800">
+                جميع طلاب هذه المجموعة قاموا بسداد اشتراك هذا الشهر بالكامل.
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100 rounded-xl border border-slate-100">
+              {overdueStudents.map((student) => {
+                const isPartial = Boolean(student.isPartiallyPaid || (student.amountPaid && student.amountPaid > 0));
+                const remaining = student.remainingAmount ?? (student.monthlyFeeExpected - (student.amountPaid || 0));
+                return (
+                  <div key={student.studentId} className="flex items-center justify-between gap-3 p-3.5">
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">{student.fullName}</p>
+                      <p className="mt-1 font-mono text-xs text-slate-400">{student.studentCode || 'بدون كود'}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {isPartial ? (
+                        <div className="text-left">
+                          <span className="inline-block text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-lg border border-amber-200">
+                            سدد جزئياً: {student.amountPaid} ج.م
+                          </span>
+                          <p className="text-[11px] font-extrabold text-rose-600 mt-0.5">
+                            المتبقي: {remaining} ج.م
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="text-sm font-bold text-rose-600">{student.monthlyFeeExpected} ج.م</span>
+                      )}
+                      <Button type="button" size="sm" variant="outline" onClick={() => setHistoryStudentId(student.studentId)}>
+                        <History className="h-3.5 w-3.5" />
+                        كشف حساب
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
       </CardContent></Card>
 
       <Card><CardHeader><CardTitle className="flex items-center gap-2"><Wallet className="h-5 w-5 text-emerald-600" />سجل المدفوعات المسجلة ({recentPayments.length})</CardTitle></CardHeader><CardContent>{isPaymentsLoading ? <div className="h-24 animate-pulse rounded-xl bg-slate-100" /> : recentPayments.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">لا توجد دفعات مسجلة لهذه المجموعة وهذا الشهر.</p> : <div className="space-y-2">{recentPayments.map((payment: any) => <div key={payment.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 p-3"><div><p className="text-sm font-bold text-slate-800">{payment.student?.user?.fullName || 'طالب'}</p><p className="mt-1 text-xs text-slate-500">{payment.paymentMethod || 'CASH'} • {new Date(payment.createdAt).toLocaleDateString('ar-EG')}</p></div><div className="flex items-center gap-2">{payment.paymentStatus === 'REFUNDED' ? <Badge variant="error">مسترد / ملغي</Badge> : <Badge variant="success">تم الدفع {payment.amountPaid} ج.م</Badge>}<Button type="button" size="sm" variant="outline" className="h-8 text-xs border-rose-200 text-rose-600 hover:bg-rose-50" onClick={() => setPaymentToCancel({ id: payment.id, studentName: payment.student?.user?.fullName, amountPaid: payment.amountPaid, paymentType: payment.paymentType as any, periodMonth: payment.periodMonth, periodYear: payment.periodYear, groupName: selectedGroup?.name, bookletTitle: payment.booklet?.title, notes: payment.notes || undefined })} title="إلغاء أو حذف الدفعة"><Trash2 className="h-3.5 w-3.5 ml-1" />إلغاء / حذف</Button></div></div>)}</div>}</CardContent></Card>

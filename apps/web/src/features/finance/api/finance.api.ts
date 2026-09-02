@@ -95,6 +95,7 @@ export async function updateBillingConfiguration(payload: {
   academicYear: string;
   academicTerm: string;
   excludedMonths: number[];
+  paymentTiming?: 'PREPAID' | 'POSTPAID';
 }): Promise<BillingConfigurationResponse> {
   return apiClient<BillingConfigurationResponse>('/payments/billing-config', {
     method: 'PUT',

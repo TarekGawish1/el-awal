@@ -62,11 +62,30 @@ export class PaymentsService {
     return teacher?.id || user.id;
   }
 
+  private parseBillingConfig(value: unknown, availableMonths: number[]) {
+    if (!value) {
+      return { excludedMonths: [] as number[], paymentTiming: 'PREPAID' as 'PREPAID' | 'POSTPAID' };
+    }
+    if (Array.isArray(value)) {
+      const excludedMonths = value.map((m) => Number(m)).filter((m) => availableMonths.includes(m));
+      return { excludedMonths, paymentTiming: 'PREPAID' as 'PREPAID' | 'POSTPAID' };
+    }
+    if (typeof value === 'object' && value !== null) {
+      const obj = value as any;
+      const rawMonths = Array.isArray(obj.excludedMonths)
+        ? obj.excludedMonths
+        : Array.isArray(obj.months)
+        ? obj.months
+        : [];
+      const excludedMonths = rawMonths.map((m: any) => Number(m)).filter((m: number) => availableMonths.includes(m));
+      const paymentTiming = obj.paymentTiming === 'POSTPAID' ? 'POSTPAID' : 'PREPAID';
+      return { excludedMonths, paymentTiming: paymentTiming as 'PREPAID' | 'POSTPAID' };
+    }
+    return { excludedMonths: [] as number[], paymentTiming: 'PREPAID' as 'PREPAID' | 'POSTPAID' };
+  }
+
   private normalizeExcludedMonths(value: unknown, availableMonths: number[]) {
-    if (!Array.isArray(value)) return [];
-    return value
-      .map((month) => Number(month))
-      .filter((month) => availableMonths.includes(month));
+    return this.parseBillingConfig(value, availableMonths).excludedMonths;
   }
 
   async getBillingConfiguration(user: AuthenticatedUser, academicYear?: string, academicTerm?: string) {
@@ -80,24 +99,38 @@ export class PaymentsService {
         })
       : null;
 
+    const parsed = this.parseBillingConfig(configuration?.excludedMonths, availableMonths);
+
     return {
       academicYear: year,
       academicTerm: term,
       availableMonths,
-      excludedMonths: this.normalizeExcludedMonths(configuration?.excludedMonths, availableMonths),
+      excludedMonths: parsed.excludedMonths,
+      paymentTiming: parsed.paymentTiming,
     };
   }
 
-  async updateBillingConfiguration(user: AuthenticatedUser, dto: { academicYear: string; academicTerm: string; excludedMonths: number[] }) {
+  async updateBillingConfiguration(
+    user: AuthenticatedUser,
+    dto: { academicYear: string; academicTerm: string; excludedMonths: number[]; paymentTiming?: 'PREPAID' | 'POSTPAID' },
+  ) {
     const teacherId = await this.resolveTeacherId(user);
     if (!teacherId) throw new ForbiddenException('A teacher profile is required to save billing configuration');
 
     const availableMonths = dto.academicTerm === 'SECOND_TERM' ? SECOND_TERM_MONTHS : FIRST_TERM_MONTHS;
-    const excludedMonths = this.normalizeExcludedMonths(dto.excludedMonths, availableMonths);
+    const { excludedMonths, paymentTiming } = this.parseBillingConfig(
+      { excludedMonths: dto.excludedMonths, paymentTiming: dto.paymentTiming },
+      availableMonths,
+    );
+    const configurationPayload = {
+      excludedMonths,
+      paymentTiming,
+    };
+
     const configuration = await this.prisma.teacherBillingConfiguration.upsert({
       where: { teacherId_academicYear_academicTerm: { teacherId, academicYear: dto.academicYear, academicTerm: dto.academicTerm } },
-      create: { teacherId, academicYear: dto.academicYear, academicTerm: dto.academicTerm, excludedMonths },
-      update: { excludedMonths },
+      create: { teacherId, academicYear: dto.academicYear, academicTerm: dto.academicTerm, excludedMonths: configurationPayload },
+      update: { excludedMonths: configurationPayload },
     });
 
     return {
@@ -105,15 +138,28 @@ export class PaymentsService {
       academicTerm: configuration.academicTerm,
       availableMonths,
       excludedMonths,
+      paymentTiming,
     };
   }
 
-  private isMonthStarted(academicYear: string, academicTerm: string, month: number) {
+  private isMonthStarted(
+    academicYear: string,
+    academicTerm: string,
+    month: number,
+    paymentTiming: 'PREPAID' | 'POSTPAID' = 'PREPAID',
+  ) {
     const startYear = Number(academicYear.split('-')[0]);
     const actualYear = academicTerm === 'FIRST_TERM' && month === 1 ? startYear + 1 : academicTerm === 'SECOND_TERM' ? startYear + 1 : startYear;
     const now = new Date();
     const currentYear = now.getUTCFullYear();
     const currentMonth = now.getUTCMonth() + 1;
+
+    if (paymentTiming === 'POSTPAID') {
+      // POSTPAID (الدفع في نهاية الشهر): Becomes due and warned ONLY AFTER the month has ended
+      return actualYear < currentYear || (actualYear === currentYear && month < currentMonth);
+    }
+
+    // PREPAID (الدفع مقدماً في بداية الشهر): Becomes due and warned as soon as the month starts
     return actualYear < currentYear || (actualYear === currentYear && month <= currentMonth);
   }
 
@@ -129,7 +175,9 @@ export class PaymentsService {
           where: { teacherId_academicYear_academicTerm: { teacherId, academicYear, academicTerm } },
         })
       : null;
-    const excludedMonths = this.normalizeExcludedMonths(billingConfiguration?.excludedMonths, availableMonths);
+    const parsedBilling = this.parseBillingConfig(billingConfiguration?.excludedMonths, availableMonths);
+    const excludedMonths = parsedBilling.excludedMonths;
+    const paymentTiming = parsedBilling.paymentTiming;
     const months = availableMonths.filter((month) => !excludedMonths.includes(month));
     const page = query.page || 1;
     const limit = query.limit || 20;
@@ -175,6 +223,7 @@ export class PaymentsService {
         select: {
         id: true,
         studentCode: true,
+        createdAt: true,
         user: { select: { fullName: true, phone: true } },
         gradeLevel: true,
         groupEnrollments: {
@@ -182,6 +231,7 @@ export class PaymentsService {
           orderBy: { enrolledAt: 'asc' },
           select: {
             groupId: true,
+            enrolledAt: true,
             group: { select: { id: true, name: true, monthlyFee: true } },
           },
         },
@@ -221,7 +271,7 @@ export class PaymentsService {
           where: {
             studentId: { in: studentIds },
             OR: paymentConditions,
-            paymentStatus: { in: [PaymentStatus.PAID, PaymentStatus.EXEMPT] },
+            paymentStatus: { in: [PaymentStatus.PAID, PaymentStatus.PENDING, PaymentStatus.EXEMPT] },
           },
           select: {
             id: true,
@@ -260,34 +310,72 @@ export class PaymentsService {
     const resultStudents = students.map((student) => {
       const enrollment = student.groupEnrollments[0];
       const monthlyFee = Number(enrollment?.group.monthlyFee || 0);
-      const monthlyPayments: Record<number, { paymentId?: string; isPaid: boolean; amountPaid: number; paidAt?: Date; isStarted: boolean }> = {};
-      const bookletPayments: Record<string, { paymentId?: string; isApplicable: boolean; isPaid: boolean; amountPaid: number; paidAt?: Date }> = {};
+      const enrollmentDate = enrollment?.enrolledAt ? new Date(enrollment.enrolledAt) : new Date(student.createdAt);
+      const enrollYear = enrollmentDate.getFullYear();
+      const enrollMonth = enrollmentDate.getMonth() + 1;
+      const enrollDay = enrollmentDate.getDate();
+
+      const monthlyPayments: Record<number, { paymentId?: string; isApplicable?: boolean; isPaid: boolean; isPartiallyPaid: boolean; amountPaid: number; amountExpected: number; remainingAmount: number; paidAt?: Date; isStarted: boolean }> = {};
+      const bookletPayments: Record<string, { paymentId?: string; isApplicable: boolean; isPaid: boolean; isPartiallyPaid: boolean; amountPaid: number; amountExpected: number; remainingAmount: number; paidAt?: Date }> = {};
       let totalDue = 0;
       let totalPaid = 0;
 
       for (const month of months) {
-        const key = `${student.id}:TUITION:${month}:${paymentYearForMonth(month)}`;
+        const monthYear = paymentYearForMonth(month);
+        const key = `${student.id}:TUITION:${month}:${monthYear}`;
         const payment = paymentMap.get(key);
-        const isPaid = Boolean(payment && payment.isPaid && payment.amountPaid >= monthlyFee);
-        monthlyPayments[month] = { paymentId: payment?.paymentId, isPaid, amountPaid: payment?.amountPaid || 0, paidAt: payment?.paidAt, isStarted: this.isMonthStarted(academicYear, academicTerm, month) };
-        totalPaid += payment?.amountPaid || 0;
-        if (this.isMonthStarted(academicYear, academicTerm, month)) {
-          totalDue += Math.max(0, monthlyFee - (payment?.amountPaid || 0));
+        const amountPaid = payment?.amountPaid || 0;
+
+        // Check if month is before enrollment date
+        const isBeforeEnrollment = monthYear < enrollYear || (monthYear === enrollYear && month < enrollMonth);
+        const isJoiningMonth = monthYear === enrollYear && month === enrollMonth;
+        const isHalfMonth = isJoiningMonth && enrollDay > 15;
+        const effectiveFee = isBeforeEnrollment ? 0 : isHalfMonth ? Math.round(monthlyFee / 2) : monthlyFee;
+
+        const isPaid = isBeforeEnrollment ? false : Boolean(payment && (payment.isPaid || amountPaid >= effectiveFee) && (effectiveFee === 0 || amountPaid > 0));
+        const isPartiallyPaid = Boolean(!isBeforeEnrollment && amountPaid > 0 && amountPaid < effectiveFee);
+        const isStarted = this.isMonthStarted(academicYear, academicTerm, month, paymentTiming);
+
+        monthlyPayments[month] = {
+          paymentId: payment?.paymentId,
+          isApplicable: !isBeforeEnrollment,
+          isPaid,
+          isPartiallyPaid,
+          amountPaid,
+          amountExpected: effectiveFee,
+          remainingAmount: isBeforeEnrollment ? 0 : Math.max(0, effectiveFee - amountPaid),
+          paidAt: payment?.paidAt,
+          isStarted,
+        };
+        totalPaid += amountPaid;
+        if (isStarted && !isBeforeEnrollment) {
+          totalDue += Math.max(0, effectiveFee - amountPaid);
         }
       }
 
       for (const booklet of booklets) {
         if (booklet.gradeLevel !== student.gradeLevel) {
-          bookletPayments[booklet.id] = { isApplicable: false, isPaid: false, amountPaid: 0 };
+          bookletPayments[booklet.id] = { isApplicable: false, isPaid: false, isPartiallyPaid: false, amountPaid: 0, amountExpected: 0, remainingAmount: 0 };
           continue;
         }
 
         const payment = paymentMap.get(`${student.id}:BOOKLET:${booklet.id}`);
         const price = Number(booklet.price);
-        const isPaid = Boolean(payment && payment.isPaid && payment.amountPaid >= price);
-        bookletPayments[booklet.id] = { paymentId: payment?.paymentId, isApplicable: true, isPaid, amountPaid: payment?.amountPaid || 0, paidAt: payment?.paidAt };
-        totalPaid += payment?.amountPaid || 0;
-        if (!isPaid) totalDue += price;
+        const amountPaid = payment?.amountPaid || 0;
+        const isPaid = Boolean(payment && (payment.isPaid || amountPaid >= price) && amountPaid > 0);
+        const isPartiallyPaid = Boolean(amountPaid > 0 && amountPaid < price);
+        bookletPayments[booklet.id] = {
+          paymentId: payment?.paymentId,
+          isApplicable: true,
+          isPaid,
+          isPartiallyPaid,
+          amountPaid,
+          amountExpected: price,
+          remainingAmount: Math.max(0, price - amountPaid),
+          paidAt: payment?.paidAt,
+        };
+        totalPaid += amountPaid;
+        if (!isPaid) totalDue += Math.max(0, price - amountPaid);
       }
 
       return {
@@ -312,6 +400,7 @@ export class PaymentsService {
       months,
       availableMonths,
       excludedMonths,
+      paymentTiming,
       totalStudents,
       currentPage: page,
       totalPages: Math.ceil(totalStudents / limit),
