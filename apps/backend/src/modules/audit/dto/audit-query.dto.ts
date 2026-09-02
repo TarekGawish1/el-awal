@@ -21,6 +21,10 @@ export class AuditQueryDto {
 
   @IsOptional()
   @IsString()
+  userRole?: string;
+
+  @IsOptional()
+  @IsString()
   startDate?: string;
 
   @IsOptional()

@@ -11,6 +11,7 @@ export function useAuditLogs(params: AuditQueryParams) {
   if (params.action) queryParams.set('action', params.action);
   if (params.entityType) queryParams.set('entityType', params.entityType);
   if (params.userId) queryParams.set('userId', params.userId);
+  if (params.userRole) queryParams.set('userRole', params.userRole);
   if (params.startDate) queryParams.set('startDate', params.startDate);
   if (params.endDate) queryParams.set('endDate', params.endDate);
 

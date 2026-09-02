@@ -110,7 +110,7 @@ export class AuditService implements OnModuleInit {
    * Retrieve paginated audit logs for a teacher workspace
    */
   async getLogs(teacherId: string, query: AuditQueryDto) {
-    const { search, action, entityType, userId, startDate, endDate, page = 1, limit = 20 } = query;
+    const { search, action, entityType, userId, userRole, startDate, endDate, page = 1, limit = 20 } = query;
     const skip = (page - 1) * limit;
 
     const where: any = {
@@ -129,8 +129,17 @@ export class AuditService implements OnModuleInit {
       where.entityType = entityType;
     }
 
+    if (userRole) {
+      where.userRole = userRole;
+    }
+
     if (userId) {
-      where.userId = userId;
+      const ids = userId.split(',').map((id) => id.trim()).filter(Boolean);
+      if (ids.length === 1) {
+        where.userId = ids[0];
+      } else if (ids.length > 1) {
+        where.userId = { in: ids };
+      }
     }
 
     if (startDate || endDate) {
@@ -266,21 +275,61 @@ export class AuditService implements OnModuleInit {
   }
 
   /**
-   * Get distinct users who have performed actions
+   * Get distinct users who have performed actions + all registered assistants
    */
   async getPerformers(teacherId: string) {
-    const performers = await this.prisma.auditLog.findMany({
-      where: {
-        OR: [{ teacherId }, { userId: teacherId }],
-      },
-      distinct: ['userId'],
-      select: {
-        userId: true,
-        userName: true,
-        userRole: true,
-      },
-    });
+    const [teacher, assistantLinks, auditPerformers] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: teacherId },
+        select: { id: true, fullName: true, role: true },
+      }),
+      this.prisma.teacherAssistant.findMany({
+        where: { teacherId },
+        include: {
+          assistant: {
+            select: { id: true, fullName: true, role: true },
+          },
+        },
+      }),
+      this.prisma.auditLog.findMany({
+        where: {
+          OR: [{ teacherId }, { userId: teacherId }],
+        },
+        distinct: ['userId'],
+        select: {
+          userId: true,
+          userName: true,
+          userRole: true,
+        },
+      }),
+    ]);
 
-    return performers;
+    const performersMap = new Map<string, { userId: string; userName: string; userRole: string }>();
+
+    if (teacher) {
+      performersMap.set(teacher.id, {
+        userId: teacher.id,
+        userName: teacher.fullName,
+        userRole: teacher.role,
+      });
+    }
+
+    for (const link of assistantLinks) {
+      if (link.assistant) {
+        performersMap.set(link.assistant.id, {
+          userId: link.assistant.id,
+          userName: link.assistant.fullName,
+          userRole: link.assistant.role,
+        });
+      }
+    }
+
+    for (const p of auditPerformers) {
+      if (!performersMap.has(p.userId)) {
+        performersMap.set(p.userId, p);
+      }
+    }
+
+    return Array.from(performersMap.values());
   }
 }
