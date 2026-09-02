@@ -1,12 +1,15 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { X, DollarSign, BookOpen, CreditCard, Loader2 } from 'lucide-react';
+import { X, DollarSign, BookOpen, CreditCard, Users, Filter, Loader2 } from 'lucide-react';
 import { useRecordPayment, useGroupDefaulters } from '../hooks/useFinance';
 import { useBooklets } from '@/features/booklets/hooks/useBooklets';
+import { useGroups, useGroupStudents } from '@/features/groups/hooks/useGroups';
+import { GRADE_LEVELS_BY_STAGE, inferStageFromGrade } from '@/lib/constants/grades';
+import { TERM_MONTHS } from './FinanceFiltersBar';
 import { PaymentStatus } from '../types/finance.types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -51,12 +54,55 @@ export function RecordPaymentModal({
 }: Props) {
   const [paymentType, setPaymentType] = useState<'TUITION' | 'BOOKLET'>('TUITION');
 
+  const { data: allGroups = [] } = useGroups();
+
+  const [selectedStage, setSelectedStage] = useState<string>('');
+  const [selectedGradeLevel, setSelectedGradeLevel] = useState<string>('');
+  const [selectedGroupId, setSelectedGroupId] = useState<string>(groupId);
+  const [selectedAcademicTerm, setSelectedAcademicTerm] = useState<'FIRST_TERM' | 'SECOND_TERM'>(() => {
+    return periodMonth && (periodMonth >= 8 || periodMonth === 1) ? 'FIRST_TERM' : 'SECOND_TERM';
+  });
+  const [currentPeriodMonth, setCurrentPeriodMonth] = useState<number>(periodMonth || new Date().getMonth() + 1);
+  const [currentPeriodYear, setCurrentPeriodYear] = useState<number>(periodYear || new Date().getFullYear());
+
+  useEffect(() => {
+    if (groupId) {
+      setSelectedGroupId(groupId);
+      const found = allGroups.find((g) => g.id === groupId);
+      if (found) {
+        if (found.gradeLevel) setSelectedGradeLevel(found.gradeLevel);
+        const stage = inferStageFromGrade(found.gradeLevel);
+        if (stage) setSelectedStage(stage);
+      }
+    }
+  }, [groupId, allGroups]);
+
+  const stageGrades = GRADE_LEVELS_BY_STAGE[selectedStage] || [];
+  const groupGrades = allGroups.map((g) => g.gradeLevel).filter(Boolean);
+  const availableGrades = useMemo(() => {
+    return Array.from(
+      new Set([
+        ...stageGrades,
+        ...groupGrades.filter((grade) => !selectedStage || inferStageFromGrade(grade) === selectedStage),
+      ]),
+    );
+  }, [selectedStage, stageGrades, groupGrades]);
+
+  const filteredGroups = useMemo(() => {
+    return allGroups.filter((g) => {
+      if (selectedGradeLevel && g.gradeLevel !== selectedGradeLevel) return false;
+      if (selectedStage && inferStageFromGrade(g.gradeLevel) !== selectedStage) return false;
+      return true;
+    });
+  }, [allGroups, selectedGradeLevel, selectedStage]);
+
   const { mutate: recordPayment, isPending } = useRecordPayment();
   const { data: defaultersData, isLoading: isDefaultersLoading } = useGroupDefaulters(
-    groupId,
-    periodYear,
-    periodMonth,
+    selectedGroupId,
+    currentPeriodYear,
+    currentPeriodMonth,
   );
+  const { data: groupEnrollments = [], isLoading: isEnrollmentsLoading } = useGroupStudents(selectedGroupId);
   const { booklets = [], isLoading: isBookletsLoading } = useBooklets();
 
   const {
@@ -74,43 +120,103 @@ export function RecordPaymentModal({
   const selectedBookletId = watch('bookletId');
   const defaulters = defaultersData?.defaulters || [];
 
-  // Available students list depending on mode
-  const availableStudents =
-    paymentType === 'TUITION' && defaulters.length > 0
-      ? defaulters.map((d) => ({
-          id: d.studentId,
-          name: d.fullName,
-          fee: d.monthlyFeeExpected,
-        }))
-      : allStudents.length > 0
-      ? allStudents.map((s) => ({ id: s.id, name: s.fullName, fee: 0 }))
-      : defaulters.map((d) => ({
-          id: d.studentId,
-          name: d.fullName,
-          fee: d.monthlyFeeExpected,
-        }));
+  const availableStudents = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; fee: number; studentCode?: string }>();
+
+    defaulters.forEach((d) => {
+      map.set(d.studentId, {
+        id: d.studentId,
+        name: d.fullName,
+        fee: d.monthlyFeeExpected,
+        studentCode: d.studentCode || undefined,
+      });
+    });
+
+    groupEnrollments.forEach((e) => {
+      if (e.student?.id && !map.has(e.student.id)) {
+        map.set(e.student.id, {
+          id: e.student.id,
+          name: e.student.user?.name || 'طالب',
+          fee: 0,
+          studentCode: e.student.code,
+        });
+      }
+    });
+
+    if (!selectedGroupId && allStudents.length > 0) {
+      allStudents.forEach((s) => {
+        if (!map.has(s.id)) {
+          map.set(s.id, {
+            id: s.id,
+            name: s.fullName,
+            fee: 0,
+            studentCode: s.studentCode,
+          });
+        }
+      });
+    }
+
+    return Array.from(map.values());
+  }, [defaulters, groupEnrollments, selectedGroupId, allStudents]);
 
   const getStudentBookletContext = (studentId: string) => {
     const defaulter = defaulters.find((student) => student.studentId === studentId);
+    const enrollment = groupEnrollments.find((e) => e.student?.id === studentId);
     const fullStudent = allStudents.find((student) => student.id === studentId);
     const groupIds = fullStudent?.groupIds || [
-      fullStudent?.groupId || fullStudent?.initialGroupId || (defaulter ? groupId : ''),
+      fullStudent?.groupId || fullStudent?.initialGroupId || (defaulter ? selectedGroupId : ''),
     ].filter(Boolean);
 
     return {
-      gradeLevel: fullStudent?.gradeLevel || defaulter?.gradeLevel,
+      gradeLevel: fullStudent?.gradeLevel || defaulter?.gradeLevel || enrollment?.student?.gradeLevel || selectedGradeLevel,
       groupIds,
     };
   };
 
-  // Do not expose a booklet until the selected student's grade and membership are known.
   const eligibleBooklets = useMemo(() => {
     if (!selectedStudentId) return [];
     const student = getStudentBookletContext(selectedStudentId);
     return booklets.filter((booklet) => isBookletEligibleForStudent(booklet, student));
-  }, [booklets, selectedStudentId, defaulters, allStudents, groupId]);
+  }, [booklets, selectedStudentId, defaulters, groupEnrollments, allStudents, selectedGroupId, selectedGradeLevel]);
 
-  // Auto-fill amount based on student expected fee when selected
+  const handleStageChange = (newStage: string) => {
+    setSelectedStage(newStage);
+    setSelectedGradeLevel('');
+    setSelectedGroupId('');
+    setValue('studentId', '');
+  };
+
+  const handleGradeChange = (newGrade: string) => {
+    setSelectedGradeLevel(newGrade);
+    setSelectedGroupId('');
+    setValue('studentId', '');
+    if (newGrade && !selectedStage) {
+      const st = inferStageFromGrade(newGrade);
+      if (st) setSelectedStage(st);
+    }
+  };
+
+  const handleGroupChange = (newGroupId: string) => {
+    setSelectedGroupId(newGroupId);
+    setValue('studentId', '');
+    if (newGroupId) {
+      const g = allGroups.find((item) => item.id === newGroupId);
+      if (g) {
+        if (g.gradeLevel) setSelectedGradeLevel(g.gradeLevel);
+        const st = inferStageFromGrade(g.gradeLevel);
+        if (st) setSelectedStage(st);
+      }
+    }
+  };
+
+  const handleTermChange = (term: 'FIRST_TERM' | 'SECOND_TERM') => {
+    setSelectedAcademicTerm(term);
+    const termMonths = TERM_MONTHS[term];
+    if (!termMonths.includes(currentPeriodMonth)) {
+      setCurrentPeriodMonth(termMonths[0]);
+    }
+  };
+
   const handleStudentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const sId = e.target.value;
     setValue('studentId', sId);
@@ -120,7 +226,6 @@ export function RecordPaymentModal({
         setValue('amountPaid', student.monthlyFeeExpected);
       }
     } else if (sId && paymentType === 'BOOKLET') {
-      // Clear a previously selected booklet if it is not valid for the new student.
       const currentBooklet = booklets.find((booklet) => booklet.id === selectedBookletId);
       if (currentBooklet && !isBookletEligibleForStudent(currentBooklet, getStudentBookletContext(sId))) {
         setValue('bookletId', '');
@@ -181,11 +286,11 @@ export function RecordPaymentModal({
     recordPayment(
       {
         studentId: data.studentId,
-        groupId: groupId || undefined,
+        groupId: selectedGroupId || undefined,
         bookletId: paymentType === 'BOOKLET' ? data.bookletId : undefined,
         paymentType,
-        periodYear,
-        periodMonth,
+        periodYear: currentPeriodYear,
+        periodMonth: currentPeriodMonth,
         amountPaid: data.amountPaid,
         amountExpected: expected,
         paymentStatus: PaymentStatus.PAID,
@@ -212,9 +317,8 @@ export function RecordPaymentModal({
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-100">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-100 max-h-[92vh] flex flex-col">
+        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
           <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
             {paymentType === 'BOOKLET' ? (
               <BookOpen className="w-5 h-5 text-purple-600" />
@@ -232,8 +336,7 @@ export function RecordPaymentModal({
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
-          {/* Payment Type Segmented Toggle */}
+        <div className="p-5 overflow-y-auto space-y-4">
           <div className="flex bg-slate-100 p-1 rounded-xl">
             <button
               type="button"
@@ -261,37 +364,122 @@ export function RecordPaymentModal({
             </button>
           </div>
 
-          <div
-            className={`border rounded-xl p-3 flex justify-between items-center text-xs ${
-              paymentType === 'BOOKLET'
-                ? 'bg-purple-50/50 border-purple-100 text-purple-900'
-                : 'bg-blue-50/50 border-blue-100 text-blue-900'
-            }`}
-          >
-            <span className="font-medium">نوع المعاملة:</span>
-            <span className="font-bold">
-              {paymentType === 'BOOKLET'
-                ? 'تحصيل قيمة ملزمة / مذكرة دراسية'
-                : `شهر الاستحقاق: ${periodMonth} / ${periodYear}`}
-            </span>
+          <div className="bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200/70 space-y-3">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+              <Filter className="w-3.5 h-3.5 text-primary-600" />
+              <span>تحديد وتصفية المجموعة المستهدفة:</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div>
+                <Label className="mb-1 block text-[11px] font-bold text-slate-600">
+                  المرحلة الدراسية
+                </Label>
+                <select
+                  className="w-full h-9 rounded-xl border border-slate-200 px-2.5 text-xs font-semibold focus:ring-2 focus:ring-primary/20 bg-white text-slate-800"
+                  value={selectedStage}
+                  onChange={(e) => handleStageChange(e.target.value)}
+                >
+                  <option value="">جميع المراحل</option>
+                  <option value="SECONDARY">المرحلة الثانوية</option>
+                  <option value="PREPARATORY">المرحلة الإعدادية</option>
+                  <option value="PRIMARY">المرحلة الابتدائية</option>
+                </select>
+              </div>
+
+              <div>
+                <Label className="mb-1 block text-[11px] font-bold text-slate-600">
+                  الصف الدراسي
+                </Label>
+                <select
+                  className="w-full h-9 rounded-xl border border-slate-200 px-2.5 text-xs font-semibold focus:ring-2 focus:ring-primary/20 bg-white text-slate-800"
+                  value={selectedGradeLevel}
+                  onChange={(e) => handleGradeChange(e.target.value)}
+                >
+                  <option value="">جميع الصفوف</option>
+                  {availableGrades.map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <Label className="mb-1 block text-[11px] font-bold text-slate-600">
+                  الفصل والشهر
+                </Label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <select
+                    className="w-full h-9 rounded-xl border border-slate-200 px-1.5 text-[11px] font-semibold focus:ring-2 focus:ring-primary/20 bg-white text-slate-800"
+                    value={selectedAcademicTerm}
+                    onChange={(e) => handleTermChange(e.target.value as 'FIRST_TERM' | 'SECOND_TERM')}
+                  >
+                    <option value="FIRST_TERM">ترم أول</option>
+                    <option value="SECOND_TERM">ترم ثان</option>
+                  </select>
+                  <select
+                    className="w-full h-9 rounded-xl border border-slate-200 px-1.5 text-[11px] font-semibold focus:ring-2 focus:ring-primary/20 bg-white text-slate-800"
+                    value={currentPeriodMonth}
+                    onChange={(e) => setCurrentPeriodMonth(Number(e.target.value))}
+                  >
+                    {TERM_MONTHS[selectedAcademicTerm].map((m) => (
+                      <option key={m} value={m}>
+                        شهر {m}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <Label className="mb-1 block text-[11px] font-bold text-slate-600">
+                  المجموعة الدراسية
+                </Label>
+                <select
+                  className="w-full h-9 rounded-xl border border-slate-200 px-2.5 text-xs font-semibold focus:ring-2 focus:ring-primary/20 bg-white text-slate-800"
+                  value={selectedGroupId}
+                  onChange={(e) => handleGroupChange(e.target.value)}
+                >
+                  <option value="">-- اختر المجموعة --</option>
+                  {filteredGroups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name} ({group.gradeLevel})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {/* Student Select */}
             <div>
-              <Label className="mb-1.5 block text-xs font-bold text-slate-700">
-                الطالب <span className="text-red-500">*</span>
-              </Label>
+              <div className="mb-1.5 flex items-center justify-between">
+                <Label className="block text-xs font-bold text-slate-700">
+                  الطالب <span className="text-red-500">*</span>
+                </Label>
+                {selectedGroupId && (
+                  <span className="text-[11px] font-semibold text-primary-600">
+                    {availableStudents.length} طالب متاح
+                  </span>
+                )}
+              </div>
               <select
-                className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm focus:ring-2 focus:ring-primary/20 bg-white"
+                className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm focus:ring-2 focus:ring-primary/20 bg-white text-slate-800"
                 value={selectedStudentId || ''}
                 onChange={handleStudentChange}
-                disabled={isPending || isDefaultersLoading}
+                disabled={isPending || isDefaultersLoading || isEnrollmentsLoading}
               >
-                <option value="">-- اختر طالباً --</option>
+                <option value="">
+                  {isDefaultersLoading || isEnrollmentsLoading
+                    ? 'جاري تحميل قائمة الطلاب...'
+                    : availableStudents.length === 0
+                    ? '-- لا يوجد طلاب في هذه المجموعة --'
+                    : '-- اختر طالباً --'}
+                </option>
                 {availableStudents.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name} {s.fee ? `(${s.fee} ج.م)` : ''}
+                    {s.name} {s.studentCode ? `[${s.studentCode}]` : ''} {s.fee ? `(${s.fee} ج.م)` : ''}
                   </option>
                 ))}
               </select>
@@ -302,14 +490,13 @@ export function RecordPaymentModal({
               )}
             </div>
 
-            {/* Booklet Select (If Booklet Mode) */}
             {paymentType === 'BOOKLET' && (
               <div>
                 <Label className="mb-1.5 block text-xs font-bold text-slate-700">
                   المذكرة / الملزمة الدراسية <span className="text-red-500">*</span>
                 </Label>
                 <select
-                  className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm focus:ring-2 focus:ring-purple-500/20 bg-white"
+                  className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm focus:ring-2 focus:ring-purple-500/20 bg-white text-slate-800"
                   value={selectedBookletId || ''}
                   onChange={handleBookletChange}
                   disabled={isPending || isBookletsLoading}
@@ -321,20 +508,9 @@ export function RecordPaymentModal({
                     </option>
                   ))}
                 </select>
-                {selectedStudentId && eligibleBooklets.length === 0 && !isBookletsLoading && (
-                  <p className="text-amber-600 text-xs mt-1 font-medium">
-                    لا توجد مذكرات مخصصة لصف أو مجموعة هذا الطالب.
-                  </p>
-                )}
-                {!selectedStudentId && booklets.length === 0 && !isBookletsLoading && (
-                  <p className="text-amber-600 text-xs mt-1">
-                    لا توجد مذكرات نشطة حالياً. يمكنك إضافة مذكرات من تبويب "المذكرات والملازم".
-                  </p>
-                )}
               </div>
             )}
 
-            {/* Amount Paid */}
             <div>
               <Label className="mb-1.5 block text-xs font-bold text-slate-700">
                 المبلغ المحصل (ج.م) <span className="text-red-500">*</span>
@@ -354,25 +530,26 @@ export function RecordPaymentModal({
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="mb-1.5 block text-xs font-bold text-slate-700">
                   رقم الإيصال (اختياري)
                 </Label>
                 <Input
-                  {...register('receiptNumber')}
+                  type="text"
                   placeholder="رقم الإيصال الورقي"
+                  {...register('receiptNumber')}
                   disabled={isPending}
                 />
               </div>
-
               <div>
                 <Label className="mb-1.5 block text-xs font-bold text-slate-700">
                   ملاحظات (اختياري)
                 </Label>
                 <Input
+                  type="text"
+                  placeholder="...ملاحظات أو خصم"
                   {...register('notes')}
-                  placeholder="ملاحظات أو خصم..."
                   disabled={isPending}
                 />
               </div>
