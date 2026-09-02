@@ -179,9 +179,12 @@ describe('SyncService - Resilience & Error Fallback Engine', () => {
     });
 
     it('handles duplicate payment sync operations idempotently without double-charging', async () => {
-      mockPrismaService.studentProfile.findFirst.mockResolvedValue({ id: 'student-1', user: { isActive: true } });
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue({ 
+        id: 'student-1', 
+        user: { isActive: true },
+        groupEnrollments: [{ groupId: 'group-1', status: GroupEnrollmentStatus.ACTIVE }],
+      });
 
-      // Existing paid record
       mockPrismaService.studentPaymentRecord.findFirst.mockResolvedValue({
         id: 'existing-pay-1',
         studentId: 'student-1',
@@ -189,17 +192,21 @@ describe('SyncService - Resilience & Error Fallback Engine', () => {
         periodYear: 2026,
         periodMonth: 9,
         paymentStatus: PaymentStatus.PAID,
+        amountPaid: 350,
+        amountExpected: 350,
       });
 
       const batchDto = {
         operations: [
           {
             id: 'op-pay-1',
+            clientTempId: 'op-pay-1',
             studentId: 'student-1',
             groupId: 'group-1',
             periodYear: 2026,
             periodMonth: 9,
             amountPaid: 350,
+            amountExpected: 350,
           },
         ],
       };

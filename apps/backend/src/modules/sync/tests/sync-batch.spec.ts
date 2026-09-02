@@ -9,6 +9,7 @@ import {
   HomeworkSubmissionStatus,
   RecordingMethod,
   UserRole,
+  GroupEnrollmentStatus,
 } from '@prisma/client';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 
@@ -110,7 +111,7 @@ describe('SyncService & SyncController - Batch Mutation Processing (RECORD_HOMEW
       studentCode: 'STU-001',
       fullName: 'أحمد علي',
       user: { isActive: true },
-      groupEnrollments: [],
+      groupEnrollments: [{ groupId: 'group-uuid-1', status: GroupEnrollmentStatus.ACTIVE }],
     });
 
     mockPrismaService.attendanceRecord.upsert.mockResolvedValue({

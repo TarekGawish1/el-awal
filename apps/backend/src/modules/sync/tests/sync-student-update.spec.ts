@@ -29,6 +29,7 @@ describe('SyncService - Offline Student Update (Last Write Wins Vulnerability)',
           },
           groupEnrollment: {
             create: mockCreateGroupEnrollment,
+            findFirst: jest.fn().mockResolvedValue({ id: 'enrollment-1' }),
           }
         });
       }),
@@ -55,8 +56,11 @@ describe('SyncService - Offline Student Update (Last Write Wins Vulnerability)',
     // Existing student on server (updated recently online)
     mockFindFirst.mockResolvedValueOnce({ 
       id: 'student-1', 
-      user: { fullName: 'Mohamed Ali', phone: '01000000000' },
-      updatedAt: new Date('2026-09-02T10:00:00Z') // Newer timestamp
+      user: { 
+        fullName: 'Mohamed Ali', 
+        phone: '01000000000',
+        updatedAt: new Date('2026-09-02T10:00:00Z') // Newer timestamp
+      },
     });
 
     // Offline device sends a mutation created 3 days ago
