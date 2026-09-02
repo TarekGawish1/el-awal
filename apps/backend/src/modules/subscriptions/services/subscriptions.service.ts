@@ -109,12 +109,22 @@ export class SubscriptionsService {
 
       let payment: any;
       if (existingBookletPayment) {
+        const expected = Number(existingBookletPayment.amountExpected || amountExpected || 0);
+        const previouslyPaid = Number(existingBookletPayment.amountPaid || 0);
+
+        if (existingBookletPayment.paymentStatus === PaymentStatus.PAID || (expected > 0 && previouslyPaid >= expected)) {
+          throw new BadRequestException('تم سداد قيمة هذه المذكرة لهذا الطالب مسبقاً بالكامل ولا يمكن تكرار الدفع!');
+        }
+
+        const cumulativePaid = previouslyPaid + Number(dto.amountPaid || 0);
+        const isPaidInFull = (dto.paymentStatus === PaymentStatus.EXEMPT) || cumulativePaid >= expected;
+
         payment = await this.prisma.studentPaymentRecord.update({
           where: { id: existingBookletPayment.id },
           data: {
-            amountPaid: dto.amountPaid,
-            amountExpected: amountExpected ?? Number(existingBookletPayment.amountExpected || 0),
-            paymentStatus: dto.paymentStatus || PaymentStatus.PAID,
+            amountPaid: cumulativePaid,
+            amountExpected: expected,
+            paymentStatus: isPaidInFull ? PaymentStatus.PAID : (dto.paymentStatus || PaymentStatus.PENDING),
             paymentMethod: dto.paymentMethod || 'CASH',
             receiptNumber: dto.receiptNumber || existingBookletPayment.receiptNumber,
             notes: dto.notes || existingBookletPayment.notes,

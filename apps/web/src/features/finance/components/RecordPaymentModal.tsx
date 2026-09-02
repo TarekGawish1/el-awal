@@ -4,8 +4,8 @@ import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { X, DollarSign, BookOpen, CreditCard, Users, Filter, Loader2, Search } from 'lucide-react';
-import { useRecordPayment, useGroupDefaulters } from '../hooks/useFinance';
+import { X, DollarSign, BookOpen, CreditCard, Users, Filter, Loader2, Search, CheckCircle, AlertCircle } from 'lucide-react';
+import { useRecordPayment, useGroupDefaulters, useMatrixLedger } from '../hooks/useFinance';
 import { useBooklets } from '@/features/booklets/hooks/useBooklets';
 import { useGroups, useGroupStudents } from '@/features/groups/hooks/useGroups';
 import { GRADE_LEVELS_BY_STAGE, inferStageFromGrade } from '@/lib/constants/grades';
@@ -87,6 +87,11 @@ export function RecordPaymentModal({
   );
   const { data: groupEnrollments = [], isLoading: isEnrollmentsLoading } = useGroupStudents(selectedGroupId);
   const { booklets = [], isLoading: isBookletsLoading } = useBooklets();
+  const { data: matrixLedgerData } = useMatrixLedger({
+    groupId: selectedGroupId || undefined,
+    stage: selectedStage || undefined,
+    gradeLevel: selectedGradeLevel || undefined,
+  });
 
   const {
     register,
@@ -104,6 +109,19 @@ export function RecordPaymentModal({
   const defaulters = defaultersData?.defaulters || [];
   const currentGroupObj = allGroups.find((g) => g.id === selectedGroupId);
   const groupFee = Number(currentGroupObj?.monthlyFee) || 0;
+
+  const getStudentBookletPaymentStatus = (studentId: string, bookletId?: string) => {
+    if (!bookletId) return { isPaid: false, isPartiallyPaid: false, amountPaid: 0, remainingAmount: 0, expected: 0 };
+    const matrixStudent = matrixLedgerData?.students?.find((s: any) => s.id === studentId);
+    const cell = matrixStudent?.bookletPayments?.[bookletId];
+    const targetBooklet = booklets.find((b) => b.id === bookletId);
+    const expected = Number(cell?.amountExpected || targetBooklet?.price || 0);
+    const amountPaid = Number(cell?.amountPaid || 0);
+    const isPaid = Boolean(cell?.isPaid || (expected > 0 && amountPaid >= expected));
+    const isPartiallyPaid = Boolean(cell?.isPartiallyPaid || (amountPaid > 0 && amountPaid < expected));
+    const remainingAmount = isPaid ? 0 : Math.max(0, expected - amountPaid);
+    return { isPaid, isPartiallyPaid, amountPaid, remainingAmount, expected };
+  };
 
   const availableStudents = useMemo(() => {
     const map = new Map<
@@ -177,11 +195,17 @@ export function RecordPaymentModal({
       if (paymentType === 'TUITION' && showOnlyUnpaid && s.isPaid) {
         return false;
       }
+      if (paymentType === 'BOOKLET' && showOnlyUnpaid && selectedBookletId) {
+        const bookletStatus = getStudentBookletPaymentStatus(s.id, selectedBookletId);
+        if (bookletStatus.isPaid) {
+          return false;
+        }
+      }
       if (!studentSearchQuery.trim()) return true;
       const q = studentSearchQuery.trim().toLowerCase();
       return s.name.toLowerCase().includes(q) || (s.studentCode && s.studentCode.toLowerCase().includes(q));
     });
-  }, [availableStudents, showOnlyUnpaid, paymentType, studentSearchQuery]);
+  }, [availableStudents, showOnlyUnpaid, paymentType, selectedBookletId, matrixLedgerData, studentSearchQuery]);
 
   const getStudentBookletContext = (studentId: string) => {
     const defaulter = defaulters.find((student) => student.studentId === studentId);
@@ -284,12 +308,14 @@ export function RecordPaymentModal({
         setValue('amountPaid', amountToSet);
       }
     } else if (sId && paymentType === 'BOOKLET') {
-      const currentBooklet = booklets.find((booklet) => booklet.id === selectedBookletId);
-      if (currentBooklet) {
-        setValue('amountPaid', Number(currentBooklet.price));
-      } else if (eligibleBooklets.length > 0) {
-        setValue('bookletId', eligibleBooklets[0].id);
-        setValue('amountPaid', Number(eligibleBooklets[0].price));
+      const bId = selectedBookletId || (eligibleBooklets.length > 0 ? eligibleBooklets[0].id : undefined);
+      if (bId) {
+        if (!selectedBookletId) setValue('bookletId', bId);
+        const status = getStudentBookletPaymentStatus(sId, bId);
+        const currentBooklet = booklets.find((booklet) => booklet.id === bId);
+        const price = Number(currentBooklet?.price || 0);
+        const amountToSet = status.isPartiallyPaid ? status.remainingAmount : (status.isPaid ? 0 : price);
+        setValue('amountPaid', amountToSet);
       }
     }
   };
@@ -298,9 +324,14 @@ export function RecordPaymentModal({
     const bId = e.target.value;
     setValue('bookletId', bId);
     if (bId) {
-      const b = booklets.find((item) => item.id === bId);
-      if (b) {
-        setValue('amountPaid', Number(b.price));
+      const targetBooklet = booklets.find((item) => item.id === bId);
+      const price = Number(targetBooklet?.price || 0);
+      if (selectedStudentId) {
+        const status = getStudentBookletPaymentStatus(selectedStudentId, bId);
+        const amountToSet = status.isPartiallyPaid ? status.remainingAmount : (status.isPaid ? 0 : price);
+        setValue('amountPaid', amountToSet);
+      } else {
+        setValue('amountPaid', price);
       }
     }
   };
@@ -308,9 +339,19 @@ export function RecordPaymentModal({
   const handlePaymentTypeChange = (type: 'TUITION' | 'BOOKLET') => {
     setPaymentType(type);
     if (type === 'BOOKLET') {
-      if (eligibleBooklets.length > 0 && !selectedBookletId) {
-        setValue('bookletId', eligibleBooklets[0].id);
-        setValue('amountPaid', Number(eligibleBooklets[0].price));
+      const bId = selectedBookletId || (eligibleBooklets.length > 0 ? eligibleBooklets[0].id : undefined);
+      if (bId) {
+        setValue('bookletId', bId);
+        if (selectedStudentId) {
+          const status = getStudentBookletPaymentStatus(selectedStudentId, bId);
+          const currentBooklet = booklets.find((booklet) => booklet.id === bId);
+          const price = Number(currentBooklet?.price || 0);
+          const amountToSet = status.isPartiallyPaid ? status.remainingAmount : (status.isPaid ? 0 : price);
+          setValue('amountPaid', amountToSet);
+        } else {
+          const currentBooklet = booklets.find((booklet) => booklet.id === bId);
+          if (currentBooklet) setValue('amountPaid', Number(currentBooklet.price));
+        }
       }
     } else if (type === 'TUITION' && selectedStudentId) {
       const student = availableStudents.find((d) => d.id === selectedStudentId);
@@ -328,12 +369,28 @@ export function RecordPaymentModal({
   const selectedStudent = availableStudents.find((s) => s.id === selectedStudentId);
   const selectedBooklet = booklets.find((b) => b.id === selectedBookletId);
 
-  const previouslyPaid = paymentType === 'TUITION' ? (selectedStudent?.amountPaid || 0) : 0;
-  const isPreviouslyPartial = paymentType === 'TUITION' && Boolean(selectedStudent?.isPartiallyPaid || previouslyPaid > 0);
+  const currentBookletStatus = useMemo(() => {
+    if (paymentType !== 'BOOKLET' || !selectedStudentId || !selectedBookletId) {
+      return null;
+    }
+    return getStudentBookletPaymentStatus(selectedStudentId, selectedBookletId);
+  }, [paymentType, selectedStudentId, selectedBookletId, matrixLedgerData, booklets]);
+
+  const isBookletAlreadyPaid = Boolean(currentBookletStatus?.isPaid);
+
+  const previouslyPaid =
+    paymentType === 'BOOKLET'
+      ? (currentBookletStatus?.amountPaid || 0)
+      : (paymentType === 'TUITION' ? (selectedStudent?.amountPaid || 0) : 0);
+
+  const isPreviouslyPartial =
+    paymentType === 'BOOKLET'
+      ? Boolean(currentBookletStatus?.isPartiallyPaid)
+      : (paymentType === 'TUITION' && Boolean(selectedStudent?.isPartiallyPaid || previouslyPaid > 0));
 
   const currentExpectedAmount =
     paymentType === 'BOOKLET'
-      ? Number(selectedBooklet?.price || 0)
+      ? Number(currentBookletStatus?.expected || selectedBooklet?.price || 0)
       : Number(selectedStudent?.fee || groupFee || 0);
 
   const currentEnteredAmount = Number(watchAmountPaid || 0);
@@ -566,15 +623,17 @@ export function RecordPaymentModal({
                       {filteredStudents.length} طالب متاح
                     </span>
                   )}
-                  {paymentType === 'TUITION' && (
-                    <button
-                      type="button"
-                      onClick={() => setShowOnlyUnpaid(!showOnlyUnpaid)}
-                      className="text-xs font-bold text-slate-500 hover:text-primary-600 transition-colors cursor-pointer"
-                    >
-                      {showOnlyUnpaid ? '(عرض جميع الطلاب)' : '(غير المسددين فقط)'}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowOnlyUnpaid(!showOnlyUnpaid)}
+                    className="text-xs font-bold text-slate-500 hover:text-primary-600 transition-colors cursor-pointer"
+                  >
+                    {showOnlyUnpaid
+                      ? '(عرض جميع الطلاب)'
+                      : paymentType === 'BOOKLET'
+                      ? '(غير المسددين للمذكرة فقط)'
+                      : '(غير المسددين فقط)'}
+                  </button>
                 </div>
               </div>
 
@@ -603,23 +662,44 @@ export function RecordPaymentModal({
                     ? '-- لا يوجد طلاب مطابقين للبحث --'
                     : '-- اختر طالباً --'}
                 </option>
-                {filteredStudents.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} {s.studentCode ? `[${s.studentCode}]` : ''}
-                    {paymentType === 'TUITION' && (
-                      s.isPaid
-                        ? ` — (مسدد بالفعل — ${s.fee} ج.م)`
-                        : s.isPartiallyPaid
-                        ? ` — (سداد جزئي: مدفوع ${s.amountPaid} ج.م • متبقي ${s.remainingAmount} ج.م)`
-                        : ` — (غير مسدد — المطلوب: ${s.fee} ج.م)`
-                    )}
-                  </option>
-                ))}
+                {filteredStudents.map((s) => {
+                  const bookletStatus =
+                    paymentType === 'BOOKLET' && selectedBookletId
+                      ? getStudentBookletPaymentStatus(s.id, selectedBookletId)
+                      : null;
+
+                  return (
+                    <option key={s.id} value={s.id}>
+                      {s.name} {s.studentCode ? `[${s.studentCode}]` : ''}
+                      {paymentType === 'TUITION' && (
+                        s.isPaid
+                          ? ` — (مسدد بالفعل — ${s.fee} ج.م)`
+                          : s.isPartiallyPaid
+                          ? ` — (سداد جزئي: مدفوع ${s.amountPaid} ج.م • متبقي ${s.remainingAmount} ج.م)`
+                          : ` — (غير مسدد — المطلوب: ${s.fee} ج.م)`
+                      )}
+                      {paymentType === 'BOOKLET' && bookletStatus && (
+                        bookletStatus.isPaid
+                          ? ' — (مسدد بالفعل — تم الاستلام)'
+                          : bookletStatus.isPartiallyPaid
+                          ? ` — (سداد جزئي: مدفوع ${bookletStatus.amountPaid} ج.م • متبقي ${bookletStatus.remainingAmount} ج.م)`
+                          : ` — (غير مسدد — المطلوب: ${bookletStatus.expected} ج.م)`
+                      )}
+                    </option>
+                  );
+                })}
               </select>
               {errors.studentId && (
                 <p className="text-red-500 text-xs mt-1 font-medium">
                   {errors.studentId.message}
                 </p>
+              )}
+
+              {paymentType === 'BOOKLET' && isBookletAlreadyPaid && (
+                <div className="mt-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs font-bold text-emerald-800 animate-in fade-in">
+                  <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>هذا الطالب قام بسداد واستلام هذه المذكرة مسبقاً بالكامل! (تم منع تكرار الدفع).</span>
+                </div>
               )}
             </div>
 
@@ -778,7 +858,7 @@ export function RecordPaymentModal({
               </Button>
               <Button
                 type="submit"
-                disabled={isPending || !selectedStudentId || currentEnteredAmount <= 0}
+                disabled={isPending || !selectedStudentId || currentEnteredAmount <= 0 || (paymentType === 'BOOKLET' && isBookletAlreadyPaid)}
                 className={
                   paymentType === 'BOOKLET'
                     ? 'bg-purple-600 hover:bg-purple-700 text-white font-bold'
