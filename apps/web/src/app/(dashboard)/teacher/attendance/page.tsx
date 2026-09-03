@@ -355,6 +355,27 @@ function TeacherAttendanceContent() {
     return now.getTime() < (sessionDateTime.getTime() - FIFTEEN_MINUTES);
   }, [activeSessionObj]);
 
+  const isEnded = useMemo(() => {
+    const sessionAny = activeSessionObj as any;
+    if (!sessionAny?.sessionDate || !sessionAny?.endTime) return false;
+    
+    const dateStr = sessionAny.sessionDate.includes('T') 
+      ? sessionAny.sessionDate.split('T')[0] 
+      : sessionAny.sessionDate;
+      
+    const timePart = sessionAny.endTime.split(':').length === 2 
+      ? `${sessionAny.endTime}:00` 
+      : sessionAny.endTime;
+      
+    const sessionEndDateTime = new Date(`${dateStr}T${timePart}`);
+    
+    if (isNaN(sessionEndDateTime.getTime())) return false;
+    
+    const now = new Date();
+    // Block QR scanning if current time is past the end time
+    return now.getTime() > sessionEndDateTime.getTime();
+  }, [activeSessionObj]);
+
   return (
     <div className="max-w-6xl mx-auto py-4 sm:py-8 px-2 sm:px-6 lg:px-8 space-y-6">
       
@@ -621,6 +642,23 @@ function TeacherAttendanceContent() {
                    <Clock className="w-4 h-4 text-slate-400" />
                    موعد الحصة: {formatTime12h(activeSessionObj?.startTime || undefined)}
                  </div>
+               </div>
+             ) : isEnded && activeTab !== 'LOGBOOK' ? (
+               <div className="flex flex-col items-center justify-center py-16 text-center space-y-4">
+                 <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-2">
+                   <Clock className="w-8 h-8" />
+                 </div>
+                 <h3 className="text-xl font-bold text-slate-800">موعد الحصة انتهى</h3>
+                 <p className="text-sm text-slate-500 max-w-md leading-relaxed">
+                   غير مسموح بفتح ماسح الـ QR لأن وقت الحصة قد انتهى. يمكنك مراجعة وتعديل سجل الغياب من خلال الدفتر الشامل.
+                 </p>
+                 <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl mt-2 text-sm font-bold text-slate-700">
+                   <Clock className="w-4 h-4 text-slate-400" />
+                   وقت النهاية: {formatTime12h((activeSessionObj as any)?.endTime || undefined)}
+                 </div>
+                 <Button onClick={() => setActiveTab('LOGBOOK')} variant="outline" className="mt-4 rounded-xl font-bold border-slate-300 text-slate-700 hover:bg-slate-50">
+                   الانتقال للدفتر الشامل
+                 </Button>
                </div>
              ) : (
                <>

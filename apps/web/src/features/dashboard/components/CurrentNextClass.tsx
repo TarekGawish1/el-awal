@@ -29,12 +29,30 @@ export function CurrentNextClass({ sessions = [], isLoading = false }: CurrentNe
   const now = new Date();
   
   // Sort sessions by start time
-  const sortedSessions = [...sessions].sort((a, b) => {
-    // Assuming startTime is an ISO string or a format parseable by Date
-    // If it's just a time string like "10:00", we might need a different approach.
-    // Let's assume the existing logic works or we sort by the string if they are in 24h format.
-    // In many implementations, startTime is an ISO string. 
-    return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+  const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
+
+  const parseTimeToMinutes = (timeStr: string) => {
+    if (!timeStr) return 0;
+    if (timeStr.includes('T')) {
+      const d = new Date(timeStr);
+      return d.getHours() * 60 + d.getMinutes();
+    }
+    const [h, m] = timeStr.split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  };
+
+  const processedSessions = sessions.map(s => {
+    const endMins = parseTimeToMinutes(s.endTime);
+    // If the session's scheduled end time has passed, treat it as COMPLETED visually
+    // so it doesn't stay stuck as the "Live" or "Next" session while waiting for attendance auto-close
+    if (endMins > 0 && currentTotalMinutes >= endMins && s.status !== 'COMPLETED') {
+      return { ...s, status: 'COMPLETED' as const };
+    }
+    return s;
+  });
+
+  const sortedSessions = [...processedSessions].sort((a, b) => {
+    return parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime);
   });
 
   const liveSession = sortedSessions.find(s => s.status === 'IN_PROGRESS');
