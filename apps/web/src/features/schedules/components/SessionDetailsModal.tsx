@@ -451,17 +451,7 @@ export function SessionDetailsModal({
                   المذكرات والمرفقات والفيديوهات المرتبطة بالحصة
                 </h3>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    onUploadAttachment(session);
-                  }}
-                  className="text-xs text-primary-600 hover:text-primary-800 font-bold hover:underline inline-flex items-center gap-1 cursor-pointer"
-                >
-                  <UploadCloud className="w-3.5 h-3.5" />
-                  + رفع ملف جديد
-                </button>
+
               </div>
 
               {session.educationalContents && session.educationalContents.length > 0 ? (
@@ -541,22 +531,7 @@ export function SessionDetailsModal({
                   الواجبات والاختبارات المرتبطة بالحصة
                 </h3>
 
-                <div className="flex items-center gap-1.5">
-                  <Link
-                    href={buildAssessmentLink('ASSIGNMENT')}
-                    className="text-[11px] text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2 py-1 rounded-lg font-bold inline-flex items-center gap-1 transition-colors"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    واجب جديد
-                  </Link>
-                  <Link
-                    href={buildAssessmentLink('EXAM')}
-                    className="text-[11px] text-purple-800 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200/80 px-2 py-1 rounded-lg font-bold inline-flex items-center gap-1 transition-colors"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    اختبار جديد
-                  </Link>
-                </div>
+
               </div>
 
               {groupAssessments && groupAssessments.length > 0 ? (
