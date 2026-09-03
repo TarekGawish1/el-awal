@@ -116,7 +116,7 @@ export function SessionDetailsModal({
     : '';
 
   const buildAssessmentLink = (type: 'ASSIGNMENT' | 'EXAM') =>
-    `/teacher/assessments/new?type=${type}&groupId=${session.groupId}&topic=${encodeURIComponent(session.topic || '')}${hwDueDateParam}`;
+    `/teacher/assessments/new?type=${type}&groupId=${session.groupId}&topic=${encodeURIComponent(session.topic || '')}${type === 'EXAM' ? hwDueDateParam : ''}`;
 
   const isToday = cleanSessionDate === todayStr;
   const isUpcoming = cleanSessionDate > todayStr;
