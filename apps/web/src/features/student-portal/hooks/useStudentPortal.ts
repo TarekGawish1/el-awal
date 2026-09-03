@@ -6,6 +6,7 @@ import { apiClient } from '@/lib/api/client';
 import { offlineDb, getStudentDetailsOffline } from '@/lib/offline/db';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { StudentDetail } from '@/features/students/types/students.types';
+import { translateErrorMessage } from '@/lib/api/errors';
 import toast from 'react-hot-toast';
 
 export function useStudentProfile() {
@@ -254,7 +255,7 @@ export function useEnrollInCourse() {
       toast.success('تم تفعيل الاشتراك في الكورس بنجاح! يمكنك الآن بدء التعلم.');
     },
     onError: (err: any) => {
-      toast.error(err?.message || 'تعذر إتمام الاشتراك في الكورس. يرجى المحاولة مرة أخرى.');
+      toast.error(translateErrorMessage(err?.message) || 'تعذر إتمام الاشتراك في الكورس. يرجى المحاولة مرة أخرى.');
     },
   });
 }
@@ -283,7 +284,7 @@ export function useSubmitCourseSubscription() {
       toast.success('تم إرسال طلب الاشتراك وإيصال التحويل بنجاح! سيتم مراجعة المعلم وتفعيل الكورس فوراً 🚀');
     },
     onError: (err: any) => {
-      toast.error(err?.message || 'تعذر إرسال طلب الاشتراك. يرجى مراجعة البيانات والمحاولة مجدداً.');
+      toast.error(translateErrorMessage(err?.message) || 'تعذر إرسال طلب الاشتراك. يرجى مراجعة البيانات والمحاولة مجدداً.');
     },
   });
 }

@@ -20,7 +20,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let errorName = 'Internal Server Error';
-    let message: string | string[] = 'An internal server error occurred.';
+    let message: string | string[] = 'حدث خطأ غير متوقع في الخادم، يرجى المحاولة لاحقاً.';
     let errorCode = 'INTERNAL_ERROR';
 
     if (exception instanceof HttpException) {

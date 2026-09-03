@@ -34,7 +34,7 @@ export class PermissionsGuard implements CanActivate {
     }
 
     if (user.role !== UserRole.SECRETARIAT) {
-      throw new ForbiddenException(`Role ${user.role} is not permitted for these actions.`);
+      throw new ForbiddenException('غير مصرح لهذا الدور بتنفيذ هذا الإجراء');
     }
 
     // For assistants (Secretariat), check the TeacherAssistant relationship
@@ -46,7 +46,7 @@ export class PermissionsGuard implements CanActivate {
     });
 
     if (!relation) {
-      throw new ForbiddenException('You do not have an active assistant relationship with a teacher.');
+      throw new ForbiddenException('لا يوجد ارتباط نشط كمعاون مع أي معلم');
     }
 
     const hasAllRequired = requiredPermissions.every((perm) =>
@@ -54,9 +54,7 @@ export class PermissionsGuard implements CanActivate {
     );
 
     if (!hasAllRequired) {
-      throw new ForbiddenException(
-        `Access denied. Missing required permissions: ${requiredPermissions.join(', ')}`,
-      );
+      throw new ForbiddenException('عفواً، ليس لديك الصلاحية الكافية للقيام بهذا الإجراء');
     }
 
     return true;

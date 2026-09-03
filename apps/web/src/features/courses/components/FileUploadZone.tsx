@@ -4,6 +4,7 @@ import React, { useState, useRef } from 'react';
 import { UploadCloud, CheckCircle, File, Image as ImageIcon, Trash2, Loader2, ExternalLink } from 'lucide-react';
 import { coursesApi } from '../api/courses.api';
 import { API_BASE_URL } from '@/lib/api/endpoints';
+import { translateErrorMessage } from '@/lib/api/errors';
 import toast from 'react-hot-toast';
 
 interface FileUploadZoneProps {
@@ -64,7 +65,7 @@ export function FileUploadZone({
     } catch (err: any) {
       setIsUploading(false);
       setUploadProgress(0);
-      toast.error(err?.message || 'تعذر رفع الملف، يرجى المحاولة مجدداً');
+      toast.error(translateErrorMessage(err?.message) || 'تعذر رفع الملف، يرجى المحاولة مجدداً');
     }
   };
 

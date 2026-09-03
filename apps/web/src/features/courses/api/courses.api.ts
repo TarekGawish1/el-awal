@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/api/client';
 import { API_BASE_URL } from '@/lib/api/endpoints';
+import { translateErrorMessage } from '@/lib/api/errors';
 import { getStoredAccessToken } from '@/features/auth/utils/auth-tokens';
 import {
   CourseDetail,
@@ -431,11 +432,11 @@ export const coursesApi = {
 
           resolve(data);
         } else {
-          const errorMsg =
+          const rawError =
             (responseJson && responseJson.message) ||
             (responseJson && responseJson.error) ||
             `فشل الرفع (كود ${xhr.status})`;
-          reject(new Error(errorMsg));
+          reject(new Error(translateErrorMessage(rawError)));
         }
       };
 

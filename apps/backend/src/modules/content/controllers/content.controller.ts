@@ -12,6 +12,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
@@ -34,24 +35,36 @@ export class ContentController {
 
   @Post('upload-file')
   @UseInterceptors(FileInterceptor('file'))
-  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT)
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload binary file with automatic storage' })
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthenticatedUser,
     @Body('folder') folder?: string,
   ) {
     if (!file) {
       throw new BadRequestException('الملف مطلوب للرفع');
     }
-    return this.contentService.uploadRawFile(file, folder);
+    const targetFolder = folder || 'courses';
+    const allowedStudentFolders = [
+      'homework-submissions',
+      'essay-answers',
+      'assessment-submissions',
+      'payment-receipts',
+    ];
+    if (user.role === UserRole.STUDENT && !allowedStudentFolders.includes(targetFolder)) {
+      throw new ForbiddenException('غير مصرح للطالب بالرفع إلى هذا المجلد');
+    }
+    return this.contentService.uploadRawFile(file, targetFolder);
   }
 
   @Delete('file')
   @HttpCode(HttpStatus.OK)
-  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT, UserRole.STUDENT)
   @ApiOperation({ summary: 'Delete an unlinked uploaded file from storage bucket' })
   async deleteUploadedFile(
+    @CurrentUser() user: AuthenticatedUser,
     @Body('fileKey') fileKey?: string,
     @Body('fileUrl') fileUrl?: string,
     @Query('fileKey') queryFileKey?: string,
@@ -59,6 +72,19 @@ export class ContentController {
   ) {
     const key = fileKey || queryFileKey;
     const url = fileUrl || queryFileUrl;
+    if (user.role === UserRole.STUDENT) {
+      const allowedStudentPrefixes = [
+        'homework-submissions',
+        'essay-answers',
+        'assessment-submissions',
+        'payment-receipts',
+      ];
+      const target = key || url || '';
+      const isAllowed = allowedStudentPrefixes.some((prefix) => target.includes(prefix));
+      if (!isAllowed) {
+        throw new ForbiddenException('غير مصرح للطالب بحذف هذا الملف');
+      }
+    }
     return this.contentService.deleteFileFromStorage({ fileKey: key, fileUrl: url });
   }
 
@@ -76,9 +102,14 @@ export class ContentController {
       throw new BadRequestException('الملف مطلوب للرفع');
     }
     const targetFolder = folder || 'assessments';
-    const allowedStudentFolders = ['homework-submissions', 'essay-answers', 'assessment-submissions'];
+    const allowedStudentFolders = [
+      'homework-submissions',
+      'essay-answers',
+      'assessment-submissions',
+      'payment-receipts',
+    ];
     if (user.role === UserRole.STUDENT && !allowedStudentFolders.includes(targetFolder)) {
-      throw new BadRequestException('غير مصرح للطالب بالرفع إلى هذا المجلد');
+      throw new ForbiddenException('غير مصرح للطالب بالرفع إلى هذا المجلد');
     }
     return this.contentService.uploadRawFile(file, targetFolder);
   }
@@ -124,11 +155,11 @@ export class ContentController {
     @Body() dto: PresignedUploadDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    // Students may request a presigned upload for homework and assessment essay submissions.
+    // Students may request a presigned upload for homework, assessment submissions, and payment receipts.
     const allowedStudentFolders = ['homework-submissions', 'essay-answers', 'assessment-submissions', 'payment-receipts'];
     if (user.role === UserRole.STUDENT && !allowedStudentFolders.includes(dto.folder || '')) {
       throw new BadRequestException(
-        'Students can only generate upload URLs for homework and assessment submissions',
+        'يمكن للطلاب رفع الملفات لواجباتهم واختباراتهم وإيصالات الدفع فقط',
       );
     }
     return this.contentService.generatePresignedUpload(dto);
