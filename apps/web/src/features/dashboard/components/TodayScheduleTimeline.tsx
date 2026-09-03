@@ -30,8 +30,29 @@ export function TodayScheduleTimeline({ sessions = [], isLoading = false }: Toda
   }
 
   // Sort sessions by start time
-  const sortedSessions = [...sessions].sort((a, b) => {
-    return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+  const now = new Date();
+  const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
+
+  const parseTimeToMinutes = (timeStr: string) => {
+    if (!timeStr) return 0;
+    if (timeStr.includes('T')) {
+      const d = new Date(timeStr);
+      return d.getHours() * 60 + d.getMinutes();
+    }
+    const [h, m] = timeStr.split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  };
+
+  const processedSessions = sessions.map(s => {
+    const endMins = parseTimeToMinutes(s.endTime);
+    if (endMins > 0 && currentTotalMinutes >= endMins && s.status !== 'COMPLETED') {
+      return { ...s, status: 'COMPLETED' as const };
+    }
+    return s;
+  });
+
+  const sortedSessions = [...processedSessions].sort((a, b) => {
+    return parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime);
   });
 
   return (

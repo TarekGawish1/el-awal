@@ -76,8 +76,25 @@ export function TodaySessionsSection({ sessions = [], isLoading = false }: Today
             </div>
           ) : (
             sessions.map((session) => {
-              const isLive = session.status === 'IN_PROGRESS';
-              const isCompleted = session.status === 'COMPLETED';
+              const now = new Date();
+              const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
+              const parseTimeToMinutes = (timeStr: string) => {
+                if (!timeStr) return 0;
+                if (timeStr.includes('T')) {
+                  const d = new Date(timeStr);
+                  return d.getHours() * 60 + d.getMinutes();
+                }
+                const [h, m] = timeStr.split(':').map(Number);
+                return (h || 0) * 60 + (m || 0);
+              };
+              
+              const endMins = parseTimeToMinutes(session.endTime);
+              const status = (endMins > 0 && currentTotalMinutes >= endMins && session.status !== 'COMPLETED') 
+                ? 'COMPLETED' 
+                : session.status;
+                
+              const isLive = status === 'IN_PROGRESS';
+              const isCompleted = status === 'COMPLETED';
 
               return (
                 <div
