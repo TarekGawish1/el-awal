@@ -117,6 +117,8 @@ export interface CreateAssessmentPayload {
   groupId?: string;
   targetGroupIds?: string[];
   courseId?: string | null;
+  courseLinkScope?: 'COURSE' | 'UNIT';
+  moduleId?: string;
   academicStage?: string | null;
   gradeLevel?: string | null;
   title: string;

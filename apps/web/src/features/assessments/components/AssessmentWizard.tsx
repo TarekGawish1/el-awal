@@ -122,9 +122,16 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
   const paramTopic = searchParams.get('topic');
   const paramDueDate = searchParams.get('dueDate');
   const paramCourseId = searchParams.get('courseId');
+  const paramCourseName = searchParams.get('courseName');
   const paramModuleId = searchParams.get('moduleId');
   const paramModuleName = searchParams.get('moduleName');
-  const paramScope = searchParams.get('scope'); // 'UNIT' | 'COURSE' | null
+  const paramScope = searchParams.get('scope');
+  const courseLinkScope =
+    type === 'EXAM' &&
+    paramCourseId &&
+    (paramScope === 'COURSE' || (paramScope === 'UNIT' && paramModuleId))
+      ? paramScope
+      : null;
 
   const { data: teacherCourses } = useTeacherCourses();
 
@@ -194,16 +201,21 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
     }
   }, [paramCourseId, methods]);
 
-  // Pre-fill exam title when creating from a unit context
+  // Pre-fill the exam title when creating from a course builder context.
   useEffect(() => {
-    if (paramModuleName && !methods.getValues('title')) {
-      methods.setValue(
-        'title',
-        `اختبار وحدة: ${paramModuleName}`,
-        { shouldValidate: true }
-      );
+    if (courseLinkScope === 'UNIT' && paramModuleName && !methods.getValues('title')) {
+      methods.setValue('title', `اختبار وحدة: ${paramModuleName}`, { shouldValidate: true });
+      return;
     }
-  }, [paramModuleName, methods]);
+
+    if (courseLinkScope === 'COURSE' && !methods.getValues('title')) {
+      const selectedCourse = teacherCourses?.find((course) => course.id === paramCourseId);
+      const courseName = paramCourseName || selectedCourse?.title;
+      if (courseName) {
+        methods.setValue('title', `الاختبار النهائي: ${courseName}`, { shouldValidate: true });
+      }
+    }
+  }, [courseLinkScope, paramCourseId, paramCourseName, paramModuleName, teacherCourses, methods]);
 
   // Prefill group & topic from search params if provided (e.g. from session calendar modal)
   useEffect(() => {
@@ -397,6 +409,14 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
     if (!payload.gradeLevel) delete payload.gradeLevel;
     if (!payload.targetGroupIds || payload.targetGroupIds.length === 0) delete payload.targetGroupIds;
     if (!payload.courseId) delete payload.courseId;
+
+    if (courseLinkScope && paramCourseId) {
+      payload.courseId = paramCourseId;
+      payload.courseLinkScope = courseLinkScope;
+      if (courseLinkScope === 'UNIT' && paramModuleId) {
+        payload.moduleId = paramModuleId;
+      }
+    }
     
     // Remove extra properties that the backend ValidationPipe forbids
     delete payload.isAutoGraded;
@@ -482,19 +502,17 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
               </div>
 
               {/* Context banner: shown when opened from course builder */}
-              {paramCourseId && (
+              {courseLinkScope && (
                 <div className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl animate-in fade-in">
                   <span className="text-xl shrink-0 mt-0.5">🔗</span>
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-amber-900">
-                      {paramScope === 'UNIT' && paramModuleName
+                      {courseLinkScope === 'UNIT' && paramModuleName
                         ? `سيتم ربط هذا الاختبار تلقائياً بوحدة: "${paramModuleName}"`
-                        : 'سيتم ربط هذا الاختبار بالكورس الأونلاين تلقائياً'}
+                        : 'سيتم ربط هذا الاختبار تلقائياً كاختبار نهائي للكورس'}
                     </p>
                     <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
-                      {paramScope === 'UNIT'
-                        ? 'بعد الحفظ، عُد إلى صفحة الكورس وستجد الاختبار الجديد ضمن قائمة الاختبارات — اختره لربطه بالوحدة بنقرة واحدة.'
-                        : 'بعد الحفظ، عُد إلى صفحة الكورس وستجد الاختبار الجديد جاهزاً للاختيار في القائمة.'}
+                      بمجرد حفظ الاختبار سيظهر مرتبطاً في صفحة الكورس دون الحاجة لاختياره يدوياً.
                     </p>
                   </div>
                 </div>
@@ -519,11 +537,12 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <button
                       type="button"
+                      disabled={!!courseLinkScope}
                       onClick={() => {
                         setTargetScope('GROUPS');
                         methods.setValue('courseId', null);
                       }}
-                      className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 text-xs font-bold transition-all ${
+                      className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
                         targetScope === 'GROUPS'
                           ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-sm ring-2 ring-primary-50'
                           : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
@@ -535,11 +554,12 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
 
                     <button
                       type="button"
+                      disabled={!!courseLinkScope}
                       onClick={() => {
                         setTargetScope('COURSE');
                         methods.setValue('targetGroupIds', []);
                       }}
-                      className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 text-xs font-bold transition-all ${
+                      className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
                         targetScope === 'COURSE'
                           ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-sm ring-2 ring-primary-50'
                           : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
@@ -558,6 +578,7 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                     </Label>
                     <Select
                       value={formDataValues.courseId || ''}
+                      disabled={!!courseLinkScope}
                       onChange={(e) => {
                         methods.setValue('courseId', e.target.value || null, { shouldValidate: true });
                       }}

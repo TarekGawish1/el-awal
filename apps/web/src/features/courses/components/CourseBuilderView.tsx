@@ -398,7 +398,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                 ))}
               </select>
               <Link
-                href={`/teacher/assessments/new?type=EXAM&courseId=${courseId}&scope=COURSE`}
+                href={`/teacher/assessments/new?type=EXAM&courseId=${courseId}&courseName=${encodeURIComponent(course.title)}&scope=COURSE`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm shrink-0 whitespace-nowrap"
