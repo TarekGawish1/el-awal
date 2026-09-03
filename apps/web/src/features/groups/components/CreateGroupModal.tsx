@@ -64,6 +64,8 @@ const DAY_PAIRS: Record<number, number> = {
 function TimeSelect({ value, onChange, label, disabled }: { value: string, onChange: (val: string) => void, label: string, disabled?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const selectedRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -74,6 +76,15 @@ function TimeSelect({ value, onChange, label, disabled }: { value: string, onCha
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // لما القائمة تفتح، انزل تلقائيًا للوقت المختار وخلّيه في نص القائمة
+  useEffect(() => {
+    if (isOpen && listRef.current && selectedRef.current) {
+      const list = listRef.current;
+      const selected = selectedRef.current;
+      list.scrollTop = selected.offsetTop - list.clientHeight / 2 + selected.clientHeight / 2;
+    }
+  }, [isOpen]);
 
   const selectedOption = timeOptions.find(t => t.value === value);
 
@@ -91,10 +102,11 @@ function TimeSelect({ value, onChange, label, disabled }: { value: string, onCha
       </button>
 
       {isOpen && (
-        <div className="absolute z-[100] mt-1 w-full max-h-60 overflow-y-auto rounded-md border border-neutral-200 bg-white shadow-xl py-1" style={{ scrollbarWidth: 'thin' }}>
+        <div ref={listRef} className="absolute z-[100] mt-1 w-full max-h-60 overflow-y-auto rounded-md border border-neutral-200 bg-white shadow-xl py-1" style={{ scrollbarWidth: 'thin' }}>
           {timeOptions.map((opt) => (
             <button
               key={opt.value}
+              ref={value === opt.value ? selectedRef : null}
               type="button"
               dir="ltr"
               className={`w-full text-left px-3.5 py-2 text-sm hover:bg-primary-50 transition-colors ${value === opt.value ? 'bg-primary-50 text-primary-700 font-bold' : 'text-neutral-700'}`}
