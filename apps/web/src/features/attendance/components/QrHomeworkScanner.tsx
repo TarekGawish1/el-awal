@@ -22,7 +22,9 @@ import toast from 'react-hot-toast';
 import { useSessionReport, useScanQrAttendance } from '../hooks/use-attendance';
 import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
+import { syncEngine } from '@/lib/offline/sync-engine';
 import { initQrDetector } from '@/lib/qr/qr-detector-init';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface QrHomeworkScannerProps {
   sessionId: string;
@@ -68,6 +70,7 @@ export function QrHomeworkScanner({
   const [localHomeworkRecords, setLocalHomeworkRecords] = useState<any[]>([]);
   const { data: sessionReport } = useSessionReport(sessionId);
   const { mutate: scanQrAttendance } = useScanQrAttendance();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     let isMounted = true;
@@ -251,6 +254,22 @@ export function QrHomeworkScanner({
         };
       }
 
+      // ── Duplicate check: already has a homework record for this session?
+      const existingHw = await offlineDb.getHomeworkRecordsForSession(sessionId, assessmentId);
+      const alreadyRecorded = existingHw.find(
+        (h) => h.studentId === student.id || h.studentId === cleanToken
+      );
+      if (alreadyRecorded) {
+        playBeep('duplicate');
+        setFlashType('duplicate');
+        toast(`تم تسجيل هذا الطالب مسبقاً`, { icon: '⚠️' });
+        setTimeout(() => {
+          setLocked(false);
+          setFlashType(null);
+        }, 2000);
+        return;
+      }
+
       playBeep('success');
       setScannedStudent(student);
 
@@ -272,12 +291,8 @@ export function QrHomeworkScanner({
       const studentName = scannedStudent.fullName || scannedStudent.name || 'طالب';
       const studentCode = scannedStudent.studentCode || '';
 
-      // recordHomeworkOnsiteOffline atomically saves:
-      //   1. The homework record in IndexedDB
-      //   2. The attendance record in IndexedDB (PRESENT)
-      //   3. Queues both mutations in the outbox
-      // This works identically online and offline.
-      await offlineDb.recordHomeworkOnsiteOffline({
+      // 1. Save homework record + auto-record attendance in IndexedDB atomically
+      const { attendanceRecord } = await offlineDb.recordHomeworkOnsiteOffline({
         assessmentId,
         studentId: scannedStudent.id,
         sessionId,
@@ -287,6 +302,25 @@ export function QrHomeworkScanner({
         studentCode,
         qrCodeToken: scannedStudent.qrCodeToken,
       });
+
+      // 2. Explicitly enqueue attendance into the outbox so useSessionReport
+      //    (which reads pendingMutations) shows PRESENT immediately offline.
+      await syncEngine.enqueue(
+        'attendance',
+        API_ENDPOINTS.ATTENDANCE.SCAN_QR(sessionId),
+        'POST',
+        {
+          sessionId,
+          qrCodeToken: scannedStudent.qrCodeToken || scannedStudent.id,
+          studentId: scannedStudent.id,
+          status: 'PRESENT',
+          recordingMethod: 'QR_SCAN',
+          allowCrossGroup: true,
+        },
+      );
+
+      // 3. Invalidate session report so the UI updates immediately
+      queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'report'] });
 
       playBeep('success');
       setFlashType('success');
