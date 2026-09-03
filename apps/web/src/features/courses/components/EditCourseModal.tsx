@@ -114,7 +114,7 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
   const handleStageChange = (newStage: string) => {
     setAcademicStage(newStage);
     const availableGrades = STAGE_GRADES[newStage];
-    if (availableGrades && availableGrades.length > 0) {
+    if (availableGrades && availableGrades.length > 0 && !availableGrades.includes(gradeLevel)) {
       setGradeLevel(availableGrades[0]);
     }
   };

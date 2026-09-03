@@ -8,6 +8,7 @@ import { LessonResourcesTab } from '@/features/student-portal/components/LessonR
 import { LessonQuizTab } from '@/features/student-portal/components/LessonQuizTab';
 import { StudentCourseLearningRoom } from '@/features/student-portal/components/StudentCourseLearningRoom';
 import { LessonEditorModal } from '@/features/courses/components/LessonEditorModal';
+import { EditCourseModal } from '@/features/courses/components/EditCourseModal';
 import { CourseManagementContainer } from '@/features/courses/components/CourseManagementContainer';
 import { CourseBuilderView } from '@/features/courses/components/CourseBuilderView';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
@@ -25,11 +26,13 @@ vi.mock('@/features/courses/api/courses.api', () => ({
     deleteReply: vi.fn(),
     getTeacherCourses: vi.fn(),
     getCourseDetails: vi.fn(),
+    updateCourse: vi.fn(),
     getLessonViewer: vi.fn(),
     getLessonStreamAuth: vi.fn(),
     updateLessonProgress: vi.fn(),
     deleteCourse: vi.fn(),
     getVideoUploadCredentials: vi.fn(),
+    deleteUploadedFile: vi.fn(),
   },
 }));
 
@@ -570,7 +573,7 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
     });
   });
 
-  describe('CourseBuilderView Component Preview Button', () => {
+  describe('CourseBuilderView Component Preview & Edit Buttons', () => {
     it('renders معاينة قاعة المشاهدة link targeting /teacher/courses/[id]/preview with _blank', async () => {
       vi.mocked(coursesApi.getCourseDetails).mockResolvedValue({
         id: 'course-1',
@@ -588,6 +591,92 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
       expect(previewLink).toBeInTheDocument();
       expect(previewLink).toHaveAttribute('href', '/teacher/courses/course-1/preview');
       expect(previewLink).toHaveAttribute('target', '_blank');
+    });
+
+    it('opens EditCourseModal when clicking تعديل بيانات الكورس button and submits updates', async () => {
+      vi.mocked(coursesApi.getCourseDetails).mockResolvedValue({
+        id: 'course-1',
+        title: 'شرح تفاضل 2ث',
+        subject: 'الرياضيات',
+        academicStage: 'المرحلة الثانوية',
+        gradeLevel: 'الصف الثاني الثانوي',
+        academicTerm: 'FIRST_TERM',
+        academicYear: '2026-2027',
+        price: 150,
+        status: 'PUBLISHED',
+        modules: [],
+        groupAccess: [],
+      } as any);
+
+      vi.mocked(coursesApi.updateCourse).mockResolvedValue({
+        id: 'course-1',
+        title: 'شرح تفاضل وحساب مثلثات 2ث - المنهج الجديد',
+        subject: 'الرياضيات',
+        academicStage: 'المرحلة الثانوية',
+        gradeLevel: 'الصف الثاني الثانوي',
+      } as any);
+
+      render(<CourseBuilderView courseId="course-1" />, { wrapper });
+
+      const editBtn = await screen.findByRole('button', { name: /تعديل بيانات الكورس/i });
+      expect(editBtn).toBeInTheDocument();
+      fireEvent.click(editBtn);
+
+      // Verify modal opened
+      expect(await screen.findByText('تعديل بيانات وإعدادات الكورس')).toBeInTheDocument();
+
+      // Change title
+      const titleInput = screen.getByDisplayValue('شرح تفاضل 2ث');
+      fireEvent.change(titleInput, { target: { value: 'شرح تفاضل وحساب مثلثات 2ث - المنهج الجديد' } });
+
+      // Change stage
+      const stageSelect = screen.getByDisplayValue('المرحلة الثانوية');
+      fireEvent.change(stageSelect, { target: { value: 'المرحلة الثانوية' } });
+
+      // Submit form
+      const saveBtn = screen.getByRole('button', { name: /حفظ التغييرات/i });
+      fireEvent.click(saveBtn);
+
+      await waitFor(() => {
+        expect(coursesApi.updateCourse).toHaveBeenCalledWith(
+          'course-1',
+          expect.objectContaining({
+            title: 'شرح تفاضل وحساب مثلثات 2ث - المنهج الجديد',
+            subject: 'الرياضيات',
+            academicStage: 'المرحلة الثانوية',
+            gradeLevel: 'الصف الثاني الثانوي',
+          })
+        );
+      });
+    });
+  });
+
+  describe('EditCourseModal direct component tests', () => {
+    it('updates grade levels automatically when changing academic stage', async () => {
+      const mockCourse = {
+        id: 'course-99',
+        title: 'كورس العلوم',
+        subject: 'العلوم',
+        academicStage: 'المرحلة الثانوية',
+        gradeLevel: 'الصف الأول الثانوي',
+        academicTerm: 'FIRST_TERM',
+        academicYear: '2026-2027',
+        price: 100,
+        status: 'PUBLISHED',
+        modules: [],
+      } as any;
+
+      const onClose = vi.fn();
+      render(<EditCourseModal isOpen={true} course={mockCourse} onClose={onClose} />, { wrapper });
+
+      expect(screen.getByText('تعديل بيانات وإعدادات الكورس')).toBeInTheDocument();
+      const stageSelect = screen.getByDisplayValue('المرحلة الثانوية');
+
+      // Change to preparatory stage
+      fireEvent.change(stageSelect, { target: { value: 'المرحلة الإعدادية' } });
+
+      // Grade select should now contain middle school grades
+      expect(screen.getByDisplayValue('الصف الأول الإعدادي')).toBeInTheDocument();
     });
   });
 });

@@ -3,28 +3,30 @@
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import {
-  Video,
-  Plus,
   BookOpen,
-  Users,
+  Plus,
   Search,
   Layers,
+  Video,
+  Users,
+  Eye,
+  Trash2,
+  Edit,
   Award,
   DollarSign,
   Globe,
   Lock,
-  Trash2,
-  Edit,
-  Eye,
   GraduationCap,
   CheckCircle,
   XCircle,
   Clock,
-  UserCheck
+  UserCheck,
+  Settings2,
 } from 'lucide-react';
 import { useTeacherCourses, useDeleteCourse } from '../hooks/useCourses';
 import { CourseDetail } from '../types/courses.types';
 import { CreateCourseModal } from './CreateCourseModal';
+import { EditCourseModal } from './EditCourseModal';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { useRouter } from 'next/navigation';
 
@@ -34,6 +36,7 @@ export function CourseManagementContainer() {
   const deleteMutation = useDeleteCourse();
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [courseToEdit, setCourseToEdit] = useState<CourseDetail | null>(null);
   const [activeTab, setActiveTab] = useState<'COURSES' | 'ENROLLMENTS'>('COURSES');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGrade, setSelectedGrade] = useState('ALL');
@@ -285,8 +288,17 @@ export function CourseManagementContainer() {
 
                     <button
                       type="button"
+                      onClick={() => setCourseToEdit(c)}
+                      className="p-2.5 text-slate-500 hover:text-primary-600 hover:bg-primary-50 bg-white border border-slate-200 rounded-xl transition-colors shadow-sm"
+                      title="تعديل بيانات وإعدادات الكورس"
+                    >
+                      <Settings2 className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => setCourseToDelete({ id: c.id, title: c.title })}
-                      className="p-2.5 text-slate-400 hover:text-rose-600 bg-white border border-slate-200 rounded-xl transition-colors shadow-sm"
+                      className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 bg-white border border-slate-200 rounded-xl transition-colors shadow-sm"
                       title="حذف الكورس"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -313,6 +325,15 @@ export function CourseManagementContainer() {
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
           onSuccess={(newId) => router.push(`/teacher/courses/${newId}`)}
+        />
+      )}
+
+      {/* Edit Course Modal */}
+      {courseToEdit && (
+        <EditCourseModal
+          isOpen={Boolean(courseToEdit)}
+          course={courseToEdit}
+          onClose={() => setCourseToEdit(null)}
         />
       )}
 

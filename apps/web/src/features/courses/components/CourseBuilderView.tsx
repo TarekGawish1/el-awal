@@ -288,6 +288,11 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
               <span className="px-3 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700">
                 {course.gradeLevel}
               </span>
+              {course.academicStage && (
+                <span className="px-3 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                  {course.academicStage}
+                </span>
+              )}
               <span
                 className={`px-3 py-0.5 rounded-full text-[11px] font-bold ${
                   course.status === 'PUBLISHED'
@@ -297,13 +302,37 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
               >
                 {course.status === 'PUBLISHED' ? 'منشور أونلاين' : 'مسودة قيد التجهيز'}
               </span>
+              {Number(course.price) > 0 && (
+                <span className="px-3 py-0.5 rounded-full text-[11px] font-bold bg-slate-900 text-white font-mono">
+                  {course.price} ج.م
+                </span>
+              )}
             </div>
-            <h1 className="text-xl font-bold text-slate-900 mt-1.5">{course.title}</h1>
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              <h1 className="text-xl font-bold text-slate-900">{course.title}</h1>
+              <button
+                type="button"
+                onClick={() => setIsEditCourseModalOpen(true)}
+                className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                title="تعديل اسم وبيانات الكورس"
+              >
+                <Edit className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setIsEditCourseModalOpen(true)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition-colors border border-slate-200 shadow-sm"
+          >
+            <Settings2 className="w-4 h-4 text-primary-600" />
+            <span>تعديل بيانات الكورس</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setIsGroupAccessModalOpen(true)}
@@ -978,6 +1007,15 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
         }}
         onClose={() => setLessonToDelete(null)}
       />
+
+      {/* Edit Course Details & Settings Modal */}
+      {isEditCourseModalOpen && course && (
+        <EditCourseModal
+          isOpen={isEditCourseModalOpen}
+          course={course}
+          onClose={() => setIsEditCourseModalOpen(false)}
+        />
+      )}
     </div>
   );
 }
