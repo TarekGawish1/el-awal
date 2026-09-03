@@ -268,6 +268,9 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
 
   const durationRegister = methods.register('durationMinutes');
 
+  // Current instant, recomputed each render, used to forbid scheduling in the past.
+  const nowIso = new Date().toISOString();
+
   const { data: allGroups } = useGroups();
   const { activeYear, activeTerm } = useStoredAcademicPeriod(allGroups);
   
@@ -963,6 +966,7 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                               value={formDataValues.startTime || formDataValues.startDate}
                               onChange={handleStartChange}
                               placeholder="تاريخ ووقت البدء..."
+                              minDate={nowIso}
                             />
                             {errors.startTime && (
                               <p className="text-red-500 text-xs mt-1">{errors.startTime.message}</p>
@@ -977,7 +981,7 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                               value={formDataValues.endTime || formDataValues.dueDate}
                               onChange={handleEndChange}
                               placeholder="تاريخ ووقت الإغلاق..."
-                              minDate={formDataValues.startTime || formDataValues.startDate}
+                              minDate={formDataValues.startTime || formDataValues.startDate || nowIso}
                             />
                             {errors.endTime && (
                               <p className="text-red-500 text-xs mt-1">{errors.endTime.message}</p>
