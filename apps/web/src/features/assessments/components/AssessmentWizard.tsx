@@ -209,7 +209,65 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
       methods.setValue('timingType', mode, { shouldDirty: true, shouldValidate: true });
     }
   };
-  
+
+  // In a live/fixed session (جلسة اختبار مباشرة) the exam runs for everyone from the
+  // start time until the close time, so its duration is exactly the window length.
+  // Keep the three fields linked: editing any one updates the others so that
+  // (close − start) always equals the duration. In the other modes the duration is
+  // per-student and independent of the window, so no linking is applied there.
+  const handleStartChange = (iso: string) => {
+    methods.setValue('startTime', iso, { shouldValidate: true, shouldDirty: true });
+    methods.setValue('startDate', iso, { shouldValidate: true, shouldDirty: true });
+    if (scheduleMode !== 'FIXED_SESSION') return;
+    const start = new Date(iso);
+    if (isNaN(start.getTime())) return;
+    const endRaw = methods.getValues('endTime');
+    const end = endRaw ? new Date(endRaw) : null;
+    if (end && !isNaN(end.getTime()) && end.getTime() > start.getTime()) {
+      // A valid window already exists → the duration mirrors it.
+      methods.setValue('durationMinutes', Math.round((end.getTime() - start.getTime()) / 60000), {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+    } else {
+      // No usable close yet (or it now precedes the start) → derive it from start + duration.
+      const mins = Number(methods.getValues('durationMinutes'));
+      if (mins > 0) {
+        const newEnd = new Date(start.getTime() + mins * 60000).toISOString();
+        methods.setValue('endTime', newEnd, { shouldValidate: true, shouldDirty: true });
+        methods.setValue('dueDate', newEnd, { shouldValidate: true, shouldDirty: true });
+      }
+    }
+  };
+
+  const handleEndChange = (iso: string) => {
+    methods.setValue('endTime', iso, { shouldValidate: true, shouldDirty: true });
+    methods.setValue('dueDate', iso, { shouldValidate: true, shouldDirty: true });
+    if (scheduleMode !== 'FIXED_SESSION') return;
+    const startRaw = methods.getValues('startTime');
+    const start = startRaw ? new Date(startRaw) : null;
+    const end = new Date(iso);
+    if (!start || isNaN(start.getTime()) || isNaN(end.getTime())) return;
+    const mins = Math.round((end.getTime() - start.getTime()) / 60000);
+    if (mins > 0) {
+      methods.setValue('durationMinutes', mins, { shouldValidate: true, shouldDirty: true });
+    }
+  };
+
+  const syncCloseFromDuration = (rawMinutes: string) => {
+    if (scheduleMode !== 'FIXED_SESSION') return;
+    const mins = Number(rawMinutes);
+    if (!mins || mins <= 0) return;
+    const startRaw = methods.getValues('startTime');
+    const start = startRaw ? new Date(startRaw) : null;
+    if (!start || isNaN(start.getTime())) return;
+    const newEnd = new Date(start.getTime() + mins * 60000).toISOString();
+    methods.setValue('endTime', newEnd, { shouldValidate: true, shouldDirty: true });
+    methods.setValue('dueDate', newEnd, { shouldValidate: true, shouldDirty: true });
+  };
+
+  const durationRegister = methods.register('durationMinutes');
+
   const { data: allGroups } = useGroups();
   const { activeYear, activeTerm } = useStoredAcademicPeriod(allGroups);
   
@@ -903,10 +961,7 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                             </Label>
                             <DateTimePicker
                               value={formDataValues.startTime || formDataValues.startDate}
-                              onChange={(val) => {
-                                methods.setValue('startTime', val, { shouldValidate: true, shouldDirty: true });
-                                methods.setValue('startDate', val, { shouldValidate: true, shouldDirty: true });
-                              }}
+                              onChange={handleStartChange}
                               placeholder="تاريخ ووقت البدء..."
                             />
                             {errors.startTime && (
@@ -920,10 +975,7 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                             </Label>
                             <DateTimePicker
                               value={formDataValues.endTime || formDataValues.dueDate}
-                              onChange={(val) => {
-                                methods.setValue('endTime', val, { shouldValidate: true, shouldDirty: true });
-                                methods.setValue('dueDate', val, { shouldValidate: true, shouldDirty: true });
-                              }}
+                              onChange={handleEndChange}
                               placeholder="تاريخ ووقت الإغلاق..."
                               minDate={formDataValues.startTime || formDataValues.startDate}
                             />
@@ -940,7 +992,11 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                         </Label>
                         <Input
                           type="number"
-                          {...methods.register('durationMinutes')}
+                          {...durationRegister}
+                          onChange={(e) => {
+                            durationRegister.onChange(e);
+                            syncCloseFromDuration(e.target.value);
+                          }}
                           placeholder="مثال: 60"
                           className={errors.durationMinutes ? 'border-red-500' : ''}
                         />
@@ -955,6 +1011,15 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                         <span>ℹ️</span>
                         <span>
                           لن يتم تحديد موعد بدء أو إغلاق. سيكون الاختبار متاحاً للطلاب فور نشره، ويبدأ عدّاد المدة لكل طالب من لحظة دخوله وينتهي تلقائياً بانتهاء المدة المحددة.
+                        </span>
+                      </div>
+                    )}
+
+                    {scheduleMode === 'FIXED_SESSION' && (
+                      <div className="flex items-start gap-2 rounded-xl bg-blue-50 border border-blue-100 p-3 text-xs text-blue-800 leading-relaxed">
+                        <span>🔗</span>
+                        <span>
+                          المدة مرتبطة تلقائياً بموعدي البدء والإغلاق: أي تعديل في أحدها يُحدِّث الباقي بحيث يظل زمن الجلسة مساوياً للفارق بين موعد الإغلاق وموعد البدء.
                         </span>
                       </div>
                     )}
