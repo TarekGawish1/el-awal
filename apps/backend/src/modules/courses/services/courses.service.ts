@@ -1184,10 +1184,45 @@ export class CoursesService {
   }
 
   /**
-   * Generates direct upload credentials for Bunny Stream video upload.
+   * Generates direct upload credentials for video upload.
+   * Attempts Bunny Stream first; if Bunny is unconfigured or rejected (e.g. 401),
+   * smoothly and automatically falls back to Cloudflare R2 direct presigned upload.
    */
   async generateDirectVideoUploadCredentials(title: string) {
-    return this.bunnyVideoService.generateDirectUploadCredentials(title);
+    try {
+      const bunnyCreds = await this.bunnyVideoService.generateDirectUploadCredentials(title);
+      return {
+        ...bunnyCreds,
+        provider: 'bunny',
+        contentUrl: bunnyCreds.embedUrl,
+      };
+    } catch (err: any) {
+      this.logger.warn(
+        `Bunny Stream upload unavailable (${err?.message || err}). Falling back to Cloudflare R2 direct presigned upload.`,
+      );
+
+      const sanitized = (title || 'lesson-video').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const fileKey = `uploads/courses/videos/${Date.now()}-${randomUUID().slice(0, 8)}-${sanitized}.mp4`;
+
+      const r2Upload = await this.storageService.generatePresignedUploadUrl(
+        fileKey,
+        'video/mp4',
+        7200,
+      );
+
+      return {
+        provider: 'r2',
+        videoId: `r2:${fileKey}`,
+        libraryId: '',
+        uploadUrl: r2Upload.uploadUrl,
+        authorizationSignature: '',
+        authorizationExpire: Math.floor(Date.now() / 1000) + 7200,
+        accessKey: '',
+        embedUrl: r2Upload.publicUrl || '',
+        playbackUrl: r2Upload.publicUrl || '',
+        contentUrl: r2Upload.publicUrl || '',
+      };
+    }
   }
 
   /**

@@ -182,6 +182,7 @@ export function LessonEditorModal({
     const validation = validateVideoFile(file);
     if (!validation.isValid) {
       toast.error(validation.error || "حجم الفيديو يتجاوز الحد الأقصى المسموح به (2 جيجابايت)");
+      e.target.value = "";
       return;
     }
 
@@ -193,15 +194,20 @@ export function LessonEditorModal({
       setTotalBytes(file.size);
       setUploadedBytes(0);
 
-      // Extract local metadata (Duration, Resolution, Bitrate)
-      const meta = await extractVideoMetadata(file);
-      setVideoMeta(meta);
-      if (meta.durationSeconds > 0) {
-        setVideoDurationSeconds(meta.durationSeconds);
+      // Extract local metadata (Duration, Resolution, Bitrate) with timeout guard
+      try {
+        const meta = await extractVideoMetadata(file);
+        setVideoMeta(meta);
+        if (meta.durationSeconds > 0) {
+          setVideoDurationSeconds(meta.durationSeconds);
+        }
+      } catch (metaErr) {
+        console.warn("Video metadata inspection skipped:", metaErr);
+      } finally {
+        setIsInspectingVideo(false);
       }
-      setIsInspectingVideo(false);
 
-      // Request secure Direct Bunny Stream Upload credentials
+      // Request secure Direct Upload credentials (Bunny Stream with Cloudflare R2 fallback)
       const creds = await coursesApi.getVideoUploadCredentials(
         title.trim() || file.name,
       );
@@ -210,20 +216,27 @@ export function LessonEditorModal({
       const xhr = new XMLHttpRequest();
       uploadXhrRef.current = xhr;
       xhr.open("PUT", creds.uploadUrl);
-      if (creds.accessKey) xhr.setRequestHeader("AccessKey", creds.accessKey);
-      if (creds.authorizationSignature)
-        xhr.setRequestHeader(
-          "AuthorizationSignature",
-          creds.authorizationSignature,
-        );
-      if (creds.authorizationExpire)
-        xhr.setRequestHeader(
-          "AuthorizationExpire",
-          String(creds.authorizationExpire),
-        );
-      if (creds.libraryId) xhr.setRequestHeader("LibraryId", creds.libraryId);
-      if (creds.videoId) xhr.setRequestHeader("VideoId", creds.videoId);
-      xhr.setRequestHeader("Content-Type", "application/octet-stream");
+
+      if (creds.provider === "r2") {
+        // Cloudflare R2 Presigned PUT requires exact Content-Type and no Bunny headers
+        xhr.setRequestHeader("Content-Type", "video/mp4");
+      } else {
+        // Bunny Stream headers
+        if (creds.accessKey) xhr.setRequestHeader("AccessKey", creds.accessKey);
+        if (creds.authorizationSignature)
+          xhr.setRequestHeader(
+            "AuthorizationSignature",
+            creds.authorizationSignature,
+          );
+        if (creds.authorizationExpire)
+          xhr.setRequestHeader(
+            "AuthorizationExpire",
+            String(creds.authorizationExpire),
+          );
+        if (creds.libraryId) xhr.setRequestHeader("LibraryId", creds.libraryId);
+        if (creds.videoId) xhr.setRequestHeader("VideoId", creds.videoId);
+        xhr.setRequestHeader("Content-Type", "application/octet-stream");
+      }
 
       let lastLoaded = 0;
       let lastTime = Date.now();
@@ -259,10 +272,14 @@ export function LessonEditorModal({
           setIsUploadingVideo(false);
           setBunnyVideoId(creds.videoId);
           setVideoEmbedUrl(creds.embedUrl);
-          toast.success("تم رفع الفيديو بنجاح! جاري معالجة وتشفير البث السحابي");
+          toast.success(
+            creds.provider === "r2"
+              ? "تم رفع الفيديو بنجاح إلى السيرفر السحابي!"
+              : "تم رفع الفيديو بنجاح! جاري معالجة وتشفير البث السحابي",
+          );
         } else {
           setIsUploadingVideo(false);
-          toast.error("تعذر رفع الفيديو إلى سيرفر البث السحابي");
+          toast.error(`تعذر رفع الفيديو إلى سيرفر البث السحابي (كود: ${xhr.status})`);
         }
       };
 
@@ -278,6 +295,8 @@ export function LessonEditorModal({
       setIsInspectingVideo(false);
       setIsUploadingVideo(false);
       toast.error(err?.message || "تعذر الحصول على تصريح رفع الفيديو");
+    } finally {
+      e.target.value = "";
     }
   };
 
@@ -316,7 +335,8 @@ export function LessonEditorModal({
       description: description.trim() || undefined,
       summary: summary.trim() || undefined,
       lessonType,
-      bunnyVideoId: bunnyVideoId || undefined,
+      bunnyVideoId: bunnyVideoId && !bunnyVideoId.startsWith("r2:") ? bunnyVideoId : undefined,
+      contentUrl: videoEmbedUrl || (bunnyVideoId && bunnyVideoId.startsWith("r2:") ? videoEmbedUrl : undefined),
       videoDurationSeconds: Number(videoDurationSeconds) || 0,
       isFreePreview,
       isPreview: isFreePreview,
@@ -605,7 +625,7 @@ export function LessonEditorModal({
                       className="relative w-full aspect-video bg-black rounded-t-2xl overflow-hidden flex items-center justify-center"
                       style={{ aspectRatio: "16 / 9", width: "100%" }}
                     >
-                      {videoEmbedUrl || streamAuth?.embedUrl ? (
+                      {videoEmbedUrl?.includes('.b-cdn.net') || videoEmbedUrl?.includes('iframe.mediadelivery.net') || streamAuth?.embedUrl ? (
                         <iframe
                           src={videoEmbedUrl || streamAuth?.embedUrl}
                           loading="lazy"
@@ -613,6 +633,13 @@ export function LessonEditorModal({
                           style={{ width: "100%", height: "100%", border: 0 }}
                           allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
                           allowFullScreen
+                        />
+                      ) : videoEmbedUrl ? (
+                        <video
+                          src={videoEmbedUrl}
+                          controls
+                          className="w-full h-full object-contain"
+                          style={{ width: "100%", height: "100%" }}
                         />
                       ) : (
                         <div className="text-center p-6 text-slate-400 space-y-2">
