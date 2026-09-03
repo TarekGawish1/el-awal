@@ -206,7 +206,7 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
       expectedName = `مجموعة ${formData.gradeLevel}`;
     }
     
-    if (expectedName && !formData.name) {
+    if (expectedName && formData.name !== expectedName) {
       setFormData(prev => ({ ...prev, name: expectedName }));
     }
   }, [formData.schedules, formData.gradeLevel]);
