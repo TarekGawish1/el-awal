@@ -406,7 +406,7 @@ export function QrHomeworkScanner({
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
         <div className="md:col-span-6 flex flex-col items-center">
           <div
-            className={`w-full max-w-sm aspect-square bg-slate-950 rounded-3xl overflow-hidden border border-slate-200 shadow-md relative transition-all duration-300 ring-4 ${
+            className={`w-full max-w-sm aspect-[3/4] sm:aspect-square bg-slate-950 rounded-3xl overflow-hidden border border-slate-200 shadow-md relative transition-all duration-300 ring-4 ${
               flashType === 'success'
                 ? 'ring-indigo-500 shadow-xl shadow-indigo-500/20'
                 : flashType === 'error'
@@ -457,26 +457,26 @@ export function QrHomeworkScanner({
             </button>
 
             {scannedStudent && (
-              <div className="absolute inset-0 bg-white/95 flex flex-col items-center justify-center z-10 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                <div className="text-center mb-6">
+              <div className="absolute inset-0 bg-white/95 flex flex-col items-center justify-center z-10 backdrop-blur-sm p-4 animate-in fade-in duration-200 overflow-y-auto">
+                <div className="text-center mb-5 shrink-0 mt-auto pt-4">
                   <h3 className="text-xl font-bold text-slate-900 mb-1">{scannedStudent.fullName || 'طالب'}</h3>
                   <p className="text-sm font-mono text-slate-500 bg-slate-100 px-3 py-1 rounded-full inline-block">
                     {scannedStudent.studentCode || scannedStudent.id}
                   </p>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-3 w-full max-w-[260px]">
+                <div className="grid grid-cols-2 gap-2.5 w-full max-w-[260px] shrink-0 mb-auto pb-4">
                   <Button 
-                    className="col-span-2 py-6 text-lg font-bold bg-emerald-600 hover:bg-emerald-700 rounded-2xl shadow-md shadow-emerald-500/20"
+                    className="col-span-2 h-14 text-lg font-bold bg-emerald-600 hover:bg-emerald-700 rounded-2xl shadow-md shadow-emerald-500/20"
                     onClick={() => handleRecordHomework('CHECKED_ONSITE')}
                   >
-                    <CheckCircle2 className="w-6 h-6 ml-2 rtl:ml-0 rtl:mr-2" />
+                    <CheckCircle2 className="w-5 h-5 ml-2 rtl:ml-0 rtl:mr-2" />
                     حل الواجب
                   </Button>
                   
                   <Button 
                     variant="outline"
-                    className="py-6 text-base font-bold text-rose-600 border-rose-200 bg-rose-50 hover:bg-rose-100 hover:text-rose-700 rounded-2xl"
+                    className="h-12 text-base font-bold text-rose-600 border-rose-200 bg-rose-50 hover:bg-rose-100 hover:text-rose-700 rounded-2xl"
                     onClick={() => handleRecordHomework('NOT_SUBMITTED')}
                   >
                     محلوش
@@ -484,7 +484,7 @@ export function QrHomeworkScanner({
 
                   <Button 
                     variant="outline"
-                    className="py-6 text-base font-bold text-amber-600 border-amber-200 bg-amber-50 hover:bg-amber-100 hover:text-amber-700 rounded-2xl"
+                    className="h-12 text-base font-bold text-amber-600 border-amber-200 bg-amber-50 hover:bg-amber-100 hover:text-amber-700 rounded-2xl"
                     onClick={() => handleRecordHomework('INCOMPLETE')}
                   >
                     ناقص
@@ -492,7 +492,7 @@ export function QrHomeworkScanner({
 
                   <Button 
                     variant="outline"
-                    className="col-span-2 py-4 text-sm font-bold text-slate-600 border-slate-200 bg-slate-50 hover:bg-slate-100 rounded-2xl"
+                    className="col-span-2 h-12 text-sm font-bold text-slate-600 border-slate-200 bg-slate-50 hover:bg-slate-100 rounded-2xl"
                     onClick={() => handleRecordHomework('EXCUSED')}
                   >
                     بعذر
@@ -500,7 +500,7 @@ export function QrHomeworkScanner({
                   
                   <Button 
                     variant="ghost"
-                    className="col-span-2 py-3 mt-2 text-slate-400 hover:text-slate-600 rounded-xl text-sm"
+                    className="col-span-2 h-10 mt-1 text-slate-400 hover:text-slate-600 rounded-xl text-sm"
                     onClick={() => {
                       setScannedStudent(null);
                       setLocked(false);
