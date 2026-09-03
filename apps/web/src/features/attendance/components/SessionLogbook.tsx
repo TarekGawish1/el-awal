@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSessionReport, useManualAttendance } from '../hooks/use-attendance';
 import toast from 'react-hot-toast';
 import { offlineDb } from '@/lib/offline/db';
