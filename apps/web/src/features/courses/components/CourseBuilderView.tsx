@@ -59,6 +59,8 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
 
   const { data: assessmentsData } = useAssessments();
   const assessments = assessmentsData?.data || [];
+  // Course/unit selectors link exams only, never homeworks (legacy ASSIGNMENT type).
+  const examAssessments = assessments.filter((a: any) => a?.type === 'EXAM');
 
   // Top Tab State: 'curriculum' | 'enrollments'
   const [activeTopTab, setActiveTopTab] = useState<'curriculum' | 'enrollments'>('curriculum');
@@ -391,7 +393,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                 className="flex-1 sm:w-64 bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 shadow-sm cursor-pointer"
               >
                 <option value="">-- بدون امتحان شامل --</option>
-                {assessments.map((a: any) => (
+                {examAssessments.map((a: any) => (
                   <option key={a.id} value={a.id}>
                     {a.title} ({a.type === 'EXAM' ? 'امتحان' : 'واجب'} - {a.totalScore} درجة)
                   </option>
@@ -543,7 +545,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                     className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm cursor-pointer"
                   >
                     <option value="">-- بدون امتحان شامل للوحدة --</option>
-                    {assessments.map((a: any) => (
+                    {examAssessments.map((a: any) => (
                       <option key={a.id} value={a.id}>
                         {a.title} ({a.type === 'EXAM' ? 'امتحان' : 'واجب'})
                       </option>
@@ -678,7 +680,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                               title="ربط امتحان للوحدة"
                             >
                               <option value="">-- بدون امتحان للوحدة --</option>
-                              {assessments.map((a: any) => (
+                              {examAssessments.map((a: any) => (
                                 <option key={a.id} value={a.id}>
                                   {a.title}
                                 </option>
