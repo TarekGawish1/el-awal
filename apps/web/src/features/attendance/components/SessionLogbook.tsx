@@ -21,7 +21,7 @@ export function SessionLogbook({ sessionId }: SessionLogbookProps) {
     updateAttendance({
       sessionId,
       payload: {
-        records: [{ studentId: student.studentId, status: newStatus, notes: 'تعديل من الدفتر الشامل' }]
+        records: [{ studentId: student.studentId, status: newStatus as any, notes: 'تعديل من الدفتر الشامل' }]
       }
     }, {
       onSuccess: () => {
