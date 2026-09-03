@@ -252,6 +252,14 @@ export function QrHomeworkScanner({
       }
 
       playBeep('success');
+      
+      // Auto-record attendance immediately upon scanning in the homework section
+      scanQrAttendance({
+        sessionId,
+        qrCodeToken: student.qrCodeToken || student.id,
+        allowCrossGroup: true,
+      });
+
       setScannedStudent(student);
 
     } catch (err: any) {
@@ -265,78 +273,59 @@ export function QrHomeworkScanner({
     }
   };
 
-  const handleRecordHomework = async (status?: 'CHECKED_ONSITE' | 'NOT_SUBMITTED' | 'INCOMPLETE' | 'EXCUSED') => {
+  const handleRecordHomework = async (status: 'CHECKED_ONSITE' | 'NOT_SUBMITTED' | 'INCOMPLETE' | 'EXCUSED') => {
     if (!scannedStudent) return;
     
     try {
       const studentName = scannedStudent.fullName || scannedStudent.name || 'طالب';
       const studentCode = scannedStudent.studentCode || '';
 
-      // Always record attendance
-      scanQrAttendance({
+      await offlineDb.recordHomeworkOnsiteOffline({
+        assessmentId,
+        studentId: scannedStudent.id,
         sessionId,
-        qrCodeToken: scannedStudent.qrCodeToken || scannedStudent.id,
-        allowCrossGroup: true,
+        status,
+        recordedMethod: 'QR_SCAN',
+        studentName,
+        studentCode,
+        qrCodeToken: scannedStudent.qrCodeToken,
       });
 
-      if (status) {
-        await offlineDb.recordHomeworkOnsiteOffline({
-          assessmentId,
+      playBeep('success');
+      setFlashType('success');
+      setCheckedCount((prev) => prev + 1);
+      
+      const statusText = status === 'CHECKED_ONSITE' ? 'حل الواجب' : status === 'NOT_SUBMITTED' ? 'لم يحل' : status === 'INCOMPLETE' ? 'ناقص' : 'بعذر';
+      
+      setRecentChecked((prev) => [
+        {
           studentId: scannedStudent.id,
-          sessionId,
-          status,
-          recordedMethod: 'QR_SCAN',
           studentName,
           studentCode,
-          qrCodeToken: scannedStudent.qrCodeToken,
-        });
+          status: statusText,
+          time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        },
+        ...prev.slice(0, 7),
+      ]);
+      setLastScanResult({
+        success: true,
+        studentName,
+        studentCode,
+        message: `تم تسجيل حالة الواجب (${statusText}) للطالب: ${studentName}`,
+      });
+      toast.success(`تم استلام الواجب: ${studentName}`);
 
-        playBeep('success');
-        setFlashType('success');
-        setCheckedCount((prev) => prev + 1);
-        
-        const statusText = status === 'CHECKED_ONSITE' ? 'حل الواجب' : status === 'NOT_SUBMITTED' ? 'لم يحل' : status === 'INCOMPLETE' ? 'ناقص' : 'بعذر';
-        
-        setRecentChecked((prev) => [
-          {
-            studentId: scannedStudent.id,
-            studentName,
-            studentCode,
-            status: statusText,
-            time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-          },
-          ...prev.slice(0, 7),
-        ]);
-        setLastScanResult({
-          success: true,
-          studentName,
-          studentCode,
-          message: `تم تسجيل حضور وحالة الواجب (${statusText}) للطالب: ${studentName}`,
-        });
-        toast.success(`تم استلام الواجب وتسجيل الحضور: ${studentName}`);
-
-        // Update local homework records state
-        setLocalHomeworkRecords((prev) => {
-          const newRecords = [...prev];
-          const existingIdx = newRecords.findIndex((r) => r.studentId === scannedStudent.id);
-          if (existingIdx !== -1) {
-            newRecords[existingIdx].status = status;
-          } else {
-            newRecords.push({ studentId: scannedStudent.id, status });
-          }
-          return newRecords;
-        });
-      } else {
-        playBeep('success');
-        setFlashType('success');
-        setLastScanResult({
-          success: true,
-          studentName,
-          studentCode,
-          message: `تم تسجيل الحضور فقط للطالب: ${studentName}`,
-        });
-        toast.success(`تم تسجيل الحضور: ${studentName}`);
-      }
+      // Update local homework records state
+      setLocalHomeworkRecords((prev) => {
+        const newRecords = [...prev];
+        const existingIdx = newRecords.findIndex((r) => r.studentId === scannedStudent.id);
+        if (existingIdx !== -1) {
+          newRecords[existingIdx].status = status;
+        } else {
+          newRecords.push({ studentId: scannedStudent.id, status });
+        }
+        return newRecords;
+      });
 
       if (onSuccess) {
         onSuccess(scannedStudent);
@@ -491,7 +480,7 @@ export function QrHomeworkScanner({
                     onClick={() => handleRecordHomework('CHECKED_ONSITE')}
                   >
                     <CheckCircle2 className="w-5 h-5 ml-2 rtl:ml-0 rtl:mr-2" />
-                    حل الواجب + حضور
+                    حل الواجب
                   </Button>
                   
                   <Button 
@@ -512,18 +501,10 @@ export function QrHomeworkScanner({
 
                   <Button 
                     variant="outline"
-                    className="h-12 text-sm font-bold text-slate-600 border-slate-200 bg-slate-50 hover:bg-slate-100 rounded-2xl"
+                    className="col-span-2 h-12 text-sm font-bold text-slate-600 border-slate-200 bg-slate-50 hover:bg-slate-100 rounded-2xl"
                     onClick={() => handleRecordHomework('EXCUSED')}
                   >
                     بعذر
-                  </Button>
-                  
-                  <Button 
-                    variant="outline"
-                    className="h-12 text-sm font-bold text-indigo-600 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 rounded-2xl"
-                    onClick={() => handleRecordHomework(undefined)}
-                  >
-                    حضور فقط
                   </Button>
                   
                   <Button 
