@@ -14,7 +14,7 @@ interface TeacherCourseBuilderPageProps {
 
 export default function TeacherCourseBuilderPage({ params }: TeacherCourseBuilderPageProps) {
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
       <CourseBuilderView courseId={params.id} />
     </div>
   );

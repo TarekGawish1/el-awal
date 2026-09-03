@@ -573,7 +573,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
           )}
 
           {/* Modules List Accordion */}
-          <div className="space-y-4">
+          <div className="space-y-4 pb-8">
             {modules.length === 0 ? (
               <div className="p-8 sm:p-12 text-center bg-white border border-slate-200 rounded-2xl space-y-3 shadow-sm">
                 <BookOpen className="w-10 h-10 text-slate-400 mx-auto" />
@@ -706,7 +706,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                       <div
                         className={`p-3 sm:p-4 space-y-2.5 transition-colors ${
                           lessonDropTarget?.moduleId === mod.id && dragItem?.type === 'lesson' && dragItem.moduleId !== mod.id
-                            ? 'bg-primary-50/40 ring-2 ring-inset ring-primary-200 bg-white'
+                            ? 'bg-primary-50/40 ring-2 ring-inset ring-primary-200'
                             : 'bg-white'
                         }`}
                         onDragOver={(e) => {

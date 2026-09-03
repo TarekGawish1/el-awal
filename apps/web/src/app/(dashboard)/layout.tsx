@@ -553,7 +553,7 @@ export default function DashboardLayout({
         {/* Main Content Area */}
         <main
           ref={mainScrollRef}
-          className="flex-1 h-full w-full overflow-x-hidden overflow-y-auto pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] pt-3 px-3 sm:px-6"
+          className="flex-1 min-h-0 w-full overflow-x-hidden overflow-y-auto custom-scrollbar pb-24 lg:pb-12 pt-3 px-3 sm:px-6"
         >
           <div className="max-w-7xl mx-auto w-full min-h-full">
             {children}
