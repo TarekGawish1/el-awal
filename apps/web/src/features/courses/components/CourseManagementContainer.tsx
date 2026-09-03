@@ -22,18 +22,39 @@ import {
   Clock,
   UserCheck,
   Settings2,
+  ExternalLink,
+  Phone,
+  Image as ImageIcon,
+  Check,
+  X,
+  AlertCircle,
+  RefreshCw,
+  Loader2,
+  Copy,
 } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTeacherCourses, useDeleteCourse } from '../hooks/useCourses';
+import { coursesApi } from '../api/courses.api';
+import { API_BASE_URL } from '@/lib/api/endpoints';
 import { CourseDetail } from '../types/courses.types';
 import { CreateCourseModal } from './CreateCourseModal';
 import { EditCourseModal } from './EditCourseModal';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 
 export function CourseManagementContainer() {
   const router = useRouter();
   const { data: courses = [], isLoading } = useTeacherCourses();
   const deleteMutation = useDeleteCourse();
+
+  // Real-time subscriptions polling
+  const { data: subsData } = useQuery({
+    queryKey: ['teacher-subscriptions'],
+    queryFn: coursesApi.getTeacherSubscriptions,
+    refetchInterval: 5000,
+  });
+  const pendingCount = subsData?.counts?.pending ?? 0;
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [courseToEdit, setCourseToEdit] = useState<CourseDetail | null>(null);
@@ -130,7 +151,12 @@ export function CourseManagementContainer() {
           }`}
         >
           <Users className="w-4 h-4" />
-          الاشتراكات والطلبات الأونلاين
+          <span>الاشتراكات والطلبات الأونلاين</span>
+          {pendingCount > 0 && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white shadow-sm animate-pulse">
+              {pendingCount}
+            </span>
+          )}
         </button>
       </div>
 
@@ -358,123 +384,335 @@ export function CourseManagementContainer() {
   );
 }
 
+function resolveReceiptUrl(url?: string | null): string {
+  if (!url) return '';
+  if (url.startsWith('http') || url.startsWith('data:') || url.startsWith('blob:')) {
+    return url;
+  }
+  const cleanBase = API_BASE_URL.replace(/\/api\/v1\/?$/, '');
+  return `${cleanBase}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
 function CourseEnrollmentsView() {
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'PENDING' | 'ACTIVE'>('PENDING');
 
-  // MOCK DATA: In a real scenario, this would be fetched from API
-  const requests = [
-    { id: '1', studentName: 'أحمد محمود', courseName: 'الصف الثالث الثانوي - الجبر والهندسة الفراغية', date: '2026-08-31', status: 'PENDING' },
-    { id: '2', studentName: 'سارة خالد', courseName: 'الصف الأول الثانوي - تفاضل', date: '2026-08-30', status: 'PENDING' },
-    { id: '3', studentName: 'يوسف طارق', courseName: 'الصف الثاني الثانوي - الميكانيكا', date: '2026-08-29', status: 'PENDING' },
-  ];
-  
-  const activeStudents = [
-    { id: '4', studentName: 'محمد علي', courseName: 'الصف الثالث الثانوي - الجبر والهندسة الفراغية', date: '2026-08-15', progress: 45 },
-    { id: '5', studentName: 'نور ياسر', courseName: 'الصف الأول الثانوي - تفاضل', date: '2026-08-10', progress: 80 },
-    { id: '6', studentName: 'مريم أحمد', courseName: 'الصف الأول الثانوي - تفاضل', date: '2026-08-05', progress: 100 },
-  ];
+  // Receipt Modal State
+  const [selectedReceipt, setSelectedReceipt] = useState<{
+    url: string;
+    studentName: string;
+    courseName: string;
+    amount: number;
+    phone: string;
+    enrollmentId: string;
+  } | null>(null);
+
+  // Reject Modal State
+  const [rejectTarget, setRejectTarget] = useState<{
+    enrollmentId: string;
+    studentName: string;
+    courseName: string;
+  } | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+
+  // Real-time polling every 5 seconds
+  const { data, isLoading, isFetching, refetch } = useQuery({
+    queryKey: ['teacher-subscriptions'],
+    queryFn: coursesApi.getTeacherSubscriptions,
+    refetchInterval: 5000,
+  });
+
+  const pendingRequests = data?.pendingRequests ?? [];
+  const activeStudents = data?.activeStudents ?? [];
+
+  const approveMutation = useMutation({
+    mutationFn: (enrollmentId: string) => coursesApi.approveEnrollment(enrollmentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teacher-subscriptions'] });
+      queryClient.invalidateQueries({ queryKey: ['teacher-courses'] });
+      toast.success('تمت الموافقة وتفعيل اشتراك الطالب بنجاح! 🎉');
+      setSelectedReceipt(null);
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر قبول الطلب');
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
+      coursesApi.rejectEnrollment(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teacher-subscriptions'] });
+      queryClient.invalidateQueries({ queryKey: ['teacher-courses'] });
+      toast.success('تم رفض طلب الاشتراك.');
+      setRejectTarget(null);
+      setRejectionReason('');
+      setSelectedReceipt(null);
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر رفض الطلب');
+    },
+  });
 
   return (
     <div className="space-y-6">
-      <div className="flex gap-3">
-        <button
-          onClick={() => setFilter('PENDING')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm ${
-            filter === 'PENDING' ? 'bg-amber-500 text-white border border-amber-600' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-          }`}
-        >
-          <Clock className="w-4 h-4" />
-          طلبات الاشتراك الجديدة ({requests.length})
-        </button>
-        <button
-          onClick={() => setFilter('ACTIVE')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm ${
-            filter === 'ACTIVE' ? 'bg-emerald-600 text-white border border-emerald-700' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-          }`}
-        >
-          <UserCheck className="w-4 h-4" />
-          الطلاب المشتركين فعلياً ({activeStudents.length})
-        </button>
+      {/* Sub-tabs and realtime indicator */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => setFilter('PENDING')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm ${
+              filter === 'PENDING'
+                ? 'bg-amber-500 text-white border border-amber-600'
+                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            <Clock className="w-4 h-4" />
+            <span>طلبات الاشتراك الجديدة</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-xs font-black ${
+                filter === 'PENDING' ? 'bg-amber-600 text-white' : 'bg-amber-100 text-amber-800'
+              }`}
+            >
+              {pendingRequests.length}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter('ACTIVE')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm ${
+              filter === 'ACTIVE'
+                ? 'bg-emerald-600 text-white border border-emerald-700'
+                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            <UserCheck className="w-4 h-4" />
+            <span>الطلاب المشتركون فعلياً</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-xs font-black ${
+                filter === 'ACTIVE' ? 'bg-emerald-700 text-white' : 'bg-emerald-100 text-emerald-800'
+              }`}
+            >
+              {activeStudents.length}
+            </span>
+          </button>
+        </div>
+
+        {/* Live sync pulse */}
+        <div className="flex items-center gap-2 text-xs text-slate-500 self-end sm:self-auto">
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition-colors text-slate-600 font-medium"
+            title="تحديث البيانات الآن"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin text-primary-600' : ''}`} />
+            <span>تحديث مباشر</span>
+          </button>
+          <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-bold bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200/60">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+            مباشر (Realtime)
+          </span>
+        </div>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        {filter === 'PENDING' && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-right">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs font-semibold">
-                <tr>
-                  <th className="px-6 py-4">اسم الطالب</th>
-                  <th className="px-6 py-4">الكورس المطلوب</th>
-                  <th className="px-6 py-4">تاريخ الطلب</th>
-                  <th className="px-6 py-4 text-left">إجراءات</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {requests.map((req) => (
-                  <tr key={req.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="font-bold text-slate-800 text-sm">{req.studentName}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-xs font-medium text-primary-600 bg-primary-50 inline-flex px-2 py-1 rounded-md border border-primary-100">
-                        {req.courseName}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-xs text-slate-500 font-mono">
-                      {req.date}
-                    </td>
-                    <td className="px-6 py-4 text-left">
-                      <div className="flex items-center justify-end gap-2">
-                        <button className="p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200" title="قبول الاشتراك">
-                          <CheckCircle className="w-4 h-4" />
-                        </button>
-                        <button className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors border border-rose-200" title="رفض الطلب">
-                          <XCircle className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {isLoading ? (
+          <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+            <p className="text-sm font-medium">جاري تحميل طلبات الاشتراك والبيانات...</p>
           </div>
-        )}
+        ) : filter === 'PENDING' ? (
+          pendingRequests.length === 0 ? (
+            <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-2">
+              <CheckCircle className="w-10 h-10 text-emerald-500/80 mb-1" />
+              <p className="text-sm font-bold text-slate-700">لا توجد طلبات اشتراك معلقة حالياً 🎉</p>
+              <p className="text-xs text-slate-400 max-w-sm">
+                عند قيام أي طالب برفع إيصال التحويل والاشتراك في أي كورس من كورساتك، سيظهر طلبه هنا فوراً في الوقت الفعلي مع صورة الإيصال.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-right">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs font-semibold">
+                  <tr>
+                    <th className="px-6 py-4">اسم الطالب وبياناته</th>
+                    <th className="px-6 py-4">الكورس المطلوب</th>
+                    <th className="px-6 py-4">بيانات التحويل</th>
+                    <th className="px-6 py-4">إيصال السداد</th>
+                    <th className="px-6 py-4">تاريخ الطلب</th>
+                    <th className="px-6 py-4 text-left">إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {pendingRequests.map((req) => (
+                    <tr key={req.enrollmentId} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-slate-900 text-sm">{req.studentName}</div>
+                        <div className="flex items-center gap-2 mt-1">
+                          {req.studentCode && (
+                            <span className="font-mono text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200">
+                              {req.studentCode}
+                            </span>
+                          )}
+                          {req.studentPhone && (
+                            <span className="text-xs text-slate-500 font-mono flex items-center gap-1">
+                              <Phone className="w-3 h-3 text-slate-400" />
+                              {req.studentPhone}
+                            </span>
+                          )}
+                        </div>
+                      </td>
 
-        {filter === 'ACTIVE' && (
+                      <td className="px-6 py-4">
+                        <div className="text-xs font-bold text-primary-700 bg-primary-50 inline-flex px-2.5 py-1 rounded-lg border border-primary-100">
+                          {req.courseName}
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-mono mt-1 font-semibold">
+                          سعر الكورس: {req.coursePrice} ج.م
+                        </div>
+                      </td>
+
+                      <td className="px-6 py-4">
+                        <div className="text-xs font-bold text-emerald-700 bg-emerald-50 inline-flex px-2.5 py-1 rounded-lg border border-emerald-200/60 font-mono">
+                          {req.transferAmount} ج.م
+                        </div>
+                        <div className="text-xs text-slate-600 font-mono mt-1 flex items-center gap-1">
+                          <span className="text-[11px] text-slate-400 font-sans">محول من:</span>
+                          <span className="font-bold">{req.senderPhone}</span>
+                        </div>
+                      </td>
+
+                      <td className="px-6 py-4">
+                        {req.receiptImageUrl ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSelectedReceipt({
+                                url: resolveReceiptUrl(req.receiptImageUrl),
+                                studentName: req.studentName,
+                                courseName: req.courseName,
+                                amount: req.transferAmount,
+                                phone: req.senderPhone,
+                                enrollmentId: req.enrollmentId,
+                              })
+                            }
+                            className="group flex items-center gap-2 p-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all cursor-pointer"
+                          >
+                            <img
+                              src={resolveReceiptUrl(req.receiptImageUrl)}
+                              alt="إيصال"
+                              className="w-10 h-10 object-cover rounded-lg border border-slate-200 shadow-xs group-hover:scale-105 transition-transform"
+                            />
+                            <div className="text-right">
+                              <span className="block text-xs font-bold text-primary-600 group-hover:underline">
+                                معاينة الإيصال
+                              </span>
+                              <span className="block text-[10px] text-slate-400 font-medium">
+                                انقر للتكبير 🔍
+                              </span>
+                            </div>
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">لم يرفق إيصال</span>
+                        )}
+                      </td>
+
+                      <td className="px-6 py-4 text-xs text-slate-500 font-mono">
+                        {req.date}
+                      </td>
+
+                      <td className="px-6 py-4 text-left">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => approveMutation.mutate(req.enrollmentId)}
+                            disabled={approveMutation.isPending}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
+                            title="قبول الاشتراك وتفعيل الكورس للطالب"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>قبول</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setRejectTarget({
+                                enrollmentId: req.enrollmentId,
+                                studentName: req.studentName,
+                                courseName: req.courseName,
+                              })
+                            }
+                            disabled={rejectMutation.isPending}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
+                            title="رفض الطلب"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            <span>رفض</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        ) : activeStudents.length === 0 ? (
+          <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-2">
+            <Users className="w-10 h-10 text-slate-300 mb-1" />
+            <p className="text-sm font-bold text-slate-700">لا يوجد طلاب مفعل اشتراكهم بعد</p>
+            <p className="text-xs text-slate-400">
+              عند قبول أي طلب اشتراك سيظهر الطالب هنا في قائمة المشتركين الفعليين.
+            </p>
+          </div>
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-right">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs font-semibold">
                 <tr>
-                  <th className="px-6 py-4">اسم الطالب</th>
+                  <th className="px-6 py-4">اسم وبيانات الطالب</th>
                   <th className="px-6 py-4">الكورس المشترك به</th>
-                  <th className="px-6 py-4">تاريخ الانضمام</th>
-                  <th className="px-6 py-4">نسبة الإنجاز</th>
+                  <th className="px-6 py-4">سعر الكورس</th>
+                  <th className="px-6 py-4">تاريخ التفعيل والانضمام</th>
+                  <th className="px-6 py-4 text-left">حالة الوصول</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {activeStudents.map((student) => (
-                  <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
+                  <tr key={student.enrollmentId} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4">
-                      <div className="font-bold text-slate-800 text-sm">{student.studentName}</div>
+                      <div className="font-bold text-slate-900 text-sm">{student.studentName}</div>
+                      <div className="flex items-center gap-2 mt-1">
+                        {student.studentCode && (
+                          <span className="font-mono text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200">
+                            {student.studentCode}
+                          </span>
+                        )}
+                        {student.studentPhone && (
+                          <span className="text-xs text-slate-500 font-mono">
+                            {student.studentPhone}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-xs font-medium text-slate-700 bg-slate-100 inline-flex px-2 py-1 rounded-md border border-slate-200">
+                      <div className="text-xs font-bold text-slate-700 bg-slate-100 inline-flex px-2.5 py-1 rounded-md border border-slate-200">
                         {student.courseName}
                       </div>
+                    </td>
+                    <td className="px-6 py-4 text-xs font-bold text-slate-700 font-mono">
+                      {student.coursePrice} ج.م
                     </td>
                     <td className="px-6 py-4 text-xs text-slate-500 font-mono">
                       {student.date}
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-full max-w-[100px] h-2 bg-slate-100 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full ${student.progress === 100 ? 'bg-emerald-500' : 'bg-primary-500'}`} 
-                            style={{ width: `${student.progress}%` }} 
-                          />
-                        </div>
-                        <span className="text-xs font-bold text-slate-600 w-8">{student.progress}%</span>
-                      </div>
+                    <td className="px-6 py-4 text-left">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        <span>نشط ومفعل</span>
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -483,6 +721,165 @@ function CourseEnrollmentsView() {
           </div>
         )}
       </div>
+
+      {/* Receipt Image Viewer Modal */}
+      {selectedReceipt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div
+            dir="rtl"
+            className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]"
+          >
+            {/* Header */}
+            <div className="p-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-sm flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4 text-amber-400" />
+                  <span>إيصال تحويل: {selectedReceipt.studentName}</span>
+                </h3>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  {selectedReceipt.courseName}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedReceipt(null)}
+                className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Receipt Details Meta Chips */}
+            <div className="px-5 py-3 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-4 text-xs">
+              <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                <span className="text-slate-500 font-normal">المبلغ المحول:</span>
+                <span className="text-emerald-600 font-mono">{selectedReceipt.amount} ج.م</span>
+              </div>
+              <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                <span className="text-slate-500 font-normal">رقم المحفظة المحول منها:</span>
+                <span className="font-mono text-primary-600">{selectedReceipt.phone}</span>
+              </div>
+              <a
+                href={selectedReceipt.url}
+                target="_blank"
+                rel="noreferrer"
+                className="mr-auto text-primary-600 hover:underline flex items-center gap-1 font-bold text-xs"
+              >
+                <span>فتح الصورة بجودة كاملة</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+
+            {/* Image Preview Container */}
+            <div className="p-6 overflow-y-auto flex items-center justify-center bg-slate-950/5 min-h-[300px]">
+              <img
+                src={selectedReceipt.url}
+                alt="صورة إيصال التحويل"
+                className="max-h-[55vh] w-auto max-w-full rounded-2xl shadow-lg border border-slate-200 object-contain"
+              />
+            </div>
+
+            {/* Actions Bar */}
+            <div className="p-4 bg-white border-t border-slate-100 flex items-center justify-between gap-3">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => approveMutation.mutate(selectedReceipt.enrollmentId)}
+                  disabled={approveMutation.isPending}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>تأكيد الإيصال وقبول الاشتراك</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = {
+                      enrollmentId: selectedReceipt.enrollmentId,
+                      studentName: selectedReceipt.studentName,
+                      courseName: selectedReceipt.courseName,
+                    };
+                    setSelectedReceipt(null);
+                    setRejectTarget(target);
+                  }}
+                  className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                >
+                  رفض الطلب
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedReceipt(null)}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Confirmation Modal */}
+      {rejectTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div
+            dir="rtl"
+            className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden p-6 space-y-4"
+          >
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-slate-900">رفض طلب اشتراك الطالب</h4>
+                <p className="text-xs text-slate-500 line-clamp-1">{rejectTarget.studentName} - {rejectTarget.courseName}</p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                سبب الرفض (سيتم إرساله كإشعار للطالب):
+              </label>
+              <textarea
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="مثال: لم يتم استلام المبلغ على محفظة فودافون كاش، يرجى التأكد من الرقم والتحويل مجدداً."
+                rows={3}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all resize-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setRejectTarget(null);
+                  setRejectionReason('');
+                }}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                disabled={rejectMutation.isPending}
+                onClick={() =>
+                  rejectMutation.mutate({
+                    id: rejectTarget.enrollmentId,
+                    reason: rejectionReason.trim(),
+                  })
+                }
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+              >
+                {rejectMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>تأكيد الرفض</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

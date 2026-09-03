@@ -349,6 +349,45 @@ export const coursesApi = {
     });
   },
 
+  getTeacherSubscriptions: async (): Promise<{
+    pendingRequests: Array<{
+      enrollmentId: string;
+      courseId: string;
+      courseName: string;
+      coursePrice: number;
+      studentId: string;
+      studentName: string;
+      studentCode: string;
+      studentPhone: string;
+      senderPhone: string;
+      transferAmount: number;
+      receiptImageUrl?: string | null;
+      paymentMethod: string;
+      date: string;
+      enrolledAt: string;
+      status: string;
+    }>;
+    activeStudents: Array<{
+      enrollmentId: string;
+      courseId: string;
+      courseName: string;
+      coursePrice: number;
+      studentId: string;
+      studentName: string;
+      studentCode: string;
+      studentPhone: string;
+      date: string;
+      enrolledAt: string;
+      status: string;
+    }>;
+    counts: {
+      pending: number;
+      active: number;
+    };
+  }> => {
+    return apiClient('/courses/teacher/subscriptions');
+  },
+
   getSubscriptionStatus: async (courseId: string): Promise<{
     isEnrolled: boolean;
     status: string | null;
