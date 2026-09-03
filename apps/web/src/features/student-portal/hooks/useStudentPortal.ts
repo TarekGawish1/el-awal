@@ -238,6 +238,25 @@ export function useUpdateProgress() {
   });
 }
 
+export function useEnrollInCourse() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (courseId: string) => {
+      return apiClient(`/courses/${courseId}/enroll`, {
+        method: 'POST',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['student-courses'] });
+      queryClient.invalidateQueries({ queryKey: ['student-profile'] });
+      toast.success('تم الاشتراك في الكورس بنجاح! يمكنك الآن بدء التعلم.');
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر إتمام الاشتراك في الكورس. يرجى المحاولة مرة أخرى.');
+    },
+  });
+}
+
 export function useStudentAssessments() {
   return useQuery({
     queryKey: ['student-assessments'],

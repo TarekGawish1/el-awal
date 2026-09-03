@@ -2,11 +2,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { 
-  useStudentCourses, 
-  useCourseDetails, 
-  useLessonDetails, 
-  useUpdateProgress 
+import {
+  useStudentCourses,
+  useCourseDetails,
+  useLessonDetails,
+  useUpdateProgress,
+  useEnrollInCourse,
+  useStudentProfile,
 } from '@/features/student-portal/hooks/useStudentPortal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -14,20 +16,46 @@ import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
 import { Pagination } from '@/components/ui/Pagination';
-import { 
-  BookOpen, Video, FileText, ChevronLeft, ChevronRight, Play, 
-  CheckCircle2, AlertTriangle, ArrowRight, Download, Award, Clock, User
+import {
+  BookOpen,
+  Video,
+  FileText,
+  ChevronLeft,
+  ChevronRight,
+  Play,
+  CheckCircle2,
+  AlertTriangle,
+  ArrowRight,
+  Download,
+  Award,
+  Clock,
+  User,
+  Search,
+  Sparkles,
+  Layers,
+  Compass,
 } from 'lucide-react';
 import { FeatureRequiresOnlineCard } from '@/components/offline/FeatureRequiresOnlineCard';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
+import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
 export default function StudentCoursesPage() {
   const isOnline = useOnlineStatus();
+  const router = useRouter();
+  const { data: profile } = useStudentProfile();
   const { data: courses = [], isLoading, isError } = useStudentCourses();
+  const [activeTab, setActiveTab] = useState<'ENROLLED' | 'CATALOG'>('ENROLLED');
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Set default tab to CATALOG if student has no enrolled courses
+  useEffect(() => {
+    if (!isLoading && courses.length === 0) {
+      setActiveTab('CATALOG');
+    }
+  }, [isLoading, courses.length]);
 
   if (!isOnline) {
     return (
@@ -68,10 +96,10 @@ export default function StudentCoursesPage() {
   // 1. Lesson Viewer Mode
   if (selectedCourseId && selectedLessonId) {
     return (
-      <LessonViewer 
-        courseId={selectedCourseId} 
-        lessonId={selectedLessonId} 
-        onClose={() => setSelectedLessonId(null)} 
+      <LessonViewer
+        courseId={selectedCourseId}
+        lessonId={selectedLessonId}
+        onClose={() => setSelectedLessonId(null)}
         onSelectLesson={(id) => setSelectedLessonId(id)}
       />
     );
@@ -80,110 +108,375 @@ export default function StudentCoursesPage() {
   // 2. Course Syllabus Details Mode
   if (selectedCourseId) {
     return (
-      <CourseDetailsView 
-        courseId={selectedCourseId} 
-        onBack={() => setSelectedCourseId(null)} 
+      <CourseDetailsView
+        courseId={selectedCourseId}
+        onBack={() => setSelectedCourseId(null)}
         onStartLesson={(lessonId) => setSelectedLessonId(lessonId)}
       />
     );
   }
 
-  // 3. Courses Enrolled List Mode
+  // 3. Main Courses View Mode (Tabs: My Enrolled vs Platform Catalog)
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">الدورات الأونلاين</h1>
-        <p className="text-sm text-slate-500 mt-1">شاهد الدروس الرقمية، وحمل الملخصات، وتابع تقدمك الأكاديمي أولاً بأول</p>
+    <div className="space-y-6 text-right animate-in fade-in">
+      {/* Header with Navigation Tabs */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">الدورات الأونلاين</h1>
+          <p className="text-sm text-slate-500 mt-1">شاهد الدروس الرقمية، واستكشف الكورسات المتاحة، وتابع تقدمك أولاً بأول</p>
+        </div>
+
+        {/* Tab Controls */}
+        <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl text-xs font-bold shrink-0 self-start sm:self-center border border-slate-200/60 shadow-xs">
+          <button
+            type="button"
+            onClick={() => setActiveTab('ENROLLED')}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition-all ${
+              activeTab === 'ENROLLED'
+                ? 'bg-white text-primary-700 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <BookOpen className="w-4 h-4" />
+            <span>دوراتي المسجلة ({courses.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('CATALOG')}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition-all ${
+              activeTab === 'CATALOG'
+                ? 'bg-white text-primary-700 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Compass className="w-4 h-4" />
+            <span>استكشاف الكورسات المتاحة</span>
+          </button>
+        </div>
       </div>
 
-      {courses?.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-2xl shadow-sm border border-slate-200/60 flex flex-col items-center">
-          <BookOpen className="w-12 h-12 text-slate-300 mb-3" />
-          <p className="text-slate-500 font-medium">لست مسجلاً في أي دورة تعليمية حالياً.</p>
-          <p className="text-xs text-slate-400 mt-1">عند اشتراكك في إحدى الدورات الرقمية للمركز، ستظهر هنا تلقائياً.</p>
+      {activeTab === 'ENROLLED' && (
+        <>
+          {courses?.length === 0 ? (
+            <div className="text-center py-12 bg-white rounded-3xl shadow-sm border border-slate-200/60 p-8 space-y-4 max-w-xl mx-auto">
+              <div className="w-16 h-16 bg-primary-50 text-primary-600 rounded-2xl flex items-center justify-center mx-auto shadow-xs">
+                <BookOpen className="w-8 h-8" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800">لست مسجلاً في أي دورة تعليمية حتى الآن</h3>
+              <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                استكشف الكورسات الرقمية المنشورة على المنصة واشترك في كورسات موادك الدراسية للبدء في مشاهدة الحصص والامتحانات.
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveTab('CATALOG')}
+                className="inline-flex items-center gap-2 px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-primary-600/20"
+              >
+                <Compass className="w-4 h-4" />
+                <span>استكشاف الدورات المتاحة الآن</span>
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {paginatedCourses.map((c: any) => (
+                  <Card key={c.courseId} className="border-none shadow-sm shadow-slate-200/50 hover:shadow-md transition-all flex flex-col overflow-hidden group">
+                    <div className="h-44 w-full bg-slate-100 relative overflow-hidden shrink-0">
+                      {c.coverImageUrl ? (
+                        <img
+                          src={c.coverImageUrl}
+                          alt={c.title}
+                          className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-500"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-tr from-primary-600 to-primary-700 flex items-center justify-center text-white">
+                          <BookOpen className="w-12 h-12 opacity-40" />
+                        </div>
+                      )}
+                      <Badge variant="default" className="absolute top-3 right-3 bg-white/95 text-slate-800 border-none shadow-xs font-semibold">
+                        {c.subject || 'عام'}
+                      </Badge>
+                    </div>
+
+                    <CardContent className="p-6 flex-1 flex flex-col justify-between space-y-4">
+                      <div className="space-y-2">
+                        <h3 className="text-lg font-bold text-slate-800 line-clamp-1 group-hover:text-primary-600 transition-colors leading-tight">
+                          {c.title}
+                        </h3>
+                        <p className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
+                          <User className="w-3.5 h-3.5 text-slate-400" />
+                          المعلم: {c.teacherName}
+                        </p>
+                        <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed pt-1">
+                          {c.description || 'لا يوجد وصف تفصيلي متاح لهذه الدورة.'}
+                        </p>
+                      </div>
+
+                      <div className="space-y-3 pt-3 border-t border-slate-100">
+                        {/* Progress tracker */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between text-xs font-bold">
+                            <span className="text-slate-500">نسبة الإنجاز</span>
+                            <span className="text-primary-600">{c.progressPercentage || 0}%</span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className="bg-primary-600 h-full rounded-full transition-all duration-300"
+                              style={{ width: `${c.progressPercentage || 0}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
+                          <span>{c.totalModules} فصول</span>
+                          <span>{c.totalLessons} دروس رقمية</span>
+                        </div>
+
+                        <Link
+                          href={`/student/courses/${c.courseId}/learn`}
+                          className="w-full bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl py-3 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer mt-2 transition-colors shadow-lg shadow-indigo-600/20"
+                        >
+                          <Play className="w-3.5 h-3.5 fill-current" />
+                          <span>{c.progressPercentage > 0 ? 'استئناف التعلم' : 'دخول غرفة التعلم والمشاهدة'}</span>
+                        </Link>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={courses.length}
+                  pageSize={PAGE_SIZE}
+                  onPageChange={setCurrentPage}
+                  itemLabel="دورة"
+                />
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === 'CATALOG' && (
+        <AvailableCoursesCatalogTab
+          studentGradeLevel={profile?.gradeLevel}
+          studentAcademicStage={profile?.academicStage}
+          enrolledCourseIds={courses.map((c: any) => c.courseId || c.id)}
+        />
+      )}
+    </div>
+  );
+}
+
+function AvailableCoursesCatalogTab({
+  studentGradeLevel,
+  studentAcademicStage,
+  enrolledCourseIds,
+}: {
+  studentGradeLevel?: string;
+  studentAcademicStage?: string;
+  enrolledCourseIds: string[];
+}) {
+  const router = useRouter();
+  const enrollMutation = useEnrollInCourse();
+  const [catalog, setCatalog] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedStage, setSelectedStage] = useState('ALL');
+
+  useEffect(() => {
+    async function fetchCatalog() {
+      setIsLoading(true);
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.al-awal.online/api/v1';
+        let url = `${baseUrl}/courses/catalog?limit=50`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          setCatalog(data.data || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch published catalog:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchCatalog();
+  }, []);
+
+  const filteredCatalog = catalog.filter((c: any) => {
+    const matchesSearch =
+      c.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (c.subject && c.subject.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (c.gradeLevel && c.gradeLevel.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const matchesStage =
+      selectedStage === 'ALL' ||
+      (selectedStage === 'SECONDARY' && (c.academicStage?.includes('ثانوي') || c.gradeLevel?.includes('ثانوي'))) ||
+      (selectedStage === 'PREPARATORY' && (c.academicStage?.includes('إعدادي') || c.gradeLevel?.includes('إعدادي'))) ||
+      (selectedStage === 'PRIMARY' && (c.academicStage?.includes('ابتدائي') || c.gradeLevel?.includes('ابتدائي')));
+
+    return matchesSearch && matchesStage;
+  });
+
+  const handleEnroll = async (courseId: string) => {
+    try {
+      await enrollMutation.mutateAsync(courseId);
+      router.push(`/student/courses/${courseId}/learn`);
+    } catch {
+      // Handled by hook
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Skeleton className="h-64 w-full rounded-2xl" />
+        <Skeleton className="h-64 w-full rounded-2xl" />
+        <Skeleton className="h-64 w-full rounded-2xl" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Search & Filter Header */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="ابحث باسم الكورس أو المادة أو الصف الدراسي..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pr-10 pl-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
+          />
+        </div>
+
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+          {[
+            { id: 'ALL', label: 'جميع المراحل' },
+            { id: 'SECONDARY', label: 'المرحلة الثانوية' },
+            { id: 'PREPARATORY', label: 'المرحلة الإعدادية' },
+            { id: 'PRIMARY', label: 'المرحلة الابتدائية' },
+          ].map((st) => (
+            <button
+              key={st.id}
+              type="button"
+              onClick={() => setSelectedStage(st.id)}
+              className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
+                selectedStage === st.id
+                  ? 'bg-primary-600 text-white shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+              }`}
+            >
+              {st.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {filteredCatalog.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
+          <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+          <h4 className="font-bold text-slate-800 text-base">لا توجد كورسات مطابقة لخيارات البحث</h4>
+          <p className="text-xs text-slate-500 mt-1">جرب تغيير كلمات البحث أو اختيار مرحلة دراسية أخرى.</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {paginatedCourses.map((c: any) => (
-              <Card key={c.courseId} className="border-none shadow-sm shadow-slate-200/50 hover:shadow-md transition-all flex flex-col overflow-hidden group">
-                {/* Course cover image or placeholder */}
-                <div className="h-44 w-full bg-slate-100 relative overflow-hidden shrink-0">
-                  {c.coverImageUrl ? (
-                    <img 
-                      src={c.coverImageUrl} 
-                      alt={c.title} 
-                      className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-500"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-tr from-primary-600 to-primary-700 flex items-center justify-center text-white">
-                      <BookOpen className="w-12 h-12 opacity-40" />
-                    </div>
-                  )}
-                  <Badge variant="default" className="absolute top-3 right-3 bg-white/95 text-slate-800 border-none shadow-xs font-semibold">
-                    {c.subject || 'عام'}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredCatalog.map((c: any, index: number) => {
+            const isEnrolled = enrolledCourseIds.includes(c.id);
+
+            return (
+              <div
+                key={c.id}
+                className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden flex flex-col group hover:shadow-md hover:border-slate-300 transition-all text-right"
+              >
+                {/* Banner / Cover */}
+                <div
+                  className={`h-36 bg-gradient-to-br ${
+                    index % 3 === 0
+                      ? 'from-blue-600 to-indigo-700'
+                      : index % 3 === 1
+                      ? 'from-indigo-600 to-purple-700'
+                      : 'from-emerald-600 to-teal-700'
+                  } relative p-4 flex items-start justify-between text-white`}
+                >
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Badge className="bg-white/20 text-white border-none text-[11px] font-bold">
+                      {c.subject || 'مادة عامة'}
+                    </Badge>
+                    <Badge className="bg-black/20 text-white border-none text-[11px]">
+                      {c.gradeLevel}
+                    </Badge>
+                  </div>
+
+                  <Badge className="bg-white/25 text-white border-none text-[11px] font-bold">
+                    {c.academicTerm === 'FIRST_TERM' ? 'ترم أول' : 'ترم ثاني'}
                   </Badge>
                 </div>
 
-                <CardContent className="p-6 flex-1 flex flex-col justify-between space-y-4">
+                {/* Content */}
+                <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
                   <div className="space-y-2">
-                    <h3 className="text-lg font-bold text-slate-800 line-clamp-1 group-hover:text-primary-600 transition-colors leading-tight">
-                      {c.title}
-                    </h3>
-                    <p className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
-                      <User className="w-3.5 h-3.5 text-slate-400" />
-                      المعلم: {c.teacherName}
+                    <div className="flex items-start justify-between gap-2">
+                      <h4 className="font-bold text-lg text-slate-900 line-clamp-1 group-hover:text-primary-600 transition-colors">
+                        {c.title}
+                      </h4>
+                      {Number(c.price) > 0 ? (
+                        <span className="font-black text-primary-700 shrink-0 text-sm bg-primary-50 border border-primary-100 px-2.5 py-0.5 rounded-lg">
+                          {c.price} ج.م
+                        </span>
+                      ) : (
+                        <span className="font-bold text-emerald-700 shrink-0 text-xs bg-emerald-50 border border-emerald-100 px-2.5 py-0.5 rounded-lg">
+                          مجاني
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-xs font-semibold text-slate-500">
+                      المعلم: <strong className="text-slate-800">{c.teacher?.user?.fullName || c.teacherName || 'أ. طارق عبد الله'}</strong>
                     </p>
-                    <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed pt-1">
-                      {c.description || 'لا يوجد وصف تفصيلي متاح لهذه الدورة.'}
+
+                    <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed">
+                      {c.description || 'شرح مبسط ومفصل للمنهج مع تدريبات تفاعلية ومذكرات رقمية.'}
                     </p>
                   </div>
 
-                  <div className="space-y-3 pt-3 border-t border-slate-100">
-                    {/* Progress tracker */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-xs font-bold">
-                        <span className="text-slate-500">نسبة الإنجاز</span>
-                        <span className="text-primary-600">{c.progressPercentage || 0}%</span>
-                      </div>
-                      <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                        <div 
-                          className="bg-primary-600 h-full rounded-full transition-all duration-300"
-                          style={{ width: `${c.progressPercentage || 0}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
-                      <span>{c.totalModules} فصول</span>
-                      <span>{c.totalLessons} دروس رقمية</span>
-                    </div>
-
+                  {/* Actions */}
+                  <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
                     <Link
-                      href={`/student/courses/${c.courseId}/learn`}
-                      className="w-full bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl py-3 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer mt-2 transition-colors shadow-lg shadow-indigo-600/20"
+                      href={`/student/courses/${c.id}`}
+                      className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs text-center transition-colors shadow-2xs"
                     >
-                      <Play className="w-3.5 h-3.5 fill-current" />
-                      <span>{c.progressPercentage > 0 ? 'استئناف التعلم' : 'دخول غرفة التعلم والمشاهدة'}</span>
+                      تفاصيل المنهج
                     </Link>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={courses.length}
-              pageSize={PAGE_SIZE}
-              onPageChange={setCurrentPage}
-              itemLabel="دورة"
-            />
-          )}
+                    {isEnrolled ? (
+                      <Link
+                        href={`/student/courses/${c.id}/learn`}
+                        className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs text-center transition-colors shadow-xs"
+                      >
+                        استئناف التعلم
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleEnroll(c.id)}
+                        disabled={enrollMutation.isPending}
+                        className="flex-1 py-2.5 px-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs text-center transition-colors shadow-xs disabled:opacity-60 cursor-pointer"
+                      >
+                        اشترك الآن
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
