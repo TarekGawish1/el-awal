@@ -1683,11 +1683,11 @@ export class CoursesService {
     });
 
     if (!course) {
-      throw new NotFoundException(`Course [${courseId}] not found`);
+      throw new NotFoundException('الكورس المطلوب غير موجود');
     }
 
     if (course.status !== CourseStatus.PUBLISHED) {
-      throw new BadRequestException('Cannot subscribe to an unpublished or archived course');
+      throw new BadRequestException('لا يمكن الاشتراك في كورس غير منشور أو مؤرشف');
     }
 
     let student = await this.prisma.studentProfile.findUnique({ where: { id: studentId } });
@@ -1695,7 +1695,7 @@ export class CoursesService {
       student = await this.prisma.studentProfile.findFirst({ where: { user: { id: studentId } } });
     }
     if (!student) {
-      throw new NotFoundException(`Student [${studentId}] not found`);
+      throw new NotFoundException('بيانات الطالب غير موجودة');
     }
 
     const resolvedStudentId = student.id;
