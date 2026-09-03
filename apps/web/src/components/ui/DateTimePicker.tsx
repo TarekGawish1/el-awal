@@ -13,6 +13,8 @@ interface DateTimePickerProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  /** Earliest selectable datetime (ISO string). Days and times before it are disabled. */
+  minDate?: string | null;
 }
 
 const MONTH_NAMES = [
@@ -46,7 +48,7 @@ const generateTimeOptions = () => {
 
 const TIME_OPTIONS = generateTimeOptions();
 
-export function DateTimePicker({ value, onChange, placeholder = 'اختر التاريخ والوقت', className }: DateTimePickerProps) {
+export function DateTimePicker({ value, onChange, placeholder = 'اختر التاريخ والوقت', className, minDate }: DateTimePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   
   // Default to today
@@ -56,6 +58,16 @@ export function DateTimePicker({ value, onChange, placeholder = 'اختر الت
   const [currentYear, setCurrentYear] = useState(initDate.getFullYear());
   
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Minimum selectable datetime (e.g. an exam's close time cannot precede its start time).
+  const minDateObj = (() => {
+    if (!minDate) return null;
+    const d = new Date(minDate);
+    return isNaN(d.getTime()) ? null : d;
+  })();
+  const minDayStart = minDateObj
+    ? new Date(minDateObj.getFullYear(), minDateObj.getMonth(), minDateObj.getDate()).getTime()
+    : null;
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -94,19 +106,25 @@ export function DateTimePicker({ value, onChange, placeholder = 'اختر الت
   };
 
   const handleDateSelect = (day: number) => {
-    const newDate = new Date(currentYear, currentMonth, day);
-    // Keep existing time if any
-    let timeStr = '12:00';
+    // Preserve existing time-of-day if any, otherwise default to 12:00 (local)
+    let hours = 12;
+    let minutes = 0;
     if (value) {
       const d = new Date(value);
       if (!isNaN(d.getTime())) {
-        timeStr = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+        hours = d.getHours();
+        minutes = d.getMinutes();
       }
     }
-    
-    // Format to YYYY-MM-DDTHH:mm:00.000Z
-    const dateStr = `${newDate.getFullYear()}-${(newDate.getMonth() + 1).toString().padStart(2, '0')}-${newDate.getDate().toString().padStart(2, '0')}T${timeStr}:00.000Z`;
-    onChange(dateStr);
+
+    // Build the date from LOCAL components, then serialize to a correct UTC ISO string.
+    // (Do NOT paste local wall-clock time and append "Z" — that shifts by the timezone offset.)
+    let newDate = new Date(currentYear, currentMonth, day, hours, minutes, 0, 0);
+    // Never emit a value before the minimum (e.g. before the exam start time).
+    if (minDateObj && newDate.getTime() < minDateObj.getTime()) {
+      newDate = new Date(minDateObj);
+    }
+    onChange(newDate.toISOString());
   };
 
   const handleTimeSelect = (timeStr: string) => {
@@ -114,13 +132,14 @@ export function DateTimePicker({ value, onChange, placeholder = 'اختر الت
     if (value) {
       const d = new Date(value);
       if (!isNaN(d.getTime())) dateToUse = d;
+    } else if (minDateObj) {
+      // No date chosen yet: anchor the picked time to the earliest allowed day.
+      dateToUse = new Date(minDateObj);
     }
     const [h, m] = timeStr.split(':');
-    dateToUse.setHours(parseInt(h, 10));
-    dateToUse.setMinutes(parseInt(m, 10));
-    
-    const outStr = `${dateToUse.getFullYear()}-${(dateToUse.getMonth() + 1).toString().padStart(2, '0')}-${dateToUse.getDate().toString().padStart(2, '0')}T${timeStr}:00.000Z`;
-    onChange(outStr);
+    dateToUse.setHours(parseInt(h, 10), parseInt(m, 10), 0, 0);
+    if (minDateObj && dateToUse.getTime() < minDateObj.getTime()) return;
+    onChange(dateToUse.toISOString());
   };
 
   // Build calendar grid
@@ -154,6 +173,13 @@ export function DateTimePicker({ value, onChange, placeholder = 'اختر الت
       displayValue = `${selectedDay} ${MONTH_NAMES[selectedMonth]} ${selectedYear} - ${h12}:${d.getMinutes().toString().padStart(2, '0')} ${ampm}`;
     }
   }
+
+  // Reference day used to evaluate whether each time option is before minDate.
+  // With no value yet, fall back to the minimum day (if any) so the time list is
+  // immediately meaningful instead of fully greyed out.
+  const refDateForTime = value && !isNaN(new Date(value).getTime())
+    ? new Date(value)
+    : (minDateObj ?? new Date());
 
   return (
     <div className={cn("relative w-full", className)} ref={containerRef}>
@@ -197,19 +223,23 @@ export function DateTimePicker({ value, onChange, placeholder = 'اختر الت
                 if (!day) return <div key={`empty-${idx}`} />;
                 const isSelected = day === selectedDay && currentMonth === selectedMonth && currentYear === selectedYear;
                 const isToday = day === new Date().getDate() && currentMonth === new Date().getMonth() && currentYear === new Date().getFullYear();
-                
+                const isDisabled = minDayStart !== null && new Date(currentYear, currentMonth, day).getTime() < minDayStart;
+
                 return (
                   <button
                     key={day}
                     type="button"
+                    disabled={isDisabled}
                     onClick={() => handleDateSelect(day)}
                     className={cn(
                       "aspect-square flex items-center justify-center rounded-lg text-sm transition-all",
-                      isSelected 
-                        ? "bg-primary-500 text-white font-bold shadow-md shadow-primary-500/30" 
-                        : isToday 
-                          ? "bg-primary-50 text-primary-700 font-bold" 
-                          : "hover:bg-slate-100 text-slate-700"
+                      isDisabled
+                        ? "text-slate-300 cursor-not-allowed"
+                        : isSelected
+                          ? "bg-primary-500 text-white font-bold shadow-md shadow-primary-500/30"
+                          : isToday
+                            ? "bg-primary-50 text-primary-700 font-bold"
+                            : "hover:bg-slate-100 text-slate-700"
                     )}
                   >
                     {day}
@@ -231,16 +261,27 @@ export function DateTimePicker({ value, onChange, placeholder = 'اختر الت
             <div className="flex-1 overflow-y-auto max-h-[220px] pr-2 space-y-1 custom-scrollbar" style={{ scrollbarWidth: 'thin' }}>
               {TIME_OPTIONS.map(time => {
                 const isSelected = selectedTime === time.value;
+                const [th, tm] = time.value.split(':').map(Number);
+                const candidate = new Date(
+                  refDateForTime.getFullYear(),
+                  refDateForTime.getMonth(),
+                  refDateForTime.getDate(),
+                  th, tm, 0, 0
+                );
+                const isDisabled = minDateObj ? candidate.getTime() < minDateObj.getTime() : false;
                 return (
                   <button
                     key={time.value}
                     type="button"
+                    disabled={isDisabled}
                     onClick={() => handleTimeSelect(time.value)}
                     className={cn(
                       "w-full text-right px-3 py-2 rounded-lg text-sm whitespace-nowrap transition-colors",
-                      isSelected 
-                        ? "bg-primary-50 text-primary-700 font-bold" 
-                        : "hover:bg-slate-100 text-slate-600"
+                      isDisabled
+                        ? "text-slate-300 cursor-not-allowed"
+                        : isSelected
+                          ? "bg-primary-50 text-primary-700 font-bold"
+                          : "hover:bg-slate-100 text-slate-600"
                     )}
                   >
                     {time.label}

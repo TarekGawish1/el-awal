@@ -187,6 +187,28 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
   const formDataValues = methods.watch();
   const selectedStage = formDataValues.academicStage;
   const selectedGrade = formDataValues.gradeLevel;
+
+  // Exam scheduling mode. Tracked separately from `timingType` because the
+  // "duration only" option reuses the FLEXIBLE_WINDOW timing type but omits any
+  // start/close dates: the exam is always open and each student gets the full
+  // duration from the moment they start.
+  const [scheduleMode, setScheduleMode] = useState<'FIXED_SESSION' | 'FLEXIBLE_WINDOW' | 'DURATION_ONLY'>(
+    formDataValues.timingType === 'FLEXIBLE_WINDOW' ? 'FLEXIBLE_WINDOW' : 'FIXED_SESSION'
+  );
+
+  const selectScheduleMode = (mode: 'FIXED_SESSION' | 'FLEXIBLE_WINDOW' | 'DURATION_ONLY') => {
+    setScheduleMode(mode);
+    if (mode === 'DURATION_ONLY') {
+      // Reuse FLEXIBLE_WINDOW on the backend, but clear the window entirely.
+      methods.setValue('timingType', 'FLEXIBLE_WINDOW', { shouldDirty: true, shouldValidate: true });
+      methods.setValue('startTime', '', { shouldDirty: true, shouldValidate: true });
+      methods.setValue('startDate', '', { shouldDirty: true, shouldValidate: true });
+      methods.setValue('endTime', '', { shouldDirty: true, shouldValidate: true });
+      methods.setValue('dueDate', '', { shouldDirty: true, shouldValidate: true });
+    } else {
+      methods.setValue('timingType', mode, { shouldDirty: true, shouldValidate: true });
+    }
+  };
   
   const { data: allGroups } = useGroups();
   const { activeYear, activeTerm } = useStoredAcademicPeriod(allGroups);
@@ -800,14 +822,12 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                       <p className="text-xs text-slate-500 mb-3">
                         حدد طريقة ضبط وتزامن وقت الاختبار للطلاب:
                       </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <button
                           type="button"
-                          onClick={() => {
-                            methods.setValue('timingType', 'FIXED_SESSION', { shouldDirty: true, shouldValidate: true });
-                          }}
+                          onClick={() => selectScheduleMode('FIXED_SESSION')}
                           className={`p-4 rounded-xl border-2 text-right transition-all cursor-pointer flex flex-col justify-between gap-2 ${
-                            formDataValues.timingType !== 'FLEXIBLE_WINDOW'
+                            scheduleMode === 'FIXED_SESSION'
                               ? 'border-primary-500 bg-primary-50/50 text-primary-900 ring-2 ring-primary-100 shadow-sm'
                               : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
                           }`}
@@ -828,11 +848,9 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
 
                         <button
                           type="button"
-                          onClick={() => {
-                            methods.setValue('timingType', 'FLEXIBLE_WINDOW', { shouldDirty: true, shouldValidate: true });
-                          }}
+                          onClick={() => selectScheduleMode('FLEXIBLE_WINDOW')}
                           className={`p-4 rounded-xl border-2 text-right transition-all cursor-pointer flex flex-col justify-between gap-2 ${
-                            formDataValues.timingType === 'FLEXIBLE_WINDOW'
+                            scheduleMode === 'FLEXIBLE_WINDOW'
                               ? 'border-primary-500 bg-primary-50/50 text-primary-900 ring-2 ring-primary-100 shadow-sm'
                               : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
                           }`}
@@ -850,51 +868,79 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                             يتاح الدخول في أي وقت بين موعد البدء وموعد الإغلاق، ويحصل كل طالب على كامل مدة الاختبار الفردية من لحظة دخوله.
                           </p>
                         </button>
+
+                        <button
+                          type="button"
+                          onClick={() => selectScheduleMode('DURATION_ONLY')}
+                          className={`p-4 rounded-xl border-2 text-right transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                            scheduleMode === 'DURATION_ONLY'
+                              ? 'border-primary-500 bg-primary-50/50 text-primary-900 ring-2 ring-primary-100 shadow-sm'
+                              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-sm flex items-center gap-1.5">
+                              <span>⏳</span>
+                              <span>مدة فقط</span>
+                            </span>
+                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-800">
+                              بدون موعد محدد
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 leading-relaxed">
+                            بدون موعد بدء أو إغلاق. الاختبار متاح دائماً، ويحصل كل طالب على كامل المدة المحددة من لحظة بدئه.
+                          </p>
+                        </button>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-                      <div>
-                        <Label className="mb-2 block font-medium text-xs text-slate-700">
-                          موعد بدء الاختبار <span className="text-red-500">*</span>
-                        </Label>
-                        <DateTimePicker
-                          value={formDataValues.startTime || formDataValues.startDate}
-                          onChange={(val) => {
-                            methods.setValue('startTime', val, { shouldValidate: true, shouldDirty: true });
-                            methods.setValue('startDate', val, { shouldValidate: true, shouldDirty: true });
-                          }}
-                          placeholder="تاريخ ووقت البدء..."
-                        />
-                        {errors.startTime && (
-                          <p className="text-red-500 text-xs mt-1">{errors.startTime.message}</p>
-                        )}
-                      </div>
+                    <div className={`grid grid-cols-1 gap-4 pt-2 ${scheduleMode === 'DURATION_ONLY' ? '' : 'sm:grid-cols-3'}`}>
+                      {scheduleMode !== 'DURATION_ONLY' && (
+                        <>
+                          <div>
+                            <Label className="mb-2 block font-medium text-xs text-slate-700">
+                              موعد بدء الاختبار <span className="text-red-500">*</span>
+                            </Label>
+                            <DateTimePicker
+                              value={formDataValues.startTime || formDataValues.startDate}
+                              onChange={(val) => {
+                                methods.setValue('startTime', val, { shouldValidate: true, shouldDirty: true });
+                                methods.setValue('startDate', val, { shouldValidate: true, shouldDirty: true });
+                              }}
+                              placeholder="تاريخ ووقت البدء..."
+                            />
+                            {errors.startTime && (
+                              <p className="text-red-500 text-xs mt-1">{errors.startTime.message}</p>
+                            )}
+                          </div>
 
-                      <div>
-                        <Label className="mb-2 block font-medium text-xs text-slate-700">
-                          موعد إغلاق الاختبار <span className="text-red-500">*</span>
-                        </Label>
-                        <DateTimePicker
-                          value={formDataValues.endTime || formDataValues.dueDate}
-                          onChange={(val) => {
-                            methods.setValue('endTime', val, { shouldValidate: true, shouldDirty: true });
-                            methods.setValue('dueDate', val, { shouldValidate: true, shouldDirty: true });
-                          }}
-                          placeholder="تاريخ ووقت الإغلاق..."
-                        />
-                        {errors.endTime && (
-                          <p className="text-red-500 text-xs mt-1">{errors.endTime.message}</p>
-                        )}
-                      </div>
+                          <div>
+                            <Label className="mb-2 block font-medium text-xs text-slate-700">
+                              موعد إغلاق الاختبار <span className="text-red-500">*</span>
+                            </Label>
+                            <DateTimePicker
+                              value={formDataValues.endTime || formDataValues.dueDate}
+                              onChange={(val) => {
+                                methods.setValue('endTime', val, { shouldValidate: true, shouldDirty: true });
+                                methods.setValue('dueDate', val, { shouldValidate: true, shouldDirty: true });
+                              }}
+                              placeholder="تاريخ ووقت الإغلاق..."
+                              minDate={formDataValues.startTime || formDataValues.startDate}
+                            />
+                            {errors.endTime && (
+                              <p className="text-red-500 text-xs mt-1">{errors.endTime.message}</p>
+                            )}
+                          </div>
+                        </>
+                      )}
 
-                      <div>
+                      <div className={scheduleMode === 'DURATION_ONLY' ? 'sm:max-w-xs' : ''}>
                         <Label className="mb-2 block font-medium text-xs text-slate-700">
                           مدة الاختبار (بالدقائق) <span className="text-red-500">*</span>
                         </Label>
-                        <Input 
+                        <Input
                           type="number"
-                          {...methods.register('durationMinutes')} 
+                          {...methods.register('durationMinutes')}
                           placeholder="مثال: 60"
                           className={errors.durationMinutes ? 'border-red-500' : ''}
                         />
@@ -903,6 +949,15 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                         )}
                       </div>
                     </div>
+
+                    {scheduleMode === 'DURATION_ONLY' && (
+                      <div className="flex items-start gap-2 rounded-xl bg-violet-50 border border-violet-100 p-3 text-xs text-violet-800 leading-relaxed">
+                        <span>ℹ️</span>
+                        <span>
+                          لن يتم تحديد موعد بدء أو إغلاق. سيكون الاختبار متاحاً للطلاب فور نشره، ويبدأ عدّاد المدة لكل طالب من لحظة دخوله وينتهي تلقائياً بانتهاء المدة المحددة.
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
 
