@@ -35,8 +35,30 @@ export function AssessmentCard({ assessment }: AssessmentCardProps) {
         <h3 className="text-lg font-bold text-slate-800 line-clamp-1 mb-1" title={assessment.title}>
           {assessment.title}
         </h3>
+
+        {/* Group / Course & Academic Period info */}
+        {(assessment.group || (assessment.targetGroups && assessment.targetGroups.length > 0) || assessment.course) && (
+          <div className="flex flex-wrap items-center gap-1.5 mt-1.5 mb-1">
+            <span className="inline-flex items-center text-xs font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md truncate max-w-full">
+              {assessment.group?.name ||
+                (assessment.targetGroups && assessment.targetGroups.length > 0
+                  ? assessment.targetGroups.map((g) => g.name).join('، ')
+                  : assessment.course?.title)}
+            </span>
+            {(assessment.group?.academicYear || assessment.course?.academicYear) && (
+              <span className="text-[11px] font-medium text-primary-700 bg-primary-50 border border-primary-100 px-1.5 py-0.5 rounded">
+                {assessment.group?.academicYear || assessment.course?.academicYear}
+              </span>
+            )}
+            {(assessment.group?.academicTerm || assessment.course?.academicTerm) && (
+              <span className="text-[11px] font-medium text-primary-700 bg-primary-50 border border-primary-100 px-1.5 py-0.5 rounded">
+                {(assessment.group?.academicTerm || assessment.course?.academicTerm) === 'FIRST_TERM' ? 'ترم أول' : 'ترم ثانٍ'}
+              </span>
+            )}
+          </div>
+        )}
         
-        <div className="grid grid-cols-2 gap-y-2 mt-4 text-sm text-slate-600">
+        <div className="grid grid-cols-2 gap-y-2 mt-3 text-sm text-slate-600">
           <div className="flex items-center gap-2">
             <FileText className="w-4 h-4 text-slate-400" />
             <span>{assessment._count?.questions || 0} أسئلة</span>

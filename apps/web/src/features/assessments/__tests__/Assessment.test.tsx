@@ -20,6 +20,7 @@ vi.mock('../hooks/use-assessments', () => ({
   useCreateAssessment: vi.fn(),
   useSubmissionDetail: vi.fn(),
   useGradeSubmission: vi.fn(),
+  useReEvaluateAssessment: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }));
 
 vi.mock('@/lib/offline/use-online-status', () => ({
@@ -81,6 +82,35 @@ describe('Assessment List', () => {
       'title',
       'يتطلب إنشاء الاختبارات والواجبات اتصالاً بالإنترنت',
     );
+  });
+
+  it('filters assessments by academic year and term matching both', () => {
+    vi.mocked(useAssessments.useAssessments).mockReturnValue({
+      data: {
+        data: [
+          {
+            id: '1',
+            title: 'Current Term Exam',
+            isPublished: true,
+            totalScore: 100,
+            group: { id: 'g1', name: 'Group 1', academicYear: '2026-2027', academicTerm: 'FIRST_TERM' },
+          },
+          {
+            id: '2',
+            title: 'Past Year Exam',
+            isPublished: true,
+            totalScore: 50,
+            group: { id: 'g2', name: 'Group 2', academicYear: '2025-2026', academicTerm: 'SECOND_TERM' },
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    } as any);
+
+    renderWithProviders(<AssessmentList />);
+    expect(screen.getByText('Current Term Exam')).toBeInTheDocument();
+    expect(screen.queryByText('Past Year Exam')).not.toBeInTheDocument();
   });
 });
 
@@ -148,7 +178,8 @@ describe('Submission Detail & Grading', () => {
 
   it('displays student answer', () => {
     renderWithProviders(<SubmissionDetails submissionId="s1" />);
-    expect(screen.getByText('إجابة الطالب: Ali')).toBeInTheDocument();
+    expect(screen.getAllByText(/إجابة الطالب:/).length).toBeGreaterThan(0);
+    expect(screen.getByText('Ali')).toBeInTheDocument();
     expect(screen.getByText('This is my essay')).toBeInTheDocument();
   });
 });

@@ -1,4 +1,4 @@
-import { IsOptional, IsUUID, IsEnum, IsBoolean } from 'class-validator';
+import { IsOptional, IsUUID, IsEnum, IsBoolean, IsString } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { AssessmentType } from '@prisma/client';
@@ -25,4 +25,14 @@ export class AssessmentQueryDto extends CursorPaginationDto {
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   isPublished?: boolean;
+
+  @ApiPropertyOptional({ description: 'Filter by academic year (e.g. 2026-2027)' })
+  @IsOptional()
+  @IsString()
+  academicYear?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by academic term (FIRST_TERM | SECOND_TERM)' })
+  @IsOptional()
+  @IsString()
+  academicTerm?: string;
 }

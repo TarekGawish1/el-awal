@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
-import { Plus, Search, FileText, AlertCircle } from 'lucide-react';
+import { Plus, Search, FileText, AlertCircle, Calendar, BookOpen, RotateCcw } from 'lucide-react';
 import { useAssessments } from '../hooks/use-assessments';
 import { AssessmentCard } from './AssessmentCard';
 import { Button } from '@/components/ui/Button';
@@ -12,20 +12,89 @@ import { Alert } from '@/components/ui/Alert';
 import { Pagination } from '@/components/ui/Pagination';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import { Select } from '@/components/ui/Select';
+import { useGroups } from '@/features/groups/hooks/useGroups';
+import { useStoredAcademicPeriod } from '@/features/groups/hooks/useAcademicPeriod';
 
 const PAGE_SIZE = 9;
 
 export function AssessmentList() {
   const isOnline = useOnlineStatus();
-  const { data, isLoading, isError, error, refetch } = useAssessments();
+  const { data: groups } = useGroups();
+  const { activeYear, activeTerm } = useStoredAcademicPeriod(groups);
 
+  // Local filter toolbar states initialized with system active period
+  const [filterYear, setFilterYear] = useState<string>(() => activeYear || 'ALL');
+  const [filterTerm, setFilterTerm] = useState<string>(() => activeTerm || 'ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'ALL' | 'EXAM' | 'ASSIGNMENT'>('ALL');
   const [filterStage, setFilterStage] = useState<string>('ALL');
   const [filterGrade, setFilterGrade] = useState<string>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Automatically synchronize local filters when global system academic period changes from top navbar
+  useEffect(() => {
+    if (activeYear) {
+      setFilterYear(activeYear);
+      setCurrentPage(1);
+    }
+  }, [activeYear]);
+
+  useEffect(() => {
+    if (activeTerm) {
+      setFilterTerm(activeTerm);
+      setCurrentPage(1);
+    }
+  }, [activeTerm]);
+
+  // Query parameters passed to server API when online
+  const queryParams = useMemo(() => {
+    const params: Record<string, string> = {};
+    if (filterYear !== 'ALL') params.academicYear = filterYear;
+    if (filterTerm !== 'ALL') params.academicTerm = filterTerm;
+    if (filterType !== 'ALL') params.type = filterType;
+    return Object.keys(params).length > 0 ? params : undefined;
+  }, [filterYear, filterTerm, filterType]);
+
+  const { data, isLoading, isError, error, refetch } = useAssessments(queryParams);
+
   const assessments = data?.data || [];
+
+  const availableYears = useMemo(() => {
+    const yearsSet = new Set<string>();
+    yearsSet.add('2028-2029');
+    yearsSet.add('2027-2028');
+    yearsSet.add('2026-2027');
+    yearsSet.add('2025-2026');
+    yearsSet.add('2024-2025');
+
+    if (groups && Array.isArray(groups)) {
+      groups.forEach((g) => {
+        if (g.academicYear && g.academicYear.trim()) {
+          yearsSet.add(g.academicYear.trim());
+        }
+      });
+    }
+
+    assessments.forEach((a) => {
+      if (a.group?.academicYear) yearsSet.add(a.group.academicYear);
+      if (a.targetGroups) {
+        a.targetGroups.forEach((tg) => {
+          if (tg.academicYear) yearsSet.add(tg.academicYear);
+        });
+      }
+      if (a.course?.academicYear) yearsSet.add(a.course.academicYear);
+    });
+
+    return Array.from(yearsSet).sort().reverse();
+  }, [groups, assessments]);
+
+  const availableTerms = useMemo(
+    () => [
+      { label: 'الفصل الأول (ترم أول)', value: 'FIRST_TERM' },
+      { label: 'الفصل الثاني (ترم ثانٍ)', value: 'SECOND_TERM' },
+    ],
+    []
+  );
 
   const filteredAssessments = useMemo(() => {
     return assessments.filter((assessment) => {
@@ -33,9 +102,38 @@ export function AssessmentList() {
       const matchesType = filterType === 'ALL' || assessment.type === filterType;
       const matchesStage = filterStage === 'ALL' || assessment.academicStage === filterStage;
       const matchesGrade = filterGrade === 'ALL' || assessment.gradeLevel === filterGrade;
-      return matchesSearch && matchesType && matchesStage && matchesGrade;
+
+      // Filter by academic year
+      const hasYearAttached = Boolean(
+        assessment.group?.academicYear ||
+        assessment.targetGroups?.some((tg) => tg.academicYear) ||
+        assessment.course?.academicYear
+      );
+
+      const matchesYear =
+        filterYear === 'ALL' ||
+        !hasYearAttached ||
+        assessment.group?.academicYear === filterYear ||
+        assessment.targetGroups?.some((tg) => tg.academicYear === filterYear) ||
+        assessment.course?.academicYear === filterYear;
+
+      // Filter by academic term
+      const hasTermAttached = Boolean(
+        assessment.group?.academicTerm ||
+        assessment.targetGroups?.some((tg) => tg.academicTerm) ||
+        assessment.course?.academicTerm
+      );
+
+      const matchesTerm =
+        filterTerm === 'ALL' ||
+        !hasTermAttached ||
+        assessment.group?.academicTerm === filterTerm ||
+        assessment.targetGroups?.some((tg) => tg.academicTerm === filterTerm) ||
+        assessment.course?.academicTerm === filterTerm;
+
+      return matchesSearch && matchesType && matchesStage && matchesGrade && matchesYear && matchesTerm;
     });
-  }, [assessments, searchQuery, filterType, filterStage, filterGrade]);
+  }, [assessments, searchQuery, filterType, filterStage, filterGrade, filterYear, filterTerm]);
 
   const availableStages = ['PRIMARY', 'MIDDLE', 'SECONDARY'];
 
@@ -69,6 +167,16 @@ export function AssessmentList() {
     setCurrentPage(1);
   };
 
+  const handleYearChange = (val: string) => {
+    setFilterYear(val);
+    setCurrentPage(1);
+  };
+
+  const handleTermChange = (val: string) => {
+    setFilterTerm(val);
+    setCurrentPage(1);
+  };
+
   const handleStageChange = (val: string) => {
     setFilterStage(val);
     setFilterGrade('ALL'); // Reset grade when stage changes
@@ -80,12 +188,38 @@ export function AssessmentList() {
     setCurrentPage(1);
   };
 
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setFilterType('ALL');
+    setFilterStage('ALL');
+    setFilterGrade('ALL');
+    setFilterYear(activeYear || 'ALL');
+    setFilterTerm(activeTerm || 'ALL');
+    setCurrentPage(1);
+  };
+
+  const hasNonDefaultFilters =
+    searchQuery !== '' ||
+    filterType !== 'ALL' ||
+    filterStage !== 'ALL' ||
+    filterGrade !== 'ALL' ||
+    filterYear !== (activeYear || 'ALL') ||
+    filterTerm !== (activeTerm || 'ALL');
+
   const formatStageName = (stage: string) => {
     switch(stage) {
       case 'PRIMARY': return 'ابتدائي';
       case 'MIDDLE': return 'إعدادي';
       case 'SECONDARY': return 'ثانوي';
       default: return stage;
+    }
+  };
+
+  const formatTermLabel = (term: string) => {
+    switch (term) {
+      case 'FIRST_TERM': return 'ترم أول';
+      case 'SECOND_TERM': return 'ترم ثانٍ';
+      default: return term;
     }
   };
 
@@ -130,65 +264,159 @@ export function AssessmentList() {
         </div>
       </div>
 
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="relative w-full md:w-80">
-          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-            <Search className="h-4 w-4 text-slate-400" />
+      {/* Filters Toolbar */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 space-y-3">
+        {/* Top Row: Search & Type Toggle */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="relative flex-1">
+            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-slate-400" />
+            </div>
+            <Input
+              className="pr-10 w-full bg-slate-50/60 border-slate-200"
+              placeholder="ابحث عن اختبار أو واجب..."
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+            />
           </div>
-          <Input
-            className="pr-10"
-            placeholder="ابحث عن اختبار أو واجب..."
-            value={searchQuery}
-            onChange={(e) => handleSearchChange(e.target.value)}
-          />
+
+          {/* Type Toggle Tabs */}
+          <div className="bg-slate-100 p-1 rounded-xl flex gap-1 w-full md:w-auto shadow-xs border border-slate-200/50">
+            {[
+              { id: 'ALL', label: 'الكل' },
+              { id: 'EXAM', label: 'الامتحانات' },
+              { id: 'ASSIGNMENT', label: 'الواجبات' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => handleFilterTypeChange(tab.id as 'ALL' | 'EXAM' | 'ASSIGNMENT')}
+                className={`flex-1 md:flex-initial py-1.5 px-5 rounded-lg font-bold text-xs transition-all ${
+                  filterType === tab.id
+                    ? 'bg-white text-slate-800 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-          {availableStages.length > 0 && (
+        {/* Second Row: Academic Year, Term, Stage, Grade selectors */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
+          {/* Academic Year Select */}
+          <div>
             <Select
-              className="w-full md:w-40 bg-slate-50 border-slate-200"
+              className="w-full bg-slate-50 border-slate-200 text-xs sm:text-sm"
+              value={filterYear}
+              onChange={(e) => handleYearChange(e.target.value)}
+              options={[
+                { label: 'جميع الأعوام الدراسية', value: 'ALL' },
+                ...availableYears.map((year) => ({
+                  label: `العام الدراسي: ${year}`,
+                  value: year,
+                })),
+              ]}
+            />
+          </div>
+
+          {/* Academic Term Select */}
+          <div>
+            <Select
+              className="w-full bg-slate-50 border-slate-200 text-xs sm:text-sm"
+              value={filterTerm}
+              onChange={(e) => handleTermChange(e.target.value)}
+              options={[
+                { label: 'جميع الفصول الدراسية', value: 'ALL' },
+                ...availableTerms.map((term) => ({
+                  label: term.label,
+                  value: term.value,
+                })),
+              ]}
+            />
+          </div>
+
+          {/* Stage Select */}
+          <div>
+            <Select
+              className="w-full bg-slate-50 border-slate-200 text-xs sm:text-sm"
               value={filterStage}
               onChange={(e) => handleStageChange(e.target.value)}
               options={[
                 { label: 'كل المراحل', value: 'ALL' },
-                ...availableStages.map(stage => ({ label: formatStageName(stage), value: stage }))
+                ...availableStages.map((stage) => ({
+                  label: formatStageName(stage),
+                  value: stage,
+                })),
               ]}
             />
-          )}
+          </div>
 
-          {availableGrades.length > 0 && (
+          {/* Grade Select */}
+          <div>
             <Select
-              className="w-full md:w-48 bg-slate-50 border-slate-200"
+              className="w-full bg-slate-50 border-slate-200 text-xs sm:text-sm"
               value={filterGrade}
               onChange={(e) => handleGradeChange(e.target.value)}
               options={[
                 { label: 'كل الصفوف', value: 'ALL' },
-                ...availableGrades.map(grade => ({ label: grade, value: grade }))
+                ...availableGrades.map((grade) => ({
+                  label: grade,
+                  value: grade,
+                })),
               ]}
             />
-          )}
+          </div>
         </div>
 
-        {/* Filter Toggle */}
-        <div className="bg-slate-100 p-1 rounded-xl flex gap-1 w-full md:w-auto shadow-xs border border-slate-200/50">
-          {[
-            { id: 'ALL', label: 'الكل' },
-            { id: 'EXAM', label: 'الامتحانات' },
-            { id: 'ASSIGNMENT', label: 'الواجبات' },
-          ].map((tab) => (
+        {/* Active Period & Filter Status Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 pt-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold text-slate-700">الفترة النشطة:</span>
+            {filterYear !== 'ALL' ? (
+              <span className="inline-flex items-center gap-1 bg-primary-50 text-primary-700 border border-primary-100 px-2 py-0.5 rounded-md font-medium">
+                <Calendar className="w-3 h-3 text-primary-500" />
+                {filterYear}
+              </span>
+            ) : (
+              <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-medium">
+                جميع الأعوام
+              </span>
+            )}
+            {filterTerm !== 'ALL' ? (
+              <span className="inline-flex items-center gap-1 bg-primary-50 text-primary-700 border border-primary-100 px-2 py-0.5 rounded-md font-medium">
+                <BookOpen className="w-3 h-3 text-primary-500" />
+                {formatTermLabel(filterTerm)}
+              </span>
+            ) : (
+              <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-medium">
+                جميع الفصول
+              </span>
+            )}
+
+            {filterStage !== 'ALL' && (
+              <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md">
+                {formatStageName(filterStage)}
+              </span>
+            )}
+            {filterGrade !== 'ALL' && (
+              <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md">
+                {filterGrade}
+              </span>
+            )}
+          </div>
+
+          {hasNonDefaultFilters && (
             <button
-              key={tab.id}
               type="button"
-              onClick={() => handleFilterTypeChange(tab.id as 'ALL' | 'EXAM' | 'ASSIGNMENT')}
-              className={`flex-1 md:flex-initial py-1.5 px-5 rounded-lg font-bold text-xs transition-all ${
-                filterType === tab.id
-                  ? 'bg-white text-slate-800 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
+              onClick={handleResetFilters}
+              className="inline-flex items-center gap-1 text-primary-600 hover:text-primary-800 font-medium hover:underline cursor-pointer"
             >
-              {tab.label}
+              <RotateCcw className="w-3 h-3" />
+              إعادة تعيين الفلاتر
             </button>
-          ))}
+          )}
         </div>
       </div>
 

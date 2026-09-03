@@ -45,6 +45,24 @@ export interface AssessmentListItem {
   durationMinutes: number | null;
   academicStage?: string | null;
   gradeLevel?: string | null;
+  group?: {
+    id: string;
+    name: string;
+    academicYear?: string;
+    academicTerm?: string;
+  } | null;
+  targetGroups?: Array<{
+    id: string;
+    name: string;
+    academicYear?: string;
+    academicTerm?: string;
+  }>;
+  course?: {
+    id: string;
+    title: string;
+    academicYear?: string;
+    academicTerm?: string;
+  } | null;
   _count?: {
     submissions: number;
     questions: number;

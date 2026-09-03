@@ -247,6 +247,39 @@ export class AssessmentsService {
       where.teacherId = teacherId;
     }
 
+    if (query.academicYear || query.academicTerm) {
+      where.AND = where.AND || [];
+      const periodConditions: any[] = [];
+
+      // Matches group
+      periodConditions.push({
+        group: {
+          ...(query.academicYear ? { academicYear: query.academicYear } : {}),
+          ...(query.academicTerm ? { academicTerm: query.academicTerm } : {}),
+        },
+      });
+
+      // Matches targetGroups
+      periodConditions.push({
+        targetGroups: {
+          some: {
+            ...(query.academicYear ? { academicYear: query.academicYear } : {}),
+            ...(query.academicTerm ? { academicTerm: query.academicTerm } : {}),
+          },
+        },
+      });
+
+      // Matches course
+      periodConditions.push({
+        course: {
+          ...(query.academicYear ? { academicYear: query.academicYear } : {}),
+          ...(query.academicTerm ? { academicTerm: query.academicTerm } : {}),
+        },
+      });
+
+      where.AND.push({ OR: periodConditions });
+    }
+
     const assessments = await this.prisma.assessment.findMany({
       where,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -255,9 +288,9 @@ export class AssessmentsService {
         teacher: {
           include: { user: { select: { fullName: true } } },
         },
-        group: { select: { id: true, name: true } },
-        targetGroups: { select: { id: true, name: true } },
-        course: { select: { id: true, title: true } },
+        group: { select: { id: true, name: true, academicYear: true, academicTerm: true } },
+        targetGroups: { select: { id: true, name: true, academicYear: true, academicTerm: true } },
+        course: { select: { id: true, title: true, academicYear: true, academicTerm: true } },
         _count: { select: { questions: true, submissions: true } },
       },
     });
