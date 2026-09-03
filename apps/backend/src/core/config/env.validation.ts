@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { z } from 'zod';
 
 const expiryPattern = /^\d+[smhd]$/;
@@ -79,44 +80,57 @@ export type EnvConfig = z.infer<typeof envSchema> & {
 
 export function validateEnv(config: Record<string, unknown>): EnvConfig {
   const normalizedConfig = { ...config };
-  const isProduction = normalizedConfig.NODE_ENV === 'production';
+  // ── JWT signing secrets: identical on every boot, or everyone gets logged out ──
+  // If the access/refresh signing keys differ after a restart, every previously
+  // issued access AND refresh token fails verification, so all users are silently
+  // forced to log in again after each deploy. To keep sessions alive across
+  // restarts with zero configuration, secrets are resolved in this order:
+  //
+  //   1. Explicit JWT_ACCESS_SECRET / JWT_REFRESH_SECRET (recommended).
+  //   2. A single JWT_SECRET, from which both are derived (backward compatible).
+  //   3. Deterministically derived from DATABASE_URL — which is always present,
+  //      never changes between deploys, and is never committed to the repo — so
+  //      the keys stay stable across restarts without setting any extra env var.
+  //
+  // We never fall back to a random value (rotates on every boot) or to a constant
+  // baked into the source (would let anyone forge tokens for any user).
+  const jwtSecret =
+    typeof normalizedConfig.JWT_SECRET === 'string' ? normalizedConfig.JWT_SECRET : undefined;
 
-  // Backward compatibility: If JWT_SECRET is provided, derive access and refresh secrets if not explicitly set
-  if (normalizedConfig.JWT_SECRET && typeof normalizedConfig.JWT_SECRET === 'string') {
+  if (jwtSecret) {
     if (!normalizedConfig.JWT_ACCESS_SECRET) {
-      normalizedConfig.JWT_ACCESS_SECRET = normalizedConfig.JWT_SECRET;
+      normalizedConfig.JWT_ACCESS_SECRET = jwtSecret;
     }
     if (!normalizedConfig.JWT_REFRESH_SECRET) {
-      normalizedConfig.JWT_REFRESH_SECRET = `${normalizedConfig.JWT_SECRET}_refresh_derived_key_2026`;
+      normalizedConfig.JWT_REFRESH_SECRET = `${jwtSecret}_refresh_derived_key_2026`;
     }
   }
 
-  // JWT secrets MUST be stable and persistent across restarts/deploys. If they are not,
-  // every restart re-signs tokens with a new key, so all existing access AND refresh
-  // tokens fail verification and every user is forced to log in again.
-  //
-  // In production we therefore REQUIRE explicit secrets and fail fast when they are
-  // missing — we never silently fall back to a random value (which rotates on every
-  // boot) or to a hardcoded constant (a signing secret committed to the repo, which
-  // would let anyone forge tokens for any user). Outside production we use a fixed,
-  // clearly-labelled dev secret so local development works without setup and does not
-  // log you out on hot restarts.
   if (!normalizedConfig.JWT_ACCESS_SECRET || !normalizedConfig.JWT_REFRESH_SECRET) {
-    if (isProduction) {
-      throw new Error(
-        'Missing JWT secrets in production. Set JWT_ACCESS_SECRET and JWT_REFRESH_SECRET ' +
-          '(each at least 32 characters and different from each other) as persistent ' +
-          'environment variables so user sessions survive restarts and deploys. ' +
-          'You may instead set a single strong JWT_SECRET. Generate a secret with: ' +
-          'node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'base64url\'))"',
-      );
+    const derivationBase =
+      typeof normalizedConfig.DATABASE_URL === 'string' ? normalizedConfig.DATABASE_URL : undefined;
+
+    if (derivationBase) {
+      if (!normalizedConfig.JWT_ACCESS_SECRET) {
+        normalizedConfig.JWT_ACCESS_SECRET = createHash('sha256')
+          .update(`el-awal:jwt:access:${derivationBase}`)
+          .digest('hex');
+      }
+      if (!normalizedConfig.JWT_REFRESH_SECRET) {
+        normalizedConfig.JWT_REFRESH_SECRET = createHash('sha256')
+          .update(`el-awal:jwt:refresh:${derivationBase}`)
+          .digest('hex');
+      }
     }
-    if (!normalizedConfig.JWT_ACCESS_SECRET) {
-      normalizedConfig.JWT_ACCESS_SECRET = 'dev-only-el-awal-access-secret-change-me-000000000000';
-    }
-    if (!normalizedConfig.JWT_REFRESH_SECRET) {
-      normalizedConfig.JWT_REFRESH_SECRET = 'dev-only-el-awal-refresh-secret-change-me-000000000000';
-    }
+  }
+
+  if (!normalizedConfig.JWT_ACCESS_SECRET || !normalizedConfig.JWT_REFRESH_SECRET) {
+    throw new Error(
+      'Unable to resolve JWT signing secrets. Set JWT_ACCESS_SECRET and JWT_REFRESH_SECRET ' +
+        '(each at least 32 characters and different from each other), or a single JWT_SECRET, ' +
+        'or ensure DATABASE_URL is set so stable keys can be derived. Generate a secret with: ' +
+        'node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'base64url\'))"',
+    );
   }
 
   if (!normalizedConfig.CORS_ORIGINS) {
