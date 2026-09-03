@@ -26,6 +26,7 @@ import {
   GraduationCap,
   FileSpreadsheet,
   Plus,
+  ClipboardList,
 } from 'lucide-react';
 import { LessonSessionItem } from '../types/schedules.types';
 import { useDeleteSession, useGroupSessions, useUpdateSession } from '../hooks/useSchedules';
@@ -417,8 +418,9 @@ export function SessionDetailsModal({
 
                     <div className="grid grid-cols-2 gap-2">
                       {(() => {
-                        const thisSessionAssignment = groupAssessments.find((a: any) => a.type === 'ASSIGNMENT' && a.dueDate?.includes(sessionDateOnly));
-                        const thisSessionExam = groupAssessments.find((a: any) => a.type === 'EXAM' && (a.startDate?.includes(sessionDateOnly) || a.dueDate?.includes(sessionDateOnly)));
+                        const assessmentsAny = groupAssessments as any[];
+                        const thisSessionAssignment = assessmentsAny.find((a: any) => a.type === 'ASSIGNMENT' && a.dueDate?.includes(sessionDateOnly));
+                        const thisSessionExam = assessmentsAny.find((a: any) => a.type === 'EXAM' && (a.startDate?.includes(sessionDateOnly) || a.dueDate?.includes(sessionDateOnly)));
                         
                         return (
                           <>
