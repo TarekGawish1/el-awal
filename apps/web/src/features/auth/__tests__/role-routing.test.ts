@@ -21,11 +21,13 @@ describe('Role Routing Utilities', () => {
   });
 
   describe('isRouteAllowedForRole', () => {
-    it('allows TEACHER to access teacher routes and student course learning preview routes', () => {
+    it('allows TEACHER to access teacher routes, learning preview routes, and assessment solving preview', () => {
       expect(isRouteAllowedForRole('/teacher/dashboard', 'TEACHER')).toBe(true);
       expect(isRouteAllowedForRole('/teacher/courses/c-1/preview', 'TEACHER')).toBe(true);
       expect(isRouteAllowedForRole('/student/courses/c-1/learn', 'TEACHER')).toBe(true);
       expect(isRouteAllowedForRole('/student/courses/c-1/learn?lessonId=les-1', 'TEACHER')).toBe(true);
+      expect(isRouteAllowedForRole('/student/assessments?id=exam-1', 'TEACHER')).toBe(true);
+      expect(isRouteAllowedForRole('/student/homework?id=hw-1', 'TEACHER')).toBe(true);
       expect(isRouteAllowedForRole('/student/dashboard', 'TEACHER')).toBe(false);
       expect(isRouteAllowedForRole('/student/attendance', 'TEACHER')).toBe(false);
     });
@@ -35,6 +37,8 @@ describe('Role Routing Utilities', () => {
       expect(isRouteAllowedForRole('/teacher/students', 'SECRETARIAT')).toBe(true);
       expect(isRouteAllowedForRole('/teacher/courses', 'SECRETARIAT')).toBe(true);
       expect(isRouteAllowedForRole('/student/courses/c-1/learn', 'SECRETARIAT')).toBe(true);
+      expect(isRouteAllowedForRole('/student/assessments?id=exam-1', 'SECRETARIAT')).toBe(true);
+      expect(isRouteAllowedForRole('/student/homework?id=hw-1', 'SECRETARIAT')).toBe(true);
       expect(isRouteAllowedForRole('/teacher/assistants', 'SECRETARIAT')).toBe(false);
       expect(isRouteAllowedForRole('/teacher/activity-log', 'SECRETARIAT')).toBe(false);
       expect(isRouteAllowedForRole('/parent/dashboard', 'SECRETARIAT')).toBe(false);

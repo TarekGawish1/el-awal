@@ -330,13 +330,31 @@ export class CoursesService {
       completedLessonIds = progresses.map((p) => p.lessonId);
     }
 
-    const enrichedCourseQuiz = await this.attachStudentSubmission(
-      course.courseQuiz,
-      studentId,
-    );
+    const [enrichedCourseQuiz, enrichedModules] = await Promise.all([
+      this.attachStudentSubmission(course.courseQuiz, studentId),
+      Promise.all(
+        (course.modules || []).map(async (mod) => {
+          const [enrichedUnitQuiz, enrichedLessons] = await Promise.all([
+            this.attachStudentSubmission(mod.unitQuiz, studentId),
+            Promise.all(
+              (mod.lessons || []).map(async (les) => ({
+                ...les,
+                lessonQuiz: await this.attachStudentSubmission(les.lessonQuiz, studentId),
+              })),
+            ),
+          ]);
+          return {
+            ...mod,
+            unitQuiz: enrichedUnitQuiz,
+            lessons: enrichedLessons,
+          };
+        }),
+      ),
+    ]);
 
     return {
       ...course,
+      modules: enrichedModules,
       courseQuiz: enrichedCourseQuiz,
       completedLessonIds,
     };
