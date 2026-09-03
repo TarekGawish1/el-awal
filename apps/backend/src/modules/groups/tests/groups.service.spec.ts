@@ -28,7 +28,9 @@ describe('GroupsService', () => {
     groupEnrollment: {
       upsert: jest.fn(),
       findUnique: jest.fn(),
+      findMany: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     lessonSession: {
       count: jest.fn(),
@@ -60,6 +62,9 @@ describe('GroupsService', () => {
     service = module.get<GroupsService>(GroupsService);
     prisma = module.get<PrismaService>(PrismaService);
     jest.clearAllMocks();
+    // Default: no other active enrollments (the "one active group" guard is a no-op).
+    mockPrismaService.groupEnrollment.findMany.mockResolvedValue([]);
+    mockPrismaService.groupEnrollment.updateMany.mockResolvedValue({ count: 0 });
   });
 
   describe('getGroupById (Ownership Enforcement)', () => {
@@ -200,6 +205,127 @@ describe('GroupsService', () => {
           data: expect.objectContaining({ phone: '201022222222' }),
         }),
       );
+    });
+  });
+
+  describe('enrollStudent (one active group per student)', () => {
+    const groupId = 'group-target';
+    const studentId = 'student-1';
+
+    const buildTx = () => ({
+      academicGroup: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: groupId,
+          name: 'المجموعة الجديدة',
+          teacherId: 'teacher-1',
+          isActive: true,
+          maxCapacity: 30,
+          _count: { enrollments: 5 },
+        }),
+      },
+      studentProfile: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: studentId,
+          user: { isActive: true },
+        }),
+      },
+      groupEnrollment: {
+        findMany: jest.fn().mockResolvedValue([]),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        upsert: jest.fn().mockResolvedValue({
+          id: 'enr-new',
+          groupId,
+          studentId,
+          status: GroupEnrollmentStatus.ACTIVE,
+        }),
+      },
+    });
+
+    it('throws ConflictException when the student is ACTIVE in another group and transfer is not requested', async () => {
+      const tx = buildTx();
+      tx.groupEnrollment.findMany.mockResolvedValue([
+        { groupId: 'group-old', status: GroupEnrollmentStatus.ACTIVE, group: { name: 'المجموعة القديمة' } },
+      ]);
+      mockPrismaService.$transaction.mockImplementation(async (cb: (tx: any) => Promise<unknown>) => cb(tx));
+
+      await expect(service.enrollStudent(groupId, studentId, undefined, false)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(tx.groupEnrollment.updateMany).not.toHaveBeenCalled();
+      expect(tx.groupEnrollment.upsert).not.toHaveBeenCalled();
+    });
+
+    it('marks the old enrollment TRANSFERRED and enrolls when transfer is true', async () => {
+      const tx = buildTx();
+      tx.groupEnrollment.findMany.mockResolvedValue([
+        { groupId: 'group-old', status: GroupEnrollmentStatus.ACTIVE, group: { name: 'المجموعة القديمة' } },
+      ]);
+      mockPrismaService.$transaction.mockImplementation(async (cb: (tx: any) => Promise<unknown>) => cb(tx));
+
+      const result = await service.enrollStudent(groupId, studentId, undefined, true);
+
+      expect(tx.groupEnrollment.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            studentId,
+            status: GroupEnrollmentStatus.ACTIVE,
+            groupId: { not: groupId },
+          }),
+          data: { status: GroupEnrollmentStatus.TRANSFERRED },
+        }),
+      );
+      expect(tx.groupEnrollment.upsert).toHaveBeenCalled();
+      expect(result).toEqual(expect.objectContaining({ status: GroupEnrollmentStatus.ACTIVE }));
+    });
+
+    it('enrolls normally when the student has no other active group', async () => {
+      const tx = buildTx();
+      mockPrismaService.$transaction.mockImplementation(async (cb: (tx: any) => Promise<unknown>) => cb(tx));
+
+      await service.enrollStudent(groupId, studentId, undefined, false);
+
+      expect(tx.groupEnrollment.updateMany).not.toHaveBeenCalled();
+      expect(tx.groupEnrollment.upsert).toHaveBeenCalled();
+    });
+  });
+
+  describe('acceptReservation (one active group per student)', () => {
+    it('throws ConflictException when the student is already ACTIVE in another group', async () => {
+      const studentId = 'student-9';
+      const enrollment = {
+        id: 'enrollment-9',
+        status: GroupEnrollmentStatus.PENDING,
+        studentId,
+        groupId: 'group-target',
+        group: {
+          name: 'المجموعة الهدف',
+          maxCapacity: 30,
+          teacherId: 'teacher-1',
+          _count: { enrollments: 1 },
+          teacher: { user: { fullName: 'الأستاذ' } },
+        },
+        student: {
+          id: studentId,
+          user: { id: studentId, fullName: 'طالب' },
+          parentLinks: [],
+        },
+      };
+
+      mockPrismaService.groupEnrollment.findUnique.mockResolvedValue(enrollment);
+      mockPrismaService.groupEnrollment.findMany.mockResolvedValue([
+        { groupId: 'group-other', status: GroupEnrollmentStatus.ACTIVE, group: { name: 'مجموعة أخرى' } },
+      ]);
+
+      await expect(
+        service.acceptReservation(enrollment.id, {
+          id: 'teacher-1',
+          teacherProfileId: 'teacher-1',
+          role: UserRole.TEACHER,
+        } as any),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+      expect(mockNotificationsService.sendNotification).not.toHaveBeenCalled();
     });
   });
 });

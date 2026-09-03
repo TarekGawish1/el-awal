@@ -1,5 +1,5 @@
-import { IsNotEmpty, IsUUID } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsNotEmpty, IsUUID, IsOptional, IsBoolean } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class EnrollStudentDto {
   @ApiProperty({
@@ -9,4 +9,13 @@ export class EnrollStudentDto {
   @IsUUID()
   @IsNotEmpty({ message: 'Student ID is required' })
   studentId: string;
+
+  @ApiPropertyOptional({
+    description:
+      'When true, moves the student out of any other active group into this one. When false/omitted, enrolling a student who is already active in another group is rejected.',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  transfer?: boolean;
 }

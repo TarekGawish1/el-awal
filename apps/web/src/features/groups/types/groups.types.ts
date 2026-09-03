@@ -39,6 +39,8 @@ export interface CreateGroupPayload {
 
 export interface EnrollStudentPayload {
   studentId: string;
+  /** When true, moves the student out of any other active group into this one. */
+  transfer?: boolean;
 }
 
 export interface Student {
@@ -51,6 +53,8 @@ export interface Student {
   gradeLevel: string;
   academicStage: string;
   academicStatus: string;
+  /** Active group memberships — used to enforce one active group per student. */
+  groupEnrollments?: Array<{ status?: string; group: { id: string; name: string } }>;
 }
 
 export interface GroupEnrollment {

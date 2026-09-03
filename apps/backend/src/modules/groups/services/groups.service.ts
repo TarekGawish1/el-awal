@@ -369,9 +369,17 @@ export class GroupsService {
   }
 
   /**
-   * Enrolls a student into a physical group, enforcing max capacity limits.
+   * Enrolls a student into a physical group, enforcing max capacity limits and
+   * the "one active group per student" rule. When `transfer` is true, the student
+   * is moved out of any other active group into this one; otherwise enrolling a
+   * student who is already active elsewhere is rejected with a clear conflict.
    */
-  async enrollStudent(groupId: string, studentId: string, user?: AuthenticatedUser) {
+  async enrollStudent(
+    groupId: string,
+    studentId: string,
+    user?: AuthenticatedUser,
+    transfer = false,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const group = await tx.academicGroup.findUnique({
         where: { id: groupId },
@@ -401,6 +409,39 @@ export class GroupsService {
 
       if (!student || !student.user.isActive) {
         throw new NotFoundException(`Student [${studentId}] not found or account is deactivated`);
+      }
+
+      // Enforce one active group per student: block (or move on transfer) when the
+      // student already has an ACTIVE enrollment in a different group.
+      const otherActiveEnrollments = await tx.groupEnrollment.findMany({
+        where: {
+          studentId,
+          status: GroupEnrollmentStatus.ACTIVE,
+          groupId: { not: groupId },
+        },
+        include: { group: { select: { name: true } } },
+      });
+
+      if (otherActiveEnrollments.length > 0) {
+        if (!transfer) {
+          const otherGroupNames = otherActiveEnrollments
+            .map((e) => e.group?.name)
+            .filter(Boolean)
+            .join('، ');
+          throw new ConflictException(
+            `الطالب مسجّل بالفعل في مجموعة أخرى (${otherGroupNames}). كل طالب يمكنه الانضمام لمجموعة واحدة فقط.`,
+          );
+        }
+
+        // Move: mark the previous active enrollment(s) as TRANSFERRED.
+        await tx.groupEnrollment.updateMany({
+          where: {
+            studentId,
+            status: GroupEnrollmentStatus.ACTIVE,
+            groupId: { not: groupId },
+          },
+          data: { status: GroupEnrollmentStatus.TRANSFERRED },
+        });
       }
 
       const enrollment = await tx.groupEnrollment.upsert({
@@ -614,6 +655,27 @@ export class GroupsService {
 
     if (enrollment.group._count.enrollments >= enrollment.group.maxCapacity) {
       throw new BadRequestException('هذه المجموعة مكتملة العدد');
+    }
+
+    // Enforce one active group per student: reject acceptance if the student is
+    // already ACTIVE in a different group (a pending reservation itself is allowed).
+    const otherActiveEnrollments = await this.prisma.groupEnrollment.findMany({
+      where: {
+        studentId: enrollment.studentId,
+        status: GroupEnrollmentStatus.ACTIVE,
+        groupId: { not: enrollment.groupId },
+      },
+      include: { group: { select: { name: true } } },
+    });
+
+    if (otherActiveEnrollments.length > 0) {
+      const otherGroupNames = otherActiveEnrollments
+        .map((e) => e.group?.name)
+        .filter(Boolean)
+        .join('، ');
+      throw new ConflictException(
+        `الطالب مسجّل بالفعل في مجموعة أخرى (${otherGroupNames}). يجب نقله أو إزالته من مجموعته الحالية قبل قبول هذا الحجز.`,
+      );
     }
 
     const currentDate = new Date();

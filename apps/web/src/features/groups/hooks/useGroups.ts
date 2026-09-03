@@ -394,9 +394,20 @@ export function useAddStudent() {
 
       if (!isOnline) {
         const student = await offlineDb.getStudentByIdOffline(payload.studentId);
+        const previousGroupId = student?.groupId;
         if (student) {
           student.groupId = groupId;
           await offlineDb.bulkPutStudents([student]);
+        }
+
+        // On transfer, remove the student from their previous group's cached roster
+        // so the offline view reflects the "one active group" move.
+        if (payload.transfer && previousGroupId && previousGroupId !== groupId) {
+          const oldRoster = await offlineDb.getRoster(previousGroupId);
+          if (oldRoster) {
+            oldRoster.students = oldRoster.students.filter((s) => s.id !== payload.studentId);
+            await offlineDb.cacheRoster(oldRoster);
+          }
         }
 
         const group = await offlineDb.getGroupByIdOffline(groupId);
@@ -422,7 +433,11 @@ export function useAddStudent() {
           payload,
         );
 
-        toast.success('تمت إضافة الطالب للمجموعة محلياً بنجاح 💾');
+        toast.success(
+          payload.transfer
+            ? 'تم نقل الطالب للمجموعة محلياً بنجاح 💾'
+            : 'تمت إضافة الطالب للمجموعة محلياً بنجاح 💾',
+        );
         return { success: true };
       }
 
@@ -481,6 +496,8 @@ export function useSearchStudents(query: string) {
     queryFn: async (): Promise<{ data: Student[] }> => {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       if (!isOnline) {
+        const allGroups = await offlineDb.getGroupsOffline();
+        const groupMap = new Map(allGroups.map((g) => [g.id, g]));
         const offlineStudents = await offlineDb.getStudentsOffline({ search: query });
         return {
           data: offlineStudents.map((s) => ({
@@ -493,12 +510,17 @@ export function useSearchStudents(query: string) {
               name: s.fullName || s.user?.fullName || 'طالب',
               phone: s.phone || s.user?.phone || '',
             },
+            groupEnrollments: s.groupId
+              ? [{ status: 'ACTIVE', group: { id: s.groupId, name: groupMap.get(s.groupId)?.name || 'المجموعة' } }]
+              : ((s.groupEnrollments as any) || []),
           })),
         };
       }
       try {
         return await searchStudents(query);
       } catch {
+        const allGroups = await offlineDb.getGroupsOffline();
+        const groupMap = new Map(allGroups.map((g) => [g.id, g]));
         const offlineStudents = await offlineDb.getStudentsOffline({ search: query });
         return {
           data: offlineStudents.map((s) => ({
@@ -511,6 +533,9 @@ export function useSearchStudents(query: string) {
               name: s.fullName || s.user?.fullName || 'طالب',
               phone: s.phone || s.user?.phone || '',
             },
+            groupEnrollments: s.groupId
+              ? [{ status: 'ACTIVE', group: { id: s.groupId, name: groupMap.get(s.groupId)?.name || 'المجموعة' } }]
+              : ((s.groupEnrollments as any) || []),
           })),
         };
       }
