@@ -1,7 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useStudentProfile, useStudentCourses, useStudentAssessments, useStudentAttendance, useGroupSessions } from '../hooks/useStudentPortal';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  useStudentProfile,
+  useStudentCourses,
+  useStudentAssessments,
+  useStudentAttendance,
+  useGroupSessions,
+  useEnrollInCourse,
+} from '../hooks/useStudentPortal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { BookOpen, FileText, QrCode, TrendingUp, Calendar, AlertTriangle, Clock, Users, Monitor, Award } from 'lucide-react';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -12,7 +20,6 @@ import { StudentRecentAssessments } from './StudentRecentAssessments';
 import { StudentLatestHomework } from './StudentLatestHomework';
 import { GroupReservation } from './GroupReservation';
 import { filterUpcomingGroupExams } from '../utils/assessments';
-import { useEffect } from 'react';
 
 export function StudentDashboard() {
   const { data: profile, isLoading: isProfileLoading } = useStudentProfile();
@@ -316,22 +323,40 @@ export function StudentDashboard() {
   );
 }
 
-function OnlineCoursesCatalog({ gradeLevel, academicStage }: { gradeLevel?: string, academicStage?: string }) {
+function OnlineCoursesCatalog({ gradeLevel, academicStage }: { gradeLevel?: string; academicStage?: string }) {
+  const router = useRouter();
+  const { data: myCourses = [] } = useStudentCourses();
+  const enrollMutation = useEnrollInCourse();
+
   const [courses, setCourses] = useState<any[]>([]);
+  const [allPlatformCourses, setAllPlatformCourses] = useState<any[]>([]);
+  const [scope, setScope] = useState<'MY_GRADE' | 'ALL'>('MY_GRADE');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function fetchCourses() {
+      setIsLoading(true);
       try {
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.al-awal.online/api/v1';
-        let url = `${baseUrl}/courses/catalog?limit=6`;
+
+        // 1. Fetch grade-specific courses
+        let url = `${baseUrl}/courses/catalog?limit=12`;
         if (gradeLevel) url += `&gradeLevel=${encodeURIComponent(gradeLevel)}`;
         if (academicStage) url += `&academicStage=${encodeURIComponent(academicStage)}`;
-        
-        const res = await fetch(url);
-        if (res.ok) {
-          const data = await res.json();
-          setCourses(data.data || []);
+
+        const [gradeRes, allRes] = await Promise.all([
+          fetch(url),
+          fetch(`${baseUrl}/courses/catalog?limit=12`),
+        ]);
+
+        if (gradeRes.ok) {
+          const gradeData = await gradeRes.json();
+          setCourses(gradeData.data || []);
+        }
+
+        if (allRes.ok) {
+          const allData = await allRes.json();
+          setAllPlatformCourses(allData.data || []);
         }
       } catch (err) {
         console.error('Failed to fetch courses:', err);
@@ -342,47 +367,195 @@ function OnlineCoursesCatalog({ gradeLevel, academicStage }: { gradeLevel?: stri
     fetchCourses();
   }, [gradeLevel, academicStage]);
 
-  if (isLoading) return <div className="py-8"><Skeleton className="h-64 w-full rounded-2xl" /></div>;
+  const displayedCourses = scope === 'MY_GRADE' && courses.length > 0 ? courses : allPlatformCourses;
 
-  if (courses.length === 0) return (
-    <Card className="border-slate-100 shadow-sm mb-6">
-      <CardContent className="p-8 text-center">
-        <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-        <h3 className="text-lg font-bold text-slate-700">لا توجد كورسات متاحة حالياً</h3>
-        <p className="text-slate-500 mt-2">عفواً، لا يوجد كورسات أونلاين متاحة لمرحلتك الدراسية في الوقت الحالي.</p>
-      </CardContent>
-    </Card>
-  );
+  const handleQuickEnroll = async (courseId: string) => {
+    const isEnrolled = myCourses.some((c: any) => c.courseId === courseId || c.id === courseId);
+    if (isEnrolled) {
+      router.push(`/student/courses/${courseId}/learn`);
+      return;
+    }
+
+    try {
+      await enrollMutation.mutateAsync(courseId);
+      router.push(`/student/courses/${courseId}/learn`);
+    } catch {
+      // Error handled by hook
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="py-6 space-y-4">
+        <Skeleton className="h-8 w-64 rounded-xl" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <Skeleton className="h-64 w-full rounded-2xl" />
+          <Skeleton className="h-64 w-full rounded-2xl" />
+          <Skeleton className="h-64 w-full rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
+
+  if (displayedCourses.length === 0) {
+    return (
+      <Card className="border-slate-100 shadow-sm mb-6">
+        <CardContent className="p-8 text-center">
+          <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+          <h3 className="text-lg font-bold text-slate-700">لا توجد كورسات متاحة حالياً</h3>
+          <p className="text-slate-500 mt-2">عفواً، لا يوجد كورسات أونلاين منشورة على المنصة في الوقت الحالي.</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="mb-6 space-y-4">
-      <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-        <Monitor className="w-6 h-6 text-primary-600" />
-        الكورسات المتاحة لمرحلتك الدراسية
-      </h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {courses.map((course: any, index: number) => (
-          <div key={course.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col group hover:shadow-md transition-shadow">
-            <div className={`h-32 bg-gradient-to-br ${index % 3 === 0 ? 'from-blue-500 to-cyan-500' : index % 3 === 1 ? 'from-indigo-500 to-purple-500' : 'from-emerald-500 to-teal-500'} relative p-4 flex items-start justify-between`}>
-               <Badge className="bg-white/20 text-white border-none">{course.academicTerm === 'FIRST_TERM' ? 'ترم أول' : 'ترم ثاني'}</Badge>
-            </div>
-            <div className="p-5 flex-1 flex flex-col">
-              <div className="flex items-start justify-between gap-2 mb-1">
-                <h4 className="font-bold text-lg text-slate-800 line-clamp-1 group-hover:text-primary-600 transition-colors">{course.title}</h4>
-                {course.price ? (
-                  <span className="font-bold text-primary-600 shrink-0 text-sm bg-primary-50 px-2 py-0.5 rounded-md">{course.price} ج.م</span>
-                ) : (
-                  <span className="font-bold text-emerald-600 shrink-0 text-sm bg-emerald-50 px-2 py-0.5 rounded-md">مجاني</span>
-                )}
-              </div>
-              <p className="text-xs font-semibold text-slate-400 mb-2">المعلم: {course.teacherName || 'غير محدد'}</p>
-              <p className="text-slate-500 text-sm line-clamp-2 mb-4 flex-1">{course.description || 'شرح مبسط ومفصل للمنهج'}</p>
-              <Link href={`/student/courses/${course.id}`} className="w-full text-center bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 rounded-xl transition-colors">
-                اشترك الآن
-              </Link>
-            </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
+        <div className="flex items-center gap-2">
+          <div className="p-2 rounded-xl bg-primary-50 text-primary-600">
+            <Monitor className="w-5 h-5" />
           </div>
-        ))}
+          <div>
+            <h3 className="text-base sm:text-lg font-bold text-slate-800">
+              الدورات الأونلاين المتاحة للاشتراك
+            </h3>
+            <p className="text-xs text-slate-500">
+              {courses.length > 0 && scope === 'MY_GRADE'
+                ? `معروض كورسات مخصصة لـ (${gradeLevel || 'مرحلتك الدراسية'})`
+                : 'معروض جميع الكورسات الأونلاين المتاحة على المنصة'}
+            </p>
+          </div>
+        </div>
+
+        {/* Scope selector tabs */}
+        <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-bold shrink-0 self-start sm:self-center">
+          <button
+            type="button"
+            onClick={() => setScope('MY_GRADE')}
+            className={`px-3 py-1.5 rounded-lg transition-all ${
+              scope === 'MY_GRADE'
+                ? 'bg-white text-primary-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            لمرحلتي ({courses.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setScope('ALL')}
+            className={`px-3 py-1.5 rounded-lg transition-all ${
+              scope === 'ALL'
+                ? 'bg-white text-primary-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            جميع الكورسات ({allPlatformCourses.length})
+          </button>
+        </div>
+      </div>
+
+      {courses.length === 0 && (
+        <div className="bg-amber-50 border border-amber-200/80 rounded-2xl p-4 text-xs text-amber-900 flex items-start gap-3 shadow-xs">
+          <BookOpen className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <strong className="font-bold block mb-0.5">تنويه للطلاب:</strong>
+            <span>لا توجد كورسات مخصصة حصرياً لـ ({gradeLevel || 'مرحلتك'}) حالياً، ولكن تم عرض كافة الكورسات المتاحة على المنصة لتتمكن من استكشافها والاشتراك بها.</span>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {displayedCourses.map((course: any, index: number) => {
+          const isEnrolled = myCourses.some((c: any) => c.courseId === course.id || c.id === course.id);
+
+          return (
+            <div
+              key={course.id}
+              className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col group hover:shadow-md hover:border-slate-200 transition-all text-right"
+            >
+              {/* Card Banner */}
+              <div
+                className={`h-32 bg-gradient-to-br ${
+                  index % 3 === 0
+                    ? 'from-blue-600 to-indigo-600'
+                    : index % 3 === 1
+                    ? 'from-indigo-600 to-purple-600'
+                    : 'from-emerald-600 to-teal-600'
+                } relative p-4 flex items-start justify-between text-white`}
+              >
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <Badge className="bg-white/20 text-white border-none text-[11px] font-bold">
+                    {course.subject || 'مادة عامة'}
+                  </Badge>
+                  <Badge className="bg-black/20 text-white border-none text-[11px]">
+                    {course.gradeLevel}
+                  </Badge>
+                </div>
+
+                <Badge className="bg-white/25 text-white border-none text-[11px] font-bold">
+                  {course.academicTerm === 'FIRST_TERM' ? 'ترم أول' : 'ترم ثاني'}
+                </Badge>
+              </div>
+
+              {/* Card Body */}
+              <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <h4 className="font-bold text-lg text-slate-900 line-clamp-1 group-hover:text-primary-600 transition-colors">
+                      {course.title}
+                    </h4>
+                    {Number(course.price) > 0 ? (
+                      <span className="font-black text-primary-700 shrink-0 text-sm bg-primary-50 border border-primary-100 px-2.5 py-0.5 rounded-lg">
+                        {course.price} ج.م
+                      </span>
+                    ) : (
+                      <span className="font-bold text-emerald-700 shrink-0 text-xs bg-emerald-50 border border-emerald-100 px-2.5 py-0.5 rounded-lg">
+                        مجاني
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-xs font-semibold text-slate-500">
+                    المعلم: <strong className="text-slate-800">{course.teacher?.user?.fullName || course.teacherName || 'أ. طارق عبد الله'}</strong>
+                  </p>
+
+                  <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed">
+                    {course.description || 'شرح مبسط ومفصل للمنهج مع تدريبات تفاعلية ومذكرات رقمية.'}
+                  </p>
+                </div>
+
+                {/* Card Actions */}
+                <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
+                  <Link
+                    href={`/student/courses/${course.id}`}
+                    className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs text-center transition-colors shadow-2xs"
+                  >
+                    تفاصيل المنهج
+                  </Link>
+
+                  {isEnrolled ? (
+                    <Link
+                      href={`/student/courses/${course.id}/learn`}
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs text-center transition-colors shadow-xs"
+                    >
+                      استئناف التعلم
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleQuickEnroll(course.id)}
+                      disabled={enrollMutation.isPending}
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs text-center transition-colors shadow-xs disabled:opacity-60 cursor-pointer"
+                    >
+                      اشترك الآن
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -178,10 +178,24 @@ export class CoursesService {
     const decodedCursor = query.cursor ? CursorPaginationHelper.decodeCursor(query.cursor) : null;
     const cursorFilter = CursorPaginationHelper.buildPrismaWhereClause(decodedCursor, 'DESC');
 
+    let stageFilter: any = undefined;
+    if (query.academicStage && query.academicStage !== 'ALL') {
+      const stageUpper = query.academicStage.toUpperCase();
+      if (stageUpper.includes('SEC') || query.academicStage.includes('ثانوي')) {
+        stageFilter = { in: ['SECONDARY', 'المرحلة الثانوية', 'ثانوي'] };
+      } else if (stageUpper.includes('MID') || stageUpper.includes('PREP') || query.academicStage.includes('إعدادي') || query.academicStage.includes('اعدادي')) {
+        stageFilter = { in: ['MIDDLE', 'PREPARATORY', 'المرحلة الإعدادية', 'إعدادي'] };
+      } else if (stageUpper.includes('PRIM') || query.academicStage.includes('ابتدائي')) {
+        stageFilter = { in: ['PRIMARY', 'المرحلة الابتدائية', 'ابتدائي'] };
+      } else {
+        stageFilter = query.academicStage;
+      }
+    }
+
     const where: any = {
       status: CourseStatus.PUBLISHED,
-      ...(query.gradeLevel ? { gradeLevel: query.gradeLevel } : {}),
-      ...(query.academicStage ? { academicStage: query.academicStage } : {}),
+      ...(query.gradeLevel && query.gradeLevel !== 'ALL' ? { gradeLevel: query.gradeLevel } : {}),
+      ...(stageFilter ? { academicStage: stageFilter } : {}),
       ...(query.subject ? { subject: query.subject } : {}),
       ...(query.search
         ? {
@@ -1595,22 +1609,27 @@ export class CoursesService {
         throw new BadRequestException('Cannot enroll in an unpublished or archived course');
       }
 
-      const student = await tx.studentProfile.findUnique({ where: { id: studentId } });
+      let student = await tx.studentProfile.findUnique({ where: { id: studentId } });
+      if (!student) {
+        student = await tx.studentProfile.findFirst({ where: { user: { id: studentId } } });
+      }
       if (!student) {
         throw new NotFoundException(`Student [${studentId}] not found`);
       }
+
+      const resolvedStudentId = student.id;
 
       // Upsert enrollment
       const enrollment = await tx.courseEnrollment.upsert({
         where: {
           courseId_studentId: {
             courseId,
-            studentId,
+            studentId: resolvedStudentId,
           },
         },
         create: {
           courseId,
-          studentId,
+          studentId: resolvedStudentId,
           status: CourseEnrollmentStatus.ACTIVE,
         },
         update: {
@@ -1623,7 +1642,7 @@ export class CoursesService {
         where: { enrollmentId: enrollment.id },
         create: {
           enrollmentId: enrollment.id,
-          studentId,
+          studentId: resolvedStudentId,
           courseId,
           accessStatus: CourseAccessStatus.ACTIVE,
           validFrom: new Date(),
