@@ -824,4 +824,137 @@ describe('CoursesService', () => {
       expect(mockBunnyVideoService.deleteVideo).not.toHaveBeenCalledWith('old-bunny-vid-1');
     });
   });
+
+  describe('getPublishedCatalog & getPublicCourseDetails', () => {
+    it('should return published catalog with full modules, lessons, and free video preview URLs', async () => {
+      const mockCourses = [
+        {
+          id: 'course-cat-1',
+          title: 'كورس الجبر للثانوية العامة',
+          description: 'شرح تفصيلي',
+          status: CourseStatus.PUBLISHED,
+          price: 150,
+          coverImageUrl: 'https://cdn.example.com/cover.jpg',
+          academicTerm: 'FIRST_TERM',
+          gradeLevel: 'الصف الأول الثانوي',
+          academicStage: 'SECONDARY',
+          subject: 'الرياضيات',
+          createdAt: new Date(),
+          teacher: { user: { fullName: 'أ. طارق جاويش' } },
+          modules: [
+            {
+              id: 'mod-1',
+              title: 'الوحدة الأولى: المصفوفات',
+              description: 'شرح المصفوفات',
+              orderIndex: 1,
+              lessons: [
+                {
+                  id: 'les-free-1',
+                  title: 'مقدمة في المصفوفات',
+                  description: 'شرح الدرس الأول',
+                  summary: 'ملخص شامل',
+                  orderIndex: 1,
+                  videoDurationSeconds: 1200,
+                  lessonType: 'VIDEO',
+                  isPreview: true,
+                  bunnyVideoId: 'bunny-preview-vid-1',
+                  contentUrl: null,
+                },
+                {
+                  id: 'les-locked-2',
+                  title: 'ضرب المصفوفات',
+                  description: 'شرح متقدم',
+                  summary: 'ملخص',
+                  orderIndex: 2,
+                  videoDurationSeconds: 1800,
+                  lessonType: 'VIDEO',
+                  isPreview: false,
+                  bunnyVideoId: 'bunny-locked-vid-2',
+                  contentUrl: null,
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      mockPrismaService.course.findMany.mockResolvedValue(mockCourses);
+      mockBunnyVideoService.getEmbedUrl.mockImplementation(
+        (id: string) => `https://iframe.mediadelivery.net/embed/123/${id}`,
+      );
+
+      const result = await service.getPublishedCatalog({ limit: 10 });
+
+      expect(result.data).toHaveLength(1);
+      const course = result.data[0];
+      expect(course.title).toBe('كورس الجبر للثانوية العامة');
+      expect(course.hasFreeVideo).toBe(true);
+      expect(course.freeVideoUrl).toBe(
+        'https://iframe.mediadelivery.net/embed/123/bunny-preview-vid-1',
+      );
+      expect(course.totalLessons).toBe(2);
+      expect(course.modules).toHaveLength(1);
+      expect(course.modules[0].lessons).toHaveLength(2);
+      expect(course.modules[0].lessons[0].isPreview).toBe(true);
+      expect(course.modules[0].lessons[0].freeVideoUrl).toBe(
+        'https://iframe.mediadelivery.net/embed/123/bunny-preview-vid-1',
+      );
+      expect(course.modules[0].lessons[1].isPreview).toBe(false);
+      expect(course.modules[0].lessons[1].freeVideoUrl).toBeNull();
+    });
+
+    it('should return public course details for unauthenticated preview', async () => {
+      const mockCourse = {
+        id: 'course-pub-1',
+        title: 'كورس التفاضل والتكامل',
+        description: 'شرح التفاضل',
+        status: CourseStatus.PUBLISHED,
+        price: 200,
+        coverImageUrl: 'https://cdn.example.com/cover2.jpg',
+        academicTerm: 'FIRST_TERM',
+        gradeLevel: 'الصف الثالث الثانوي',
+        academicStage: 'SECONDARY',
+        subject: 'الرياضيات',
+        teacher: { user: { fullName: 'أ. محمد سعيد' } },
+        modules: [
+          {
+            id: 'mod-1',
+            title: 'الوحدة الأولى: نهايات الدوال',
+            description: 'شرح النهايات',
+            orderIndex: 1,
+            lessons: [
+              {
+                id: 'les-free-10',
+                title: 'مقدمة النهايات',
+                description: 'معاينة مجانية',
+                summary: 'ملخص',
+                orderIndex: 1,
+                videoDurationSeconds: 900,
+                lessonType: 'VIDEO',
+                isPreview: true,
+                bunnyVideoId: 'bunny-preview-vid-10',
+                contentUrl: null,
+              },
+            ],
+          },
+        ],
+      };
+
+      mockPrismaService.course.findUnique.mockResolvedValue(mockCourse);
+      mockBunnyVideoService.getEmbedUrl.mockReturnValue(
+        'https://iframe.mediadelivery.net/embed/123/bunny-preview-vid-10',
+      );
+
+      const result = await service.getPublicCourseDetails('course-pub-1');
+
+      expect(result.id).toBe('course-pub-1');
+      expect(result.hasFreeVideo).toBe(true);
+      expect(result.freeVideoUrl).toBe(
+        'https://iframe.mediadelivery.net/embed/123/bunny-preview-vid-10',
+      );
+      expect(result.modules[0].lessons[0].freeVideoUrl).toBe(
+        'https://iframe.mediadelivery.net/embed/123/bunny-preview-vid-10',
+      );
+    });
+  });
 });

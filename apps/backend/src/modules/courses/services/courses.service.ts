@@ -207,36 +207,206 @@ export class CoursesService {
           include: {
             lessons: {
               orderBy: { orderIndex: 'asc' },
-              select: { id: true, bunnyVideoId: true }
-            }
-          }
+              select: {
+                id: true,
+                title: true,
+                description: true,
+                summary: true,
+                orderIndex: true,
+                videoDurationSeconds: true,
+                lessonType: true,
+                isPreview: true,
+                bunnyVideoId: true,
+                contentUrl: true,
+              },
+            },
+          },
         },
         _count: { select: { modules: true, enrollments: true } },
       },
     });
 
-    const mappedCourses = courses.map(c => {
+    const mappedCourses = courses.map((c) => {
       let totalLessons = 0;
-      let firstLesson = null;
-      for (const m of c.modules) {
-        for (const l of m.lessons) {
+      let firstFreeLesson: any = null;
+      let firstAnyLessonWithVideo: any = null;
+
+      const formattedModules = c.modules.map((m) => {
+        const formattedLessons = m.lessons.map((l) => {
           totalLessons++;
-          if (!firstLesson) firstLesson = l;
-        }
-      }
-      
-      const { modules, ...courseData } = c;
-      
+
+          let embedUrl: string | null = null;
+          if (l.bunnyVideoId) {
+            embedUrl = this.bunnyVideoService.getEmbedUrl(l.bunnyVideoId);
+          } else if (l.contentUrl) {
+            embedUrl = l.contentUrl;
+          }
+
+          if (embedUrl && !firstAnyLessonWithVideo) {
+            firstAnyLessonWithVideo = { ...l, freeVideoUrl: embedUrl };
+          }
+
+          if (l.isPreview && embedUrl && !firstFreeLesson) {
+            firstFreeLesson = { ...l, freeVideoUrl: embedUrl };
+          }
+
+          return {
+            id: l.id,
+            title: l.title,
+            description: l.description,
+            summary: l.summary,
+            orderIndex: l.orderIndex,
+            videoDurationSeconds: l.videoDurationSeconds,
+            lessonType: l.lessonType,
+            isPreview: l.isPreview,
+            freeVideoUrl: l.isPreview ? embedUrl : null,
+          };
+        });
+
+        return {
+          id: m.id,
+          title: m.title,
+          description: m.description,
+          orderIndex: m.orderIndex,
+          lessonsCount: formattedLessons.length,
+          lessons: formattedLessons,
+        };
+      });
+
+      const previewLesson = firstFreeLesson || firstAnyLessonWithVideo;
+      const hasFreeVideo = Boolean(previewLesson?.freeVideoUrl);
+
       return {
-        ...courseData,
+        id: c.id,
+        title: c.title,
+        description: c.description,
+        subject: c.subject,
+        gradeLevel: c.gradeLevel,
+        academicStage: c.academicStage,
+        academicYear: c.academicYear,
+        academicTerm: c.academicTerm,
+        price: c.price,
+        coverImageUrl: c.coverImageUrl,
+        hasCertificate: c.hasCertificate,
+        createdAt: c.createdAt,
+        teacher: c.teacher,
+        modules: formattedModules,
+        totalModules: formattedModules.length,
         totalLessons,
-        hasFreeVideo: totalLessons >= 1, // Changed to 1 for testing as user expects it to show
-        freeVideoLessonId: (totalLessons >= 1 && firstLesson) ? firstLesson.id : null,
-        freeVideoUrl: (totalLessons >= 1 && firstLesson && firstLesson.bunnyVideoId) ? this.bunnyVideoService.getEmbedUrl(firstLesson.bunnyVideoId) : null,
+        hasFreeVideo,
+        freeVideoLessonId: previewLesson?.id || null,
+        freeVideoUrl: previewLesson?.freeVideoUrl || null,
       };
     });
 
     return CursorPaginationHelper.formatResponse(mappedCourses, limit);
+  }
+
+  /**
+   * Retrieves public course details and syllabus for unauthenticated guests.
+   */
+  async getPublicCourseDetails(courseId: string) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      include: {
+        teacher: {
+          include: { user: { select: { fullName: true } } },
+        },
+        modules: {
+          orderBy: { orderIndex: 'asc' },
+          include: {
+            lessons: {
+              orderBy: { orderIndex: 'asc' },
+              select: {
+                id: true,
+                title: true,
+                description: true,
+                summary: true,
+                orderIndex: true,
+                videoDurationSeconds: true,
+                lessonType: true,
+                isPreview: true,
+                bunnyVideoId: true,
+                contentUrl: true,
+              },
+            },
+          },
+        },
+        _count: { select: { modules: true, enrollments: true } },
+      },
+    });
+
+    if (!course || course.status !== CourseStatus.PUBLISHED) {
+      throw new NotFoundException(`Course [${courseId}] not found or not published`);
+    }
+
+    let totalLessons = 0;
+    let firstFreeLesson: any = null;
+    let firstAnyLessonWithVideo: any = null;
+
+    const formattedModules = course.modules.map((m) => {
+      const formattedLessons = m.lessons.map((l) => {
+        totalLessons++;
+        let embedUrl: string | null = null;
+        if (l.bunnyVideoId) {
+          embedUrl = this.bunnyVideoService.getEmbedUrl(l.bunnyVideoId);
+        } else if (l.contentUrl) {
+          embedUrl = l.contentUrl;
+        }
+
+        if (embedUrl && !firstAnyLessonWithVideo) {
+          firstAnyLessonWithVideo = { ...l, freeVideoUrl: embedUrl };
+        }
+        if (l.isPreview && embedUrl && !firstFreeLesson) {
+          firstFreeLesson = { ...l, freeVideoUrl: embedUrl };
+        }
+
+        return {
+          id: l.id,
+          title: l.title,
+          description: l.description,
+          summary: l.summary,
+          orderIndex: l.orderIndex,
+          videoDurationSeconds: l.videoDurationSeconds,
+          lessonType: l.lessonType,
+          isPreview: l.isPreview,
+          freeVideoUrl: l.isPreview ? embedUrl : null,
+        };
+      });
+
+      return {
+        id: m.id,
+        title: m.title,
+        description: m.description,
+        orderIndex: m.orderIndex,
+        lessonsCount: formattedLessons.length,
+        lessons: formattedLessons,
+      };
+    });
+
+    const previewLesson = firstFreeLesson || firstAnyLessonWithVideo;
+
+    return {
+      id: course.id,
+      title: course.title,
+      description: course.description,
+      subject: course.subject,
+      gradeLevel: course.gradeLevel,
+      academicStage: course.academicStage,
+      academicYear: course.academicYear,
+      academicTerm: course.academicTerm,
+      price: course.price,
+      coverImageUrl: course.coverImageUrl,
+      hasCertificate: course.hasCertificate,
+      createdAt: course.createdAt,
+      teacher: course.teacher,
+      modules: formattedModules,
+      totalModules: formattedModules.length,
+      totalLessons,
+      hasFreeVideo: Boolean(previewLesson?.freeVideoUrl),
+      freeVideoLessonId: previewLesson?.id || null,
+      freeVideoUrl: previewLesson?.freeVideoUrl || null,
+    };
   }
 
   /**
