@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { studentApi, StudentGroupQuery } from '../api/student.api';
+import { coursesApi } from '@/features/courses/api/courses.api';
 import { useAuth } from '@/features/auth';
 import { apiClient } from '@/lib/api/client';
 import { offlineDb, getStudentDetailsOffline } from '@/lib/offline/db';
