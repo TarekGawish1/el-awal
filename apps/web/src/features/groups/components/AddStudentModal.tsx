@@ -138,7 +138,19 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
                 onChange={e => setSearchQuery(e.target.value)}
                 disabled={isSubmitting || isScannerOpen}
               />
-              <div className="absolute inset-y-0 left-0 pl-2 flex items-center">
+              <div className="absolute inset-y-0 left-0 pl-2 flex items-center gap-0.5">
+                {/* Clear button - shows when there's text */}
+                {searchQuery && !isScannerOpen && (
+                  <button
+                    type="button"
+                    onClick={() => { setSearchQuery(''); setDebouncedQuery(''); }}
+                    className="p-1.5 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    title="مسح البحث"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+                {/* QR scanner button */}
                 <button
                   type="button"
                   onClick={() => setIsScannerOpen(!isScannerOpen)}
@@ -151,6 +163,7 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
             </div>
             <p className="text-xs text-slate-500 mt-1.5">اكتب حرفين على الأقل — يمكنك اختيار أكثر من طالب</p>
           </div>
+
 
           {/* Selected Students Chips */}
           {selectedStudents.length > 0 && (
