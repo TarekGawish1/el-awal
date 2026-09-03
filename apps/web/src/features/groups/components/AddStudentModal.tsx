@@ -196,10 +196,12 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
                     onClick={() => setSelectedStudent(student)}
                   >
                     <div>
-                      <div className="font-semibold text-slate-800">{student.user.name}</div>
+                      <div className="font-semibold text-slate-800">
+                        {(student as any).fullName || (student as any).user?.fullName || student.user?.name || 'طالب'}
+                      </div>
                       <div className="text-xs text-slate-500 flex gap-3 mt-1">
-                        <span>{student.code}</span>
-                        <span dir="ltr">{student.user.phone}</span>
+                        <span>{(student as any).studentCode || student.code}</span>
+                        <span dir="ltr">{(student as any).user?.phone || (student as any).phone || ''}</span>
                       </div>
                     </div>
                     {selectedStudent?.id === student.id && (
