@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useSessionReport } from '../hooks/use-attendance';
+import { useSessionReport, useManualAttendance } from '../hooks/use-attendance';
+import toast from 'react-hot-toast';
 import { offlineDb } from '@/lib/offline/db';
 import { ClipboardCheck, ClipboardList, CheckCircle2, XCircle, AlertTriangle, UserCheck, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
@@ -12,8 +13,53 @@ interface SessionLogbookProps {
 
 export function SessionLogbook({ sessionId }: SessionLogbookProps) {
   const { data: sessionReport, isLoading } = useSessionReport(sessionId);
+  const { mutate: updateAttendance } = useManualAttendance();
   const [homeworkRecords, setHomeworkRecords] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const handleAttendanceChange = (student: any, newStatus: string) => {
+    updateAttendance({
+      sessionId,
+      payload: {
+        records: [{ studentId: student.studentId, status: newStatus, notes: 'تعديل من الدفتر الشامل' }]
+      }
+    }, {
+      onSuccess: () => {
+        toast.success(`تم تحديث حضور: ${student.fullName || student.studentName}`);
+      },
+      onError: () => {
+        toast.error('حدث خطأ أثناء تحديث الحضور');
+      }
+    });
+  };
+
+  const handleHomeworkChange = async (student: any, newStatus: string) => {
+    try {
+      await offlineDb.recordHomeworkOnsiteOffline({
+        assessmentId: 'default-session-homework',
+        studentId: student.studentId,
+        sessionId,
+        status: newStatus as any,
+        recordedMethod: 'MANUAL',
+        studentName: student.fullName || student.studentName,
+        studentCode: student.studentCode,
+        qrCodeToken: student.qrCodeToken || student.studentId,
+      });
+      toast.success(`تم تحديث واجب: ${student.fullName || student.studentName}`);
+      setHomeworkRecords(prev => {
+        const next = [...prev];
+        const idx = next.findIndex(r => r.studentId === student.studentId);
+        if (idx !== -1) {
+          next[idx].status = newStatus;
+        } else {
+          next.push({ studentId: student.studentId, status: newStatus });
+        }
+        return next;
+      });
+    } catch (e) {
+      toast.error('حدث خطأ أثناء حفظ الواجب');
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -122,46 +168,40 @@ export function SessionLogbook({ sessionId }: SessionLogbookProps) {
                         )}
                       </td>
                       <td className="px-6 py-4 text-center">
-                        {attStatus === 'PRESENT' ? (
-                          <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-xs font-bold">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> حاضر
-                          </span>
-                        ) : attStatus === 'ABSENT' ? (
-                          <span className="inline-flex items-center gap-1.5 bg-rose-100 text-rose-800 px-3 py-1 rounded-full text-xs font-bold">
-                            <XCircle className="w-3.5 h-3.5" /> غائب
-                          </span>
-                        ) : attStatus === 'EXCUSED' ? (
-                          <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-xs font-bold">
-                            <AlertTriangle className="w-3.5 h-3.5" /> بعذر
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-xs font-bold">
-                            غير مسجل
-                          </span>
-                        )}
+                        <select
+                          value={attStatus || ''}
+                          onChange={(e) => handleAttendanceChange(student, e.target.value)}
+                          className={`text-xs font-bold px-3 py-1.5 rounded-full border-0 cursor-pointer outline-none ring-1 ring-inset transition-colors ${
+                            attStatus === 'PRESENT' ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100' :
+                            attStatus === 'ABSENT' ? 'bg-rose-50 text-rose-700 ring-rose-200 hover:bg-rose-100' :
+                            attStatus === 'EXCUSED' ? 'bg-amber-50 text-amber-700 ring-amber-200 hover:bg-amber-100' :
+                            'bg-slate-50 text-slate-500 ring-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          <option value="" disabled>غير مسجل</option>
+                          <option value="PRESENT">حاضر</option>
+                          <option value="ABSENT">غائب</option>
+                          <option value="EXCUSED">بعذر</option>
+                        </select>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        {hwStatus === 'CHECKED_ONSITE' ? (
-                          <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-xs font-bold">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> حل الواجب
-                          </span>
-                        ) : hwStatus === 'NOT_SUBMITTED' ? (
-                          <span className="inline-flex items-center gap-1.5 bg-rose-100 text-rose-800 px-3 py-1 rounded-full text-xs font-bold">
-                            <XCircle className="w-3.5 h-3.5" /> لم يحل
-                          </span>
-                        ) : hwStatus === 'INCOMPLETE' ? (
-                          <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-xs font-bold">
-                            <AlertTriangle className="w-3.5 h-3.5" /> ناقص
-                          </span>
-                        ) : hwStatus === 'EXCUSED' ? (
-                          <span className="inline-flex items-center gap-1.5 bg-slate-200 text-slate-700 px-3 py-1 rounded-full text-xs font-bold">
-                            <ClipboardCheck className="w-3.5 h-3.5" /> بعذر
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-400 px-3 py-1 rounded-full text-xs font-bold">
-                            لم يقيم
-                          </span>
-                        )}
+                        <select
+                          value={hwStatus || ''}
+                          onChange={(e) => handleHomeworkChange(student, e.target.value)}
+                          className={`text-xs font-bold px-3 py-1.5 rounded-full border-0 cursor-pointer outline-none ring-1 ring-inset transition-colors ${
+                            hwStatus === 'CHECKED_ONSITE' ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100' :
+                            hwStatus === 'NOT_SUBMITTED' ? 'bg-rose-50 text-rose-700 ring-rose-200 hover:bg-rose-100' :
+                            hwStatus === 'INCOMPLETE' ? 'bg-amber-50 text-amber-700 ring-amber-200 hover:bg-amber-100' :
+                            hwStatus === 'EXCUSED' ? 'bg-slate-100 text-slate-700 ring-slate-300 hover:bg-slate-200' :
+                            'bg-slate-50 text-slate-400 ring-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          <option value="" disabled>لم يقيم</option>
+                          <option value="CHECKED_ONSITE">حل الواجب</option>
+                          <option value="NOT_SUBMITTED">لم يحل</option>
+                          <option value="INCOMPLETE">ناقص</option>
+                          <option value="EXCUSED">بعذر</option>
+                        </select>
                       </td>
                     </tr>
                   );
