@@ -65,7 +65,8 @@ function TeacherAttendanceContent() {
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>(paramSessionId || '');
-  const [activeTab, setActiveTab] = useState<'QR' | 'QR_HOMEWORK' | 'LOGBOOK'>('QR');
+  const paramTab = searchParams.get('tab') as 'QR' | 'QR_HOMEWORK' | 'LOGBOOK' | null;
+  const [activeTab, setActiveTab] = useState<'QR' | 'QR_HOMEWORK' | 'LOGBOOK'>(paramTab || 'QR');
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
 
   const { data: groups } = useGroups();
