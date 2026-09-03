@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AssessmentsService } from '../services/assessments.service';
+import { AssessmentCourseLinkScope } from '../dto/create-assessment.dto';
 import { PrismaService } from '../../../core/database/prisma.service';
 import {
   AssessmentType,
@@ -25,6 +26,14 @@ describe('AssessmentsService', () => {
     },
     assessmentQuestion: {
       createMany: jest.fn(),
+    },
+    course: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+    courseModule: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
     },
     assessmentSubmission: {
       findUnique: jest.fn(),
@@ -69,6 +78,68 @@ describe('AssessmentsService', () => {
         return cb(mockPrismaService);
       }
       return Promise.all(cb);
+    });
+  });
+
+  describe('createAssessment course linking', () => {
+    const baseDto: any = {
+      title: 'اختبار الوحدة الأولى',
+      type: AssessmentType.EXAM,
+      totalScore: 10,
+      isPublished: false,
+      questions: [
+        {
+          questionNumber: 1,
+          questionText: 'اختر الإجابة الصحيحة',
+          questionType: QuestionType.MULTIPLE_CHOICE,
+          optionsData: ['أ', 'ب'],
+          correctAnswer: 'أ',
+          points: 10,
+        },
+      ],
+    };
+
+    beforeEach(() => {
+      mockPrismaService.course.findUnique.mockResolvedValue({
+        id: 'course-1',
+        teacherId: 'teacher-1',
+      });
+      mockPrismaService.assessment.create.mockResolvedValue({
+        id: 'assessment-1',
+        isPublished: false,
+      });
+    });
+
+    it('links a newly created exam as the course exam in the same transaction', async () => {
+      await service.createAssessment('teacher-1', false, {
+        ...baseDto,
+        courseId: 'course-1',
+        courseLinkScope: AssessmentCourseLinkScope.COURSE,
+      });
+
+      expect(mockPrismaService.course.update).toHaveBeenCalledWith({
+        where: { id: 'course-1' },
+        data: { courseQuizId: 'assessment-1' },
+      });
+    });
+
+    it('links a newly created exam to the selected unit in the same transaction', async () => {
+      mockPrismaService.courseModule.findUnique.mockResolvedValue({
+        id: 'module-1',
+        courseId: 'course-1',
+      });
+
+      await service.createAssessment('teacher-1', false, {
+        ...baseDto,
+        courseId: 'course-1',
+        courseLinkScope: AssessmentCourseLinkScope.UNIT,
+        moduleId: 'module-1',
+      });
+
+      expect(mockPrismaService.courseModule.update).toHaveBeenCalledWith({
+        where: { id: 'module-1' },
+        data: { unitQuizId: 'assessment-1' },
+      });
     });
   });
 

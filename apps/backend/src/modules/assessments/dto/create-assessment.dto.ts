@@ -18,6 +18,11 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AssessmentType, ExamTimingType } from '@prisma/client';
 import { CreateQuestionDto } from './create-question.dto';
 
+export enum AssessmentCourseLinkScope {
+  COURSE = 'COURSE',
+  UNIT = 'UNIT',
+}
+
 export class CreateAssessmentDto {
   @ApiPropertyOptional({
     description: 'Client-generated UUIDv7 for offline idempotency',
@@ -164,6 +169,21 @@ export class CreateAssessmentDto {
   @IsOptional()
   @IsUUID()
   lessonId?: string;
+
+  @ApiPropertyOptional({
+    enum: AssessmentCourseLinkScope,
+    description: 'Automatically link the created exam as the course or unit exam',
+  })
+  @IsOptional()
+  @IsEnum(AssessmentCourseLinkScope)
+  courseLinkScope?: AssessmentCourseLinkScope;
+
+  @ApiPropertyOptional({
+    description: 'Target course module ID when courseLinkScope is UNIT',
+  })
+  @IsOptional()
+  @IsUUID()
+  moduleId?: string;
 
   @ApiPropertyOptional({
     description: 'Educational Stage',

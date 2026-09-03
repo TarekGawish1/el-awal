@@ -9,7 +9,10 @@ import {
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../../core/database/prisma.service';
-import { CreateAssessmentDto } from '../dto/create-assessment.dto';
+import {
+  AssessmentCourseLinkScope,
+  CreateAssessmentDto,
+} from '../dto/create-assessment.dto';
 import { SubmitAssessmentDto } from '../dto/submit-assessment.dto';
 import { SubmitHomeworkDto } from '../dto/submit-homework.dto';
 import { GradeSubmissionDto } from '../dto/grade-submission.dto';
@@ -105,6 +108,23 @@ export class AssessmentsService {
       }
     }
 
+    if (dto.courseLinkScope && !dto.courseId) {
+      throw new BadRequestException('A course is required to link the assessment');
+    }
+
+    if (dto.courseLinkScope === AssessmentCourseLinkScope.UNIT) {
+      if (!dto.moduleId) {
+        throw new BadRequestException('A module is required to link a unit assessment');
+      }
+
+      const courseModule = await this.prisma.courseModule.findUnique({
+        where: { id: dto.moduleId },
+      });
+      if (!courseModule || courseModule.courseId !== dto.courseId) {
+        throw new BadRequestException('Module does not belong to the specified course');
+      }
+    }
+
     // 2. Verify sum of question points matches total assessment score
     const totalCalculated = dto.questions.reduce(
       (sum, q) => sum + Number(q.points),
@@ -181,6 +201,18 @@ export class AssessmentsService {
       await tx.assessmentQuestion.createMany({
         data: questionData,
       });
+
+      if (dto.courseLinkScope === AssessmentCourseLinkScope.COURSE) {
+        await tx.course.update({
+          where: { id: dto.courseId! },
+          data: { courseQuizId: assessment.id },
+        });
+      } else if (dto.courseLinkScope === AssessmentCourseLinkScope.UNIT) {
+        await tx.courseModule.update({
+          where: { id: dto.moduleId! },
+          data: { unitQuizId: assessment.id },
+        });
+      }
 
       this.logger.log(
         `Created assessment [${assessment.id}] with ${dto.questions.length} questions`,
