@@ -34,6 +34,8 @@ import {
   Sparkles,
   Layers,
   Compass,
+  CheckCircle,
+  AlertCircle,
 } from 'lucide-react';
 import { FeatureRequiresOnlineCard } from '@/components/offline/FeatureRequiresOnlineCard';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
@@ -50,6 +52,7 @@ export default function StudentCoursesPage() {
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedCourseForSub, setSelectedCourseForSub] = useState<any | null>(null);
 
   // Set default tab to CATALOG if student has no enrolled courses
   useEffect(() => {
@@ -180,7 +183,9 @@ export default function StudentCoursesPage() {
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {paginatedCourses.map((c: any) => (
-                  <Card key={c.courseId} className="border-none shadow-sm shadow-slate-200/50 hover:shadow-md transition-all flex flex-col overflow-hidden group">
+                  <Card key={c.courseId} className={`border shadow-sm hover:shadow-md transition-all flex flex-col overflow-hidden group ${
+                    c.enrollmentStatus === 'PENDING' ? 'border-amber-300 ring-1 ring-amber-200' : 'border-none shadow-slate-200/50'
+                  }`}>
                     <div className="h-44 w-full bg-slate-100 relative overflow-hidden shrink-0">
                       {c.coverImageUrl ? (
                         <img
@@ -193,9 +198,17 @@ export default function StudentCoursesPage() {
                           <BookOpen className="w-12 h-12 opacity-40" />
                         </div>
                       )}
-                      <Badge variant="default" className="absolute top-3 right-3 bg-white/95 text-slate-800 border-none shadow-xs font-semibold">
-                        {c.subject || 'عام'}
-                      </Badge>
+                      <div className="absolute top-3 right-3 flex items-center gap-1.5 flex-wrap">
+                        <Badge variant="default" className="bg-white/95 text-slate-800 border-none shadow-xs font-semibold">
+                          {c.subject || 'عام'}
+                        </Badge>
+                        {c.enrollmentStatus === 'PENDING' && (
+                          <Badge className="bg-amber-500 text-white border-none text-[11px] font-bold shadow-xs flex items-center gap-1 animate-pulse">
+                            <Clock className="w-3 h-3" />
+                            <span>قيد المراجعة</span>
+                          </Badge>
+                        )}
+                      </div>
                     </div>
 
                     <CardContent className="p-6 flex-1 flex flex-col justify-between space-y-4">
@@ -232,13 +245,31 @@ export default function StudentCoursesPage() {
                           <span>{c.totalLessons} دروس رقمية</span>
                         </div>
 
-                        <Link
-                          href={`/student/courses/${c.courseId}/learn`}
-                          className="w-full bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl py-3 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer mt-2 transition-colors shadow-lg shadow-indigo-600/20"
-                        >
-                          <Play className="w-3.5 h-3.5 fill-current" />
-                          <span>{c.progressPercentage > 0 ? 'استئناف التعلم' : 'دخول غرفة التعلم والمشاهدة'}</span>
-                        </Link>
+                        {c.enrollmentStatus === 'PENDING' ? (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCourseForSub({
+                              id: c.courseId,
+                              title: c.title,
+                              price: c.price,
+                              teacherName: c.teacherName,
+                              subject: c.subject,
+                              gradeLevel: c.gradeLevel,
+                            })}
+                            className="w-full bg-amber-500 hover:bg-amber-600 text-white rounded-xl py-3 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer mt-2 transition-colors shadow-lg shadow-amber-500/20"
+                          >
+                            <Clock className="w-3.5 h-3.5 animate-pulse" />
+                            <span>طلبك قيد المراجعة ⏳ (عرض الإيصال)</span>
+                          </button>
+                        ) : (
+                          <Link
+                            href={`/student/courses/${c.courseId}/learn`}
+                            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl py-3 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer mt-2 transition-colors shadow-lg shadow-indigo-600/20"
+                          >
+                            <Play className="w-3.5 h-3.5 fill-current" />
+                            <span>{c.progressPercentage > 0 ? 'استئناف التعلم' : 'دخول غرفة التعلم والمشاهدة'}</span>
+                          </Link>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -265,7 +296,22 @@ export default function StudentCoursesPage() {
         <AvailableCoursesCatalogTab
           studentGradeLevel={profile?.gradeLevel}
           studentAcademicStage={profile?.academicStage}
-          enrolledCourseIds={courses.map((c: any) => c.courseId || c.id)}
+          myCourses={courses}
+        />
+      )}
+
+      {selectedCourseForSub && (
+        <CourseSubscriptionModal
+          isOpen={!!selectedCourseForSub}
+          onClose={() => setSelectedCourseForSub(null)}
+          course={{
+            id: selectedCourseForSub.id,
+            title: selectedCourseForSub.title,
+            price: selectedCourseForSub.price,
+            teacherName: selectedCourseForSub.teacherName,
+            subject: selectedCourseForSub.subject,
+            gradeLevel: selectedCourseForSub.gradeLevel,
+          }}
         />
       )}
     </div>
@@ -275,11 +321,11 @@ export default function StudentCoursesPage() {
 function AvailableCoursesCatalogTab({
   studentGradeLevel,
   studentAcademicStage,
-  enrolledCourseIds,
+  myCourses = [],
 }: {
   studentGradeLevel?: string;
   studentAcademicStage?: string;
-  enrolledCourseIds: string[];
+  myCourses?: any[];
 }) {
   const router = useRouter();
   const enrollMutation = useEnrollInCourse();
@@ -386,12 +432,17 @@ function AvailableCoursesCatalogTab({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredCatalog.map((c: any, index: number) => {
-            const isEnrolled = enrolledCourseIds.includes(c.id);
+            const enrollment = myCourses.find((item: any) => item.courseId === c.id || item.id === c.id);
+            const isEnrolled = enrollment && (enrollment.enrollmentStatus === 'ACTIVE' || (!enrollment.enrollmentStatus && enrollment.accessStatus === 'ACTIVE'));
+            const isPending = enrollment?.enrollmentStatus === 'PENDING';
+            const isRejected = enrollment?.enrollmentStatus === 'DROPPED';
 
             return (
               <div
                 key={c.id}
-                className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden flex flex-col group hover:shadow-md hover:border-slate-300 transition-all text-right"
+                className={`bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col group hover:shadow-md transition-all text-right ${
+                  isPending ? 'border-amber-300 ring-1 ring-amber-200' : 'border-slate-200/80 hover:border-slate-300'
+                }`}
               >
                 {/* Banner / Cover */}
                 <div
@@ -410,6 +461,18 @@ function AvailableCoursesCatalogTab({
                     <Badge className="bg-black/20 text-white border-none text-[11px]">
                       {c.gradeLevel}
                     </Badge>
+                    {isPending && (
+                      <Badge className="bg-amber-500 text-white border-none text-[11px] font-bold shadow-xs flex items-center gap-1 animate-pulse">
+                        <Clock className="w-3 h-3" />
+                        <span>قيد المراجعة</span>
+                      </Badge>
+                    )}
+                    {isEnrolled && (
+                      <Badge className="bg-emerald-500 text-white border-none text-[11px] font-bold shadow-xs flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" />
+                        <span>مشترك بالفعل</span>
+                      </Badge>
+                    )}
                   </div>
 
                   <Badge className="bg-white/25 text-white border-none text-[11px] font-bold">
@@ -456,10 +519,29 @@ function AvailableCoursesCatalogTab({
                     {isEnrolled ? (
                       <Link
                         href={`/student/courses/${c.id}/learn`}
-                        className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs text-center transition-colors shadow-xs"
+                        className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs text-center transition-colors shadow-xs flex items-center justify-center gap-1.5"
                       >
-                        استئناف التعلم
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        <span>استئناف التعلم</span>
                       </Link>
+                    ) : isPending ? (
+                      <button
+                        type="button"
+                        onClick={() => handleEnroll(c)}
+                        className="flex-1 py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs text-center transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <Clock className="w-3.5 h-3.5 animate-pulse" />
+                        <span>قيد المراجعة ⏳</span>
+                      </button>
+                    ) : isRejected ? (
+                      <button
+                        type="button"
+                        onClick={() => handleEnroll(c)}
+                        className="flex-1 py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs text-center transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        <span>إعادة المحاولة</span>
+                      </button>
                     ) : (
                       <button
                         type="button"

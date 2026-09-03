@@ -2106,7 +2106,13 @@ export class CoursesService {
     const enrollments = await this.prisma.courseEnrollment.findMany({
       where: {
         studentId,
-        status: CourseEnrollmentStatus.ACTIVE,
+        status: {
+          in: [
+            CourseEnrollmentStatus.ACTIVE,
+            CourseEnrollmentStatus.PENDING,
+            CourseEnrollmentStatus.DROPPED,
+          ],
+        },
       },
       include: {
         course: {
@@ -2124,11 +2130,13 @@ export class CoursesService {
 
     const results = await Promise.all(
       enrollments.map(async (e) => {
-        const progressPercentage =
-          await this.progressRepository.calculateCourseProgressPercentage(
-            studentId,
-            e.courseId,
-          );
+        const isActive = e.status === CourseEnrollmentStatus.ACTIVE;
+        const progressPercentage = isActive
+          ? await this.progressRepository.calculateCourseProgressPercentage(
+              studentId,
+              e.courseId,
+            )
+          : 0;
 
         const totalLessons = await this.prisma.courseLesson.count({
           where: { module: { courseId: e.courseId } },
@@ -2136,6 +2144,7 @@ export class CoursesService {
 
         return {
           courseId: e.course.id,
+          id: e.course.id,
           title: e.course.title,
           description: e.course.description,
           subject: e.course.subject,
@@ -2143,7 +2152,11 @@ export class CoursesService {
           coverImageUrl: e.course.coverImageUrl,
           teacherName: e.course.teacher.user.fullName,
           enrolledAt: e.enrolledAt,
-          accessStatus: e.access?.accessStatus || CourseAccessStatus.ACTIVE,
+          enrollmentStatus: e.status,
+          rejectionReason: e.rejectionReason,
+          accessStatus:
+            e.access?.accessStatus ||
+            (isActive ? CourseAccessStatus.ACTIVE : CourseAccessStatus.SUSPENDED),
           totalModules: e.course._count.modules,
           totalLessons,
           progressPercentage,
