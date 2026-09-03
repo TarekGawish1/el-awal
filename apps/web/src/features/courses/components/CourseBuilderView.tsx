@@ -24,6 +24,8 @@ import {
   GraduationCap,
   GripVertical,
   ExternalLink,
+  Settings2,
+  Calendar,
 } from 'lucide-react';
 import {
   useCourseDetail,
@@ -38,6 +40,7 @@ import {
 import { useAssessments } from '@/features/assessments/hooks/use-assessments';
 import { CourseModule, CourseLesson } from '../types/courses.types';
 import { LessonEditorModal } from './LessonEditorModal';
+import { EditCourseModal } from './EditCourseModal';
 import { CourseGroupAccessModal } from './CourseGroupAccessModal';
 import { CourseEnrollmentsTab } from './CourseEnrollmentsTab';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
@@ -58,7 +61,10 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
   const reorderLessonsMutation = useReorderLessons(courseId);
 
   const { data: assessmentsData } = useAssessments();
-  const assessments = assessmentsData?.data || [];
+  const assessments = Array.isArray(assessmentsData)
+    ? assessmentsData
+    : (assessmentsData?.data || []);
+
   // Course/unit selectors link exams only, never homeworks (legacy ASSIGNMENT type).
   const examAssessments = assessments.filter((a: any) => a?.type === 'EXAM');
 
@@ -66,6 +72,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
   const [activeTopTab, setActiveTopTab] = useState<'curriculum' | 'enrollments'>('curriculum');
 
   // Modals & Active State
+  const [isEditCourseModalOpen, setIsEditCourseModalOpen] = useState(false);
   const [isGroupAccessModalOpen, setIsGroupAccessModalOpen] = useState(false);
   const [lessonModalState, setLessonModalState] = useState<{
     isOpen: boolean;
