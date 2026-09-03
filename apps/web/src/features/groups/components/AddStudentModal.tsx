@@ -285,31 +285,37 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
                       >
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className={`font-semibold text-sm ${isSelected ? 'text-primary-800' : 'text-slate-800'}`}>
+                            <span className={`font-semibold text-sm truncate max-w-full ${isSelected ? 'text-primary-800' : 'text-slate-800'}`}>
                               {getStudentName(student)}
                             </span>
                             {inCurrentGroup && (
-                              <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full font-semibold shrink-0">
+                              <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-semibold truncate max-w-full">
                                 موجود بالفعل في المجموعة
                               </span>
                             )}
                             {inOtherGroup && (
-                              <span className="text-[10px] bg-orange-100 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded-full font-semibold shrink-0">
+                              <span 
+                                className="text-[10px] bg-orange-100 text-orange-700 border border-orange-200 px-2 py-0.5 rounded-full font-semibold truncate max-w-full"
+                                title={`في مجموعة: ${otherGroup!.name}`}
+                              >
                                 في مجموعة: {otherGroup!.name}
                               </span>
                             )}
                           </div>
-                          <div className="text-xs text-slate-500 flex gap-3 mt-0.5">
+                          <div className="text-xs text-slate-500 flex gap-3 mt-1">
                             <span>{getStudentCode(student)}</span>
                             <span dir="ltr">{(student as any).user?.phone || (student as any).phone || ''}</span>
                           </div>
                         </div>
 
                         {inOtherGroup ? (
-                          <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <div className="shrink-0 mr-2" onClick={(e) => e.stopPropagation()}>
                             {isConfirming ? (
                               <div className="flex items-center gap-1.5">
-                                <span className="text-[11px] text-slate-600 font-medium hidden sm:inline">
+                                <span 
+                                  className="text-[11px] text-slate-600 font-medium hidden sm:inline-block truncate max-w-[120px]"
+                                  title={`نقل من ${otherGroup!.name}؟`}
+                                >
                                   نقل من {otherGroup!.name}؟
                                 </span>
                                 <Button
