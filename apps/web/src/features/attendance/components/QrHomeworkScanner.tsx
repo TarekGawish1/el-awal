@@ -252,14 +252,6 @@ export function QrHomeworkScanner({
       }
 
       playBeep('success');
-      
-      // Auto-record attendance immediately upon scanning in the homework section
-      scanQrAttendance({
-        sessionId,
-        qrCodeToken: student.qrCodeToken || student.id,
-        allowCrossGroup: true,
-      });
-
       setScannedStudent(student);
 
     } catch (err: any) {
@@ -280,6 +272,11 @@ export function QrHomeworkScanner({
       const studentName = scannedStudent.fullName || scannedStudent.name || 'طالب';
       const studentCode = scannedStudent.studentCode || '';
 
+      // recordHomeworkOnsiteOffline atomically saves:
+      //   1. The homework record in IndexedDB
+      //   2. The attendance record in IndexedDB (PRESENT)
+      //   3. Queues both mutations in the outbox
+      // This works identically online and offline.
       await offlineDb.recordHomeworkOnsiteOffline({
         assessmentId,
         studentId: scannedStudent.id,
@@ -311,11 +308,11 @@ export function QrHomeworkScanner({
         success: true,
         studentName,
         studentCode,
-        message: `تم تسجيل حالة الواجب (${statusText}) للطالب: ${studentName}`,
+        message: `تم تسجيل حالة الواجب (${statusText}) والحضور للطالب: ${studentName}`,
       });
-      toast.success(`تم استلام الواجب: ${studentName}`);
+      toast.success(`تم استلام الواجب وتسجيل الحضور: ${studentName}`);
 
-      // Update local homework records state
+      // Update local homework records state for immediate UI refresh
       setLocalHomeworkRecords((prev) => {
         const newRecords = [...prev];
         const existingIdx = newRecords.findIndex((r) => r.studentId === scannedStudent.id);
