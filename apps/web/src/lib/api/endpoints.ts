@@ -129,4 +129,9 @@ export const API_ENDPOINTS = {
     LINKED_STUDENTS: '/parent-portal/students',
     CHILD_OVERVIEW: (id: string) => `/parent-portal/students/${id}/overview`,
   },
+  CONTACT_MESSAGES: {
+    LIST: '/contact-messages',
+    MARK_READ: (id: string) => `/contact-messages/${id}/read`,
+    DELETE: (id: string) => `/contact-messages/${id}`,
+  },
 } as const;
