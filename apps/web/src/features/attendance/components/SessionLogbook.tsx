@@ -4,8 +4,92 @@ import React, { useState, useEffect } from 'react';
 import { useSessionReport, useManualAttendance } from '../hooks/use-attendance';
 import toast from 'react-hot-toast';
 import { offlineDb } from '@/lib/offline/db';
-import { ClipboardCheck, ClipboardList, CheckCircle2, XCircle, AlertTriangle, UserCheck, Search } from 'lucide-react';
+import { ClipboardCheck, ClipboardList, CheckCircle2, XCircle, AlertTriangle, UserCheck, Search, ChevronDown } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
+
+const ATTENDANCE_OPTIONS = {
+  PRESENT: { label: 'حاضر', bg: 'bg-emerald-50 text-emerald-700 ring-emerald-200', icon: CheckCircle2 },
+  ABSENT: { label: 'غائب', bg: 'bg-rose-50 text-rose-700 ring-rose-200', icon: XCircle },
+  EXCUSED: { label: 'بعذر', bg: 'bg-amber-50 text-amber-700 ring-amber-200', icon: AlertTriangle },
+};
+
+const HOMEWORK_OPTIONS = {
+  CHECKED_ONSITE: { label: 'حل الواجب', bg: 'bg-emerald-50 text-emerald-700 ring-emerald-200', icon: CheckCircle2 },
+  NOT_SUBMITTED: { label: 'لم يحل', bg: 'bg-rose-50 text-rose-700 ring-rose-200', icon: XCircle },
+  INCOMPLETE: { label: 'ناقص', bg: 'bg-amber-50 text-amber-700 ring-amber-200', icon: AlertTriangle },
+  EXCUSED: { label: 'بعذر', bg: 'bg-slate-100 text-slate-700 ring-slate-300', icon: ClipboardCheck },
+};
+
+function StatusDropdown({
+  value,
+  options,
+  onChange,
+  defaultLabel,
+}: {
+  value: string;
+  options: Record<string, { label: string; bg: string; icon: any }>;
+  onChange: (val: string) => void;
+  defaultLabel: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isOpen]);
+
+  const current = options[value] || { label: defaultLabel, bg: 'bg-slate-50 text-slate-500 ring-slate-200', icon: null };
+  const Icon = current.icon;
+
+  return (
+    <div className="relative inline-block text-right" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`inline-flex items-center justify-between gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ring-1 ring-inset transition-all hover:brightness-95 w-[110px] ${current.bg}`}
+      >
+        <span className="flex items-center gap-1.5">
+          {Icon && <Icon className="w-3.5 h-3.5" />}
+          {current.label}
+        </span>
+        <ChevronDown className={`w-3.5 h-3.5 opacity-50 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 mt-1.5 w-36 rounded-xl border border-slate-100 bg-white shadow-xl shadow-slate-200/50 py-1 right-0 sm:right-1/2 sm:translate-x-1/2 animate-in fade-in zoom-in-95">
+          {Object.entries(options).map(([val, { label, icon: OptIcon }]) => {
+            const isSelected = value === val;
+            return (
+              <button
+                key={val}
+                type="button"
+                onClick={() => {
+                  onChange(val);
+                  setIsOpen(false);
+                }}
+                className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-bold transition-colors hover:bg-slate-50 ${
+                  isSelected ? 'text-primary-600 bg-primary-50/50' : 'text-slate-700'
+                }`}
+              >
+                <OptIcon className={`w-4 h-4 ${isSelected ? 'text-primary-600' : 'text-slate-400'}`} />
+                {label}
+                {isSelected && <CheckCircle2 className="w-3.5 h-3.5 mr-auto text-primary-600" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface SessionLogbookProps {
   sessionId: string;
@@ -127,8 +211,8 @@ export function SessionLogbook({ sessionId }: SessionLogbookProps) {
         />
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-visible">
+        <div className="overflow-x-auto overflow-y-visible pb-24 -mb-24">
           <table className="w-full text-sm text-start">
             <thead className="bg-slate-50/80 backdrop-blur-sm border-b border-slate-100">
               <tr>
@@ -168,40 +252,20 @@ export function SessionLogbook({ sessionId }: SessionLogbookProps) {
                         )}
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <select
-                          value={attStatus || ''}
-                          onChange={(e) => handleAttendanceChange(student, e.target.value)}
-                          className={`text-xs font-bold px-3 py-1.5 rounded-full border-0 cursor-pointer outline-none ring-1 ring-inset transition-colors ${
-                            attStatus === 'PRESENT' ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100' :
-                            attStatus === 'ABSENT' ? 'bg-rose-50 text-rose-700 ring-rose-200 hover:bg-rose-100' :
-                            attStatus === 'EXCUSED' ? 'bg-amber-50 text-amber-700 ring-amber-200 hover:bg-amber-100' :
-                            'bg-slate-50 text-slate-500 ring-slate-200 hover:bg-slate-100'
-                          }`}
-                        >
-                          <option value="" disabled>غير مسجل</option>
-                          <option value="PRESENT">حاضر</option>
-                          <option value="ABSENT">غائب</option>
-                          <option value="EXCUSED">بعذر</option>
-                        </select>
+                        <StatusDropdown
+                          value={attStatus}
+                          options={ATTENDANCE_OPTIONS}
+                          onChange={(val) => handleAttendanceChange(student, val)}
+                          defaultLabel="غير مسجل"
+                        />
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <select
-                          value={hwStatus || ''}
-                          onChange={(e) => handleHomeworkChange(student, e.target.value)}
-                          className={`text-xs font-bold px-3 py-1.5 rounded-full border-0 cursor-pointer outline-none ring-1 ring-inset transition-colors ${
-                            hwStatus === 'CHECKED_ONSITE' ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100' :
-                            hwStatus === 'NOT_SUBMITTED' ? 'bg-rose-50 text-rose-700 ring-rose-200 hover:bg-rose-100' :
-                            hwStatus === 'INCOMPLETE' ? 'bg-amber-50 text-amber-700 ring-amber-200 hover:bg-amber-100' :
-                            hwStatus === 'EXCUSED' ? 'bg-slate-100 text-slate-700 ring-slate-300 hover:bg-slate-200' :
-                            'bg-slate-50 text-slate-400 ring-slate-200 hover:bg-slate-100'
-                          }`}
-                        >
-                          <option value="" disabled>لم يقيم</option>
-                          <option value="CHECKED_ONSITE">حل الواجب</option>
-                          <option value="NOT_SUBMITTED">لم يحل</option>
-                          <option value="INCOMPLETE">ناقص</option>
-                          <option value="EXCUSED">بعذر</option>
-                        </select>
+                        <StatusDropdown
+                          value={hwStatus}
+                          options={HOMEWORK_OPTIONS}
+                          onChange={(val) => handleHomeworkChange(student, val)}
+                          defaultLabel="لم يقيم"
+                        />
                       </td>
                     </tr>
                   );
