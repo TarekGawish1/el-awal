@@ -17,6 +17,7 @@ export function FinanceQuickActions({ activeTab, onChange }: QuickActionsProps) 
     { id: 'MANUAL', label: '+ تسجيل مصروف', icon: ClipboardList },
     { id: 'BOOKLETS', label: 'المذكرات والملازم', icon: BookOpen },
     { id: 'MATRIX', label: 'سجل المدفوعات', icon: FileSpreadsheet },
+    { id: 'ANALYTICS', label: 'التقارير المالية', icon: BarChart3, requiresView: true },
     { id: 'SETTINGS', label: 'إعدادات المدفوعات', icon: Settings, requiresView: true },
   ];
 

@@ -18,6 +18,7 @@ import { StudentHistoryModal } from './StudentHistoryModal';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { BookletManagementSection } from '@/features/booklets/components/BookletManagementSection';
 import { FinancialMatrixLedger } from './FinancialMatrixLedger';
+import { FinanceAnalyticsTab } from './FinanceAnalyticsTab';
 import { FinanceSettingsTab } from './FinanceSettingsTab';
 import {
   DEFAULT_ACADEMIC_TERM,
@@ -66,6 +67,7 @@ export function FinanceDashboard() {
   const [activeTab, setActiveTab] = useState<any>(() => {
     if (paramTab === 'booklets') return 'BOOKLETS';
     if (paramTab === 'matrix') return 'MATRIX';
+    if (paramTab === 'analytics') return canViewStats ? 'ANALYTICS' : 'MATRIX';
     if (paramTab === 'settings') return canViewStats ? 'SETTINGS' : 'MATRIX';
     return canViewStats ? 'OVERVIEW' : 'MATRIX';
   });
@@ -94,6 +96,7 @@ export function FinanceDashboard() {
     if (paramRecord) setIsRecordModalOpen(true);
     if (paramTab === 'booklets') setActiveTab('BOOKLETS');
     else if (paramTab === 'matrix') setActiveTab('MATRIX');
+    else if (paramTab === 'analytics') setActiveTab(canViewStats ? 'ANALYTICS' : 'MATRIX');
     else if (!canViewStats && activeTab === 'OVERVIEW') setActiveTab('MATRIX');
   }, [paramGroupId, paramMonth, paramScan, paramRecord, paramTab, canViewStats]);
 
@@ -172,6 +175,8 @@ export function FinanceDashboard() {
         <BookletManagementSection groups={groups} />
       ) : activeTab === 'MATRIX' ? (
         <FinancialMatrixLedger groups={groups} initialStage={stage} initialGradeLevel={gradeLevel} initialGroupId={selectedGroupId || ''} />
+      ) : activeTab === 'ANALYTICS' ? (
+        <FinanceAnalyticsTab groups={groups} />
       ) : (
         <>
           <FinanceFiltersBar

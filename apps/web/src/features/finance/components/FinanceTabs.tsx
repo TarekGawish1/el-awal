@@ -4,7 +4,7 @@ import { BarChart3, BookOpen, ClipboardList, FileSpreadsheet, QrCode, Settings }
 import { Button } from '@/components/ui/Button';
 import { usePermissions } from '@/core/hooks/usePermissions';
 
-export type FinanceTab = 'QR' | 'MANUAL' | 'BOOKLETS' | 'MATRIX' | 'SETTINGS';
+export type FinanceTab = 'QR' | 'MANUAL' | 'BOOKLETS' | 'MATRIX' | 'ANALYTICS' | 'SETTINGS';
 
 interface FinanceTabsProps {
   activeTab: FinanceTab;
@@ -20,6 +20,7 @@ export function FinanceTabs({ activeTab, onChange }: FinanceTabsProps) {
     { id: 'MANUAL', label: 'رصد يدوي للمصروفات', icon: ClipboardList },
     { id: 'BOOKLETS', label: 'المذكرات والملازم الدراسية', icon: BookOpen, className: 'sm:w-56' },
     { id: 'MATRIX', label: 'سجل المدفوعات الشامل', icon: FileSpreadsheet, className: 'sm:w-64' },
+    { id: 'ANALYTICS', label: 'الإحصائيات والتقارير المالية', icon: BarChart3, className: 'sm:w-64', requiresView: true },
     { id: 'SETTINGS', label: 'إعدادات المدفوعات', icon: Settings, className: 'sm:w-56', requiresView: true },
   ];
 
