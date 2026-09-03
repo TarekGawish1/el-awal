@@ -111,51 +111,63 @@ export class AutoAbsenceCron implements OnModuleInit, OnModuleDestroy {
           // --- 2. Handle Homework ---
           const existingHomework = await this.prisma.homeworkRecord.findMany({
             where: { sessionId: session.id },
-            select: { studentId: true, assessmentId: true }
+            select: { studentId: true }
           });
-
-          // If no homework was scanned at all for this session, assume there was no homework required
-          if (existingHomework.length === 0) {
-            this.logger.log(`AutoAbsence: No homework recorded for session ${session.id}, skipping missing homework check.`);
-          } else {
-            const submittedHomeworkIds = new Set(existingHomework.map(h => h.studentId));
-            const missingHomeworkIds = studentIds.filter(id => !submittedHomeworkIds.has(id));
+          const submittedHomeworkIds = new Set(existingHomework.map(h => h.studentId));
+          
+          const missingHomeworkIds = studentIds.filter(id => !submittedHomeworkIds.has(id));
+          
+          if (missingHomeworkIds.length > 0) {
+            // Find or create assessment for this session
+            let assessment = await this.prisma.assessment.findFirst({
+               where: {
+                 groupId: session.groupId,
+                 type: AssessmentType.ASSIGNMENT,
+               },
+               orderBy: { createdAt: 'desc' },
+            });
             
-            if (missingHomeworkIds.length > 0) {
-              // Use the assessmentId that was actually used for the submitted homeworks in this session
-              const assessmentIdToUse = existingHomework[0].assessmentId;
+            if (!assessment && session.group.teacherId) {
+                assessment = await this.prisma.assessment.create({
+                  data: {
+                    title: `واجب الحصة: ${session.topic || 'بدون عنوان'}`,
+                    type: AssessmentType.ASSIGNMENT,
+                    assessmentType: 'HOMEWORK',
+                    groupId: session.groupId,
+                    teacherId: session.group.teacherId,
+                    allowMultipleAttempts: false,
+                    isPublished: true,
+                    totalScore: 10,
+                  }
+                });
+            }
+            
+            if (assessment) {
+              const homeworkData = missingHomeworkIds.map(studentId => ({
+                assessmentId: assessment.id,
+                sessionId: session.id,
+                studentId,
+                status: HomeworkSubmissionStatus.NOT_SUBMITTED,
+                recordedMethod: RecordingMethod.MANUAL,
+                feedback: 'لم يتم تسليم الواجب تلقائياً',
+                clientTimestamp: new Date(),
+              }));
               
-              const assessment = await this.prisma.assessment.findUnique({
-                where: { id: assessmentIdToUse }
+              await this.prisma.homeworkRecord.createMany({
+                data: homeworkData,
+                skipDuplicates: true,
               });
               
-              if (assessment) {
-                const homeworkData = missingHomeworkIds.map(studentId => ({
-                  assessmentId: assessment.id,
-                  sessionId: session.id,
+              missingHomeworkIds.forEach(studentId => {
+                this.eventEmitter.emit('student.homework.missing', {
                   studentId,
-                  status: HomeworkSubmissionStatus.NOT_SUBMITTED,
-                  recordedMethod: RecordingMethod.MANUAL,
-                  feedback: 'لم يتم تسليم الواجب',
-                  clientTimestamp: new Date(),
-                }));
-                
-                await this.prisma.homeworkRecord.createMany({
-                  data: homeworkData,
-                  skipDuplicates: true,
+                  assessmentTitle: assessment.title,
+                  groupName: session.group?.name || '',
+                  date: session.sessionDate,
                 });
-                
-                missingHomeworkIds.forEach(studentId => {
-                  this.eventEmitter.emit('student.homework.missing', {
-                    studentId,
-                    assessmentTitle: assessment.title,
-                    groupName: session.group?.name || '',
-                    date: session.sessionDate,
-                  });
-                });
+              });
 
-                this.logger.log(`AutoAbsence: Marked ${missingHomeworkIds.length} students as NOT_SUBMITTED homework for session ${session.id}`);
-              }
+              this.logger.log(`AutoAbsence: Marked ${missingHomeworkIds.length} students as NOT_SUBMITTED homework for session ${session.id}`);
             }
           }
           
