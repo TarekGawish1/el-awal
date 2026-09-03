@@ -383,7 +383,7 @@ export function QrHomeworkScanner({
           </div>
           <div>
             <h3 className="font-bold text-slate-800 text-sm md:text-base">
-              و الحضورQR للواجب فقط
+              QR للواجب و الحضور معاً
             </h3>
             <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
               <span>سيتم سؤالك عن حالة الواجب بعد المسح.</span>
@@ -413,10 +413,10 @@ export function QrHomeworkScanner({
         <div className="md:col-span-6 flex flex-col items-center">
           <div
             className={`w-full max-w-sm aspect-[3/4] sm:aspect-square bg-slate-950 rounded-3xl overflow-hidden border border-slate-200 shadow-md relative transition-all duration-300 ring-4 ${flashType === 'success'
-                ? 'ring-indigo-500 shadow-xl shadow-indigo-500/20'
-                : flashType === 'error'
-                  ? 'ring-rose-500 shadow-xl shadow-rose-500/20'
-                  : 'ring-indigo-100'
+              ? 'ring-indigo-500 shadow-xl shadow-indigo-500/20'
+              : flashType === 'error'
+                ? 'ring-rose-500 shadow-xl shadow-rose-500/20'
+                : 'ring-indigo-100'
               }`}
           >
             <Scanner
@@ -585,10 +585,10 @@ export function QrHomeworkScanner({
                     >
                       <div className="flex items-center gap-2.5">
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${status === 'CHECKED_ONSITE' ? 'bg-emerald-100 text-emerald-700' :
-                            status === 'NOT_SUBMITTED' ? 'bg-rose-100 text-rose-700' :
-                              status === 'INCOMPLETE' ? 'bg-amber-100 text-amber-700' :
-                                status === 'EXCUSED' ? 'bg-slate-200 text-slate-700' :
-                                  'bg-white text-slate-300 border border-slate-200'
+                          status === 'NOT_SUBMITTED' ? 'bg-rose-100 text-rose-700' :
+                            status === 'INCOMPLETE' ? 'bg-amber-100 text-amber-700' :
+                              status === 'EXCUSED' ? 'bg-slate-200 text-slate-700' :
+                                'bg-white text-slate-300 border border-slate-200'
                           }`}>
                           {status === 'CHECKED_ONSITE' ? '✓' : status === 'NOT_SUBMITTED' ? '✗' : status === 'INCOMPLETE' ? '!' : status === 'EXCUSED' ? '-' : '?'}
                         </div>
