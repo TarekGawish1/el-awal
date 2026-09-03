@@ -23,6 +23,7 @@ import {
   Lock,
   GraduationCap,
   GripVertical,
+  ExternalLink,
 } from 'lucide-react';
 import {
   useCourseDetail,
@@ -383,11 +384,11 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 flex-wrap">
               <select
                 value={course.courseQuizId || ''}
                 onChange={(e) => handleUpdateCourseQuiz(e.target.value)}
-                className="w-full sm:w-64 bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 shadow-sm cursor-pointer"
+                className="flex-1 sm:w-64 bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 shadow-sm cursor-pointer"
               >
                 <option value="">-- بدون امتحان شامل --</option>
                 {assessments.map((a: any) => (
@@ -396,6 +397,17 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                   </option>
                 ))}
               </select>
+              <Link
+                href={`/teacher/assessments/new?type=EXAM&courseId=${courseId}&scope=COURSE`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm shrink-0 whitespace-nowrap"
+                title="إنشاء امتحان شامل جديد لهذا الكورس وربطه تلقائياً"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>إنشاء امتحان</span>
+                <ExternalLink className="w-3 h-3 opacity-70" />
+              </Link>
             </div>
           </div>
 
@@ -655,22 +667,35 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
 
                       {/* Unit Controls (Unit Quiz + Add Lesson + Delete) */}
                       <div className="flex items-center gap-2 flex-wrap justify-between sm:justify-end w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60">
-                        {/* Unit Exam Selector Dropdown */}
-                        <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-2.5 py-1 rounded-xl text-xs shadow-sm max-w-full flex-1 sm:flex-none">
-                          <Award className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                          <select
-                            value={mod.unitQuizId || ''}
-                            onChange={(e) => handleUpdateUnitQuiz(mod.id, e.target.value)}
-                            className="bg-transparent text-[11px] text-slate-700 font-bold focus:outline-none w-full sm:max-w-[140px] cursor-pointer"
-                            title="ربط امتحان للوحدة"
+                        {/* Unit Exam Selector Dropdown + Create Button */}
+                        <div className="flex items-center gap-1.5 flex-1 sm:flex-none min-w-0">
+                          <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-2.5 py-1 rounded-xl text-xs shadow-sm flex-1 sm:flex-none min-w-0">
+                            <Award className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                            <select
+                              value={mod.unitQuizId || ''}
+                              onChange={(e) => handleUpdateUnitQuiz(mod.id, e.target.value)}
+                              className="bg-transparent text-[11px] text-slate-700 font-bold focus:outline-none w-full sm:max-w-[140px] cursor-pointer"
+                              title="ربط امتحان للوحدة"
+                            >
+                              <option value="">-- بدون امتحان للوحدة --</option>
+                              {assessments.map((a: any) => (
+                                <option key={a.id} value={a.id}>
+                                  {a.title}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <Link
+                            href={`/teacher/assessments/new?type=EXAM&courseId=${courseId}&moduleId=${mod.id}&moduleName=${encodeURIComponent(mod.title)}&scope=UNIT`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 px-2.5 py-1.5 bg-amber-50 text-amber-700 hover:bg-amber-500 hover:text-white border border-amber-200 rounded-xl text-[11px] font-bold transition-all shrink-0 cursor-pointer"
+                            title={`إنشاء اختبار لوحدة "${mod.title}" وربطه تلقائياً`}
                           >
-                            <option value="">-- بدون امتحان للوحدة --</option>
-                            {assessments.map((a: any) => (
-                              <option key={a.id} value={a.id}>
-                                {a.title}
-                              </option>
-                            ))}
-                          </select>
+                            <Plus className="w-3 h-3" />
+                            <span className="hidden sm:inline">إنشاء اختبار</span>
+                            <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+                          </Link>
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">

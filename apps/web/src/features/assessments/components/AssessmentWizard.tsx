@@ -122,6 +122,9 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
   const paramTopic = searchParams.get('topic');
   const paramDueDate = searchParams.get('dueDate');
   const paramCourseId = searchParams.get('courseId');
+  const paramModuleId = searchParams.get('moduleId');
+  const paramModuleName = searchParams.get('moduleName');
+  const paramScope = searchParams.get('scope'); // 'UNIT' | 'COURSE' | null
 
   const { data: teacherCourses } = useTeacherCourses();
 
@@ -190,6 +193,17 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
       methods.setValue('courseId', paramCourseId, { shouldValidate: true });
     }
   }, [paramCourseId, methods]);
+
+  // Pre-fill exam title when creating from a unit context
+  useEffect(() => {
+    if (paramModuleName && !methods.getValues('title')) {
+      methods.setValue(
+        'title',
+        `اختبار وحدة: ${paramModuleName}`,
+        { shouldValidate: true }
+      );
+    }
+  }, [paramModuleName, methods]);
 
   // Prefill group & topic from search params if provided (e.g. from session calendar modal)
   useEffect(() => {
@@ -466,6 +480,25 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                 <h2 className="text-xl font-bold text-slate-800 mb-1">المعلومات الأساسية</h2>
                 <p className="text-slate-500 text-sm">أدخل تفاصيل {type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار'} مثل العنوان، الوصف، والجهة المستهدفة.</p>
               </div>
+
+              {/* Context banner: shown when opened from course builder */}
+              {paramCourseId && (
+                <div className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl animate-in fade-in">
+                  <span className="text-xl shrink-0 mt-0.5">🔗</span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-amber-900">
+                      {paramScope === 'UNIT' && paramModuleName
+                        ? `سيتم ربط هذا الاختبار تلقائياً بوحدة: "${paramModuleName}"`
+                        : 'سيتم ربط هذا الاختبار بالكورس الأونلاين تلقائياً'}
+                    </p>
+                    <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                      {paramScope === 'UNIT'
+                        ? 'بعد الحفظ، عُد إلى صفحة الكورس وستجد الاختبار الجديد ضمن قائمة الاختبارات — اختره لربطه بالوحدة بنقرة واحدة.'
+                        : 'بعد الحفظ، عُد إلى صفحة الكورس وستجد الاختبار الجديد جاهزاً للاختيار في القائمة.'}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-4">
                 <div>
