@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { X, Loader2, Search, UserPlus, QrCode, RefreshCcw, Check, Users } from 'lucide-react';
+import { X, Loader2, Search, UserPlus, QrCode, RefreshCcw, Check, Users, ArrowLeftRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Scanner } from '@yudiel/react-qr-scanner';
@@ -25,6 +25,8 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [transferConfirmId, setTransferConfirmId] = useState<string | null>(null);
+  const [transferringId, setTransferringId] = useState<string | null>(null);
 
   const { data: searchResults, isLoading: isSearching, isError: isSearchError } = useSearchStudents(debouncedQuery);
   const { data: existingStudents } = useGroupStudents(groupId);
@@ -62,6 +64,36 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
   const getStudentCode = (student: any) =>
     student.studentCode || student.code || '';
 
+  // Returns the first ACTIVE enrollment in a DIFFERENT group (the "one active group"
+  // rule), or null when the student is free to join / already in this group.
+  const getOtherGroup = (student: any): { id: string; name: string } | null => {
+    const enrollments = student?.groupEnrollments;
+    if (!Array.isArray(enrollments)) return null;
+    const other = enrollments.find(
+      (e: any) => e?.group?.id && e.group.id !== groupId && (!e.status || e.status === 'ACTIVE'),
+    );
+    return other?.group || null;
+  };
+
+  const handleTransfer = async (student: Student) => {
+    setTransferringId(student.id);
+    try {
+      await new Promise<void>((resolve, reject) => {
+        addStudent.mutate(
+          { groupId, payload: { studentId: student.id, transfer: true } },
+          { onSuccess: () => resolve(), onError: (e) => reject(e) },
+        );
+      });
+      toast.success(`تم نقل ${getStudentName(student)} لهذه المجموعة`);
+      setSelectedStudents(prev => prev.filter(s => s.id !== student.id));
+    } catch (e: any) {
+      toast.error(e?.message || `فشل نقل ${getStudentName(student)}`);
+    } finally {
+      setTransferringId(null);
+      setTransferConfirmId(null);
+    }
+  };
+
   const handleSubmit = async () => {
     if (selectedStudents.length === 0) return;
     setIsSubmitting(true);
@@ -78,8 +110,8 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
         });
         successCount++;
         setProgress(p => ({ ...p, done: p.done + 1 }));
-      } catch {
-        toast.error(`فشل إضافة ${getStudentName(student)}`);
+      } catch (e: any) {
+        toast.error(e?.message || `فشل إضافة ${getStudentName(student)}`);
         setProgress(p => ({ ...p, done: p.done + 1 }));
       }
     }
@@ -95,6 +127,8 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
     setSelectedStudents([]);
     setIsScannerOpen(false);
     setIsSubmitting(false);
+    setTransferConfirmId(null);
+    setTransferringId(null);
     onClose();
   };
 
@@ -228,27 +262,40 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
               ) : searchResults?.data && searchResults.data.length > 0 ? (
                 <ul className="divide-y divide-slate-100">
                   {searchResults.data.map(student => {
+                    const inCurrentGroup = existingIds.has(student.id);
+                    const otherGroup = !inCurrentGroup ? getOtherGroup(student) : null;
+                    const inOtherGroup = !!otherGroup;
                     const isSelected = selectedStudents.some(s => s.id === student.id);
+                    const selectable = !inCurrentGroup && !inOtherGroup;
+                    const isConfirming = transferConfirmId === student.id;
+                    const isTransferring = transferringId === student.id;
                     return (
                       <li
                         key={student.id}
-                        className={`p-3 flex items-center justify-between transition-all select-none ${
-                          existingIds.has(student.id)
+                        className={`p-3 flex items-center justify-between gap-2 transition-all select-none ${
+                          inCurrentGroup
                             ? 'bg-slate-50 cursor-not-allowed opacity-70'
-                            : isSelected
-                              ? 'bg-primary-50 border-r-4 border-r-primary-500 cursor-pointer'
-                              : 'hover:bg-slate-100 bg-white cursor-pointer'
+                            : inOtherGroup
+                              ? 'bg-orange-50/40'
+                              : isSelected
+                                ? 'bg-primary-50 border-r-4 border-r-primary-500 cursor-pointer'
+                                : 'hover:bg-slate-100 bg-white cursor-pointer'
                         }`}
-                        onClick={() => { if (!existingIds.has(student.id)) toggleStudent(student); }}
+                        onClick={() => { if (selectable) toggleStudent(student); }}
                       >
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className={`font-semibold text-sm ${isSelected ? 'text-primary-800' : 'text-slate-800'}`}>
                               {getStudentName(student)}
                             </span>
-                            {existingIds.has(student.id) && (
+                            {inCurrentGroup && (
                               <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full font-semibold shrink-0">
                                 موجود بالفعل في المجموعة
+                              </span>
+                            )}
+                            {inOtherGroup && (
+                              <span className="text-[10px] bg-orange-100 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded-full font-semibold shrink-0">
+                                في مجموعة: {otherGroup!.name}
                               </span>
                             )}
                           </div>
@@ -257,13 +304,54 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
                             <span dir="ltr">{(student as any).user?.phone || (student as any).phone || ''}</span>
                           </div>
                         </div>
-                        {!existingIds.has(student.id) && (
+
+                        {inOtherGroup ? (
+                          <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                            {isConfirming ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[11px] text-slate-600 font-medium hidden sm:inline">
+                                  نقل من {otherGroup!.name}؟
+                                </span>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="h-7 px-2.5 text-xs"
+                                  disabled={isTransferring}
+                                  onClick={() => handleTransfer(student)}
+                                >
+                                  {isTransferring ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'تأكيد'}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-2.5 text-xs"
+                                  disabled={isTransferring}
+                                  onClick={() => setTransferConfirmId(null)}
+                                >
+                                  إلغاء
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2.5 text-xs border-primary-300 text-primary-700 hover:bg-primary-50"
+                                onClick={() => setTransferConfirmId(student.id)}
+                              >
+                                <ArrowLeftRight className="w-3.5 h-3.5 ml-1" />
+                                نقل لهذه المجموعة
+                              </Button>
+                            )}
+                          </div>
+                        ) : selectable ? (
                           <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all shrink-0 ml-2 ${
                             isSelected ? 'bg-primary-600 border-primary-600' : 'border-slate-300 bg-white'
                           }`}>
                             {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
                           </div>
-                        )}
+                        ) : null}
                       </li>
                     );
                   })}

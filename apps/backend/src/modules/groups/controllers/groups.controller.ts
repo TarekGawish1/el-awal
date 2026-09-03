@@ -111,7 +111,7 @@ export class GroupsController {
     @Body() dto: EnrollStudentDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.groupsService.enrollStudent(groupId, dto.studentId, user);
+    return this.groupsService.enrollStudent(groupId, dto.studentId, user, dto.transfer);
   }
 
   @Delete(':id/students/:studentId')
