@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { Alert } from '@/components/ui/Alert';
-import { useAddStudent, useSearchStudents } from '../hooks/useGroups';
+import { useAddStudent, useSearchStudents, useGroupStudents } from '../hooks/useGroups';
 import { Student } from '../types/groups.types';
 import toast from 'react-hot-toast';
 
@@ -27,6 +27,8 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
   const [progress, setProgress] = useState({ done: 0, total: 0 });
 
   const { data: searchResults, isLoading: isSearching, isError: isSearchError } = useSearchStudents(debouncedQuery);
+  const { data: existingStudents } = useGroupStudents(groupId);
+  const existingIds = new Set((existingStudents || []).map((s: any) => s.id));
   const addStudent = useAddStudent();
 
   useEffect(() => {
@@ -230,21 +232,38 @@ export function AddStudentModal({ isOpen, onClose, groupId }: AddStudentModalPro
                     return (
                       <li
                         key={student.id}
-                        className={`p-3 flex items-center justify-between cursor-pointer transition-all select-none ${isSelected ? 'bg-primary-50 border-r-4 border-r-primary-500' : 'hover:bg-slate-100 bg-white'}`}
-                        onClick={() => toggleStudent(student)}
+                        className={`p-3 flex items-center justify-between transition-all select-none ${
+                          existingIds.has(student.id)
+                            ? 'bg-slate-50 cursor-not-allowed opacity-70'
+                            : isSelected
+                              ? 'bg-primary-50 border-r-4 border-r-primary-500 cursor-pointer'
+                              : 'hover:bg-slate-100 bg-white cursor-pointer'
+                        }`}
+                        onClick={() => { if (!existingIds.has(student.id)) toggleStudent(student); }}
                       >
-                        <div>
-                          <div className={`font-semibold text-sm ${isSelected ? 'text-primary-800' : 'text-slate-800'}`}>
-                            {getStudentName(student)}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`font-semibold text-sm ${isSelected ? 'text-primary-800' : 'text-slate-800'}`}>
+                              {getStudentName(student)}
+                            </span>
+                            {existingIds.has(student.id) && (
+                              <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full font-semibold shrink-0">
+                                موجود بالفعل في المجموعة
+                              </span>
+                            )}
                           </div>
                           <div className="text-xs text-slate-500 flex gap-3 mt-0.5">
                             <span>{getStudentCode(student)}</span>
                             <span dir="ltr">{(student as any).user?.phone || (student as any).phone || ''}</span>
                           </div>
                         </div>
-                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all shrink-0 ${isSelected ? 'bg-primary-600 border-primary-600' : 'border-slate-300 bg-white'}`}>
-                          {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
-                        </div>
+                        {!existingIds.has(student.id) && (
+                          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all shrink-0 ml-2 ${
+                            isSelected ? 'bg-primary-600 border-primary-600' : 'border-slate-300 bg-white'
+                          }`}>
+                            {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+                          </div>
+                        )}
                       </li>
                     );
                   })}
