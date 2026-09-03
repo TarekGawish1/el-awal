@@ -113,12 +113,19 @@ export function doTimeIntervalsOverlap(
   const sB = parseTimeToMinutes(startB);
   if (sA === null || sB === null) return false;
 
-  let eA = parseTimeToMinutes(endA);
-  let eB = parseTimeToMinutes(endB);
-  if (eA === null || eA <= sA) eA = sA + 90;
-  if (eB === null || eB <= sB) eB = sB + 90;
+  const eA = parseTimeToMinutes(endA);
+  const eB = parseTimeToMinutes(endB);
 
-  return sA < eB && sB < eA;
+  // If BOTH sessions have no endTime, they only conflict if they start at the exact same minute
+  if ((eA === null || eA <= sA) && (eB === null || eB <= sB)) {
+    return sA === sB;
+  }
+
+  // Use a minimal 1-minute fallback only when one side has a real endTime
+  const resolvedEA = (eA !== null && eA > sA) ? eA : sA + 1;
+  const resolvedEB = (eB !== null && eB > sB) ? eB : sB + 1;
+
+  return sA < resolvedEB && sB < resolvedEA;
 }
 
 export interface MinimalSessionLike {
@@ -216,12 +223,14 @@ export function calculateOverlappingColumns<T extends MinimalSessionLike>(
   const items = daySessions.map((s, idx) => {
     const sMin = parseTimeToMinutes(s.startTime) ?? 16 * 60;
     let eMin = parseTimeToMinutes(s.endTime);
-    if (!eMin || eMin <= sMin) eMin = sMin + 90;
+    // For LAYOUT POSITIONING only: use 60-min fallback if no endTime
+    if (!eMin || eMin <= sMin) eMin = sMin + 60;
     return {
       session: s,
       id: s.id || `idx_${idx}`,
       start: sMin,
       end: eMin,
+      hasExplicitEnd: !!(parseTimeToMinutes(s.endTime) && parseTimeToMinutes(s.endTime)! > sMin),
       isCancelled: isSessionCancelled(s),
     };
   });
@@ -279,7 +288,9 @@ export function calculateOverlappingColumns<T extends MinimalSessionLike>(
 
     const totalCols = Math.max(1, tracks.length);
     const activeItemsInCluster = cluster.filter((c) => !c.isCancelled);
-    const clusterHasConflict = totalCols > 1 && activeItemsInCluster.length > 1;
+    // Only flag as conflict if multiple active sessions AND they all have explicit endTimes
+    const activeWithExplicitEnd = activeItemsInCluster.filter((c) => (c as any).hasExplicitEnd);
+    const clusterHasConflict = totalCols > 1 && activeWithExplicitEnd.length > 1;
 
     for (const item of cluster) {
       const colIndex = clusterPlacements.get(item.id) ?? 0;
