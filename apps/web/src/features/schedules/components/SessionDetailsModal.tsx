@@ -444,8 +444,6 @@ export function SessionDetailsModal({
                       </div>
                     </div>
                   )}
-                    </div>
-                  </div>
                 </div>
               );
             })()}

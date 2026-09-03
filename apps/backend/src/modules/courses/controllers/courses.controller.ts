@@ -446,6 +446,17 @@ export class CoursesController {
     return this.coursesService.rejectSubscriptionRequest(enrollmentId, user, dto);
   }
 
+  @Post('enrollments/:enrollmentId/cancel')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Cancel active course enrollment and suspend access' })
+  async cancelSubscription(
+    @Param('enrollmentId') enrollmentId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body('reason') reason?: string,
+  ) {
+    return this.coursesService.cancelStudentSubscription(enrollmentId, user, reason);
+  }
+
   @Get(':id/subscription-status')
   @Roles(UserRole.STUDENT, UserRole.SECRETARIAT, UserRole.TEACHER)
   @ApiOperation({ summary: 'Check student subscription status for a course' })

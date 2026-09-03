@@ -1109,5 +1109,34 @@ describe('CoursesService', () => {
       expect(res.pendingRequests[0].receiptImageUrl).toBe('/uploads/payment-receipts/rec1.jpg');
       expect(res.activeStudents[0].studentName).toBe('سارة خالد');
     });
+
+    it('should cancel active student subscription and suspend course access', async () => {
+      mockPrismaService.courseEnrollment.findUnique.mockResolvedValue({
+        id: 'enroll-act-1',
+        courseId: 'c-1',
+        studentId: 's-1',
+        status: CourseEnrollmentStatus.ACTIVE,
+        course: { id: 'c-1', teacherId: 'teacher-uuid-1', title: 'كورس الجبر' },
+        student: { id: 's-1', user: { id: 'u-1', fullName: 'أحمد محمود' } },
+      });
+      mockPrismaService.courseEnrollment.update.mockResolvedValue({
+        id: 'enroll-act-1',
+        status: CourseEnrollmentStatus.DROPPED,
+        rejectionReason: 'تم استرداد المبلغ',
+      });
+      mockPrismaService.courseAccess.updateMany.mockResolvedValue({ count: 1 });
+
+      const res = await service.cancelStudentSubscription(
+        'enroll-act-1',
+        { id: 'teacher-uuid-1', role: UserRole.TEACHER, teacherProfileId: 'teacher-uuid-1' } as any,
+        'تم استرداد المبلغ',
+      );
+
+      expect(res.status).toBe(CourseEnrollmentStatus.DROPPED);
+      expect(mockPrismaService.courseAccess.updateMany).toHaveBeenCalledWith({
+        where: { enrollmentId: 'enroll-act-1' },
+        data: { accessStatus: CourseAccessStatus.SUSPENDED },
+      });
+    });
   });
 });

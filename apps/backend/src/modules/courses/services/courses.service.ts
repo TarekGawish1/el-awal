@@ -1887,6 +1887,10 @@ export class CoursesService {
         studentName: e.student?.user?.fullName || 'طالب',
         studentCode: e.student?.studentCode || '',
         studentPhone: e.student?.user?.phone || '',
+        senderPhone: e.senderPhone || e.student?.user?.phone || '',
+        transferAmount: e.transferAmount ? Number(e.transferAmount) : Number(e.course.price),
+        receiptImageUrl: e.receiptImageUrl || null,
+        paymentMethod: e.paymentMethod,
         date: e.enrolledAt ? new Date(e.enrolledAt).toISOString().split('T')[0] : '',
         enrolledAt: e.enrolledAt,
         status: e.status,
@@ -2056,6 +2060,76 @@ export class CoursesService {
       status: updated.status,
       rejectionReason: updated.rejectionReason,
       message: 'تم رفض طلب الاشتراك.',
+    };
+  }
+
+  /**
+   * Cancels/revokes an active student's enrollment and suspends course access.
+   */
+  async cancelStudentSubscription(
+    enrollmentId: string,
+    user: AuthenticatedUser,
+    reason?: string,
+  ) {
+    const enrollment = await this.prisma.courseEnrollment.findUnique({
+      where: { id: enrollmentId },
+      include: { course: true, student: { include: { user: true } } },
+    });
+
+    if (!enrollment) {
+      throw new NotFoundException(`اشتراك الطالب [${enrollmentId}] غير موجود`);
+    }
+
+    if (
+      user.role === UserRole.TEACHER &&
+      enrollment.course.teacherId !== user.teacherProfileId &&
+      enrollment.course.teacherId !== user.id
+    ) {
+      throw new ForbiddenException('غير مصرح لك بإلغاء هذا الاشتراك');
+    }
+
+    const updated = await this.prisma.courseEnrollment.update({
+      where: { id: enrollmentId },
+      data: {
+        status: CourseEnrollmentStatus.DROPPED,
+        rejectionReason: reason || 'تم إلغاء الاشتراك في الكورس من قبل المعلم.',
+        reviewedAt: new Date(),
+        reviewedById: user.id,
+      },
+    });
+
+    // Suspend course access
+    await this.prisma.courseAccess.updateMany({
+      where: { enrollmentId },
+      data: { accessStatus: CourseAccessStatus.SUSPENDED },
+    });
+
+    // Notify student
+    if (this.notificationsService && enrollment.student?.user?.id) {
+      this.notificationsService
+        .sendNotification({
+          recipientId: enrollment.student.user.id,
+          notificationType: NotificationType.GENERAL_ANNOUNCEMENT,
+          type: 'COURSE_SUBSCRIPTION_CANCELLED',
+          title: `تم إلغاء اشتراكك في الكورس`,
+          body: `تم إلغاء اشتراكك في كورس "${enrollment.course.title}" من قبل المعلم.${reason ? ` السبب: ${reason}` : ''}`,
+          channels: [NotificationChannel.IN_APP, NotificationChannel.WEB_PUSH],
+          data: {
+            courseId: enrollment.courseId,
+            enrollmentId: enrollment.id,
+            reason: updated.rejectionReason,
+          },
+          referenceEntityId: enrollment.id,
+        })
+        .catch((err) => {
+          this.logger.warn(`Failed to dispatch student cancellation notification`, err);
+        });
+    }
+
+    return {
+      enrollmentId: updated.id,
+      status: updated.status,
+      message: 'تم إلغاء اشتراك الطالب وتعليق وصوله للكورس بنجاح.',
     };
   }
 
