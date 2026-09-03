@@ -1,4 +1,3 @@
-import { randomBytes } from 'crypto';
 import { z } from 'zod';
 
 const expiryPattern = /^\d+[smhd]$/;
@@ -80,6 +79,7 @@ export type EnvConfig = z.infer<typeof envSchema> & {
 
 export function validateEnv(config: Record<string, unknown>): EnvConfig {
   const normalizedConfig = { ...config };
+  const isProduction = normalizedConfig.NODE_ENV === 'production';
 
   // Backward compatibility: If JWT_SECRET is provided, derive access and refresh secrets if not explicitly set
   if (normalizedConfig.JWT_SECRET && typeof normalizedConfig.JWT_SECRET === 'string') {
@@ -91,15 +91,34 @@ export function validateEnv(config: Record<string, unknown>): EnvConfig {
     }
   }
 
-  // Ensure stable persistent fallback secrets if still missing (avoids session invalidation on server restart/deploy)
-  if (!normalizedConfig.JWT_ACCESS_SECRET) {
-    normalizedConfig.JWT_ACCESS_SECRET =
-      'el-awal-educational-platform-jwt-access-secret-key-stable-production-2026-v1';
+  // JWT secrets MUST be stable and persistent across restarts/deploys. If they are not,
+  // every restart re-signs tokens with a new key, so all existing access AND refresh
+  // tokens fail verification and every user is forced to log in again.
+  //
+  // In production we therefore REQUIRE explicit secrets and fail fast when they are
+  // missing — we never silently fall back to a random value (which rotates on every
+  // boot) or to a hardcoded constant (a signing secret committed to the repo, which
+  // would let anyone forge tokens for any user). Outside production we use a fixed,
+  // clearly-labelled dev secret so local development works without setup and does not
+  // log you out on hot restarts.
+  if (!normalizedConfig.JWT_ACCESS_SECRET || !normalizedConfig.JWT_REFRESH_SECRET) {
+    if (isProduction) {
+      throw new Error(
+        'Missing JWT secrets in production. Set JWT_ACCESS_SECRET and JWT_REFRESH_SECRET ' +
+          '(each at least 32 characters and different from each other) as persistent ' +
+          'environment variables so user sessions survive restarts and deploys. ' +
+          'You may instead set a single strong JWT_SECRET. Generate a secret with: ' +
+          'node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'base64url\'))"',
+      );
+    }
+    if (!normalizedConfig.JWT_ACCESS_SECRET) {
+      normalizedConfig.JWT_ACCESS_SECRET = 'dev-only-el-awal-access-secret-change-me-000000000000';
+    }
+    if (!normalizedConfig.JWT_REFRESH_SECRET) {
+      normalizedConfig.JWT_REFRESH_SECRET = 'dev-only-el-awal-refresh-secret-change-me-000000000000';
+    }
   }
-  if (!normalizedConfig.JWT_REFRESH_SECRET) {
-    normalizedConfig.JWT_REFRESH_SECRET =
-      'el-awal-educational-platform-jwt-refresh-secret-key-stable-production-2026-v1';
-  }
+
   if (!normalizedConfig.CORS_ORIGINS) {
     normalizedConfig.CORS_ORIGINS = '*';
   }
@@ -116,7 +135,7 @@ export function validateEnv(config: Record<string, unknown>): EnvConfig {
   return {
     ...parsed.data,
     CORS_ORIGINS: (parsed.data.CORS_ORIGINS as string) || '*',
-    JWT_ACCESS_SECRET: (parsed.data.JWT_ACCESS_SECRET as string) || randomBytes(48).toString('base64url'),
-    JWT_REFRESH_SECRET: (parsed.data.JWT_REFRESH_SECRET as string) || randomBytes(48).toString('base64url'),
+    JWT_ACCESS_SECRET: parsed.data.JWT_ACCESS_SECRET as string,
+    JWT_REFRESH_SECRET: parsed.data.JWT_REFRESH_SECRET as string,
   };
 }
