@@ -189,10 +189,17 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
       expectedName = `مجموعة ${formData.gradeLevel}`;
     }
     
-    if (expectedName && formData.name !== expectedName) {
-      setFormData(prev => ({ ...prev, name: expectedName }));
+    if (expectedName && groupLocation) {
+      expectedName += ` - ${groupLocation}`;
     }
-  }, [formData.schedules, formData.gradeLevel]);
+    
+    if (expectedName) {
+      setFormData(prev => {
+        if (prev.name === expectedName) return prev;
+        return { ...prev, name: expectedName };
+      });
+    }
+  }, [formData.schedules, formData.gradeLevel, groupLocation]);
 
   const createGroup = useCreateGroup();
 

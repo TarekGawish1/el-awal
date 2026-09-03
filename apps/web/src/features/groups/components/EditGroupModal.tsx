@@ -206,10 +206,17 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
       expectedName = `مجموعة ${formData.gradeLevel}`;
     }
     
-    if (expectedName && !formData.name) {
-      setFormData(prev => ({ ...prev, name: expectedName }));
+    if (expectedName && groupLocation) {
+      expectedName += ` - ${groupLocation}`;
     }
-  }, [formData.schedules, formData.gradeLevel]);
+    
+    if (expectedName) {
+      setFormData(prev => {
+        if (prev.name === expectedName) return prev;
+        return { ...prev, name: expectedName };
+      });
+    }
+  }, [formData.schedules, formData.gradeLevel, groupLocation]);
 
   const updateGroup = useUpdateGroup();
 
