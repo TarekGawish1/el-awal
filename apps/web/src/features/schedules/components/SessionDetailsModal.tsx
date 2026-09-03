@@ -349,6 +349,10 @@ export function SessionDetailsModal({
                 ? sessionDateObj.getMonth() + 1
                 : new Date().getMonth() + 1;
 
+              const assessmentsAny = groupAssessments as any[];
+              const thisSessionAssignment = assessmentsAny.find((a: any) => a.type === 'ASSIGNMENT' && a.dueDate?.includes(sessionDateOnly));
+              const thisSessionExam = assessmentsAny.find((a: any) => a.type === 'EXAM' && (a.startDate?.includes(sessionDateOnly) || a.dueDate?.includes(sessionDateOnly)));
+
               return (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Attendance QR Action */}
@@ -403,45 +407,43 @@ export function SessionDetailsModal({
                   </div>
 
                   {/* Homework & Exams Submissions Quick Action */}
-                  <div className="p-4 bg-amber-50/80 rounded-2xl border border-amber-200 flex flex-col justify-between gap-3 transition-all hover:bg-amber-50 shadow-2xs sm:col-span-2">
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 text-amber-900 font-extrabold text-xs">
-                          <BookOpen className="w-4 h-4 text-amber-600" />
-                          <span>حلول الواجبات وإجابات الامتحانات للحصة</span>
+                  {(thisSessionAssignment || thisSessionExam) && (
+                    <div className="p-4 bg-amber-50/80 rounded-2xl border border-amber-200 flex flex-col justify-between gap-3 transition-all hover:bg-amber-50 shadow-2xs sm:col-span-2">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 text-amber-900 font-extrabold text-xs">
+                            <BookOpen className="w-4 h-4 text-amber-600" />
+                            <span>حلول الواجبات وإجابات الامتحانات للحصة</span>
+                          </div>
                         </div>
+                        <p className="text-[11px] text-amber-700 font-medium">
+                          عرض وتصحيح تسليمات الطلاب للواجب والامتحان المرتبط بهذه الحصة
+                        </p>
                       </div>
-                      <p className="text-[11px] text-amber-700 font-medium">
-                        عرض وتصحيح تسليمات الطلاب للواجب والامتحان المرتبط بهذه الحصة
-                      </p>
+
+                      <div className={`grid gap-2 ${thisSessionAssignment && thisSessionExam ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                        {thisSessionAssignment && (
+                          <Link
+                            href={`/teacher/assessments/${thisSessionAssignment.id}/submissions`}
+                            className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <ClipboardList className="w-3.5 h-3.5" />
+                            <span>حلول الواجب ({thisSessionAssignment._count?.submissions || 0})</span>
+                          </Link>
+                        )}
+
+                        {thisSessionExam && (
+                          <Link
+                            href={`/teacher/assessments/${thisSessionExam.id}/submissions`}
+                            className="w-full py-2.5 bg-white hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <GraduationCap className="w-3.5 h-3.5" />
+                            <span>إجابات الامتحان ({thisSessionExam._count?.submissions || 0})</span>
+                          </Link>
+                        )}
+                      </div>
                     </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      {(() => {
-                        const assessmentsAny = groupAssessments as any[];
-                        const thisSessionAssignment = assessmentsAny.find((a: any) => a.type === 'ASSIGNMENT' && a.dueDate?.includes(sessionDateOnly));
-                        const thisSessionExam = assessmentsAny.find((a: any) => a.type === 'EXAM' && (a.startDate?.includes(sessionDateOnly) || a.dueDate?.includes(sessionDateOnly)));
-                        
-                        return (
-                          <>
-                            <Link
-                              href={thisSessionAssignment ? `/teacher/assessments/${thisSessionAssignment.id}/submissions` : `/teacher/assessments?type=ASSIGNMENT&groupId=${session.groupId}`}
-                              className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                            >
-                              <ClipboardList className="w-3.5 h-3.5" />
-                              <span>حلول الواجب {thisSessionAssignment ? `(${thisSessionAssignment._count?.submissions || 0})` : ''}</span>
-                            </Link>
-
-                            <Link
-                              href={thisSessionExam ? `/teacher/assessments/${thisSessionExam.id}/submissions` : `/teacher/assessments?type=EXAM&groupId=${session.groupId}`}
-                              className="w-full py-2.5 bg-white hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                            >
-                              <GraduationCap className="w-3.5 h-3.5" />
-                              <span>إجابات الامتحان {thisSessionExam ? `(${thisSessionExam._count?.submissions || 0})` : ''}</span>
-                            </Link>
-                          </>
-                        );
-                      })()}
+                  )}
                     </div>
                   </div>
                 </div>
