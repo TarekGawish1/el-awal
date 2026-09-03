@@ -44,7 +44,7 @@ export function QrHomeworkScanner({
   const [cameraKey, setCameraKey] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [flashType, setFlashType] = useState<'success' | 'duplicate' | 'error' | null>(null);
-  
+
   const [scannedStudent, setScannedStudent] = useState<any>(null);
 
   const [recentChecked, setRecentChecked] = useState<
@@ -56,14 +56,14 @@ export function QrHomeworkScanner({
       time: string;
     }>
   >([]);
-  
+
   const [lastScanResult, setLastScanResult] = useState<{
     success: boolean;
     studentName?: string;
     studentCode?: string;
     message: string;
   } | null>(null);
-  
+
   const [checkedCount, setCheckedCount] = useState<number>(0);
   const [localHomeworkRecords, setLocalHomeworkRecords] = useState<any[]>([]);
   const { data: sessionReport } = useSessionReport(sessionId);
@@ -81,7 +81,7 @@ export function QrHomeworkScanner({
             qrCodeToken: r.qrCodeToken || '',
             groupId: sessionReport.groupId || groupId || '',
             gradeLevel: r.gradeLevel || '',
-          }).catch(() => {});
+          }).catch(() => { });
         }
       }
     }
@@ -101,7 +101,7 @@ export function QrHomeworkScanner({
             clientTimestamp: hr.clientTimestamp ? new Date(hr.clientTimestamp).getTime() : Date.now(),
             syncStatus: 'SYNCED',
           })
-          .catch(() => {});
+          .catch(() => { });
       }
     }
 
@@ -115,7 +115,7 @@ export function QrHomeworkScanner({
           setCheckedCount(Math.max(localCount, serverCount));
         }
       })
-      .catch(() => {});
+      .catch(() => { });
     return () => {
       isMounted = false;
     };
@@ -164,7 +164,7 @@ export function QrHomeworkScanner({
           osc.start(ctx.currentTime);
           osc.stop(ctx.currentTime + 0.28);
         }
-      } catch {}
+      } catch { }
     },
     [soundEnabled],
   );
@@ -215,7 +215,7 @@ export function QrHomeworkScanner({
             groupId: sessionReport.groupId || groupId || '',
             gradeLevel: match.gradeLevel || '',
           };
-          offlineDb.putStudent(student).catch(() => {});
+          offlineDb.putStudent(student).catch(() => { });
         }
       }
 
@@ -235,9 +235,9 @@ export function QrHomeworkScanner({
               groupId: onlineStudent.groupId || groupId || '',
               gradeLevel: onlineStudent.gradeLevel || '',
             };
-            offlineDb.putStudent(student).catch(() => {});
+            offlineDb.putStudent(student).catch(() => { });
           }
-        } catch {}
+        } catch { }
       }
 
       if (!student) {
@@ -267,7 +267,7 @@ export function QrHomeworkScanner({
 
   const handleRecordHomework = async (status: 'CHECKED_ONSITE' | 'NOT_SUBMITTED' | 'INCOMPLETE' | 'EXCUSED') => {
     if (!scannedStudent) return;
-    
+
     try {
       const studentName = scannedStudent.fullName || scannedStudent.name || 'طالب';
       const studentCode = scannedStudent.studentCode || '';
@@ -291,9 +291,9 @@ export function QrHomeworkScanner({
       playBeep('success');
       setFlashType('success');
       setCheckedCount((prev) => prev + 1);
-      
+
       const statusText = status === 'CHECKED_ONSITE' ? 'حل الواجب' : status === 'NOT_SUBMITTED' ? 'لم يحل' : status === 'INCOMPLETE' ? 'ناقص' : 'بعذر';
-      
+
       setRecentChecked((prev) => [
         {
           studentId: scannedStudent.id,
@@ -356,7 +356,7 @@ export function QrHomeworkScanner({
       });
 
       toast.success(`تم استلام الواجب: ${studentName}`);
-      
+
       setLocalHomeworkRecords((prev) => {
         const newRecords = [...prev];
         const existingIdx = newRecords.findIndex((r) => r.studentId === (student.studentId || student.id));
@@ -383,7 +383,7 @@ export function QrHomeworkScanner({
           </div>
           <div>
             <h3 className="font-bold text-slate-800 text-sm md:text-base">
-              مسح QR للواجب فقط
+              و الحضورQR للواجب فقط
             </h3>
             <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
               <span>سيتم سؤالك عن حالة الواجب بعد المسح.</span>
@@ -412,13 +412,12 @@ export function QrHomeworkScanner({
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
         <div className="md:col-span-6 flex flex-col items-center">
           <div
-            className={`w-full max-w-sm aspect-[3/4] sm:aspect-square bg-slate-950 rounded-3xl overflow-hidden border border-slate-200 shadow-md relative transition-all duration-300 ring-4 ${
-              flashType === 'success'
+            className={`w-full max-w-sm aspect-[3/4] sm:aspect-square bg-slate-950 rounded-3xl overflow-hidden border border-slate-200 shadow-md relative transition-all duration-300 ring-4 ${flashType === 'success'
                 ? 'ring-indigo-500 shadow-xl shadow-indigo-500/20'
                 : flashType === 'error'
-                ? 'ring-rose-500 shadow-xl shadow-rose-500/20'
-                : 'ring-indigo-100'
-            }`}
+                  ? 'ring-rose-500 shadow-xl shadow-rose-500/20'
+                  : 'ring-indigo-100'
+              }`}
           >
             <Scanner
               key={cameraKey}
@@ -470,17 +469,17 @@ export function QrHomeworkScanner({
                     {scannedStudent.studentCode || scannedStudent.id}
                   </p>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-2 w-full max-w-[260px] shrink-0 mb-auto pb-4">
-                  <Button 
+                  <Button
                     className="col-span-2 h-14 text-lg font-bold bg-emerald-600 hover:bg-emerald-700 rounded-2xl shadow-md shadow-emerald-500/20"
                     onClick={() => handleRecordHomework('CHECKED_ONSITE')}
                   >
                     <CheckCircle2 className="w-5 h-5 ml-2 rtl:ml-0 rtl:mr-2" />
                     حل الواجب
                   </Button>
-                  
-                  <Button 
+
+                  <Button
                     variant="outline"
                     className="h-12 text-base font-bold text-rose-600 border-rose-200 bg-rose-50 hover:bg-rose-100 hover:text-rose-700 rounded-2xl"
                     onClick={() => handleRecordHomework('NOT_SUBMITTED')}
@@ -488,7 +487,7 @@ export function QrHomeworkScanner({
                     محلوش
                   </Button>
 
-                  <Button 
+                  <Button
                     variant="outline"
                     className="h-12 text-base font-bold text-amber-600 border-amber-200 bg-amber-50 hover:bg-amber-100 hover:text-amber-700 rounded-2xl"
                     onClick={() => handleRecordHomework('INCOMPLETE')}
@@ -496,15 +495,15 @@ export function QrHomeworkScanner({
                     ناقص
                   </Button>
 
-                  <Button 
+                  <Button
                     variant="outline"
                     className="col-span-2 h-12 text-sm font-bold text-slate-600 border-slate-200 bg-slate-50 hover:bg-slate-100 rounded-2xl"
                     onClick={() => handleRecordHomework('EXCUSED')}
                   >
                     بعذر
                   </Button>
-                  
-                  <Button 
+
+                  <Button
                     variant="ghost"
                     className="col-span-2 h-10 mt-1 text-slate-400 hover:text-slate-600 rounded-xl text-sm"
                     onClick={() => {
@@ -578,20 +577,19 @@ export function QrHomeworkScanner({
                 {sessionReport.records.map((student: any) => {
                   const record = localHomeworkRecords.find((r) => r.studentId === student.studentId);
                   const status = record?.status;
-                  
+
                   return (
                     <div
                       key={student.studentId}
                       className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 hover:bg-slate-100/70 transition-colors text-xs"
                     >
                       <div className="flex items-center gap-2.5">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
-                          status === 'CHECKED_ONSITE' ? 'bg-emerald-100 text-emerald-700' :
-                          status === 'NOT_SUBMITTED' ? 'bg-rose-100 text-rose-700' :
-                          status === 'INCOMPLETE' ? 'bg-amber-100 text-amber-700' :
-                          status === 'EXCUSED' ? 'bg-slate-200 text-slate-700' :
-                          'bg-white text-slate-300 border border-slate-200'
-                        }`}>
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${status === 'CHECKED_ONSITE' ? 'bg-emerald-100 text-emerald-700' :
+                            status === 'NOT_SUBMITTED' ? 'bg-rose-100 text-rose-700' :
+                              status === 'INCOMPLETE' ? 'bg-amber-100 text-amber-700' :
+                                status === 'EXCUSED' ? 'bg-slate-200 text-slate-700' :
+                                  'bg-white text-slate-300 border border-slate-200'
+                          }`}>
                           {status === 'CHECKED_ONSITE' ? '✓' : status === 'NOT_SUBMITTED' ? '✗' : status === 'INCOMPLETE' ? '!' : status === 'EXCUSED' ? '-' : '?'}
                         </div>
                         <div>
