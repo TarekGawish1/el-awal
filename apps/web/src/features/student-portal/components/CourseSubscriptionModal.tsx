@@ -98,6 +98,7 @@ export function CourseSubscriptionModal({
     });
 
     onSuccess?.();
+    onClose();
   };
 
   if (!isOpen) return null;

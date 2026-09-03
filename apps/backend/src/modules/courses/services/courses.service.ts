@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   BadRequestException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 import {
@@ -13,6 +14,7 @@ import {
 } from '../repositories/course-progress.repository';
 import { BunnyVideoService } from '../../../integrations/video/bunny-video.service';
 import { StorageService } from '../../../integrations/storage/storage.service';
+import { NotificationsService } from '../../notifications/services/notifications.service';
 import { CreateCourseDto } from '../dto/create-course.dto';
 import { UpdateCourseDto } from '../dto/update-course.dto';
 import { CreateModuleDto } from '../dto/create-module.dto';
@@ -45,6 +47,8 @@ import {
   CourseEnrollmentStatus,
   CourseAccessStatus,
   UserRole,
+  NotificationType,
+  NotificationChannel,
 } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
 import { resolveOfficialSubmission } from '../../assessments/utils/submission-grade.util';
@@ -63,6 +67,7 @@ export class CoursesService {
     private readonly bunnyVideoService: BunnyVideoService,
     private readonly storageService: StorageService,
     private readonly aiModeration: AiModerationService,
+    @Optional() private readonly notificationsService?: NotificationsService,
   ) {}
 
   /**
@@ -1678,7 +1683,7 @@ export class CoursesService {
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
       include: {
-        teacher: { include: { user: { select: { fullName: true, phone: true } } } },
+        teacher: { include: { user: { select: { id: true, fullName: true, phone: true } } } },
       },
     });
 
@@ -1690,9 +1695,15 @@ export class CoursesService {
       throw new BadRequestException('لا يمكن الاشتراك في كورس غير منشور أو مؤرشف');
     }
 
-    let student = await this.prisma.studentProfile.findUnique({ where: { id: studentId } });
+    let student = await this.prisma.studentProfile.findUnique({
+      where: { id: studentId },
+      include: { user: { select: { id: true, fullName: true, phone: true } } },
+    });
     if (!student) {
-      student = await this.prisma.studentProfile.findFirst({ where: { user: { id: studentId } } });
+      student = await this.prisma.studentProfile.findFirst({
+        where: { user: { id: studentId } },
+        include: { user: { select: { id: true, fullName: true, phone: true } } },
+      });
     }
     if (!student) {
       throw new NotFoundException('بيانات الطالب غير موجودة');
@@ -1734,6 +1745,32 @@ export class CoursesService {
         enrolledAt: new Date(),
       },
     });
+
+    // Notify teacher of the new subscription application in real time
+    if (this.notificationsService && course.teacher?.user?.id) {
+      this.notificationsService
+        .sendNotification({
+          recipientId: course.teacher.user.id,
+          notificationType: NotificationType.GENERAL_ANNOUNCEMENT,
+          type: 'COURSE_SUBSCRIPTION_REQUEST',
+          title: `طلب اشتراك جديد في كورس: ${course.title}`,
+          body: `قام الطالب ${student.user?.fullName || student.studentCode} بتقديم طلب اشتراك في كورس "${course.title}" وإرفاق إيصال التحويل بمبلغ ${dto.transferAmount ? Number(dto.transferAmount) : Number(course.price)} ج.م`,
+          channels: [NotificationChannel.IN_APP, NotificationChannel.WEB_PUSH],
+          data: {
+            courseId,
+            enrollmentId: enrollment.id,
+            studentId: resolvedStudentId,
+            studentName: student.user?.fullName,
+            receiptImageUrl: dto.receiptImageUrl,
+            senderPhone: dto.senderPhone,
+            transferAmount: dto.transferAmount,
+          },
+          referenceEntityId: enrollment.id,
+        })
+        .catch((err) => {
+          this.logger.warn(`Failed to dispatch teacher notification for course subscription`, err);
+        });
+    }
 
     return {
       enrollmentId: enrollment.id,
@@ -1798,6 +1835,74 @@ export class CoursesService {
   }
 
   /**
+   * Retrieves all subscription applications (pending with receipts and active enrolled students)
+   * across all courses belonging to the authenticated teacher.
+   */
+  async getTeacherSubscriptions(user: AuthenticatedUser) {
+    const teacherProfileId = user.teacherProfileId || user.id;
+
+    const enrollments = await this.prisma.courseEnrollment.findMany({
+      where: {
+        course: { teacherId: teacherProfileId },
+      },
+      include: {
+        course: { select: { id: true, title: true, price: true, gradeLevel: true, subject: true } },
+        student: {
+          include: {
+            user: { select: { id: true, fullName: true, phone: true, email: true } },
+          },
+        },
+      },
+      orderBy: { enrolledAt: 'desc' },
+    });
+
+    const pendingRequests = enrollments
+      .filter((e) => e.status === CourseEnrollmentStatus.PENDING)
+      .map((e) => ({
+        enrollmentId: e.id,
+        courseId: e.courseId,
+        courseName: e.course.title,
+        coursePrice: Number(e.course.price),
+        studentId: e.studentId,
+        studentName: e.student?.user?.fullName || 'طالب',
+        studentCode: e.student?.studentCode || '',
+        studentPhone: e.student?.user?.phone || '',
+        senderPhone: e.senderPhone || e.student?.user?.phone || '',
+        transferAmount: e.transferAmount ? Number(e.transferAmount) : Number(e.course.price),
+        receiptImageUrl: e.receiptImageUrl || null,
+        paymentMethod: e.paymentMethod,
+        date: e.enrolledAt ? new Date(e.enrolledAt).toISOString().split('T')[0] : '',
+        enrolledAt: e.enrolledAt,
+        status: e.status,
+      }));
+
+    const activeStudents = enrollments
+      .filter((e) => e.status === CourseEnrollmentStatus.ACTIVE)
+      .map((e) => ({
+        enrollmentId: e.id,
+        courseId: e.courseId,
+        courseName: e.course.title,
+        coursePrice: Number(e.course.price),
+        studentId: e.studentId,
+        studentName: e.student?.user?.fullName || 'طالب',
+        studentCode: e.student?.studentCode || '',
+        studentPhone: e.student?.user?.phone || '',
+        date: e.enrolledAt ? new Date(e.enrolledAt).toISOString().split('T')[0] : '',
+        enrolledAt: e.enrolledAt,
+        status: e.status,
+      }));
+
+    return {
+      pendingRequests,
+      activeStudents,
+      counts: {
+        pending: pendingRequests.length,
+        active: activeStudents.length,
+      },
+    };
+  }
+
+  /**
    * Approves a student's subscription request, activating the enrollment and CourseAccess.
    */
   async approveSubscriptionRequest(enrollmentId: string, user: AuthenticatedUser) {
@@ -1850,6 +1955,27 @@ export class CoursesService {
         `Approved enrollment [${enrollmentId}] for student [${enrollment.studentId}] in course [${enrollment.courseId}]`,
       );
 
+      // Notify student of approval
+      if (this.notificationsService && enrollment.student?.user?.id) {
+        this.notificationsService
+          .sendNotification({
+            recipientId: enrollment.student.user.id,
+            notificationType: NotificationType.GENERAL_ANNOUNCEMENT,
+            type: 'COURSE_SUBSCRIPTION_APPROVED',
+            title: `تمت الموافقة على اشتراكك في الكورس 🎉`,
+            body: `تم تفعيل اشتراكك في كورس "${enrollment.course.title}" بنجاح! يمكنك الآن مشاهدة جميع الدروس والبدء في المذاكرة.`,
+            channels: [NotificationChannel.IN_APP, NotificationChannel.WEB_PUSH],
+            data: {
+              courseId: enrollment.courseId,
+              enrollmentId: enrollment.id,
+            },
+            referenceEntityId: enrollment.id,
+          })
+          .catch((err) => {
+            this.logger.warn(`Failed to dispatch student approval notification`, err);
+          });
+      }
+
       return {
         enrollmentId: updatedEnrollment.id,
         courseId: updatedEnrollment.courseId,
@@ -1871,7 +1997,7 @@ export class CoursesService {
   ) {
     const enrollment = await this.prisma.courseEnrollment.findUnique({
       where: { id: enrollmentId },
-      include: { course: true },
+      include: { course: true, student: { include: { user: true } } },
     });
 
     if (!enrollment) {
@@ -1902,6 +2028,28 @@ export class CoursesService {
       where: { enrollmentId },
       data: { accessStatus: CourseAccessStatus.SUSPENDED },
     });
+
+    // Notify student of rejection with reason
+    if (this.notificationsService && enrollment.student?.user?.id) {
+      this.notificationsService
+        .sendNotification({
+          recipientId: enrollment.student.user.id,
+          notificationType: NotificationType.GENERAL_ANNOUNCEMENT,
+          type: 'COURSE_SUBSCRIPTION_REJECTED',
+          title: `تم رفض طلب الاشتراك في الكورس`,
+          body: `نأسف، تم رفض طلب اشتراكك في كورس "${enrollment.course.title}". السبب: ${updated.rejectionReason}`,
+          channels: [NotificationChannel.IN_APP, NotificationChannel.WEB_PUSH],
+          data: {
+            courseId: enrollment.courseId,
+            enrollmentId: enrollment.id,
+            rejectionReason: updated.rejectionReason,
+          },
+          referenceEntityId: enrollment.id,
+        })
+        .catch((err) => {
+          this.logger.warn(`Failed to dispatch student rejection notification`, err);
+        });
+    }
 
     return {
       enrollmentId: updated.id,

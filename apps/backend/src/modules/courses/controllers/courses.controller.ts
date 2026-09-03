@@ -72,6 +72,13 @@ export class CoursesController {
     return this.coursesService.getTeacherCourses(user.teacherProfileId || user.id);
   }
 
+  @Get('teacher/subscriptions')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Get all pending requests and active students across teacher courses' })
+  async getTeacherSubscriptions(@CurrentUser() user: AuthenticatedUser) {
+    return this.coursesService.getTeacherSubscriptions(user);
+  }
+
   @Post('lessons/upload-video-credentials')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Generate direct Bunny Stream video upload authorization credentials' })

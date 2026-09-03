@@ -1060,5 +1060,54 @@ describe('CoursesService', () => {
       expect(res.status).toBe(CourseEnrollmentStatus.DROPPED);
       expect(res.rejectionReason).toBe('إيصال غير واضح');
     });
+
+    it('should retrieve teacher subscriptions with pending and active lists', async () => {
+      mockPrismaService.courseEnrollment.findMany.mockResolvedValue([
+        {
+          id: 'enr-1',
+          courseId: 'c-1',
+          studentId: 's-1',
+          status: CourseEnrollmentStatus.PENDING,
+          senderPhone: '01012345678',
+          transferAmount: 250,
+          receiptImageUrl: '/uploads/payment-receipts/rec1.jpg',
+          paymentMethod: 'VODAFONE_CASH',
+          enrolledAt: new Date('2026-09-01'),
+          course: { id: 'c-1', title: 'كورس الجبر', price: 250, gradeLevel: 'ثانوية عامة', subject: 'رياضة' },
+          student: {
+            studentCode: 'STU-100',
+            user: { id: 'u-1', fullName: 'أحمد محمود', phone: '01012345678', email: 'ahmed@test.com' },
+          },
+        },
+        {
+          id: 'enr-2',
+          courseId: 'c-1',
+          studentId: 's-2',
+          status: CourseEnrollmentStatus.ACTIVE,
+          senderPhone: '01099999999',
+          transferAmount: 250,
+          receiptImageUrl: null,
+          paymentMethod: 'VODAFONE_CASH',
+          enrolledAt: new Date('2026-08-20'),
+          course: { id: 'c-1', title: 'كورس الجبر', price: 250, gradeLevel: 'ثانوية عامة', subject: 'رياضة' },
+          student: {
+            studentCode: 'STU-101',
+            user: { id: 'u-2', fullName: 'سارة خالد', phone: '01099999999', email: 'sara@test.com' },
+          },
+        },
+      ]);
+
+      const res = await service.getTeacherSubscriptions({
+        id: 'teacher-uuid-1',
+        role: UserRole.TEACHER,
+        teacherProfileId: 'teacher-uuid-1',
+      } as any);
+
+      expect(res.counts.pending).toBe(1);
+      expect(res.counts.active).toBe(1);
+      expect(res.pendingRequests[0].studentName).toBe('أحمد محمود');
+      expect(res.pendingRequests[0].receiptImageUrl).toBe('/uploads/payment-receipts/rec1.jpg');
+      expect(res.activeStudents[0].studentName).toBe('سارة خالد');
+    });
   });
 });
