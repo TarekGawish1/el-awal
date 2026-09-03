@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
 
@@ -42,10 +42,10 @@ export class BunnyVideoService {
   private readonly tokenSecurityKey: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.apiKey = this.configService.get<string>('BUNNY_API_KEY', '');
-    this.libraryId = this.configService.get<string>('BUNNY_LIBRARY_ID', '');
-    this.cdnHostname = this.configService.get<string>('BUNNY_CDN_HOSTNAME', 'video.elawal.com');
-    this.tokenSecurityKey = this.configService.get<string>('BUNNY_TOKEN_SECURITY_KEY', '');
+    this.apiKey = this.configService.get<string>('BUNNY_API_KEY', '').trim();
+    this.libraryId = this.configService.get<string>('BUNNY_LIBRARY_ID', '').trim();
+    this.cdnHostname = this.configService.get<string>('BUNNY_CDN_HOSTNAME', 'video.elawal.com').trim();
+    this.tokenSecurityKey = this.configService.get<string>('BUNNY_TOKEN_SECURITY_KEY', '').trim();
   }
 
   getLibraryId(): string {
@@ -56,6 +56,13 @@ export class BunnyVideoService {
    * Creates a video object in Bunny Stream and returns video ID and direct upload URL.
    */
   async createDirectUploadVideo(title: string): Promise<CreateVideoResult> {
+    if (!this.libraryId || !this.apiKey) {
+      this.logger.error('Bunny Stream credentials missing: BUNNY_LIBRARY_ID or BUNNY_API_KEY is not configured');
+      throw new BadRequestException(
+        'إعدادات سيرفر Bunny Stream غير مكتملة على السيرفر (BUNNY_LIBRARY_ID أو BUNNY_API_KEY مفقود). يرجى ضبط المتغيرات في إعدادات المنصة.',
+      );
+    }
+
     try {
       const response = await fetch(
         `https://video.bunnycdn.com/library/${this.libraryId}/videos`,
@@ -71,7 +78,17 @@ export class BunnyVideoService {
       );
 
       if (!response.ok) {
-        throw new Error(`Bunny API responded with status ${response.status}: ${await response.text()}`);
+        const errorText = await response.text().catch(() => '');
+        this.logger.error(`Bunny Stream API error (${response.status}): ${errorText}`);
+
+        if (response.status === 401) {
+          throw new BadRequestException(
+            'فشل التحقق من مفتاح Bunny Stream (401 Unauthorized). يرجى التأكد من صحة Stream API Key ومطابقته لـ Video Library ID في إعدادات المنصة.',
+          );
+        }
+        throw new BadRequestException(
+          `فشل إنشاء الفيديو في Bunny Stream (كود ${response.status}): ${errorText || 'طلب غير صالح'}`,
+        );
       }
 
       const data = (await response.json()) as { guid: string };
@@ -82,9 +99,14 @@ export class BunnyVideoService {
         videoId,
         directUploadUrl,
       };
-    } catch (error) {
+    } catch (error: any) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
       this.logger.error(`Failed to create Bunny Stream video [${title}]:`, error);
-      throw error;
+      throw new BadRequestException(
+        `تعذر الاتصال بسيرفر Bunny Stream: ${error?.message || 'خطأ غير متوقع'}`,
+      );
     }
   }
 

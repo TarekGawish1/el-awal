@@ -45,7 +45,26 @@ export class ContentService {
    * Generates direct client-to-Bunny Stream upload credentials for video recordings.
    */
   async generatePresignedVideoUpload(title: string) {
-    return this.bunnyVideoService.generateDirectUploadCredentials(title);
+    try {
+      return await this.bunnyVideoService.generateDirectUploadCredentials(title);
+    } catch (err: any) {
+      this.logger.warn(
+        `Bunny Stream presigned video upload failed (${err?.message || err}), falling back to R2 direct presigned upload.`,
+      );
+      const sanitized = (title || 'lesson-video').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const fileKey = `uploads/content/videos/${Date.now()}-${randomUUID().slice(0, 8)}-${sanitized}.mp4`;
+      const r2Upload = await this.storageService.generatePresignedUploadUrl(fileKey, 'video/mp4', 7200);
+      return {
+        videoId: `r2:${fileKey}`,
+        libraryId: '',
+        uploadUrl: r2Upload.uploadUrl,
+        authorizationSignature: '',
+        authorizationExpire: Math.floor(Date.now() / 1000) + 7200,
+        accessKey: '',
+        embedUrl: r2Upload.publicUrl || '',
+        playbackUrl: r2Upload.publicUrl || '',
+      };
+    }
   }
 
   /**

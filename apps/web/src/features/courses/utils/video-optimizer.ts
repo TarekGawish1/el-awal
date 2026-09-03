@@ -96,16 +96,37 @@ export function validateVideoFile(file: File): { isValid: boolean; error?: strin
  */
 export function extractVideoMetadata(file: File): Promise<VideoMetadata> {
   return new Promise((resolve) => {
+    let isSettled = false;
     const video = document.createElement('video');
     video.preload = 'metadata';
     const objectUrl = URL.createObjectURL(file);
 
+    const timer = setTimeout(() => {
+      if (isSettled) return;
+      isSettled = true;
+      cleanup();
+      resolve({
+        durationSeconds: 0,
+        width: 1920,
+        height: 1080,
+        aspectRatio: '16:9',
+        qualityLabel: 'Full HD (1080p)',
+        fileSizeBytes: file.size,
+        formattedSize: formatVideoSize(file.size),
+        bitrateMbps: 0,
+        needsCompressionSuggestion: file.size > 800 * 1024 * 1024,
+      });
+    }, 2500);
+
     const cleanup = () => {
+      clearTimeout(timer);
       URL.revokeObjectURL(objectUrl);
       video.remove();
     };
 
     video.onloadedmetadata = () => {
+      if (isSettled) return;
+      isSettled = true;
       const durationSeconds = Math.round(video.duration) || 0;
       const width = video.videoWidth || 1920;
       const height = video.videoHeight || 1080;
@@ -150,6 +171,8 @@ export function extractVideoMetadata(file: File): Promise<VideoMetadata> {
     };
 
     video.onerror = () => {
+      if (isSettled) return;
+      isSettled = true;
       cleanup();
       // Fallback with basic file size info
       resolve({

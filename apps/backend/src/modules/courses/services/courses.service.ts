@@ -391,6 +391,25 @@ export class CoursesService {
     if (!isSecretariat && course.teacherId !== teacherId) {
       throw new ForbiddenException('You do not have permission to delete this course');
     }
+
+    // Clean up all Bunny Stream videos belonging to this course
+    const lessons = await this.prisma.courseLesson.findMany({
+      where: { module: { courseId } },
+      select: { bunnyVideoId: true, videoAssetId: true },
+    });
+    for (const l of lessons) {
+      if (l.bunnyVideoId) {
+        await this.bunnyVideoService.deleteVideo(l.bunnyVideoId).catch((err) => {
+          this.logger.warn(`Failed to delete Bunny video [${l.bunnyVideoId}] for course [${courseId}]:`, err);
+        });
+      }
+      if (l.videoAssetId && l.videoAssetId !== l.bunnyVideoId) {
+        await this.bunnyVideoService.deleteVideo(l.videoAssetId).catch((err) => {
+          this.logger.warn(`Failed to delete Bunny video asset [${l.videoAssetId}] for course [${courseId}]:`, err);
+        });
+      }
+    }
+
     return this.prisma.course.delete({ where: { id: courseId } });
   }
 
@@ -480,6 +499,25 @@ export class CoursesService {
     if (!isSecretariat && module.course.teacherId !== teacherId) {
       throw new ForbiddenException('You do not have permission to delete this module');
     }
+
+    // Clean up all Bunny Stream videos belonging to this module
+    const lessons = await this.prisma.courseLesson.findMany({
+      where: { moduleId },
+      select: { bunnyVideoId: true, videoAssetId: true },
+    });
+    for (const l of lessons) {
+      if (l.bunnyVideoId) {
+        await this.bunnyVideoService.deleteVideo(l.bunnyVideoId).catch((err) => {
+          this.logger.warn(`Failed to delete Bunny video [${l.bunnyVideoId}] for module [${moduleId}]:`, err);
+        });
+      }
+      if (l.videoAssetId && l.videoAssetId !== l.bunnyVideoId) {
+        await this.bunnyVideoService.deleteVideo(l.videoAssetId).catch((err) => {
+          this.logger.warn(`Failed to delete Bunny video asset [${l.videoAssetId}] for module [${moduleId}]:`, err);
+        });
+      }
+    }
+
     return this.prisma.courseModule.delete({ where: { id: moduleId } });
   }
 
@@ -678,6 +716,17 @@ export class CoursesService {
 
     const isPreviewVal = dto.isFreePreview !== undefined ? dto.isFreePreview : dto.isPreview;
 
+    // If the video was replaced or removed, delete the old video from Bunny Stream
+    if (
+      dto.bunnyVideoId !== undefined &&
+      lesson.bunnyVideoId &&
+      lesson.bunnyVideoId !== dto.bunnyVideoId
+    ) {
+      await this.bunnyVideoService.deleteVideo(lesson.bunnyVideoId).catch((err) => {
+        this.logger.warn(`Failed to delete replaced Bunny video [${lesson.bunnyVideoId}]:`, err);
+      });
+    }
+
     return this.prisma.courseLesson.update({
       where: { id: lessonId },
       data: {
@@ -700,7 +749,7 @@ export class CoursesService {
   }
 
   /**
-   * Deletes a lesson.
+   * Deletes a lesson and removes its video from Bunny Stream.
    */
   async deleteLesson(lessonId: string, teacherId: string, isSecretariat: boolean) {
     const lesson = await this.prisma.courseLesson.findUnique({
@@ -713,6 +762,29 @@ export class CoursesService {
     if (!isSecretariat && lesson.module.course.teacherId !== teacherId) {
       throw new ForbiddenException('You do not have permission to delete this lesson');
     }
+
+    // Delete associated video from Bunny Stream if exists
+    if (lesson.bunnyVideoId) {
+      await this.bunnyVideoService.deleteVideo(lesson.bunnyVideoId).catch((err) => {
+        this.logger.warn(`Failed to delete Bunny Stream video [${lesson.bunnyVideoId}]:`, err);
+      });
+    }
+    if (lesson.videoAssetId && lesson.videoAssetId !== lesson.bunnyVideoId) {
+      await this.bunnyVideoService.deleteVideo(lesson.videoAssetId).catch((err) => {
+        this.logger.warn(`Failed to delete Bunny Stream video asset [${lesson.videoAssetId}]:`, err);
+      });
+    }
+
+    // Also delete any attachments from storage
+    const attachments = await this.prisma.lessonAttachment.findMany({
+      where: { lessonId },
+    });
+    for (const att of attachments) {
+      if (att.fileKey) {
+        await this.storageService.deleteObject(att.fileKey).catch(() => {});
+      }
+    }
+
     return this.prisma.courseLesson.delete({ where: { id: lessonId } });
   }
 
@@ -1187,7 +1259,12 @@ export class CoursesService {
    * Generates direct upload credentials for Bunny Stream video upload.
    */
   async generateDirectVideoUploadCredentials(title: string) {
-    return this.bunnyVideoService.generateDirectUploadCredentials(title);
+    const creds = await this.bunnyVideoService.generateDirectUploadCredentials(title);
+    return {
+      ...creds,
+      provider: 'bunny' as const,
+      contentUrl: creds.embedUrl,
+    };
   }
 
   /**
