@@ -262,9 +262,10 @@ model User {
   secretariatProfile SecretariatProfile?
 
   // Recorded Operations & Audits
-  recordedAttendances   AttendanceRecord[]     @relation("RecordedAttendances")
-  grantedCourseAccesses CourseAccess[]         @relation("GrantedCourseAccesses")
-  recordedPayments      StudentPaymentRecord[] @relation("RecordedPayments")
+  recordedAttendances      AttendanceRecord[]     @relation("RecordedAttendances")
+  grantedCourseAccesses    CourseAccess[]         @relation("GrantedCourseAccesses")
+  reviewedCourseEnrollments CourseEnrollment[]     @relation("ReviewedCourseEnrollments")
+  recordedPayments         StudentPaymentRecord[] @relation("RecordedPayments")
   notifications         Notification[]         @relation("UserNotifications")
   pushSubscriptions     PushSubscription[]     @relation("UserPushSubscriptions")
   refreshTokenSessions  RefreshTokenSession[]
@@ -701,14 +702,22 @@ model GroupCourseAccess {
 }
 
 model CourseEnrollment {
-  id         String                 @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
-  courseId   String                 @map("course_id") @db.Uuid
-  studentId  String                 @map("student_id") @db.Uuid
-  enrolledAt DateTime               @default(now()) @map("enrolled_at") @db.Timestamptz(6)
-  status     CourseEnrollmentStatus @default(ACTIVE) @map("status")
+  id              String                 @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  courseId        String                 @map("course_id") @db.Uuid
+  studentId       String                 @map("student_id") @db.Uuid
+  enrolledAt      DateTime               @default(now()) @map("enrolled_at") @db.Timestamptz(6)
+  status          CourseEnrollmentStatus @default(ACTIVE) @map("status")
+  senderPhone     String?                @map("sender_phone") @db.VarChar(50)
+  transferAmount  Decimal?               @map("transfer_amount") @db.Decimal(10, 2)
+  receiptImageUrl String?                @map("receipt_image_url") @db.Text
+  paymentMethod   String?                @default("VODAFONE_CASH") @map("payment_method") @db.VarChar(50)
+  rejectionReason String?                @map("rejection_reason") @db.Text
+  reviewedAt      DateTime?              @map("reviewed_at") @db.Timestamptz(6)
+  reviewedById    String?                @map("reviewed_by_id") @db.Uuid
 
-  course  Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  course     Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  reviewedBy User?          @relation("ReviewedCourseEnrollments", fields: [reviewedById], references: [id], onDelete: SetNull)
 
   access CourseAccess?
 

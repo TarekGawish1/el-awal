@@ -34,6 +34,8 @@ import {
   EnrollStudentsBatchDto,
   CreateAndEnrollStudentDto,
   EnrollByQrDto,
+  CourseSubscriptionRequestDto,
+  RejectSubscriptionRequestDto,
 } from '../dto/enrollment.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
 import { Public } from '../../../core/security/decorators/public.decorator';
@@ -388,6 +390,66 @@ export class CoursesController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.coursesService.enrollCourse(courseId, user.studentProfileId || user.id);
+  }
+
+  @Post(':id/subscribe-request')
+  @Roles(UserRole.STUDENT, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Submit course subscription application with Vodafone Cash transfer receipt' })
+  @ApiResponse({ status: 201, description: 'Subscription request submitted for teacher review' })
+  async requestCourseSubscription(
+    @Param('id') courseId: string,
+    @Body() dto: CourseSubscriptionRequestDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.coursesService.requestCourseSubscription(
+      courseId,
+      user.studentProfileId || user.id,
+      dto,
+    );
+  }
+
+  @Get(':id/pending-enrollments')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Get list of pending course subscription requests with receipts' })
+  async getPendingEnrollments(
+    @Param('id') courseId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.coursesService.getPendingEnrollmentRequests(courseId, user);
+  }
+
+  @Post('enrollments/:enrollmentId/approve')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Approve a student subscription request and activate course access' })
+  async approveSubscription(
+    @Param('enrollmentId') enrollmentId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.coursesService.approveSubscriptionRequest(enrollmentId, user);
+  }
+
+  @Post('enrollments/:enrollmentId/reject')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Reject a student subscription request with reason' })
+  async rejectSubscription(
+    @Param('enrollmentId') enrollmentId: string,
+    @Body() dto: RejectSubscriptionRequestDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.coursesService.rejectSubscriptionRequest(enrollmentId, user, dto);
+  }
+
+  @Get(':id/subscription-status')
+  @Roles(UserRole.STUDENT, UserRole.SECRETARIAT, UserRole.TEACHER)
+  @ApiOperation({ summary: 'Check student subscription status for a course' })
+  async getSubscriptionStatus(
+    @Param('id') courseId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.coursesService.getStudentCourseSubscriptionStatus(
+      courseId,
+      user.studentProfileId || user.id,
+    );
   }
 
   @Get('lessons/:lessonId/viewer')

@@ -281,6 +281,86 @@ export const coursesApi = {
     });
   },
 
+  submitSubscriptionRequest: async (
+    courseId: string,
+    data: {
+      senderPhone?: string;
+      transferAmount?: number;
+      receiptImageUrl?: string;
+      paymentMethod?: string;
+    },
+  ): Promise<{
+    enrollmentId: string;
+    courseId: string;
+    studentId: string;
+    status: string;
+    message: string;
+  }> => {
+    return apiClient(`/courses/${courseId}/subscribe-request`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  getPendingEnrollments: async (courseId: string): Promise<Array<{
+    enrollmentId: string;
+    courseId: string;
+    studentId: string;
+    fullName: string;
+    studentCode: string;
+    phone: string;
+    parentPhone?: string;
+    senderPhone?: string;
+    transferAmount: number;
+    receiptImageUrl?: string;
+    paymentMethod: string;
+    enrolledAt: string;
+    status: string;
+  }>> => {
+    return apiClient(`/courses/${courseId}/pending-enrollments`);
+  },
+
+  approveEnrollment: async (enrollmentId: string): Promise<{
+    enrollmentId: string;
+    courseId: string;
+    studentId: string;
+    status: string;
+    accessStatus: string;
+    message: string;
+  }> => {
+    return apiClient(`/courses/enrollments/${enrollmentId}/approve`, {
+      method: 'POST',
+    });
+  },
+
+  rejectEnrollment: async (
+    enrollmentId: string,
+    rejectionReason?: string,
+  ): Promise<{
+    enrollmentId: string;
+    status: string;
+    rejectionReason?: string;
+    message: string;
+  }> => {
+    return apiClient(`/courses/enrollments/${enrollmentId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ rejectionReason }),
+    });
+  },
+
+  getSubscriptionStatus: async (courseId: string): Promise<{
+    isEnrolled: boolean;
+    status: string | null;
+    senderPhone?: string | null;
+    transferAmount?: number | null;
+    receiptImageUrl?: string | null;
+    rejectionReason?: string | null;
+    enrolledAt?: string | null;
+    reviewedAt?: string | null;
+  }> => {
+    return apiClient(`/courses/${courseId}/subscription-status`);
+  },
+
   getPresignedUploadUrl: async (data: {
     fileName: string;
     contentType?: string;

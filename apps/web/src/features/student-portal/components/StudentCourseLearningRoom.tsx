@@ -517,6 +517,13 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     const lessonId = selectedLessonId;
     const nextCompleted = !isLessonCompleted;
 
+    // Enforce quiz requirement: student cannot mark lesson complete if quiz has not been submitted
+    if (nextCompleted && lessonViewer?.lessonQuiz && !lessonViewer.lessonQuiz.mySubmission) {
+      toast.error('لا يمكن إتمام هذا الدرس قبل حل واجتياز اختباره الإلكتروني بنجاح 📝');
+      setActiveTab('quiz');
+      return;
+    }
+
     // Optimistic UI update
     if (nextCompleted) {
       markLessonCompletedLocally(lessonId);
@@ -613,12 +620,12 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
   const certData = {
     studentName: (user as any)?.fullName || (user as any)?.name || 'الطالب',
     courseTitle: course?.title || '',
-    teacherName: (course as any)?.teacher?.user?.fullName || undefined,
-    completedDate: new Date().toLocaleDateString('ar-EG', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    }),
+    teacherName: (course as any)?.teacher?.user?.fullName || (course as any)?.teacherName || 'أ. طارق عبد الله',
+    subject: course?.subject || 'المنهج الدراسي',
+    gradeLevel: course?.gradeLevel || 'الصف الدراسي',
+    academicStage: course?.academicStage || 'المرحلة الدراسية',
+    score: '100',
+    completedAt: new Date().toISOString(),
   };
 
   return (

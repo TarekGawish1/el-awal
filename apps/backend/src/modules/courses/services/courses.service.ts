@@ -36,6 +36,8 @@ import {
   EnrollStudentsBatchDto,
   CreateAndEnrollStudentDto,
   EnrollByQrDto,
+  CourseSubscriptionRequestDto,
+  RejectSubscriptionRequestDto,
 } from '../dto/enrollment.dto';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import {
@@ -1666,6 +1668,290 @@ export class CoursesService {
   }
 
   /**
+   * Handles student application to subscribe to an online course with Vodafone Cash payment receipt.
+   */
+  async requestCourseSubscription(
+    courseId: string,
+    studentId: string,
+    dto: CourseSubscriptionRequestDto,
+  ) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      include: {
+        teacher: { include: { user: { select: { fullName: true, phone: true } } } },
+      },
+    });
+
+    if (!course) {
+      throw new NotFoundException(`Course [${courseId}] not found`);
+    }
+
+    if (course.status !== CourseStatus.PUBLISHED) {
+      throw new BadRequestException('Cannot subscribe to an unpublished or archived course');
+    }
+
+    let student = await this.prisma.studentProfile.findUnique({ where: { id: studentId } });
+    if (!student) {
+      student = await this.prisma.studentProfile.findFirst({ where: { user: { id: studentId } } });
+    }
+    if (!student) {
+      throw new NotFoundException(`Student [${studentId}] not found`);
+    }
+
+    const resolvedStudentId = student.id;
+    const isFree = Number(course.price) === 0;
+
+    if (isFree) {
+      // Free course: instantly activate
+      return this.enrollCourse(courseId, resolvedStudentId);
+    }
+
+    // Paid course: validate receipt if provided or save pending application
+    const enrollment = await this.prisma.courseEnrollment.upsert({
+      where: {
+        courseId_studentId: {
+          courseId,
+          studentId: resolvedStudentId,
+        },
+      },
+      create: {
+        courseId,
+        studentId: resolvedStudentId,
+        status: CourseEnrollmentStatus.PENDING,
+        senderPhone: dto.senderPhone || null,
+        transferAmount: dto.transferAmount ? Number(dto.transferAmount) : Number(course.price),
+        receiptImageUrl: dto.receiptImageUrl || null,
+        paymentMethod: dto.paymentMethod || 'VODAFONE_CASH',
+        rejectionReason: null,
+      },
+      update: {
+        status: CourseEnrollmentStatus.PENDING,
+        senderPhone: dto.senderPhone || undefined,
+        transferAmount: dto.transferAmount ? Number(dto.transferAmount) : Number(course.price),
+        receiptImageUrl: dto.receiptImageUrl || undefined,
+        paymentMethod: dto.paymentMethod || 'VODAFONE_CASH',
+        rejectionReason: null,
+        enrolledAt: new Date(),
+      },
+    });
+
+    return {
+      enrollmentId: enrollment.id,
+      courseId,
+      studentId: resolvedStudentId,
+      status: CourseEnrollmentStatus.PENDING,
+      message: 'تم إرسال طلب الاشتراك وإيصال التحويل بنجاح! سيتم مراجعة المعلم وتفعيل الكورس.',
+    };
+  }
+
+  /**
+   * Retrieves pending subscription requests with receipts for teacher / secretariat review.
+   */
+  async getPendingEnrollmentRequests(courseId: string, user: AuthenticatedUser) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: { id: true, teacherId: true, title: true, price: true },
+    });
+
+    if (!course) {
+      throw new NotFoundException(`Course [${courseId}] not found`);
+    }
+
+    if (
+      user.role === UserRole.TEACHER &&
+      course.teacherId !== user.teacherProfileId &&
+      course.teacherId !== user.id
+    ) {
+      throw new ForbiddenException('Not authorized to review enrollments for this course');
+    }
+
+    const pendingEnrollments = await this.prisma.courseEnrollment.findMany({
+      where: {
+        courseId,
+        status: CourseEnrollmentStatus.PENDING,
+      },
+      include: {
+        student: {
+          include: {
+            user: { select: { id: true, fullName: true, phone: true } },
+          },
+        },
+      },
+      orderBy: { enrolledAt: 'desc' },
+    });
+
+    return pendingEnrollments.map((e) => ({
+      enrollmentId: e.id,
+      courseId: e.courseId,
+      studentId: e.studentId,
+      fullName: e.student.user.fullName,
+      studentCode: e.student.studentCode,
+      phone: e.student.user.phone,
+      parentPhone: e.student.emergencyPhone,
+      senderPhone: e.senderPhone,
+      transferAmount: e.transferAmount ? Number(e.transferAmount) : Number(course.price),
+      receiptImageUrl: e.receiptImageUrl,
+      paymentMethod: e.paymentMethod,
+      enrolledAt: e.enrolledAt,
+      status: e.status,
+    }));
+  }
+
+  /**
+   * Approves a student's subscription request, activating the enrollment and CourseAccess.
+   */
+  async approveSubscriptionRequest(enrollmentId: string, user: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      const enrollment = await tx.courseEnrollment.findUnique({
+        where: { id: enrollmentId },
+        include: { course: true, student: { include: { user: true } } },
+      });
+
+      if (!enrollment) {
+        throw new NotFoundException(`Enrollment request [${enrollmentId}] not found`);
+      }
+
+      if (
+        user.role === UserRole.TEACHER &&
+        enrollment.course.teacherId !== user.teacherProfileId &&
+        enrollment.course.teacherId !== user.id
+      ) {
+        throw new ForbiddenException('Not authorized to approve this course enrollment');
+      }
+
+      const updatedEnrollment = await tx.courseEnrollment.update({
+        where: { id: enrollmentId },
+        data: {
+          status: CourseEnrollmentStatus.ACTIVE,
+          reviewedAt: new Date(),
+          reviewedById: user.id,
+          rejectionReason: null,
+        },
+      });
+
+      const access = await tx.courseAccess.upsert({
+        where: { enrollmentId: enrollment.id },
+        create: {
+          enrollmentId: enrollment.id,
+          studentId: enrollment.studentId,
+          courseId: enrollment.courseId,
+          accessStatus: CourseAccessStatus.ACTIVE,
+          validFrom: new Date(),
+          grantedById: user.id,
+        },
+        update: {
+          accessStatus: CourseAccessStatus.ACTIVE,
+          validFrom: new Date(),
+          grantedById: user.id,
+        },
+      });
+
+      this.logger.log(
+        `Approved enrollment [${enrollmentId}] for student [${enrollment.studentId}] in course [${enrollment.courseId}]`,
+      );
+
+      return {
+        enrollmentId: updatedEnrollment.id,
+        courseId: updatedEnrollment.courseId,
+        studentId: updatedEnrollment.studentId,
+        status: updatedEnrollment.status,
+        accessStatus: access.accessStatus,
+        message: 'تم قبول وتفعيل اشتراك الطالب بنجاح',
+      };
+    });
+  }
+
+  /**
+   * Rejects a student's subscription request with optional rejection reason.
+   */
+  async rejectSubscriptionRequest(
+    enrollmentId: string,
+    user: AuthenticatedUser,
+    dto: RejectSubscriptionRequestDto,
+  ) {
+    const enrollment = await this.prisma.courseEnrollment.findUnique({
+      where: { id: enrollmentId },
+      include: { course: true },
+    });
+
+    if (!enrollment) {
+      throw new NotFoundException(`Enrollment request [${enrollmentId}] not found`);
+    }
+
+    if (
+      user.role === UserRole.TEACHER &&
+      enrollment.course.teacherId !== user.teacherProfileId &&
+      enrollment.course.teacherId !== user.id
+    ) {
+      throw new ForbiddenException('Not authorized to reject this course enrollment');
+    }
+
+    const updated = await this.prisma.courseEnrollment.update({
+      where: { id: enrollmentId },
+      data: {
+        status: CourseEnrollmentStatus.DROPPED,
+        rejectionReason:
+          dto.rejectionReason || 'تم رفض طلب الاشتراك أو لم يتم التحقق من صحة الإيصال.',
+        reviewedAt: new Date(),
+        reviewedById: user.id,
+      },
+    });
+
+    // Revoke any existing access
+    await this.prisma.courseAccess.updateMany({
+      where: { enrollmentId },
+      data: { accessStatus: CourseAccessStatus.SUSPENDED },
+    });
+
+    return {
+      enrollmentId: updated.id,
+      status: updated.status,
+      rejectionReason: updated.rejectionReason,
+      message: 'تم رفض طلب الاشتراك.',
+    };
+  }
+
+  /**
+   * Gets the student's enrollment and subscription review status for a course.
+   */
+  async getStudentCourseSubscriptionStatus(courseId: string, studentId: string) {
+    let student = await this.prisma.studentProfile.findUnique({ where: { id: studentId } });
+    if (!student) {
+      student = await this.prisma.studentProfile.findFirst({ where: { user: { id: studentId } } });
+    }
+    if (!student) {
+      return { isEnrolled: false, status: null };
+    }
+
+    const enrollment = await this.prisma.courseEnrollment.findUnique({
+      where: {
+        courseId_studentId: {
+          courseId,
+          studentId: student.id,
+        },
+      },
+      include: { access: true },
+    });
+
+    if (!enrollment) {
+      return { isEnrolled: false, status: null };
+    }
+
+    return {
+      isEnrolled:
+        enrollment.status === CourseEnrollmentStatus.ACTIVE &&
+        enrollment.access?.accessStatus === CourseAccessStatus.ACTIVE,
+      status: enrollment.status,
+      senderPhone: enrollment.senderPhone,
+      transferAmount: enrollment.transferAmount ? Number(enrollment.transferAmount) : null,
+      receiptImageUrl: enrollment.receiptImageUrl,
+      rejectionReason: enrollment.rejectionReason,
+      enrolledAt: enrollment.enrolledAt,
+      reviewedAt: enrollment.reviewedAt,
+    };
+  }
+
+  /**
    * Retrieves all courses enrolled by the student with dynamic progress completion percentages.
    */
   async getMyCourses(studentId: string) {
@@ -1789,6 +2075,20 @@ export class CoursesService {
     }
 
     if (!isAuthorized) {
+      const pendingEnrollment = await this.prisma.courseEnrollment.findFirst({
+        where: {
+          courseId: course.id,
+          studentId,
+          status: CourseEnrollmentStatus.PENDING,
+        },
+      });
+
+      if (pendingEnrollment) {
+        throw new ForbiddenException(
+          'طلب اشتراكك في الكورس وإيصال التحويل قيد المراجعة حالياً من قبل المعلم. سيتم تفعيل الكورس فور تأكيد التحويل ⏳',
+        );
+      }
+
       throw new ForbiddenException(
         'Active course enrollment or entitlement is required to access this lesson material',
       );
@@ -1907,12 +2207,33 @@ export class CoursesService {
 
     const targetStudentId = studentProfile?.id || studentId;
 
+    // Enforce that lessons with linked quizzes CANNOT be marked complete without quiz submission
+    let isCompletedToSave = dto.isCompleted || false;
+    if (isCompletedToSave && lesson.lessonQuizId) {
+      const quizSubmissions = await this.prisma.assessmentSubmission.findMany({
+        where: {
+          assessmentId: lesson.lessonQuizId,
+          studentId: targetStudentId,
+        },
+        select: { status: true },
+      });
+
+      const hasSubmittedQuiz = quizSubmissions.some(
+        (s) => s.status === 'SUBMITTED' || s.status === 'GRADED',
+      );
+
+      if (!hasSubmittedQuiz) {
+        // Demote completion to false until quiz is passed
+        isCompletedToSave = false;
+      }
+    }
+
     const progress = await this.progressRepository.upsertRealtimeProgress(
       targetStudentId,
       lessonId,
       courseId,
       dto.lastPositionSeconds,
-      dto.isCompleted || false,
+      isCompletedToSave,
     );
 
     const overallCourseCompletionPercentage =

@@ -47,3 +47,31 @@ export class EnrollByQrDto {
   @IsNotEmpty()
   qrToken: string;
 }
+
+export class CourseSubscriptionRequestDto {
+  @ApiPropertyOptional({ description: 'Sender Vodafone Cash wallet phone number' })
+  @IsOptional()
+  @IsString()
+  senderPhone?: string;
+
+  @ApiPropertyOptional({ description: 'Amount transferred' })
+  @IsOptional()
+  transferAmount?: number;
+
+  @ApiPropertyOptional({ description: 'Cloudflare R2 receipt screenshot image URL' })
+  @IsOptional()
+  @IsString()
+  receiptImageUrl?: string;
+
+  @ApiPropertyOptional({ description: 'Payment method (default: VODAFONE_CASH)' })
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
+}
+
+export class RejectSubscriptionRequestDto {
+  @ApiPropertyOptional({ description: 'Reason for rejecting course subscription request' })
+  @IsOptional()
+  @IsString()
+  rejectionReason?: string;
+}

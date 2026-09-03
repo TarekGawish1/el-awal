@@ -444,3 +444,44 @@ export function useRevokeStudentEnrollment(courseId: string) {
 }
 
 export const useRevokeCourseAccess = useRevokeStudentEnrollment;
+
+export function usePendingEnrollments(courseId: string) {
+  return useQuery({
+    queryKey: ['pending-enrollments', courseId],
+    queryFn: () => coursesApi.getPendingEnrollments(courseId),
+    enabled: !!courseId,
+    refetchInterval: 10000,
+  });
+}
+
+export function useApproveEnrollment(courseId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (enrollmentId: string) => coursesApi.approveEnrollment(enrollmentId),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['pending-enrollments', courseId] });
+      queryClient.invalidateQueries({ queryKey: ['course-enrollments', courseId] });
+      queryClient.invalidateQueries({ queryKey: ['course-detail', courseId] });
+      toast.success(data.message || 'تم قبول وتفعيل اشتراك الطالب بنجاح 🎉');
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر قبول الطلب');
+    },
+  });
+}
+
+export function useRejectEnrollment(courseId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ enrollmentId, reason }: { enrollmentId: string; reason?: string }) =>
+      coursesApi.rejectEnrollment(enrollmentId, reason),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['pending-enrollments', courseId] });
+      queryClient.invalidateQueries({ queryKey: ['course-enrollments', courseId] });
+      toast.success(data.message || 'تم رفض طلب الاشتراك');
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر رفض الطلب');
+    },
+  });
+}

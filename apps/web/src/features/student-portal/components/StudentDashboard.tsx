@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
 import Link from 'next/link';
 import { CourseCertificateModal } from './CourseCertificateModal';
+import { CourseSubscriptionModal } from './CourseSubscriptionModal';
 import { StudentRecentAssessments } from './StudentRecentAssessments';
 import { StudentLatestHomework } from './StudentLatestHomework';
 import { GroupReservation } from './GroupReservation';
@@ -369,19 +370,10 @@ function OnlineCoursesCatalog({ gradeLevel, academicStage }: { gradeLevel?: stri
 
   const displayedCourses = scope === 'MY_GRADE' && courses.length > 0 ? courses : allPlatformCourses;
 
-  const handleQuickEnroll = async (courseId: string) => {
-    const isEnrolled = myCourses.some((c: any) => c.courseId === courseId || c.id === courseId);
-    if (isEnrolled) {
-      router.push(`/student/courses/${courseId}/learn`);
-      return;
-    }
+  const [selectedCourseForSub, setSelectedCourseForSub] = useState<any | null>(null);
 
-    try {
-      await enrollMutation.mutateAsync(courseId);
-      router.push(`/student/courses/${courseId}/learn`);
-    } catch {
-      // Error handled by hook
-    }
+  const handleQuickEnroll = (course: any) => {
+    setSelectedCourseForSub(course);
   };
 
   if (isLoading) {
@@ -544,9 +536,8 @@ function OnlineCoursesCatalog({ gradeLevel, academicStage }: { gradeLevel?: stri
                   ) : (
                     <button
                       type="button"
-                      onClick={() => handleQuickEnroll(course.id)}
-                      disabled={enrollMutation.isPending}
-                      className="flex-1 py-2.5 px-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs text-center transition-colors shadow-xs disabled:opacity-60 cursor-pointer"
+                      onClick={() => handleQuickEnroll(course)}
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs text-center transition-colors shadow-xs cursor-pointer"
                     >
                       اشترك الآن
                     </button>
@@ -557,6 +548,22 @@ function OnlineCoursesCatalog({ gradeLevel, academicStage }: { gradeLevel?: stri
           );
         })}
       </div>
+
+      {selectedCourseForSub && (
+        <CourseSubscriptionModal
+          isOpen={!!selectedCourseForSub}
+          onClose={() => setSelectedCourseForSub(null)}
+          course={{
+            id: selectedCourseForSub.id,
+            title: selectedCourseForSub.title,
+            price: selectedCourseForSub.price,
+            teacherName: selectedCourseForSub.teacher?.user?.fullName || selectedCourseForSub.teacherName,
+            teacherPhone: selectedCourseForSub.teacher?.user?.phone,
+            subject: selectedCourseForSub.subject,
+            gradeLevel: selectedCourseForSub.gradeLevel,
+          }}
+        />
+      )}
     </div>
   );
 }

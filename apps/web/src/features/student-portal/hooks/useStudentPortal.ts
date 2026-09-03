@@ -249,11 +249,50 @@ export function useEnrollInCourse() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['student-courses'] });
       queryClient.invalidateQueries({ queryKey: ['student-profile'] });
-      toast.success('تم الاشتراك في الكورس بنجاح! يمكنك الآن بدء التعلم.');
+      queryClient.invalidateQueries({ queryKey: ['subscription-status'] });
+      toast.success('تم تفعيل الاشتراك في الكورس بنجاح! يمكنك الآن بدء التعلم.');
     },
     onError: (err: any) => {
       toast.error(err?.message || 'تعذر إتمام الاشتراك في الكورس. يرجى المحاولة مرة أخرى.');
     },
+  });
+}
+
+export function useSubmitCourseSubscription() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      courseId,
+      data,
+    }: {
+      courseId: string;
+      data: {
+        senderPhone?: string;
+        transferAmount?: number;
+        receiptImageUrl?: string;
+        paymentMethod?: string;
+      };
+    }) => {
+      return coursesApi.submitSubscriptionRequest(courseId, data);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['student-courses'] });
+      queryClient.invalidateQueries({ queryKey: ['subscription-status', variables.courseId] });
+      queryClient.invalidateQueries({ queryKey: ['course-detail', variables.courseId] });
+      toast.success('تم إرسال طلب الاشتراك وإيصال التحويل بنجاح! سيتم مراجعة المعلم وتفعيل الكورس فوراً 🚀');
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر إرسال طلب الاشتراك. يرجى مراجعة البيانات والمحاولة مجدداً.');
+    },
+  });
+}
+
+export function useCourseSubscriptionStatus(courseId: string) {
+  return useQuery({
+    queryKey: ['subscription-status', courseId],
+    queryFn: () => coursesApi.getSubscriptionStatus(courseId),
+    enabled: !!courseId,
+    refetchInterval: 15000,
   });
 }
 

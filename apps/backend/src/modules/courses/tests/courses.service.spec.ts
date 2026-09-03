@@ -6,7 +6,7 @@ import { PrismaService } from '../../../core/database/prisma.service';
 import { BunnyVideoService } from '../../../integrations/video/bunny-video.service';
 import { StorageService } from '../../../integrations/storage/storage.service';
 import { AiModerationService } from '../../../integrations/ai/ai-moderation.service';
-import { CourseStatus, CourseAccessStatus, UserRole } from '@prisma/client';
+import { CourseStatus, CourseAccessStatus, CourseEnrollmentStatus, UserRole } from '@prisma/client';
 
 describe('CoursesService', () => {
   let service: CoursesService;
@@ -63,12 +63,17 @@ describe('CoursesService', () => {
     },
     courseEnrollment: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
+      update: jest.fn(),
       upsert: jest.fn(),
       deleteMany: jest.fn(),
     },
     courseAccess: {
       findFirst: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
       upsert: jest.fn(),
     },
     groupCourseAccess: {
@@ -955,6 +960,105 @@ describe('CoursesService', () => {
       expect(result.modules[0].lessons[0].freeVideoUrl).toBe(
         'https://iframe.mediadelivery.net/embed/123/bunny-preview-vid-10',
       );
+    });
+  });
+
+  describe('Vodafone Cash Course Subscription & Review Lifecycle', () => {
+    it('should submit a subscription request in PENDING status with receipt and sender phone', async () => {
+      mockPrismaService.course.findUnique.mockResolvedValue({
+        id: 'course-paid-1',
+        title: 'شرح تفاضل 2ث',
+        price: 500,
+        status: CourseStatus.PUBLISHED,
+        teacher: { user: { fullName: 'أ. طارق عبد الله', phone: '01011111111' } },
+      });
+
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue({
+        id: 'student-uuid-1',
+      });
+
+      mockPrismaService.courseEnrollment.upsert.mockResolvedValue({
+        id: 'enroll-req-1',
+        courseId: 'course-paid-1',
+        studentId: 'student-uuid-1',
+        status: CourseEnrollmentStatus.PENDING,
+        senderPhone: '01012345678',
+        transferAmount: 500,
+        receiptImageUrl: 'https://r2.el-awal.online/receipts/rec-1.jpg',
+      });
+
+      const res = await service.requestCourseSubscription('course-paid-1', 'student-uuid-1', {
+        senderPhone: '01012345678',
+        transferAmount: 500,
+        receiptImageUrl: 'https://r2.el-awal.online/receipts/rec-1.jpg',
+      });
+
+      expect(res.status).toBe(CourseEnrollmentStatus.PENDING);
+      expect(res.enrollmentId).toBe('enroll-req-1');
+      expect(mockPrismaService.courseEnrollment.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            status: CourseEnrollmentStatus.PENDING,
+            senderPhone: '01012345678',
+          }),
+        }),
+      );
+    });
+
+    it('should approve subscription request and activate course access', async () => {
+      const mockEnrollment = {
+        id: 'enroll-req-1',
+        courseId: 'course-paid-1',
+        studentId: 'student-uuid-1',
+        status: CourseEnrollmentStatus.PENDING,
+        course: { teacherId: 'teacher-uuid-1' },
+        student: { user: { id: 'u-1', fullName: 'أحمد طارق' } },
+      };
+
+      mockPrismaService.courseEnrollment.findUnique.mockResolvedValue(mockEnrollment);
+      mockPrismaService.courseEnrollment.update.mockResolvedValue({
+        ...mockEnrollment,
+        status: CourseEnrollmentStatus.ACTIVE,
+      });
+      mockPrismaService.courseAccess.upsert.mockResolvedValue({
+        accessStatus: CourseAccessStatus.ACTIVE,
+      });
+
+      const res = await service.approveSubscriptionRequest('enroll-req-1', {
+        id: 'teacher-uuid-1',
+        role: UserRole.TEACHER,
+        teacherProfileId: 'teacher-uuid-1',
+      } as any);
+
+      expect(res.status).toBe(CourseEnrollmentStatus.ACTIVE);
+      expect(res.accessStatus).toBe(CourseAccessStatus.ACTIVE);
+    });
+
+    it('should reject subscription request and suspend access with reason', async () => {
+      const mockEnrollment = {
+        id: 'enroll-req-1',
+        courseId: 'course-paid-1',
+        studentId: 'student-uuid-1',
+        status: CourseEnrollmentStatus.PENDING,
+        course: { teacherId: 'teacher-uuid-1' },
+      };
+
+      mockPrismaService.courseEnrollment.findUnique.mockResolvedValue(mockEnrollment);
+      mockPrismaService.courseEnrollment.update.mockResolvedValue({
+        ...mockEnrollment,
+        status: CourseEnrollmentStatus.DROPPED,
+        rejectionReason: 'إيصال غير واضح',
+      });
+      mockPrismaService.courseAccess.updateMany.mockResolvedValue({ count: 1 });
+
+      const res = await service.rejectSubscriptionRequest(
+        'enroll-req-1',
+        { id: 'teacher-uuid-1', role: UserRole.TEACHER, teacherProfileId: 'teacher-uuid-1' } as any,
+        { rejectionReason: 'إيصال غير واضح' },
+      );
+
+      expect(res.status).toBe(CourseEnrollmentStatus.DROPPED);
+      expect(res.rejectionReason).toBe('إيصال غير واضح');
     });
   });
 });

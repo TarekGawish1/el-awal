@@ -38,6 +38,7 @@ import {
 import { FeatureRequiresOnlineCard } from '@/components/offline/FeatureRequiresOnlineCard';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import { useRouter } from 'next/navigation';
+import { CourseSubscriptionModal } from '@/features/student-portal/components/CourseSubscriptionModal';
 import toast from 'react-hot-toast';
 
 export default function StudentCoursesPage() {
@@ -322,13 +323,10 @@ function AvailableCoursesCatalogTab({
     return matchesSearch && matchesStage;
   });
 
-  const handleEnroll = async (courseId: string) => {
-    try {
-      await enrollMutation.mutateAsync(courseId);
-      router.push(`/student/courses/${courseId}/learn`);
-    } catch {
-      // Handled by hook
-    }
+  const [selectedCourseForSub, setSelectedCourseForSub] = useState<any | null>(null);
+
+  const handleEnroll = (course: any) => {
+    setSelectedCourseForSub(course);
   };
 
   if (isLoading) {
@@ -465,9 +463,8 @@ function AvailableCoursesCatalogTab({
                     ) : (
                       <button
                         type="button"
-                        onClick={() => handleEnroll(c.id)}
-                        disabled={enrollMutation.isPending}
-                        className="flex-1 py-2.5 px-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs text-center transition-colors shadow-xs disabled:opacity-60 cursor-pointer"
+                        onClick={() => handleEnroll(c)}
+                        className="flex-1 py-2.5 px-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs text-center transition-colors shadow-xs cursor-pointer"
                       >
                         اشترك الآن
                       </button>
@@ -478,6 +475,22 @@ function AvailableCoursesCatalogTab({
             );
           })}
         </div>
+      )}
+
+      {selectedCourseForSub && (
+        <CourseSubscriptionModal
+          isOpen={!!selectedCourseForSub}
+          onClose={() => setSelectedCourseForSub(null)}
+          course={{
+            id: selectedCourseForSub.id,
+            title: selectedCourseForSub.title,
+            price: selectedCourseForSub.price,
+            teacherName: selectedCourseForSub.teacher?.user?.fullName || selectedCourseForSub.teacherName,
+            teacherPhone: selectedCourseForSub.teacher?.user?.phone,
+            subject: selectedCourseForSub.subject,
+            gradeLevel: selectedCourseForSub.gradeLevel,
+          }}
+        />
       )}
     </div>
   );

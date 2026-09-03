@@ -25,6 +25,7 @@ import { useEnrollInCourse } from '@/features/student-portal/hooks/useStudentPor
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
 import { Card, CardContent } from '@/components/ui/Card';
+import { CourseSubscriptionModal } from '@/features/student-portal/components/CourseSubscriptionModal';
 import toast from 'react-hot-toast';
 
 interface StudentCoursePageProps {
@@ -42,6 +43,7 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
   const [course, setCourse] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activePreviewLesson, setActivePreviewLesson] = useState<any | null>(null);
+  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
 
   // Check if student is already enrolled in this course
   const isEnrolled = myCourses.some((c: any) => c.courseId === courseId || c.id === courseId);
@@ -77,18 +79,12 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
     }
   }, [courseId]);
 
-  const handleEnroll = async () => {
+  const handleEnroll = () => {
     if (isEnrolled) {
       router.push(`/student/courses/${courseId}/learn`);
       return;
     }
-
-    try {
-      await enrollMutation.mutateAsync(courseId);
-      router.push(`/student/courses/${courseId}/learn`);
-    } catch {
-      // Error handled by hook toast
-    }
+    setIsSubscriptionModalOpen(true);
   };
 
   if (isLoading || isMyCoursesLoading) {
@@ -372,6 +368,25 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
           </div>
         </div>
       </div>
+
+      {course && isSubscriptionModalOpen && (
+        <CourseSubscriptionModal
+          isOpen={isSubscriptionModalOpen}
+          onClose={() => setIsSubscriptionModalOpen(false)}
+          course={{
+            id: course.id,
+            title: course.title,
+            price: course.price,
+            teacherName: course.teacher?.user?.fullName || course.teacherName,
+            teacherPhone: course.teacher?.user?.phone,
+            subject: course.subject,
+            gradeLevel: course.gradeLevel,
+          }}
+          onSuccess={() => {
+            setIsSubscriptionModalOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }
