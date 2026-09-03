@@ -505,6 +505,10 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
     delete payload.isAutoGraded;
 
     const label = type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار';
+    // When the assessment is linked to an online course (typically created via the
+    // "Create Exam" shortcut inside the course builder), return to that course page
+    // after saving instead of the standalone assessment view.
+    const courseIdForRedirect = (payload.courseId as string | undefined) || paramCourseId || null;
 
     createAssessment(
       payload,
@@ -512,7 +516,9 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
         onSuccess: (res: any) => {
           toast.success(isPublished ? `تم إنشاء ونشر ${label} بنجاح` : `تم حفظ ${label} كمسودة`);
           const id = res?.id || res?.data?.id;
-          if (id) {
+          if (courseIdForRedirect) {
+            router.push(`/teacher/courses/${courseIdForRedirect}`);
+          } else if (id) {
             router.push(`/teacher/assessments/${id}`);
           } else {
             router.push('/teacher/assessments');
