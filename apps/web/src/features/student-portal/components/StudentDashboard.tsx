@@ -11,7 +11,7 @@ import {
   useEnrollInCourse,
 } from '../hooks/useStudentPortal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { BookOpen, FileText, QrCode, TrendingUp, Calendar, AlertTriangle, Clock, Users, Monitor, Award } from 'lucide-react';
+import { BookOpen, FileText, QrCode, TrendingUp, Calendar, AlertTriangle, Clock, Users, Monitor, Award, CheckCircle, AlertCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
 import Link from 'next/link';
@@ -459,12 +459,17 @@ function OnlineCoursesCatalog({ gradeLevel, academicStage }: { gradeLevel?: stri
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {displayedCourses.map((course: any, index: number) => {
-          const isEnrolled = myCourses.some((c: any) => c.courseId === course.id || c.id === course.id);
+          const enrollment = myCourses.find((c: any) => c.courseId === course.id || c.id === course.id);
+          const isEnrolled = enrollment && (enrollment.enrollmentStatus === 'ACTIVE' || (!enrollment.enrollmentStatus && enrollment.accessStatus === 'ACTIVE'));
+          const isPending = enrollment?.enrollmentStatus === 'PENDING';
+          const isRejected = enrollment?.enrollmentStatus === 'DROPPED';
 
           return (
             <div
               key={course.id}
-              className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col group hover:shadow-md hover:border-slate-200 transition-all text-right"
+              className={`bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col group hover:shadow-md transition-all text-right ${
+                isPending ? 'border-amber-300 ring-1 ring-amber-200' : 'border-slate-100 hover:border-slate-200'
+              }`}
             >
               {/* Card Banner */}
               <div
@@ -483,6 +488,18 @@ function OnlineCoursesCatalog({ gradeLevel, academicStage }: { gradeLevel?: stri
                   <Badge className="bg-black/20 text-white border-none text-[11px]">
                     {course.gradeLevel}
                   </Badge>
+                  {isPending && (
+                    <Badge className="bg-amber-500 text-white border-none text-[11px] font-bold shadow-xs flex items-center gap-1 animate-pulse">
+                      <Clock className="w-3 h-3" />
+                      <span>قيد المراجعة</span>
+                    </Badge>
+                  )}
+                  {isEnrolled && (
+                    <Badge className="bg-emerald-500 text-white border-none text-[11px] font-bold shadow-xs flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" />
+                      <span>مشترك بالفعل</span>
+                    </Badge>
+                  )}
                 </div>
 
                 <Badge className="bg-white/25 text-white border-none text-[11px] font-bold">
@@ -529,10 +546,29 @@ function OnlineCoursesCatalog({ gradeLevel, academicStage }: { gradeLevel?: stri
                   {isEnrolled ? (
                     <Link
                       href={`/student/courses/${course.id}/learn`}
-                      className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs text-center transition-colors shadow-xs"
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs text-center transition-colors shadow-xs flex items-center justify-center gap-1.5"
                     >
-                      استئناف التعلم
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      <span>استئناف التعلم</span>
                     </Link>
+                  ) : isPending ? (
+                    <button
+                      type="button"
+                      onClick={() => handleQuickEnroll(course)}
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs text-center transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Clock className="w-3.5 h-3.5 animate-pulse" />
+                      <span>قيد المراجعة ⏳</span>
+                    </button>
+                  ) : isRejected ? (
+                    <button
+                      type="button"
+                      onClick={() => handleQuickEnroll(course)}
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs text-center transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      <span>إعادة المحاولة</span>
+                    </button>
                   ) : (
                     <button
                       type="button"

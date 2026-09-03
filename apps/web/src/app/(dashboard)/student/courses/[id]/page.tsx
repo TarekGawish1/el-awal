@@ -19,6 +19,7 @@ import {
   Sparkles,
   HelpCircle,
   FileText,
+  AlertCircle,
 } from 'lucide-react';
 import { useStudentCourses } from '@/features/student-portal/hooks/useStudentPortal';
 import { useEnrollInCourse } from '@/features/student-portal/hooks/useStudentPortal';
@@ -45,8 +46,11 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
   const [activePreviewLesson, setActivePreviewLesson] = useState<any | null>(null);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
 
-  // Check if student is already enrolled in this course
-  const isEnrolled = myCourses.some((c: any) => c.courseId === courseId || c.id === courseId);
+  // Check enrollment and subscription status
+  const enrollment = myCourses.find((c: any) => c.courseId === courseId || c.id === courseId);
+  const isEnrolled = enrollment && (enrollment.enrollmentStatus === 'ACTIVE' || (!enrollment.enrollmentStatus && enrollment.accessStatus === 'ACTIVE'));
+  const isPending = enrollment?.enrollmentStatus === 'PENDING';
+  const isRejected = enrollment?.enrollmentStatus === 'DROPPED';
 
   useEffect(() => {
     async function fetchCourseDetails() {
@@ -197,6 +201,24 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
                 <Play className="w-4 h-4 fill-current" />
                 <span>أنت مشترك بالفعل • دخول الكورس</span>
               </Link>
+            ) : isPending ? (
+              <button
+                type="button"
+                onClick={() => setIsSubscriptionModalOpen(true)}
+                className="w-full py-3.5 px-6 rounded-xl font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 text-sm cursor-pointer"
+              >
+                <Clock className="w-4 h-4 animate-pulse" />
+                <span>طلبك قيد المراجعة ⏳ (عرض تفاصيل الإيصال)</span>
+              </button>
+            ) : isRejected ? (
+              <button
+                type="button"
+                onClick={() => setIsSubscriptionModalOpen(true)}
+                className="w-full py-3.5 px-6 rounded-xl font-bold bg-rose-600 hover:bg-rose-700 text-white transition-all shadow-lg flex items-center justify-center gap-2 text-sm cursor-pointer"
+              >
+                <AlertCircle className="w-4 h-4" />
+                <span>تم الرفض • إعادة إرسال الإيصال</span>
+              </button>
             ) : (
               <button
                 type="button"
@@ -356,14 +378,33 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
             </ul>
 
             <div className="pt-4 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={handleEnroll}
-                disabled={enrollMutation.isPending}
-                className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold text-xs transition-colors shadow-sm cursor-pointer"
-              >
-                {isEnrolled ? 'دخول غرفة المشاهدة والتعلم' : 'اشترك الآن في الكورس'}
-              </button>
+              {isEnrolled ? (
+                <Link
+                  href={`/student/courses/${courseId}/learn`}
+                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition-colors shadow-sm flex items-center justify-center gap-1.5"
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  <span>دخول غرفة المشاهدة والتعلم</span>
+                </Link>
+              ) : isPending ? (
+                <button
+                  type="button"
+                  onClick={() => setIsSubscriptionModalOpen(true)}
+                  className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-xs transition-colors shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Clock className="w-3.5 h-3.5 animate-pulse" />
+                  <span>طلبك قيد المراجعة ⏳</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleEnroll}
+                  disabled={enrollMutation.isPending}
+                  className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold text-xs transition-colors shadow-sm cursor-pointer"
+                >
+                  اشترك الآن في الكورس
+                </button>
+              )}
             </div>
           </div>
         </div>
