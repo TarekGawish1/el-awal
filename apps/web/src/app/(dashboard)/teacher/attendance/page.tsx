@@ -356,15 +356,16 @@ function TeacherAttendanceContent() {
   }, [activeSessionObj]);
 
   const isEnded = useMemo(() => {
-    if (!activeSessionObj?.sessionDate || !activeSessionObj?.endTime) return false;
+    const sessionAny = activeSessionObj as any;
+    if (!sessionAny?.sessionDate || !sessionAny?.endTime) return false;
     
-    const dateStr = activeSessionObj.sessionDate.includes('T') 
-      ? activeSessionObj.sessionDate.split('T')[0] 
-      : activeSessionObj.sessionDate;
+    const dateStr = sessionAny.sessionDate.includes('T') 
+      ? sessionAny.sessionDate.split('T')[0] 
+      : sessionAny.sessionDate;
       
-    const timePart = activeSessionObj.endTime.split(':').length === 2 
-      ? `${activeSessionObj.endTime}:00` 
-      : activeSessionObj.endTime;
+    const timePart = sessionAny.endTime.split(':').length === 2 
+      ? `${sessionAny.endTime}:00` 
+      : sessionAny.endTime;
       
     const sessionEndDateTime = new Date(`${dateStr}T${timePart}`);
     
@@ -653,7 +654,7 @@ function TeacherAttendanceContent() {
                  </p>
                  <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl mt-2 text-sm font-bold text-slate-700">
                    <Clock className="w-4 h-4 text-slate-400" />
-                   وقت النهاية: {formatTime12h(activeSessionObj?.endTime || undefined)}
+                   وقت النهاية: {formatTime12h((activeSessionObj as any)?.endTime || undefined)}
                  </div>
                  <Button onClick={() => setActiveTab('LOGBOOK')} variant="outline" className="mt-4 rounded-xl font-bold border-slate-300 text-slate-700 hover:bg-slate-50">
                    الانتقال للدفتر الشامل
