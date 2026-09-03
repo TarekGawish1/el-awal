@@ -125,7 +125,7 @@ export class ContentController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     // Students may request a presigned upload for homework and assessment essay submissions.
-    const allowedStudentFolders = ['homework-submissions', 'essay-answers', 'assessment-submissions'];
+    const allowedStudentFolders = ['homework-submissions', 'essay-answers', 'assessment-submissions', 'payment-receipts'];
     if (user.role === UserRole.STUDENT && !allowedStudentFolders.includes(dto.folder || '')) {
       throw new BadRequestException(
         'Students can only generate upload URLs for homework and assessment submissions',
