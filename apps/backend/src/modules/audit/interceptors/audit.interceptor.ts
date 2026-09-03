@@ -100,6 +100,10 @@ export class AuditInterceptor implements NestInterceptor {
       certificates: 'CERTIFICATE',
       settings: 'SETTING',
       auth: 'AUTH',
+      'contact-messages': 'CONTACT_MESSAGE',
+      'academic-periods': 'ACADEMIC_PERIOD',
+      reservations: 'RESERVATION',
+      inquiries: 'CONTACT_MESSAGE',
     };
 
     return entityMap[segment.toLowerCase()] || (segment.toLowerCase() === 'v1' ? 'SYSTEM' : segment.toUpperCase());
@@ -134,6 +138,11 @@ export class AuditInterceptor implements NestInterceptor {
       SETTING: 'إعدادات النظام',
       AUTH: 'جلسة تسجيل دخول',
       SYSTEM: 'النظام',
+      CONTACT_MESSAGE: 'رسالة موقع',
+      'CONTACT-MESSAGES': 'رسالة موقع',
+      ACADEMIC_PERIOD: 'فترة دراسية',
+      'ACADEMIC-PERIODS': 'فترة دراسية',
+      RESERVATION: 'طلب انضمام',
     };
 
     const entityLabel = entityLabels[entityType] || entityType;
@@ -158,14 +167,20 @@ export class AuditInterceptor implements NestInterceptor {
         if (entityType === 'ATTENDANCE') return `قام ${performer} بتسجيل حضور الحصة`;
         if (entityType === 'ASSESSMENT') return `قام ${performer} بنشر اختبار أو واجب جديد${targetSuffix}`;
         if (entityType === 'COURSE') return `قام ${performer} بإنشاء كورس تعليمي جديد${targetSuffix}`;
+        if (entityType === 'ACADEMIC_PERIOD' || entityType === 'ACADEMIC-PERIODS') return `قام ${performer} بإضافة فترة دراسية جديدة${targetSuffix}`;
+        if (entityType === 'CONTACT_MESSAGE' || entityType === 'CONTACT-MESSAGES') return `قام ${performer} بتسجيل رسالة موقع جديدة${targetSuffix}`;
         return `قام ${performer} بإضافة ${entityLabel} جديد${targetSuffix}`;
 
       case AuditAction.UPDATE:
         if (entityType === 'ATTENDANCE') return `قام ${performer} بتحديث درجات وسجل حضور الحصة`;
         if (entityType === 'ASSISTANT') return `قام ${performer} بتعديل بيانات وصلاحيات المساعد${targetSuffix}`;
+        if (entityType === 'CONTACT_MESSAGE' || entityType === 'CONTACT-MESSAGES') return `قام ${performer} بمراجعة وتعديل بيانات رسالة موقع${targetSuffix}`;
+        if (entityType === 'ACADEMIC_PERIOD' || entityType === 'ACADEMIC-PERIODS') return `قام ${performer} بتعديل بيانات فترة دراسية${targetSuffix}`;
         return `قام ${performer} بتعديل بيانات ${entityLabel}${targetSuffix}`;
 
       case AuditAction.DELETE:
+        if (entityType === 'CONTACT_MESSAGE' || entityType === 'CONTACT-MESSAGES') return `قام ${performer} بحذف رسالة موقع${targetSuffix}`;
+        if (entityType === 'ACADEMIC_PERIOD' || entityType === 'ACADEMIC-PERIODS') return `قام ${performer} بحذف فترة دراسية${targetSuffix}`;
         return `قام ${performer} بحذف ${entityLabel}${targetSuffix}`;
 
       case AuditAction.SCAN_ATTENDANCE:

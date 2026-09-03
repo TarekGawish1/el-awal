@@ -13,10 +13,10 @@ interface AuditLogFiltersProps {
 
 const ACTION_OPTIONS: Array<{ value: AuditAction | ''; label: string }> = [
   { value: '', label: 'جميع الإجراءات' },
-  { value: 'CREATE', label: 'إضافة جديد (CREATE)' },
-  { value: 'UPDATE', label: 'تعديل (UPDATE)' },
-  { value: 'DELETE', label: 'حذف (DELETE)' },
-  { value: 'SCAN_ATTENDANCE', label: 'رصد حضور (QR)' },
+  { value: 'CREATE', label: 'إضافة جديد' },
+  { value: 'UPDATE', label: 'تعديل' },
+  { value: 'DELETE', label: 'حذف' },
+  { value: 'SCAN_ATTENDANCE', label: 'رصد حضور' },
   { value: 'RECORD_PAYMENT', label: 'تسجيل مدفوعات' },
   { value: 'GRADE_SUBMISSION', label: 'تصحيح درجات' },
   { value: 'EXPORT', label: 'تصدير بيانات' },
@@ -26,12 +26,18 @@ const ENTITY_OPTIONS = [
   { value: '', label: 'جميع الأقسام' },
   { value: 'STUDENT', label: 'الطلاب' },
   { value: 'ASSISTANT', label: 'المساعدين' },
-  { value: 'GROUP', label: 'المجموعات' },
+  { value: 'GROUP', label: 'المجموعات الدراسية' },
   { value: 'ATTENDANCE', label: 'الحضور والغياب' },
   { value: 'PAYMENT', label: 'الماليات والمدفوعات' },
   { value: 'ASSESSMENT', label: 'الواجبات والاختبارات' },
-  { value: 'COURSE', label: 'الكورسات' },
+  { value: 'COURSE', label: 'الكورسات التعليمية' },
+  { value: 'CONTENT', label: 'الدروس والمحتوى' },
+  { value: 'BOOKLET', label: 'المذكرات والملازم' },
   { value: 'CERTIFICATE', label: 'الشهادات' },
+  { value: 'CONTACT_MESSAGE', label: 'رسائل الموقع' },
+  { value: 'ACADEMIC_PERIOD', label: 'السنوات والفترات' },
+  { value: 'RESERVATION', label: 'طلبات الانضمام' },
+  { value: 'NOTIFICATION', label: 'مركز الإشعارات' },
 ];
 
 export function AuditLogFilters({

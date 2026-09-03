@@ -87,6 +87,7 @@ export default function InquiriesPage() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['contact-messages'] });
+      queryClient.invalidateQueries({ queryKey: ['contact-messages-unread-count'] });
     },
   });
 
@@ -120,6 +121,7 @@ export default function InquiriesPage() {
     onSettled: () => {
       setDeletingId(null);
       queryClient.invalidateQueries({ queryKey: ['contact-messages'] });
+      queryClient.invalidateQueries({ queryKey: ['contact-messages-unread-count'] });
     },
   });
 

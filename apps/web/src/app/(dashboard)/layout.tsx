@@ -36,6 +36,7 @@ import { SyncReviewModal, SyncConfirmationModal, OfflineActivityDrawer } from '@
 import { getNavigationSectionsForRole } from '@/config/navigation';
 import { usePendingReservations } from '@/features/groups';
 import { useRealtimeReservations } from '@/lib/realtime/useRealtimeReservations';
+import { useRealtimeInquiries } from '@/lib/realtime/useRealtimeInquiries';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { NotificationBell } from '@/features/notifications/components/NotificationBell';
@@ -43,6 +44,9 @@ import { WhatsAppConnectionManager } from '@/components/admin/WhatsAppConnection
 import { isRouteAllowedForRole, getRoleLandingRoute } from '@/features/auth/utils/role-routing';
 import { useStudentProfile } from '@/features/student-portal/hooks/useStudentPortal';
 import { usePermissions } from '@/core/hooks/usePermissions';
+import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '@/lib/api/client';
+import { API_ENDPOINTS } from '@/lib/api/endpoints';
 
 export default function DashboardLayout({
   children,
@@ -65,10 +69,48 @@ export default function DashboardLayout({
   
   const mainScrollRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to top of main area when navigating between pages
+  // Scroll to top of main area and set Arabic page title on route change
   useEffect(() => {
     if (mainScrollRef.current) {
       mainScrollRef.current.scrollTop = 0;
+    }
+
+    if (!pathname || typeof document === 'undefined') return;
+
+    const pageTitles: Record<string, string> = {
+      '/teacher/dashboard': 'لوحة التحكم',
+      '/teacher/groups': 'المجموعات الدراسية',
+      '/teacher/schedules': 'جدول الحصص والمواعيد',
+      '/teacher/attendance': 'رصد الحضور والغياب',
+      '/teacher/assessments': 'الواجبات والاختبارات',
+      '/teacher/content': 'المحتوى والدروس',
+      '/teacher/courses': 'الكورسات أونلاين',
+      '/teacher/students': 'سجل الطلاب',
+      '/teacher/reservations': 'طلبات الانضمام والقبول',
+      '/teacher/notifications': 'مركز الإشعارات',
+      '/teacher/inquiries': 'رسائل الموقع والاستفسارات',
+      '/teacher/finance': 'الماليات والمصروفات',
+      '/teacher/certificates': 'الشهادات التقديرية',
+      '/teacher/assistants': 'إدارة المساعدين',
+      '/teacher/activity-log': 'سجل النشاطات وتتبع العمليات',
+      '/student/dashboard': 'لوحة تحكم الطالب',
+      '/student/homework': 'الواجبات المنزلية',
+      '/student/assessments': 'الاختبارات',
+      '/student/courses': 'الكورسات التعليمية',
+      '/student/content': 'المحتوى والدروس',
+      '/student/notifications': 'مركز الإشعارات',
+      '/parent/dashboard': 'لوحة متابعة ولي الأمر',
+    };
+
+    const direct = pageTitles[pathname];
+    if (direct) {
+      document.title = `${direct} | منصة الأول`;
+    } else {
+      const parts = pathname.split('/').filter(Boolean);
+      const last = parts[parts.length - 1];
+      const isId = /^\d+$/.test(last) || last.length > 18 || /^[0-9a-fA-F-]{32,}$/.test(last);
+      const prefix = isId ? 'تفاصيل' : last === 'new' || last === 'create' ? 'إضافة جديد' : last === 'edit' ? 'تعديل' : 'منصة الأول';
+      document.title = `${prefix} | منصة الأول`;
     }
   }, [pathname]);
 
@@ -143,6 +185,24 @@ export default function DashboardLayout({
   const { data: pendingReservations } = usePendingReservations(isReservationsRole);
   const pendingReservationsCount = pendingReservations?.length ?? 0;
   useRealtimeReservations(isReservationsRole);
+
+  // Unread website contact inquiries count badge (teacher/secretariat only) — pushed live via WebSocket
+  const { data: unreadInquiriesCount = 0 } = useQuery({
+    queryKey: ['contact-messages-unread-count'],
+    queryFn: async () => {
+      try {
+        const res = await apiClient<any>(API_ENDPOINTS.CONTACT_MESSAGES.LIST);
+        const items: any[] = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
+        return items.filter((m: any) => !m.isRead).length;
+      } catch {
+        return 0;
+      }
+    },
+    enabled: isReservationsRole && isOnline,
+    staleTime: 15000,
+    refetchInterval: 30000, // Background poll as safety net alongside realtime socket
+  });
+  useRealtimeInquiries(isReservationsRole);
 
   // Hydration-safe initial loading screen before auth initialization & client mount
   if (!isMounted || !isInitialized) {
@@ -264,6 +324,14 @@ export default function DashboardLayout({
                               aria-label={`${pendingReservationsCount} طلب انضمام قيد الانتظار`}
                             >
                               {pendingReservationsCount > 99 ? '99+' : pendingReservationsCount}
+                            </span>
+                          )}
+                          {item.badgeKey === 'inquiries' && unreadInquiriesCount > 0 && (
+                            <span
+                              className="ms-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-primary-600 text-white text-[10px] font-bold leading-none animate-pulse"
+                              aria-label={`${unreadInquiriesCount} رسالة موقع غير مقروءة`}
+                            >
+                              {unreadInquiriesCount > 99 ? '99+' : unreadInquiriesCount}
                             </span>
                           )}
                         </Link>

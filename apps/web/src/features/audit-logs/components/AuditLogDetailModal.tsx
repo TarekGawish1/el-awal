@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Clock, User, Shield, Globe, Layers } from 'lucide-react';
 import { AuditLogItem } from '../types/audit.types';
+import { formatAuditDescription } from './AuditLogsList';
 
 const ENTITY_LABELS: Record<string, string> = {
   STUDENT: 'شؤون الطلاب',
@@ -18,6 +19,14 @@ const ENTITY_LABELS: Record<string, string> = {
   SETTING: 'إعدادات النظام',
   AUTH: 'جلسات الدخول',
   SYSTEM: 'النظام العام',
+  CONTACT_MESSAGE: 'رسائل الموقع',
+  'CONTACT-MESSAGES': 'رسائل الموقع',
+  CONTACTMESSAGES: 'رسائل الموقع',
+  ACADEMIC_PERIOD: 'الفترات والسنوات الدراسية',
+  'ACADEMIC-PERIODS': 'الفترات والسنوات الدراسية',
+  ACADEMICPERIODS: 'الفترات والسنوات الدراسية',
+  RESERVATION: 'طلبات الانضمام',
+  RESERVATIONS: 'طلبات الانضمام',
 };
 
 interface AuditLogDetailModalProps {
@@ -58,7 +67,9 @@ export function AuditLogDetailModal({ log, onClose }: AuditLogDetailModalProps) 
         <div className="p-6 overflow-y-auto space-y-5 text-sm">
           {/* Summary Box */}
           <div className="p-4 bg-primary-50/60 border border-primary-100 rounded-2xl">
-            <p className="font-bold text-primary-950 text-base leading-relaxed">{log.description}</p>
+            <p className="font-bold text-primary-950 text-base leading-relaxed">
+              {formatAuditDescription(log.description)}
+            </p>
           </div>
 
           {/* Metadata Grid */}

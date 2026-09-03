@@ -92,4 +92,23 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       this.logger.debug(`Emitted 'reservations:changed' to user [${userId}]`);
     }
   }
+
+  /**
+   * Broadcasts a lightweight "changed" signal to the given users' private rooms.
+   * Clients listening on `inquiries:changed` should invalidate their
+   * `contact-messages` and `contact-messages-unread-count` queries to re-fetch.
+   */
+  notifyInquiriesChanged(userIds: (string | undefined)[]) {
+    if (!this.server) return;
+
+    const payload = { updatedAt: new Date().toISOString() };
+    const seen = new Set<string>();
+
+    for (const userId of userIds) {
+      if (!userId || seen.has(userId)) continue;
+      seen.add(userId);
+      this.server.to(`user:${userId}`).emit('inquiries:changed', payload);
+      this.logger.debug(`Emitted 'inquiries:changed' to user [${userId}]`);
+    }
+  }
 }

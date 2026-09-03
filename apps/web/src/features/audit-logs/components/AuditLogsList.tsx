@@ -56,12 +56,34 @@ const ENTITY_LABELS: Record<string, { label: string; color: string }> = {
   NOTIFICATION: { label: 'مركز الإشعارات', color: 'bg-rose-50 text-rose-700 border-rose-200' },
   SETTING: { label: 'إعدادات النظام', color: 'bg-slate-100 text-slate-700 border-slate-200' },
   AUTH: { label: 'جلسات الدخول', color: 'bg-neutral-100 text-neutral-700 border-neutral-200' },
+  CONTACT_MESSAGE: { label: 'رسائل الموقع', color: 'bg-sky-50 text-sky-700 border-sky-200' },
+  'CONTACT-MESSAGES': { label: 'رسائل الموقع', color: 'bg-sky-50 text-sky-700 border-sky-200' },
+  CONTACTMESSAGES: { label: 'رسائل الموقع', color: 'bg-sky-50 text-sky-700 border-sky-200' },
+  ACADEMIC_PERIOD: { label: 'الفترات الدراسية', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  'ACADEMIC-PERIODS': { label: 'الفترات الدراسية', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  ACADEMICPERIODS: { label: 'الفترات الدراسية', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  RESERVATION: { label: 'طلبات الانضمام', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+  RESERVATIONS: { label: 'طلبات الانضمام', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+  STUDENT_GROUP: { label: 'المجموعات الدراسية', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  'STUDENT-GROUPS': { label: 'المجموعات الدراسية', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
 };
 
 function getEntityDisplay(type: string): { label: string; color: string } {
   const upper = (type || '').toUpperCase();
+  const normalized = upper.replace(/[-_]/g, '');
   if (ENTITY_LABELS[upper]) return ENTITY_LABELS[upper];
+  if (ENTITY_LABELS[normalized]) return ENTITY_LABELS[normalized];
   return { label: type === 'V1' || type === 'v1' ? 'إجراء عام' : type, color: 'bg-neutral-100 text-neutral-600 border-neutral-200' };
+}
+
+export function formatAuditDescription(description: string): string {
+  if (!description) return '';
+  return description
+    .replace(/CONTACT[-_]?MESSAGES?/gi, 'رسالة موقع')
+    .replace(/ACADEMIC[-_]?PERIODS?/gi, 'فترة دراسية')
+    .replace(/RESERVATIONS?/gi, 'طلب انضمام')
+    .replace(/STUDENT[-_]?GROUPS?/gi, 'مجموعة دراسية')
+    .replace(/QR/gi, 'الباركود');
 }
 
 export function AuditLogsList({ logs, meta, isLoading, onPageChange }: AuditLogsListProps) {
@@ -154,7 +176,7 @@ export function AuditLogsList({ logs, meta, isLoading, onPageChange }: AuditLogs
                     {/* Description */}
                     <td className="px-6 py-4">
                       <div className="text-xs font-medium text-neutral-800 leading-relaxed line-clamp-2">
-                        {log.description}
+                        {formatAuditDescription(log.description)}
                       </div>
                     </td>
 

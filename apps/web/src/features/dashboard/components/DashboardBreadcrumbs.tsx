@@ -26,12 +26,26 @@ const routeLabels: Record<string, string> = {
   courses: 'الدورات الأونلاين',
   group: 'المجموعة الدراسية',
   sessions: 'الحصص الدراسية',
+  session: 'الحصة الدراسية',
   learn: 'قاعة المشاهدة والتعلم',
+  preview: 'معاينة',
   schedules: 'جدول الحصص',
+  schedule: 'جدول الحصص',
   submissions: 'تسليمات وإجابات الطلاب',
   new: 'إضافة جديد',
-  notifications: 'مركز الإشعارات والتحكم',
+  notifications: 'مركز الإشعارات',
   reservations: 'طلبات الانضمام والقبول',
+  inquiries: 'رسائل الموقع والاستفسارات',
+  'activity-log': 'سجل النشاطات',
+  assistants: 'إدارة المساعدين',
+  certificates: 'الشهادات',
+  settings: 'الإعدادات',
+  profile: 'الملف الشخصي',
+  overview: 'نظرة عامة',
+  qr: 'مسح الباركود',
+  enrollment: 'تسجيل الطلاب',
+  exams: 'الامتحانات',
+  exam: 'الامتحان',
 };
 
 export function DashboardBreadcrumbs() {
@@ -41,18 +55,13 @@ export function DashboardBreadcrumbs() {
 
   const segments = pathname.split('/').filter(Boolean);
   
-  // Optional: Do not show breadcrumbs on root dashboard pages if you want, 
-  // but it's often good to show them everywhere.
-  
   const breadcrumbs = segments.map((segment, index) => {
     const href = '/' + segments.slice(0, index + 1).join('/');
     
-    // Check if segment is a dynamic ID (usually numbers or uuids)
-    // For simplicity, if it's a number, we call it "تفاصيل" (Details)
-    // or if it's long we assume it's an ID.
-    const isId = /^\d+$/.test(segment) || segment.length > 20;
+    // Check if segment is a dynamic ID (usually numbers or uuids or hashes)
+    const isId = /^\d+$/.test(segment) || segment.length > 18 || /^[0-9a-fA-F-]{32,}$/.test(segment);
     
-    let label = routeLabels[segment] || segment;
+    let label = routeLabels[segment.toLowerCase()] || (isId ? 'تفاصيل' : segment);
     if (segments[0] === 'student' && segment === 'assessments') {
       label = 'الاختبارات';
     }

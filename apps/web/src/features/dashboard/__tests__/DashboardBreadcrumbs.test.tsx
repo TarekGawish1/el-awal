@@ -33,4 +33,20 @@ describe('DashboardBreadcrumbs Component', () => {
 
     expect(screen.getByText('الواجبات والاختبارات')).toBeDefined();
   });
+
+  it('renders "رسائل الموقع والاستفسارات" for /teacher/inquiries', () => {
+    vi.mocked(navigation.usePathname).mockReturnValue('/teacher/inquiries');
+
+    render(<DashboardBreadcrumbs />);
+
+    expect(screen.getByText('رسائل الموقع والاستفسارات')).toBeDefined();
+  });
+
+  it('renders "سجل النشاطات" for /teacher/activity-log', () => {
+    vi.mocked(navigation.usePathname).mockReturnValue('/teacher/activity-log');
+
+    render(<DashboardBreadcrumbs />);
+
+    expect(screen.getByText('سجل النشاطات')).toBeDefined();
+  });
 });
