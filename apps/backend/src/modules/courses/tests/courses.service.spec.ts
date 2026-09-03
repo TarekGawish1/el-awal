@@ -42,6 +42,7 @@ describe('CoursesService', () => {
     lessonAttachment: {
       create: jest.fn(),
       findUnique: jest.fn(),
+      findMany: jest.fn(),
       delete: jest.fn(),
     },
     lessonQuestion: {
@@ -107,11 +108,13 @@ describe('CoursesService', () => {
     generateDirectUploadCredentials: jest.fn(),
     getEmbedUrl: jest.fn().mockReturnValue('https://iframe.mediadelivery.net/embed/12345/bunny-vid-123'),
     getLibraryId: jest.fn().mockReturnValue('12345'),
+    deleteVideo: jest.fn().mockResolvedValue(undefined),
   };
 
   const mockStorageService = {
     generatePresignedDownloadUrl: jest.fn(),
     generatePresignedUploadUrl: jest.fn(),
+    deleteObject: jest.fn().mockResolvedValue(undefined),
   };
 
   beforeEach(async () => {
@@ -686,6 +689,139 @@ describe('CoursesService', () => {
 
       expect(result.success).toBe(true);
       expect(result.student.fullName).toBe('طالب مسح QR');
+    });
+  });
+
+  describe('Bunny Video Deletion & Failure Rollback Lifecycle', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should delete all Bunny videos and attachments when a course is deleted', async () => {
+      mockPrismaService.course.findUnique.mockResolvedValue({
+        id: 'course-1',
+        teacherId: 'teacher-1',
+        coverImageUrl: 'courses/covers/cover.jpg',
+      });
+      mockPrismaService.courseLesson.findMany.mockResolvedValue([
+        { bunnyVideoId: 'bunny-vid-1', videoAssetId: null, contentUrl: null },
+        { bunnyVideoId: null, videoAssetId: 'bunny-vid-2', contentUrl: 'https://iframe.mediadelivery.net/embed/12345/33333333-3333-3333-3333-333333333333' },
+      ]);
+      mockPrismaService.lessonAttachment.findMany.mockResolvedValue([
+        { fileKey: 'courses/attachments/file1.pdf', fileUrl: null },
+      ]);
+      mockPrismaService.course.delete.mockResolvedValue({ id: 'course-1' });
+
+      await service.deleteCourse('course-1', 'teacher-1', false);
+
+      expect(mockBunnyVideoService.deleteVideo).toHaveBeenCalledWith('bunny-vid-1');
+      expect(mockBunnyVideoService.deleteVideo).toHaveBeenCalledWith('bunny-vid-2');
+      expect(mockBunnyVideoService.deleteVideo).toHaveBeenCalledWith('33333333-3333-3333-3333-333333333333');
+      expect(mockStorageService.deleteObject).toHaveBeenCalledWith('courses/attachments/file1.pdf');
+      expect(mockStorageService.deleteObject).toHaveBeenCalledWith('courses/covers/cover.jpg');
+      expect(mockPrismaService.course.delete).toHaveBeenCalledWith({ where: { id: 'course-1' } });
+    });
+
+    it('should delete all Bunny videos and attachments when a module is deleted', async () => {
+      mockPrismaService.courseModule.findUnique.mockResolvedValue({
+        id: 'mod-1',
+        course: { teacherId: 'teacher-1' },
+      });
+      mockPrismaService.courseLesson.findMany.mockResolvedValue([
+        { bunnyVideoId: 'bunny-mod-vid-1', videoAssetId: null, contentUrl: null },
+      ]);
+      mockPrismaService.lessonAttachment.findMany.mockResolvedValue([
+        { fileKey: 'courses/attachments/mod-file.pdf', fileUrl: null },
+      ]);
+      mockPrismaService.courseModule.delete.mockResolvedValue({ id: 'mod-1' });
+
+      await service.deleteModule('mod-1', 'teacher-1', false);
+
+      expect(mockBunnyVideoService.deleteVideo).toHaveBeenCalledWith('bunny-mod-vid-1');
+      expect(mockStorageService.deleteObject).toHaveBeenCalledWith('courses/attachments/mod-file.pdf');
+      expect(mockPrismaService.courseModule.delete).toHaveBeenCalledWith({ where: { id: 'mod-1' } });
+    });
+
+    it('should delete Bunny video and attachments when a lesson is deleted', async () => {
+      mockPrismaService.courseLesson.findUnique.mockResolvedValue({
+        id: 'les-1',
+        bunnyVideoId: 'bunny-les-vid-1',
+        videoAssetId: 'bunny-les-vid-2',
+        contentUrl: 'bunny:44444444-4444-4444-4444-444444444444',
+        module: { course: { teacherId: 'teacher-1' } },
+      });
+      mockPrismaService.lessonAttachment.findMany.mockResolvedValue([
+        { fileKey: 'courses/attachments/les-file.pdf', fileUrl: null },
+      ]);
+      mockPrismaService.courseLesson.delete.mockResolvedValue({ id: 'les-1' });
+
+      await service.deleteLesson('les-1', 'teacher-1', false);
+
+      expect(mockBunnyVideoService.deleteVideo).toHaveBeenCalledWith('bunny-les-vid-1');
+      expect(mockBunnyVideoService.deleteVideo).toHaveBeenCalledWith('bunny-les-vid-2');
+      expect(mockBunnyVideoService.deleteVideo).toHaveBeenCalledWith('44444444-4444-4444-4444-444444444444');
+      expect(mockStorageService.deleteObject).toHaveBeenCalledWith('courses/attachments/les-file.pdf');
+      expect(mockPrismaService.courseLesson.delete).toHaveBeenCalledWith({ where: { id: 'les-1' } });
+    });
+
+    it('should rollback and delete uploaded Bunny video when lesson creation fails', async () => {
+      mockPrismaService.courseModule.findUnique.mockResolvedValue({
+        id: 'mod-1',
+        course: { teacherId: 'teacher-1' },
+      });
+      mockPrismaService.courseLesson.count.mockResolvedValue(0);
+      mockPrismaService.courseLesson.create.mockRejectedValue(new Error('DB Constraint Failure'));
+
+      await expect(
+        service.createLesson('mod-1', 'teacher-1', false, {
+          title: 'درس جديد',
+          bunnyVideoId: '55555555-5555-5555-5555-555555555555',
+          attachments: [
+            { title: 'ملخص', fileUrl: 'https://r2/file.pdf', fileKey: 'courses/att.pdf' },
+          ],
+        }),
+      ).rejects.toThrow('DB Constraint Failure');
+
+      expect(mockBunnyVideoService.deleteVideo).toHaveBeenCalledWith('55555555-5555-5555-5555-555555555555');
+      expect(mockStorageService.deleteObject).toHaveBeenCalledWith('courses/att.pdf');
+    });
+
+    it('should delete old Bunny video when updating a lesson with a new video', async () => {
+      mockPrismaService.courseLesson.findUnique.mockResolvedValue({
+        id: 'les-1',
+        bunnyVideoId: 'old-bunny-vid-1',
+        module: { course: { teacherId: 'teacher-1' } },
+      });
+      mockPrismaService.courseLesson.update.mockResolvedValue({
+        id: 'les-1',
+        bunnyVideoId: 'new-bunny-vid-2',
+      });
+
+      await service.updateLesson('les-1', 'teacher-1', false, {
+        bunnyVideoId: 'new-bunny-vid-2',
+      });
+
+      expect(mockPrismaService.courseLesson.update).toHaveBeenCalled();
+      expect(mockBunnyVideoService.deleteVideo).toHaveBeenCalledWith('old-bunny-vid-1');
+      expect(mockBunnyVideoService.deleteVideo).not.toHaveBeenCalledWith('new-bunny-vid-2');
+    });
+
+    it('should rollback and delete newly uploaded Bunny video when lesson update fails', async () => {
+      mockPrismaService.courseLesson.findUnique.mockResolvedValue({
+        id: 'les-1',
+        bunnyVideoId: 'old-bunny-vid-1',
+        module: { course: { teacherId: 'teacher-1' } },
+      });
+      mockPrismaService.courseLesson.update.mockRejectedValue(new Error('Database update failed'));
+
+      await expect(
+        service.updateLesson('les-1', 'teacher-1', false, {
+          bunnyVideoId: 'failed-new-bunny-vid-99',
+        }),
+      ).rejects.toThrow('Database update failed');
+
+      expect(mockBunnyVideoService.deleteVideo).toHaveBeenCalledWith('failed-new-bunny-vid-99');
+      expect(mockBunnyVideoService.deleteVideo).not.toHaveBeenCalledWith('old-bunny-vid-1');
     });
   });
 });

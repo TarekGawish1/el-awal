@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   X,
   Video,
@@ -109,7 +109,14 @@ export function LessonEditorModal({
     useState<string>("application/pdf");
   const [isAddingAttachment, setIsAddingAttachment] = useState(false);
 
+  const isSubmittedRef = useRef(false);
+  const initialBunnyVideoIdRef = useRef<string | null>(null);
+  const currentBunnyVideoIdRef = useRef<string | null>(null);
+  const attachmentsRef = useRef<LessonAttachment[]>([]);
+
   useEffect(() => {
+    isSubmittedRef.current = false;
+    initialBunnyVideoIdRef.current = lesson?.bunnyVideoId || null;
     if (lesson) {
       setTitle(lesson.title || "");
       setDescription(lesson.description || "");
@@ -135,6 +142,44 @@ export function LessonEditorModal({
       setAttachments([]);
     }
   }, [lesson, isOpen]);
+
+  useEffect(() => {
+    currentBunnyVideoIdRef.current = bunnyVideoId || null;
+    attachmentsRef.current = attachments;
+  }, [bunnyVideoId, attachments]);
+
+  // Clean up newly uploaded video/staged attachments if modal unmounts without submitting
+  useEffect(() => {
+    return () => {
+      if (!isSubmittedRef.current) {
+        if (
+          currentBunnyVideoIdRef.current &&
+          currentBunnyVideoIdRef.current !== initialBunnyVideoIdRef.current
+        ) {
+          coursesApi.deleteUploadedFile(`bunny:${currentBunnyVideoIdRef.current}`);
+        }
+        for (const att of attachmentsRef.current) {
+          if (att.id?.startsWith("staged-") && (att.fileKey || att.fileUrl)) {
+            coursesApi.deleteUploadedFile(att.fileKey || att.fileUrl);
+          }
+        }
+      }
+    };
+  }, []);
+
+  const handleCancel = () => {
+    if (!isSubmittedRef.current) {
+      if (bunnyVideoId && bunnyVideoId !== initialBunnyVideoIdRef.current) {
+        coursesApi.deleteUploadedFile(`bunny:${bunnyVideoId}`);
+      }
+      for (const att of attachments) {
+        if (att.id?.startsWith("staged-") && (att.fileKey || att.fileUrl)) {
+          coursesApi.deleteUploadedFile(att.fileKey || att.fileUrl);
+        }
+      }
+    }
+    onClose();
+  };
 
   // Sync streamAuth embed URL when available
   useEffect(() => {
@@ -345,6 +390,7 @@ export function LessonEditorModal({
     };
 
     try {
+      isSubmittedRef.current = true;
       if (isEditing && lesson) {
         await updateMutation.mutateAsync({
           lessonId: lesson.id,
@@ -382,7 +428,13 @@ export function LessonEditorModal({
 
       onClose();
     } catch {
-      // Handled by mutation toast
+      isSubmittedRef.current = false;
+      // If saving failed on the frontend, clean up any newly uploaded video
+      if (bunnyVideoId && bunnyVideoId !== initialBunnyVideoIdRef.current) {
+        coursesApi.deleteUploadedFile(`bunny:${bunnyVideoId}`);
+        setBunnyVideoId(initialBunnyVideoIdRef.current || "");
+        setVideoEmbedUrl("");
+      }
     }
   };
 
@@ -483,7 +535,7 @@ export function LessonEditorModal({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleCancel}
             className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
           >
             <X className="w-5 h-5" />
@@ -1156,7 +1208,7 @@ export function LessonEditorModal({
         <div className="px-6 py-4 border-t border-slate-100 flex justify-between items-center bg-slate-50/50">
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleCancel}
             className="px-5 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
           >
             إلغاء

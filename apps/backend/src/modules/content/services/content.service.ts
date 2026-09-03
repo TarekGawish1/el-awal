@@ -186,35 +186,42 @@ export class ContentService {
       }
     }
 
-    const created = await this.prisma.educationalContent.create({
-      data: {
-        title: dto.title,
-        description: dto.description,
-        contentType: dto.contentType,
-        fileKey: dto.fileKey,
-        fileUrl: dto.fileUrl,
-        fileSize: dto.fileSize ? BigInt(dto.fileSize) : null,
-        mimeType: dto.mimeType,
-        gradeLevel: gradeLevel || null,
-        academicYear,
-        academicTerm,
-        sessionTopic: dto.sessionTopic || null,
-        sessionId: dto.sessionId || null,
-        teacherId,
-        groupId: dto.groupId || null,
-        lessonId: dto.lessonId || null,
-      },
-      include: {
-        group: { select: { id: true, name: true, gradeLevel: true, academicYear: true, academicTerm: true } },
-        session: { select: { id: true, topic: true, sessionDate: true, startTime: true } },
-        lesson: { select: { id: true, title: true } },
-      },
-    });
+    try {
+      const created = await this.prisma.educationalContent.create({
+        data: {
+          title: dto.title,
+          description: dto.description,
+          contentType: dto.contentType,
+          fileKey: dto.fileKey,
+          fileUrl: dto.fileUrl,
+          fileSize: dto.fileSize ? BigInt(dto.fileSize) : null,
+          mimeType: dto.mimeType,
+          gradeLevel: gradeLevel || null,
+          academicYear,
+          academicTerm,
+          sessionTopic: dto.sessionTopic || null,
+          sessionId: dto.sessionId || null,
+          teacherId,
+          groupId: dto.groupId || null,
+          lessonId: dto.lessonId || null,
+        },
+        include: {
+          group: { select: { id: true, name: true, gradeLevel: true, academicYear: true, academicTerm: true } },
+          session: { select: { id: true, topic: true, sessionDate: true, startTime: true } },
+          lesson: { select: { id: true, title: true } },
+        },
+      });
 
-    return {
-      ...created,
-      fileSize: created.fileSize ? Number(created.fileSize) : null,
-    };
+      return {
+        ...created,
+        fileSize: created.fileSize ? Number(created.fileSize) : null,
+      };
+    } catch (error) {
+      if (dto.fileKey) {
+        await this.deleteFileFromStorage({ fileKey: dto.fileKey }).catch(() => {});
+      }
+      throw error;
+    }
   }
 
   /**
@@ -447,18 +454,6 @@ export class ContentService {
         file.mimetype?.startsWith('video/') ||
         /\.(mp4|webm|mov|mkv)$/i.test(file.originalname);
 
-      // Clean up previous storage file
-      if (existing.fileKey) {
-        if (existing.fileKey.startsWith('bunny:')) {
-          const oldVideoId = existing.fileKey.replace('bunny:', '');
-          await this.bunnyVideoService.deleteVideo(oldVideoId);
-        } else {
-          await this.storageService.deleteObject(existing.fileKey).catch((err) => {
-            this.logger.warn(`Failed to delete replaced object [${existing.fileKey}] from R2`, err);
-          });
-        }
-      }
-
       if (isVideo) {
         this.logger.log(`🎥 Uploading replacement video [${dto.title || existing.title}] to Bunny Stream...`);
         const bunnyRes = await this.bunnyVideoService.uploadVideo(dto.title || existing.title, file.buffer);
@@ -511,31 +506,47 @@ export class ContentService {
       }
     }
 
-    const updated = await this.prisma.educationalContent.update({
-      where: { id },
-      data: {
-        title: dto.title !== undefined ? dto.title : existing.title,
-        description: dto.description !== undefined ? dto.description : existing.description,
-        contentType: dto.contentType !== undefined ? dto.contentType : existing.contentType,
-        gradeLevel: gradeLevel || null,
-        academicYear: academicYear || null,
-        academicTerm: academicTerm || null,
-        sessionTopic: sessionTopic || null,
-        groupId: dto.groupId !== undefined ? (dto.groupId ? dto.groupId : null) : existing.groupId,
-        sessionId: dto.sessionId !== undefined ? (dto.sessionId ? dto.sessionId : null) : existing.sessionId,
-        lessonId: dto.lessonId !== undefined ? (dto.lessonId ? dto.lessonId : null) : existing.lessonId,
-        fileKey,
-        fileUrl,
-        fileSize,
-        mimeType,
-      },
-      include: {
-        group: { select: { id: true, name: true, gradeLevel: true, academicYear: true, academicTerm: true } },
-        session: { select: { id: true, topic: true, sessionDate: true, startTime: true } },
-        lesson: { select: { id: true, title: true } },
-        _count: { select: { progresses: true } },
-      },
-    });
+    let updated;
+    try {
+      updated = await this.prisma.educationalContent.update({
+        where: { id },
+        data: {
+          title: dto.title !== undefined ? dto.title : existing.title,
+          description: dto.description !== undefined ? dto.description : existing.description,
+          contentType: dto.contentType !== undefined ? dto.contentType : existing.contentType,
+          gradeLevel: gradeLevel || null,
+          academicYear: academicYear || null,
+          academicTerm: academicTerm || null,
+          sessionTopic: sessionTopic || null,
+          groupId: dto.groupId !== undefined ? (dto.groupId ? dto.groupId : null) : existing.groupId,
+          sessionId: dto.sessionId !== undefined ? (dto.sessionId ? dto.sessionId : null) : existing.sessionId,
+          lessonId: dto.lessonId !== undefined ? (dto.lessonId ? dto.lessonId : null) : existing.lessonId,
+          fileKey,
+          fileUrl,
+          fileSize,
+          mimeType,
+        },
+        include: {
+          group: { select: { id: true, name: true, gradeLevel: true, academicYear: true, academicTerm: true } },
+          session: { select: { id: true, topic: true, sessionDate: true, startTime: true } },
+          lesson: { select: { id: true, title: true } },
+          _count: { select: { progresses: true } },
+        },
+      });
+    } catch (error) {
+      // If database update failed, purge newly uploaded replacement file
+      if (file && fileKey && fileKey !== existing.fileKey) {
+        await this.deleteFileFromStorage({ fileKey }).catch(() => {});
+      }
+      throw error;
+    }
+
+    // Only after database update succeeds, clean up previous storage file
+    if (file && existing.fileKey && existing.fileKey !== fileKey) {
+      await this.deleteFileFromStorage({ fileKey: existing.fileKey }).catch((err) => {
+        this.logger.warn(`Failed to delete replaced object [${existing.fileKey}]`, err);
+      });
+    }
 
     return {
       ...updated,

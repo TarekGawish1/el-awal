@@ -8,6 +8,7 @@ import { AntiPiracyWatermark } from '@/features/student-portal/components/AntiPi
 import { CourseQrEnrollModal } from '../components/CourseQrEnrollModal';
 import { GroupStudentSelectModal } from '../components/GroupStudentSelectModal';
 import { CreateStudentEnrollModal } from '../components/CreateStudentEnrollModal';
+import { LessonEditorModal } from '../components/LessonEditorModal';
 import { coursesApi } from '../api/courses.api';
 import { apiClient } from '@/lib/api/client';
 
@@ -19,6 +20,13 @@ vi.mock('@/lib/api/client', () => {
   fn.delete = vi.fn();
   return { apiClient: fn };
 });
+
+vi.mock('@/features/assessments/hooks/use-assessments', () => ({
+  useAssessments: vi.fn().mockReturnValue({
+    data: [],
+    isLoading: false,
+  }),
+}));
 
 vi.mock('../api/courses.api', () => ({
   coursesApi: {
@@ -291,6 +299,29 @@ describe('Course DRM, Direct Upload & Hybrid Enrollment Suite', () => {
       expect(await screen.findByText('تم تسجيل وتفعيل اشتراك الطالب بنجاح!')).toBeInTheDocument();
       expect(screen.getByText('STU-2026-NEW')).toBeInTheDocument();
       expect(screen.getByText('TempPassword123')).toBeInTheDocument();
+    });
+  });
+
+  describe('LessonEditorModal Component (Video Upload & Cleanup Lifecycle)', () => {
+    it('renders modal and triggers cancel onClose callback', () => {
+      const onCloseMock = vi.fn();
+      render(
+        <LessonEditorModal
+          isOpen={true}
+          courseId="course-1"
+          moduleId="mod-1"
+          lesson={null}
+          isEditing={false}
+          onClose={onCloseMock}
+        />,
+        { wrapper }
+      );
+
+      expect(screen.getByText('إضافة درس تعليمي جديد')).toBeInTheDocument();
+
+      // Click cancel button
+      fireEvent.click(screen.getByText('إلغاء'));
+      expect(onCloseMock).toHaveBeenCalled();
     });
   });
 });
