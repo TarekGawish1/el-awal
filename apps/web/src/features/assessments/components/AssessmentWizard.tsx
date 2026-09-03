@@ -311,7 +311,14 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
 
         methods.setValue('academicStage', stage, { shouldValidate: true });
         methods.setValue('gradeLevel', g.gradeLevel, { shouldValidate: true });
-        methods.setValue('targetGroupIds', [g.id], { shouldValidate: true });
+        
+        // Auto-select all groups for this grade level in the active year/term
+        const groupsForGrade = allGroups.filter(
+          grp => grp.gradeLevel === g.gradeLevel && 
+                 grp.academicYear === activeYear && 
+                 grp.academicTerm === activeTerm
+        );
+        methods.setValue('targetGroupIds', groupsForGrade.map(grp => grp.id), { shouldValidate: true });
 
         if (paramTopic && !methods.getValues('title')) {
           const prefix = type === 'ASSIGNMENT' ? 'واجب' : 'اختبار';
@@ -324,7 +331,7 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
         }
       }
     }
-  }, [paramGroupId, paramTopic, paramDueDate, allGroups, type, methods]);
+  }, [paramGroupId, paramTopic, paramDueDate, allGroups, activeYear, activeTerm, type, methods]);
 
   useEffect(() => {
     if (type === 'ASSIGNMENT' && dueDateOption === 'NEXT_SESSION') {
