@@ -407,11 +407,12 @@ export class SchedulersService implements OnModuleInit {
           if (alreadySentToday) continue;
         }
 
-        // Query candidate sessions strictly for today's window
+        // Query candidate sessions strictly for today's calendar date (PostgreSQL DATE column)
+        const todayDateOnly = new Date(`${dateStr}T00:00:00.000Z`);
         const sessions = await this.prisma.lessonSession.findMany({
           where: {
             group: { teacherId: teacher.id },
-            sessionDate: { gte: start, lte: end },
+            sessionDate: todayDateOnly,
             isCancelled: false,
           },
           include: { group: { select: { name: true, gradeLevel: true } } },
