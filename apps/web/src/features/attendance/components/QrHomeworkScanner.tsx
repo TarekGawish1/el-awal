@@ -22,7 +22,9 @@ import toast from 'react-hot-toast';
 import { useSessionReport, useScanQrAttendance } from '../hooks/use-attendance';
 import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
+import { syncEngine } from '@/lib/offline/sync-engine';
 import { initQrDetector } from '@/lib/qr/qr-detector-init';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface QrHomeworkScannerProps {
   sessionId: string;
@@ -68,6 +70,7 @@ export function QrHomeworkScanner({
   const [localHomeworkRecords, setLocalHomeworkRecords] = useState<any[]>([]);
   const { data: sessionReport } = useSessionReport(sessionId);
   const { mutate: scanQrAttendance } = useScanQrAttendance();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     let isMounted = true;
@@ -251,6 +254,22 @@ export function QrHomeworkScanner({
         };
       }
 
+      // ── Duplicate check: already has a homework record for this session?
+      const existingHw = await offlineDb.getHomeworkRecordsForSession(sessionId, assessmentId);
+      const alreadyRecorded = existingHw.find(
+        (h) => h.studentId === student.id || h.studentId === cleanToken
+      );
+      if (alreadyRecorded) {
+        playBeep('duplicate');
+        setFlashType('duplicate');
+        toast(`تم تسجيل هذا الطالب مسبقاً`, { icon: '⚠️' });
+        setTimeout(() => {
+          setLocked(false);
+          setFlashType(null);
+        }, 2000);
+        return;
+      }
+
       playBeep('success');
       setScannedStudent(student);
 
@@ -272,12 +291,8 @@ export function QrHomeworkScanner({
       const studentName = scannedStudent.fullName || scannedStudent.name || 'طالب';
       const studentCode = scannedStudent.studentCode || '';
 
-      // recordHomeworkOnsiteOffline atomically saves:
-      //   1. The homework record in IndexedDB
-      //   2. The attendance record in IndexedDB (PRESENT)
-      //   3. Queues both mutations in the outbox
-      // This works identically online and offline.
-      await offlineDb.recordHomeworkOnsiteOffline({
+      // 1. Save homework record + auto-record attendance in IndexedDB atomically
+      const { attendanceRecord } = await offlineDb.recordHomeworkOnsiteOffline({
         assessmentId,
         studentId: scannedStudent.id,
         sessionId,
@@ -287,6 +302,25 @@ export function QrHomeworkScanner({
         studentCode,
         qrCodeToken: scannedStudent.qrCodeToken,
       });
+
+      // 2. Explicitly enqueue attendance into the outbox so useSessionReport
+      //    (which reads pendingMutations) shows PRESENT immediately offline.
+      await syncEngine.enqueue(
+        'attendance',
+        API_ENDPOINTS.ATTENDANCE.SCAN_QR(sessionId),
+        'POST',
+        {
+          sessionId,
+          qrCodeToken: scannedStudent.qrCodeToken || scannedStudent.id,
+          studentId: scannedStudent.id,
+          status: 'PRESENT',
+          recordingMethod: 'QR_SCAN',
+          allowCrossGroup: true,
+        },
+      );
+
+      // 3. Invalidate session report so the UI updates immediately
+      queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'report'] });
 
       playBeep('success');
       setFlashType('success');
@@ -383,7 +417,7 @@ export function QrHomeworkScanner({
           </div>
           <div>
             <h3 className="font-bold text-slate-800 text-sm md:text-base">
-              و الحضورQR للواجب فقط
+              QR للواجب و الحضور معاً
             </h3>
             <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
               <span>سيتم سؤالك عن حالة الواجب بعد المسح.</span>
@@ -413,10 +447,10 @@ export function QrHomeworkScanner({
         <div className="md:col-span-6 flex flex-col items-center">
           <div
             className={`w-full max-w-sm aspect-[3/4] sm:aspect-square bg-slate-950 rounded-3xl overflow-hidden border border-slate-200 shadow-md relative transition-all duration-300 ring-4 ${flashType === 'success'
-                ? 'ring-indigo-500 shadow-xl shadow-indigo-500/20'
-                : flashType === 'error'
-                  ? 'ring-rose-500 shadow-xl shadow-rose-500/20'
-                  : 'ring-indigo-100'
+              ? 'ring-indigo-500 shadow-xl shadow-indigo-500/20'
+              : flashType === 'error'
+                ? 'ring-rose-500 shadow-xl shadow-rose-500/20'
+                : 'ring-indigo-100'
               }`}
           >
             <Scanner
@@ -585,10 +619,10 @@ export function QrHomeworkScanner({
                     >
                       <div className="flex items-center gap-2.5">
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${status === 'CHECKED_ONSITE' ? 'bg-emerald-100 text-emerald-700' :
-                            status === 'NOT_SUBMITTED' ? 'bg-rose-100 text-rose-700' :
-                              status === 'INCOMPLETE' ? 'bg-amber-100 text-amber-700' :
-                                status === 'EXCUSED' ? 'bg-slate-200 text-slate-700' :
-                                  'bg-white text-slate-300 border border-slate-200'
+                          status === 'NOT_SUBMITTED' ? 'bg-rose-100 text-rose-700' :
+                            status === 'INCOMPLETE' ? 'bg-amber-100 text-amber-700' :
+                              status === 'EXCUSED' ? 'bg-slate-200 text-slate-700' :
+                                'bg-white text-slate-300 border border-slate-200'
                           }`}>
                           {status === 'CHECKED_ONSITE' ? '✓' : status === 'NOT_SUBMITTED' ? '✗' : status === 'INCOMPLETE' ? '!' : status === 'EXCUSED' ? '-' : '?'}
                         </div>

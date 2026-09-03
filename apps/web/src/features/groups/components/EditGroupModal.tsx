@@ -48,6 +48,16 @@ const addOneHour = (time: string) => {
 
 const timeOptions = generateTimeOptions();
 
+const DAY_PAIRS: Record<number, number> = {
+  0: 3, // الأحد  -> الأربعاء
+  1: 4, // الإثنين -> الخميس
+  2: 5, // الثلاثاء -> الجمعة
+  3: 0, // الأربعاء -> الأحد
+  4: 1, // الخميس  -> الإثنين
+  5: 2, // الجمعة  -> الثلاثاء
+  6: 2, // السبت   -> الثلاثاء
+};
+
 function TimeSelect({ value, onChange, label, disabled }: { value: string, onChange: (val: string) => void, label: string, disabled?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -116,6 +126,33 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
   });
   const [educationalStage, setEducationalStage] = useState('');
   const [groupLocation, setGroupLocation] = useState(group?.schedules?.[0]?.location || '');
+  // false = user already customized slot 1 manually (don't override)
+  const [slot1Suggested, setSlot1Suggested] = useState(false);
+
+  // Auto-suggest second slot when first slot day OR time changes
+  useEffect(() => {
+    const schedules = formData.schedules || [];
+    if (schedules.length < 2 || !slot1Suggested) return;
+    const first = schedules[0];
+    const suggestedDay = DAY_PAIRS[first.dayOfWeek] ?? schedules[1].dayOfWeek;
+    setFormData(prev => {
+      const newSchedules = [...(prev.schedules || [])];
+      if (newSchedules.length < 2) return prev;
+      newSchedules[1] = {
+        ...newSchedules[1],
+        dayOfWeek: suggestedDay,
+        startTime: first.startTime,
+        endTime: first.endTime,
+      };
+      return { ...prev, schedules: newSchedules };
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    (formData.schedules || [])[0]?.dayOfWeek,
+    (formData.schedules || [])[0]?.startTime,
+    (formData.schedules || [])[0]?.endTime,
+    slot1Suggested,
+  ]);
 
   // Re-initialize when group changes
   useEffect(() => {
@@ -382,6 +419,7 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
                               const newSchedules = [...(formData.schedules || [])];
                               newSchedules[index].dayOfWeek = parseInt(e.target.value);
                               setFormData({ ...formData, schedules: newSchedules });
+                              if (index === 1) setSlot1Suggested(false);
                             }}
                             options={[
                               { label: 'الأحد', value: '0' },
@@ -401,8 +439,9 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
                           onChange={(val) => {
                             const newSchedules = [...(formData.schedules || [])];
                             newSchedules[index].startTime = val;
-                            newSchedules[index].endTime = addOneHour(val); // تحديث تلقائي لوقت الانتهاء
+                            newSchedules[index].endTime = addOneHour(val);
                             setFormData({ ...formData, schedules: newSchedules });
+                            if (index === 1) setSlot1Suggested(false);
                           }}
                           disabled={updateGroup.isPending}
                         />
@@ -413,6 +452,7 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
                             const newSchedules = [...(formData.schedules || [])];
                             newSchedules[index].endTime = val;
                             setFormData({ ...formData, schedules: newSchedules });
+                            if (index === 1) setSlot1Suggested(false);
                           }}
                           disabled={updateGroup.isPending}
                         />
@@ -430,6 +470,13 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
+                      {index === 1 && slot1Suggested && (
+                        <div className="flex items-center gap-1.5 pt-1">
+                          <span className="text-[10px] text-primary-600 bg-primary-50 border border-primary-100 px-2 py-0.5 rounded-full font-semibold animate-pulse">
+                            ✨ تم اقتراح هذا الموعد تلقائياً — يمكنك تعديله
+                          </span>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
