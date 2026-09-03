@@ -15,6 +15,11 @@ import { AuthenticatedUser } from '../../../core/security/decorators/current-use
 import { NotificationsService } from '../../notifications/services/notifications.service';
 import { RealtimeGateway } from '../../../realtime/realtime.gateway';
 import { formatStudentApprovalMessage } from '../../../utils/spintax';
+import {
+  findScheduleConflict,
+  buildConflictMessage,
+  ScheduleLike,
+} from '../utils/schedule-conflict.util';
 
 @Injectable()
 export class GroupsService {
@@ -51,6 +56,56 @@ export class GroupsService {
   }
 
   /**
+   * Throws a ConflictException when any candidate schedule slot clashes
+   * (same day + overlapping time) with an existing active group of the same
+   * teacher in the same academic year + term. Location is intentionally ignored
+   * — a teacher can't be in two places at once.
+   */
+  private async assertNoScheduleConflict(
+    effectiveTeacherId: string,
+    candidate: {
+      schedules?: ScheduleLike[] | null;
+      academicYear?: string | null;
+      academicTerm?: string | null;
+    },
+    excludeGroupId?: string,
+  ) {
+    if (!candidate.schedules?.length) return;
+
+    const academicYear = candidate.academicYear || '2026-2027';
+    const academicTerm = candidate.academicTerm || 'FIRST_TERM';
+
+    const where: any = {
+      OR: [
+        { teacherId: effectiveTeacherId },
+        { teacher: { id: effectiveTeacherId } },
+      ],
+      isActive: true,
+      academicYear,
+      academicTerm,
+    };
+    if (excludeGroupId) {
+      where.id = { not: excludeGroupId };
+    }
+
+    const existingGroups = await this.prisma.academicGroup.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        schedules: {
+          select: { dayOfWeek: true, startTime: true, endTime: true, location: true },
+        },
+      },
+    });
+
+    const conflict = findScheduleConflict(existingGroups, candidate.schedules);
+    if (conflict) {
+      throw new ConflictException(buildConflictMessage(conflict));
+    }
+  }
+
+  /**
    * Creates a new physical academic group assigned to the authenticated teacher.
    */
   async createGroup(teacherId: string, dto: CreateGroupDto, currentUser?: AuthenticatedUser) {
@@ -75,6 +130,12 @@ export class GroupsService {
         effectiveTeacherId = primaryTeacher.id;
       }
     }
+
+    await this.assertNoScheduleConflict(effectiveTeacherId, {
+      schedules: dto.schedules,
+      academicYear: dto.academicYear,
+      academicTerm: dto.academicTerm,
+    });
 
     const creatorName = currentUser?.fullName || (currentUser?.role === UserRole.SECRETARIAT ? 'المساعد' : 'المعلم');
     const creatorId = currentUser?.id || null;
@@ -198,6 +259,19 @@ export class GroupsService {
     await this.checkTeacherOwnership(group, user);
 
     const { schedules, ...updateData } = dto;
+
+    if (schedules !== undefined) {
+      await this.assertNoScheduleConflict(
+        group.teacherId,
+        {
+          schedules,
+          academicYear: dto.academicYear ?? group.academicYear,
+          academicTerm: dto.academicTerm ?? group.academicTerm,
+        },
+        groupId,
+      );
+    }
+
     const updaterName = user?.fullName || (user?.role === UserRole.SECRETARIAT ? 'المساعد' : 'المعلم');
 
     return this.prisma.$transaction(async (tx) => {

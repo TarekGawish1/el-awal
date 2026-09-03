@@ -6,10 +6,12 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Alert } from '@/components/ui/Alert';
 import { Select } from '@/components/ui/Select';
-import { useUpdateGroup } from '../hooks/useGroups';
+import { useUpdateGroup, useGroups } from '../hooks/useGroups';
 import { CreateGroupPayload, GroupWithDetails } from '../types/groups.types';
+import { findGroupScheduleConflict, describeConflict } from '../utils/scheduleConflict';
 import { LocationSelect } from './LocationSelect';
 import { AcademicYearSelect } from './AcademicYearSelect';
+import toast from 'react-hot-toast';
 
 interface EditGroupModalProps {
   isOpen: boolean;
@@ -255,13 +257,30 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
     }
   }, [formData.schedules, formData.gradeLevel, groupLocation]);
 
+  const { data: existingGroups } = useGroups();
   const updateGroup = useUpdateGroup();
 
   if (!isOpen || !group) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    // Reject the edit when the new schedule clashes (same day + overlapping time)
+    // with another group in the same academic year + term (excluding this group).
+    const conflict = findGroupScheduleConflict(
+      {
+        schedules: formData.schedules,
+        academicYear: formData.academicYear,
+        academicTerm: formData.academicTerm,
+      },
+      existingGroups,
+      { excludeGroupId: group.id },
+    );
+    if (conflict) {
+      toast.error(describeConflict(conflict));
+      return;
+    }
+
     // Inject the shared location into all schedules
     const schedulesWithLocation = formData.schedules?.map(s => ({
       ...s,

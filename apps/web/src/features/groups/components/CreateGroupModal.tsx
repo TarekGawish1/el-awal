@@ -9,8 +9,10 @@ import { Select } from '@/components/ui/Select';
 import { useCreateGroup, useGroups } from '../hooks/useGroups';
 import { useStoredAcademicPeriod } from '../hooks/useAcademicPeriod';
 import { CreateGroupPayload } from '../types/groups.types';
+import { findGroupScheduleConflict, describeConflict } from '../utils/scheduleConflict';
 import { LocationSelect } from './LocationSelect';
 import { AcademicYearSelect } from './AcademicYearSelect';
+import toast from 'react-hot-toast';
 
 interface CreateGroupModalProps {
   isOpen: boolean;
@@ -255,7 +257,31 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    // Validate that every schedule has an endTime
+    const missingEnd = (formData.schedules || []).findIndex(s => !s.endTime);
+    if (missingEnd !== -1) {
+      const daysMap = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+      const dayName = daysMap[(formData.schedules || [])[missingEnd]?.dayOfWeek ?? 0];
+      toast.error(`يرجى تحديد وقت الانتهاء لموعد يوم ${dayName}`);
+      return;
+    }
+
+    // Reject creation when any slot clashes (same day + overlapping time) with an
+    // existing group in the same academic year + term.
+    const conflict = findGroupScheduleConflict(
+      {
+        schedules: formData.schedules,
+        academicYear: formData.academicYear,
+        academicTerm: formData.academicTerm,
+      },
+      existingGroups,
+    );
+    if (conflict) {
+      toast.error(describeConflict(conflict));
+      return;
+    }
+
     // Inject the shared location into all schedules
     const schedulesWithLocation = formData.schedules?.map(s => ({
       ...s,
@@ -462,17 +488,19 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
                           }}
                           disabled={createGroup.isPending}
                         />
-                        <TimeSelect
-                          label="إلى"
-                          value={schedule.endTime}
-                          onChange={(val) => {
-                            const newSchedules = [...(formData.schedules || [])];
-                            newSchedules[index].endTime = val;
-                            setFormData({ ...formData, schedules: newSchedules });
-                            if (index === 1) setSlot1Suggested(false);
-                          }}
-                          disabled={createGroup.isPending}
-                        />
+                        <div className={`relative ${!schedule.endTime ? 'ring-2 ring-red-400 rounded-md' : ''}`}>
+                          <TimeSelect
+                            label={!schedule.endTime ? 'إلى ⚠️ مطلوب' : 'إلى'}
+                            value={schedule.endTime}
+                            onChange={(val) => {
+                              const newSchedules = [...(formData.schedules || [])];
+                              newSchedules[index].endTime = val;
+                              setFormData({ ...formData, schedules: newSchedules });
+                              if (index === 1) setSlot1Suggested(false);
+                            }}
+                            disabled={createGroup.isPending}
+                          />
+                        </div>
                         <button
                           type="button"
                           onClick={() => {
