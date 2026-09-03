@@ -1,7 +1,8 @@
 'use client';
-
+ 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
   ArrowRight,
   BookOpen,
@@ -51,9 +52,11 @@ function getPausedEmbedUrl(embedUrl: string): string {
 }
 
 export function StudentCourseLearningRoom({ courseId, initialLessonId }: StudentCourseLearningRoomProps) {
+  const pathname = usePathname();
   const { data: course, isLoading: isCourseLoading } = useCourseDetail(courseId);
   const { user } = useAuth();
   const isTeacherOrAdmin = user?.role === 'TEACHER' || user?.role === 'SECRETARIAT';
+  const isPreviewMode = isTeacherOrAdmin && (pathname?.includes('/preview') ?? false);
 
   // Per-student scope for every browser-persisted progress key. Without this the
   // localStorage keys were shared by courseId only, so a browser used by more than one
@@ -676,9 +679,37 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
               <span className="text-slate-300">•</span>
               <span className="text-[11px] text-slate-500">{course.subject}</span>
               {isTeacherOrAdmin && (
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                  وضع معاينة المعلم
-                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                    وضع معاينة المعلم
+                  </span>
+                  {course.enforceSequentialLessons && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1">
+                      <Lock className="w-2.5 h-2.5" />
+                      ترتيب المنهج إلزامي
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        localStorage.removeItem(progressStorageKey);
+                        localStorage.removeItem(notifiedStorageKeyRef.current);
+                        Object.keys(localStorage).forEach((k) => {
+                          if (k.startsWith('el_awal_preview_quiz_')) localStorage.removeItem(k);
+                        });
+                        sessionCompletedRef.current.clear();
+                        setCompletedLessonIds([]);
+                        toast.success('تمت إعادة ضبط تقدم المعاينة بنجاح');
+                      } catch {}
+                    }}
+                    className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
+                    title="إعادة تعيين تقدم المشاهدة والاختبارات في المعاينة للبدء من الصفر"
+                  >
+                    <RotateCcw className="w-2.5 h-2.5" />
+                    <span>إعادة ضبط المعاينة</span>
+                  </button>
+                </div>
               )}
             </div>
             <h1 className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">
@@ -909,6 +940,12 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 lessonQuiz={lessonViewer?.lessonQuiz || null}
                 unitQuiz={lessonViewer?.unitQuiz || null}
                 courseQuiz={course.courseQuiz || null}
+                enforceSequentialLessons={course.enforceSequentialLessons ?? false}
+                completedLessonIds={completedLessonIds}
+                activeModule={activeModule || null}
+                allModules={course.modules || []}
+                allLessons={allLessons}
+                isPreviewMode={isPreviewMode}
               />
             )}
           </div>
@@ -923,7 +960,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
               activeLessonId={selectedLessonId}
               onSelectLesson={(id) => setSelectedLessonId(id)}
               completedLessonIds={completedLessonIds}
-              enforceSequentialLessons={isTeacherOrAdmin ? false : (course.enforceSequentialLessons ?? false)}
+              enforceSequentialLessons={course.enforceSequentialLessons ?? false}
             />
           </div>
         </div>
@@ -953,7 +990,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                   setIsMobileSyllabusOpen(false);
                 }}
                 completedLessonIds={completedLessonIds}
-                enforceSequentialLessons={isTeacherOrAdmin ? false : (course.enforceSequentialLessons ?? false)}
+                enforceSequentialLessons={course.enforceSequentialLessons ?? false}
               />
             </div>
           </div>

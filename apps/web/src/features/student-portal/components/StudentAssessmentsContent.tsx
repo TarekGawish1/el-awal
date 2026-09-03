@@ -546,21 +546,30 @@ function AssessmentWrapper({
     };
   };
 
-  const notifyCourseLessonProgress = async (subData?: any) => {
+  const notifyCourseLessonProgress = async (subData?: any, isPreview = false) => {
     const targetLessonId = lessonId || (assessment as any)?.lessonId || subData?.lessonId;
     const targetCourseId = courseId || (assessment as any)?.courseId || subData?.courseId;
 
-    if (targetCourseId && targetLessonId && typeof window !== 'undefined') {
+    if (typeof window !== 'undefined') {
       try {
-        const key = `el_awal_course_progress_${targetCourseId}_${progressScopeId}`;
-        const saved = localStorage.getItem(key);
-        const list = saved ? JSON.parse(saved) : [];
-        const updated = Array.isArray(list) ? Array.from(new Set([...list, targetLessonId])) : [targetLessonId];
-        localStorage.setItem(key, JSON.stringify(updated));
+        if (targetCourseId && targetLessonId) {
+          const key = `el_awal_course_progress_${targetCourseId}_${progressScopeId}`;
+          const saved = localStorage.getItem(key);
+          const list = saved ? JSON.parse(saved) : [];
+          const updated = Array.isArray(list) ? Array.from(new Set([...list, targetLessonId])) : [targetLessonId];
+          localStorage.setItem(key, JSON.stringify(updated));
+        }
+        if (assessmentId) {
+          localStorage.setItem(`el_awal_preview_quiz_${assessmentId}`, JSON.stringify({
+            scoreObtained: subData?.scoreObtained ?? 100,
+            status: 'GRADED',
+            submittedAt: new Date().toISOString(),
+          }));
+        }
       } catch {}
     }
 
-    if (targetLessonId) {
+    if (targetLessonId && !isPreview) {
       try {
         await coursesApi.updateLessonProgress(targetLessonId, {
           isCompleted: true,
@@ -584,7 +593,7 @@ function AssessmentWrapper({
           const preview = Boolean(subData?.isPreview) || subData?.id === 'preview-submission';
           setLocalSubmission(subData);
           setShowResultModal(true);
-          if (!preview) notifyCourseLessonProgress(subData);
+          notifyCourseLessonProgress(subData, preview);
           refetch();
         },
         onError: (err: any) => {
@@ -616,7 +625,7 @@ function AssessmentWrapper({
           setRetakeMode(false);
           setLocalSubmission(subData);
           setShowResultModal(true);
-          if (!preview) notifyCourseLessonProgress(subData);
+          notifyCourseLessonProgress(subData, preview);
           refetch();
         },
         onError: (err: any) => {
@@ -651,6 +660,7 @@ function AssessmentWrapper({
     const errStartTime = errObj?.response?.data?.startTime || errObj?.startTime;
     const isEarly = errMessage.includes('لم يحن') || String(errObj).includes('لم يحن');
     const isLateError = errMessage.includes('انتهت فترة') || String(errObj).includes('انتهت فترة');
+    const isLockedBySequence = errMessage.includes('مقفل') || errMessage.includes('ترتيب المنهج');
 
     return (
       <div className="space-y-6 max-w-xl mx-auto py-10" dir="rtl">
@@ -659,7 +669,17 @@ function AssessmentWrapper({
           رجوع
         </Button>
         <Card className="border border-slate-200 shadow-sm rounded-3xl text-center p-8 space-y-4 bg-white">
-          {isEarly ? (
+          {isLockedBySequence ? (
+            <>
+              <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+                <Lock className="w-8 h-8" />
+              </div>
+              <h2 className="text-xl font-extrabold text-slate-800">الاختبار مقفل وفقاً لترتيب المنهج</h2>
+              <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed font-medium">
+                {errMessage}
+              </p>
+            </>
+          ) : isEarly ? (
             <>
               <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
                 <Lock className="w-8 h-8" />

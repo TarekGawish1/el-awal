@@ -56,6 +56,13 @@ export class CoursesController {
     return this.coursesService.getPublishedCatalog(query);
   }
 
+  @Public()
+  @Get(':id/public')
+  @ApiOperation({ summary: 'Public course outline, modules, and preview lessons' })
+  async getPublicCourse(@Param('id') id: string) {
+    return this.coursesService.getPublicCourseDetails(id);
+  }
+
   @Get('teacher')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Get all courses created by the authenticated teacher' })

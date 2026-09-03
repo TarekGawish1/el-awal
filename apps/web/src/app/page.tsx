@@ -333,18 +333,42 @@ const GRADES: Record<string, string[]> = {
 };
 
 function CoursesSection() {
-  const [courses, setCourses] = useState<any[]>(COURSES);
+  const [courses, setCourses] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState<any | null>(null);
+  const [activePreviewLesson, setActivePreviewLesson] = useState<{ id: string; title: string; videoUrl: string | null } | null>(null);
   const [selectedStage, setSelectedStage] = useState<string>('ALL');
   const [selectedGrade, setSelectedGrade] = useState<string>('ALL');
-  const [expandedModule, setExpandedModule] = useState<number | null>(0);
+  const [expandedModule, setExpandedModule] = useState<string | number | null>(null);
+
+  const handleOpenCourseModal = (course: any) => {
+    setSelectedCourse(course);
+    let freeLesson: any = null;
+    if (course.modules?.length) {
+      for (const mod of course.modules) {
+        const match = mod.lessons?.find((l: any) => l.isPreview && l.freeVideoUrl);
+        if (match) {
+          freeLesson = { id: match.id, title: match.title, videoUrl: match.freeVideoUrl };
+          break;
+        }
+      }
+    }
+    if (!freeLesson && course.freeVideoUrl) {
+      freeLesson = {
+        id: course.freeVideoLessonId || 'free-1',
+        title: 'معاينة الدرس المجاني',
+        videoUrl: course.freeVideoUrl,
+      };
+    }
+    setActivePreviewLesson(freeLesson);
+    setExpandedModule(course.modules?.[0]?.id ?? 0);
+  };
 
   useEffect(() => {
     async function fetchCourses() {
       setIsLoading(true);
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.al-awal.online/api/v1';
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
         let url = `${baseUrl}/courses/catalog?limit=20`;
         if (selectedStage !== 'ALL') url += `&academicStage=${encodeURIComponent(selectedStage)}`;
         if (selectedGrade !== 'ALL') url += `&gradeLevel=${encodeURIComponent(selectedGrade)}`;
@@ -356,12 +380,21 @@ function CoursesSection() {
             const mapped = data.data.map((c: any, index: number) => ({
               id: c.id,
               title: c.title,
-              description: c.description || 'شرح مبسط ومفصل للمنهج مع تدريبات مكثفة.',
-              badge: c.academicTerm === 'FIRST_TERM' ? 'ترم أول' : 'ترم ثاني',
-              color: index % 3 === 0 ? 'from-blue-500 to-cyan-500' : index % 3 === 1 ? 'from-indigo-500 to-purple-500' : 'from-emerald-500 to-teal-500',
+              description: c.description || 'شرح مبسط ومفصل للمنهج مع تدريبات مكثفة وتطبيقات على أحدث نظام.',
+              badge: c.academicTerm === 'FIRST_TERM' ? 'ترم أول' : c.academicTerm === 'SECOND_TERM' ? 'ترم ثاني' : 'شامل',
+              gradeLevel: c.gradeLevel,
+              academicStage: c.academicStage,
+              subject: c.subject || 'الرياضيات',
+              price: c.price !== undefined ? c.price : 150,
+              coverImageUrl: c.coverImageUrl,
+              teacherName: c.teacher?.user?.fullName || 'أستاذ المادة',
+              color: index % 3 === 0 ? 'from-blue-600 to-cyan-600' : index % 3 === 1 ? 'from-indigo-600 to-purple-600' : 'from-emerald-600 to-teal-600',
+              totalLessons: c.totalLessons || 0,
+              totalModules: c.totalModules || c.modules?.length || 0,
               hasFreeVideo: c.hasFreeVideo,
               freeVideoLessonId: c.freeVideoLessonId,
               freeVideoUrl: c.freeVideoUrl,
+              modules: c.modules || [],
             }));
             setCourses(mapped);
           }
@@ -384,7 +417,7 @@ function CoursesSection() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto"
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-4 overflow-y-auto"
             onClick={() => setSelectedCourse(null)}
           >
             <motion.div
@@ -395,12 +428,24 @@ function CoursesSection() {
               className="relative w-full max-w-5xl bg-white rounded-3xl overflow-hidden shadow-2xl my-8 flex flex-col max-h-[90vh]"
             >
               {/* Header */}
-              <div className="bg-slate-900 text-white p-6 sm:p-8 flex items-start justify-between shrink-0">
+              <div className="bg-slate-900 text-white p-6 sm:p-8 flex items-start justify-between shrink-0 border-b border-slate-800">
                 <div className="max-w-2xl">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full">{selectedCourse.badge}</span>
+                  <div className="flex flex-wrap items-center gap-2.5 mb-3">
+                    <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm">
+                      {selectedCourse.badge}
+                    </span>
+                    {selectedCourse.gradeLevel && (
+                      <span className="bg-slate-800 text-slate-300 border border-slate-700 text-xs font-semibold px-3 py-1 rounded-full">
+                        {selectedCourse.gradeLevel}
+                      </span>
+                    )}
+                    {selectedCourse.subject && (
+                      <span className="bg-indigo-900/60 text-indigo-300 border border-indigo-700/50 text-xs font-semibold px-3 py-1 rounded-full">
+                        مادة {selectedCourse.subject}
+                      </span>
+                    )}
                   </div>
-                  <h2 className="text-2xl sm:text-3xl font-bold mb-2">{selectedCourse.title}</h2>
+                  <h2 className="text-2xl sm:text-3xl font-extrabold mb-2">{selectedCourse.title}</h2>
                   <p className="text-slate-300 text-sm sm:text-base leading-relaxed">{selectedCourse.description}</p>
                 </div>
                 <button
@@ -413,102 +458,206 @@ function CoursesSection() {
 
               {/* Body */}
               <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
-                {/* Right Sidebar (Video & CTA) */}
-                <div className="w-full lg:w-1/3 bg-slate-50 border-b lg:border-b-0 lg:border-l border-slate-200 p-6 flex flex-col shrink-0 order-1 lg:order-2">
-                  {selectedCourse.hasFreeVideo && selectedCourse.freeVideoUrl ? (
-                    <div className="w-full aspect-video bg-black rounded-xl overflow-hidden shadow-md mb-6 relative group">
-                      <iframe
-                        src={`${selectedCourse.freeVideoUrl}${selectedCourse.freeVideoUrl.includes('?') ? '&' : '?'}autoplay=0`}
-                        loading="lazy"
-                        className="w-full h-full border-0 absolute inset-0"
-                        allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
-                        allowFullScreen
-                      ></iframe>
+                {/* Video & Subscription Sidebar */}
+                <div className="w-full lg:w-[380px] bg-slate-50 border-b lg:border-b-0 lg:border-l border-slate-200 p-6 flex flex-col shrink-0 order-1 lg:order-2 overflow-y-auto">
+                  {activePreviewLesson?.videoUrl ? (
+                    <div className="mb-4">
+                      <div className="w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-lg mb-3 relative group border border-slate-200">
+                        <iframe
+                          key={activePreviewLesson.id + activePreviewLesson.videoUrl}
+                          src={`${activePreviewLesson.videoUrl}${activePreviewLesson.videoUrl.includes('?') ? '&' : '?'}autoplay=0`}
+                          loading="lazy"
+                          className="w-full h-full border-0 absolute inset-0"
+                          allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+                          allowFullScreen
+                        ></iframe>
+                      </div>
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-2.5 text-xs text-emerald-800 font-semibold shadow-xs">
+                        <PlayCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span className="truncate">جاري تشغيل: {activePreviewLesson.title}</span>
+                      </div>
                     </div>
                   ) : (
-                    <div className="w-full aspect-video bg-slate-200 rounded-xl flex items-center justify-center shadow-md mb-6">
-                      <PlayCircle className="w-12 h-12 text-slate-400" />
+                    <div className="w-full aspect-video bg-slate-900 rounded-2xl flex flex-col items-center justify-center p-6 text-center shadow-inner mb-4 text-slate-300 border border-slate-800">
+                      <PlayCircle className="w-12 h-12 text-slate-500 mb-2" />
+                      <p className="text-xs font-semibold text-slate-400">
+                        اختر درساً متاحاً للمعاينة المجانية من القائمة
+                      </p>
                     </div>
                   )}
 
-                  <div className="space-y-3 lg:space-y-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-3xl font-black text-slate-900">{selectedCourse.price || '150'} ج.م</span>
-                      <span className="text-sm text-slate-400 line-through">{selectedCourse.originalPrice || '250'} ج.م</span>
+                  <div className="space-y-4">
+                    <div className="flex items-baseline gap-3">
+                      <span className="text-3xl font-black text-slate-900">{selectedCourse.price} ج.م</span>
+                      <span className="text-sm font-semibold text-slate-400 line-through">
+                        {Math.round(selectedCourse.price * 1.5)} ج.م
+                      </span>
                     </div>
                     
-                    <div className="text-xl lg:text-2xl font-black text-slate-900">اشترك الآن للوصول الكامل</div>
-                    <Link href="/login" className="flex items-center justify-center gap-2 w-full py-3 lg:py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all shadow-md hover:shadow-lg">
+                    <div>
+                      <div className="text-lg font-black text-slate-900 mb-1">اشترك الآن للوصول الكامل</div>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        يتيح لك الاشتراك فتح كافة الدروس، المذكرات، والاختبارات التفاعلية
+                      </p>
+                    </div>
+
+                    <Link
+                      href="/login"
+                      className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all shadow-md hover:shadow-lg text-sm"
+                    >
                       <span>الاشتراك في الكورس</span>
+                      <ArrowRight className="w-4 h-4 rtl:rotate-180" />
                     </Link>
-                    <p className="text-xs text-center text-slate-500">يتيح لك الاشتراك الوصول لجميع الدروس والواجبات</p>
                     
-                    <div className="pt-4 mt-4 border-t border-slate-200 space-y-3 hidden lg:block">
-                      <h4 className="font-bold text-slate-800 text-sm">ماذا يتضمن هذا الكورس؟</h4>
-                      <ul className="text-sm text-slate-600 space-y-2">
-                        <li className="flex items-center gap-2"><PlayCircle className="w-4 h-4 text-blue-500" /> شروحات فيديو مسجلة ومباشرة</li>
-                        <li className="flex items-center gap-2"><FileText className="w-4 h-4 text-blue-500" /> مذكرات وملخصات PDF</li>
-                        <li className="flex items-center gap-2"><ClipboardList className="w-4 h-4 text-blue-500" /> اختبارات إلكترونية وواجبات</li>
+                    <div className="pt-4 border-t border-slate-200 space-y-3">
+                      <h4 className="font-bold text-slate-800 text-xs">ماذا يتضمن هذا الكورس؟</h4>
+                      <ul className="text-xs text-slate-600 space-y-2.5">
+                        <li className="flex items-center gap-2.5">
+                          <PlayCircle className="w-4 h-4 text-blue-600 shrink-0" />
+                          <span>{selectedCourse.totalLessons || 0} درساً تعليمياً مسجلاً</span>
+                        </li>
+                        <li className="flex items-center gap-2.5">
+                          <BookOpen className="w-4 h-4 text-blue-600 shrink-0" />
+                          <span>{selectedCourse.totalModules || selectedCourse.modules?.length || 0} وحدات منهجية شاملة</span>
+                        </li>
+                        <li className="flex items-center gap-2.5">
+                          <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+                          <span>مذكرات وملخصات PDF لكل درس</span>
+                        </li>
+                        <li className="flex items-center gap-2.5">
+                          <ClipboardList className="w-4 h-4 text-blue-600 shrink-0" />
+                          <span>اختبارات إلكترونية تفاعلية وواجبات</span>
+                        </li>
                       </ul>
                     </div>
                   </div>
                 </div>
 
-                {/* Left Content (Syllabus) */}
-                <div className="w-full lg:w-2/3 p-6 sm:p-8 overflow-y-auto order-2 lg:order-1">
-                  <h3 className="text-xl font-bold text-slate-900 mb-6">محتوى الكورس</h3>
-                  
-                  <div className="space-y-3">
-                    {/* Dummy Modules */}
-                    {[1, 2, 3].map((moduleIndex) => (
-                      <div key={moduleIndex} className="border border-slate-200 rounded-xl overflow-hidden bg-white">
-                        <button
-                          onClick={() => setExpandedModule(expandedModule === moduleIndex ? null : moduleIndex)}
-                          className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 transition-colors"
-                        >
-                          <div className="flex items-center gap-3">
-                            <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform ${expandedModule === moduleIndex ? 'rotate-180' : ''}`} />
-                            <span className="font-bold text-slate-800">الوحدة {moduleIndex === 1 ? 'الأولى' : moduleIndex === 2 ? 'الثانية' : 'الثالثة'}: {moduleIndex === 1 ? 'أساسيات المنهج' : 'التطبيقات المتقدمة'}</span>
-                          </div>
-                          <span className="text-xs font-medium text-slate-500">3 دروس</span>
-                        </button>
-                        
-                        <AnimatePresence>
-                          {expandedModule === moduleIndex && (
-                            <motion.div
-                              initial={{ height: 0 }}
-                              animate={{ height: 'auto' }}
-                              exit={{ height: 0 }}
-                              className="overflow-hidden"
-                            >
-                              <div className="p-2 space-y-1">
-                                {[1, 2, 3].map((lessonIndex) => {
-                                  const isFree = moduleIndex === 1 && lessonIndex === 1 && selectedCourse.hasFreeVideo;
-                                  return (
-                                    <div key={lessonIndex} className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 transition-colors group">
-                                      <div className="flex items-center gap-3">
-                                        {isFree ? (
-                                          <PlayCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                                        ) : (
-                                          <Lock className="w-4 h-4 text-slate-400 shrink-0" />
-                                        )}
-                                        <span className={`text-sm font-medium ${isFree ? 'text-slate-900' : 'text-slate-600'}`}>
-                                          الدرس {lessonIndex}: {lessonIndex === 1 ? 'مقدمة وشرح مبسط' : 'حل التمارين والأسئلة'}
-                                        </span>
-                                      </div>
-                                      {isFree && (
-                                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">معاينة مجانية</span>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    ))}
+                {/* Course Syllabus / Structure */}
+                <div className="w-full lg:flex-1 p-6 sm:p-8 overflow-y-auto order-2 lg:order-1 bg-white">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-xl font-black text-slate-900">محتوى الكورس</h3>
+                    <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
+                      {selectedCourse.modules?.length || 0} وحدات • {selectedCourse.totalLessons || 0} درس
+                    </span>
                   </div>
+                  
+                  {selectedCourse.modules && selectedCourse.modules.length > 0 ? (
+                    <div className="space-y-3.5">
+                      {selectedCourse.modules.map((mod: any, moduleIndex: number) => {
+                        const isExpanded = expandedModule === (mod.id || moduleIndex);
+                        return (
+                          <div key={mod.id || moduleIndex} className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-xs">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedModule(isExpanded ? null : (mod.id || moduleIndex))}
+                              className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100/80 transition-colors text-right"
+                            >
+                              <div className="flex items-center gap-3">
+                                <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                                <div>
+                                  <span className="font-bold text-slate-800 text-sm sm:text-base">
+                                    {mod.title}
+                                  </span>
+                                  {mod.description && (
+                                    <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">{mod.description}</p>
+                                  )}
+                                </div>
+                              </div>
+                              <span className="text-xs font-bold text-slate-600 bg-white border border-slate-200 px-2.5 py-1 rounded-full shrink-0 shadow-2xs">
+                                {mod.lessons?.length || 0} دروس
+                              </span>
+                            </button>
+                            
+                            <AnimatePresence>
+                              {isExpanded && (
+                                <motion.div
+                                  initial={{ height: 0 }}
+                                  animate={{ height: 'auto' }}
+                                  exit={{ height: 0 }}
+                                  className="overflow-hidden"
+                                >
+                                  <div className="p-3 space-y-2 border-t border-slate-100 bg-slate-50/50">
+                                    {mod.lessons && mod.lessons.length > 0 ? (
+                                      mod.lessons.map((lesson: any, lessonIndex: number) => {
+                                        const isFree = Boolean(lesson.isPreview && lesson.freeVideoUrl);
+                                        const isPlaying = activePreviewLesson?.id === lesson.id;
+
+                                        return (
+                                          <div
+                                            key={lesson.id || lessonIndex}
+                                            onClick={() => {
+                                              if (isFree) {
+                                                setActivePreviewLesson({
+                                                  id: lesson.id,
+                                                  title: lesson.title,
+                                                  videoUrl: lesson.freeVideoUrl,
+                                                });
+                                                toast.success(`تم تشغيل المعاينة المجانية: ${lesson.title}`);
+                                              } else {
+                                                toast('هذا الدرس متاح حصرياً للمشتركين في الكورس', {
+                                                  icon: '🔒',
+                                                });
+                                              }
+                                            }}
+                                            className={`flex items-center justify-between p-3.5 rounded-xl transition-all cursor-pointer ${
+                                              isPlaying
+                                                ? 'bg-emerald-50/90 border-2 border-emerald-400 shadow-sm'
+                                                : isFree
+                                                ? 'bg-white hover:bg-emerald-50/50 border border-slate-200 hover:border-emerald-300'
+                                                : 'bg-white/60 hover:bg-white border border-slate-100 opacity-75'
+                                            }`}
+                                          >
+                                            <div className="flex items-center gap-3 min-w-0">
+                                              {isFree ? (
+                                                <PlayCircle className={`w-5 h-5 shrink-0 ${isPlaying ? 'text-emerald-600 animate-pulse' : 'text-emerald-500'}`} />
+                                              ) : (
+                                                <Lock className="w-4 h-4 text-slate-400 shrink-0" />
+                                              )}
+                                              <div className="min-w-0">
+                                                <div className={`text-sm font-bold truncate ${isPlaying ? 'text-emerald-950' : isFree ? 'text-slate-900' : 'text-slate-600'}`}>
+                                                  الدرس {lesson.orderIndex || lessonIndex + 1}: {lesson.title}
+                                                </div>
+                                                {lesson.videoDurationSeconds > 0 && (
+                                                  <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-400">
+                                                    <span>{Math.round(lesson.videoDurationSeconds / 60)} دقيقة</span>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </div>
+
+                                            {isFree ? (
+                                              <span className={`text-xs font-bold px-3 py-1 rounded-full shrink-0 flex items-center gap-1 ${
+                                                isPlaying
+                                                  ? 'bg-emerald-600 text-white shadow-xs'
+                                                  : 'bg-emerald-100 text-emerald-800'
+                                              }`}>
+                                                {isPlaying ? 'جاري المشاهدة ▶' : 'معاينة مجانية ⚡'}
+                                              </span>
+                                            ) : (
+                                              <span className="text-[11px] font-medium text-slate-400 bg-slate-100 px-2.5 py-1 rounded-md shrink-0">
+                                                خاص بالمشتركين
+                                              </span>
+                                            )}
+                                          </div>
+                                        );
+                                      })
+                                    ) : (
+                                      <p className="text-xs text-slate-400 text-center py-3">لا توجد دروس مضافة في هذه الوحدة بعد.</p>
+                                    )}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-100">
+                      <p className="text-slate-500 text-sm font-medium">لم يتم إضافة وحدات لهذا الكورس بعد.</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -622,16 +771,16 @@ function CoursesSection() {
                 className="group relative bg-white rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_rgb(0,0,0,0.08)] transition-all overflow-hidden flex flex-col"
               >
                 {/* Image/Gradient Area */}
-                <div className={`h-48 w-full bg-gradient-to-br ${course.color || 'from-blue-500 to-cyan-500'} relative overflow-hidden flex items-start justify-start p-6`}>
+                <div className={`h-48 w-full bg-gradient-to-br ${course.color || 'from-blue-600 to-cyan-600'} relative overflow-hidden flex items-start justify-start p-6`}>
                   <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
                   
                   {course.hasFreeVideo && course.freeVideoUrl ? (
                      <div 
-                       onClick={() => setSelectedCourse(course)}
-                       className="absolute inset-0 z-20 flex items-center justify-center cursor-pointer bg-black/10 group-hover:bg-black/30 transition-colors"
+                       onClick={() => handleOpenCourseModal(course)}
+                       className="absolute inset-0 z-20 flex items-center justify-center cursor-pointer bg-black/15 group-hover:bg-black/35 transition-colors"
                      >
                        <div className="w-16 h-16 bg-white/30 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                          <PlayCircle className="h-8 w-8 text-white ml-1" />
+                          <PlayCircle className="h-8 w-8 text-white ml-0.5" />
                        </div>
                      </div>
                   ) : (
@@ -640,35 +789,51 @@ function CoursesSection() {
                     </div>
                   )}
 
-                  <div className="relative z-10 bg-white/25 backdrop-blur-md px-4 py-1.5 rounded-full text-white text-sm font-bold shadow-sm self-start">
-                    {course.badge}
+                  <div className="relative z-10 flex items-center gap-2">
+                    <span className="bg-white/25 backdrop-blur-md px-3.5 py-1 rounded-full text-white text-xs font-bold shadow-xs">
+                      {course.badge}
+                    </span>
+                    {course.totalLessons > 0 && (
+                      <span className="bg-black/30 backdrop-blur-md px-3 py-1 rounded-full text-white text-xs font-semibold">
+                        {course.totalLessons} درس
+                      </span>
+                    )}
                   </div>
                 </div>
 
                 {/* Content Area */}
-                <div className="p-6 sm:p-8 flex-1 flex flex-col bg-white">
-                  <h3 className="text-2xl font-bold text-slate-900 mb-3">{course.title}</h3>
-                  <p className="text-slate-600 text-base leading-relaxed mb-4 flex-1 line-clamp-3">
+                <div className="p-6 sm:p-7 flex-1 flex flex-col bg-white">
+                  <div className="flex items-center gap-2 mb-2 text-xs text-slate-500 font-medium">
+                    {course.gradeLevel && <span>{course.gradeLevel}</span>}
+                    {course.gradeLevel && course.teacherName && <span>•</span>}
+                    {course.teacherName && <span>{course.teacherName}</span>}
+                  </div>
+
+                  <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2.5 leading-snug">{course.title}</h3>
+                  <p className="text-slate-600 text-sm leading-relaxed mb-4 flex-1 line-clamp-3">
                     {course.description}
                   </p>
 
-                  <div className="flex items-center gap-2 mb-4 mt-auto">
-                    <span className="text-2xl font-black text-slate-900">{course.price || '150'} ج.م</span>
-                    <span className="text-sm text-slate-400 line-through">{course.originalPrice || '250'} ج.م</span>
+                  <div className="flex items-baseline gap-2 mb-5 mt-auto pt-3 border-t border-slate-100">
+                    <span className="text-2xl font-black text-slate-900">{course.price} ج.م</span>
+                    <span className="text-xs font-semibold text-slate-400 line-through">{Math.round(course.price * 1.5)} ج.م</span>
                   </div>
 
-                  <div className="flex flex-col gap-2">
-                    {course.hasFreeVideo && course.freeVideoUrl && (
-                       <button onClick={() => setSelectedCourse(course)} className="hover:bg-emerald-50 flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-emerald-100 text-emerald-700 font-bold transition-colors group-hover:border-emerald-200">
-                         <PlayCircle className="h-5 w-5" />
-                         <span>شاهد الدرس الأول وتفاصيل الكورس</span>
-                       </button>
-                    )}
-                    <Link href="/login" className="hover:bg-blue-50 flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-slate-100 text-slate-700 font-bold transition-colors group-hover:border-blue-100">
+                  <div className="flex flex-col gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenCourseModal(course)}
+                      className="hover:bg-emerald-50 flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-emerald-200 text-emerald-700 font-bold transition-colors group-hover:border-emerald-300 text-sm shadow-2xs"
+                    >
+                      <PlayCircle className="h-4 w-4" />
+                      <span>{course.hasFreeVideo ? 'شاهد المعاينة المجانية وتفاصيل المنهج' : 'عرض تفاصيل ومحتوى الكورس'}</span>
+                    </button>
+                    <Link
+                      href="/login"
+                      className="hover:bg-blue-50 flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-slate-100 text-slate-700 font-bold transition-colors group-hover:border-blue-200 text-sm"
+                    >
                       <span>اشترك الآن</span>
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 rtl:rotate-180 text-blue-600 transition-transform group-hover:-translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                      </svg>
+                      <ArrowRight className="h-4 w-4 rtl:rotate-180 text-blue-600 transition-transform group-hover:-translate-x-1" />
                     </Link>
                   </div>
                 </div>

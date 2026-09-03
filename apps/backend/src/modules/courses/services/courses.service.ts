@@ -64,27 +64,52 @@ export class CoursesService {
   ) {}
 
   /**
+   * Helper to safely extract Bunny Stream Video GUID from a string, URL, or URI.
+   */
+  private extractBunnyVideoId(value?: string | null): string | null {
+    if (!value) return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith('bunny:')) return trimmed.replace('bunny:', '').trim();
+    const match = trimmed.match(
+      /(?:iframe\.mediadelivery\.net\/embed\/\d+\/|video\.bunnycdn\.com\/library\/\d+\/videos\/|video\.bunnycdn\.com\/play\/|video\.bunnycdn\.com\/)([a-f0-9\-]{36})/i,
+    );
+    if (match) return match[1];
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://') && !trimmed.startsWith('/')) {
+      return trimmed;
+    }
+    return null;
+  }
+
+  /**
    * Creates a new course scoped to the instructor.
    */
   async createCourse(teacherId: string, dto: CreateCourseDto) {
-    return this.prisma.course.create({
-      data: {
-        title: dto.title,
-        description: dto.description,
-        subject: dto.subject,
-        gradeLevel: dto.gradeLevel,
-        academicStage: dto.academicStage,
-        academicYear: dto.academicYear || '2026-2027',
-        academicTerm: dto.academicTerm || 'FIRST_TERM',
-        price: dto.price || 0.0,
-        coverImageUrl: dto.coverImageUrl,
-        courseQuizId: dto.courseQuizId || null,
-        enforceSequentialLessons: dto.enforceSequentialLessons ?? false,
-        hasCertificate: dto.hasCertificate ?? true,
-        teacherId,
-        status: CourseStatus.DRAFT,
-      },
-    });
+    try {
+      return await this.prisma.course.create({
+        data: {
+          title: dto.title,
+          description: dto.description,
+          subject: dto.subject,
+          gradeLevel: dto.gradeLevel,
+          academicStage: dto.academicStage,
+          academicYear: dto.academicYear || '2026-2027',
+          academicTerm: dto.academicTerm || 'FIRST_TERM',
+          price: dto.price || 0.0,
+          coverImageUrl: dto.coverImageUrl,
+          courseQuizId: dto.courseQuizId || null,
+          enforceSequentialLessons: dto.enforceSequentialLessons ?? false,
+          hasCertificate: dto.hasCertificate ?? true,
+          teacherId,
+          status: CourseStatus.DRAFT,
+        },
+      });
+    } catch (error) {
+      if (dto.coverImageUrl) {
+        await this.storageService.deleteObject(dto.coverImageUrl).catch(() => {});
+      }
+      throw error;
+    }
   }
 
   /**
@@ -182,36 +207,206 @@ export class CoursesService {
           include: {
             lessons: {
               orderBy: { orderIndex: 'asc' },
-              select: { id: true, bunnyVideoId: true }
-            }
-          }
+              select: {
+                id: true,
+                title: true,
+                description: true,
+                summary: true,
+                orderIndex: true,
+                videoDurationSeconds: true,
+                lessonType: true,
+                isPreview: true,
+                bunnyVideoId: true,
+                contentUrl: true,
+              },
+            },
+          },
         },
         _count: { select: { modules: true, enrollments: true } },
       },
     });
 
-    const mappedCourses = courses.map(c => {
+    const mappedCourses = courses.map((c) => {
       let totalLessons = 0;
-      let firstLesson = null;
-      for (const m of c.modules) {
-        for (const l of m.lessons) {
+      let firstFreeLesson: any = null;
+      let firstAnyLessonWithVideo: any = null;
+
+      const formattedModules = c.modules.map((m) => {
+        const formattedLessons = m.lessons.map((l) => {
           totalLessons++;
-          if (!firstLesson) firstLesson = l;
-        }
-      }
-      
-      const { modules, ...courseData } = c;
-      
+
+          let embedUrl: string | null = null;
+          if (l.bunnyVideoId) {
+            embedUrl = this.bunnyVideoService.getEmbedUrl(l.bunnyVideoId);
+          } else if (l.contentUrl) {
+            embedUrl = l.contentUrl;
+          }
+
+          if (embedUrl && !firstAnyLessonWithVideo) {
+            firstAnyLessonWithVideo = { ...l, freeVideoUrl: embedUrl };
+          }
+
+          if (l.isPreview && embedUrl && !firstFreeLesson) {
+            firstFreeLesson = { ...l, freeVideoUrl: embedUrl };
+          }
+
+          return {
+            id: l.id,
+            title: l.title,
+            description: l.description,
+            summary: l.summary,
+            orderIndex: l.orderIndex,
+            videoDurationSeconds: l.videoDurationSeconds,
+            lessonType: l.lessonType,
+            isPreview: l.isPreview,
+            freeVideoUrl: l.isPreview ? embedUrl : null,
+          };
+        });
+
+        return {
+          id: m.id,
+          title: m.title,
+          description: m.description,
+          orderIndex: m.orderIndex,
+          lessonsCount: formattedLessons.length,
+          lessons: formattedLessons,
+        };
+      });
+
+      const previewLesson = firstFreeLesson || firstAnyLessonWithVideo;
+      const hasFreeVideo = Boolean(previewLesson?.freeVideoUrl);
+
       return {
-        ...courseData,
+        id: c.id,
+        title: c.title,
+        description: c.description,
+        subject: c.subject,
+        gradeLevel: c.gradeLevel,
+        academicStage: c.academicStage,
+        academicYear: c.academicYear,
+        academicTerm: c.academicTerm,
+        price: c.price,
+        coverImageUrl: c.coverImageUrl,
+        hasCertificate: c.hasCertificate,
+        createdAt: c.createdAt,
+        teacher: c.teacher,
+        modules: formattedModules,
+        totalModules: formattedModules.length,
         totalLessons,
-        hasFreeVideo: totalLessons >= 1, // Changed to 1 for testing as user expects it to show
-        freeVideoLessonId: (totalLessons >= 1 && firstLesson) ? firstLesson.id : null,
-        freeVideoUrl: (totalLessons >= 1 && firstLesson && firstLesson.bunnyVideoId) ? this.bunnyVideoService.getEmbedUrl(firstLesson.bunnyVideoId) : null,
+        hasFreeVideo,
+        freeVideoLessonId: previewLesson?.id || null,
+        freeVideoUrl: previewLesson?.freeVideoUrl || null,
       };
     });
 
     return CursorPaginationHelper.formatResponse(mappedCourses, limit);
+  }
+
+  /**
+   * Retrieves public course details and syllabus for unauthenticated guests.
+   */
+  async getPublicCourseDetails(courseId: string) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      include: {
+        teacher: {
+          include: { user: { select: { fullName: true } } },
+        },
+        modules: {
+          orderBy: { orderIndex: 'asc' },
+          include: {
+            lessons: {
+              orderBy: { orderIndex: 'asc' },
+              select: {
+                id: true,
+                title: true,
+                description: true,
+                summary: true,
+                orderIndex: true,
+                videoDurationSeconds: true,
+                lessonType: true,
+                isPreview: true,
+                bunnyVideoId: true,
+                contentUrl: true,
+              },
+            },
+          },
+        },
+        _count: { select: { modules: true, enrollments: true } },
+      },
+    });
+
+    if (!course || course.status !== CourseStatus.PUBLISHED) {
+      throw new NotFoundException(`Course [${courseId}] not found or not published`);
+    }
+
+    let totalLessons = 0;
+    let firstFreeLesson: any = null;
+    let firstAnyLessonWithVideo: any = null;
+
+    const formattedModules = course.modules.map((m) => {
+      const formattedLessons = m.lessons.map((l) => {
+        totalLessons++;
+        let embedUrl: string | null = null;
+        if (l.bunnyVideoId) {
+          embedUrl = this.bunnyVideoService.getEmbedUrl(l.bunnyVideoId);
+        } else if (l.contentUrl) {
+          embedUrl = l.contentUrl;
+        }
+
+        if (embedUrl && !firstAnyLessonWithVideo) {
+          firstAnyLessonWithVideo = { ...l, freeVideoUrl: embedUrl };
+        }
+        if (l.isPreview && embedUrl && !firstFreeLesson) {
+          firstFreeLesson = { ...l, freeVideoUrl: embedUrl };
+        }
+
+        return {
+          id: l.id,
+          title: l.title,
+          description: l.description,
+          summary: l.summary,
+          orderIndex: l.orderIndex,
+          videoDurationSeconds: l.videoDurationSeconds,
+          lessonType: l.lessonType,
+          isPreview: l.isPreview,
+          freeVideoUrl: l.isPreview ? embedUrl : null,
+        };
+      });
+
+      return {
+        id: m.id,
+        title: m.title,
+        description: m.description,
+        orderIndex: m.orderIndex,
+        lessonsCount: formattedLessons.length,
+        lessons: formattedLessons,
+      };
+    });
+
+    const previewLesson = firstFreeLesson || firstAnyLessonWithVideo;
+
+    return {
+      id: course.id,
+      title: course.title,
+      description: course.description,
+      subject: course.subject,
+      gradeLevel: course.gradeLevel,
+      academicStage: course.academicStage,
+      academicYear: course.academicYear,
+      academicTerm: course.academicTerm,
+      price: course.price,
+      coverImageUrl: course.coverImageUrl,
+      hasCertificate: course.hasCertificate,
+      createdAt: course.createdAt,
+      teacher: course.teacher,
+      modules: formattedModules,
+      totalModules: formattedModules.length,
+      totalLessons,
+      hasFreeVideo: Boolean(previewLesson?.freeVideoUrl),
+      freeVideoLessonId: previewLesson?.id || null,
+      freeVideoUrl: previewLesson?.freeVideoUrl || null,
+    };
   }
 
   /**
@@ -330,13 +525,31 @@ export class CoursesService {
       completedLessonIds = progresses.map((p) => p.lessonId);
     }
 
-    const enrichedCourseQuiz = await this.attachStudentSubmission(
-      course.courseQuiz,
-      studentId,
-    );
+    const [enrichedCourseQuiz, enrichedModules] = await Promise.all([
+      this.attachStudentSubmission(course.courseQuiz, studentId),
+      Promise.all(
+        (course.modules || []).map(async (mod) => {
+          const [enrichedUnitQuiz, enrichedLessons] = await Promise.all([
+            this.attachStudentSubmission(mod.unitQuiz, studentId),
+            Promise.all(
+              (mod.lessons || []).map(async (les) => ({
+                ...les,
+                lessonQuiz: await this.attachStudentSubmission(les.lessonQuiz, studentId),
+              })),
+            ),
+          ]);
+          return {
+            ...mod,
+            unitQuiz: enrichedUnitQuiz,
+            lessons: enrichedLessons,
+          };
+        }),
+      ),
+    ]);
 
     return {
       ...course,
+      modules: enrichedModules,
       courseQuiz: enrichedCourseQuiz,
       completedLessonIds,
     };
@@ -381,7 +594,7 @@ export class CoursesService {
   }
 
   /**
-   * Deletes / archives a course.
+   * Deletes / archives a course and purges all related Bunny Stream videos and storage attachments.
    */
   async deleteCourse(courseId: string, teacherId: string, isSecretariat: boolean) {
     const course = await this.prisma.course.findUnique({ where: { id: courseId } });
@@ -392,22 +605,43 @@ export class CoursesService {
       throw new ForbiddenException('You do not have permission to delete this course');
     }
 
-    // Clean up all Bunny Stream videos belonging to this course
+    // Clean up all Bunny Stream videos belonging to all lessons in this course
     const lessons = await this.prisma.courseLesson.findMany({
       where: { module: { courseId } },
-      select: { bunnyVideoId: true, videoAssetId: true },
+      select: { bunnyVideoId: true, videoAssetId: true, contentUrl: true },
     });
+
+    const bunnyIdsToDelete = new Set<string>();
     for (const l of lessons) {
-      if (l.bunnyVideoId) {
-        await this.bunnyVideoService.deleteVideo(l.bunnyVideoId).catch((err) => {
-          this.logger.warn(`Failed to delete Bunny video [${l.bunnyVideoId}] for course [${courseId}]:`, err);
-        });
+      const b1 = this.extractBunnyVideoId(l.bunnyVideoId);
+      const b2 = this.extractBunnyVideoId(l.videoAssetId);
+      const b3 = this.extractBunnyVideoId(l.contentUrl);
+      if (b1) bunnyIdsToDelete.add(b1);
+      if (b2) bunnyIdsToDelete.add(b2);
+      if (b3) bunnyIdsToDelete.add(b3);
+    }
+
+    for (const videoId of bunnyIdsToDelete) {
+      await this.bunnyVideoService.deleteVideo(videoId).catch((err) => {
+        this.logger.warn(`Failed to delete Bunny video [${videoId}] for course [${courseId}]:`, err);
+      });
+    }
+
+    // Clean up all lesson attachments in this course from storage
+    const attachments = await this.prisma.lessonAttachment.findMany({
+      where: { lesson: { module: { courseId } } },
+      select: { fileKey: true, fileUrl: true },
+    });
+    for (const att of attachments) {
+      const key = att.fileKey || att.fileUrl;
+      if (key) {
+        await this.storageService.deleteObject(key).catch(() => {});
       }
-      if (l.videoAssetId && l.videoAssetId !== l.bunnyVideoId) {
-        await this.bunnyVideoService.deleteVideo(l.videoAssetId).catch((err) => {
-          this.logger.warn(`Failed to delete Bunny video asset [${l.videoAssetId}] for course [${courseId}]:`, err);
-        });
-      }
+    }
+
+    // Clean up course cover image
+    if (course.coverImageUrl) {
+      await this.storageService.deleteObject(course.coverImageUrl).catch(() => {});
     }
 
     return this.prisma.course.delete({ where: { id: courseId } });
@@ -486,7 +720,7 @@ export class CoursesService {
   }
 
   /**
-   * Deletes a module and cascades deletion to lessons.
+   * Deletes a module and purges all related Bunny Stream videos and attachments.
    */
   async deleteModule(moduleId: string, teacherId: string, isSecretariat: boolean) {
     const module = await this.prisma.courseModule.findUnique({
@@ -503,18 +737,34 @@ export class CoursesService {
     // Clean up all Bunny Stream videos belonging to this module
     const lessons = await this.prisma.courseLesson.findMany({
       where: { moduleId },
-      select: { bunnyVideoId: true, videoAssetId: true },
+      select: { bunnyVideoId: true, videoAssetId: true, contentUrl: true },
     });
+
+    const bunnyIdsToDelete = new Set<string>();
     for (const l of lessons) {
-      if (l.bunnyVideoId) {
-        await this.bunnyVideoService.deleteVideo(l.bunnyVideoId).catch((err) => {
-          this.logger.warn(`Failed to delete Bunny video [${l.bunnyVideoId}] for module [${moduleId}]:`, err);
-        });
-      }
-      if (l.videoAssetId && l.videoAssetId !== l.bunnyVideoId) {
-        await this.bunnyVideoService.deleteVideo(l.videoAssetId).catch((err) => {
-          this.logger.warn(`Failed to delete Bunny video asset [${l.videoAssetId}] for module [${moduleId}]:`, err);
-        });
+      const b1 = this.extractBunnyVideoId(l.bunnyVideoId);
+      const b2 = this.extractBunnyVideoId(l.videoAssetId);
+      const b3 = this.extractBunnyVideoId(l.contentUrl);
+      if (b1) bunnyIdsToDelete.add(b1);
+      if (b2) bunnyIdsToDelete.add(b2);
+      if (b3) bunnyIdsToDelete.add(b3);
+    }
+
+    for (const videoId of bunnyIdsToDelete) {
+      await this.bunnyVideoService.deleteVideo(videoId).catch((err) => {
+        this.logger.warn(`Failed to delete Bunny video [${videoId}] for module [${moduleId}]:`, err);
+      });
+    }
+
+    // Clean up all lesson attachments in this module from storage
+    const attachments = await this.prisma.lessonAttachment.findMany({
+      where: { lesson: { moduleId } },
+      select: { fileKey: true, fileUrl: true },
+    });
+    for (const att of attachments) {
+      const key = att.fileKey || att.fileUrl;
+      if (key) {
+        await this.storageService.deleteObject(key).catch(() => {});
       }
     }
 
@@ -636,6 +886,7 @@ export class CoursesService {
 
   /**
    * Creates a lesson in a module with summary, DRM video, attachments, and quiz.
+   * Cleans up Bunny video and storage attachments if creation fails.
    */
   async createLesson(
     moduleId: string,
@@ -649,10 +900,15 @@ export class CoursesService {
     });
 
     if (!module) {
+      // Clean up uploaded video if module not found
+      const b1 = this.extractBunnyVideoId(dto.bunnyVideoId);
+      if (b1) await this.bunnyVideoService.deleteVideo(b1).catch(() => {});
       throw new NotFoundException(`Course module [${moduleId}] not found`);
     }
 
     if (!isSecretariat && module.course.teacherId !== teacherId) {
+      const b1 = this.extractBunnyVideoId(dto.bunnyVideoId);
+      if (b1) await this.bunnyVideoService.deleteVideo(b1).catch(() => {});
       throw new ForbiddenException('You do not have permission to manage this module');
     }
 
@@ -662,40 +918,66 @@ export class CoursesService {
       orderIndex = lessonCount + 1;
     }
 
-    return this.prisma.courseLesson.create({
-      data: {
-        moduleId,
-        title: dto.title,
-        description: dto.description,
-        summary: dto.summary || null,
-        orderIndex,
-        lessonType: dto.lessonType || 'VIDEO',
-        bunnyVideoId: dto.bunnyVideoId,
-        contentUrl: dto.contentUrl,
-        videoDurationSeconds: dto.videoDurationSeconds,
-        isPreview: dto.isFreePreview !== undefined ? dto.isFreePreview : (dto.isPreview !== undefined ? dto.isPreview : false),
-        lessonQuizId: dto.lessonQuizId || null,
-        attachments: dto.attachments?.length
-          ? {
-              create: dto.attachments.map((att) => ({
-                title: att.title,
-                fileUrl: att.fileUrl,
-                fileKey: att.fileKey,
-                fileSize: att.fileSize,
-                fileType: att.fileType || 'application/pdf',
-              })),
-            }
-          : undefined,
-      },
-      include: {
-        attachments: true,
-        lessonQuiz: { select: { id: true, title: true, type: true } },
-      },
-    });
+    try {
+      return await this.prisma.courseLesson.create({
+        data: {
+          moduleId,
+          title: dto.title,
+          description: dto.description,
+          summary: dto.summary || null,
+          orderIndex,
+          lessonType: dto.lessonType || 'VIDEO',
+          bunnyVideoId: dto.bunnyVideoId,
+          contentUrl: dto.contentUrl,
+          videoDurationSeconds: dto.videoDurationSeconds,
+          isPreview: dto.isFreePreview !== undefined ? dto.isFreePreview : (dto.isPreview !== undefined ? dto.isPreview : false),
+          lessonQuizId: dto.lessonQuizId || null,
+          attachments: dto.attachments?.length
+            ? {
+                create: dto.attachments.map((att) => ({
+                  title: att.title,
+                  fileUrl: att.fileUrl,
+                  fileKey: att.fileKey,
+                  fileSize: att.fileSize,
+                  fileType: att.fileType || 'application/pdf',
+                })),
+              }
+            : undefined,
+        },
+        include: {
+          attachments: true,
+          lessonQuiz: { select: { id: true, title: true, type: true } },
+        },
+      });
+    } catch (error) {
+      // ⚠️ ROLLBACK CLEANUP: Purge newly created Bunny video(s) and attachments if database creation failed
+      const bunnyIdsToCleanup = new Set<string>();
+      const b1 = this.extractBunnyVideoId(dto.bunnyVideoId);
+      const b2 = this.extractBunnyVideoId(dto.contentUrl);
+      if (b1) bunnyIdsToCleanup.add(b1);
+      if (b2) bunnyIdsToCleanup.add(b2);
+
+      for (const videoId of bunnyIdsToCleanup) {
+        await this.bunnyVideoService.deleteVideo(videoId).catch((delErr) => {
+          this.logger.warn(`Failed to clean up Bunny video [${videoId}] after failed lesson creation:`, delErr);
+        });
+      }
+
+      if (dto.attachments?.length) {
+        for (const att of dto.attachments) {
+          const key = att.fileKey || att.fileUrl;
+          if (key) {
+            await this.storageService.deleteObject(key).catch(() => {});
+          }
+        }
+      }
+      throw error;
+    }
   }
 
   /**
    * Updates an existing lesson's metadata, rich summary, or linked quiz.
+   * Cleans up orphaned Bunny videos if replacement or update fails.
    */
   async updateLesson(
     lessonId: string,
@@ -716,40 +998,67 @@ export class CoursesService {
 
     const isPreviewVal = dto.isFreePreview !== undefined ? dto.isFreePreview : dto.isPreview;
 
-    // If the video was replaced or removed, delete the old video from Bunny Stream
-    if (
-      dto.bunnyVideoId !== undefined &&
-      lesson.bunnyVideoId &&
-      lesson.bunnyVideoId !== dto.bunnyVideoId
-    ) {
-      await this.bunnyVideoService.deleteVideo(lesson.bunnyVideoId).catch((err) => {
-        this.logger.warn(`Failed to delete replaced Bunny video [${lesson.bunnyVideoId}]:`, err);
+    const oldBunnyIds = new Set(
+      [
+        this.extractBunnyVideoId(lesson.bunnyVideoId),
+        this.extractBunnyVideoId(lesson.videoAssetId),
+        this.extractBunnyVideoId(lesson.contentUrl),
+      ].filter(Boolean) as string[],
+    );
+
+    const newBunnyId = this.extractBunnyVideoId(dto.bunnyVideoId);
+    const newContentBunnyId = this.extractBunnyVideoId(dto.contentUrl);
+
+    let updatedLesson;
+    try {
+      updatedLesson = await this.prisma.courseLesson.update({
+        where: { id: lessonId },
+        data: {
+          ...(dto.title ? { title: dto.title } : {}),
+          ...(dto.description !== undefined ? { description: dto.description } : {}),
+          ...(dto.summary !== undefined ? { summary: dto.summary } : {}),
+          ...(dto.orderIndex !== undefined ? { orderIndex: dto.orderIndex } : {}),
+          ...(dto.lessonType ? { lessonType: dto.lessonType } : {}),
+          ...(dto.bunnyVideoId !== undefined ? { bunnyVideoId: dto.bunnyVideoId } : {}),
+          ...(dto.contentUrl !== undefined ? { contentUrl: dto.contentUrl } : {}),
+          ...(dto.videoDurationSeconds !== undefined ? { videoDurationSeconds: dto.videoDurationSeconds } : {}),
+          ...(isPreviewVal !== undefined ? { isPreview: isPreviewVal } : {}),
+          ...(dto.lessonQuizId !== undefined ? { lessonQuizId: dto.lessonQuizId } : {}),
+        },
+        include: {
+          attachments: true,
+          lessonQuiz: { select: { id: true, title: true, type: true } },
+        },
       });
+    } catch (error) {
+      // If database update failed, purge any newly uploaded Bunny video that was not previously saved
+      const newIdsToClean = [newBunnyId, newContentBunnyId].filter(
+        (id): id is string => Boolean(id && !oldBunnyIds.has(id)),
+      );
+      for (const videoId of newIdsToClean) {
+        await this.bunnyVideoService.deleteVideo(videoId).catch((delErr) => {
+          this.logger.warn(`Failed to clean up newly uploaded Bunny video [${videoId}] after failed lesson update:`, delErr);
+        });
+      }
+      throw error;
     }
 
-    return this.prisma.courseLesson.update({
-      where: { id: lessonId },
-      data: {
-        ...(dto.title ? { title: dto.title } : {}),
-        ...(dto.description !== undefined ? { description: dto.description } : {}),
-        ...(dto.summary !== undefined ? { summary: dto.summary } : {}),
-        ...(dto.orderIndex !== undefined ? { orderIndex: dto.orderIndex } : {}),
-        ...(dto.lessonType ? { lessonType: dto.lessonType } : {}),
-        ...(dto.bunnyVideoId !== undefined ? { bunnyVideoId: dto.bunnyVideoId } : {}),
-        ...(dto.contentUrl !== undefined ? { contentUrl: dto.contentUrl } : {}),
-        ...(dto.videoDurationSeconds !== undefined ? { videoDurationSeconds: dto.videoDurationSeconds } : {}),
-        ...(isPreviewVal !== undefined ? { isPreview: isPreviewVal } : {}),
-        ...(dto.lessonQuizId !== undefined ? { lessonQuizId: dto.lessonQuizId } : {}),
-      },
-      include: {
-        attachments: true,
-        lessonQuiz: { select: { id: true, title: true, type: true } },
-      },
-    });
+    // Only after update succeeds: If video was replaced or removed, delete the old video(s) from Bunny
+    if (dto.bunnyVideoId !== undefined || dto.contentUrl !== undefined) {
+      for (const oldId of oldBunnyIds) {
+        if (oldId !== newBunnyId && oldId !== newContentBunnyId) {
+          await this.bunnyVideoService.deleteVideo(oldId).catch((err) => {
+            this.logger.warn(`Failed to delete replaced Bunny video [${oldId}]:`, err);
+          });
+        }
+      }
+    }
+
+    return updatedLesson;
   }
 
   /**
-   * Deletes a lesson and removes its video from Bunny Stream.
+   * Deletes a lesson and purges all related Bunny Stream videos and storage attachments.
    */
   async deleteLesson(lessonId: string, teacherId: string, isSecretariat: boolean) {
     const lesson = await this.prisma.courseLesson.findUnique({
@@ -763,25 +1072,30 @@ export class CoursesService {
       throw new ForbiddenException('You do not have permission to delete this lesson');
     }
 
-    // Delete associated video from Bunny Stream if exists
-    if (lesson.bunnyVideoId) {
-      await this.bunnyVideoService.deleteVideo(lesson.bunnyVideoId).catch((err) => {
-        this.logger.warn(`Failed to delete Bunny Stream video [${lesson.bunnyVideoId}]:`, err);
-      });
-    }
-    if (lesson.videoAssetId && lesson.videoAssetId !== lesson.bunnyVideoId) {
-      await this.bunnyVideoService.deleteVideo(lesson.videoAssetId).catch((err) => {
-        this.logger.warn(`Failed to delete Bunny Stream video asset [${lesson.videoAssetId}]:`, err);
+    // Delete all associated Bunny Stream video assets for this lesson
+    const bunnyIdsToDelete = new Set<string>();
+    const b1 = this.extractBunnyVideoId(lesson.bunnyVideoId);
+    const b2 = this.extractBunnyVideoId(lesson.videoAssetId);
+    const b3 = this.extractBunnyVideoId(lesson.contentUrl);
+    if (b1) bunnyIdsToDelete.add(b1);
+    if (b2) bunnyIdsToDelete.add(b2);
+    if (b3) bunnyIdsToDelete.add(b3);
+
+    for (const videoId of bunnyIdsToDelete) {
+      await this.bunnyVideoService.deleteVideo(videoId).catch((err) => {
+        this.logger.warn(`Failed to delete Bunny Stream video [${videoId}] for lesson [${lessonId}]:`, err);
       });
     }
 
     // Also delete any attachments from storage
     const attachments = await this.prisma.lessonAttachment.findMany({
       where: { lessonId },
+      select: { fileKey: true, fileUrl: true },
     });
     for (const att of attachments) {
-      if (att.fileKey) {
-        await this.storageService.deleteObject(att.fileKey).catch(() => {});
+      const key = att.fileKey || att.fileUrl;
+      if (key) {
+        await this.storageService.deleteObject(key).catch(() => {});
       }
     }
 

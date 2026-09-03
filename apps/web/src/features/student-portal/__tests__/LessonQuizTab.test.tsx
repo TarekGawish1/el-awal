@@ -95,4 +95,114 @@ describe('LessonQuizTab', () => {
     expect(retake).toBeInTheDocument();
     expect(retake.closest('a')).toHaveAttribute('href', expect.stringContaining('retake=1'));
   });
+
+  describe('Sequential Course Arrangement Enforcement', () => {
+    const mockUnitQuiz: AssessmentSummary = {
+      id: 'unit-quiz-1',
+      title: 'اختبار الوحدة الشامل',
+      type: 'EXAM',
+      totalScore: 50,
+      mySubmission: null,
+    };
+
+    const mockCourseQuiz: AssessmentSummary = {
+      id: 'course-quiz-1',
+      title: 'الامتحان النهائي للكورس',
+      type: 'EXAM',
+      totalScore: 100,
+      mySubmission: null,
+    };
+
+    const mockModule: any = {
+      id: 'mod-1',
+      title: 'الوحدة الأولى',
+      unitQuizId: 'unit-quiz-1',
+      unitQuiz: mockUnitQuiz,
+      lessons: [
+        { id: 'les-1', title: 'الدرس 1' },
+        { id: 'les-2', title: 'الدرس 2' },
+      ],
+    };
+
+    it('locks unit and course final exams when enforceSequentialLessons is true and lessons are incomplete', () => {
+      render(
+        <LessonQuizTab
+          courseId="course-1"
+          lessonId="les-1"
+          unitQuiz={mockUnitQuiz}
+          courseQuiz={mockCourseQuiz}
+          enforceSequentialLessons={true}
+          completedLessonIds={['les-1']} // 1 of 2 completed
+          activeModule={mockModule}
+          allModules={[mockModule]}
+          allLessons={mockModule.lessons}
+        />,
+      );
+
+      // Both should show locked indicators
+      expect(screen.getByText('مقفل حتى إتمام دروس الوحدة')).toBeInTheDocument();
+      expect(screen.getByText('مقفل حتى إنهاء المنهج')).toBeInTheDocument();
+      expect(screen.getByText(/ترتيب المنهج الإلزامي مفعّل/)).toBeInTheDocument();
+    });
+
+    it('unlocks unit exam when all lessons in that unit are completed', () => {
+      render(
+        <LessonQuizTab
+          courseId="course-1"
+          lessonId="les-1"
+          unitQuiz={mockUnitQuiz}
+          courseQuiz={mockCourseQuiz}
+          enforceSequentialLessons={true}
+          completedLessonIds={['les-1', 'les-2']} // all 2 lessons completed
+          activeModule={mockModule}
+          allModules={[mockModule]}
+          allLessons={mockModule.lessons}
+        />,
+      );
+
+      // Unit exam is now unlocked
+      expect(screen.getByText('الانتقال للامتحان')).toBeInTheDocument();
+      expect(screen.queryByText('مقفل حتى إتمام دروس الوحدة')).not.toBeInTheDocument();
+
+      // But course final exam is still locked because unit exam hasn't been submitted yet
+      expect(screen.getByText('مقفل حتى إنهاء المنهج')).toBeInTheDocument();
+    });
+
+    it('unlocks all exams when enforceSequentialLessons is false', () => {
+      render(
+        <LessonQuizTab
+          courseId="course-1"
+          lessonId="les-1"
+          unitQuiz={mockUnitQuiz}
+          courseQuiz={mockCourseQuiz}
+          enforceSequentialLessons={false}
+          completedLessonIds={[]}
+          activeModule={mockModule}
+          allModules={[mockModule]}
+          allLessons={mockModule.lessons}
+        />,
+      );
+
+      expect(screen.getByText('الانتقال للامتحان')).toBeInTheDocument();
+      expect(screen.getByText('بدء الامتحان النهائي')).toBeInTheDocument();
+    });
+
+    it('uses preview URL for returnUrl when isPreviewMode is true', () => {
+      render(
+        <LessonQuizTab
+          courseId="course-1"
+          lessonId="les-1"
+          unitQuiz={mockUnitQuiz}
+          enforceSequentialLessons={false}
+          isPreviewMode={true}
+        />,
+      );
+
+      const unitExamLink = screen.getByText('الانتقال للامتحان').closest('a');
+      expect(unitExamLink).toHaveAttribute(
+        'href',
+        expect.stringContaining(encodeURIComponent('/teacher/courses/course-1/preview?lessonId=les-1')),
+      );
+    });
+  });
 });

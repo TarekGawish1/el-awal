@@ -423,6 +423,30 @@ export class AssessmentsService {
             enrollments: { where: { status: CourseEnrollmentStatus.ACTIVE } },
           },
         },
+        courseFinalQuizOf: {
+          select: {
+            id: true,
+            enforceSequentialLessons: true,
+            modules: {
+              include: {
+                unitQuiz: { select: { id: true } },
+                lessons: { select: { id: true } },
+              },
+            },
+          },
+        },
+        unitQuizOf: {
+          select: {
+            id: true,
+            courseId: true,
+            course: {
+              select: {
+                enforceSequentialLessons: true,
+              },
+            },
+            lessons: { select: { id: true } },
+          },
+        },
         questions: {
           orderBy: { questionNumber: 'asc' },
         },
@@ -453,6 +477,66 @@ export class AssessmentsService {
 
       if ((assessment.groupId || assessment.targetGroups?.length > 0) && !isEnrolledInGroup && assessment.courseId && !isEnrolledInCourse) {
         throw new ForbiddenException('You are not enrolled in the group or course for this assessment');
+      }
+
+      // Sequential Course Assessment Progression Enforcement
+      if (assessment.courseFinalQuizOf?.enforceSequentialLessons) {
+        const course = assessment.courseFinalQuizOf;
+        const allCourseLessons = course.modules.flatMap((m) => m.lessons);
+        const allCourseLessonIds = allCourseLessons.map((l) => l.id);
+
+        if (allCourseLessonIds.length > 0 && studentId) {
+          const completedCount = await this.prisma.courseProgress.count({
+            where: {
+              studentId,
+              lessonId: { in: allCourseLessonIds },
+              isCompleted: true,
+            },
+          });
+          if (completedCount < allCourseLessonIds.length) {
+            throw new ForbiddenException(
+              'الامتحان النهائي للكورس مقفل: يجب إتمام جميع دروس المنهج أولاً وفقاً لترتيب المنهج المحدد من المعلم',
+            );
+          }
+        }
+
+        const unitQuizIds = course.modules
+          .map((m) => m.unitQuiz?.id)
+          .filter((id): id is string => Boolean(id) && id !== assessment.id);
+
+        if (unitQuizIds.length > 0 && studentId) {
+          const distinctSubmissions = await this.prisma.assessmentSubmission.findMany({
+            where: {
+              studentId,
+              assessmentId: { in: unitQuizIds },
+            },
+            select: { assessmentId: true },
+            distinct: ['assessmentId'],
+          });
+          if (distinctSubmissions.length < unitQuizIds.length) {
+            throw new ForbiddenException(
+              'الامتحان النهائي للكورس مقفل: يجب إنهاء اختبارات جميع الوحدات أولاً قبل دخول الامتحان النهائي',
+            );
+          }
+        }
+      } else if (assessment.unitQuizOf?.course?.enforceSequentialLessons) {
+        const unit = assessment.unitQuizOf;
+        const unitLessonIds = unit.lessons.map((l) => l.id);
+
+        if (unitLessonIds.length > 0 && studentId) {
+          const completedCount = await this.prisma.courseProgress.count({
+            where: {
+              studentId,
+              lessonId: { in: unitLessonIds },
+              isCompleted: true,
+            },
+          });
+          if (completedCount < unitLessonIds.length) {
+            throw new ForbiddenException(
+              'اختبار الوحدة الشامل مقفل: يجب إتمام جميع دروس الوحدة أولاً وفقاً لترتيب المنهج المحدد من المعلم',
+            );
+          }
+        }
       }
     }
 
@@ -695,11 +779,96 @@ export class AssessmentsService {
             enrollments: studentId ? { where: { studentId, status: CourseEnrollmentStatus.ACTIVE } } : false,
           },
         },
+        courseFinalQuizOf: {
+          select: {
+            id: true,
+            enforceSequentialLessons: true,
+            modules: {
+              include: {
+                unitQuiz: { select: { id: true } },
+                lessons: { select: { id: true } },
+              },
+            },
+          },
+        },
+        unitQuizOf: {
+          select: {
+            id: true,
+            courseId: true,
+            course: {
+              select: {
+                enforceSequentialLessons: true,
+              },
+            },
+            lessons: { select: { id: true } },
+          },
+        },
       },
     });
 
     if (!assessment) {
       throw new NotFoundException(`Assessment [${assessmentId}] not found`);
+    }
+
+    if (user.role === UserRole.STUDENT && studentId) {
+      if (assessment.courseFinalQuizOf?.enforceSequentialLessons) {
+        const course = assessment.courseFinalQuizOf;
+        const allCourseLessons = course.modules.flatMap((m) => m.lessons);
+        const allCourseLessonIds = allCourseLessons.map((l) => l.id);
+
+        if (allCourseLessonIds.length > 0) {
+          const completedCount = await this.prisma.courseProgress.count({
+            where: {
+              studentId,
+              lessonId: { in: allCourseLessonIds },
+              isCompleted: true,
+            },
+          });
+          if (completedCount < allCourseLessonIds.length) {
+            throw new ForbiddenException(
+              'الامتحان النهائي للكورس مقفل: يجب إتمام جميع دروس المنهج أولاً وفقاً لترتيب المنهج المحدد من المعلم',
+            );
+          }
+        }
+
+        const unitQuizIds = course.modules
+          .map((m) => m.unitQuiz?.id)
+          .filter((id): id is string => Boolean(id) && id !== assessment.id);
+
+        if (unitQuizIds.length > 0) {
+          const distinctSubmissions = await this.prisma.assessmentSubmission.findMany({
+            where: {
+              studentId,
+              assessmentId: { in: unitQuizIds },
+            },
+            select: { assessmentId: true },
+            distinct: ['assessmentId'],
+          });
+          if (distinctSubmissions.length < unitQuizIds.length) {
+            throw new ForbiddenException(
+              'الامتحان النهائي للكورس مقفل: يجب إنهاء اختبارات جميع الوحدات أولاً قبل دخول الامتحان النهائي',
+            );
+          }
+        }
+      } else if (assessment.unitQuizOf?.course?.enforceSequentialLessons) {
+        const unit = assessment.unitQuizOf;
+        const unitLessonIds = unit.lessons.map((l) => l.id);
+
+        if (unitLessonIds.length > 0) {
+          const completedCount = await this.prisma.courseProgress.count({
+            where: {
+              studentId,
+              lessonId: { in: unitLessonIds },
+              isCompleted: true,
+            },
+          });
+          if (completedCount < unitLessonIds.length) {
+            throw new ForbiddenException(
+              'اختبار الوحدة الشامل مقفل: يجب إتمام جميع دروس الوحدة أولاً وفقاً لترتيب المنهج المحدد من المعلم',
+            );
+          }
+        }
+      }
     }
 
     // If teacher/secretariat previewing or student profile is absent, perform instant preview evaluation

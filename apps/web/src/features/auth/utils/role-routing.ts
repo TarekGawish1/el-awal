@@ -23,7 +23,9 @@ export function isRouteAllowedForRole(path: string, role: UserRole): boolean {
     return (
       path.startsWith('/teacher') ||
       path.startsWith('/courses') ||
-      /^\/student\/courses\/[^/]+\/learn/.test(path)
+      /^\/student\/courses\/[^/]+\/learn/.test(path) ||
+      path.startsWith('/student/assessments') ||
+      path.startsWith('/student/homework')
     );
   }
   if (role === 'SECRETARIAT') {
@@ -37,7 +39,9 @@ export function isRouteAllowedForRole(path: string, role: UserRole): boolean {
     return (
       path.startsWith('/teacher') ||
       path.startsWith('/courses') ||
-      /^\/student\/courses\/[^/]+\/learn/.test(path)
+      /^\/student\/courses\/[^/]+\/learn/.test(path) ||
+      path.startsWith('/student/assessments') ||
+      path.startsWith('/student/homework')
     );
   }
   if (role === 'STUDENT') {
