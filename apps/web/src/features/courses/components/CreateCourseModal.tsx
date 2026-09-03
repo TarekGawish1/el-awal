@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { X, BookOpen, DollarSign, Award, Plus, ExternalLink } from 'lucide-react';
+import { X, BookOpen, DollarSign, Award, Plus, ExternalLink, Sparkles, Gift, CreditCard, Check } from 'lucide-react';
 import { useCreateCourse } from '../hooks/useCourses';
 import { coursesApi } from '../api/courses.api';
 import { useAssessments } from '@/features/assessments/hooks/use-assessments';
@@ -26,7 +26,8 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
   const [subject, setSubject] = useState('اللغة العربية');
   const [gradeLevel, setGradeLevel] = useState('الصف الثالث الثانوي');
   const [academicStage, setAcademicStage] = useState('المرحلة الثانوية');
-  const [price, setPrice] = useState('0');
+  const [isFreeCourse, setIsFreeCourse] = useState(false);
+  const [price, setPrice] = useState('200');
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
   const [coverImageKey, setCoverImageKey] = useState<string | null>(null);
   const [courseQuizId, setCourseQuizId] = useState('');
@@ -70,13 +71,14 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
 
     try {
       isSubmittedRef.current = true;
+      const finalPrice = isFreeCourse ? 0 : (parseFloat(price) || 0);
       const newCourse = await createMutation.mutateAsync({
         title: title.trim(),
         description: description.trim() || undefined,
         subject,
         gradeLevel,
         academicStage,
-        price: parseFloat(price) || 0,
+        price: finalPrice,
         coverImageUrl: coverImageUrl || undefined,
         courseQuizId: courseQuizId || undefined,
         hasCertificate,
@@ -162,22 +164,85 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-800 mb-1.5">
-              سعر الاشتراك (ج.م)
+          {/* Course Pricing Type (مجاني / مدفوع) */}
+          <div className="space-y-3 bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80">
+            <label className="block text-xs font-bold text-slate-800">
+              نوع الاشتراك وتسعير الكورس
             </label>
-            <div className="relative">
-              <input
-                type="number"
-                min="0"
-                step="10"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 pl-10 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm font-mono"
-              />
-              <DollarSign className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsFreeCourse(false);
+                  if (price === '0' || !price) setPrice('200');
+                }}
+                className={`p-3 rounded-xl border text-right transition-all flex flex-col justify-between gap-1.5 cursor-pointer ${
+                  !isFreeCourse
+                    ? 'bg-white border-primary-500 ring-2 ring-primary-500/20 shadow-xs'
+                    : 'bg-white/60 border-slate-200 hover:bg-white text-slate-600'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
+                    <CreditCard className="w-4 h-4 text-primary-600" />
+                    <span>كورس مدفوع</span>
+                  </div>
+                  {!isFreeCourse && <Check className="w-3.5 h-3.5 text-primary-600" />}
+                </div>
+                <span className="text-[11px] text-slate-500">يتطلب سداد اشتراك أو إيصال تحويل</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsFreeCourse(true);
+                  setPrice('0');
+                }}
+                className={`p-3 rounded-xl border text-right transition-all flex flex-col justify-between gap-1.5 cursor-pointer ${
+                  isFreeCourse
+                    ? 'bg-white border-emerald-500 ring-2 ring-emerald-500/20 shadow-xs'
+                    : 'bg-white/60 border-slate-200 hover:bg-white text-slate-600'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
+                    <Gift className="w-4 h-4 text-emerald-600" />
+                    <span>كورس مجاني 🎁</span>
+                  </div>
+                  {isFreeCourse && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                </div>
+                <span className="text-[11px] text-emerald-700 font-medium">متاح للجميع مجاناً وبدون رسوم</span>
+              </button>
             </div>
-            <span className="text-[11px] text-slate-500 mt-1 block">ضع 0 إذا كان الكورس متاحاً ومجانياً</span>
+
+            {!isFreeCourse ? (
+              <div className="pt-2 animate-in fade-in duration-200">
+                <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                  سعر الاشتراك في الكورس (ج.م) <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="1"
+                    step="10"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    placeholder="مثال: 250"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 pl-10 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-xs font-mono font-bold"
+                    required={!isFreeCourse}
+                  />
+                  <span className="text-xs font-bold text-slate-400 absolute left-3 top-2.5">ج.م</span>
+                </div>
+                <span className="text-[11px] text-slate-500 mt-1 block">
+                  سيطلب من الطلاب تحويل هذا المبلغ على محفظة فودافون كاش وإرفاق صورة الإيصال.
+                </span>
+              </div>
+            ) : (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2 animate-in fade-in duration-200">
+                <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>يمكن للطلاب الاشتراك في هذا الكورس بضغطة زر ومشاهدة الدروس فوراً دون الحاجة لتحويل مالي.</span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-start justify-between gap-4 rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">

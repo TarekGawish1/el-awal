@@ -32,6 +32,7 @@ import {
   Loader2,
   Copy,
   UserMinus,
+  Filter,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTeacherCourses, useDeleteCourse } from '../hooks/useCourses';
@@ -432,8 +433,45 @@ function CourseEnrollmentsView() {
     refetchInterval: 5000,
   });
 
+  const [courseFilter, setCourseFilter] = useState('ALL');
+  const [studentSearch, setStudentSearch] = useState('');
+
   const pendingRequests = data?.pendingRequests ?? [];
   const activeStudents = data?.activeStudents ?? [];
+
+  // Distinct courses for filter dropdown
+  const distinctCourses = useMemo(() => {
+    const map = new Map<string, string>();
+    pendingRequests.forEach((r) => map.set(r.courseId, r.courseName));
+    activeStudents.forEach((s) => map.set(s.courseId, s.courseName));
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [pendingRequests, activeStudents]);
+
+  const filteredPending = useMemo(() => {
+    return pendingRequests.filter((r) => {
+      const matchesCourse = courseFilter === 'ALL' || r.courseId === courseFilter;
+      const matchesSearch =
+        !studentSearch ||
+        r.studentName.toLowerCase().includes(studentSearch.toLowerCase()) ||
+        r.studentCode.toLowerCase().includes(studentSearch.toLowerCase()) ||
+        r.studentPhone.includes(studentSearch) ||
+        r.senderPhone.includes(studentSearch);
+      return matchesCourse && matchesSearch;
+    });
+  }, [pendingRequests, courseFilter, studentSearch]);
+
+  const filteredActive = useMemo(() => {
+    return activeStudents.filter((s) => {
+      const matchesCourse = courseFilter === 'ALL' || s.courseId === courseFilter;
+      const matchesSearch =
+        !studentSearch ||
+        s.studentName.toLowerCase().includes(studentSearch.toLowerCase()) ||
+        s.studentCode.toLowerCase().includes(studentSearch.toLowerCase()) ||
+        s.studentPhone.includes(studentSearch) ||
+        (s.senderPhone && s.senderPhone.includes(studentSearch));
+      return matchesCourse && matchesSearch;
+    });
+  }, [activeStudents, courseFilter, studentSearch]);
 
   const approveMutation = useMutation({
     mutationFn: (enrollmentId: string) => coursesApi.approveEnrollment(enrollmentId),
@@ -543,6 +581,52 @@ function CourseEnrollmentsView() {
         </div>
       </div>
 
+      {/* Filter & Search Bar */}
+      <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        {/* Search Input */}
+        <div className="relative flex-1">
+          <input
+            type="text"
+            value={studentSearch}
+            onChange={(e) => setStudentSearch(e.target.value)}
+            placeholder="بحث باسم الطالب، كود الطالب، أو رقم هاتف المحفظة..."
+            className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-primary-500 rounded-xl px-4 py-2.5 pr-10 text-xs text-slate-800 placeholder-slate-400 outline-none transition-all"
+          />
+          <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3" />
+          {studentSearch && (
+            <button
+              type="button"
+              onClick={() => setStudentSearch('')}
+              className="absolute left-3 top-2.5 text-slate-400 hover:text-slate-600 text-xs p-1 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Filter by Course Selector */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+            <Filter className="w-4 h-4 text-primary-600" />
+            <span>فلترة حسب الكورس:</span>
+          </div>
+          <select
+            value={courseFilter}
+            onChange={(e) => setCourseFilter(e.target.value)}
+            className="bg-slate-50 border border-slate-200 focus:bg-white focus:border-primary-500 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 outline-none cursor-pointer min-w-[180px]"
+          >
+            <option value="ALL">
+              جميع الكورسات ({distinctCourses.length})
+            </option>
+            {distinctCourses.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         {isLoading ? (
           <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-3">
@@ -550,12 +634,18 @@ function CourseEnrollmentsView() {
             <p className="text-sm font-medium">جاري تحميل طلبات الاشتراك والبيانات...</p>
           </div>
         ) : filter === 'PENDING' ? (
-          pendingRequests.length === 0 ? (
+          filteredPending.length === 0 ? (
             <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-2">
               <CheckCircle className="w-10 h-10 text-emerald-500/80 mb-1" />
-              <p className="text-sm font-bold text-slate-700">لا توجد طلبات اشتراك معلقة حالياً 🎉</p>
+              <p className="text-sm font-bold text-slate-700">
+                {pendingRequests.length === 0
+                  ? 'لا توجد طلبات اشتراك معلقة حالياً 🎉'
+                  : 'لا توجد طلبات مطابقة لخيارات الفلترة أو البحث'}
+              </p>
               <p className="text-xs text-slate-400 max-w-sm">
-                عند قيام أي طالب برفع إيصال التحويل والاشتراك في أي كورس من كورساتك، سيظهر طلبه هنا فوراً في الوقت الفعلي مع صورة الإيصال.
+                {pendingRequests.length === 0
+                  ? 'عند قيام أي طالب برفع إيصال التحويل والاشتراك في أي كورس من كورساتك، سيظهر طلبه هنا فوراً في الوقت الفعلي مع صورة الإيصال.'
+                  : 'جرب اختيار كورس آخر أو مسح كلمة البحث لمعاينة جميع الطلبات المعلقة.'}
               </p>
             </div>
           ) : (
@@ -572,7 +662,7 @@ function CourseEnrollmentsView() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {pendingRequests.map((req) => (
+                  {filteredPending.map((req) => (
                     <tr key={req.enrollmentId} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="font-bold text-slate-900 text-sm">{req.studentName}</div>
@@ -685,10 +775,14 @@ function CourseEnrollmentsView() {
               </table>
             </div>
           )
-        ) : activeStudents.length === 0 ? (
+        ) : filteredActive.length === 0 ? (
           <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-2">
             <Users className="w-10 h-10 text-slate-300 mb-1" />
-            <p className="text-sm font-bold text-slate-700">لا يوجد طلاب مفعل اشتراكهم بعد</p>
+            <p className="text-sm font-bold text-slate-700">
+              {activeStudents.length === 0
+                ? 'لا يوجد طلاب مفعل اشتراكهم بعد'
+                : 'لا يوجد طلاب مطابقون لخيارات الفلترة أو البحث'}
+            </p>
             <p className="text-xs text-slate-400">
               عند قبول أي طلب اشتراك سيظهر الطالب هنا في قائمة المشتركين الفعليين.
             </p>
@@ -708,7 +802,7 @@ function CourseEnrollmentsView() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {activeStudents.map((student) => {
+                {filteredActive.map((student) => {
                   const receiptUrl = student.receiptImageUrl
                     ? resolveReceiptUrl(student.receiptImageUrl)
                     : null;

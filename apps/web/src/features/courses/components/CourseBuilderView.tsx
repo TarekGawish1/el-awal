@@ -26,6 +26,9 @@ import {
   ExternalLink,
   Settings2,
   Calendar,
+  Sparkles,
+  Gift,
+  CreditCard,
 } from 'lucide-react';
 import {
   useCourseDetail,
@@ -271,127 +274,171 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 text-right animate-in fade-in">
-      {/* Top Breadcrumb & Controls Card (Light Header Banner) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/teacher/courses"
-            className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-primary-50 hover:text-primary-600 text-slate-700 flex items-center justify-center transition-colors shrink-0 border border-slate-200"
-          >
-            <ArrowRight className="w-5 h-5" />
-          </Link>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-3 py-0.5 rounded-full text-[11px] font-bold bg-primary-50 text-primary-700 border border-primary-100">
-                {course.subject}
-              </span>
-              <span className="px-3 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700">
-                {course.gradeLevel}
-              </span>
-              {course.academicStage && (
-                <span className="px-3 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
-                  {course.academicStage}
+      {/* Redesigned Hero Header Card */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-xs relative overflow-hidden">
+        {/* Top Accent Gradient Bar */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary-600 via-indigo-600 to-emerald-500" />
+
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          {/* Right Section: Navigation & Course Metadata */}
+          <div className="flex items-start gap-4">
+            <Link
+              href="/teacher/courses"
+              className="w-11 h-11 rounded-2xl bg-slate-50 hover:bg-primary-50 hover:text-primary-600 text-slate-600 flex items-center justify-center transition-all shrink-0 border border-slate-200/80 shadow-2xs group cursor-pointer"
+              title="العودة إلى قائمة الكورسات"
+            >
+              <ArrowRight className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+            </Link>
+
+            <div className="space-y-2">
+              {/* Badges Pill Row */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-black bg-primary-50 text-primary-700 border border-primary-100/80">
+                  <BookOpen className="w-3.5 h-3.5 text-primary-600" />
+                  <span>{course.subject}</span>
                 </span>
-              )}
-              <span
-                className={`px-3 py-0.5 rounded-full text-[11px] font-bold ${
-                  course.status === 'PUBLISHED'
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    : 'bg-amber-50 text-amber-700 border border-amber-200'
-                }`}
-              >
-                {course.status === 'PUBLISHED' ? 'منشور أونلاين' : 'مسودة قيد التجهيز'}
-              </span>
-              {Number(course.price) > 0 && (
-                <span className="px-3 py-0.5 rounded-full text-[11px] font-bold bg-slate-900 text-white font-mono">
-                  {course.price} ج.م
+
+                <span className="px-3 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200/60">
+                  {course.gradeLevel}
                 </span>
+
+                {course.academicStage && (
+                  <span className="px-3 py-1 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                    {course.academicStage}
+                  </span>
+                )}
+
+                {/* Status Badge with Live Indicator */}
+                <span
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border ${
+                    course.status === 'PUBLISHED'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-amber-50 text-amber-700 border-amber-200'
+                  }`}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      course.status === 'PUBLISHED' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                    }`}
+                  />
+                  <span>{course.status === 'PUBLISHED' ? 'منشور أونلاين' : 'مسودة قيد التجهيز'}</span>
+                </span>
+
+                {/* Price Badge */}
+                {Number(course.price) === 0 ? (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-black bg-emerald-600 text-white shadow-2xs">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>كورس مجاني 🎁</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold bg-slate-900 text-white font-mono shadow-2xs">
+                    <CreditCard className="w-3.5 h-3.5 text-slate-300" />
+                    <span>{course.price} ج.م</span>
+                  </span>
+                )}
+
+                {course.hasCertificate && (
+                  <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/70">
+                    <Award className="w-3.5 h-3.5 text-amber-600" />
+                    <span>شهادة إتمام</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Title & Quick Edit */}
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                  {course.title}
+                </h1>
+                <button
+                  type="button"
+                  onClick={() => setIsEditCourseModalOpen(true)}
+                  className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-xl transition-all cursor-pointer border border-transparent hover:border-primary-200"
+                  title="تعديل اسم وبيانات الكورس"
+                >
+                  <Edit className="w-4 h-4" />
+                </button>
+              </div>
+
+              {course.description && (
+                <p className="text-xs text-slate-500 line-clamp-1 max-w-2xl">
+                  {course.description}
+                </p>
               )}
-            </div>
-            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-              <h1 className="text-xl font-bold text-slate-900">{course.title}</h1>
-              <button
-                type="button"
-                onClick={() => setIsEditCourseModalOpen(true)}
-                className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-                title="تعديل اسم وبيانات الكورس"
-              >
-                <Edit className="w-4 h-4" />
-              </button>
             </div>
           </div>
-        </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setIsEditCourseModalOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition-colors border border-slate-200 shadow-sm"
-          >
-            <Settings2 className="w-4 h-4 text-primary-600" />
-            <span>تعديل بيانات الكورس</span>
-          </button>
+          {/* Left Section: Action Buttons Toolbar */}
+          <div className="flex items-center gap-2 flex-wrap self-stretch lg:self-center justify-start lg:justify-end border-t lg:border-t-0 pt-3 lg:pt-0 border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsEditCourseModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-all border border-slate-200/80 cursor-pointer shadow-2xs"
+            >
+              <Settings2 className="w-4 h-4 text-slate-600" />
+              <span>تعديل الكورس</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setIsGroupAccessModalOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition-colors border border-slate-200 shadow-sm"
-          >
-            <Users className="w-4 h-4 text-emerald-600" />
-            <span>صلاحيات المجموعات ({course.groupAccess?.length || 0})</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setIsGroupAccessModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-all border border-slate-200/80 cursor-pointer shadow-2xs"
+            >
+              <Users className="w-4 h-4 text-emerald-600" />
+              <span>المجموعات ({course.groupAccess?.length || 0})</span>
+            </button>
 
-          <Link
-            href={`/teacher/courses/${course.id}/preview`}
-            target="_blank"
-            className="flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition-colors border border-slate-200 shadow-sm"
-          >
-            <Eye className="w-4 h-4 text-primary-600" />
-            <span>معاينة قاعة المشاهدة</span>
-          </Link>
+            <Link
+              href={`/teacher/courses/${course.id}/preview`}
+              target="_blank"
+              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition-all border border-indigo-200/60 cursor-pointer shadow-2xs"
+            >
+              <Eye className="w-4 h-4 text-indigo-600" />
+              <span>معاينة كطالب</span>
+            </Link>
 
-          <button
-            type="button"
-            onClick={handleTogglePublish}
-            disabled={updateCourseMutation.isPending}
-            className={`flex items-center gap-1.5 px-5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
-              course.status === 'PUBLISHED'
-                ? 'bg-amber-600 hover:bg-amber-700 text-white'
-                : 'bg-primary-600 hover:bg-primary-700 text-white shadow-sm'
-            }`}
-          >
-            {course.status === 'PUBLISHED' ? <Lock className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
-            <span>{course.status === 'PUBLISHED' ? 'تحويل لمسودة' : 'نشر الكورس الآن'}</span>
-          </button>
+            <button
+              type="button"
+              onClick={handleTogglePublish}
+              disabled={updateCourseMutation.isPending}
+              className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer ${
+                course.status === 'PUBLISHED'
+                  ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                  : 'bg-primary-600 hover:bg-primary-700 text-white'
+              }`}
+            >
+              {course.status === 'PUBLISHED' ? <Lock className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
+              <span>{course.status === 'PUBLISHED' ? 'تحويل لمسودة' : 'نشر الكورس أونلاين'}</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Top View Selector Tabs (Curriculum vs Enrollments) */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-1.5 flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 shadow-sm text-xs">
+      <div className="bg-slate-100/80 p-1 rounded-2xl flex flex-col sm:flex-row items-stretch sm:items-center gap-1 border border-slate-200/80 text-xs">
         <button
           type="button"
           onClick={() => setActiveTopTab('curriculum')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 sm:px-4 rounded-xl font-bold transition-all text-center ${
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bold transition-all text-center cursor-pointer ${
             activeTopTab === 'curriculum'
-              ? 'bg-primary-600 text-white shadow-sm'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              ? 'bg-white text-primary-700 shadow-xs border border-slate-200/60 font-black'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
           }`}
         >
-          <Layers className="w-4 h-4 shrink-0" />
+          <Layers className="w-4 h-4 shrink-0 text-primary-600" />
           <span>منهج وفصول الكورس ({modules.length} فصول • {totalLessons} دروس)</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTopTab('enrollments')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 sm:px-4 rounded-xl font-bold transition-all text-center ${
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bold transition-all text-center cursor-pointer ${
             activeTopTab === 'enrollments'
-              ? 'bg-primary-600 text-white shadow-sm'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              ? 'bg-white text-primary-700 shadow-xs border border-slate-200/60 font-black'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
           }`}
         >
-          <GraduationCap className="w-4 h-4 shrink-0" />
+          <GraduationCap className="w-4 h-4 shrink-0 text-primary-600" />
           <span>الطلاب والمشتركون في الكورس</span>
         </button>
       </div>
