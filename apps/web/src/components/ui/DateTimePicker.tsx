@@ -171,7 +171,7 @@ export function DateTimePicker({ value, onChange, placeholder = 'اختر الت
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 right-0 z-50 mt-2 p-4 bg-white border border-slate-100 rounded-2xl shadow-xl shadow-slate-200/50 flex flex-col md:flex-row gap-6">
+        <div className="absolute top-full left-0 right-0 md:left-auto md:right-0 md:w-max md:max-w-[calc(100vw-2rem)] z-50 mt-2 p-4 bg-white border border-slate-100 rounded-2xl shadow-xl shadow-slate-200/50 flex flex-col md:flex-row gap-6">
           {/* Calendar Section */}
           <div className="flex-1 min-w-[240px]">
             <div className="flex items-center justify-between mb-4">
@@ -223,7 +223,7 @@ export function DateTimePicker({ value, onChange, placeholder = 'اختر الت
           <div className="hidden md:block w-px bg-slate-100" />
 
           {/* Time Section */}
-          <div className="w-full md:w-40 flex flex-col">
+          <div className="w-full md:w-40 md:shrink-0 flex flex-col">
             <div className="flex items-center gap-2 mb-4 text-slate-800 font-bold">
               <Clock className="w-4 h-4 text-slate-400" />
               <span>الوقت</span>
@@ -237,7 +237,7 @@ export function DateTimePicker({ value, onChange, placeholder = 'اختر الت
                     type="button"
                     onClick={() => handleTimeSelect(time.value)}
                     className={cn(
-                      "w-full text-right px-3 py-2 rounded-lg text-sm transition-colors",
+                      "w-full text-right px-3 py-2 rounded-lg text-sm whitespace-nowrap transition-colors",
                       isSelected 
                         ? "bg-primary-50 text-primary-700 font-bold" 
                         : "hover:bg-slate-100 text-slate-600"
