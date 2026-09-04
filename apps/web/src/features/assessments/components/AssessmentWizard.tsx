@@ -456,6 +456,20 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
         if (isValid && fields.length === 0) {
           toast.error('يجب إضافة سؤال واحد على الأقل');
           isValid = false;
+        } else if (isValid) {
+          // Auto-sync totalScore to match sum of questions points
+          const currentQuestions = methods.getValues('questions') || [];
+          const currentSum = currentQuestions.reduce((sum, q) => sum + (Number(q.points) || 0), 0);
+          if (currentSum > 0) {
+            methods.setValue('totalScore', currentSum, { shouldValidate: true, shouldDirty: true });
+            const currentPass = Number(methods.getValues('passingScore'));
+            if (currentPass > currentSum || currentPass === 50) {
+              methods.setValue('passingScore', Math.max(0.5, Math.round(currentSum * 0.5)), {
+                shouldValidate: true,
+                shouldDirty: true,
+              });
+            }
+          }
         }
       }
     }
@@ -472,6 +486,11 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
       const { displayOrder, ...rest } = q;
       return { ...rest, questionNumber: idx + 1 };
     });
+
+    const calculatedTotal = payloadQuestions.reduce(
+      (sum, q) => sum + (Number(q.points) || 0),
+      0,
+    );
     
     // Scrub empty fields
     const payload: any = {
@@ -479,7 +498,12 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
       type,
       isPublished,
       questions: payloadQuestions,
+      totalScore: calculatedTotal > 0 ? calculatedTotal : Number(data.totalScore) || 10,
     };
+
+    if (!payload.passingScore || Number(payload.passingScore) > payload.totalScore) {
+      payload.passingScore = Math.max(0.5, Math.round(payload.totalScore * 0.5));
+    }
     
     if (type === 'ASSIGNMENT') {
       delete payload.durationMinutes;
@@ -521,6 +545,27 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
     // Remove extra properties that the backend ValidationPipe forbids
     delete payload.isAutoGraded;
 
+    // Clean up all falsy / empty string fields so class-validator does not reject them
+    [
+      'groupId',
+      'courseId',
+      'moduleId',
+      'lessonId',
+      'courseLinkScope',
+      'startTime',
+      'endTime',
+      'startDate',
+      'dueDate',
+      'deadline',
+      'academicStage',
+      'gradeLevel',
+      'description',
+    ].forEach((key) => {
+      if (payload[key] === '' || payload[key] === null || payload[key] === undefined) {
+        delete payload[key];
+      }
+    });
+
     const label = type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار';
     // When the assessment is linked to an online course (typically created via the
     // "Create Exam" shortcut inside the course builder), return to that course page
@@ -544,7 +589,12 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
           }
         },
         onError: (err: any) => {
-          toast.error(err?.message || `حدث خطأ أثناء إنشاء ${label}`);
+          const serverMsg =
+            err?.response?.data?.message ||
+            err?.data?.message ||
+            err?.message ||
+            `حدث خطأ أثناء إنشاء ${label}`;
+          toast.error(Array.isArray(serverMsg) ? serverMsg.join(', ') : serverMsg);
         }
       }
     );

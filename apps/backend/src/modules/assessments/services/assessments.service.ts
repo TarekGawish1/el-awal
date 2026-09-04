@@ -137,15 +137,25 @@ export class AssessmentsService {
       }
     }
 
-    // 2. Verify sum of question points matches total assessment score
+    // 2. Verify and auto-sync total assessment score with questions point sum
     const totalCalculated = dto.questions.reduce(
       (sum, q) => sum + Number(q.points),
       0,
     );
 
-    if (Math.abs(totalCalculated - Number(dto.totalScore)) > 0.01) {
+    if (totalCalculated > 0) {
+      if (!dto.totalScore || Math.abs(totalCalculated - Number(dto.totalScore)) > 0.01) {
+        this.logger.warn(
+          `Auto-adjusting totalScore from ${dto.totalScore} to match actual question points sum (${totalCalculated})`,
+        );
+        dto.totalScore = totalCalculated;
+      }
+      if (dto.passingScore && Number(dto.passingScore) > totalCalculated) {
+        dto.passingScore = Math.max(0.5, Math.round(totalCalculated * 0.5));
+      }
+    } else if (Math.abs(totalCalculated - Number(dto.totalScore)) > 0.01) {
       throw new BadRequestException(
-        `Sum of question points (${totalCalculated}) does not match declared totalScore (${dto.totalScore})`,
+        `مجموع درجات الأسئلة (${totalCalculated}) لا يطابق الدرجة الكلية للاختبار (${dto.totalScore})`,
       );
     }
 
