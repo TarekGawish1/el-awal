@@ -63,11 +63,20 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
           const courseData = data.data || data;
           setCourse(courseData);
 
-          // Find first preview lesson if available
-          const allLessons = (courseData.modules || []).flatMap((m: any) => m.lessons || []);
-          const firstPreview = allLessons.find((l: any) => l.isPreview && l.freeVideoUrl);
-          if (firstPreview) {
-            setActivePreviewLesson(firstPreview);
+          // Find course preview video or first preview lesson if available
+          if (courseData.previewVideoUrl) {
+            setActivePreviewLesson({
+              id: 'course-preview-intro',
+              title: 'فيديو تعريفي بالكورس 🎬',
+              freeVideoUrl: courseData.previewVideoUrl,
+              isCourseIntro: true,
+            });
+          } else {
+            const allLessons = (courseData.modules || []).flatMap((m: any) => m.lessons || []);
+            const firstPreview = allLessons.find((l: any) => l.isPreview && l.freeVideoUrl);
+            if (firstPreview) {
+              setActivePreviewLesson(firstPreview);
+            }
           }
         } else {
           toast.error('تعذر تحميل بيانات الكورس المطلوب');
@@ -251,9 +260,13 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
               <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <PlayCircle className="w-5 h-5 text-emerald-400 animate-pulse" />
-                  <span className="text-xs sm:text-sm font-bold truncate">معاينة مجانية: {activePreviewLesson.title}</span>
+                  <span className="text-xs sm:text-sm font-bold truncate">
+                    {activePreviewLesson.isCourseIntro ? 'فيديو تعريفي بالكورس' : `معاينة مجانية: ${activePreviewLesson.title}`}
+                  </span>
                 </div>
-                <Badge className="bg-emerald-500/20 text-emerald-300 border-none text-xs">درس تجريبي مجاني</Badge>
+                <Badge className="bg-emerald-500/20 text-emerald-300 border-none text-xs">
+                  {activePreviewLesson.isCourseIntro ? 'فيديو تعريفي تمهيدي 🎬' : 'درس تجريبي مجاني'}
+                </Badge>
               </div>
               <div className="aspect-video w-full bg-black relative">
                 <iframe
@@ -264,6 +277,37 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
                   allowFullScreen
                 />
               </div>
+            </div>
+          )}
+
+          {/* Promo Video Banner if not currently watching it */}
+          {course.previewVideoUrl && activePreviewLesson?.id !== 'course-preview-intro' && (
+            <div className="bg-gradient-to-l from-primary-50 to-blue-50 border border-primary-200/70 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                  <Video className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-xs sm:text-sm font-bold text-slate-900">فيديو تعريفي بالكورس (برومو تمهيدي)</h3>
+                  <p className="text-[11px] text-slate-500">شاهد نبذة شاملة عن محتوى الكورس وطريقة الشرح قبل الاشتراك</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setActivePreviewLesson({
+                    id: 'course-preview-intro',
+                    title: 'فيديو تعريفي بالكورس 🎬',
+                    freeVideoUrl: course.previewVideoUrl,
+                    isCourseIntro: true,
+                  });
+                  window.scrollTo({ top: 150, behavior: 'smooth' });
+                }}
+                className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5 shrink-0 cursor-pointer"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span>مشاهدة الفيديو</span>
+              </button>
             </div>
           )}
 

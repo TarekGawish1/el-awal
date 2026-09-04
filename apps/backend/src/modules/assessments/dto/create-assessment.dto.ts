@@ -218,6 +218,14 @@ export class CreateAssessmentDto {
   @IsBoolean()
   allowMultipleAttempts?: boolean;
 
+  @ApiPropertyOptional({
+    description: 'Whether this assessment is optional for students. Optional assessments do not block progression to subsequent lessons or units.',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isOptional?: boolean;
+
   @ApiProperty({
     type: [CreateQuestionDto],
     description: 'Array of assessment questions',

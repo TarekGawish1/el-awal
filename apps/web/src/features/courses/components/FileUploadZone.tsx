@@ -222,7 +222,7 @@ export function FileUploadZone({
             className="hidden"
           />
 
-          <div className="flex flex-col items-center gap-2 text-slate-600">
+          <div className="pointer-events-none flex flex-col items-center gap-2 text-slate-600">
             {isUploading ? (
               <Loader2 className="w-9 h-9 text-primary-600 animate-spin mb-1" />
             ) : fileCategory === 'image' ? (

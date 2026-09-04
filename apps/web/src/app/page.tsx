@@ -344,7 +344,14 @@ function CoursesSection() {
   const handleOpenCourseModal = (course: any) => {
     setSelectedCourse(course);
     let freeLesson: any = null;
-    if (course.modules?.length) {
+    if (course.previewVideoUrl) {
+      freeLesson = {
+        id: 'course-preview-intro',
+        title: 'فيديو تعريفي بالكورس 🎬',
+        videoUrl: course.previewVideoUrl,
+        isIntro: true,
+      };
+    } else if (course.modules?.length) {
       for (const mod of course.modules) {
         const match = mod.lessons?.find((l: any) => l.isPreview && l.freeVideoUrl);
         if (match) {
@@ -387,13 +394,14 @@ function CoursesSection() {
               subject: c.subject || 'الرياضيات',
               price: c.price !== undefined ? c.price : 150,
               coverImageUrl: c.coverImageUrl,
+              previewVideoUrl: c.previewVideoUrl,
               teacherName: c.teacher?.user?.fullName || 'أستاذ المادة',
               color: index % 3 === 0 ? 'from-blue-600 to-cyan-600' : index % 3 === 1 ? 'from-indigo-600 to-purple-600' : 'from-emerald-600 to-teal-600',
               totalLessons: c.totalLessons || 0,
               totalModules: c.totalModules || c.modules?.length || 0,
-              hasFreeVideo: c.hasFreeVideo,
+              hasFreeVideo: Boolean(c.hasFreeVideo || c.previewVideoUrl),
               freeVideoLessonId: c.freeVideoLessonId,
-              freeVideoUrl: c.freeVideoUrl,
+              freeVideoUrl: c.previewVideoUrl || c.freeVideoUrl,
               modules: c.modules || [],
             }));
             setCourses(mapped);

@@ -94,6 +94,7 @@ export interface AssessmentDetail {
   isPublished: boolean;
   isAutoGraded: boolean;
   allowMultipleAttempts: boolean;
+  isOptional?: boolean;
   lessonId?: string | null;
   startTime?: string | null;
   endTime?: string | null;
@@ -139,6 +140,7 @@ export interface CreateAssessmentPayload {
   isPublished: boolean;
   isAutoGraded?: boolean;
   allowMultipleAttempts?: boolean;
+  isOptional?: boolean;
   questions: Omit<AssessmentQuestion, 'id'>[];
 }
 
@@ -156,6 +158,7 @@ export interface UpdateAssessmentPayload {
   deadline?: string;
   isPublished?: boolean;
   allowMultipleAttempts?: boolean;
+  isOptional?: boolean;
   assessmentType?: 'HOMEWORK' | 'EXAM' | 'QUIZ' | 'ASSIGNMENT';
   courseId?: string | null;
   lessonId?: string | null;

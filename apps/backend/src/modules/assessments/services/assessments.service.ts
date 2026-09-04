@@ -201,6 +201,7 @@ export class AssessmentsService {
           isAutoGraded,
           isPublished: dto.isPublished ?? true,
           allowMultipleAttempts: dto.allowMultipleAttempts ?? false,
+          isOptional: dto.isOptional ?? false,
           teacherId,
           targetGroups: dto.targetGroupIds?.length ? {
             connect: dto.targetGroupIds.map(id => ({ id }))
@@ -458,7 +459,7 @@ export class AssessmentsService {
             enforceSequentialLessons: true,
             modules: {
               include: {
-                unitQuiz: { select: { id: true } },
+                unitQuiz: { select: { id: true, isOptional: true } },
                 lessons: { select: { id: true } },
               },
             },
@@ -530,8 +531,8 @@ export class AssessmentsService {
         }
 
         const unitQuizIds = course.modules
-          .map((m) => m.unitQuiz?.id)
-          .filter((id): id is string => Boolean(id) && id !== assessment.id);
+          .filter((m) => m.unitQuiz && !m.unitQuiz.isOptional && m.unitQuiz.id !== assessment.id)
+          .map((m) => m.unitQuiz!.id);
 
         if (unitQuizIds.length > 0 && studentId) {
           const distinctSubmissions = await this.prisma.assessmentSubmission.findMany({
@@ -682,6 +683,7 @@ export class AssessmentsService {
       deadline: effectiveEndTime,
       isPublished: assessment.isPublished,
       allowMultipleAttempts: assessment.allowMultipleAttempts,
+      isOptional: assessment.isOptional,
       teacher: assessment.teacher,
       group: assessment.group,
       targetGroups: assessment.targetGroups,
@@ -734,6 +736,7 @@ export class AssessmentsService {
         id: true,
         totalScore: true,
         allowMultipleAttempts: true,
+        isOptional: true,
       },
     });
 
@@ -751,6 +754,7 @@ export class AssessmentsService {
         percentage: null,
         attemptsCount: 0,
         allowMultipleAttempts: assessment.allowMultipleAttempts,
+        isOptional: assessment.isOptional,
       };
     }
 
@@ -775,6 +779,7 @@ export class AssessmentsService {
       percentage,
       attemptsCount: submissions.length,
       allowMultipleAttempts: assessment.allowMultipleAttempts,
+      isOptional: assessment.isOptional,
     };
   }
 
@@ -814,7 +819,7 @@ export class AssessmentsService {
             enforceSequentialLessons: true,
             modules: {
               include: {
-                unitQuiz: { select: { id: true } },
+                unitQuiz: { select: { id: true, isOptional: true } },
                 lessons: { select: { id: true } },
               },
             },
@@ -861,8 +866,8 @@ export class AssessmentsService {
         }
 
         const unitQuizIds = course.modules
-          .map((m) => m.unitQuiz?.id)
-          .filter((id): id is string => Boolean(id) && id !== assessment.id);
+          .filter((m) => m.unitQuiz && !m.unitQuiz.isOptional && m.unitQuiz.id !== assessment.id)
+          .map((m) => m.unitQuiz!.id);
 
         if (unitQuizIds.length > 0) {
           const distinctSubmissions = await this.prisma.assessmentSubmission.findMany({
@@ -1698,6 +1703,7 @@ export class AssessmentsService {
         ...(dto.allowMultipleAttempts !== undefined && {
           allowMultipleAttempts: dto.allowMultipleAttempts,
         }),
+        ...(dto.isOptional !== undefined && { isOptional: dto.isOptional }),
         ...(dto.courseId !== undefined && { courseId: dto.courseId || null }),
         ...(dto.lessonId !== undefined && { lessonId: dto.lessonId || null }),
         ...(dto.assessmentType !== undefined && {

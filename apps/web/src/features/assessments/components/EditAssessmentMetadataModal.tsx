@@ -31,6 +31,7 @@ const editMetadataSchema = z.object({
   dueDate: z.string().optional().nullable(),
   courseId: z.string().optional().nullable(),
   allowMultipleAttempts: z.boolean().optional(),
+  isOptional: z.boolean().optional(),
 });
 
 type EditMetadataFormData = z.infer<typeof editMetadataSchema>;
@@ -59,6 +60,7 @@ export function EditAssessmentMetadataModal({ isOpen, onClose, assessment }: Edi
         dueDate: rawEnd ? new Date(rawEnd).toISOString().slice(0, 16) : undefined,
         courseId: assessment.courseId || undefined,
         allowMultipleAttempts: assessment.allowMultipleAttempts ?? false,
+        isOptional: assessment.isOptional ?? false,
       });
     }
   }, [isOpen, assessment, reset]);
@@ -241,6 +243,37 @@ export function EditAssessmentMetadataModal({ isOpen, onClose, assessment }: Edi
             </div>
             <p className="text-slate-500 text-xs mt-2">
               عند السماح بمحاولات متعددة يتم اعتماد أعلى درجة كدرجة رسمية مع الاحتفاظ بسجل كل المحاولات.
+            </p>
+          </div>
+
+          <div>
+            <Label className="mb-2 block">إلزامية التقييم (اختياري / إجباري)</Label>
+            <div className="bg-white p-2 rounded-xl border border-slate-200 flex gap-2 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setValue('isOptional', false, { shouldDirty: true })}
+                className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${
+                  !watch('isOptional')
+                    ? 'bg-primary-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                ⚠️ إجباري (مطلوب للتقدم)
+              </button>
+              <button
+                type="button"
+                onClick={() => setValue('isOptional', true, { shouldDirty: true })}
+                className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${
+                  watch('isOptional')
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                ✨ اختياري (يمكن تخطيه)
+              </button>
+            </div>
+            <p className="text-slate-500 text-xs mt-2">
+              التقييم الاختياري يتيح للطالب تجاوزه دون أن يمنعه من فتح الدروس أو الوحدات القادمة.
             </p>
           </div>
         </form>

@@ -16,6 +16,8 @@ import {
   Gift,
   CreditCard,
   Check,
+  Video,
+  Play,
 } from 'lucide-react';
 import { useUpdateCourse } from '../hooks/useCourses';
 import { coursesApi } from '../api/courses.api';
@@ -73,6 +75,7 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
   const [price, setPrice] = useState(String(course.price !== undefined ? course.price : 0));
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(course.coverImageUrl || null);
   const [coverImageKey, setCoverImageKey] = useState<string | null>(null);
+  const [previewVideoUrl, setPreviewVideoUrl] = useState(course.previewVideoUrl || '');
   const [courseQuizId, setCourseQuizId] = useState(course.courseQuizId || '');
   const [hasCertificate, setHasCertificate] = useState(course.hasCertificate ?? true);
   const [enforceSequentialLessons, setEnforceSequentialLessons] = useState(
@@ -100,6 +103,7 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
       setPrice(String(course.price !== undefined ? course.price : 0));
       setCoverImageUrl(course.coverImageUrl || null);
       setCoverImageKey(null);
+      setPreviewVideoUrl(course.previewVideoUrl || '');
       setCourseQuizId(course.courseQuizId || '');
       setHasCertificate(course.hasCertificate ?? true);
       setEnforceSequentialLessons(course.enforceSequentialLessons ?? false);
@@ -156,6 +160,7 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
         academicYear: academicYear.trim(),
         price: finalPrice,
         coverImageUrl: coverImageUrl || undefined,
+        previewVideoUrl: previewVideoUrl.trim() || null,
         courseQuizId: courseQuizId || null,
         hasCertificate,
         enforceSequentialLessons,
@@ -412,6 +417,39 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
               }}
               fileCategory="image"
             />
+          </div>
+
+          {/* Course Preview / Info Video */}
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Video className="w-4 h-4 text-primary-600" />
+                <span>فيديو تعريفي / برومو الكورس (معاينة مجانية قبل الشراء)</span>
+              </label>
+              <span className="text-[10px] bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full font-bold">
+                اختياري
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              فيديو قصير تعريفي يشرح مميزات ومحتوى الكورس للطلاب قبل اتخاذ قرار الشراء أو الاشتراك.
+            </p>
+            <input
+              type="url"
+              value={previewVideoUrl}
+              onChange={(e) => setPreviewVideoUrl(e.target.value)}
+              placeholder="رابط تضمين الفيديو (Bunny Stream / YouTube / Vimeo)"
+              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-xs font-mono text-left dir-ltr"
+            />
+            {previewVideoUrl && (
+              <div className="mt-2 aspect-video w-full rounded-xl overflow-hidden bg-black border border-slate-200 shadow-xs">
+                <iframe
+                  src={previewVideoUrl}
+                  className="w-full h-full border-0"
+                  allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
+                  allowFullScreen
+                />
+              </div>
+            )}
           </div>
 
           {/* Description */}

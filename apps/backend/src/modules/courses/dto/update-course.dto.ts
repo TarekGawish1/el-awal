@@ -48,6 +48,11 @@ export class UpdateCourseDto {
   @IsString()
   coverImageUrl?: string;
 
+  @ApiPropertyOptional({ example: 'https://iframe.mediadelivery.net/embed/123/abc' })
+  @IsOptional()
+  @IsString()
+  previewVideoUrl?: string | null;
+
   @ApiPropertyOptional({ enum: CourseStatus, example: CourseStatus.PUBLISHED })
   @IsOptional()
   @IsEnum(CourseStatus)

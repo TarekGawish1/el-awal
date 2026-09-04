@@ -99,6 +99,13 @@ export class UpdateAssessmentDto {
   allowMultipleAttempts?: boolean;
 
   @ApiPropertyOptional({
+    description: 'Whether this assessment is optional for students',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isOptional?: boolean;
+
+  @ApiPropertyOptional({
     description: 'Target online course ID',
   })
   @IsOptional()

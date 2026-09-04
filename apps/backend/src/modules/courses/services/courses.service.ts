@@ -106,6 +106,7 @@ export class CoursesService {
           academicTerm: dto.academicTerm || 'FIRST_TERM',
           price: dto.price || 0.0,
           coverImageUrl: dto.coverImageUrl,
+          previewVideoUrl: dto.previewVideoUrl || null,
           courseQuizId: dto.courseQuizId || null,
           enforceSequentialLessons: dto.enforceSequentialLessons ?? false,
           requireExamPassingToUnlock: dto.requireExamPassingToUnlock ?? false,
@@ -311,6 +312,7 @@ export class CoursesService {
         academicTerm: c.academicTerm,
         price: c.price,
         coverImageUrl: c.coverImageUrl,
+        previewVideoUrl: c.previewVideoUrl || null,
         hasCertificate: c.hasCertificate,
         createdAt: c.createdAt,
         teacher: c.teacher,
@@ -421,6 +423,7 @@ export class CoursesService {
       academicTerm: course.academicTerm,
       price: course.price,
       coverImageUrl: course.coverImageUrl,
+      previewVideoUrl: course.previewVideoUrl || null,
       hasCertificate: course.hasCertificate,
       createdAt: course.createdAt,
       teacher: course.teacher,
@@ -495,7 +498,7 @@ export class CoursesService {
           include: { user: { select: { fullName: true, email: true, phone: true } } },
         },
         courseQuiz: {
-          select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true },
+          select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true },
         },
         groupAccess: {
           include: {
@@ -506,17 +509,17 @@ export class CoursesService {
           orderBy: { orderIndex: 'asc' },
           include: {
             unitQuiz: {
-              select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true },
+              select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true },
             },
             lessons: {
               orderBy: { orderIndex: 'asc' },
               include: {
                 attachments: true,
                 lessonQuiz: {
-                  select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true },
+                  select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true },
                 },
                 assessments: {
-                  select: { id: true, title: true, type: true, assessmentType: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isPublished: true },
+                  select: { id: true, title: true, type: true, assessmentType: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isPublished: true, isOptional: true },
                 },
                 _count: {
                   select: { questions: true },
@@ -666,6 +669,7 @@ export class CoursesService {
         ...(dto.academicTerm !== undefined ? { academicTerm: dto.academicTerm } : {}),
         ...(dto.price !== undefined ? { price: dto.price } : {}),
         ...(dto.coverImageUrl !== undefined ? { coverImageUrl: dto.coverImageUrl } : {}),
+        ...(dto.previewVideoUrl !== undefined ? { previewVideoUrl: dto.previewVideoUrl } : {}),
         ...(dto.status ? { status: dto.status } : {}),
         ...(dto.courseQuizId !== undefined ? { courseQuizId: dto.courseQuizId } : {}),
         ...(dto.enforceSequentialLessons !== undefined ? { enforceSequentialLessons: dto.enforceSequentialLessons } : {}),
@@ -2448,15 +2452,15 @@ export class CoursesService {
       include: {
         attachments: true,
         lessonQuiz: {
-          select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true },
+          select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true },
         },
         assessments: {
-          select: { id: true, title: true, type: true, assessmentType: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isPublished: true },
+          select: { id: true, title: true, type: true, assessmentType: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isPublished: true, isOptional: true },
         },
         module: {
           include: {
             unitQuiz: {
-              select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true },
+              select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true },
             },
             course: {
               include: {
@@ -2464,7 +2468,7 @@ export class CoursesService {
                   include: { user: { select: { fullName: true } } },
                 },
                 courseQuiz: {
-                  select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true },
+                  select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true },
                 },
               },
             },

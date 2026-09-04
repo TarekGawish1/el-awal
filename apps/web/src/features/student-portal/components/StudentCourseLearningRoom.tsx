@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   ArrowRight,
+  ArrowLeft,
   BookOpen,
   CheckCircle,
   FileText,
@@ -194,9 +195,45 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     if (idx === -1) return;
     const next = lessons[idx + 1];
     if (!next) return; // already at the final lesson — nothing to advance to
+
+    // Check if crossing a unit boundary and the current unit has a mandatory unit exam
+    const currentModule = course?.modules?.find((m: CourseModule) =>
+      m.lessons?.some((l: CourseLesson) => l.id === currentLessonId)
+    );
+    const nextModule = course?.modules?.find((m: CourseModule) =>
+      m.lessons?.some((l: CourseLesson) => l.id === next.id)
+    );
+
+    if (currentModule && nextModule && currentModule.id !== nextModule.id) {
+      if (currentModule.unitQuiz && !currentModule.unitQuiz.isOptional) {
+        const uq = currentModule.unitQuiz;
+        const sub = uq.mySubmission;
+        let isSatisfied = false;
+        if (sub && (sub.status === 'SUBMITTED' || sub.status === 'GRADED')) {
+          if (course?.requireExamPassingToUnlock) {
+            const passScore = uq.passingScore ?? 0;
+            const score = sub.scoreObtained ?? 0;
+            isSatisfied = sub.isPassed ?? score >= passScore;
+          } else {
+            isSatisfied = true;
+          }
+        }
+        if (!isSatisfied) {
+          setActiveTab('quiz');
+          toast(
+            `أحسنت بإنهاء دروس الوحدة (${currentModule.title})! يرجى أداء امتحان الوحدة أولاً لفتح دروس الوحدة التالية 🎯📝`,
+            { icon: '🔒', duration: 5500 }
+          );
+          const el = document.getElementById(`quiz-card-${uq.id}`) || document.getElementById('lesson-content-tabs');
+          el?.scrollIntoView({ behavior: 'smooth' });
+          return;
+        }
+      }
+    }
+
     setSelectedLessonId(next.id);
     setActiveTab('summary');
-  }, []);
+  }, [course]);
 
   // Sync completed state from lessonViewer
   useEffect(() => {
@@ -300,9 +337,10 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     const currentLessonViewer = lessonViewerRef.current;
     const currentActiveLesson = activeLessonRef.current;
     const currentIsCompleted = isLessonCompletedRef.current;
-    const hasQuiz = Boolean(
-      currentLessonViewer?.lessonQuiz ||
-      currentActiveLesson?.lessonQuizId
+    const currentQuiz = currentLessonViewer?.lessonQuiz;
+    const hasQuiz = Boolean(currentQuiz || currentActiveLesson?.lessonQuizId);
+    const isMandatoryQuiz = Boolean(
+      currentQuiz ? !currentQuiz.isOptional : currentActiveLesson?.lessonQuizId
     );
 
     // ── Record completion (once per lesson; may fire at the 80% mark) ──────────────
@@ -324,7 +362,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
           } catch {}
         }
 
-        if (hasQuiz) {
+        if (isMandatoryQuiz) {
           setActiveTabRef.current('quiz');
           toast('أحسنت بمشاهدة شرح الدرس! يرجى حل اختبار الدرس لاحتساب إتمامه بنجاح 📝', { icon: '🎓' });
         } else {
@@ -335,7 +373,11 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
               lastPositionSeconds: Math.round(seconds || 0),
             });
             await refetchLessonRef.current();
-            toast.success('أحسنت! تمت مشاهدة معظم شرح الدرس وتم رصد إتمامه بنجاح 🎯');
+            if (currentQuiz?.isOptional) {
+              toast('أحسنت! تمت مشاهدة شرح الدرس، ويتوفر اختبار اختياري يمكنك خوضه أو متابعة الدروس 💡', { icon: '🎯' });
+            } else {
+              toast.success('أحسنت! تمت مشاهدة معظم شرح الدرس وتم رصد إتمامه بنجاح 🎯');
+            }
           } catch {
             // Ignore
           }
@@ -344,10 +386,8 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     }
 
     // ── Reveal the next lesson once the video genuinely finishes ───────────────────
-    // Only for lessons without a gating quiz (quiz lessons keep the student on the quiz
-    // tab until they solve it). Loads the next video paused — advanceToNextLesson only
-    // re-selects, and Bunny embeds never autoplay.
-    if (isHardEnd && !hasQuiz && advancedLessonRef.current !== lessonId) {
+    // Only for lessons without a mandatory gating quiz (optional quizzes allow smooth advance)
+    if (isHardEnd && !isMandatoryQuiz && advancedLessonRef.current !== lessonId) {
       advancedLessonRef.current = lessonId;
       advanceToNextLesson(lessonId);
     }
@@ -629,8 +669,8 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     const lessonId = selectedLessonId;
     const nextCompleted = !isLessonCompleted;
 
-    // Enforce quiz requirement: student cannot mark lesson complete if quiz has not been submitted or passed
-    if (nextCompleted && lessonViewer?.lessonQuiz) {
+    // Enforce quiz requirement: student cannot mark lesson complete if MANDATORY quiz has not been submitted or passed
+    if (nextCompleted && lessonViewer?.lessonQuiz && !lessonViewer.lessonQuiz.isOptional) {
       if (!lessonViewer.lessonQuiz.mySubmission) {
         toast.error('لا يمكن إتمام هذا الدرس قبل حل وتسليم اختباره الإلكتروني 📝');
         setActiveTab('quiz');
@@ -725,6 +765,118 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
       } catch {}
     }
   }, []);
+
+  // Bypass an optional quiz/homework
+  const handleBypassQuiz = useCallback(
+    async (targetLessonId?: string) => {
+      const id = targetLessonId || selectedLessonId;
+      if (!id) return;
+      markLessonCompletedLocally(id);
+      try {
+        await coursesApi.updateLessonProgress(id, {
+          isCompleted: true,
+          lastPositionSeconds: 0,
+        });
+        await refetchLesson();
+        toast.success('تم تخطي الاختبار الاختياري بنجاح والتقدم ⏭️');
+        advanceToNextLesson(id);
+      } catch {
+        toast.error('تعذر تسجيل التخطي');
+      }
+    },
+    [selectedLessonId, markLessonCompletedLocally, refetchLesson, advanceToNextLesson]
+  );
+
+  // Jump to quiz from sidebar
+  const handleSelectQuizFromSidebar = useCallback((quizId: string) => {
+    setActiveTab('quiz');
+    setIsMobileSyllabusOpen(false);
+    setTimeout(() => {
+      const el = document.getElementById(`quiz-card-${quizId}`) || document.getElementById('lesson-content-tabs');
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  }, []);
+
+  // Compute next step guidance banner info
+  const nextStepInfo = useMemo(() => {
+    if (!course || !activeLesson) return null;
+
+    // 1. Current lesson has an uncompleted quiz
+    if (lessonViewer?.lessonQuiz) {
+      const q = lessonViewer.lessonQuiz;
+      const isSubmitted = Boolean(
+        q.mySubmission && (q.mySubmission.status === 'SUBMITTED' || q.mySubmission.status === 'GRADED')
+      );
+      const isPassed =
+        q.mySubmission?.isPassed ?? ((q.mySubmission?.scoreObtained ?? 0) >= (q.passingScore ?? 0));
+      const isDone = isSubmitted && (!course.requireExamPassingToUnlock || isPassed);
+
+      if (!isDone) {
+        return {
+          type: 'lesson_quiz' as const,
+          title: `اختبار الدرس: ${q.title}`,
+          isOptional: Boolean(q.isOptional),
+          totalScore: q.totalScore,
+          quizId: q.id,
+          badge: q.isOptional ? 'اختياري لتثبيت الفهم' : 'إجباري للانتقال للدرس التالي',
+          actionText: 'بدء اختبار الدرس الآن 📝',
+        };
+      }
+    }
+
+    // 2. Unit has a unitQuiz that is not yet completed
+    if (activeModule?.unitQuiz) {
+      const uq = lessonViewer?.unitQuiz || activeModule.unitQuiz;
+      const isSubmitted = Boolean(
+        uq.mySubmission && (uq.mySubmission.status === 'SUBMITTED' || uq.mySubmission.status === 'GRADED')
+      );
+      const isPassed =
+        uq.mySubmission?.isPassed ?? ((uq.mySubmission?.scoreObtained ?? 0) >= (uq.passingScore ?? 0));
+      const isDone = isSubmitted && (!course.requireExamPassingToUnlock || isPassed);
+
+      if (!isDone) {
+        const modLessons = activeModule.lessons || [];
+        const allLessonsDoneInModule = modLessons.every((l) => completedLessonIds.includes(l.id));
+
+        return {
+          type: 'unit_quiz' as const,
+          title: `امتحان الوحدة: ${uq.title} (${activeModule.title})`,
+          isOptional: Boolean(uq.isOptional),
+          totalScore: uq.totalScore,
+          quizId: uq.id,
+          badge: uq.isOptional ? 'امتحان اختياري شامل' : 'مطلوب لاجتياز الوحدة وفتح الوحدة التالية',
+          actionText: allLessonsDoneInModule ? 'بدء امتحان الوحدة الآن 🎯' : 'امتحان الوحدة بانتظارك بعد إتمام الدروس 📝',
+          isReady: allLessonsDoneInModule,
+        };
+      }
+    }
+
+    // 3. All lessons and unit exams done, but course final quiz remaining
+    if (course.courseQuiz && areAllLessonsCompleted) {
+      const cq = lessonViewer?.courseQuiz || course.courseQuiz;
+      const isSubmitted = Boolean(
+        cq.mySubmission && (cq.mySubmission.status === 'SUBMITTED' || cq.mySubmission.status === 'GRADED')
+      );
+      const isPassed =
+        cq.mySubmission?.isPassed ?? ((cq.mySubmission?.scoreObtained ?? 0) >= (cq.passingScore ?? 0));
+      const isDone = isSubmitted && (!course.requireExamPassingToUnlock || isPassed);
+
+      if (!isDone) {
+        return {
+          type: 'course_quiz' as const,
+          title: `الامتحان الشامل والنهائي للدورة: ${cq.title}`,
+          isOptional: Boolean(cq.isOptional),
+          totalScore: cq.totalScore,
+          quizId: cq.id,
+          badge: 'مطلوب للحصول على شهادة التخرج والتقدير',
+          actionText: 'بدء الامتحان النهائي الشامل 🏆',
+          isReady: true,
+        };
+      }
+    }
+
+    return null;
+  }, [course, activeLesson, lessonViewer, activeModule, completedLessonIds, areAllLessonsCompleted]);
 
   if (isCourseLoading) {
     return (
@@ -925,6 +1077,73 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Player & Tab Content */}
         <div className="lg:col-span-8 space-y-6">
+          {/* Next-Step Guidance Banner */}
+          {nextStepInfo && (
+            <div
+              className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs transition-all ${
+                nextStepInfo.type === 'unit_quiz'
+                  ? 'bg-gradient-to-r from-amber-50 to-orange-50/70 border-amber-200 text-amber-950'
+                  : nextStepInfo.type === 'course_quiz'
+                  ? 'bg-gradient-to-r from-indigo-50 to-purple-50/70 border-indigo-200 text-indigo-950'
+                  : 'bg-primary-50/70 border-primary-200 text-primary-950'
+              }`}
+            >
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${
+                    nextStepInfo.type === 'unit_quiz'
+                      ? 'bg-amber-500 text-white'
+                      : nextStepInfo.type === 'course_quiz'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-primary-600 text-white'
+                  }`}
+                >
+                  <FileQuestion className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-extrabold uppercase tracking-wide opacity-80">
+                      الخطوة التالية الموصى بها
+                    </span>
+                    <span
+                      className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                        nextStepInfo.isOptional
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : 'bg-amber-200/90 text-amber-900 border border-amber-300'
+                      }`}
+                    >
+                      {nextStepInfo.badge}
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm font-bold mt-0.5">{nextStepInfo.title}</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('quiz');
+                  setTimeout(() => {
+                    const el =
+                      document.getElementById(`quiz-card-${nextStepInfo.quizId}`) ||
+                      document.getElementById('lesson-content-tabs');
+                    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }, 80);
+                }}
+                className={`w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 cursor-pointer ${
+                  nextStepInfo.type === 'unit_quiz'
+                    ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                    : nextStepInfo.type === 'course_quiz'
+                    ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                    : 'bg-primary-600 hover:bg-primary-700 text-white'
+                }`}
+              >
+                <span>{nextStepInfo.actionText}</span>
+                <ArrowLeft className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* Strict 16:9 Aspect Ratio Video Player Card */}
           <div ref={videoContainerRef} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
             <div
@@ -1121,6 +1340,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 allModules={course.modules || []}
                 allLessons={allLessons}
                 isPreviewMode={isPreviewMode}
+                onBypassQuiz={handleBypassQuiz}
               />
             )}
           </div>
@@ -1134,6 +1354,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
               allLessons={allLessons}
               activeLessonId={selectedLessonId}
               onSelectLesson={(id) => setSelectedLessonId(id)}
+              onSelectQuiz={handleSelectQuizFromSidebar}
               completedLessonIds={completedLessonIds}
               enforceSequentialLessons={course?.enforceSequentialLessons ?? false}
               requireExamPassingToUnlock={course?.requireExamPassingToUnlock ?? false}
@@ -1165,6 +1386,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                   setSelectedLessonId(id);
                   setIsMobileSyllabusOpen(false);
                 }}
+                onSelectQuiz={handleSelectQuizFromSidebar}
                 completedLessonIds={completedLessonIds}
                 enforceSequentialLessons={course?.enforceSequentialLessons ?? false}
                 requireExamPassingToUnlock={course?.requireExamPassingToUnlock ?? false}

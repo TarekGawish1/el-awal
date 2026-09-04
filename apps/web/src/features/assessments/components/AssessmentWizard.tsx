@@ -160,6 +160,7 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
       endTime: '',
       isAutoGraded: true,
       allowMultipleAttempts: false,
+      isOptional: false,
       questions: [
         {
           questionNumber: 1,
@@ -1144,6 +1145,41 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                   </div>
                 </div>
               )}
+
+              {/* Optional vs Mandatory Assessment Policy */}
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                  <span>إلزامية التقييم للطلاب</span>
+                  <span className="text-xs text-slate-400 font-normal">(هل يمكن للطالب تخطي هذا الاختبار/الواجب؟)</span>
+                </label>
+                <p className="text-xs text-slate-500">
+                  إذا تم تحديد "اختياري"، سيتمكن الطالب من تجاوز التقييم دون أن يمنعه ذلك من الانتقال للدروس والوحدات القادمة.
+                </p>
+                <div className="bg-white p-2 rounded-xl border border-slate-200 flex gap-2 max-w-md shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => methods.setValue('isOptional', false, { shouldDirty: true })}
+                    className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${
+                      !formDataValues.isOptional
+                        ? 'bg-primary-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    ⚠️ إجباري (مطلوب للتقدم)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => methods.setValue('isOptional', true, { shouldDirty: true })}
+                    className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${
+                      formDataValues.isOptional
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    ✨ اختياري (يمكن تخطيه)
+                  </button>
+                </div>
+              </div>
 
               <div className="pt-6 mt-6 border-t border-slate-100 flex justify-end">
                 <Button onClick={() => nextStep('questions')}>

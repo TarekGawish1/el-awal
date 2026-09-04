@@ -18,6 +18,7 @@ export interface AssessmentSummary {
   durationMinutes?: number | null;
   passingScore?: number | null;
   allowMultipleAttempts?: boolean;
+  isOptional?: boolean;
   attemptCount?: number;
   mySubmission?: AssessmentQuizSubmissionSummary | null;
 }
@@ -117,6 +118,7 @@ export interface CourseDetail {
   academicTerm?: string | null;
   price: number | string;
   coverImageUrl?: string | null;
+  previewVideoUrl?: string | null;
   status: CourseStatus;
   orderIndex: number;
   enforceSequentialLessons?: boolean;
