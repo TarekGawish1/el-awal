@@ -172,7 +172,9 @@ export class AssessmentsService {
     const endTimeDate = rawEndTime ? new Date(rawEndTime) : null;
     const timingType =
       dto.timingType ||
-      (storedType === AssessmentType.EXAM
+      (dto.requirePassingScore || dto.courseId || dto.courseLinkScope || dto.lessonId
+        ? ExamTimingType.FLEXIBLE_WINDOW
+        : storedType === AssessmentType.EXAM
         ? ExamTimingType.FIXED_SESSION
         : undefined);
 
@@ -200,8 +202,11 @@ export class AssessmentsService {
           lessonId: dto.lessonId,
           isAutoGraded,
           isPublished: dto.isPublished ?? true,
-          allowMultipleAttempts: dto.allowMultipleAttempts ?? false,
+          allowMultipleAttempts: dto.requirePassingScore
+            ? (dto.allowMultipleAttempts ?? true)
+            : (dto.allowMultipleAttempts ?? false),
           isOptional: dto.isOptional ?? false,
+          requirePassingScore: dto.requirePassingScore ?? false,
           teacherId,
           targetGroups: dto.targetGroupIds?.length ? {
             connect: dto.targetGroupIds.map(id => ({ id }))
@@ -684,6 +689,7 @@ export class AssessmentsService {
       isPublished: assessment.isPublished,
       allowMultipleAttempts: assessment.allowMultipleAttempts,
       isOptional: assessment.isOptional,
+      requirePassingScore: assessment.requirePassingScore,
       teacher: assessment.teacher,
       group: assessment.group,
       targetGroups: assessment.targetGroups,
@@ -737,6 +743,7 @@ export class AssessmentsService {
         totalScore: true,
         allowMultipleAttempts: true,
         isOptional: true,
+        requirePassingScore: true,
       },
     });
 
@@ -755,6 +762,7 @@ export class AssessmentsService {
         attemptsCount: 0,
         allowMultipleAttempts: assessment.allowMultipleAttempts,
         isOptional: assessment.isOptional,
+        requirePassingScore: assessment.requirePassingScore,
       };
     }
 
@@ -780,6 +788,7 @@ export class AssessmentsService {
       attemptsCount: submissions.length,
       allowMultipleAttempts: assessment.allowMultipleAttempts,
       isOptional: assessment.isOptional,
+      requirePassingScore: assessment.requirePassingScore,
     };
   }
 
@@ -1704,6 +1713,10 @@ export class AssessmentsService {
           allowMultipleAttempts: dto.allowMultipleAttempts,
         }),
         ...(dto.isOptional !== undefined && { isOptional: dto.isOptional }),
+        ...(dto.requirePassingScore !== undefined && {
+          requirePassingScore: dto.requirePassingScore,
+          ...(dto.requirePassingScore && dto.allowMultipleAttempts === undefined && { allowMultipleAttempts: true }),
+        }),
         ...(dto.courseId !== undefined && { courseId: dto.courseId || null }),
         ...(dto.lessonId !== undefined && { lessonId: dto.lessonId || null }),
         ...(dto.assessmentType !== undefined && {

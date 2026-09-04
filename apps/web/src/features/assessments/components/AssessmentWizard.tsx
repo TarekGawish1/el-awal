@@ -161,6 +161,7 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
       isAutoGraded: true,
       allowMultipleAttempts: false,
       isOptional: false,
+      requirePassingScore: false,
       questions: [
         {
           questionNumber: 1,
@@ -500,6 +501,8 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
       isPublished,
       questions: payloadQuestions,
       totalScore: calculatedTotal > 0 ? calculatedTotal : Number(data.totalScore) || 10,
+      requirePassingScore: Boolean(data.requirePassingScore),
+      allowMultipleAttempts: data.requirePassingScore ? (data.allowMultipleAttempts ?? true) : Boolean(data.allowMultipleAttempts),
     };
 
     if (!payload.passingScore || Number(payload.passingScore) > payload.totalScore) {
@@ -1110,6 +1113,52 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                   </div>
                 )}
 
+              </div>
+
+              {/* Passing Requirement for Progression */}
+              <div className="mt-6 p-4.5 rounded-2xl border border-primary-200 bg-gradient-to-br from-primary-50/70 via-indigo-50/40 to-white shadow-2xs space-y-2.5">
+                <label className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <span className="text-base">🎯</span>
+                  <span>اشتراط اجتياز ودرجة النجاح للتقدم في الكورس</span>
+                  <span className="text-xs text-primary-700 font-normal">(للدروس والوحدات وإتمام الدورة)</span>
+                </label>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  عند تفعيل هذا الخيار، لن يتمكن الطالب من فتح الدرس أو الوحدة التالية أو إنهاء الكورس حتى يحقق درجة النجاح المطلوبة على الأقل ({formDataValues.passingScore || 50} من {formDataValues.totalScore || 100}).
+                  ويتم تلقائياً تفعيل المحاولات المتعددة وإتاحة وقت مرن لتمكين الطالب من الإعادة حتى النجاح.
+                </p>
+                <div className="bg-white p-2 rounded-xl border border-slate-200 flex gap-2 max-w-md shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      methods.setValue('requirePassingScore', false, { shouldDirty: true });
+                    }}
+                    className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${
+                      !formDataValues.requirePassingScore
+                        ? 'bg-primary-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    📝 تسليم عادي (يكفي الحل)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      methods.setValue('requirePassingScore', true, { shouldDirty: true });
+                      methods.setValue('allowMultipleAttempts', true, { shouldDirty: true });
+                      methods.setValue('isOptional', false, { shouldDirty: true });
+                      if (type === 'EXAM' && scheduleMode !== 'DURATION_ONLY') {
+                        selectScheduleMode('DURATION_ONLY');
+                      }
+                    }}
+                    className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${
+                      formDataValues.requirePassingScore
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    🎯 إلزامي اجتياز درجة النجاح
+                  </button>
+                </div>
               </div>
 
               {/* Attempt policy: single vs. multiple attempts */}

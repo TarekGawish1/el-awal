@@ -54,7 +54,8 @@ export function CourseSyllabusSidebar({
       if (quiz.isOptional) return true; // Optional exams/quizzes NEVER block student progression
       const submission = quiz.mySubmission;
       if (!submission) return false;
-      if (requireExamPassingToUnlock) {
+      const mustPass = Boolean(requireExamPassingToUnlock || quiz.requirePassingScore);
+      if (mustPass) {
         const passScore = quiz.passingScore ?? 0;
         const score = submission.scoreObtained ?? 0;
         return submission.isPassed ?? score >= passScore;
@@ -62,6 +63,30 @@ export function CourseSyllabusSidebar({
       return submission.status === 'SUBMITTED' || submission.status === 'GRADED';
     },
     [requireExamPassingToUnlock]
+  );
+
+  /**
+   * Helper to determine if all mandatory assessments (quiz, homework) for a lesson are satisfied.
+   */
+  const areLessonAssessmentsSatisfied = React.useCallback(
+    (les?: CourseLesson | null) => {
+      if (!les) return true;
+      if (les.lessonQuiz && !les.lessonQuiz.isOptional && !isQuizSatisfied(les.lessonQuiz)) {
+        return false;
+      }
+      if (les.lessonHomework && !les.lessonHomework.isOptional && !isQuizSatisfied(les.lessonHomework)) {
+        return false;
+      }
+      if (les.assessments && Array.isArray(les.assessments)) {
+        for (const ass of les.assessments) {
+          if (!ass.isOptional && !isQuizSatisfied(ass)) {
+            return false;
+          }
+        }
+      }
+      return true;
+    },
+    [isQuizSatisfied]
   );
 
   /**
@@ -139,8 +164,8 @@ export function CourseSyllabusSidebar({
         } else {
           const prevLes = modLessons[i - 1];
           const isPrevCompleted = completedLessonIds.includes(prevLes.id);
-          const isPrevQuizDone = isQuizSatisfied(prevLes.lessonQuiz);
-          if (isPrevCompleted && isPrevQuizDone) {
+          const isPrevAssessmentsDone = areLessonAssessmentsSatisfied(prevLes);
+          if (isPrevCompleted && isPrevAssessmentsDone) {
             unlocked.add(les.id);
           }
         }
@@ -148,7 +173,7 @@ export function CourseSyllabusSidebar({
     }
 
     return unlocked;
-  }, [enforceSequentialLessons, modules, completedLessonIds, isQuizSatisfied]);
+  }, [enforceSequentialLessons, modules, completedLessonIds, isQuizSatisfied, areLessonAssessmentsSatisfied]);
 
   const handleLessonClick = (lesson: CourseLesson) => {
     if (!unlockedLessonIds.has(lesson.id)) {
@@ -166,7 +191,8 @@ export function CourseSyllabusSidebar({
             return;
           }
           if (prevMod.unitQuiz && !prevMod.unitQuiz.isOptional && !isQuizSatisfied(prevMod.unitQuiz)) {
-            if (requireExamPassingToUnlock && prevMod.unitQuiz.mySubmission && !prevMod.unitQuiz.mySubmission.isPassed) {
+            const mustPassUnit = Boolean(requireExamPassingToUnlock || prevMod.unitQuiz.requirePassingScore);
+            if (mustPassUnit && prevMod.unitQuiz.mySubmission && !prevMod.unitQuiz.mySubmission.isPassed) {
               toast(
                 `يجب اجتياز امتحان الوحدة السابقة (${prevMod.title}) بدرجة النجاح (${prevMod.unitQuiz.passingScore} من ${prevMod.unitQuiz.totalScore}) أولاً 🎯🔒`,
                 { icon: '⚠️' }
@@ -187,13 +213,27 @@ export function CourseSyllabusSidebar({
         const prev = idx > 0 ? modLessons[idx - 1] : null;
 
         if (prev?.lessonQuiz && !prev.lessonQuiz.isOptional && !isQuizSatisfied(prev.lessonQuiz)) {
-          if (requireExamPassingToUnlock && prev.lessonQuiz.mySubmission && !prev.lessonQuiz.mySubmission.isPassed) {
+          const mustPassQuiz = Boolean(requireExamPassingToUnlock || prev.lessonQuiz.requirePassingScore);
+          if (mustPassQuiz && prev.lessonQuiz.mySubmission && !prev.lessonQuiz.mySubmission.isPassed) {
             toast(
               `يجب اجتياز اختبار الدرس السابق (${prev.title}) بدرجة النجاح (${prev.lessonQuiz.passingScore} من ${prev.lessonQuiz.totalScore}) لفتح هذا الدرس 🎯🔒`,
               { icon: '⚠️' }
             );
           } else {
             toast(`يجب حل وتسليم اختبار الدرس السابق (${prev.title}) أولاً لفتح هذا الدرس 📝🔒`, { icon: '⚠️' });
+          }
+          return;
+        }
+
+        if (prev?.lessonHomework && !prev.lessonHomework.isOptional && !isQuizSatisfied(prev.lessonHomework)) {
+          const mustPassHw = Boolean(requireExamPassingToUnlock || prev.lessonHomework.requirePassingScore);
+          if (mustPassHw && prev.lessonHomework.mySubmission && !prev.lessonHomework.mySubmission.isPassed) {
+            toast(
+              `يجب اجتياز واجب الدرس السابق (${prev.title}) بدرجة النجاح (${prev.lessonHomework.passingScore} من ${prev.lessonHomework.totalScore}) لفتح هذا الدرس 🎯🔒`,
+              { icon: '⚠️' }
+            );
+          } else {
+            toast(`يجب حل وتسليم واجب الدرس السابق (${prev.title}) أولاً لفتح هذا الدرس 📝🔒`, { icon: '⚠️' });
           }
           return;
         }

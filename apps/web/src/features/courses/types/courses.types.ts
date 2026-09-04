@@ -19,6 +19,7 @@ export interface AssessmentSummary {
   passingScore?: number | null;
   allowMultipleAttempts?: boolean;
   isOptional?: boolean;
+  requirePassingScore?: boolean;
   attemptCount?: number;
   mySubmission?: AssessmentQuizSubmissionSummary | null;
 }

@@ -145,6 +145,7 @@ function QuizCard({
   const failed = scoreObtained != null && passingScore != null && scoreObtained < passingScore;
   const isPending = hasSubmitted && !isGraded;
   const allowMultipleAttempts = Boolean(quiz.allowMultipleAttempts ?? detail?.allowMultipleAttempts);
+  const requirePassingScore = Boolean(quiz.requirePassingScore ?? detail?.requirePassingScore);
 
   const href =
     level === 'lesson'
@@ -344,6 +345,10 @@ function QuizCard({
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                   اختياري (يمكن تجاوزه)
                 </span>
+              ) : requirePassingScore ? (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                  🎯 يشترط النجاح للمتابعة
+                </span>
               ) : (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
                   إجباري للمتابعة
@@ -504,6 +509,10 @@ function QuizCard({
             {quiz.isOptional ? (
               <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 px-1.5 py-0.2 rounded-full">
                 اختياري
+              </span>
+            ) : requirePassingScore ? (
+              <span className="text-[9px] font-bold bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.2 rounded-full">
+                🎯 يشترط النجاح
               </span>
             ) : (
               <span className="text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200 px-1.5 py-0.2 rounded-full">

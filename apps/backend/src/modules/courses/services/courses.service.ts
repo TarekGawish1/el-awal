@@ -509,17 +509,17 @@ export class CoursesService {
           orderBy: { orderIndex: 'asc' },
           include: {
             unitQuiz: {
-              select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true },
+              select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true, requirePassingScore: true },
             },
             lessons: {
               orderBy: { orderIndex: 'asc' },
               include: {
                 attachments: true,
                 lessonQuiz: {
-                  select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true },
+                  select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true, requirePassingScore: true },
                 },
                 assessments: {
-                  select: { id: true, title: true, type: true, assessmentType: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isPublished: true, isOptional: true },
+                  select: { id: true, title: true, type: true, assessmentType: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isPublished: true, isOptional: true, requirePassingScore: true },
                 },
                 _count: {
                   select: { questions: true },
@@ -2452,15 +2452,15 @@ export class CoursesService {
       include: {
         attachments: true,
         lessonQuiz: {
-          select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true },
+          select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true, requirePassingScore: true },
         },
         assessments: {
-          select: { id: true, title: true, type: true, assessmentType: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isPublished: true, isOptional: true },
+          select: { id: true, title: true, type: true, assessmentType: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isPublished: true, isOptional: true, requirePassingScore: true },
         },
         module: {
           include: {
             unitQuiz: {
-              select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true },
+              select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true, requirePassingScore: true },
             },
             course: {
               include: {
@@ -2468,7 +2468,7 @@ export class CoursesService {
                   include: { user: { select: { fullName: true } } },
                 },
                 courseQuiz: {
-                  select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true },
+                  select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true, requirePassingScore: true },
                 },
               },
             },

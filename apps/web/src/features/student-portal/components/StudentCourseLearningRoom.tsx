@@ -210,7 +210,8 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         const sub = uq.mySubmission;
         let isSatisfied = false;
         if (sub && (sub.status === 'SUBMITTED' || sub.status === 'GRADED')) {
-          if (course?.requireExamPassingToUnlock) {
+          const mustPass = Boolean(course?.requireExamPassingToUnlock || uq.requirePassingScore);
+          if (mustPass) {
             const passScore = uq.passingScore ?? 0;
             const score = sub.scoreObtained ?? 0;
             isSatisfied = sub.isPassed ?? score >= passScore;
@@ -548,12 +549,23 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
 
     const quizzes: { id: string; title: string; quiz: any; type: 'lesson' | 'unit' | 'course' }[] = [];
 
-    // 1. Lesson quizzes
+    // 1. Lesson quizzes and homeworks
     (course.modules || []).forEach((mod) => {
       (mod.lessons || []).forEach((les) => {
         if (les.lessonQuiz) {
           const quizObj = les.id === selectedLessonId && lessonViewer?.lessonQuiz ? lessonViewer.lessonQuiz : les.lessonQuiz;
           quizzes.push({ id: quizObj.id, title: quizObj.title, quiz: quizObj, type: 'lesson' });
+        }
+        if (les.lessonHomework) {
+          const hwObj = les.id === selectedLessonId && lessonViewer?.lessonHomework ? lessonViewer.lessonHomework : les.lessonHomework;
+          quizzes.push({ id: hwObj.id, title: hwObj.title, quiz: hwObj, type: 'lesson' });
+        }
+        if (les.assessments && Array.isArray(les.assessments)) {
+          les.assessments.forEach((ass: any) => {
+            if (ass?.id) {
+              quizzes.push({ id: ass.id, title: ass.title, quiz: ass, type: 'lesson' });
+            }
+          });
         }
       });
     });
@@ -610,7 +622,8 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         totalMaxScore += Number(q.totalScore);
       }
 
-      if (course.requireExamPassingToUnlock) {
+      const mustPass = Boolean(course.requireExamPassingToUnlock || q.requirePassingScore);
+      if (mustPass) {
         const passScore = q.passingScore ?? 0;
         const score = sub.scoreObtained ?? 0;
         const passed = sub.isPassed ?? (score >= passScore);
@@ -670,19 +683,44 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     const nextCompleted = !isLessonCompleted;
 
     // Enforce quiz requirement: student cannot mark lesson complete if MANDATORY quiz has not been submitted or passed
-    if (nextCompleted && lessonViewer?.lessonQuiz && !lessonViewer.lessonQuiz.isOptional) {
-      if (!lessonViewer.lessonQuiz.mySubmission) {
+    const currentQuiz = lessonViewer?.lessonQuiz;
+    if (nextCompleted && currentQuiz && !currentQuiz.isOptional) {
+      if (!currentQuiz.mySubmission) {
         toast.error('لا يمكن إتمام هذا الدرس قبل حل وتسليم اختباره الإلكتروني 📝');
         setActiveTab('quiz');
         return;
       }
-      if (course?.requireExamPassingToUnlock) {
-        const passScore = lessonViewer.lessonQuiz.passingScore ?? 0;
-        const score = lessonViewer.lessonQuiz.mySubmission.scoreObtained ?? 0;
-        const passed = lessonViewer.lessonQuiz.mySubmission.isPassed ?? (score >= passScore);
+      const mustPassQuiz = Boolean(course?.requireExamPassingToUnlock || currentQuiz.requirePassingScore);
+      if (mustPassQuiz) {
+        const passScore = currentQuiz.passingScore ?? 0;
+        const score = currentQuiz.mySubmission.scoreObtained ?? 0;
+        const passed = currentQuiz.mySubmission.isPassed ?? (score >= passScore);
         if (!passed) {
           toast.error(
-            `يجب اجتياز الاختبار بدرجة النجاح (${passScore} من ${lessonViewer.lessonQuiz.totalScore}) لإتمام هذا الدرس والتقدم 🎯`,
+            `يجب اجتياز الاختبار بدرجة النجاح (${passScore} من ${currentQuiz.totalScore}) لإتمام هذا الدرس والتقدم 🎯`,
+          );
+          setActiveTab('quiz');
+          return;
+        }
+      }
+    }
+
+    // Enforce homework requirement: student cannot mark lesson complete if MANDATORY homework has not been submitted or passed
+    const currentHomework = lessonViewer?.lessonHomework;
+    if (nextCompleted && currentHomework && !currentHomework.isOptional) {
+      if (!currentHomework.mySubmission) {
+        toast.error('لا يمكن إتمام هذا الدرس قبل حل وتسليم الواجب المنزلي 📝');
+        setActiveTab('quiz');
+        return;
+      }
+      const mustPassHw = Boolean(course?.requireExamPassingToUnlock || currentHomework.requirePassingScore);
+      if (mustPassHw) {
+        const passScore = currentHomework.passingScore ?? 0;
+        const score = currentHomework.mySubmission.scoreObtained ?? 0;
+        const passed = currentHomework.mySubmission.isPassed ?? (score >= passScore);
+        if (!passed) {
+          toast.error(
+            `يجب اجتياز الواجب بدرجة النجاح (${passScore} من ${currentHomework.totalScore}) لإتمام هذا الدرس والتقدم 🎯`,
           );
           setActiveTab('quiz');
           return;
@@ -809,7 +847,8 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
       );
       const isPassed =
         q.mySubmission?.isPassed ?? ((q.mySubmission?.scoreObtained ?? 0) >= (q.passingScore ?? 0));
-      const isDone = isSubmitted && (!course.requireExamPassingToUnlock || isPassed);
+      const mustPass = Boolean(course.requireExamPassingToUnlock || q.requirePassingScore);
+      const isDone = isSubmitted && (!mustPass || isPassed);
 
       if (!isDone) {
         return {
@@ -818,8 +857,32 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
           isOptional: Boolean(q.isOptional),
           totalScore: q.totalScore,
           quizId: q.id,
-          badge: q.isOptional ? 'اختياري لتثبيت الفهم' : 'إجباري للانتقال للدرس التالي',
+          badge: q.isOptional ? 'اختياري لتثبيت الفهم' : mustPass ? 'إجباري (يشترط النجاح للمتابعة)' : 'إجباري للانتقال للدرس التالي',
           actionText: 'بدء اختبار الدرس الآن 📝',
+        };
+      }
+    }
+
+    // 1.5. Current lesson has an uncompleted homework
+    if (lessonViewer?.lessonHomework) {
+      const hw = lessonViewer.lessonHomework;
+      const isSubmitted = Boolean(
+        hw.mySubmission && (hw.mySubmission.status === 'SUBMITTED' || hw.mySubmission.status === 'GRADED')
+      );
+      const isPassed =
+        hw.mySubmission?.isPassed ?? ((hw.mySubmission?.scoreObtained ?? 0) >= (hw.passingScore ?? 0));
+      const mustPass = Boolean(course.requireExamPassingToUnlock || hw.requirePassingScore);
+      const isDone = isSubmitted && (!mustPass || isPassed);
+
+      if (!isDone) {
+        return {
+          type: 'lesson_quiz' as const,
+          title: `واجب الدرس: ${hw.title}`,
+          isOptional: Boolean(hw.isOptional),
+          totalScore: hw.totalScore,
+          quizId: hw.id,
+          badge: hw.isOptional ? 'واجب اختياري للتطبيق' : mustPass ? 'إجباري (يشترط النجاح للمتابعة)' : 'إجباري للانتقال للدرس التالي',
+          actionText: 'بدء حل الواجب الآن 📝',
         };
       }
     }
@@ -832,7 +895,8 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
       );
       const isPassed =
         uq.mySubmission?.isPassed ?? ((uq.mySubmission?.scoreObtained ?? 0) >= (uq.passingScore ?? 0));
-      const isDone = isSubmitted && (!course.requireExamPassingToUnlock || isPassed);
+      const mustPass = Boolean(course.requireExamPassingToUnlock || uq.requirePassingScore);
+      const isDone = isSubmitted && (!mustPass || isPassed);
 
       if (!isDone) {
         const modLessons = activeModule.lessons || [];
@@ -844,7 +908,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
           isOptional: Boolean(uq.isOptional),
           totalScore: uq.totalScore,
           quizId: uq.id,
-          badge: uq.isOptional ? 'امتحان اختياري شامل' : 'مطلوب لاجتياز الوحدة وفتح الوحدة التالية',
+          badge: uq.isOptional ? 'امتحان اختياري شامل' : mustPass ? 'مطلوب النجاح لاجتياز الوحدة' : 'مطلوب لاجتياز الوحدة وفتح الوحدة التالية',
           actionText: allLessonsDoneInModule ? 'بدء امتحان الوحدة الآن 🎯' : 'امتحان الوحدة بانتظارك بعد إتمام الدروس 📝',
           isReady: allLessonsDoneInModule,
         };
@@ -859,7 +923,8 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
       );
       const isPassed =
         cq.mySubmission?.isPassed ?? ((cq.mySubmission?.scoreObtained ?? 0) >= (cq.passingScore ?? 0));
-      const isDone = isSubmitted && (!course.requireExamPassingToUnlock || isPassed);
+      const mustPass = Boolean(course.requireExamPassingToUnlock || cq.requirePassingScore);
+      const isDone = isSubmitted && (!mustPass || isPassed);
 
       if (!isDone) {
         return {

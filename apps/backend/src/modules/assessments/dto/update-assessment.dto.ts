@@ -106,6 +106,13 @@ export class UpdateAssessmentDto {
   isOptional?: boolean;
 
   @ApiPropertyOptional({
+    description: 'Whether students must achieve the passing score to progress to the next lesson or unit',
+  })
+  @IsOptional()
+  @IsBoolean()
+  requirePassingScore?: boolean;
+
+  @ApiPropertyOptional({
     description: 'Target online course ID',
   })
   @IsOptional()

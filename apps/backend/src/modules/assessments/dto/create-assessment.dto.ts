@@ -226,6 +226,14 @@ export class CreateAssessmentDto {
   @IsBoolean()
   isOptional?: boolean;
 
+  @ApiPropertyOptional({
+    description: 'Whether students must achieve the passing score to progress to the next lesson or unit',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  requirePassingScore?: boolean;
+
   @ApiProperty({
     type: [CreateQuestionDto],
     description: 'Array of assessment questions',

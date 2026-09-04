@@ -65,6 +65,7 @@ export const createAssessmentSchema = z.object({
   isAutoGraded: z.boolean(),
   allowMultipleAttempts: z.boolean().optional(),
   isOptional: z.boolean().optional(),
+  requirePassingScore: z.boolean().optional(),
   questions: z.array(questionSchema).min(1, 'يجب إضافة سؤال واحد على الأقل'),
 }).superRefine((data, ctx) => {
   if (data.passingScore > data.totalScore) {

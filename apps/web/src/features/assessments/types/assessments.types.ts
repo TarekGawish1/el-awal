@@ -37,6 +37,7 @@ export interface AssessmentListItem {
   totalScore: number;
   passingScore: number;
   isPublished: boolean;
+  requirePassingScore?: boolean;
   startTime?: string | null;
   endTime?: string | null;
   startDate?: string | null;
@@ -95,6 +96,7 @@ export interface AssessmentDetail {
   isAutoGraded: boolean;
   allowMultipleAttempts: boolean;
   isOptional?: boolean;
+  requirePassingScore?: boolean;
   lessonId?: string | null;
   startTime?: string | null;
   endTime?: string | null;
@@ -141,6 +143,7 @@ export interface CreateAssessmentPayload {
   isAutoGraded?: boolean;
   allowMultipleAttempts?: boolean;
   isOptional?: boolean;
+  requirePassingScore?: boolean;
   questions: Omit<AssessmentQuestion, 'id'>[];
 }
 
@@ -159,6 +162,7 @@ export interface UpdateAssessmentPayload {
   isPublished?: boolean;
   allowMultipleAttempts?: boolean;
   isOptional?: boolean;
+  requirePassingScore?: boolean;
   assessmentType?: 'HOMEWORK' | 'EXAM' | 'QUIZ' | 'ASSIGNMENT';
   courseId?: string | null;
   lessonId?: string | null;

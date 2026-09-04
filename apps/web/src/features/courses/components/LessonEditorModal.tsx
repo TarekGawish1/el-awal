@@ -111,6 +111,8 @@ export function LessonEditorModal({
   const [allowMultipleAttempts, setAllowMultipleAttempts] = useState(false);
   const [isQuizOptional, setIsQuizOptional] = useState(false);
   const [isHomeworkOptional, setIsHomeworkOptional] = useState(false);
+  const [isQuizPassRequired, setIsQuizPassRequired] = useState(false);
+  const [isHomeworkPassRequired, setIsHomeworkPassRequired] = useState(false);
   const [attachments, setAttachments] = useState<LessonAttachment[]>([]);
 
   // Video Upload & Optimization State
@@ -351,6 +353,8 @@ export function LessonEditorModal({
       setIsFreePreview(false);
       setLessonQuizId("");
       setLessonHomeworkId("");
+      setIsQuizPassRequired(false);
+      setIsHomeworkPassRequired(false);
       initialQuizIdRef.current = null;
       initialHomeworkIdRef.current = null;
       setAttachments([]);
@@ -415,29 +419,33 @@ export function LessonEditorModal({
     }
   }, [streamAuth]);
 
-  // Reflect the selected quiz's current attempt policy and optionality in the toggle (or reset when none).
+  // Reflect the selected quiz's current attempt policy, optionality, and pass requirement
   useEffect(() => {
     if (!lessonQuizId) {
       setAllowMultipleAttempts(false);
       setIsQuizOptional(false);
+      setIsQuizPassRequired(false);
       return;
     }
     const selected = allAvailableAssessments.find((a: any) => a.id === lessonQuizId);
     if (selected) {
       setAllowMultipleAttempts(Boolean(selected.allowMultipleAttempts ?? false));
       setIsQuizOptional(Boolean(selected.isOptional ?? false));
+      setIsQuizPassRequired(Boolean(selected.requirePassingScore ?? false));
     }
   }, [lessonQuizId, allAvailableAssessments]);
 
-  // Reflect the selected homework's optionality
+  // Reflect the selected homework's optionality and pass requirement
   useEffect(() => {
     if (!lessonHomeworkId) {
       setIsHomeworkOptional(false);
+      setIsHomeworkPassRequired(false);
       return;
     }
     const selected = allAvailableAssessments.find((a: any) => a.id === lessonHomeworkId);
     if (selected) {
       setIsHomeworkOptional(Boolean(selected.isOptional ?? false));
+      setIsHomeworkPassRequired(Boolean(selected.requirePassingScore ?? false));
     }
   }, [lessonHomeworkId, allAvailableAssessments]);
 
@@ -635,8 +643,9 @@ export function LessonEditorModal({
       if (lessonQuizId && savedLessonId) {
         try {
           await updateAssessment(lessonQuizId, {
-            allowMultipleAttempts,
-            isOptional: isQuizOptional,
+            allowMultipleAttempts: isQuizPassRequired ? true : allowMultipleAttempts,
+            isOptional: isQuizPassRequired ? false : isQuizOptional,
+            requirePassingScore: isQuizPassRequired,
             lessonId: savedLessonId,
             courseId,
           });
@@ -650,7 +659,9 @@ export function LessonEditorModal({
         if (lessonHomeworkId) {
           try {
             await updateAssessment(lessonHomeworkId, {
-              isOptional: isHomeworkOptional,
+              isOptional: isHomeworkPassRequired ? false : isHomeworkOptional,
+              requirePassingScore: isHomeworkPassRequired,
+              allowMultipleAttempts: isHomeworkPassRequired ? true : undefined,
               lessonId: savedLessonId,
               courseId,
             });
@@ -1576,7 +1587,10 @@ export function LessonEditorModal({
                         </button>
                         <button
                           type="button"
-                          onClick={() => setIsQuizOptional(true)}
+                          onClick={() => {
+                            setIsQuizOptional(true);
+                            setIsQuizPassRequired(false);
+                          }}
                           className={`flex items-center gap-2 p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
                             isQuizOptional
                               ? "border-emerald-500 bg-white ring-2 ring-emerald-100 shadow-2xs"
@@ -1590,6 +1604,57 @@ export function LessonEditorModal({
                             </span>
                             <span className="block text-[10px] text-slate-500 mt-0.5">
                               يمكن للطالب تجاوزه والانتقال للخطوة التالية مباشرة
+                            </span>
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Quiz Passing Score Requirement Selector */}
+                    <div className="pt-2 border-t border-purple-100/60 space-y-1.5">
+                      <label className="block text-[11px] font-bold text-slate-800">
+                        اشتراط اجتياز درجة النجاح للمتابعة:
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsQuizPassRequired(false)}
+                          className={`flex items-center gap-2 p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
+                            !isQuizPassRequired
+                              ? "border-purple-500 bg-white ring-2 ring-purple-100 shadow-2xs"
+                              : "border-purple-100 bg-white/60 hover:bg-white"
+                          }`}
+                        >
+                          <span className="text-base leading-none">📝</span>
+                          <span>
+                            <span className="block text-xs font-bold text-slate-800">
+                              تسليم عادي
+                            </span>
+                            <span className="block text-[10px] text-slate-500 mt-0.5">
+                              يكفي حل وتسليم الاختبار لفتح المحتوى القادم
+                            </span>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsQuizPassRequired(true);
+                            setAllowMultipleAttempts(true);
+                            setIsQuizOptional(false);
+                          }}
+                          className={`flex items-center gap-2 p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
+                            isQuizPassRequired
+                              ? "border-emerald-500 bg-white ring-2 ring-emerald-100 shadow-2xs"
+                              : "border-purple-100 bg-white/60 hover:bg-white"
+                          }`}
+                        >
+                          <span className="text-base leading-none">🎯</span>
+                          <span>
+                            <span className="block text-xs font-bold text-slate-800">
+                              اشتراط درجة النجاح
+                            </span>
+                            <span className="block text-[10px] text-slate-500 mt-0.5">
+                              يجب النجاح للتقدم (يُفعّل المحاولات المتعددة تلقائياً)
                             </span>
                           </span>
                         </button>
@@ -1693,7 +1758,10 @@ export function LessonEditorModal({
                       </button>
                       <button
                         type="button"
-                        onClick={() => setIsHomeworkOptional(true)}
+                        onClick={() => {
+                          setIsHomeworkOptional(true);
+                          setIsHomeworkPassRequired(false);
+                        }}
                         className={`flex items-center gap-2 p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
                           isHomeworkOptional
                             ? "border-emerald-500 bg-white ring-2 ring-emerald-100 shadow-2xs"
@@ -1710,6 +1778,56 @@ export function LessonEditorModal({
                           </span>
                         </span>
                       </button>
+                    </div>
+
+                    {/* Homework Passing Score Requirement Selector */}
+                    <div className="pt-2 border-t border-blue-100/60 space-y-1.5">
+                      <label className="block text-[11px] font-bold text-slate-800">
+                        اشتراط اجتياز درجة النجاح للمتابعة:
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsHomeworkPassRequired(false)}
+                          className={`flex items-center gap-2 p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
+                            !isHomeworkPassRequired
+                              ? "border-blue-500 bg-white ring-2 ring-blue-100 shadow-2xs"
+                              : "border-blue-100 bg-white/60 hover:bg-white"
+                          }`}
+                        >
+                          <span className="text-base leading-none">📝</span>
+                          <span>
+                            <span className="block text-xs font-bold text-slate-800">
+                              تسليم عادي
+                            </span>
+                            <span className="block text-[10px] text-slate-500 mt-0.5">
+                              يكفي حل وتسليم الواجب لفتح المحتوى القادم
+                            </span>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsHomeworkPassRequired(true);
+                            setIsHomeworkOptional(false);
+                          }}
+                          className={`flex items-center gap-2 p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
+                            isHomeworkPassRequired
+                              ? "border-emerald-500 bg-white ring-2 ring-emerald-100 shadow-2xs"
+                              : "border-blue-100 bg-white/60 hover:bg-white"
+                          }`}
+                        >
+                          <span className="text-base leading-none">🎯</span>
+                          <span>
+                            <span className="block text-xs font-bold text-slate-800">
+                              اشتراط درجة النجاح
+                            </span>
+                            <span className="block text-[10px] text-slate-500 mt-0.5">
+                              يجب النجاح للتقدم (يُتاح للطالب الإعادة حتى يجتاز)
+                            </span>
+                          </span>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="pt-2 flex items-center justify-between text-xs text-slate-600">

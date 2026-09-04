@@ -851,6 +851,7 @@ model Assessment {
   isPublished     Boolean        @default(true) @map("is_published")
   allowMultipleAttempts Boolean  @default(false) @map("allow_multiple_attempts")
   isOptional            Boolean  @default(false) @map("is_optional")
+  requirePassingScore   Boolean  @default(false) @map("require_passing_score")
   homeworkDeliveryType HomeworkDeliveryType @default(ONSITE) @map("homework_delivery_type")
   timingType      ExamTimingType? @default(FIXED_SESSION) @map("timing_type")
   startTime       DateTime?      @map("start_time") @db.Timestamptz(6)
