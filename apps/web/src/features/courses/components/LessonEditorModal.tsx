@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   X,
   Video,
@@ -58,7 +59,9 @@ export function LessonEditorModal({
   lesson,
   onClose,
 }: LessonEditorModalProps) {
+  const router = useRouter();
   const isEditing = !!lesson;
+  const [isSavingAndRedirecting, setIsSavingAndRedirecting] = useState(false);
   const createMutation = useCreateLesson(courseId);
   const updateMutation = useUpdateLesson(courseId);
   const addAttachmentMutation = useAddAttachment(courseId);
@@ -435,6 +438,99 @@ export function LessonEditorModal({
         setBunnyVideoId(initialBunnyVideoIdRef.current || "");
         setVideoEmbedUrl("");
       }
+    }
+  };
+
+  const handleSaveAndCreateAssessment = async (assessmentType: "EXAM" | "ASSIGNMENT") => {
+    if (!title.trim()) {
+      toast.error("يرجى إدخال عنوان الدرس أولاً لحفظه وربط الاختبار به");
+      setActiveTab("video");
+      return;
+    }
+    if (title.trim().length < 3) {
+      toast.error("عنوان الدرس يجب أن يتكون من 3 أحرف على الأقل");
+      setActiveTab("video");
+      return;
+    }
+
+    const stagedAttachments = attachments
+      .filter((a) => a.id.startsWith("staged-"))
+      .map((a) => ({
+        title: a.title,
+        fileUrl: a.fileUrl,
+        fileKey: a.fileKey,
+        fileSize: a.fileSize || undefined,
+        fileType: a.fileType || "application/pdf",
+      }));
+
+    const payload = {
+      title: title.trim(),
+      description: description.trim() || undefined,
+      summary: summary.trim() || undefined,
+      lessonType,
+      bunnyVideoId: bunnyVideoId && !bunnyVideoId.startsWith("r2:") ? bunnyVideoId : undefined,
+      contentUrl: videoEmbedUrl || (bunnyVideoId && bunnyVideoId.startsWith("r2:") ? videoEmbedUrl : undefined),
+      videoDurationSeconds: Number(videoDurationSeconds) || 0,
+      isFreePreview,
+      isPreview: isFreePreview,
+      lessonQuizId: lessonQuizId || undefined,
+      attachments: stagedAttachments.length > 0 ? stagedAttachments : undefined,
+    };
+
+    try {
+      setIsSavingAndRedirecting(true);
+      // Mark as submitted so unmount cleanup hook never deletes the uploaded video/files
+      isSubmittedRef.current = true;
+
+      let targetLessonId = lesson?.id;
+
+      if (isEditing && lesson) {
+        await updateMutation.mutateAsync({
+          lessonId: lesson.id,
+          data: payload,
+        });
+        targetLessonId = lesson.id;
+      } else {
+        const newLesson = await createMutation.mutateAsync({
+          moduleId,
+          data: payload,
+        });
+        targetLessonId = newLesson?.id;
+
+        if (
+          newLesson?.id &&
+          stagedAttachments.length > 0 &&
+          (!newLesson.attachments || newLesson.attachments.length === 0)
+        ) {
+          for (const att of stagedAttachments) {
+            await addAttachmentMutation.mutateAsync({
+              lessonId: newLesson.id,
+              data: att,
+            });
+          }
+        }
+      }
+
+      if (lessonQuizId) {
+        try {
+          await updateAssessment(lessonQuizId, { allowMultipleAttempts });
+        } catch {
+          // ignore
+        }
+      }
+
+      toast.success(
+        "تم حفظ الدرس والفيديو بنجاح! جاري فتح نموذج إنشاء " +
+          (assessmentType === "ASSIGNMENT" ? "الواجب..." : "الاختبار..."),
+      );
+
+      router.push(
+        `/teacher/assessments/new?type=${assessmentType}&courseId=${courseId}&moduleId=${moduleId}&lessonId=${targetLessonId}&lessonTitle=${encodeURIComponent(title.trim())}&scope=LESSON`,
+      );
+    } catch (err: any) {
+      isSubmittedRef.current = false;
+      setIsSavingAndRedirecting(false);
+      toast.error(err?.message || "تعذر حفظ الدرس قبل الانتقال للاختبار");
     }
   };
 
@@ -1074,32 +1170,36 @@ export function LessonEditorModal({
                       اختر الاختبار أو الواجب المرتبط:
                     </label>
                     <div className="flex items-center gap-2">
-                      <a
-                        href={
-                          lesson?.id
-                            ? `/teacher/assessments/new?type=EXAM&courseId=${courseId}&moduleId=${moduleId}&lessonId=${lesson.id}&lessonTitle=${encodeURIComponent(lesson?.title || title || '')}&scope=LESSON`
-                            : `/teacher/assessments/new?type=EXAM&courseId=${courseId}&moduleId=${moduleId}&scope=UNIT`
-                        }
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-primary-600 hover:text-primary-700 bg-white hover:bg-primary-50 border border-primary-200 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer"
-                        title="إنشاء اختبار جديد وربطه تلقائياً بهذا الدرس"
+                      <button
+                        type="button"
+                        disabled={isSavingAndRedirecting}
+                        onClick={() => handleSaveAndCreateAssessment("EXAM")}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-primary-600 hover:text-primary-700 bg-white hover:bg-primary-50 border border-primary-200 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+                        title="حفظ الدرس أولاً ثم إنشاء اختبار وربطه تلقائياً به"
                       >
-                        <Plus className="w-3.5 h-3.5" />
+                        {isSavingAndRedirecting ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Plus className="w-3.5 h-3.5" />
+                        )}
                         <span>إنشاء اختبار جديد</span>
                         <ExternalLink className="w-3 h-3 mr-0.5 text-primary-400" />
-                      </a>
-                      <a
-                        href={
-                          lesson?.id
-                            ? `/teacher/assessments/new?type=ASSIGNMENT&courseId=${courseId}&moduleId=${moduleId}&lessonId=${lesson.id}&lessonTitle=${encodeURIComponent(lesson?.title || title || '')}&scope=LESSON`
-                            : `/teacher/assessments/new?type=ASSIGNMENT&courseId=${courseId}&moduleId=${moduleId}&scope=UNIT`
-                        }
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-slate-800 bg-white hover:bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer"
-                        title="إنشاء واجب جديد وربطه تلقائياً بهذا الدرس"
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isSavingAndRedirecting}
+                        onClick={() => handleSaveAndCreateAssessment("ASSIGNMENT")}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-slate-800 bg-white hover:bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+                        title="حفظ الدرس أولاً ثم إنشاء واجب وربطه تلقائياً به"
                       >
-                        <Plus className="w-3.5 h-3.5" />
+                        {isSavingAndRedirecting ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Plus className="w-3.5 h-3.5" />
+                        )}
                         <span>إنشاء واجب</span>
                         <ExternalLink className="w-3 h-3 mr-0.5 text-slate-400" />
-                      </a>
+                      </button>
                     </div>
                   </div>
 
@@ -1114,18 +1214,20 @@ export function LessonEditorModal({
                         ستظهر في هذه القائمة مباشرة لربطها بالدرس.
                       </p>
                       <div className="pt-1 flex justify-center gap-2">
-                        <a
-                          href={
-                            lesson?.id
-                              ? `/teacher/assessments/new?type=EXAM&courseId=${courseId}&moduleId=${moduleId}&lessonId=${lesson.id}&lessonTitle=${encodeURIComponent(lesson?.title || title || '')}&scope=LESSON`
-                              : `/teacher/assessments/new?type=EXAM&courseId=${courseId}&moduleId=${moduleId}&scope=UNIT`
-                          }
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+                        <button
+                          type="button"
+                          disabled={isSavingAndRedirecting}
+                          onClick={() => handleSaveAndCreateAssessment("EXAM")}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50"
                         >
-                          <Plus className="w-3.5 h-3.5" />
+                          {isSavingAndRedirecting ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Plus className="w-3.5 h-3.5" />
+                          )}
                           <span>إنشاء اختبار جديد لهذا الدرس</span>
                           <ExternalLink className="w-3 h-3 mr-0.5" />
-                        </a>
+                        </button>
                       </div>
                     </div>
                   ) : (
@@ -1148,10 +1250,11 @@ export function LessonEditorModal({
                           </option>
                         ))}
                       </select>
-                      <p className="text-[11px] text-slate-400">
-                        💡 يمكنك النقر على <strong>"إنشاء اختبار جديد"</strong>{" "}
-                        بالأعلى لفتح نموذج إنشاء الاختبارات وربطه تلقائياً بهذا
-                        الكورس.
+                      <p className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-2">
+                        <span className="text-amber-500">✨</span>
+                        <span>
+                          عند النقر على <strong>"إنشاء اختبار جديد"</strong>، سيتم حفظ الدرس الحالي وفيديوهاته أولاً تلقائياً، ثم فتح منشئ الاختبارات وربط الاختبار فوراً بهذا الدرس.
+                        </span>
                       </p>
                     </div>
                   )}
