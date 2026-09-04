@@ -20,6 +20,7 @@ import {
   HelpCircle,
   FileText,
   AlertCircle,
+  RotateCcw,
 } from 'lucide-react';
 import { useStudentCourses } from '@/features/student-portal/hooks/useStudentPortal';
 import { useEnrollInCourse } from '@/features/student-portal/hooks/useStudentPortal';
@@ -50,7 +51,7 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
   const enrollment = myCourses.find((c: any) => c.courseId === courseId || c.id === courseId);
   const isEnrolled = enrollment && (enrollment.enrollmentStatus === 'ACTIVE' || (!enrollment.enrollmentStatus && enrollment.accessStatus === 'ACTIVE'));
   const isPending = enrollment?.enrollmentStatus === 'PENDING';
-  const isRejected = enrollment?.enrollmentStatus === 'DROPPED';
+  const isDropped = enrollment?.enrollmentStatus === 'DROPPED';
 
   useEffect(() => {
     async function fetchCourseDetails() {
@@ -210,14 +211,14 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
                 <Clock className="w-4 h-4 animate-pulse" />
                 <span>طلبك قيد المراجعة ⏳ (عرض تفاصيل الإيصال)</span>
               </button>
-            ) : isRejected ? (
+            ) : isDropped ? (
               <button
                 type="button"
                 onClick={() => setIsSubscriptionModalOpen(true)}
-                className="w-full py-3.5 px-6 rounded-xl font-bold bg-rose-600 hover:bg-rose-700 text-white transition-all shadow-lg flex items-center justify-center gap-2 text-sm cursor-pointer"
+                className="w-full py-3.5 px-6 rounded-xl font-bold bg-primary-600 hover:bg-primary-700 text-white transition-all shadow-lg shadow-primary-500/25 flex items-center justify-center gap-2 text-sm cursor-pointer"
               >
-                <AlertCircle className="w-4 h-4" />
-                <span>تم الرفض • إعادة إرسال الإيصال</span>
+                <RotateCcw className="w-4 h-4" />
+                <span>إعادة الاشتراك في الكورس</span>
               </button>
             ) : (
               <button
@@ -394,6 +395,15 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
                 >
                   <Clock className="w-3.5 h-3.5 animate-pulse" />
                   <span>طلبك قيد المراجعة ⏳</span>
+                </button>
+              ) : isDropped ? (
+                <button
+                  type="button"
+                  onClick={() => setIsSubscriptionModalOpen(true)}
+                  className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold text-xs transition-colors shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>إعادة الاشتراك في الكورس</span>
                 </button>
               ) : (
                 <button

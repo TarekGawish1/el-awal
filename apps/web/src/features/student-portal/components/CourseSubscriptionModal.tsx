@@ -169,14 +169,20 @@ export function CourseSubscriptionModal({
           )}
 
           {isRejected && (
-            <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 flex items-start gap-3">
-              <div className="p-2 rounded-xl bg-rose-100 text-rose-700 shrink-0 mt-0.5">
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-amber-100 text-amber-700 shrink-0 mt-0.5">
                 <AlertCircle className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-rose-900">تعذر تأكيد التحويل السابق</h4>
-                <p className="text-xs text-rose-700 mt-1 leading-relaxed">
-                  سبب الرفض: <strong>{subStatus.rejectionReason}</strong>. يمكنك إعادة إرفاق صورة إيصال واضحة أدناه للمراجعة مجدداً.
+                <h4 className="text-xs font-bold text-amber-900">
+                  {subStatus.rejectionReason?.includes('إلغاء')
+                    ? 'تم إلغاء الاشتراك السابق في الكورس'
+                    : 'ملاحظات بخصوص طلب الاشتراك السابق'}
+                </h4>
+                <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                  {subStatus.rejectionReason?.includes('إلغاء')
+                    ? `${subStatus.rejectionReason} يمكنك الاشتراك مجدداً وتأكيد التحويل أدناه.`
+                    : `السبب: ${subStatus.rejectionReason}. يمكنك إرسال طلب اشتراك جديد وإرفاق صورة الإيصال أدناه.`}
                 </p>
               </div>
             </div>
