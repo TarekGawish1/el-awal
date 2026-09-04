@@ -47,6 +47,7 @@ import { LessonEditorModal } from './LessonEditorModal';
 import { EditCourseModal } from './EditCourseModal';
 import { CourseGroupAccessModal } from './CourseGroupAccessModal';
 import { CourseEnrollmentsTab } from './CourseEnrollmentsTab';
+import { useQueryClient } from '@tanstack/react-query';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import toast from 'react-hot-toast';
 
@@ -55,7 +56,8 @@ interface CourseBuilderViewProps {
 }
 
 export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
-  const { data: course, isLoading } = useCourseDetail(courseId);
+  const queryClient = useQueryClient();
+  const { data: course, isLoading, refetch: refetchCourse } = useCourseDetail(courseId);
   const updateCourseMutation = useUpdateCourse(courseId);
   const createModuleMutation = useCreateModule(courseId);
   const updateModuleMutation = useUpdateModule(courseId);
@@ -100,6 +102,15 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
   const urlNewAssessmentType = searchParams.get('newAssessmentType');
   const urlNewAssessmentTitle = searchParams.get('newAssessmentTitle');
 
+  // Refetch course and stream-auth when arriving with a lesson in the URL
+  useEffect(() => {
+    if (urlLessonId && courseId) {
+      refetchCourse();
+      queryClient.invalidateQueries({ queryKey: ['courses', courseId] });
+      queryClient.invalidateQueries({ queryKey: ['lesson-stream-auth', urlLessonId] });
+    }
+  }, [urlLessonId, courseId]);
+
   // Auto-open Lesson Modal when redirected back from assessment creation
   useEffect(() => {
     if (!urlLessonId || !course?.modules) return;
@@ -119,6 +130,20 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
       }
     }
   }, [urlLessonId, urlNewAssessmentId, urlNewAssessmentType, urlNewAssessmentTitle, course?.modules]);
+
+  // Keep open lesson in sync with the latest course data
+  useEffect(() => {
+    if (!lessonModalState.isOpen || !lessonModalState.lesson?.id || !course?.modules) return;
+    const freshLesson = course.modules
+      .flatMap((m) => m.lessons || [])
+      .find((l) => l.id === lessonModalState.lesson?.id);
+    if (freshLesson && freshLesson !== lessonModalState.lesson) {
+      setLessonModalState((prev) => ({
+        ...prev,
+        lesson: freshLesson,
+      }));
+    }
+  }, [course?.modules, lessonModalState.isOpen, lessonModalState.lesson?.id]);
 
   // Custom Delete Modals State (No JS Confirm)
   const [moduleToDelete, setModuleToDelete] = useState<{ id: string; title: string } | null>(null);

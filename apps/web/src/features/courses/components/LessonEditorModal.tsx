@@ -145,9 +145,10 @@ export function LessonEditorModal({
     cancelUpload: cancelBackgroundUpload,
     getTaskForLesson,
     attachLessonIdToTask,
+    dismissTask,
   } = useVideoUploadManager();
 
-  const backgroundUploadTask = getTaskForLesson(lesson?.id);
+  const backgroundUploadTask = getTaskForLesson(lesson?.id, moduleId);
 
   // Merge general assessments with any specific assessments linked on the lesson object
   const allAvailableAssessments = React.useMemo(() => {
@@ -219,14 +220,17 @@ export function LessonEditorModal({
       setIsUploadingVideo(false);
       setIsInspectingVideo(false);
       setVideoUploadProgress(100);
-      if (backgroundUploadTask.videoId && !bunnyVideoId) {
-        setBunnyVideoId(backgroundUploadTask.videoId);
+      if (backgroundUploadTask.videoId) {
+        setBunnyVideoId((prev) => prev || backgroundUploadTask.videoId || "");
       }
-      if (backgroundUploadTask.embedUrl && !videoEmbedUrl) {
-        setVideoEmbedUrl(backgroundUploadTask.embedUrl);
+      if (backgroundUploadTask.embedUrl) {
+        setVideoEmbedUrl((prev) => prev || backgroundUploadTask.embedUrl || "");
       }
-      if (backgroundUploadTask.durationSeconds && videoDurationSeconds === 1800) {
-        setVideoDurationSeconds(backgroundUploadTask.durationSeconds);
+      if (backgroundUploadTask.durationSeconds) {
+        setVideoDurationSeconds((prev) => (prev === 1800 ? backgroundUploadTask.durationSeconds! : prev));
+      }
+      if (backgroundUploadTask.fileName) {
+        setUploadedVideoName((prev) => prev || backgroundUploadTask.fileName || "");
       }
     } else if (
       backgroundUploadTask.status === "error" ||
@@ -235,7 +239,7 @@ export function LessonEditorModal({
       setIsUploadingVideo(false);
       setIsInspectingVideo(false);
     }
-  }, [backgroundUploadTask, bunnyVideoId, videoEmbedUrl, videoDurationSeconds]);
+  }, [backgroundUploadTask]);
 
   // Auto-select and auto-link newly created assessment passed via props
   useEffect(() => {
@@ -278,9 +282,37 @@ export function LessonEditorModal({
       setDescription(lesson.description || "");
       setSummary(lesson.summary || "");
       setLessonType(lesson.lessonType || "VIDEO");
-      setBunnyVideoId(lesson.bunnyVideoId || "");
-      setVideoEmbedUrl("");
-      setVideoDurationSeconds(lesson.videoDurationSeconds || 1800);
+
+      // DO NOT wipe bunnyVideoId or videoEmbedUrl if background task, streamAuth, or state already has it!
+      const resolvedVideoId =
+        lesson.bunnyVideoId ||
+        backgroundUploadTask?.videoId ||
+        streamAuth?.videoId ||
+        bunnyVideoId ||
+        "";
+      if (resolvedVideoId) {
+        setBunnyVideoId(resolvedVideoId);
+      }
+
+      const resolvedEmbedUrl =
+        videoEmbedUrl ||
+        backgroundUploadTask?.embedUrl ||
+        streamAuth?.embedUrl ||
+        "";
+      if (resolvedEmbedUrl) {
+        setVideoEmbedUrl(resolvedEmbedUrl);
+      }
+
+      if (backgroundUploadTask?.fileName && !uploadedVideoName) {
+        setUploadedVideoName(backgroundUploadTask.fileName);
+      }
+
+      const resolvedDuration =
+        lesson.videoDurationSeconds ||
+        backgroundUploadTask?.durationSeconds ||
+        1800;
+      setVideoDurationSeconds(resolvedDuration);
+
       setIsFreePreview(lesson.isPreview || false);
       setAttachments(lesson.attachments || []);
 
@@ -371,12 +403,15 @@ export function LessonEditorModal({
     onClose();
   };
 
-  // Sync streamAuth embed URL when available
+  // Sync streamAuth embed URL and videoId when available
   useEffect(() => {
-    if (streamAuth?.embedUrl && !videoEmbedUrl) {
-      setVideoEmbedUrl(streamAuth.embedUrl);
+    if (streamAuth?.videoId) {
+      setBunnyVideoId((prev) => prev || streamAuth.videoId);
     }
-  }, [streamAuth, videoEmbedUrl]);
+    if (streamAuth?.embedUrl) {
+      setVideoEmbedUrl((prev) => prev || streamAuth.embedUrl);
+    }
+  }, [streamAuth]);
 
   // Reflect the selected quiz's current attempt policy in the toggle (or reset when none).
   useEffect(() => {
@@ -492,8 +527,12 @@ export function LessonEditorModal({
   };
 
   const handleRemoveVideo = async () => {
-    if (bunnyVideoId) {
-      coursesApi.deleteUploadedFile(`bunny:${bunnyVideoId}`);
+    const videoToDelete = bunnyVideoId || backgroundUploadTask?.videoId;
+    if (videoToDelete) {
+      coursesApi.deleteUploadedFile(`bunny:${videoToDelete}`);
+    }
+    if (backgroundUploadTask) {
+      dismissTask(backgroundUploadTask.id);
     }
     setBunnyVideoId("");
     setVideoEmbedUrl("");
@@ -521,14 +560,25 @@ export function LessonEditorModal({
         fileType: a.fileType || "application/pdf",
       }));
 
+    const effectiveVideoId =
+      (bunnyVideoId && !bunnyVideoId.startsWith("r2:") ? bunnyVideoId : undefined) ||
+      backgroundUploadTask?.videoId ||
+      streamAuth?.videoId;
+
+    const effectiveContentUrl =
+      videoEmbedUrl ||
+      (bunnyVideoId && bunnyVideoId.startsWith("r2:") ? videoEmbedUrl : undefined) ||
+      backgroundUploadTask?.embedUrl ||
+      streamAuth?.embedUrl;
+
     const payload = {
       title: title.trim(),
       description: description.trim() || undefined,
       summary: summary.trim() || undefined,
       lessonType,
-      bunnyVideoId: bunnyVideoId && !bunnyVideoId.startsWith("r2:") ? bunnyVideoId : undefined,
-      contentUrl: videoEmbedUrl || (bunnyVideoId && bunnyVideoId.startsWith("r2:") ? videoEmbedUrl : undefined),
-      videoDurationSeconds: Number(videoDurationSeconds) || 0,
+      bunnyVideoId: effectiveVideoId,
+      contentUrl: effectiveContentUrl,
+      videoDurationSeconds: Number(videoDurationSeconds) || backgroundUploadTask?.durationSeconds || 0,
       isFreePreview,
       isPreview: isFreePreview,
       lessonQuizId: lessonQuizId || undefined,
@@ -632,14 +682,25 @@ export function LessonEditorModal({
         fileType: a.fileType || "application/pdf",
       }));
 
+    const effectiveVideoId =
+      (bunnyVideoId && !bunnyVideoId.startsWith("r2:") ? bunnyVideoId : undefined) ||
+      backgroundUploadTask?.videoId ||
+      streamAuth?.videoId;
+
+    const effectiveContentUrl =
+      videoEmbedUrl ||
+      (bunnyVideoId && bunnyVideoId.startsWith("r2:") ? videoEmbedUrl : undefined) ||
+      backgroundUploadTask?.embedUrl ||
+      streamAuth?.embedUrl;
+
     const payload = {
       title: title.trim(),
       description: description.trim() || undefined,
       summary: summary.trim() || undefined,
       lessonType,
-      bunnyVideoId: bunnyVideoId && !bunnyVideoId.startsWith("r2:") ? bunnyVideoId : undefined,
-      contentUrl: videoEmbedUrl || (bunnyVideoId && bunnyVideoId.startsWith("r2:") ? videoEmbedUrl : undefined),
-      videoDurationSeconds: Number(videoDurationSeconds) || 0,
+      bunnyVideoId: effectiveVideoId,
+      contentUrl: effectiveContentUrl,
+      videoDurationSeconds: Number(videoDurationSeconds) || backgroundUploadTask?.durationSeconds || 0,
       isFreePreview,
       isPreview: isFreePreview,
       lessonQuizId: lessonQuizId || undefined,
@@ -934,7 +995,7 @@ export function LessonEditorModal({
                       <Sparkles className="w-3 h-3 text-blue-600" />
                       <span>ضغط سحابي ذكي متعدد الجودات</span>
                     </span>
-                    {bunnyVideoId && (
+                    {Boolean(bunnyVideoId || streamAuth?.videoId || backgroundUploadTask?.videoId) && (
                       <span className="text-[11px] font-bold bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
                         <CheckCircle className="w-3 h-3 text-emerald-600" />
                         <span>تم ربط وتجهيز الفيديو بنجاح</span>
@@ -955,27 +1016,31 @@ export function LessonEditorModal({
                 )}
 
                 {/* Uploaded Video Preview Player Card */}
-                {bunnyVideoId ? (
+                {Boolean(bunnyVideoId || videoEmbedUrl || streamAuth?.videoId || backgroundUploadTask?.videoId) ? (
                   <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg space-y-0">
                     <div
                       className="relative w-full aspect-video bg-black rounded-t-2xl overflow-hidden flex items-center justify-center"
                       style={{ aspectRatio: "16 / 9", width: "100%" }}
                     >
-                      {videoEmbedUrl?.includes('.b-cdn.net') || videoEmbedUrl?.includes('iframe.mediadelivery.net') || streamAuth?.embedUrl ? (
+                      {(videoEmbedUrl || streamAuth?.embedUrl || backgroundUploadTask?.embedUrl)?.includes('.b-cdn.net') ||
+                      (videoEmbedUrl || streamAuth?.embedUrl || backgroundUploadTask?.embedUrl)?.includes('iframe.mediadelivery.net') ||
+                      streamAuth?.embedUrl ? (
                         <iframe
-                          src={videoEmbedUrl || streamAuth?.embedUrl}
+                          src={videoEmbedUrl || streamAuth?.embedUrl || backgroundUploadTask?.embedUrl}
                           loading="lazy"
                           className="w-full h-full border-0 absolute inset-0 block"
                           style={{ width: "100%", height: "100%", border: 0 }}
                           allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
                           allowFullScreen
                         />
-                      ) : videoEmbedUrl ? (
-                        <video
-                          src={videoEmbedUrl}
-                          controls
-                          className="w-full h-full object-contain"
-                          style={{ width: "100%", height: "100%" }}
+                      ) : (videoEmbedUrl || streamAuth?.embedUrl || backgroundUploadTask?.embedUrl) ? (
+                        <iframe
+                          src={videoEmbedUrl || streamAuth?.embedUrl || backgroundUploadTask?.embedUrl}
+                          loading="lazy"
+                          className="w-full h-full border-0 absolute inset-0 block"
+                          style={{ width: "100%", height: "100%", border: 0 }}
+                          allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
+                          allowFullScreen
                         />
                       ) : (
                         <div className="text-center p-6 text-slate-400 space-y-2">
@@ -993,10 +1058,10 @@ export function LessonEditorModal({
                         </div>
                         <div className="truncate">
                           <p className="text-xs font-bold text-white truncate">
-                            {uploadedVideoName || "فيديو الشرح المباشر"}
+                            {uploadedVideoName || backgroundUploadTask?.fileName || "فيديو الشرح المباشر"}
                           </p>
                           <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono truncate">
-                            <span>ID: {bunnyVideoId}</span>
+                            <span>ID: {bunnyVideoId || streamAuth?.videoId || backgroundUploadTask?.videoId}</span>
                             {videoMeta && (
                               <span className="text-emerald-400">
                                 • {videoMeta.qualityLabel} ({videoMeta.formattedSize})

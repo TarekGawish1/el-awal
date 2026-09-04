@@ -65,7 +65,10 @@ interface VideoUploadManagerContextType {
   startUpload: (options: StartUploadOptions) => Promise<string>;
   cancelUpload: (taskId: string) => void;
   dismissTask: (taskId: string) => void;
-  getTaskForLesson: (lessonId?: string) => VideoUploadTask | undefined;
+  getTaskForLesson: (
+    lessonId?: string,
+    moduleId?: string,
+  ) => VideoUploadTask | undefined;
   attachLessonIdToTask: (taskId: string, lessonId: string) => void;
 }
 
@@ -137,19 +140,44 @@ export function VideoUploadManagerProvider({
   }, []);
 
   const getTaskForLesson = useCallback(
-    (lessonId?: string) => {
-      if (!lessonId) return undefined;
-      const allTasks = Object.values(tasksRef.current);
-      return allTasks.find(
-        (t) =>
-          t.lessonId === lessonId &&
-          (t.status === 'uploading' ||
-            t.status === 'inspecting' ||
-            t.status === 'processing' ||
-            t.status === 'completed'),
-      );
+    (lessonId?: string, moduleId?: string) => {
+      const allTasks = Object.values(tasks);
+      if (lessonId) {
+        const direct = allTasks.find(
+          (t) =>
+            (t.lessonId === lessonId || t.id === lessonId) &&
+            (t.status === 'uploading' ||
+              t.status === 'inspecting' ||
+              t.status === 'processing' ||
+              t.status === 'completed'),
+        );
+        if (direct) return direct;
+      }
+      if (moduleId) {
+        const byMod = allTasks.find(
+          (t) =>
+            t.moduleId === moduleId &&
+            (t.status === 'uploading' ||
+              t.status === 'inspecting' ||
+              t.status === 'processing' ||
+              t.status === 'completed'),
+        );
+        if (byMod) return byMod;
+      }
+      if (allTasks.length === 1) {
+        const only = allTasks[0];
+        if (
+          only.status === 'uploading' ||
+          only.status === 'inspecting' ||
+          only.status === 'processing' ||
+          only.status === 'completed'
+        ) {
+          return only;
+        }
+      }
+      return undefined;
     },
-    [],
+    [tasks],
   );
 
   const startUpload = useCallback(
@@ -307,6 +335,9 @@ export function VideoUploadManagerProvider({
                     videoDurationSeconds: metaDuration,
                   });
                   queryClient.invalidateQueries({ queryKey: ['courses'] });
+                  queryClient.invalidateQueries({
+                    queryKey: ['lesson-stream-auth', targetLessonId],
+                  });
                 } catch (saveErr) {
                   console.warn('Auto background update of lesson failed:', saveErr);
                 }
