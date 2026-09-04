@@ -21,6 +21,7 @@ import { CreateQuestionDto } from './create-question.dto';
 export enum AssessmentCourseLinkScope {
   COURSE = 'COURSE',
   UNIT = 'UNIT',
+  LESSON = 'LESSON',
 }
 
 export class CreateAssessmentDto {

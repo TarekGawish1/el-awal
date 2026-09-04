@@ -104,6 +104,14 @@ export class CreateCourseDto {
   enforceSequentialLessons?: boolean;
 
   @ApiPropertyOptional({
+    description: 'If true, students must pass the quiz (achieve passingScore) instead of just submitting to unlock next lesson',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  requireExamPassingToUnlock?: boolean;
+
+  @ApiPropertyOptional({
     description: 'Whether students receive a certificate after completing the course',
     example: true,
     default: true,

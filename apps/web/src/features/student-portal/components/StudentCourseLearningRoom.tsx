@@ -517,11 +517,25 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     const lessonId = selectedLessonId;
     const nextCompleted = !isLessonCompleted;
 
-    // Enforce quiz requirement: student cannot mark lesson complete if quiz has not been submitted
-    if (nextCompleted && lessonViewer?.lessonQuiz && !lessonViewer.lessonQuiz.mySubmission) {
-      toast.error('لا يمكن إتمام هذا الدرس قبل حل واجتياز اختباره الإلكتروني بنجاح 📝');
-      setActiveTab('quiz');
-      return;
+    // Enforce quiz requirement: student cannot mark lesson complete if quiz has not been submitted or passed
+    if (nextCompleted && lessonViewer?.lessonQuiz) {
+      if (!lessonViewer.lessonQuiz.mySubmission) {
+        toast.error('لا يمكن إتمام هذا الدرس قبل حل وتسليم اختباره الإلكتروني 📝');
+        setActiveTab('quiz');
+        return;
+      }
+      if (course?.requireExamPassingToUnlock) {
+        const passScore = lessonViewer.lessonQuiz.passingScore ?? 0;
+        const score = lessonViewer.lessonQuiz.mySubmission.scoreObtained ?? 0;
+        const passed = lessonViewer.lessonQuiz.mySubmission.isPassed ?? (score >= passScore);
+        if (!passed) {
+          toast.error(
+            `يجب اجتياز الاختبار بدرجة النجاح (${passScore} من ${lessonViewer.lessonQuiz.totalScore}) لإتمام هذا الدرس والتقدم 🎯`,
+          );
+          setActiveTab('quiz');
+          return;
+        }
+      }
     }
 
     // Optimistic UI update
@@ -962,12 +976,13 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         <div className="hidden lg:block lg:col-span-4">
           <div className="sticky top-6">
             <CourseSyllabusSidebar
-              modules={course.modules || []}
+              modules={course?.modules || []}
               allLessons={allLessons}
               activeLessonId={selectedLessonId}
               onSelectLesson={(id) => setSelectedLessonId(id)}
               completedLessonIds={completedLessonIds}
-              enforceSequentialLessons={course.enforceSequentialLessons ?? false}
+              enforceSequentialLessons={course?.enforceSequentialLessons ?? false}
+              requireExamPassingToUnlock={course?.requireExamPassingToUnlock ?? false}
             />
           </div>
         </div>
@@ -989,7 +1004,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
             </div>
             <div className="py-4 flex-1">
               <CourseSyllabusSidebar
-                modules={course.modules || []}
+                modules={course?.modules || []}
                 allLessons={allLessons}
                 activeLessonId={selectedLessonId}
                 onSelectLesson={(id) => {
@@ -997,7 +1012,8 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                   setIsMobileSyllabusOpen(false);
                 }}
                 completedLessonIds={completedLessonIds}
-                enforceSequentialLessons={course.enforceSequentialLessons ?? false}
+                enforceSequentialLessons={course?.enforceSequentialLessons ?? false}
+                requireExamPassingToUnlock={course?.requireExamPassingToUnlock ?? false}
               />
             </div>
           </div>

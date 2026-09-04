@@ -111,4 +111,23 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       this.logger.debug(`Emitted 'inquiries:changed' to user [${userId}]`);
     }
   }
+
+  /**
+   * Broadcasts a lightweight "changed" signal to the given users' private rooms.
+   * Clients listening on `course-subscriptions:changed` should invalidate their
+   * `teacher-subscriptions`, `my-courses`, and related queries immediately without polling.
+   */
+  notifyCourseSubscriptionsChanged(userIds: (string | undefined)[]) {
+    if (!this.server) return;
+
+    const payload = { updatedAt: new Date().toISOString() };
+    const seen = new Set<string>();
+
+    for (const userId of userIds) {
+      if (!userId || seen.has(userId)) continue;
+      seen.add(userId);
+      this.server.to(`user:${userId}`).emit('course-subscriptions:changed', payload);
+      this.logger.debug(`Emitted 'course-subscriptions:changed' to user [${userId}]`);
+    }
+  }
 }

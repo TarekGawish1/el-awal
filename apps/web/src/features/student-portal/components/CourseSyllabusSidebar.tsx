@@ -23,6 +23,7 @@ interface CourseSyllabusSidebarProps {
   onSelectQuiz?: (quizId: string) => void;
   completedLessonIds?: string[];
   enforceSequentialLessons?: boolean;
+  requireExamPassingToUnlock?: boolean;
 }
 
 export function CourseSyllabusSidebar({
@@ -33,6 +34,7 @@ export function CourseSyllabusSidebar({
   onSelectQuiz,
   completedLessonIds = [],
   enforceSequentialLessons = false,
+  requireExamPassingToUnlock = false,
 }: CourseSyllabusSidebarProps) {
   const totalLessons = modules.reduce((acc, m) => acc + (m.lessons?.length || 0), 0);
   const completedCount = completedLessonIds.length;
@@ -41,7 +43,7 @@ export function CourseSyllabusSidebar({
   /**
    * Compute the set of unlocked lesson IDs when sequential enforcement is active.
    * - The very first lesson in the course is always unlocked.
-   * - Each subsequent lesson is unlocked only if the lesson directly before it is completed.
+   * - Each subsequent lesson is unlocked only if the lesson directly before it is completed AND its quiz is satisfied.
    */
   const unlockedLessonIds = React.useMemo<Set<string>>(() => {
     const unlocked = new Set<string>();
@@ -63,20 +65,53 @@ export function CourseSyllabusSidebar({
         // First lesson is always accessible
         unlocked.add(lesson.id);
       } else {
-        // Unlock if the previous lesson is completed
         const prev = ordered[i - 1];
-        if (completedLessonIds.includes(prev.id)) {
+        const isPrevCompleted = completedLessonIds.includes(prev.id);
+
+        let isPrevQuizSatisfied = true;
+        if (prev.lessonQuiz) {
+          const submission = prev.lessonQuiz.mySubmission;
+          if (!submission) {
+            isPrevQuizSatisfied = false;
+          } else if (requireExamPassingToUnlock) {
+            const passScore = prev.lessonQuiz.passingScore ?? 0;
+            const score = submission.scoreObtained ?? 0;
+            const passed = submission.isPassed ?? (score >= passScore);
+            if (!passed) {
+              isPrevQuizSatisfied = false;
+            }
+          } else {
+            const submitted = submission.status === 'SUBMITTED' || submission.status === 'GRADED';
+            if (!submitted) {
+              isPrevQuizSatisfied = false;
+            }
+          }
+        }
+
+        if (isPrevCompleted && isPrevQuizSatisfied) {
           unlocked.add(lesson.id);
         }
       }
     }
 
     return unlocked;
-  }, [enforceSequentialLessons, modules, allLessons, completedLessonIds]);
+  }, [enforceSequentialLessons, requireExamPassingToUnlock, modules, allLessons, completedLessonIds]);
 
   const handleLessonClick = (lesson: CourseLesson) => {
     if (!unlockedLessonIds.has(lesson.id)) {
-      toast('يجب إتمام الدرس السابق أولاً قبل الانتقال لهذا الدرس 🔒', { icon: '⚠️' });
+      const ordered: CourseLesson[] = allLessons?.length
+        ? allLessons
+        : modules.flatMap((m) => (m.lessons || []).slice().sort((a, b) => a.orderIndex - b.orderIndex));
+      const idx = ordered.findIndex((l) => l.id === lesson.id);
+      const prev = idx > 0 ? ordered[idx - 1] : null;
+
+      if (prev?.lessonQuiz && !prev.lessonQuiz.mySubmission) {
+        toast(`يجب حل وتسليم اختبار/واجب الدرس السابق (${prev.title}) أولاً لفتح هذا الدرس 📝🔒`, { icon: '⚠️' });
+      } else if (prev?.lessonQuiz && requireExamPassingToUnlock && !prev.lessonQuiz.mySubmission?.isPassed) {
+        toast(`يجب اجتياز اختبار الدرس السابق (${prev.title}) بدرجة النجاح (${prev.lessonQuiz.passingScore} من ${prev.lessonQuiz.totalScore}) لفتح هذا الدرس 🎯🔒`, { icon: '⚠️' });
+      } else {
+        toast('يجب إتمام الدرس السابق أولاً قبل الانتقال لهذا الدرس 🔒', { icon: '⚠️' });
+      }
       return;
     }
     onSelectLesson(lesson.id);

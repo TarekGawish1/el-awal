@@ -123,6 +123,18 @@ export class AssessmentsService {
       if (!courseModule || courseModule.courseId !== dto.courseId) {
         throw new BadRequestException('Module does not belong to the specified course');
       }
+    } else if (dto.courseLinkScope === AssessmentCourseLinkScope.LESSON) {
+      if (!dto.lessonId) {
+        throw new BadRequestException('A lesson ID is required to link a lesson assessment');
+      }
+
+      const courseLesson = await this.prisma.courseLesson.findUnique({
+        where: { id: dto.lessonId },
+        include: { module: true },
+      });
+      if (!courseLesson || courseLesson.module.courseId !== dto.courseId) {
+        throw new BadRequestException('Lesson does not belong to the specified course');
+      }
     }
 
     // 2. Verify sum of question points matches total assessment score
@@ -211,6 +223,11 @@ export class AssessmentsService {
         await tx.courseModule.update({
           where: { id: dto.moduleId! },
           data: { unitQuizId: assessment.id },
+        });
+      } else if (dto.courseLinkScope === AssessmentCourseLinkScope.LESSON && dto.lessonId) {
+        await tx.courseLesson.update({
+          where: { id: dto.lessonId },
+          data: { lessonQuizId: assessment.id },
         });
       }
 

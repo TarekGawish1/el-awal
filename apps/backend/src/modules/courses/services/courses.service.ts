@@ -54,6 +54,7 @@ import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagina
 import { resolveOfficialSubmission } from '../../assessments/utils/submission-grade.util';
 import { normalizeEgyptianPhone } from '../../../common/utils/phone.util';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
+import { RealtimeGateway } from '../../../realtime/realtime.gateway';
 import { createHash, randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 
@@ -68,6 +69,7 @@ export class CoursesService {
     private readonly storageService: StorageService,
     private readonly aiModeration: AiModerationService,
     @Optional() private readonly notificationsService?: NotificationsService,
+    @Optional() private readonly realtimeGateway?: RealtimeGateway,
   ) {}
 
   /**
@@ -106,6 +108,7 @@ export class CoursesService {
           coverImageUrl: dto.coverImageUrl,
           courseQuizId: dto.courseQuizId || null,
           enforceSequentialLessons: dto.enforceSequentialLessons ?? false,
+          requireExamPassingToUnlock: dto.requireExamPassingToUnlock ?? false,
           hasCertificate: dto.hasCertificate ?? true,
           teacherId,
           status: CourseStatus.DRAFT,
@@ -458,6 +461,11 @@ export class CoursesService {
     });
 
     const official = resolveOfficialSubmission(submissions);
+    const isPassed = official
+      ? base.passingScore != null && official.scoreObtained != null
+        ? Number(official.scoreObtained) >= Number(base.passingScore)
+        : (official.status === 'SUBMITTED' || official.status === 'GRADED')
+      : false;
 
     return {
       ...base,
@@ -470,6 +478,7 @@ export class CoursesService {
                 ? Number(official.scoreObtained)
                 : null,
             attemptNumber: official.attemptNumber,
+            isPassed,
           }
         : null,
     };
@@ -609,6 +618,7 @@ export class CoursesService {
         ...(dto.status ? { status: dto.status } : {}),
         ...(dto.courseQuizId !== undefined ? { courseQuizId: dto.courseQuizId } : {}),
         ...(dto.enforceSequentialLessons !== undefined ? { enforceSequentialLessons: dto.enforceSequentialLessons } : {}),
+        ...(dto.requireExamPassingToUnlock !== undefined ? { requireExamPassingToUnlock: dto.requireExamPassingToUnlock } : {}),
         ...(dto.hasCertificate !== undefined ? { hasCertificate: dto.hasCertificate } : {}),
       },
     });
@@ -1772,6 +1782,12 @@ export class CoursesService {
         });
     }
 
+    // Broadcast instant realtime push to teacher's subscription dashboard
+    this.realtimeGateway?.notifyCourseSubscriptionsChanged([
+      course.teacherId,
+      course.teacher?.user?.id,
+    ]);
+
     return {
       enrollmentId: enrollment.id,
       courseId,
@@ -1980,6 +1996,11 @@ export class CoursesService {
           });
       }
 
+      this.realtimeGateway?.notifyCourseSubscriptionsChanged([
+        enrollment.course.teacherId,
+        enrollment.student?.user?.id,
+      ]);
+
       return {
         enrollmentId: updatedEnrollment.id,
         courseId: updatedEnrollment.courseId,
@@ -2055,6 +2076,11 @@ export class CoursesService {
         });
     }
 
+    this.realtimeGateway?.notifyCourseSubscriptionsChanged([
+      enrollment.course.teacherId,
+      enrollment.student?.user?.id,
+    ]);
+
     return {
       enrollmentId: updated.id,
       status: updated.status,
@@ -2126,9 +2152,15 @@ export class CoursesService {
         });
     }
 
+    this.realtimeGateway?.notifyCourseSubscriptionsChanged([
+      enrollment.course.teacherId,
+      enrollment.student?.user?.id,
+    ]);
+
     return {
       enrollmentId: updated.id,
       status: updated.status,
+      rejectionReason: updated.rejectionReason,
       message: 'تم إلغاء اشتراك الطالب وتعليق وصوله للكورس بنجاح.',
     };
   }
@@ -2442,15 +2474,25 @@ export class CoursesService {
 
     const targetStudentId = studentProfile?.id || studentId;
 
-    // Enforce that lessons with linked quizzes CANNOT be marked complete without quiz submission
+    // Enforce that lessons with linked quizzes CANNOT be marked complete without quiz submission (and passing if required)
     let isCompletedToSave = dto.isCompleted || false;
     if (isCompletedToSave && lesson.lessonQuizId) {
+      const course = await this.prisma.course.findUnique({
+        where: { id: courseId },
+        select: { requireExamPassingToUnlock: true, enforceSequentialLessons: true },
+      });
+
+      const assessment = await this.prisma.assessment.findUnique({
+        where: { id: lesson.lessonQuizId },
+        select: { passingScore: true },
+      });
+
       const quizSubmissions = await this.prisma.assessmentSubmission.findMany({
         where: {
           assessmentId: lesson.lessonQuizId,
           studentId: targetStudentId,
         },
-        select: { status: true },
+        select: { status: true, scoreObtained: true },
       });
 
       const hasSubmittedQuiz = quizSubmissions.some(
@@ -2458,8 +2500,15 @@ export class CoursesService {
       );
 
       if (!hasSubmittedQuiz) {
-        // Demote completion to false until quiz is passed
+        // Demote completion to false until quiz is submitted
         isCompletedToSave = false;
+      } else if (course?.requireExamPassingToUnlock && assessment?.passingScore != null) {
+        const hasPassedQuiz = quizSubmissions.some(
+          (s) => s.scoreObtained != null && Number(s.scoreObtained) >= Number(assessment.passingScore),
+        );
+        if (!hasPassedQuiz) {
+          isCompletedToSave = false;
+        }
       }
     }
 

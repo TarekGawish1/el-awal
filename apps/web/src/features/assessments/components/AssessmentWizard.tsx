@@ -125,11 +125,12 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
   const paramCourseName = searchParams.get('courseName');
   const paramModuleId = searchParams.get('moduleId');
   const paramModuleName = searchParams.get('moduleName');
+  const paramLessonId = searchParams.get('lessonId');
+  const paramLessonTitle = searchParams.get('lessonTitle');
   const paramScope = searchParams.get('scope');
   const courseLinkScope =
-    type === 'EXAM' &&
     paramCourseId &&
-    (paramScope === 'COURSE' || (paramScope === 'UNIT' && paramModuleId))
+    (paramScope === 'COURSE' || (paramScope === 'UNIT' && paramModuleId) || (paramScope === 'LESSON' && paramLessonId))
       ? paramScope
       : null;
 
@@ -286,6 +287,12 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
 
   // Pre-fill the exam title when creating from a course builder context.
   useEffect(() => {
+    if (courseLinkScope === 'LESSON' && paramLessonTitle && !methods.getValues('title')) {
+      const prefix = type === 'ASSIGNMENT' ? 'واجب درس' : 'اختبار درس';
+      methods.setValue('title', `${prefix}: ${paramLessonTitle}`, { shouldValidate: true });
+      return;
+    }
+
     if (courseLinkScope === 'UNIT' && paramModuleName && !methods.getValues('title')) {
       methods.setValue('title', `اختبار وحدة: ${paramModuleName}`, { shouldValidate: true });
       return;
@@ -298,7 +305,7 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
         methods.setValue('title', `الاختبار النهائي: ${courseName}`, { shouldValidate: true });
       }
     }
-  }, [courseLinkScope, paramCourseId, paramCourseName, paramModuleName, teacherCourses, methods]);
+  }, [courseLinkScope, paramCourseId, paramCourseName, paramModuleName, paramLessonTitle, type, teacherCourses, methods]);
 
   // Prefill group & topic from search params if provided (e.g. from session calendar modal)
   useEffect(() => {
@@ -505,6 +512,9 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
       payload.courseLinkScope = courseLinkScope;
       if (courseLinkScope === 'UNIT' && paramModuleId) {
         payload.moduleId = paramModuleId;
+      } else if (courseLinkScope === 'LESSON' && paramLessonId) {
+        payload.moduleId = paramModuleId;
+        payload.lessonId = paramLessonId;
       }
     }
     
@@ -523,7 +533,9 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
         onSuccess: (res: any) => {
           toast.success(isPublished ? `تم إنشاء ونشر ${label} بنجاح` : `تم حفظ ${label} كمسودة`);
           const id = res?.id || res?.data?.id;
-          if (courseIdForRedirect) {
+          if (paramLessonId && paramCourseId) {
+            router.push(`/teacher/courses/${paramCourseId}?moduleId=${paramModuleId || ''}&lessonId=${paramLessonId}`);
+          } else if (courseIdForRedirect) {
             router.push(`/teacher/courses/${courseIdForRedirect}`);
           } else if (id) {
             router.push(`/teacher/assessments/${id}`);
@@ -603,12 +615,14 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                   <span className="text-xl shrink-0 mt-0.5">🔗</span>
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-amber-900">
-                      {courseLinkScope === 'UNIT' && paramModuleName
+                      {courseLinkScope === 'LESSON' && paramLessonTitle
+                        ? `سيتم ربط هذا ${type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار'} تلقائياً بالدرس: "${paramLessonTitle}"`
+                        : courseLinkScope === 'UNIT' && paramModuleName
                         ? `سيتم ربط هذا الاختبار تلقائياً بوحدة: "${paramModuleName}"`
                         : 'سيتم ربط هذا الاختبار تلقائياً كاختبار نهائي للكورس'}
                     </p>
                     <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
-                      بمجرد حفظ الاختبار سيظهر مرتبطاً في صفحة الكورس دون الحاجة لاختياره يدوياً.
+                      بمجرد حفظ {type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار'} سيتم ربطه وإعادتك مباشرة لصفحة الكورس ونافذة الدرس.
                     </p>
                   </div>
                 </div>

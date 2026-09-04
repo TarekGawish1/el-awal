@@ -6,6 +6,7 @@ export interface AssessmentQuizSubmissionSummary {
   status: 'SUBMITTED' | 'GRADED' | 'UNSOLVED' | 'PENDING';
   scoreObtained: number | null;
   attemptNumber: number;
+  isPassed?: boolean;
 }
 
 export interface AssessmentSummary {
@@ -116,6 +117,7 @@ export interface CourseDetail {
   status: CourseStatus;
   orderIndex: number;
   enforceSequentialLessons?: boolean;
+  requireExamPassingToUnlock?: boolean;
   hasCertificate?: boolean;
   courseQuizId?: string | null;
   courseQuiz?: AssessmentSummary | null;

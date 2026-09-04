@@ -73,6 +73,11 @@ export class UpdateCourseDto {
   @IsBoolean()
   enforceSequentialLessons?: boolean;
 
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @IsBoolean()
+  requireExamPassingToUnlock?: boolean;
+
   @ApiPropertyOptional({ example: true })
   @IsOptional()
   @IsBoolean()

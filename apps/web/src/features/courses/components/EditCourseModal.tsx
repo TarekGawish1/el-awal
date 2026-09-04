@@ -78,6 +78,9 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
   const [enforceSequentialLessons, setEnforceSequentialLessons] = useState(
     course.enforceSequentialLessons ?? false,
   );
+  const [requireExamPassingToUnlock, setRequireExamPassingToUnlock] = useState(
+    course.requireExamPassingToUnlock ?? false,
+  );
 
   const initialCoverUrlRef = useRef<string | null>(course.coverImageUrl || null);
   const isSubmittedRef = useRef(false);
@@ -100,6 +103,7 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
       setCourseQuizId(course.courseQuizId || '');
       setHasCertificate(course.hasCertificate ?? true);
       setEnforceSequentialLessons(course.enforceSequentialLessons ?? false);
+      setRequireExamPassingToUnlock(course.requireExamPassingToUnlock ?? false);
       initialCoverUrlRef.current = course.coverImageUrl || null;
       isSubmittedRef.current = false;
       newUploadedKeyRef.current = null;
@@ -155,6 +159,7 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
         courseQuizId: courseQuizId || null,
         hasCertificate,
         enforceSequentialLessons,
+        requireExamPassingToUnlock,
       });
 
       // If cover was replaced and submission succeeded, clean up old image if different
@@ -454,6 +459,54 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
                 />
               </button>
             </div>
+
+            {enforceSequentialLessons && (
+              <div className="mr-4 p-3.5 bg-blue-50/70 border border-blue-100 rounded-xl space-y-2 text-right transition-all">
+                <span className="block text-xs font-bold text-slate-800">
+                  شرط فتح الدرس التالي عند وجود اختبار/واجب:
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setRequireExamPassingToUnlock(false)}
+                    className={`p-2.5 rounded-lg border text-right transition-all cursor-pointer ${
+                      !requireExamPassingToUnlock
+                        ? 'bg-white border-primary-500 text-primary-900 font-bold shadow-xs'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${!requireExamPassingToUnlock ? 'border-primary-600' : 'border-slate-300'}`}>
+                        {!requireExamPassingToUnlock && <span className="w-2 h-2 rounded-full bg-primary-600" />}
+                      </span>
+                      <span>مجرد حل وتسليم الاختبار</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-1 mr-5">
+                      يُفتح الدرس بمجرد إرسال الطالب لإجابات الاختبار دون اشتراط درجة محددة
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRequireExamPassingToUnlock(true)}
+                    className={`p-2.5 rounded-lg border text-right transition-all cursor-pointer ${
+                      requireExamPassingToUnlock
+                        ? 'bg-white border-primary-500 text-primary-900 font-bold shadow-xs'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${requireExamPassingToUnlock ? 'border-primary-600' : 'border-slate-300'}`}>
+                        {requireExamPassingToUnlock && <span className="w-2 h-2 rounded-full bg-primary-600" />}
+                      </span>
+                      <span>النجاح واجتياز درجة النجاح 🎯</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-1 mr-5">
+                      لا يُفتح الدرس إلا بعد تحقيق درجة النجاح المحددة في إعدادات الاختبار
+                    </p>
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
               <div className="text-right">

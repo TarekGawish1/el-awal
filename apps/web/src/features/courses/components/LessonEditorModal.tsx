@@ -1075,22 +1075,18 @@ export function LessonEditorModal({
                     </label>
                     <div className="flex items-center gap-2">
                       <a
-                        href={`/teacher/assessments/new?type=EXAM&courseId=${courseId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        href={`/teacher/assessments/new?type=EXAM&courseId=${courseId}&moduleId=${moduleId}&lessonId=${lesson?.id || ''}&lessonTitle=${encodeURIComponent(lesson?.title || title || '')}&scope=LESSON`}
                         className="inline-flex items-center gap-1 text-[11px] font-bold text-primary-600 hover:text-primary-700 bg-white hover:bg-primary-50 border border-primary-200 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer"
-                        title="إنشاء اختبار جديد في نافذة جديدة"
+                        title="إنشاء اختبار جديد وربطه تلقائياً بهذا الدرس"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         <span>إنشاء اختبار جديد</span>
                         <ExternalLink className="w-3 h-3 mr-0.5 text-primary-400" />
                       </a>
                       <a
-                        href={`/teacher/assessments/new?type=ASSIGNMENT&courseId=${courseId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        href={`/teacher/assessments/new?type=ASSIGNMENT&courseId=${courseId}&moduleId=${moduleId}&lessonId=${lesson?.id || ''}&lessonTitle=${encodeURIComponent(lesson?.title || title || '')}&scope=LESSON`}
                         className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-slate-800 bg-white hover:bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer"
-                        title="إنشاء واجب جديد في نافذة جديدة"
+                        title="إنشاء واجب جديد وربطه تلقائياً بهذا الدرس"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         <span>إنشاء واجب</span>
@@ -1111,13 +1107,11 @@ export function LessonEditorModal({
                       </p>
                       <div className="pt-1 flex justify-center gap-2">
                         <a
-                          href={`/teacher/assessments/new?type=EXAM&courseId=${courseId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                          href={`/teacher/assessments/new?type=EXAM&courseId=${courseId}&moduleId=${moduleId}&lessonId=${lesson?.id || ''}&lessonTitle=${encodeURIComponent(lesson?.title || title || '')}&scope=LESSON`}
                           className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
                         >
                           <Plus className="w-3.5 h-3.5" />
-                          <span>إنشاء اختبار جديد لهذا الكورس</span>
+                          <span>إنشاء اختبار جديد لهذا الدرس</span>
                           <ExternalLink className="w-3 h-3 mr-0.5" />
                         </a>
                       </div>

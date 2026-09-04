@@ -53,6 +53,7 @@ vi.mock('@/features/auth', () => ({
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
   usePathname: () => '/',
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock('@/lib/offline/use-online-status', () => ({
@@ -587,13 +588,13 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
 
       render(<CourseBuilderView courseId="course-1" />, { wrapper });
 
-      const previewLink = await screen.findByRole('link', { name: /معاينة قاعة المشاهدة/i });
+      const previewLink = await screen.findByRole('link', { name: /معاينة كطالب/i });
       expect(previewLink).toBeInTheDocument();
       expect(previewLink).toHaveAttribute('href', '/teacher/courses/course-1/preview');
       expect(previewLink).toHaveAttribute('target', '_blank');
     });
 
-    it('opens EditCourseModal when clicking تعديل بيانات الكورس button and submits updates', async () => {
+    it('opens EditCourseModal when clicking تعديل الكورس button and submits updates', async () => {
       vi.mocked(coursesApi.getCourseDetails).mockResolvedValue({
         id: 'course-1',
         title: 'شرح تفاضل 2ث',
@@ -618,7 +619,7 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
 
       render(<CourseBuilderView courseId="course-1" />, { wrapper });
 
-      const editBtn = await screen.findByRole('button', { name: /تعديل بيانات الكورس/i });
+      const editBtn = await screen.findByRole('button', { name: /تعديل الكورس/i });
       expect(editBtn).toBeInTheDocument();
       fireEvent.click(editBtn);
 
@@ -635,7 +636,12 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
 
       // Submit form
       const saveBtn = screen.getByRole('button', { name: /حفظ التغييرات/i });
-      fireEvent.click(saveBtn);
+      const form = saveBtn.closest('div.bg-white')?.querySelector('form')!;
+      if (form) {
+        fireEvent.submit(form);
+      } else {
+        fireEvent.click(saveBtn);
+      }
 
       await waitFor(() => {
         expect(coursesApi.updateCourse).toHaveBeenCalledWith(

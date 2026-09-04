@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   ArrowRight,
   BookOpen,
@@ -86,6 +87,26 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
     moduleId: '',
     lesson: null,
   });
+
+  const searchParams = useSearchParams();
+  const urlLessonId = searchParams.get('lessonId');
+  const urlModuleId = searchParams.get('moduleId');
+
+  // Auto-open Lesson Modal when redirected back from assessment creation
+  useEffect(() => {
+    if (!urlLessonId || !course?.modules) return;
+    for (const mod of course.modules) {
+      const foundLesson = mod.lessons?.find((l) => l.id === urlLessonId);
+      if (foundLesson) {
+        setLessonModalState({
+          isOpen: true,
+          moduleId: mod.id,
+          lesson: foundLesson,
+        });
+        break;
+      }
+    }
+  }, [urlLessonId, course?.modules]);
 
   // Custom Delete Modals State (No JS Confirm)
   const [moduleToDelete, setModuleToDelete] = useState<{ id: string; title: string } | null>(null);
@@ -497,44 +518,86 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
           </div>
 
           {/* Course Settings: Sequential Lessons Enforcement */}
-          <div className="bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl flex items-center justify-between gap-3 sm:gap-4 shadow-sm">
-            <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center border border-slate-200 shrink-0">
-                <Lock className="w-4 h-4 sm:w-5 sm:h-5" />
+          <div className="bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl flex flex-col gap-3 shadow-sm">
+            <div className="flex items-center justify-between gap-3 sm:gap-4">
+              <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center border border-slate-200 shrink-0">
+                  <Lock className="w-4 h-4 sm:w-5 sm:h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm font-bold text-slate-900">ترتيب مشاهدة الدروس</p>
+                  <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
+                    {course.enforceSequentialLessons
+                      ? 'المنهج مرتب — يجب إتمام كل درس بالترتيب'
+                      : 'حرية المشاهدة — يمكن للطالب المشاهدة بأي ترتيب'}
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs sm:text-sm font-bold text-slate-900">ترتيب مشاهدة الدروس</p>
-                <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
-                  {course.enforceSequentialLessons
-                    ? 'المنهج مرتب — يجب إتمام كل درس بالترتيب'
-                    : 'حرية المشاهدة — يمكن للطالب المشاهدة بأي ترتيب'}
-                </p>
-              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  updateCourseMutation.mutate({
+                    enforceSequentialLessons: !course.enforceSequentialLessons,
+                  })
+                }
+                disabled={updateCourseMutation.isPending}
+                className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 transition-colors duration-200 ease-in-out focus:outline-none ${
+                  course.enforceSequentialLessons
+                    ? 'bg-primary-600 border-primary-600'
+                    : 'bg-slate-200 border-slate-200'
+                }`}
+                role="switch"
+                aria-checked={course.enforceSequentialLessons ?? false}
+                title={course.enforceSequentialLessons ? 'إلغاء التسلسل الإلزامي' : 'تفعيل التسلسل الإلزامي'}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm transform transition-transform duration-200 ease-in-out mt-0.5 ${
+                    course.enforceSequentialLessons ? '-translate-x-5' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() =>
-                updateCourseMutation.mutate({
-                  enforceSequentialLessons: !course.enforceSequentialLessons,
-                })
-              }
-              disabled={updateCourseMutation.isPending}
-              className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 transition-colors duration-200 ease-in-out focus:outline-none ${
-                course.enforceSequentialLessons
-                  ? 'bg-primary-600 border-primary-600'
-                  : 'bg-slate-200 border-slate-200'
-              }`}
-              role="switch"
-              aria-checked={course.enforceSequentialLessons ?? false}
-              title={course.enforceSequentialLessons ? 'إلغاء التسلسل الإلزامي' : 'تفعيل التسلسل الإلزامي'}
-            >
-              <span
-                className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm transform transition-transform duration-200 ease-in-out mt-0.5 ${
-                  course.enforceSequentialLessons ? '-translate-x-5' : 'translate-x-0.5'
-                }`}
-              />
-            </button>
+            {course.enforceSequentialLessons && (
+              <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <span className="font-bold text-slate-700">شرط فتح الدرس التالي عند وجود اختبار/واجب:</span>
+                <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateCourseMutation.mutate({
+                        requireExamPassingToUnlock: false,
+                      })
+                    }
+                    disabled={updateCourseMutation.isPending}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      !course.requireExamPassingToUnlock
+                        ? 'bg-white text-primary-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    مجرد حل وتسليم الاختبار
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateCourseMutation.mutate({
+                        requireExamPassingToUnlock: true,
+                      })
+                    }
+                    disabled={updateCourseMutation.isPending}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      course.requireExamPassingToUnlock
+                        ? 'bg-white text-primary-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    النجاح واجتياز درجة النجاح 🎯
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="bg-white border border-cyan-100 p-4 sm:p-5 rounded-2xl flex items-center justify-between gap-3 sm:gap-4 shadow-sm">

@@ -42,6 +42,7 @@ import { CourseDetail } from '../types/courses.types';
 import { CreateCourseModal } from './CreateCourseModal';
 import { EditCourseModal } from './EditCourseModal';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { useRealtimeCourseSubscriptions } from '@/lib/realtime/useRealtimeCourseSubscriptions';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
@@ -426,11 +427,12 @@ function CourseEnrollmentsView() {
   } | null>(null);
   const [cancellationReason, setCancellationReason] = useState('');
 
-  // Real-time polling every 5 seconds
+  // Real-time WebSocket live updates (zero polling delay)
+  useRealtimeCourseSubscriptions();
+
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['teacher-subscriptions'],
     queryFn: coursesApi.getTeacherSubscriptions,
-    refetchInterval: 5000,
   });
 
   const [courseFilter, setCourseFilter] = useState('ALL');
