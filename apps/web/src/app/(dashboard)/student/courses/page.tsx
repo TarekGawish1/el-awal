@@ -36,6 +36,7 @@ import {
   Compass,
   CheckCircle,
   AlertCircle,
+  RotateCcw,
 } from 'lucide-react';
 import { FeatureRequiresOnlineCard } from '@/components/offline/FeatureRequiresOnlineCard';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
@@ -537,16 +538,16 @@ function AvailableCoursesCatalogTab({
                       <button
                         type="button"
                         onClick={() => handleEnroll(c)}
-                        className="flex-1 py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs text-center transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                        className="flex-1 py-2.5 px-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs text-center transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
                       >
-                        <AlertCircle className="w-3.5 h-3.5" />
-                        <span>إعادة المحاولة</span>
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>إعادة الاشتراك</span>
                       </button>
                     ) : (
                       <button
                         type="button"
                         onClick={() => handleEnroll(c)}
-                        className="flex-1 py-2.5 px-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs text-center transition-colors shadow-xs cursor-pointer"
+                        className="flex-1 py-2.5 px-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs text-center transition-colors shadow-xs cursor-pointer"
                       >
                         اشترك الآن
                       </button>

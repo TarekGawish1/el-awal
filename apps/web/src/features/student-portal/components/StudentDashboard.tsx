@@ -11,7 +11,7 @@ import {
   useEnrollInCourse,
 } from '../hooks/useStudentPortal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { BookOpen, FileText, QrCode, TrendingUp, Calendar, AlertTriangle, Clock, Users, Monitor, Award, CheckCircle, AlertCircle, FileQuestion } from 'lucide-react';
+import { BookOpen, FileText, QrCode, TrendingUp, Calendar, AlertTriangle, Clock, Users, Monitor, Award, CheckCircle, AlertCircle, FileQuestion, RotateCcw } from 'lucide-react';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
 import Link from 'next/link';
@@ -573,10 +573,10 @@ function OnlineCoursesCatalog({ gradeLevel, academicStage }: { gradeLevel?: stri
                     <button
                       type="button"
                       onClick={() => handleQuickEnroll(course)}
-                      className="flex-1 py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs text-center transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs text-center transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
                     >
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      <span>إعادة المحاولة</span>
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>إعادة الاشتراك</span>
                     </button>
                   ) : (
                     <button
