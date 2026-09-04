@@ -1,6 +1,6 @@
 'use client';
  
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -8,6 +8,7 @@ import {
   BookOpen,
   CheckCircle,
   FileText,
+  FileQuestion,
   Paperclip,
   Award,
   MessageSquare,
@@ -149,16 +150,17 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
       : [];
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
     if (isOnline) {
-      // Online: the server is authoritative. Keep only server-confirmed completions plus
-      // this session's optimistic ones — drop any stale/foreign entries from the cache.
-      setCompletedLessonIds(
-        Array.from(new Set([...serverList, ...Array.from(sessionCompletedRef.current)])),
-      );
+      // Online: the server is authoritative.
+      setCompletedLessonIds(serverList);
+      sessionCompletedRef.current = new Set(serverList);
+      try {
+        localStorage.setItem(progressStorageKey, JSON.stringify(serverList));
+      } catch {}
     } else {
       // Offline: server data may be a stale cache; union it with whatever we already have.
       setCompletedLessonIds((prev) => Array.from(new Set([...prev, ...serverList])));
     }
-  }, [course]);
+  }, [course, progressStorageKey]);
 
   // Persist (per-student) whenever it changes — write even when empty so clearing sticks.
   useEffect(() => {
@@ -495,20 +497,130 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
   }, [selectedLessonId, handleVideoProgressOrEnd, initIframePlayer]);
   //  ↑ Re-registers only when the lesson changes, not on every completion state update
 
-  // ── Course completion detection ─────────────────────────────────────────
-  const isCourseCompleted = totalLessonsCount > 0 && completedLessonIds.length >= totalLessonsCount;
+  // ── Course completion detection (Lessons) ──────────────────────────────
+  const areAllLessonsCompleted = totalLessonsCount > 0 && completedLessonIds.length >= totalLessonsCount;
+
+  // ── Course exams / quizzes completion detection ─────────────────────────
+  const { allQuizzes, completedQuizzesCount, areAllQuizzesCompleted, averageExamScore } = useMemo(() => {
+    if (!course) {
+      return { allQuizzes: [], completedQuizzesCount: 0, areAllQuizzesCompleted: true, averageExamScore: 100 };
+    }
+
+    const quizzes: { id: string; title: string; quiz: any; type: 'lesson' | 'unit' | 'course' }[] = [];
+
+    // 1. Lesson quizzes
+    (course.modules || []).forEach((mod) => {
+      (mod.lessons || []).forEach((les) => {
+        if (les.lessonQuiz) {
+          const quizObj = les.id === selectedLessonId && lessonViewer?.lessonQuiz ? lessonViewer.lessonQuiz : les.lessonQuiz;
+          quizzes.push({ id: quizObj.id, title: quizObj.title, quiz: quizObj, type: 'lesson' });
+        }
+      });
+    });
+
+    // 2. Unit quizzes
+    (course.modules || []).forEach((mod) => {
+      if (mod.unitQuiz) {
+        const quizObj = mod.id === activeModule?.id && lessonViewer?.unitQuiz ? lessonViewer.unitQuiz : mod.unitQuiz;
+        quizzes.push({ id: quizObj.id, title: quizObj.title, quiz: quizObj, type: 'unit' });
+      }
+    });
+
+    // 3. Course final quiz
+    if (course.courseQuiz) {
+      const quizObj = lessonViewer?.courseQuiz || course.courseQuiz;
+      quizzes.push({ id: quizObj.id, title: quizObj.title, quiz: quizObj, type: 'course' });
+    }
+
+    // Unique by assessment id
+    const uniqueQuizzes = Array.from(new Map(quizzes.map((q) => [q.id, q])).values());
+
+    if (uniqueQuizzes.length === 0) {
+      return { allQuizzes: [], completedQuizzesCount: 0, areAllQuizzesCompleted: true, averageExamScore: 100 };
+    }
+
+    let totalScoreObtained = 0;
+    let totalMaxScore = 0;
+
+    const completed = uniqueQuizzes.filter((item) => {
+      const q = item.quiz;
+      let sub = q.mySubmission;
+
+      if (isPreviewMode && !sub && typeof window !== 'undefined') {
+        try {
+          const raw = localStorage.getItem(`el_awal_preview_quiz_${q.id}`);
+          if (raw) {
+            const p = JSON.parse(raw);
+            sub = {
+              status: p.status || 'GRADED',
+              scoreObtained: p.score ?? p.scoreObtained,
+              attemptNumber: 1,
+              isPassed: p.isPassed ?? true,
+            };
+          }
+        } catch {}
+      }
+
+      if (!sub) return false;
+      const isSubmitted = sub.status === 'SUBMITTED' || sub.status === 'GRADED';
+      if (!isSubmitted) return false;
+
+      if (sub.scoreObtained != null && q.totalScore) {
+        totalScoreObtained += Number(sub.scoreObtained);
+        totalMaxScore += Number(q.totalScore);
+      }
+
+      if (course.requireExamPassingToUnlock) {
+        const passScore = q.passingScore ?? 0;
+        const score = sub.scoreObtained ?? 0;
+        const passed = sub.isPassed ?? (score >= passScore);
+        return passed;
+      }
+
+      return true;
+    });
+
+    const averageExamScore = totalMaxScore > 0 ? Math.round((totalScoreObtained / totalMaxScore) * 100) : 100;
+
+    return {
+      allQuizzes: uniqueQuizzes,
+      completedQuizzesCount: completed.length,
+      areAllQuizzesCompleted: completed.length === uniqueQuizzes.length,
+      averageExamScore,
+    };
+  }, [course, lessonViewer, selectedLessonId, activeModule?.id, isPreviewMode]);
+
+  // Overall full completion (All lessons AND all attached quizzes/exams finished)
+  const isCourseFullyCompleted = areAllLessonsCompleted && areAllQuizzesCompleted;
 
   // Certificate modal state
   const [isCertificateOpen, setIsCertificateOpen] = useState(false);
 
-  // Show a one-time celebration toast when the course becomes fully complete
+  // Show a one-time celebration toast when the course becomes fully complete (lessons + exams)
   const courseCompletedToastShownRef = useRef(false);
   useEffect(() => {
-    if (isCourseCompleted && !courseCompletedToastShownRef.current) {
+    if (isCourseFullyCompleted && !courseCompletedToastShownRef.current) {
       courseCompletedToastShownRef.current = true;
-      toast.success('🎓 تهانينا! أتممت الدورة بالكامل! احصل على شهادتك الآن!', { duration: 5000 });
+      toast.success('🎓 تهانينا! أتممت الدورة وجميع اختباراتها بنجاح! يمكنك استلام شهادتك الآن!', { duration: 6000 });
     }
-  }, [isCourseCompleted]);
+  }, [isCourseFullyCompleted]);
+
+  const handleClaimCertificate = () => {
+    if (!isCourseFullyCompleted) {
+      if (!areAllLessonsCompleted) {
+        toast.error('يجب إكمال جميع دروس الدورة أولاً للحصول على الشهادة 📚🔒');
+      } else {
+        toast.error(
+          `يجب حل واجتياز جميع اختبارات الدورة (${completedQuizzesCount}/${allQuizzes.length}) للحصول على شهادة الإتمام 📝🔒`,
+        );
+        setActiveTab('quiz');
+        const tabsElement = document.getElementById('lesson-content-tabs');
+        if (tabsElement) tabsElement.scrollIntoView({ behavior: 'smooth' });
+      }
+      return;
+    }
+    setIsCertificateOpen(true);
+  };
 
   // Progress Tracking: Mark Completed
   const [isMarkingComplete, setIsMarkingComplete] = useState(false);
@@ -638,21 +750,21 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     subject: course?.subject || 'المنهج الدراسي',
     gradeLevel: course?.gradeLevel || 'الصف الدراسي',
     academicStage: course?.academicStage || 'المرحلة الدراسية',
-    score: '100',
+    score: String(averageExamScore || '100'),
     completedAt: new Date().toISOString(),
   };
 
   return (
     <div className="space-y-6 text-right animate-in fade-in">
-      {/* Certificate Modal */}
+      {/* Certificate Modal - strictly only accessible when fully completed */}
       <CourseCertificateModal
-        isOpen={isCertificateOpen}
+        isOpen={isCertificateOpen && isCourseFullyCompleted}
         onClose={() => setIsCertificateOpen(false)}
         data={certData}
       />
 
-      {/* 🎓 Course Completion Celebration Banner */}
-      {isCourseCompleted && course.hasCertificate !== false && (
+      {/* 🎓 Course Full Completion (Lessons + Exams) Celebration Banner */}
+      {isCourseFullyCompleted && course.hasCertificate !== false && (
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-400 p-1 shadow-lg shadow-amber-200/50">
           <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 rounded-xl px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-4">
             {/* Decorative shimmer strip */}
@@ -665,20 +777,61 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 <Trophy className="w-8 h-8 text-amber-600" />
               </div>
               <div className="text-right">
-                <h3 className="text-lg font-extrabold text-amber-900">🎉 أحسنت! أتممت الدورة بالكامل!</h3>
+                <h3 className="text-lg font-extrabold text-amber-900">🎉 أحسنت! أتممت الدورة واختباراتها بالكامل!</h3>
                 <p className="text-sm text-amber-700/80 mt-0.5">
-                  لقد أكملت جميع دروس دورة <span className="font-bold">{course.title}</span> بنجاح
+                  لقد أكملت جميع الدروس واجتزت كافة الاختبارات في دورة <span className="font-bold">{course.title}</span> بنجاح
                 </p>
               </div>
             </div>
 
             <button
               type="button"
-              onClick={() => setIsCertificateOpen(true)}
-              className="z-10 flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-sm rounded-xl shadow-md shadow-amber-300/50 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap"
+              onClick={handleClaimCertificate}
+              className="z-10 flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-sm rounded-xl shadow-md shadow-amber-300/50 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap cursor-pointer"
             >
               <Award className="w-5 h-5" />
               احصل على شهادتك
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 📝 Lessons Complete but Exams Pending Banner (Exact Case in User Screenshot) */}
+      {areAllLessonsCompleted && !areAllQuizzesCompleted && course.hasCertificate !== false && (
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-500 via-indigo-500 to-primary-600 p-1 shadow-md shadow-indigo-100">
+          <div className="bg-gradient-to-r from-blue-50 via-indigo-50/70 to-slate-50 rounded-xl px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-4 z-10">
+              <div className="p-3 bg-indigo-100 text-indigo-700 rounded-2xl shadow-sm shrink-0">
+                <FileQuestion className="w-8 h-8" />
+              </div>
+              <div className="text-right">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base sm:text-lg font-extrabold text-indigo-950">
+                    📚 أتممت جميع الدروس! يتبقى عليك إتمام الاختبارات للحصول على الشهادة
+                  </h3>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                    تم إنجاز {completedQuizzesCount} من {allQuizzes.length} اختبارات
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-indigo-800/80 mt-1">
+                  لا يمكنك استلام شهادة إتمام دورة <span className="font-bold">{course.title}</span> إلا بعد حل {course.requireExamPassingToUnlock ? 'واجتياز' : 'وتسليم'} جميع الاختبارات المرفقة بالدورة.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('quiz');
+                const tabsElement = document.getElementById('lesson-content-tabs');
+                if (tabsElement) {
+                  tabsElement.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+              className="z-10 flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-primary-600 hover:from-indigo-700 hover:to-primary-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap cursor-pointer"
+            >
+              <FileQuestion className="w-4 h-4" />
+              الانتقال للاختبارات والتقييم 📝
             </button>
           </div>
         </div>
@@ -865,7 +1018,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
           </div>
 
           {/* Clean Light Pill Tabs */}
-          <div className="bg-slate-100 p-1.5 rounded-xl flex items-center gap-1 overflow-x-auto text-xs shadow-sm">
+          <div id="lesson-content-tabs" className="bg-slate-100 p-1.5 rounded-xl flex items-center gap-1 overflow-x-auto text-xs shadow-sm">
             <button
               type="button"
               onClick={() => setActiveTab('summary')}

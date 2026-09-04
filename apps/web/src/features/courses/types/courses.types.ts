@@ -136,6 +136,12 @@ export interface CourseDetail {
   };
   totalLessons?: number;
   totalDurationSeconds?: number;
+  completedLessonIds?: string[];
+  allLessonsCompleted?: boolean;
+  allQuizzesCompleted?: boolean;
+  totalQuizzesCount?: number;
+  completedQuizzesCount?: number;
+  isCertificateEligible?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

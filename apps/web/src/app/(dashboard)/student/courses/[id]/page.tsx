@@ -372,7 +372,7 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
               {course.hasCertificate && (
                 <li className="flex items-start gap-2.5">
                   <Award className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                  <span className="font-bold text-slate-800">شهادة إتمام معتمدة تصدر فور إكمال 100% من محتوى الكورس.</span>
+                  <span className="font-bold text-slate-800">شهادة إتمام معتمدة تصدر فور إكمال جميع دروس واختبارات الكورس.</span>
                 </li>
               )}
             </ul>

@@ -27,6 +27,7 @@ describe('CoursesService', () => {
     courseModule: {
       create: jest.fn(),
       findUnique: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
       update: jest.fn(),
       delete: jest.fn(),
       count: jest.fn(),
@@ -85,9 +86,12 @@ describe('CoursesService', () => {
     },
     courseProgress: {
       findUnique: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
     assessmentSubmission: {
       findMany: jest.fn().mockResolvedValue([]),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
     studentProfile: {
       findUnique: jest.fn(),

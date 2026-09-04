@@ -685,4 +685,113 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
       expect(screen.getByDisplayValue('الصف الأول الإعدادي')).toBeInTheDocument();
     });
   });
+
+  describe('Course Certificate Unlocking Requirements (Lessons + Exams)', () => {
+    it('does NOT show certificate claim button when lessons are finished but exams remain incomplete', async () => {
+      vi.mocked(coursesApi.getCourseDetails).mockResolvedValue({
+        id: 'course-cert-1',
+        title: 'شرح تفاضل 2ث',
+        subject: 'الرياضيات',
+        gradeLevel: 'الصف الثاني الثانوي',
+        status: 'PUBLISHED',
+        hasCertificate: true,
+        completedLessonIds: ['les-1', 'les-2'],
+        modules: [
+          {
+            id: 'mod-1',
+            title: 'الوحدة الأولى',
+            lessons: [
+              {
+                id: 'les-1',
+                title: 'الدرس الأول',
+                lessonQuiz: { id: 'quiz-1', title: 'اختبار الدرس الأول', totalScore: 20, mySubmission: null },
+              },
+              {
+                id: 'les-2',
+                title: 'الدرس الثاني',
+              },
+            ],
+          },
+        ],
+      } as any);
+
+      vi.mocked(coursesApi.getLessonStreamAuth).mockResolvedValue({
+        lessonId: 'les-1',
+        courseId: 'course-cert-1',
+        title: 'الدرس الأول',
+        videoStatus: 'READY',
+        embedUrl: 'https://iframe.mediadelivery.net/embed/123/video-1',
+        playbackUrl: 'https://video.example.com/playlist.m3u8',
+      } as any);
+
+      render(
+        <StudentCourseLearningRoom courseId="course-cert-1" initialLessonId="les-1" />,
+        { wrapper }
+      );
+
+      // Verify the celebratory certificate claim button is NOT present
+      expect(screen.queryByRole('button', { name: /احصل على شهادتك/i })).not.toBeInTheDocument();
+
+      // Verify the pending exams guidance banner IS present
+      expect(
+        await screen.findByText(/أتممت جميع الدروس! يتبقى عليك إتمام الاختبارات للحصول على الشهادة/i)
+      ).toBeInTheDocument();
+      expect(screen.getByText(/تم إنجاز 0 من 1 اختبارات/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /الانتقال للاختبارات والتقييم/i })).toBeInTheDocument();
+    });
+
+    it('shows certificate claim button when all lessons AND all attached quizzes are completed', async () => {
+      vi.mocked(coursesApi.getCourseDetails).mockResolvedValue({
+        id: 'course-cert-2',
+        title: 'شرح تفاضل 2ث',
+        subject: 'الرياضيات',
+        gradeLevel: 'الصف الثاني الثانوي',
+        status: 'PUBLISHED',
+        hasCertificate: true,
+        completedLessonIds: ['les-1'],
+        modules: [
+          {
+            id: 'mod-1',
+            title: 'الوحدة الأولى',
+            lessons: [
+              {
+                id: 'les-1',
+                title: 'الدرس الأول',
+                lessonQuiz: {
+                  id: 'quiz-1',
+                  title: 'اختبار الدرس الأول',
+                  totalScore: 20,
+                  mySubmission: { status: 'GRADED', scoreObtained: 18, isPassed: true },
+                },
+              },
+            ],
+          },
+        ],
+      } as any);
+
+      vi.mocked(coursesApi.getLessonStreamAuth).mockResolvedValue({
+        lessonId: 'les-1',
+        courseId: 'course-cert-2',
+        title: 'الدرس الأول',
+        videoStatus: 'READY',
+        embedUrl: 'https://iframe.mediadelivery.net/embed/123/video-1',
+        playbackUrl: 'https://video.example.com/playlist.m3u8',
+      } as any);
+
+      render(
+        <StudentCourseLearningRoom courseId="course-cert-2" initialLessonId="les-1" />,
+        { wrapper }
+      );
+
+      // Verify the celebratory certificate claim button is present and clickable
+      const certBtn = await screen.findByRole('button', { name: /احصل على شهادتك/i });
+      expect(certBtn).toBeInTheDocument();
+      expect(screen.getByText(/أتممت الدورة واختباراتها بالكامل!/i)).toBeInTheDocument();
+
+      // Pending exams banner should NOT be present
+      expect(
+        screen.queryByText(/يتبقى عليك إتمام الاختبارات للحصول على الشهادة/i)
+      ).not.toBeInTheDocument();
+    });
+  });
 });

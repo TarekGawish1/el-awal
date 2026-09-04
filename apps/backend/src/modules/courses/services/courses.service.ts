@@ -577,11 +577,59 @@ export class CoursesService {
       ),
     ]);
 
+    const allLessons = (enrichedModules || []).flatMap((m) => m.lessons || []);
+    const totalLessons = allLessons.length;
+    const allLessonsCompleted = totalLessons > 0 && completedLessonIds.length >= totalLessons;
+
+    const courseQuizzes: { id: string; mySubmission: any; passingScore: number | null }[] = [];
+    if (enrichedCourseQuiz) {
+      courseQuizzes.push(enrichedCourseQuiz);
+    }
+    (enrichedModules || []).forEach((m) => {
+      if (m.unitQuiz) {
+        courseQuizzes.push(m.unitQuiz);
+      }
+      (m.lessons || []).forEach((l) => {
+        if (l.lessonQuiz) {
+          courseQuizzes.push(l.lessonQuiz);
+        }
+      });
+    });
+
+    const uniqueQuizMap = new Map<string, { id: string; mySubmission: any; passingScore: number | null }>();
+    courseQuizzes.forEach((q) => {
+      if (q && q.id) uniqueQuizMap.set(q.id, q);
+    });
+    const uniqueQuizzes = Array.from(uniqueQuizMap.values());
+    const totalQuizzesCount = uniqueQuizzes.length;
+
+    let completedQuizzesCount = 0;
+    if (studentId) {
+      completedQuizzesCount = uniqueQuizzes.filter((q) => {
+        const sub = q.mySubmission;
+        if (!sub) return false;
+        const isSubmitted = sub.status === 'SUBMITTED' || sub.status === 'GRADED';
+        if (!isSubmitted) return false;
+        if (course.requireExamPassingToUnlock) {
+          return sub.isPassed === true;
+        }
+        return true;
+      }).length;
+    }
+
+    const allQuizzesCompleted = totalQuizzesCount === 0 || completedQuizzesCount === totalQuizzesCount;
+    const isCertificateEligible = allLessonsCompleted && allQuizzesCompleted;
+
     return {
       ...course,
       modules: enrichedModules,
       courseQuiz: enrichedCourseQuiz,
       completedLessonIds,
+      allLessonsCompleted,
+      allQuizzesCompleted,
+      totalQuizzesCount,
+      completedQuizzesCount,
+      isCertificateEligible,
     };
   }
 
@@ -1727,6 +1775,14 @@ export class CoursesService {
       return this.enrollCourse(courseId, resolvedStudentId);
     }
 
+    // Ensure progress is completely reset to zero when applying for a new subscription
+    await this.prisma.courseProgress.deleteMany({
+      where: {
+        studentId: resolvedStudentId,
+        courseId,
+      },
+    });
+
     // Paid course: validate receipt if provided or save pending application
     const enrollment = await this.prisma.courseEnrollment.upsert({
       where: {
@@ -2130,6 +2186,45 @@ export class CoursesService {
       data: { accessStatus: CourseAccessStatus.SUSPENDED },
     });
 
+    // Reset student course progress so that if they re-enroll they start from zero
+    await this.prisma.courseProgress.deleteMany({
+      where: {
+        studentId: enrollment.studentId,
+        courseId: enrollment.courseId,
+      },
+    });
+
+    // Reset student's submissions on any quizzes/exams attached to this course
+    const [courseRecord, unitQuizzes, lessonQuizzes] = await Promise.all([
+      this.prisma.course.findUnique({
+        where: { id: enrollment.courseId },
+        select: { courseQuizId: true },
+      }),
+      this.prisma.courseModule.findMany({
+        where: { courseId: enrollment.courseId, unitQuizId: { not: null } },
+        select: { unitQuizId: true },
+      }),
+      this.prisma.courseLesson.findMany({
+        where: { module: { courseId: enrollment.courseId }, lessonQuizId: { not: null } },
+        select: { lessonQuizId: true },
+      }),
+    ]);
+
+    const quizIds: string[] = [
+      ...(courseRecord?.courseQuizId ? [courseRecord.courseQuizId] : []),
+      ...unitQuizzes.map((u) => u.unitQuizId as string),
+      ...lessonQuizzes.map((l) => l.lessonQuizId as string),
+    ];
+
+    if (quizIds.length > 0) {
+      await this.prisma.assessmentSubmission.deleteMany({
+        where: {
+          assessmentId: { in: quizIds },
+          studentId: enrollment.studentId,
+        },
+      });
+    }
+
     // Notify student
     if (this.notificationsService && enrollment.student?.user?.id) {
       this.notificationsService
@@ -2248,6 +2343,70 @@ export class CoursesService {
           where: { module: { courseId: e.courseId } },
         });
 
+        // Compute certificate eligibility (all lessons AND all quizzes completed)
+        let isCertificateEligible = false;
+        if (isActive && progressPercentage >= 100 && totalLessons > 0) {
+          const [courseRecord, unitQuizzes, lessonQuizzes] = await Promise.all([
+            this.prisma.course.findUnique({
+              where: { id: e.courseId },
+              select: { courseQuizId: true, requireExamPassingToUnlock: true, hasCertificate: true },
+            }),
+            this.prisma.courseModule.findMany({
+              where: { courseId: e.courseId, unitQuizId: { not: null } },
+              select: { unitQuizId: true },
+            }),
+            this.prisma.courseLesson.findMany({
+              where: { module: { courseId: e.courseId }, lessonQuizId: { not: null } },
+              select: { lessonQuizId: true },
+            }),
+          ]);
+
+          if (courseRecord?.hasCertificate !== false) {
+            const quizIds = [
+              ...(courseRecord?.courseQuizId ? [courseRecord.courseQuizId] : []),
+              ...unitQuizzes.map((u) => u.unitQuizId as string),
+              ...lessonQuizzes.map((l) => l.lessonQuizId as string),
+            ];
+
+            if (quizIds.length === 0) {
+              isCertificateEligible = true;
+            } else {
+              const assessments = await this.prisma.assessment.findMany({
+                where: { id: { in: quizIds } },
+                select: { id: true, passingScore: true },
+              });
+
+              const submissions = await this.prisma.assessmentSubmission.findMany({
+                where: {
+                  assessmentId: { in: quizIds },
+                  studentId,
+                  status: { in: ['SUBMITTED', 'GRADED'] },
+                },
+                select: { assessmentId: true, scoreObtained: true },
+              });
+
+              let allSatisfied = true;
+              for (const ass of assessments) {
+                const studentSubs = submissions.filter((s) => s.assessmentId === ass.id);
+                if (studentSubs.length === 0) {
+                  allSatisfied = false;
+                  break;
+                }
+                if (courseRecord?.requireExamPassingToUnlock && ass.passingScore != null) {
+                  const passed = studentSubs.some(
+                    (s) => s.scoreObtained != null && Number(s.scoreObtained) >= Number(ass.passingScore),
+                  );
+                  if (!passed) {
+                    allSatisfied = false;
+                    break;
+                  }
+                }
+              }
+              isCertificateEligible = allSatisfied;
+            }
+          }
+        }
+
         return {
           courseId: e.course.id,
           id: e.course.id,
@@ -2266,6 +2425,7 @@ export class CoursesService {
           totalModules: e.course._count.modules,
           totalLessons,
           progressPercentage,
+          isCertificateEligible,
         };
       }),
     );

@@ -80,21 +80,26 @@ export function CourseCertificateModal({ isOpen, onClose, data }: CourseCertific
     datePos: { x: 388, y: 620 },
   };
 
-  // Auto-scale to fit modal width
+  // Auto-scale to fit modal width & height
   useEffect(() => {
     const updateScale = () => {
       if (containerRef.current) {
-        const availableWidth = containerRef.current.clientWidth - 32;
-        const targetWidth = 1146;
-        const calculated = Math.min(Math.max(availableWidth / targetWidth, 0.3), 0.95);
+        const availableWidth = containerRef.current.clientWidth - 40;
+        const availableHeight = containerRef.current.clientHeight - 60;
+        const scaleW = availableWidth / 1146;
+        const scaleH = availableHeight > 0 ? availableHeight / 810 : scaleW;
+        const calculated = Math.min(Math.max(Math.min(scaleW, scaleH), 0.25), 0.95);
         setScale(calculated);
       }
     };
 
     if (isOpen) {
-      updateScale();
+      const timer = setTimeout(updateScale, 50);
       window.addEventListener('resize', updateScale);
-      return () => window.removeEventListener('resize', updateScale);
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener('resize', updateScale);
+      };
     }
   }, [isOpen]);
 
@@ -227,20 +232,25 @@ export function CourseCertificateModal({ isOpen, onClose, data }: CourseCertific
             </span>
           </div>
 
-          {/* Scaled Certificate Frame */}
+          {/* Scaled Certificate Frame - centered perfectly without RTL offset */}
           <div
-            className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-amber-300/60 bg-white"
+            dir="ltr"
+            className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-amber-300/70 bg-white mx-auto shrink-0 flex items-center justify-center"
             style={{
-              width: `${1146 * scale}px`,
-              height: `${810 * scale}px`,
+              width: `${Math.round(1146 * scale)}px`,
+              height: `${Math.round(810 * scale)}px`,
             }}
           >
             <div
+              dir="ltr"
               style={{
-                transform: `scale(${scale})`,
-                transformOrigin: 'top left',
+                position: 'absolute',
+                top: 0,
+                left: 0,
                 width: '1146px',
                 height: '810px',
+                transform: `scale(${scale})`,
+                transformOrigin: 'top left',
               }}
             >
               <CertificateTemplateA ref={certContainerRef} data={templateData} />

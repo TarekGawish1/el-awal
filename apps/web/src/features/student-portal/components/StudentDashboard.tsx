@@ -11,7 +11,7 @@ import {
   useEnrollInCourse,
 } from '../hooks/useStudentPortal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { BookOpen, FileText, QrCode, TrendingUp, Calendar, AlertTriangle, Clock, Users, Monitor, Award, CheckCircle, AlertCircle } from 'lucide-react';
+import { BookOpen, FileText, QrCode, TrendingUp, Calendar, AlertTriangle, Clock, Users, Monitor, Award, CheckCircle, AlertCircle, FileQuestion } from 'lucide-react';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
 import Link from 'next/link';
@@ -283,7 +283,7 @@ export function StudentDashboard() {
                         <p className="text-xs text-slate-500 mt-1">{course.teacherName}</p>
                       </Link>
                       <div className="flex items-center gap-2 flex-shrink-0 ml-3">
-                        {course.progressPercentage >= 100 ? (
+                        {course.progressPercentage >= 100 && course.isCertificateEligible !== false ? (
                           <button
                             type="button"
                             onClick={() => setCertCourse({ title: course.title, teacherName: course.teacherName })}
@@ -293,6 +293,15 @@ export function StudentDashboard() {
                             <Award className="w-3.5 h-3.5" />
                             شهادتي
                           </button>
+                        ) : course.progressPercentage >= 100 && course.isCertificateEligible === false ? (
+                          <Link
+                            href={`/student/courses/${course.courseId}/learn`}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors"
+                            title="أكملت الدروس - اضغط لإتمام الاختبارات واستلام الشهادة"
+                          >
+                            <FileQuestion className="w-3 h-3 text-amber-600" />
+                            يتبقى الاختبارات
+                          </Link>
                         ) : (
                           <Badge variant="outline" className="bg-white">نسبة الإنجاز: {course.progressPercentage || 0}%</Badge>
                         )}
