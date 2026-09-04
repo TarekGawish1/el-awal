@@ -425,7 +425,16 @@ function AssessmentWrapper({
       !localSubmission &&
       (retakeMode || !assessment.mySubmission)
     ) {
-      if (assessment.effectiveRemainingSeconds != null) {
+      // Check if calendar deadline has strictly passed for fixed session without active timer
+      const calendarPast =
+        assessment.timingType === 'FIXED_SESSION' &&
+        assessment.dueDate &&
+        new Date(assessment.dueDate) < new Date() &&
+        (assessment.effectiveRemainingSeconds == null || assessment.effectiveRemainingSeconds <= 0);
+
+      if (calendarPast) {
+        setTimeLeft(null);
+      } else if (assessment.effectiveRemainingSeconds != null) {
         setTimeLeft(assessment.effectiveRemainingSeconds);
       } else if (assessment.durationMinutes) {
         const minutes = Number(assessment.durationMinutes);
@@ -724,7 +733,12 @@ function AssessmentWrapper({
   const hasEssayQuestions = (assessment.questions || []).some((q: any) => q.questionType === 'ESSAY');
   const isPreviewResult =
     Boolean(mySubmission?.isPreview) || mySubmission?.id === 'preview-submission';
-  const isPastDue = assessment.dueDate ? new Date(assessment.dueDate) < new Date() : false;
+  const isPastDue =
+    (timeLeft !== null && timeLeft > 0)
+      ? false
+      : assessment.dueDate
+      ? new Date(assessment.dueDate) < new Date()
+      : false;
   const allowMultipleAttempts = Boolean(assessment.allowMultipleAttempts);
   const canRetake = allowMultipleAttempts && Boolean(mySubmission) && !retakeMode && !isPastDue;
 
@@ -751,7 +765,7 @@ function AssessmentWrapper({
           {returnUrl ? 'العودة لقاعة الدرس في الكورس' : !isExam ? 'الرجوع لقائمة الواجبات' : 'الرجوع لقائمة الاختبارات'}
         </button>
 
-        {timeLeft !== null && !mySubmission && (
+        {timeLeft !== null && !mySubmission && !isPastDue && (
           <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold font-mono transition-all shadow-sm ${
             timeLeft <= 120
               ? 'bg-rose-500 text-white animate-pulse ring-4 ring-rose-200'

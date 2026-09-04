@@ -1099,6 +1099,19 @@ export class AssessmentsService {
           });
         }
       }
+    } else if ((timingType as any) === 'DURATION_ONLY') {
+      if (assessment.durationMinutes) {
+        const studentStartedAt =
+          priorSubmissions[0]?.startedAt || now;
+        const allowedDurationMs = assessment.durationMinutes * 60 * 1000;
+        const individualExpiry = studentStartedAt.getTime() + allowedDurationMs;
+        if (now.getTime() > individualExpiry + GRACE_PERIOD_MS) {
+          throw new BadRequestException({
+            message: 'انتهت المدة المحددة لتسليم الاختبار',
+            code: 'EXAM_TIME_EXPIRED',
+          });
+        }
+      }
     } else {
       // Session-linked homework due date check
       const effectiveDueDate = await this.resolveEffectiveDueDate(assessment);
@@ -1942,6 +1955,74 @@ export class AssessmentsService {
       assessmentId,
       reEvaluatedCount: updatedSubmissionsCount,
       message: `تمت إعادة تقييم ${updatedSubmissionsCount} تسليم بنجاح`,
+    };
+  }
+
+  /**
+   * Permanently deletes an assessment and cleans up relations on course, modules, and lessons.
+   */
+  async deleteAssessment(
+    assessmentId: string,
+    teacherId: string,
+    isSecretariat: boolean,
+  ) {
+    const assessment = await this.prisma.assessment.findUnique({
+      where: { id: assessmentId },
+    });
+
+    if (!assessment) {
+      throw new NotFoundException('التقييم المطلوب غير موجود');
+    }
+
+    if (!isSecretariat && assessment.teacherId !== teacherId) {
+      throw new ForbiddenException('غير مصرح لك بحذف هذا التقييم');
+    }
+
+    // 1. Unlink from Course, CourseModule, and CourseLesson
+    await this.prisma.course.updateMany({
+      where: { courseQuizId: assessmentId },
+      data: { courseQuizId: null },
+    });
+    await this.prisma.courseModule.updateMany({
+      where: { unitQuizId: assessmentId },
+      data: { unitQuizId: null },
+    });
+    await this.prisma.courseLesson.updateMany({
+      where: { lessonQuizId: assessmentId },
+      data: { lessonQuizId: null },
+    });
+
+    // 2. Cascade delete submissions & answers if any
+    const submissions = await this.prisma.assessmentSubmission.findMany({
+      where: { assessmentId },
+      select: { id: true },
+    });
+    if (submissions.length > 0) {
+      const subIds = submissions.map((s) => s.id);
+      await this.prisma.studentAnswer.deleteMany({
+        where: { submissionId: { in: subIds } },
+      });
+      await this.prisma.assessmentSubmission.deleteMany({
+        where: { assessmentId },
+      });
+    }
+
+    // 3. Delete questions
+    await this.prisma.assessmentQuestion.deleteMany({
+      where: { assessmentId },
+    });
+
+    // 4. Delete assessment
+    await this.prisma.assessment.delete({
+      where: { id: assessmentId },
+    });
+
+    this.logger.log(`Assessment [${assessmentId}] deleted by teacher [${teacherId}]`);
+
+    return {
+      success: true,
+      assessmentId,
+      message: 'تم حذف الاختبار/الواجب بنجاح',
     };
   }
 }

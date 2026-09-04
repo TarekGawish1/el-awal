@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm, FormProvider, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowLeft, ArrowRight, Check, Plus, AlertTriangle, FileText, CheckCircle2, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Plus, AlertTriangle, FileText, CheckCircle2, Trash2, X } from 'lucide-react';
 import { generatePresignedUrl, uploadFileToR2, uploadRawFile } from '@/features/content/api/content.api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -27,6 +27,36 @@ import toast from 'react-hot-toast';
 type Step = 'metadata' | 'questions' | 'review';
 
 import { Group, GroupSchedule } from '../../groups/types/groups.types';
+
+function showLogicalConflictToast(message: string) {
+  toast.custom(
+    (t) => (
+      <div
+        className={`${
+          t.visible ? 'animate-in fade-in zoom-in-95' : 'animate-out fade-out'
+        } max-w-md w-full bg-rose-900 text-white shadow-2xl rounded-2xl pointer-events-auto flex items-start justify-between gap-3 p-4 border border-rose-700/80`}
+        dir="rtl"
+      >
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          <span className="text-xl shrink-0 mt-0.5">⚠️</span>
+          <div className="flex-1 text-right">
+            <p className="text-xs font-bold text-rose-100">تعارض في إعدادات التقييم</p>
+            <p className="text-xs text-rose-200 mt-1 leading-relaxed">{message}</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => toast.dismiss(t.id)}
+          className="mr-1 text-rose-300 hover:text-white p-1 rounded-lg hover:bg-rose-800/60 transition-colors shrink-0"
+          title="إغلاق"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    ),
+    { duration: 8000 }
+  );
+}
 
 function getGroupNextSessionDate(group: Group): Date | null {
   if (!group.schedules || group.schedules.length === 0) {
@@ -138,7 +168,7 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
 
   const [currentStep, setCurrentStep] = useState<Step>('metadata');
   const [targetScope, setTargetScope] = useState<'GROUPS' | 'COURSE'>(paramCourseId ? 'COURSE' : 'GROUPS');
-  const [dueDateOption, setDueDateOption] = useState<'NEXT_SESSION' | 'CUSTOM'>(paramDueDate ? 'CUSTOM' : 'NEXT_SESSION');
+  const [dueDateOption, setDueDateOption] = useState<'NEXT_SESSION' | 'CUSTOM' | 'NO_DEADLINE'>(paramCourseId ? 'NO_DEADLINE' : (paramDueDate ? 'CUSTOM' : 'NEXT_SESSION'));
   const [homeworkMode, setHomeworkMode] = useState<'INTERACTIVE' | 'BOOKLET'>('BOOKLET');
   const [startPage, setStartPage] = useState<number | ''>('');
   const [endPage, setEndPage] = useState<number | ''>('');
@@ -707,6 +737,9 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                       onClick={() => {
                         setTargetScope('GROUPS');
                         methods.setValue('courseId', null);
+                        if (dueDateOption === 'NO_DEADLINE') {
+                          setDueDateOption('NEXT_SESSION');
+                        }
                       }}
                       className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
                         targetScope === 'GROUPS'
@@ -724,6 +757,10 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                       onClick={() => {
                         setTargetScope('COURSE');
                         methods.setValue('targetGroupIds', []);
+                        if (dueDateOption === 'NEXT_SESSION') {
+                          setDueDateOption('NO_DEADLINE');
+                          methods.setValue('dueDate', '', { shouldValidate: true });
+                        }
                       }}
                       className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
                         targetScope === 'COURSE'
@@ -876,31 +913,47 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                     <div>
                       <Label className="mb-2 block font-medium">موعد التسليم <span className="text-red-500">*</span></Label>
                       <div className="flex flex-wrap gap-3 mb-3">
+                        {targetScope !== 'COURSE' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDueDateOption('NEXT_SESSION');
+                              const calculatedDate = getNextSessionDate(allGroups || [], watchedTargetGroupIds || []);
+                              if (calculatedDate) {
+                                methods.setValue('dueDate', calculatedDate.toISOString(), { shouldValidate: true, shouldDirty: true });
+                              } else {
+                                methods.setValue('dueDate', '', { shouldValidate: true });
+                              }
+                            }}
+                            className={`py-2 px-4 rounded-xl border-2 text-sm font-bold transition-all shadow-sm cursor-pointer ${
+                              dueDateOption === 'NEXT_SESSION'
+                                ? 'border-primary-500 bg-primary-50 text-primary-700 ring-2 ring-primary-50'
+                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                            }`}
+                          >
+                            🗓️ الحصة القادمة (تلقائي)
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => {
-                            setDueDateOption('NEXT_SESSION');
-                            const calculatedDate = getNextSessionDate(allGroups || [], watchedTargetGroupIds || []);
-                            if (calculatedDate) {
-                              methods.setValue('dueDate', calculatedDate.toISOString(), { shouldValidate: true, shouldDirty: true });
-                            } else {
-                              methods.setValue('dueDate', '', { shouldValidate: true });
-                            }
+                            setDueDateOption('NO_DEADLINE');
+                            methods.setValue('dueDate', '', { shouldValidate: true, shouldDirty: true });
                           }}
-                          className={`py-2 px-4 rounded-xl border-2 text-sm font-bold transition-all shadow-sm ${
-                            dueDateOption === 'NEXT_SESSION'
-                              ? 'border-primary-500 bg-primary-50 text-primary-700 ring-2 ring-primary-50'
+                          className={`py-2 px-4 rounded-xl border-2 text-sm font-bold transition-all shadow-sm cursor-pointer ${
+                            dueDateOption === 'NO_DEADLINE'
+                              ? 'border-emerald-500 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-50'
                               : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                           }`}
                         >
-                          🗓️ الحصة القادمة (تلقائي)
+                          🔓 مفتوح بدون موعد تسليم (متاح دائماً)
                         </button>
                         <button
                           type="button"
                           onClick={() => {
                             setDueDateOption('CUSTOM');
                           }}
-                          className={`py-2 px-4 rounded-xl border-2 text-sm font-bold transition-all shadow-sm ${
+                          className={`py-2 px-4 rounded-xl border-2 text-sm font-bold transition-all shadow-sm cursor-pointer ${
                             dueDateOption === 'CUSTOM'
                               ? 'border-primary-500 bg-primary-50 text-primary-700 ring-2 ring-primary-50'
                               : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
@@ -911,7 +964,14 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                       </div>
                     </div>
 
-                    {dueDateOption === 'NEXT_SESSION' ? (
+                    {dueDateOption === 'NO_DEADLINE' ? (
+                      <div className="bg-emerald-50/80 p-4 rounded-xl border border-emerald-200 text-xs text-emerald-900 flex items-center gap-2.5 max-w-lg leading-relaxed shadow-2xs">
+                        <span className="text-base">🔓</span>
+                        <span>
+                          الواجب متاح دائماً بدون موعد تسليم نهائي. يمكن لطلاب الكورس حل وتسليم الواجب في أي وقت يناسبهم دون تقييد بموعد إغلاق.
+                        </span>
+                      </div>
+                    ) : dueDateOption === 'NEXT_SESSION' ? (
                       <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm max-w-lg space-y-3">
                         <span className="text-slate-500 block">تواريخ التسليم التلقائية لكل مجموعة (موعد الحصة القادمة):</span>
                         {watchedTargetGroupIds && watchedTargetGroupIds.length > 0 ? (
@@ -1161,39 +1221,49 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                 </div>
               </div>
 
-              {/* Attempt policy: single vs. multiple attempts */}
-              {type === 'EXAM' && (
-                <div className="mt-6">
-                  <Label className="mb-2 block">نظام المحاولات</Label>
-                  <p className="text-slate-500 text-sm mb-3">
-                    حدد ما إذا كان بإمكان الطالب حل هذا الاختبار أكثر من مرة. عند اختيار "محاولات متعددة" يتم اعتماد أعلى درجة كدرجة رسمية مع الاحتفاظ بسجل كل المحاولات.
-                  </p>
-                  <div className="bg-white p-2 rounded-xl border border-slate-200 flex gap-2 max-w-md shadow-sm">
-                    <button
-                      type="button"
-                      onClick={() => methods.setValue('allowMultipleAttempts', false, { shouldDirty: true })}
-                      className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${
-                        !formDataValues.allowMultipleAttempts
-                          ? 'bg-primary-600 text-white shadow-sm'
-                          : 'text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      🔒 محاولة واحدة
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => methods.setValue('allowMultipleAttempts', true, { shouldDirty: true })}
-                      className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${
-                        formDataValues.allowMultipleAttempts
-                          ? 'bg-primary-600 text-white shadow-sm'
-                          : 'text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      🔁 محاولات متعددة
-                    </button>
-                  </div>
+              {/* Attempt policy: single vs. multiple attempts (for both EXAM and ASSIGNMENT) */}
+              <div className="mt-6">
+                <Label className="mb-2 block font-bold text-slate-800">
+                  {type === 'ASSIGNMENT' ? 'نظام محاولات الواجب' : 'نظام محاولات الاختبار'}
+                </Label>
+                <p className="text-slate-500 text-sm mb-3">
+                  {type === 'ASSIGNMENT'
+                    ? 'حدد ما إذا كان بإمكان الطالب إعادة حل وتسليم الواجب أكثر من مرة، أو الاكتفاء بمحاولة تسليم واحدة فقط.'
+                    : 'حدد ما إذا كان بإمكان الطالب حل هذا الاختبار أكثر من مرة. عند اختيار "محاولات متعددة" يتم اعتماد أعلى درجة كدرجة رسمية مع الاحتفاظ بسجل كل المحاولات.'}
+                </p>
+                <div className="bg-white p-2 rounded-xl border border-slate-200 flex gap-2 max-w-md shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (formDataValues.requirePassingScore) {
+                        showLogicalConflictToast(
+                          'لا يمكن تفعيل محاولة واحدة فقط مع اشتراط درجة النجاح للتقدم، حتى لا يتعطل تقدم الطالب نهائياً في الكورس عند الرسوب. تم الإبقاء على المحاولات المتعددة.'
+                        );
+                        return;
+                      }
+                      methods.setValue('allowMultipleAttempts', false, { shouldDirty: true });
+                    }}
+                    className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all cursor-pointer ${
+                      !formDataValues.allowMultipleAttempts
+                        ? 'bg-primary-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    🔒 محاولة واحدة
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => methods.setValue('allowMultipleAttempts', true, { shouldDirty: true })}
+                    className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all cursor-pointer ${
+                      formDataValues.allowMultipleAttempts
+                        ? 'bg-primary-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    🔁 محاولات متعددة
+                  </button>
                 </div>
-              )}
+              </div>
 
               {/* Optional vs Mandatory Assessment Policy */}
               <div className="space-y-2">
@@ -1208,7 +1278,7 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                   <button
                     type="button"
                     onClick={() => methods.setValue('isOptional', false, { shouldDirty: true })}
-                    className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${
+                    className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all cursor-pointer ${
                       !formDataValues.isOptional
                         ? 'bg-primary-600 text-white shadow-sm'
                         : 'text-slate-600 hover:bg-slate-50'
@@ -1218,8 +1288,16 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                   </button>
                   <button
                     type="button"
-                    onClick={() => methods.setValue('isOptional', true, { shouldDirty: true })}
-                    className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${
+                    onClick={() => {
+                      if (formDataValues.requirePassingScore) {
+                        showLogicalConflictToast(
+                          'لا يمكن جعل التقييم اختيارياً مع اشتراط درجة النجاح للتقدم. تم إلغاء اشتراط درجة النجاح تلقائياً.'
+                        );
+                        methods.setValue('requirePassingScore', false, { shouldDirty: true });
+                      }
+                      methods.setValue('isOptional', true, { shouldDirty: true });
+                    }}
+                    className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all cursor-pointer ${
                       formDataValues.isOptional
                         ? 'bg-emerald-600 text-white shadow-sm'
                         : 'text-slate-600 hover:bg-slate-50'

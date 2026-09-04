@@ -21,6 +21,7 @@ import {
   Gauge,
   ShieldCheck,
   Info,
+  Edit,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { CourseLesson, LessonAttachment } from "../types/courses.types";
@@ -45,6 +46,36 @@ import {
 import { FileUploadZone } from "./FileUploadZone";
 import { useVideoUploadManager } from "../context/video-upload-manager.context";
 import toast from "react-hot-toast";
+
+function showLogicalConflictToast(message: string) {
+  toast.custom(
+    (t) => (
+      <div
+        className={`${
+          t.visible ? "animate-in fade-in zoom-in-95" : "animate-out fade-out"
+        } max-w-md w-full bg-rose-900 text-white shadow-2xl rounded-2xl pointer-events-auto flex items-start justify-between gap-3 p-4 border border-rose-700/80`}
+        dir="rtl"
+      >
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          <span className="text-xl shrink-0 mt-0.5">⚠️</span>
+          <div className="flex-1 text-right">
+            <p className="text-xs font-bold text-rose-100">تعارض في إعدادات التقييم</p>
+            <p className="text-xs text-rose-200 mt-1 leading-relaxed">{message}</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => toast.dismiss(t.id)}
+          className="mr-1 text-rose-300 hover:text-white p-1 rounded-lg hover:bg-rose-800/60 transition-colors shrink-0"
+          title="إغلاق"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    ),
+    { duration: 8000 }
+  );
+}
 
 interface LessonEditorModalProps {
   isOpen: boolean;
@@ -109,6 +140,7 @@ export function LessonEditorModal({
   const [lessonQuizId, setLessonQuizId] = useState("");
   const [lessonHomeworkId, setLessonHomeworkId] = useState("");
   const [allowMultipleAttempts, setAllowMultipleAttempts] = useState(false);
+  const [allowHomeworkMultipleAttempts, setAllowHomeworkMultipleAttempts] = useState(false);
   const [isQuizOptional, setIsQuizOptional] = useState(false);
   const [isHomeworkOptional, setIsHomeworkOptional] = useState(false);
   const [isQuizPassRequired, setIsQuizPassRequired] = useState(false);
@@ -143,6 +175,8 @@ export function LessonEditorModal({
   const attachmentsRef = useRef<LessonAttachment[]>([]);
   const initialQuizIdRef = useRef<string | null>(null);
   const initialHomeworkIdRef = useRef<string | null>(null);
+  const lastLoadedQuizIdRef = useRef<string | null>(null);
+  const lastLoadedHomeworkIdRef = useRef<string | null>(null);
 
   const {
     startUpload: startBackgroundUpload,
@@ -168,7 +202,7 @@ export function LessonEditorModal({
         if (a?.id) map.set(a.id, a);
       });
     }
-    if (newAssessmentId) {
+    if (newAssessmentId && !map.has(newAssessmentId)) {
       const isHw =
         newAssessmentType === "ASSIGNMENT" ||
         newAssessmentType === "HOMEWORK";
@@ -182,6 +216,9 @@ export function LessonEditorModal({
         type: isHw ? "ASSIGNMENT" : "EXAM",
         assessmentType: isHw ? "HOMEWORK" : "EXAM",
         lessonId: lesson?.id,
+        allowMultipleAttempts: false,
+        isOptional: false,
+        requirePassingScore: false,
       });
     }
     return Array.from(map.values());
@@ -276,6 +313,15 @@ export function LessonEditorModal({
       }
     }
     setActiveTab("quiz");
+
+    // Clean up query parameters from URL so refreshes/re-renders don't re-trigger
+    if (typeof window !== "undefined" && window.location.search.includes("newAssessmentId")) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("newAssessmentId");
+      url.searchParams.delete("newAssessmentType");
+      url.searchParams.delete("newAssessmentTitle");
+      window.history.replaceState({}, "", url.pathname + url.search);
+    }
   }, [newAssessmentId, newAssessmentType, lesson?.id, courseId]);
 
   useEffect(() => {
@@ -422,30 +468,42 @@ export function LessonEditorModal({
   // Reflect the selected quiz's current attempt policy, optionality, and pass requirement
   useEffect(() => {
     if (!lessonQuizId) {
+      lastLoadedQuizIdRef.current = null;
       setAllowMultipleAttempts(false);
       setIsQuizOptional(false);
       setIsQuizPassRequired(false);
       return;
     }
-    const selected = allAvailableAssessments.find((a: any) => a.id === lessonQuizId);
-    if (selected) {
-      setAllowMultipleAttempts(Boolean(selected.allowMultipleAttempts ?? false));
-      setIsQuizOptional(Boolean(selected.isOptional ?? false));
-      setIsQuizPassRequired(Boolean(selected.requirePassingScore ?? false));
+    if (lastLoadedQuizIdRef.current !== lessonQuizId) {
+      const selected = allAvailableAssessments.find((a: any) => a.id === lessonQuizId);
+      if (selected) {
+        lastLoadedQuizIdRef.current = lessonQuizId;
+        const passReq = Boolean(selected.requirePassingScore ?? false);
+        setAllowMultipleAttempts(passReq ? true : Boolean(selected.allowMultipleAttempts ?? false));
+        setIsQuizOptional(passReq ? false : Boolean(selected.isOptional ?? false));
+        setIsQuizPassRequired(passReq);
+      }
     }
   }, [lessonQuizId, allAvailableAssessments]);
 
-  // Reflect the selected homework's optionality and pass requirement
+  // Reflect the selected homework's attempt policy, optionality, and pass requirement
   useEffect(() => {
     if (!lessonHomeworkId) {
+      lastLoadedHomeworkIdRef.current = null;
+      setAllowHomeworkMultipleAttempts(false);
       setIsHomeworkOptional(false);
       setIsHomeworkPassRequired(false);
       return;
     }
-    const selected = allAvailableAssessments.find((a: any) => a.id === lessonHomeworkId);
-    if (selected) {
-      setIsHomeworkOptional(Boolean(selected.isOptional ?? false));
-      setIsHomeworkPassRequired(Boolean(selected.requirePassingScore ?? false));
+    if (lastLoadedHomeworkIdRef.current !== lessonHomeworkId) {
+      const selected = allAvailableAssessments.find((a: any) => a.id === lessonHomeworkId);
+      if (selected) {
+        lastLoadedHomeworkIdRef.current = lessonHomeworkId;
+        const passReq = Boolean(selected.requirePassingScore ?? false);
+        setAllowHomeworkMultipleAttempts(passReq ? true : Boolean(selected.allowMultipleAttempts ?? false));
+        setIsHomeworkOptional(passReq ? false : Boolean(selected.isOptional ?? false));
+        setIsHomeworkPassRequired(passReq);
+      }
     }
   }, [lessonHomeworkId, allAvailableAssessments]);
 
@@ -653,6 +711,13 @@ export function LessonEditorModal({
           // Best-effort: a policy update failure must not block saving the lesson.
         }
       }
+      if (initialQuizIdRef.current && initialQuizIdRef.current !== lessonQuizId) {
+        try {
+          await updateAssessment(initialQuizIdRef.current, {
+            lessonId: null,
+          });
+        } catch {}
+      }
 
       // 2. Link or unlink homework
       if (savedLessonId) {
@@ -661,7 +726,7 @@ export function LessonEditorModal({
             await updateAssessment(lessonHomeworkId, {
               isOptional: isHomeworkPassRequired ? false : isHomeworkOptional,
               requirePassingScore: isHomeworkPassRequired,
-              allowMultipleAttempts: isHomeworkPassRequired ? true : undefined,
+              allowMultipleAttempts: isHomeworkPassRequired ? true : allowHomeworkMultipleAttempts,
               lessonId: savedLessonId,
               courseId,
             });
@@ -676,7 +741,9 @@ export function LessonEditorModal({
         }
       }
 
-      queryClient.invalidateQueries({ queryKey: ["courses"] });
+      await queryClient.invalidateQueries({ queryKey: ["courses"] });
+      await queryClient.invalidateQueries({ queryKey: ["assessments"] });
+      toast.success(isEditing ? "تم حفظ التعديلات بنجاح" : "تمت إضافة الدرس بنجاح");
       onClose();
     } catch {
       isSubmittedRef.current = false;
@@ -1469,21 +1536,46 @@ export function LessonEditorModal({
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    disabled={isSavingAndRedirecting}
-                    onClick={() => handleSaveAndCreateAssessment("EXAM")}
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 hover:text-purple-800 bg-white hover:bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-xl transition-all shadow-2xs cursor-pointer disabled:opacity-50"
-                    title="حفظ الدرس أولاً ثم إنشاء اختبار وربطه تلقائياً به"
-                  >
-                    {isSavingAndRedirecting ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Plus className="w-3.5 h-3.5" />
-                    )}
-                    <span>إنشاء اختبار جديد</span>
-                    <ExternalLink className="w-3 h-3 mr-0.5 text-purple-400" />
-                  </button>
+                  {!lessonQuizId ? (
+                    <button
+                      type="button"
+                      disabled={isSavingAndRedirecting}
+                      onClick={() => handleSaveAndCreateAssessment("EXAM")}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 hover:text-purple-800 bg-white hover:bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-xl transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+                      title="حفظ الدرس أولاً ثم إنشاء اختبار وربطه تلقائياً به"
+                    >
+                      {isSavingAndRedirecting ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Plus className="w-3.5 h-3.5" />
+                      )}
+                      <span>إنشاء اختبار جديد</span>
+                      <ExternalLink className="w-3 h-3 mr-0.5 text-purple-400" />
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <a
+                        href={`/teacher/assessments/${lessonQuizId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 hover:text-purple-800 bg-white hover:bg-purple-50 border border-purple-200 px-2.5 py-1.5 rounded-xl transition-all shadow-2xs"
+                        title="تعديل تفاصيل وأسئلة الاختبار"
+                      >
+                        <Edit className="w-3 h-3 text-purple-600" />
+                        <span>تعديل الأسئلة</span>
+                        <ExternalLink className="w-2.5 h-2.5 text-purple-400" />
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => setLessonQuizId("")}
+                        className="inline-flex items-center gap-1 text-[11px] font-medium text-rose-600 hover:text-rose-700 bg-white hover:bg-rose-50 border border-rose-200 px-2.5 py-1.5 rounded-xl transition-all shadow-2xs"
+                        title="إلغاء ربط هذا الاختبار من الدرس"
+                      >
+                        <X className="w-3 h-3" />
+                        <span>إلغاء الربط</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1522,7 +1614,15 @@ export function LessonEditorModal({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <button
                         type="button"
-                        onClick={() => setAllowMultipleAttempts(false)}
+                        onClick={() => {
+                          if (isQuizPassRequired) {
+                            showLogicalConflictToast(
+                              "لا يمكن تفعيل محاولة واحدة فقط مع اشتراط درجة النجاح للتقدم، حتى لا يتعطل تقدم الطالب نهائياً في الكورس عند الرسوب. تم الإبقاء على المحاولات المتعددة."
+                            );
+                            return;
+                          }
+                          setAllowMultipleAttempts(false);
+                        }}
                         className={`flex items-center gap-2 p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
                           !allowMultipleAttempts
                             ? "border-purple-500 bg-white ring-2 ring-purple-100 shadow-2xs"
@@ -1589,7 +1689,12 @@ export function LessonEditorModal({
                           type="button"
                           onClick={() => {
                             setIsQuizOptional(true);
-                            setIsQuizPassRequired(false);
+                            if (isQuizPassRequired) {
+                              setIsQuizPassRequired(false);
+                              showLogicalConflictToast(
+                                "تم إلغاء اشتراط درجة النجاح تلقائياً لأن الاختبار أصبح اختيارياً ويمكن للطالب تجاوزه."
+                              );
+                            }
                           }}
                           className={`flex items-center gap-2 p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
                             isQuizOptional
@@ -1686,21 +1791,46 @@ export function LessonEditorModal({
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    disabled={isSavingAndRedirecting}
-                    onClick={() => handleSaveAndCreateAssessment("ASSIGNMENT")}
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:text-blue-800 bg-white hover:bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl transition-all shadow-2xs cursor-pointer disabled:opacity-50"
-                    title="حفظ الدرس أولاً ثم إنشاء واجب وربطه تلقائياً به"
-                  >
-                    {isSavingAndRedirecting ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Plus className="w-3.5 h-3.5" />
-                    )}
-                    <span>إنشاء واجب جديد</span>
-                    <ExternalLink className="w-3 h-3 mr-0.5 text-blue-400" />
-                  </button>
+                  {!lessonHomeworkId ? (
+                    <button
+                      type="button"
+                      disabled={isSavingAndRedirecting}
+                      onClick={() => handleSaveAndCreateAssessment("ASSIGNMENT")}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:text-blue-800 bg-white hover:bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+                      title="حفظ الدرس أولاً ثم إنشاء واجب وربطه تلقائياً به"
+                    >
+                      {isSavingAndRedirecting ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Plus className="w-3.5 h-3.5" />
+                      )}
+                      <span>إنشاء واجب جديد</span>
+                      <ExternalLink className="w-3 h-3 mr-0.5 text-blue-400" />
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <a
+                        href={`/teacher/assessments/${lessonHomeworkId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:text-blue-800 bg-white hover:bg-blue-50 border border-blue-200 px-2.5 py-1.5 rounded-xl transition-all shadow-2xs"
+                        title="تعديل تفاصيل وأسئلة الواجب"
+                      >
+                        <Edit className="w-3 h-3 text-blue-600" />
+                        <span>تعديل الأسئلة</span>
+                        <ExternalLink className="w-2.5 h-2.5 text-blue-400" />
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => setLessonHomeworkId("")}
+                        className="inline-flex items-center gap-1 text-[11px] font-medium text-rose-600 hover:text-rose-700 bg-white hover:bg-rose-50 border border-rose-200 px-2.5 py-1.5 rounded-xl transition-all shadow-2xs"
+                        title="إلغاء ربط هذا الواجب من الدرس"
+                      >
+                        <X className="w-3 h-3" />
+                        <span>إلغاء الربط</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1730,54 +1860,114 @@ export function LessonEditorModal({
                   </div>
                 )}
 
-                {/* Homework Optionality Selector */}
+                {/* Attempt Policy Selector for Homework */}
                 {lessonHomeworkId && (
                   <div className="pt-2 border-t border-blue-100/80 space-y-2">
                     <label className="block text-[11px] font-bold text-slate-800">
-                      إلزامية الواجب المنزلي:
+                      سياسة إعادة تسليم الواجب:
                     </label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <button
                         type="button"
-                        onClick={() => setIsHomeworkOptional(false)}
+                        onClick={() => {
+                          if (isHomeworkPassRequired) {
+                            showLogicalConflictToast(
+                              "لا يمكن تفعيل تسليم لمرة واحدة فقط مع اشتراط درجة النجاح للواجب، حتى لا يتعطل تقدم الطالب نهائياً في الكورس عند الرسوب. تم الإبقاء على المحاولات المتعددة."
+                            );
+                            return;
+                          }
+                          setAllowHomeworkMultipleAttempts(false);
+                        }}
                         className={`flex items-center gap-2 p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
-                          !isHomeworkOptional
+                          !allowHomeworkMultipleAttempts
                             ? "border-blue-500 bg-white ring-2 ring-blue-100 shadow-2xs"
                             : "border-blue-100 bg-white/60 hover:bg-white"
                         }`}
                       >
-                        <span className="text-base leading-none">⚠️</span>
+                        <span className="text-base leading-none">🔒</span>
                         <span>
                           <span className="block text-xs font-bold text-slate-800">
-                            واجب إجباري
+                            تسليم لمرة واحدة فقط
                           </span>
                           <span className="block text-[10px] text-slate-500 mt-0.5">
-                            مطلوب حله وتسليمه لفتح المحتوى القادم
+                            لا يمكن للطالب إعادة تسليم الواجب بعد إرساله
                           </span>
                         </span>
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          setIsHomeworkOptional(true);
-                          setIsHomeworkPassRequired(false);
-                        }}
+                        onClick={() => setAllowHomeworkMultipleAttempts(true)}
                         className={`flex items-center gap-2 p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
-                          isHomeworkOptional
-                            ? "border-emerald-500 bg-white ring-2 ring-emerald-100 shadow-2xs"
+                          allowHomeworkMultipleAttempts
+                            ? "border-blue-500 bg-white ring-2 ring-blue-100 shadow-2xs"
                             : "border-blue-100 bg-white/60 hover:bg-white"
                         }`}
                       >
-                        <span className="text-base leading-none">✨</span>
+                        <span className="text-base leading-none">🔄</span>
                         <span>
                           <span className="block text-xs font-bold text-slate-800">
-                            واجب اختياري (تطبيقي)
+                            إعادة غير محدودة
                           </span>
                           <span className="block text-[10px] text-slate-500 mt-0.5">
-                            يمكن للطالب تجاوزه إن رغب
+                            يمكن للطالب إعادة حل وتسليم الواجب عدة مرات
                           </span>
                         </span>
                       </button>
+                    </div>
+
+                    {/* Homework Optionality Selector */}
+                    <div className="pt-2 border-t border-blue-100/60 space-y-1.5">
+                      <label className="block text-[11px] font-bold text-slate-800">
+                        إلزامية الواجب المنزلي:
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsHomeworkOptional(false)}
+                          className={`flex items-center gap-2 p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
+                            !isHomeworkOptional
+                              ? "border-blue-500 bg-white ring-2 ring-blue-100 shadow-2xs"
+                              : "border-blue-100 bg-white/60 hover:bg-white"
+                          }`}
+                        >
+                          <span className="text-base leading-none">⚠️</span>
+                          <span>
+                            <span className="block text-xs font-bold text-slate-800">
+                              واجب إجباري
+                            </span>
+                            <span className="block text-[10px] text-slate-500 mt-0.5">
+                              مطلوب حله وتسليمه لفتح المحتوى القادم
+                            </span>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsHomeworkOptional(true);
+                            if (isHomeworkPassRequired) {
+                              setIsHomeworkPassRequired(false);
+                              showLogicalConflictToast(
+                                "تم إلغاء اشتراط درجة النجاح تلقائياً لأن الواجب أصبح اختيارياً."
+                              );
+                            }
+                          }}
+                          className={`flex items-center gap-2 p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
+                            isHomeworkOptional
+                              ? "border-emerald-500 bg-white ring-2 ring-emerald-100 shadow-2xs"
+                              : "border-blue-100 bg-white/60 hover:bg-white"
+                          }`}
+                        >
+                          <span className="text-base leading-none">✨</span>
+                          <span>
+                            <span className="block text-xs font-bold text-slate-800">
+                              واجب اختياري (تطبيقي)
+                            </span>
+                            <span className="block text-[10px] text-slate-500 mt-0.5">
+                              يمكن للطالب تجاوزه إن رغب
+                            </span>
+                          </span>
+                        </button>
+                      </div>
                     </div>
 
                     {/* Homework Passing Score Requirement Selector */}
@@ -1809,6 +1999,7 @@ export function LessonEditorModal({
                           type="button"
                           onClick={() => {
                             setIsHomeworkPassRequired(true);
+                            setAllowHomeworkMultipleAttempts(true);
                             setIsHomeworkOptional(false);
                           }}
                           className={`flex items-center gap-2 p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
