@@ -579,7 +579,9 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
           toast.success(isPublished ? `تم إنشاء ونشر ${label} بنجاح` : `تم حفظ ${label} كمسودة`);
           const id = res?.id || res?.data?.id;
           if (paramLessonId && paramCourseId) {
-            router.push(`/teacher/courses/${paramCourseId}?moduleId=${paramModuleId || ''}&lessonId=${paramLessonId}`);
+            router.push(
+              `/teacher/courses/${paramCourseId}?moduleId=${paramModuleId || ''}&lessonId=${paramLessonId}&newAssessmentId=${id || ''}&newAssessmentType=${payload.type || ''}&newAssessmentTitle=${encodeURIComponent(payload.title || '')}`,
+            );
           } else if (courseIdForRedirect) {
             router.push(`/teacher/courses/${courseIdForRedirect}`);
           } else if (id) {

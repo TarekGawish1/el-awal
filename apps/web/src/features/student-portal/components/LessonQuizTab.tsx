@@ -25,6 +25,7 @@ interface LessonQuizTabProps {
   courseId?: string;
   lessonId?: string;
   lessonQuiz?: AssessmentSummary | null;
+  lessonHomework?: AssessmentSummary | null;
   unitQuiz?: AssessmentSummary | null;
   courseQuiz?: AssessmentSummary | null;
   enforceSequentialLessons?: boolean;
@@ -530,6 +531,7 @@ export function LessonQuizTab({
   courseId,
   lessonId,
   lessonQuiz,
+  lessonHomework,
   unitQuiz,
   courseQuiz,
   enforceSequentialLessons = false,
@@ -585,13 +587,13 @@ export function LessonQuizTab({
     }
   }
 
-  const hasAnyQuiz = Boolean(lessonQuiz || unitQuiz || courseQuiz);
+  const hasAnyQuiz = Boolean(lessonQuiz || lessonHomework || unitQuiz || courseQuiz);
 
   if (!hasAnyQuiz) {
     return (
       <div className="p-8 text-center bg-white border border-slate-200 rounded-2xl space-y-2 text-right shadow-sm">
         <Award className="w-10 h-10 text-slate-300 mx-auto" />
-        <p className="text-xs text-slate-700 font-bold">لا يوجد اختبار مرتبط بهذا الدرس مباشرة</p>
+        <p className="text-xs text-slate-700 font-bold">لا يوجد اختبار أو واجب مرتبط بهذا الدرس مباشرة</p>
         <p className="text-[11px] text-slate-400">
           استمر في متابعة الدروس القادمة لإجراء الاختبارات الشاملة للوحدات والمنهج.
         </p>
@@ -600,7 +602,7 @@ export function LessonQuizTab({
   }
 
   // The attempt policy is now per-quiz, so summarise it across the quizzes actually shown.
-  const presentQuizzes = [lessonQuiz, unitQuiz, courseQuiz].filter(Boolean) as AssessmentSummary[];
+  const presentQuizzes = [lessonQuiz, lessonHomework, unitQuiz, courseQuiz].filter(Boolean) as AssessmentSummary[];
   const allAllowMultiple =
     presentQuizzes.length > 0 && presentQuizzes.every((q) => q.allowMultipleAttempts);
   const noneAllowMultiple = presentQuizzes.every((q) => !q.allowMultipleAttempts);
@@ -633,6 +635,17 @@ export function LessonQuizTab({
           <FileQuestion className="w-3.5 h-3.5 shrink-0 text-slate-400" />
           <span>تختلف سياسة المحاولات بين الاختبارات — راجع الملاحظة أسفل كل اختبار</span>
         </div>
+      )}
+
+      {/* 0. LESSON LEVEL HOMEWORK */}
+      {lessonHomework && (
+        <QuizCard
+          quiz={lessonHomework}
+          level="lesson"
+          courseId={courseId}
+          lessonId={lessonId}
+          learnRoomUrl={learnRoomUrl}
+        />
       )}
 
       {/* 1. LESSON LEVEL QUIZ */}

@@ -235,10 +235,12 @@ export class AssessmentsService {
           data: { unitQuizId: assessment.id },
         });
       } else if (dto.courseLinkScope === AssessmentCourseLinkScope.LESSON && dto.lessonId) {
-        await tx.courseLesson.update({
-          where: { id: dto.lessonId },
-          data: { lessonQuizId: assessment.id },
-        });
+        if (storedType === AssessmentType.EXAM) {
+          await tx.courseLesson.update({
+            where: { id: dto.lessonId },
+            data: { lessonQuizId: assessment.id },
+          });
+        }
       }
 
       this.logger.log(
@@ -1697,6 +1699,7 @@ export class AssessmentsService {
           allowMultipleAttempts: dto.allowMultipleAttempts,
         }),
         ...(dto.courseId !== undefined && { courseId: dto.courseId || null }),
+        ...(dto.lessonId !== undefined && { lessonId: dto.lessonId || null }),
         ...(dto.assessmentType !== undefined && {
           assessmentType: dto.assessmentType,
           type:

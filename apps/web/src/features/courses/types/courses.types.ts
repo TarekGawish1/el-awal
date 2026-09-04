@@ -1,6 +1,6 @@
 export type CourseStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 export type LessonType = 'VIDEO' | 'DOCUMENT' | 'LIVE';
-export type AssessmentType = 'EXAM' | 'HOMEWORK' | 'QUIZ';
+export type AssessmentType = 'EXAM' | 'HOMEWORK' | 'QUIZ' | 'ASSIGNMENT';
 
 export interface AssessmentQuizSubmissionSummary {
   status: 'SUBMITTED' | 'GRADED' | 'UNSOLVED' | 'PENDING';
@@ -13,6 +13,7 @@ export interface AssessmentSummary {
   id: string;
   title: string;
   type: AssessmentType;
+  assessmentType?: 'HOMEWORK' | 'EXAM' | 'QUIZ' | 'ASSIGNMENT' | string;
   totalScore: number;
   durationMinutes?: number | null;
   passingScore?: number | null;
@@ -69,6 +70,8 @@ export interface CourseLesson {
   isPreview: boolean;
   lessonQuizId?: string | null;
   lessonQuiz?: AssessmentSummary | null;
+  lessonHomework?: AssessmentSummary | null;
+  assessments?: AssessmentSummary[];
   attachments?: LessonAttachment[];
   _count?: {
     attachments?: number;
@@ -175,8 +178,10 @@ export interface LessonViewerData {
   documentDownloadUrl?: string | null;
   attachments?: LessonAttachment[];
   lessonQuiz?: AssessmentSummary | null;
+  lessonHomework?: AssessmentSummary | null;
   unitQuiz?: AssessmentSummary | null;
   courseQuiz?: AssessmentSummary | null;
+  assessments?: AssessmentSummary[];
   lastPositionSeconds: number;
   isCompleted: boolean;
 }

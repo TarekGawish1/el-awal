@@ -8,8 +8,10 @@ import {
   FileText,
   Paperclip,
   Award,
+  BookOpen,
   UploadCloud,
   CheckCircle,
+  CheckCircle2,
   Plus,
   Trash2,
   ExternalLink,
@@ -20,6 +22,7 @@ import {
   ShieldCheck,
   Info,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { CourseLesson, LessonAttachment } from "../types/courses.types";
 import {
   useCreateLesson,
@@ -40,6 +43,7 @@ import {
   MAX_VIDEO_SIZE_BYTES,
 } from "../utils/video-optimizer";
 import { FileUploadZone } from "./FileUploadZone";
+import { useVideoUploadManager } from "../context/video-upload-manager.context";
 import toast from "react-hot-toast";
 
 interface LessonEditorModalProps {
@@ -47,6 +51,10 @@ interface LessonEditorModalProps {
   courseId: string;
   moduleId: string;
   lesson?: CourseLesson | null;
+  initialTab?: TabType;
+  newAssessmentId?: string;
+  newAssessmentType?: string;
+  newAssessmentTitle?: string;
   onClose: () => void;
 }
 
@@ -57,6 +65,10 @@ export function LessonEditorModal({
   courseId,
   moduleId,
   lesson,
+  initialTab,
+  newAssessmentId,
+  newAssessmentType,
+  newAssessmentTitle,
   onClose,
 }: LessonEditorModalProps) {
   const router = useRouter();
@@ -67,6 +79,7 @@ export function LessonEditorModal({
   const addAttachmentMutation = useAddAttachment(courseId);
   const deleteAttachmentMutation = useDeleteAttachment(courseId);
 
+  const queryClient = useQueryClient();
   const { data: streamAuth } = useLessonStreamAuth(lesson?.id || "");
 
   const { data: assessmentsData } = useAssessments();
@@ -74,7 +87,14 @@ export function LessonEditorModal({
     ? assessmentsData
     : assessmentsData?.data || [];
 
-  const [activeTab, setActiveTab] = useState<TabType>("video");
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab || "video");
+
+  // Synchronize initialTab if passed
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab, isOpen]);
 
   // Form State
   const [title, setTitle] = useState("");
@@ -87,6 +107,7 @@ export function LessonEditorModal({
   const [videoDurationSeconds, setVideoDurationSeconds] = useState(1800);
   const [isFreePreview, setIsFreePreview] = useState(false);
   const [lessonQuizId, setLessonQuizId] = useState("");
+  const [lessonHomeworkId, setLessonHomeworkId] = useState("");
   const [allowMultipleAttempts, setAllowMultipleAttempts] = useState(false);
   const [attachments, setAttachments] = useState<LessonAttachment[]>([]);
 
@@ -116,6 +137,138 @@ export function LessonEditorModal({
   const initialBunnyVideoIdRef = useRef<string | null>(null);
   const currentBunnyVideoIdRef = useRef<string | null>(null);
   const attachmentsRef = useRef<LessonAttachment[]>([]);
+  const initialQuizIdRef = useRef<string | null>(null);
+  const initialHomeworkIdRef = useRef<string | null>(null);
+
+  const {
+    startUpload: startBackgroundUpload,
+    cancelUpload: cancelBackgroundUpload,
+    getTaskForLesson,
+    attachLessonIdToTask,
+  } = useVideoUploadManager();
+
+  const backgroundUploadTask = getTaskForLesson(lesson?.id);
+
+  // Merge general assessments with any specific assessments linked on the lesson object
+  const allAvailableAssessments = React.useMemo(() => {
+    const map = new Map<string, any>();
+    assessments.forEach((a: any) => {
+      if (a?.id) map.set(a.id, a);
+    });
+    if (lesson?.lessonQuiz?.id) {
+      map.set(lesson.lessonQuiz.id, lesson.lessonQuiz);
+    }
+    if (Array.isArray(lesson?.assessments)) {
+      lesson.assessments.forEach((a: any) => {
+        if (a?.id) map.set(a.id, a);
+      });
+    }
+    if (newAssessmentId) {
+      const isHw =
+        newAssessmentType === "ASSIGNMENT" ||
+        newAssessmentType === "HOMEWORK";
+      map.set(newAssessmentId, {
+        id: newAssessmentId,
+        title: newAssessmentTitle
+          ? decodeURIComponent(newAssessmentTitle)
+          : isHw
+          ? "الواجب الجديد المضاف"
+          : "الاختبار الجديد المضاف",
+        type: isHw ? "ASSIGNMENT" : "EXAM",
+        assessmentType: isHw ? "HOMEWORK" : "EXAM",
+        lessonId: lesson?.id,
+      });
+    }
+    return Array.from(map.values());
+  }, [assessments, lesson, newAssessmentId, newAssessmentType, newAssessmentTitle]);
+
+  const examOptions = React.useMemo(() => {
+    return allAvailableAssessments.filter(
+      (a: any) => a?.type === "EXAM" || a?.type === "QUIZ",
+    );
+  }, [allAvailableAssessments]);
+
+  const homeworkOptions = React.useMemo(() => {
+    return allAvailableAssessments.filter(
+      (a: any) =>
+        a?.type === "ASSIGNMENT" ||
+        a?.type === "HOMEWORK" ||
+        a?.assessmentType === "HOMEWORK",
+    );
+  }, [allAvailableAssessments]);
+
+  // Sync background upload task to modal state
+  useEffect(() => {
+    if (!backgroundUploadTask) return;
+    if (
+      backgroundUploadTask.status === "uploading" ||
+      backgroundUploadTask.status === "inspecting" ||
+      backgroundUploadTask.status === "processing"
+    ) {
+      setIsUploadingVideo(true);
+      setIsInspectingVideo(backgroundUploadTask.status === "inspecting");
+      setVideoUploadProgress(backgroundUploadTask.progress);
+      setUploadSpeedMbps(backgroundUploadTask.speedMbps || 0);
+      setUploadedBytes(backgroundUploadTask.uploadedBytes || 0);
+      setTotalBytes(backgroundUploadTask.totalBytes || 0);
+      setEtaSeconds(backgroundUploadTask.etaSeconds || 0);
+      if (backgroundUploadTask.fileName) {
+        setUploadedVideoName(backgroundUploadTask.fileName);
+      }
+    } else if (backgroundUploadTask.status === "completed") {
+      setIsUploadingVideo(false);
+      setIsInspectingVideo(false);
+      setVideoUploadProgress(100);
+      if (backgroundUploadTask.videoId && !bunnyVideoId) {
+        setBunnyVideoId(backgroundUploadTask.videoId);
+      }
+      if (backgroundUploadTask.embedUrl && !videoEmbedUrl) {
+        setVideoEmbedUrl(backgroundUploadTask.embedUrl);
+      }
+      if (backgroundUploadTask.durationSeconds && videoDurationSeconds === 1800) {
+        setVideoDurationSeconds(backgroundUploadTask.durationSeconds);
+      }
+    } else if (
+      backgroundUploadTask.status === "error" ||
+      backgroundUploadTask.status === "aborted"
+    ) {
+      setIsUploadingVideo(false);
+      setIsInspectingVideo(false);
+    }
+  }, [backgroundUploadTask, bunnyVideoId, videoEmbedUrl, videoDurationSeconds]);
+
+  // Auto-select and auto-link newly created assessment passed via props
+  useEffect(() => {
+    if (!newAssessmentId) return;
+    const isHw =
+      newAssessmentType === "ASSIGNMENT" ||
+      newAssessmentType === "HOMEWORK";
+
+    if (isHw) {
+      setLessonHomeworkId(newAssessmentId);
+      if (!initialHomeworkIdRef.current) {
+        initialHomeworkIdRef.current = newAssessmentId;
+      }
+      if (lesson?.id) {
+        updateAssessment(newAssessmentId, {
+          lessonId: lesson.id,
+          courseId,
+        }).catch(() => {});
+      }
+    } else {
+      setLessonQuizId(newAssessmentId);
+      if (!initialQuizIdRef.current) {
+        initialQuizIdRef.current = newAssessmentId;
+      }
+      if (lesson?.id) {
+        updateAssessment(newAssessmentId, {
+          lessonId: lesson.id,
+          courseId,
+        }).catch(() => {});
+      }
+    }
+    setActiveTab("quiz");
+  }, [newAssessmentId, newAssessmentType, lesson?.id, courseId]);
 
   useEffect(() => {
     isSubmittedRef.current = false;
@@ -129,8 +282,29 @@ export function LessonEditorModal({
       setVideoEmbedUrl("");
       setVideoDurationSeconds(lesson.videoDurationSeconds || 1800);
       setIsFreePreview(lesson.isPreview || false);
-      setLessonQuizId(lesson.lessonQuizId || "");
       setAttachments(lesson.attachments || []);
+
+      // Resolve linked exam
+      const linkedExam =
+        (lesson.lessonQuiz && (lesson.lessonQuiz.type === "EXAM" || lesson.lessonQuiz.type === "QUIZ"))
+          ? lesson.lessonQuiz
+          : lesson.assessments?.find((a: any) => a.type === "EXAM" || a.type === "QUIZ") ||
+            (lesson.lessonQuizId ? allAvailableAssessments.find((a: any) => a.id === lesson.lessonQuizId && (a.type === "EXAM" || a.type === "QUIZ")) : null);
+
+      // Resolve linked homework
+      const linkedHomework =
+        lesson.assessments?.find((a: any) => a.type === "ASSIGNMENT" || a.type === "HOMEWORK" || a.assessmentType === "HOMEWORK") ||
+        (lesson.lessonQuiz && (lesson.lessonQuiz.type === "ASSIGNMENT" || lesson.lessonQuiz.type === "HOMEWORK") ? lesson.lessonQuiz : null) ||
+        (lesson.lessonQuizId ? allAvailableAssessments.find((a: any) => a.id === lesson.lessonQuizId && (a.type === "ASSIGNMENT" || a.type === "HOMEWORK")) : null) ||
+        allAvailableAssessments.find((a: any) => a.lessonId === lesson.id && (a.type === "ASSIGNMENT" || a.type === "HOMEWORK" || a.assessmentType === "HOMEWORK"));
+
+      const finalQuizId = linkedExam?.id || (lesson.lessonQuizId && (!linkedHomework || lesson.lessonQuizId !== linkedHomework.id) ? lesson.lessonQuizId : "");
+      const finalHomeworkId = linkedHomework?.id || "";
+
+      setLessonQuizId(finalQuizId);
+      setLessonHomeworkId(finalHomeworkId);
+      initialQuizIdRef.current = finalQuizId || null;
+      initialHomeworkIdRef.current = finalHomeworkId || null;
     } else {
       setTitle("");
       setDescription("");
@@ -142,25 +316,46 @@ export function LessonEditorModal({
       setVideoDurationSeconds(1800);
       setIsFreePreview(false);
       setLessonQuizId("");
+      setLessonHomeworkId("");
+      initialQuizIdRef.current = null;
+      initialHomeworkIdRef.current = null;
       setAttachments([]);
     }
   }, [lesson, isOpen]);
+
+  // If newly created assessments finish loading, associate them if not already assigned
+  useEffect(() => {
+    if (!lesson?.id) return;
+    if (!lessonHomeworkId) {
+      const matchHw = allAvailableAssessments.find(
+        (a: any) => a.lessonId === lesson.id && (a.type === "ASSIGNMENT" || a.type === "HOMEWORK" || a.assessmentType === "HOMEWORK"),
+      );
+      if (matchHw) {
+        setLessonHomeworkId(matchHw.id);
+        if (!initialHomeworkIdRef.current) initialHomeworkIdRef.current = matchHw.id;
+      }
+    }
+    if (!lessonQuizId) {
+      const matchExam = allAvailableAssessments.find(
+        (a: any) => a.lessonId === lesson.id && (a.type === "EXAM" || a.type === "QUIZ"),
+      );
+      if (matchExam) {
+        setLessonQuizId(matchExam.id);
+        if (!initialQuizIdRef.current) initialQuizIdRef.current = matchExam.id;
+      }
+    }
+  }, [lesson?.id, allAvailableAssessments, lessonHomeworkId, lessonQuizId]);
 
   useEffect(() => {
     currentBunnyVideoIdRef.current = bunnyVideoId || null;
     attachmentsRef.current = attachments;
   }, [bunnyVideoId, attachments]);
 
-  // Clean up newly uploaded video/staged attachments if modal unmounts without submitting
+  // Clean up staged attachments if modal unmounts without submitting
+  // (Videos are managed safely by the background upload manager and should not be deleted here)
   useEffect(() => {
     return () => {
       if (!isSubmittedRef.current) {
-        if (
-          currentBunnyVideoIdRef.current &&
-          currentBunnyVideoIdRef.current !== initialBunnyVideoIdRef.current
-        ) {
-          coursesApi.deleteUploadedFile(`bunny:${currentBunnyVideoIdRef.current}`);
-        }
         for (const att of attachmentsRef.current) {
           if (att.id?.startsWith("staged-") && (att.fileKey || att.fileUrl)) {
             coursesApi.deleteUploadedFile(att.fileKey || att.fileUrl);
@@ -171,16 +366,8 @@ export function LessonEditorModal({
   }, []);
 
   const handleCancel = () => {
-    if (!isSubmittedRef.current) {
-      if (bunnyVideoId && bunnyVideoId !== initialBunnyVideoIdRef.current) {
-        coursesApi.deleteUploadedFile(`bunny:${bunnyVideoId}`);
-      }
-      for (const att of attachments) {
-        if (att.id?.startsWith("staged-") && (att.fileKey || att.fileUrl)) {
-          coursesApi.deleteUploadedFile(att.fileKey || att.fileUrl);
-        }
-      }
-    }
+    // Note: Closing the modal does NOT abort active background uploads!
+    // The background upload manager continues safely in the background.
     onClose();
   };
 
@@ -197,15 +384,18 @@ export function LessonEditorModal({
       setAllowMultipleAttempts(false);
       return;
     }
-    const selected = assessments.find((a: any) => a.id === lessonQuizId);
+    const selected = allAvailableAssessments.find((a: any) => a.id === lessonQuizId);
     if (selected) {
       setAllowMultipleAttempts(Boolean(selected.allowMultipleAttempts ?? false));
     }
-  }, [lessonQuizId, assessments]);
+  }, [lessonQuizId, allAvailableAssessments]);
 
   if (!isOpen) return null;
 
   const handleCancelUpload = () => {
+    if (backgroundUploadTask) {
+      cancelBackgroundUpload(backgroundUploadTask.id);
+    }
     if (uploadXhrRef.current) {
       uploadXhrRef.current.abort();
       uploadXhrRef.current = null;
@@ -243,10 +433,12 @@ export function LessonEditorModal({
       setUploadedBytes(0);
 
       // Extract local metadata (Duration, Resolution, Bitrate) with timeout guard
+      let metaDuration = 0;
       try {
         const meta = await extractVideoMetadata(file);
         setVideoMeta(meta);
         if (meta.durationSeconds > 0) {
+          metaDuration = meta.durationSeconds;
           setVideoDurationSeconds(meta.durationSeconds);
         }
       } catch (metaErr) {
@@ -255,94 +447,45 @@ export function LessonEditorModal({
         setIsInspectingVideo(false);
       }
 
-      // Request secure Direct Upload credentials (Bunny Stream with Cloudflare R2 fallback)
-      const creds = await coursesApi.getVideoUploadCredentials(
-        title.trim() || file.name,
-      );
-      setVideoUploadProgress(15);
-
-      const xhr = new XMLHttpRequest();
-      uploadXhrRef.current = xhr;
-      xhr.open("PUT", creds.uploadUrl);
-
-      if (creds.provider === "r2") {
-        // Cloudflare R2 Presigned PUT requires exact Content-Type and no Bunny headers
-        xhr.setRequestHeader("Content-Type", "video/mp4");
-      } else {
-        // Bunny Stream headers
-        if (creds.accessKey) xhr.setRequestHeader("AccessKey", creds.accessKey);
-        if (creds.authorizationSignature)
-          xhr.setRequestHeader(
-            "AuthorizationSignature",
-            creds.authorizationSignature,
-          );
-        if (creds.authorizationExpire)
-          xhr.setRequestHeader(
-            "AuthorizationExpire",
-            String(creds.authorizationExpire),
-          );
-        if (creds.libraryId) xhr.setRequestHeader("LibraryId", creds.libraryId);
-        if (creds.videoId) xhr.setRequestHeader("VideoId", creds.videoId);
-        xhr.setRequestHeader("Content-Type", "application/octet-stream");
+      // If lesson does not exist yet, create it immediately so the upload has a permanent lessonId
+      let targetLessonId = lesson?.id;
+      if (!targetLessonId) {
+        const created = await createMutation.mutateAsync({
+          moduleId,
+          data: {
+            title: title.trim() || file.name.replace(/\.[^/.]+$/, ""),
+            description: description.trim() || undefined,
+            summary: summary.trim() || undefined,
+            lessonType,
+            videoDurationSeconds: metaDuration || 0,
+            isFreePreview,
+            isPreview: isFreePreview,
+          },
+        });
+        targetLessonId = created.id;
+        isSubmittedRef.current = true;
       }
 
-      let lastLoaded = 0;
-      let lastTime = Date.now();
-
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const now = Date.now();
-          const timeDiff = (now - lastTime) / 1000;
-          if (timeDiff >= 0.5) {
-            const bytesDiff = event.loaded - lastLoaded;
-            const speed = (bytesDiff / timeDiff) / (1024 * 1024); // MB/s
-            setUploadSpeedMbps(parseFloat(speed.toFixed(2)));
-
-            const remainingBytes = event.total - event.loaded;
-            const remainingSeconds = speed > 0 ? (remainingBytes / (1024 * 1024)) / speed : 0;
-            setEtaSeconds(Math.ceil(remainingSeconds));
-
-            lastLoaded = event.loaded;
-            lastTime = now;
+      await startBackgroundUpload({
+        file,
+        lessonId: targetLessonId,
+        courseId,
+        moduleId,
+        lessonTitle: title.trim() || file.name,
+        onSuccess: (result) => {
+          setBunnyVideoId(result.videoId);
+          setVideoEmbedUrl(result.embedUrl);
+          if (result.durationSeconds > 0) {
+            setVideoDurationSeconds(result.durationSeconds);
           }
+        },
+      });
 
-          setUploadedBytes(event.loaded);
-          setTotalBytes(event.total);
-          const percent = Math.round((event.loaded / event.total) * 80) + 15;
-          setVideoUploadProgress(Math.min(percent, 98));
-        }
-      };
-
-      xhr.onload = () => {
-        uploadXhrRef.current = null;
-        if (xhr.status >= 200 && xhr.status < 300) {
-          setVideoUploadProgress(100);
-          setIsUploadingVideo(false);
-          setBunnyVideoId(creds.videoId);
-          setVideoEmbedUrl(creds.embedUrl);
-          toast.success(
-            creds.provider === "r2"
-              ? "تم رفع الفيديو بنجاح إلى السيرفر السحابي!"
-              : "تم رفع الفيديو بنجاح! جاري معالجة وتشفير البث السحابي",
-          );
-        } else {
-          setIsUploadingVideo(false);
-          toast.error(`تعذر رفع الفيديو إلى سيرفر البث السحابي (كود: ${xhr.status})`);
-        }
-      };
-
-      xhr.onerror = () => {
-        uploadXhrRef.current = null;
-        setIsUploadingVideo(false);
-        toast.error("حدث خطأ في الاتصال أثناء رفع الفيديو");
-      };
-
-      xhr.send(file);
+      toast.success("بدأ رفع الفيديو في الخلفية! يمكنك متابعة العمل أو إغلاق النافذة بأمان.");
     } catch (err: any) {
-      uploadXhrRef.current = null;
       setIsInspectingVideo(false);
       setIsUploadingVideo(false);
-      toast.error(err?.message || "تعذر الحصول على تصريح رفع الفيديو");
+      toast.error(err?.message || "تعذر بدء رفع الفيديو");
     } finally {
       e.target.value = "";
     }
@@ -394,6 +537,7 @@ export function LessonEditorModal({
 
     try {
       isSubmittedRef.current = true;
+      let savedLessonId: string | undefined = lesson?.id;
       if (isEditing && lesson) {
         await updateMutation.mutateAsync({
           lessonId: lesson.id,
@@ -404,6 +548,7 @@ export function LessonEditorModal({
           moduleId,
           data: payload,
         });
+        savedLessonId = newLesson?.id;
 
         // If any staged attachments exist and were not created atomically
         if (
@@ -420,15 +565,39 @@ export function LessonEditorModal({
         }
       }
 
-      // Persist the selected assessment's retake policy (single vs. multiple attempts).
-      if (lessonQuizId) {
+      // 1. Sync quiz policy and link
+      if (lessonQuizId && savedLessonId) {
         try {
-          await updateAssessment(lessonQuizId, { allowMultipleAttempts });
+          await updateAssessment(lessonQuizId, {
+            allowMultipleAttempts,
+            lessonId: savedLessonId,
+            courseId,
+          });
         } catch {
           // Best-effort: a policy update failure must not block saving the lesson.
         }
       }
 
+      // 2. Link or unlink homework
+      if (savedLessonId) {
+        if (lessonHomeworkId && lessonHomeworkId !== initialHomeworkIdRef.current) {
+          try {
+            await updateAssessment(lessonHomeworkId, {
+              lessonId: savedLessonId,
+              courseId,
+            });
+          } catch {}
+        }
+        if (initialHomeworkIdRef.current && initialHomeworkIdRef.current !== lessonHomeworkId) {
+          try {
+            await updateAssessment(initialHomeworkIdRef.current, {
+              lessonId: null,
+            });
+          } catch {}
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["courses"] });
       onClose();
     } catch {
       isSubmittedRef.current = false;
@@ -511,13 +680,30 @@ export function LessonEditorModal({
         }
       }
 
-      if (lessonQuizId) {
+      if (lessonQuizId && targetLessonId) {
         try {
-          await updateAssessment(lessonQuizId, { allowMultipleAttempts });
+          await updateAssessment(lessonQuizId, {
+            allowMultipleAttempts,
+            lessonId: targetLessonId,
+            courseId,
+          });
         } catch {
           // ignore
         }
       }
+
+      if (lessonHomeworkId && targetLessonId) {
+        try {
+          await updateAssessment(lessonHomeworkId, {
+            lessonId: targetLessonId,
+            courseId,
+          });
+        } catch {
+          // ignore
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["courses"] });
 
       toast.success(
         "تم حفظ الدرس والفيديو بنجاح! جاري فتح نموذج إنشاء " +
@@ -695,9 +881,11 @@ export function LessonEditorModal({
               }`}
             >
               <Award className="w-4 h-4" />
-              <span>اختبار الدرس</span>
-              {lessonQuizId && (
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+              <span>الاختبار والواجب</span>
+              {(lessonQuizId || lessonHomeworkId) && (
+                <span className="bg-white/25 text-white px-1.5 py-0.2 rounded-full text-[10px] font-bold">
+                  {(lessonQuizId ? 1 : 0) + (lessonHomeworkId ? 1 : 0)}
+                </span>
               )}
             </button>
           </div>
@@ -925,6 +1113,13 @@ export function LessonEditorModal({
                         </button>
                       </div>
                     </div>
+
+                    <div className="bg-blue-50/80 border border-blue-100/90 rounded-xl p-2.5 text-center text-xs text-blue-800 flex items-center justify-center gap-2">
+                      <span className="text-base leading-none">💡</span>
+                      <span className="font-medium">
+                        يستمر رفع الفيديو في الخلفية بأمان — يمكنك إغلاق نافذة الدرس أو متابعة العمل وإضافة الاختبارات دون انقطاع.
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1147,167 +1342,216 @@ export function LessonEditorModal({
             </div>
           )}
 
-          {/* TAB 4: LESSON QUIZ LINKING */}
+          {/* TAB 4: LESSON QUIZ & HOMEWORK LINKING */}
           {activeTab === "quiz" && (
             <div className="space-y-4">
-              <div className="p-4 bg-primary-50/50 border border-primary-100 rounded-2xl space-y-3">
-                <div className="flex items-center gap-2">
-                  <Award className="w-5 h-5 text-amber-500" />
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-900">
-                      ربط اختبار سريع أو واجب خاص بهذا الدرس
-                    </h3>
-                    <p className="text-[11px] text-slate-500">
-                      يظهر هذا الاختبار للطالب في نافذة المشغل فور انتهائه من
-                      مشاهدة الفيديو لقياس مستوى الفهم.
-                    </p>
+              {/* Header explanation */}
+              <div className="flex items-start gap-2.5 p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl">
+                <Sparkles className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  يمكنك تخصيص <strong>امتحان تقييمي</strong> و<strong>واجب منزلي</strong> معاً لهذا الدرس. يتم حفظ التعديلات وحفظ بيانات الدرس وفيديوهاته تلقائياً أولاً قبل الانتقال لأي منشئ اختبارات.
+                </p>
+              </div>
+
+              {/* CARD 1: LESSON EXAM / QUIZ */}
+              <div className="p-4 bg-purple-50/40 border border-purple-100 rounded-2xl space-y-3.5 shadow-2xs">
+                <div className="flex flex-wrap justify-between items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
+                      <Award className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                        <span>اختبار / امتحان الحصة</span>
+                        {lessonQuizId && (
+                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-700">
+                            مرتبط ✓
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-[11px] text-slate-500">
+                        يظهر للطالب فور انتهائه من مشاهدة شرح الدرس لقياس الفهم والاستيعاب.
+                      </p>
+                    </div>
                   </div>
+
+                  <button
+                    type="button"
+                    disabled={isSavingAndRedirecting}
+                    onClick={() => handleSaveAndCreateAssessment("EXAM")}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 hover:text-purple-800 bg-white hover:bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-xl transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+                    title="حفظ الدرس أولاً ثم إنشاء اختبار وربطه تلقائياً به"
+                  >
+                    {isSavingAndRedirecting ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Plus className="w-3.5 h-3.5" />
+                    )}
+                    <span>إنشاء اختبار جديد</span>
+                    <ExternalLink className="w-3 h-3 mr-0.5 text-purple-400" />
+                  </button>
                 </div>
 
-                <div className="pt-2">
-                  <div className="flex flex-wrap justify-between items-center gap-2 mb-2">
-                    <label className="block text-xs font-bold text-slate-800">
-                      اختر الاختبار أو الواجب المرتبط:
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    اختر الاختبار المرتبط:
+                  </label>
+                  <select
+                    value={lessonQuizId}
+                    onChange={(e) => setLessonQuizId(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none shadow-sm cursor-pointer font-medium"
+                  >
+                    <option value="">-- بدون اختبار لهذا الدرس --</option>
+                    {examOptions.map((a: any) => (
+                      <option key={a.id} value={a.id}>
+                        {a.title} ({a.type === "EXAM" ? "امتحان شامل" : "اختبار قصير"} - {a.totalScore} درجة)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {newAssessmentId && lessonQuizId === newAssessmentId && (
+                  <div className="bg-purple-100/80 border border-purple-200 text-purple-900 text-xs px-3 py-2 rounded-xl flex items-center gap-2 animate-in fade-in">
+                    <CheckCircle2 className="w-4 h-4 text-purple-700 shrink-0" />
+                    <span className="font-semibold">
+                      تم ربط وتحديد هذا الاختبار المضاف حديثاً تلقائياً ✓
+                    </span>
+                  </div>
+                )}
+
+                {/* Attempt Policy Selector (shown when an exam is linked) */}
+                {lessonQuizId && (
+                  <div className="pt-2 border-t border-purple-100/80 space-y-2">
+                    <label className="block text-[11px] font-bold text-slate-800">
+                      سياسة إعادة الامتحان للطالب:
                     </label>
-                    <div className="flex items-center gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <button
                         type="button"
-                        disabled={isSavingAndRedirecting}
-                        onClick={() => handleSaveAndCreateAssessment("EXAM")}
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-primary-600 hover:text-primary-700 bg-white hover:bg-primary-50 border border-primary-200 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer disabled:opacity-50"
-                        title="حفظ الدرس أولاً ثم إنشاء اختبار وربطه تلقائياً به"
+                        onClick={() => setAllowMultipleAttempts(false)}
+                        className={`flex items-center gap-2 p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
+                          !allowMultipleAttempts
+                            ? "border-purple-500 bg-white ring-2 ring-purple-100 shadow-2xs"
+                            : "border-purple-100 bg-white/60 hover:bg-white"
+                        }`}
                       >
-                        {isSavingAndRedirecting ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <Plus className="w-3.5 h-3.5" />
-                        )}
-                        <span>إنشاء اختبار جديد</span>
-                        <ExternalLink className="w-3 h-3 mr-0.5 text-primary-400" />
+                        <span className="text-base leading-none">🔒</span>
+                        <span>
+                          <span className="block text-xs font-bold text-slate-800">
+                            محاولة واحدة فقط
+                          </span>
+                          <span className="block text-[10px] text-slate-500 mt-0.5">
+                            لا يمكن للطالب إعادة الاختبار بعد تسليمه
+                          </span>
+                        </span>
                       </button>
                       <button
                         type="button"
-                        disabled={isSavingAndRedirecting}
-                        onClick={() => handleSaveAndCreateAssessment("ASSIGNMENT")}
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-slate-800 bg-white hover:bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer disabled:opacity-50"
-                        title="حفظ الدرس أولاً ثم إنشاء واجب وربطه تلقائياً به"
+                        onClick={() => setAllowMultipleAttempts(true)}
+                        className={`flex items-center gap-2 p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
+                          allowMultipleAttempts
+                            ? "border-purple-500 bg-white ring-2 ring-purple-100 shadow-2xs"
+                            : "border-purple-100 bg-white/60 hover:bg-white"
+                        }`}
                       >
-                        {isSavingAndRedirecting ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <Plus className="w-3.5 h-3.5" />
-                        )}
-                        <span>إنشاء واجب</span>
-                        <ExternalLink className="w-3 h-3 mr-0.5 text-slate-400" />
+                        <span className="text-base leading-none">🔄</span>
+                        <span>
+                          <span className="block text-xs font-bold text-slate-800">
+                            إعادة غير محدودة
+                          </span>
+                          <span className="block text-[10px] text-slate-500 mt-0.5">
+                            يمكن للطالب التدرب وإعادة الاختبار عدة مرات
+                          </span>
+                        </span>
                       </button>
                     </div>
                   </div>
+                )}
+              </div>
 
-                  {assessments.length === 0 ? (
-                    <div className="p-4 bg-white border border-dashed border-amber-300 rounded-xl text-center space-y-2.5 mt-2">
-                      <p className="text-xs font-bold text-slate-800">
-                        لا توجد اختبارات أو واجبات منشأة حالياً في حسابك
-                      </p>
-                      <p className="text-[11px] text-slate-500 leading-relaxed max-w-md mx-auto">
-                        يتم إنشاء وبناء الامتحانات والأسئلة أولاً من قسم{" "}
-                        <strong>"الامتحانات والواجبات"</strong>، وبعد حفظها
-                        ستظهر في هذه القائمة مباشرة لربطها بالدرس.
-                      </p>
-                      <div className="pt-1 flex justify-center gap-2">
-                        <button
-                          type="button"
-                          disabled={isSavingAndRedirecting}
-                          onClick={() => handleSaveAndCreateAssessment("EXAM")}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50"
-                        >
-                          {isSavingAndRedirecting ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Plus className="w-3.5 h-3.5" />
-                          )}
-                          <span>إنشاء اختبار جديد لهذا الدرس</span>
-                          <ExternalLink className="w-3 h-3 mr-0.5" />
-                        </button>
-                      </div>
+              {/* CARD 2: LESSON HOMEWORK / ASSIGNMENT */}
+              <div className="p-4 bg-blue-50/40 border border-blue-100 rounded-2xl space-y-3.5 shadow-2xs">
+                <div className="flex flex-wrap justify-between items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
+                      <BookOpen className="w-4 h-4" />
                     </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <select
-                        value={lessonQuizId}
-                        onChange={(e) => setLessonQuizId(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm cursor-pointer"
-                      >
-                        <option value="">-- بدون اختبار لهذا الدرس --</option>
-                        {assessments.map((a: any) => (
-                          <option key={a.id} value={a.id}>
-                            {a.title} (
-                            {a.type === "EXAM"
-                              ? "امتحان شامل"
-                              : a.type === "HOMEWORK"
-                                ? "واجب"
-                                : "اختبار قصير"}{" "}
-                            - {a.totalScore} درجة)
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-2">
-                        <span className="text-amber-500">✨</span>
-                        <span>
-                          عند النقر على <strong>"إنشاء اختبار جديد"</strong>، سيتم حفظ الدرس الحالي وفيديوهاته أولاً تلقائياً، ثم فتح منشئ الاختبارات وربط الاختبار فوراً بهذا الدرس.
-                        </span>
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                        <span>واجب الحصة المنزلي</span>
+                        {lessonHomeworkId && (
+                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-700">
+                            مرتبط ✓
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-[11px] text-slate-500">
+                        واجب تدريبي وتطبيقي يلتزم الطالب بحله وتسليمه بعد الانتهاء من الدرس.
                       </p>
                     </div>
-                  )}
+                  </div>
 
-                  {/* Attempt Policy Selector (shown once a quiz is linked) */}
-                  {lessonQuizId && (
-                    <div className="mt-3 p-4 bg-white border border-slate-200 rounded-xl space-y-3">
-                      <label className="block text-xs font-bold text-slate-800">
-                        سياسة إعادة الاختبار للطالب:
-                      </label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setAllowMultipleAttempts(false)}
-                          className={`flex items-center gap-2.5 p-3 rounded-xl border text-right transition-all ${
-                            !allowMultipleAttempts
-                              ? "border-primary-500 bg-primary-50/60 ring-2 ring-primary-100"
-                              : "border-slate-200 bg-white hover:bg-slate-50"
-                          }`}
-                        >
-                          <span className="text-lg leading-none">🔒</span>
-                          <span>
-                            <span className="block text-xs font-bold text-slate-800">
-                              محاولة واحدة فقط
-                            </span>
-                            <span className="block text-[10px] text-slate-500 mt-0.5">
-                              لا يمكن للطالب إعادة الاختبار بعد تسليمه
-                            </span>
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAllowMultipleAttempts(true)}
-                          className={`flex items-center gap-2.5 p-3 rounded-xl border text-right transition-all ${
-                            allowMultipleAttempts
-                              ? "border-primary-500 bg-primary-50/60 ring-2 ring-primary-100"
-                              : "border-slate-200 bg-white hover:bg-slate-50"
-                          }`}
-                        >
-                          <span className="text-lg leading-none">🔄</span>
-                          <span>
-                            <span className="block text-xs font-bold text-slate-800">
-                              إعادة غير محدودة
-                            </span>
-                            <span className="block text-[10px] text-slate-500 mt-0.5">
-                              يمكن للطالب التدرب وإعادة الاختبار عدة مرات
-                            </span>
-                          </span>
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  <button
+                    type="button"
+                    disabled={isSavingAndRedirecting}
+                    onClick={() => handleSaveAndCreateAssessment("ASSIGNMENT")}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:text-blue-800 bg-white hover:bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+                    title="حفظ الدرس أولاً ثم إنشاء واجب وربطه تلقائياً به"
+                  >
+                    {isSavingAndRedirecting ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Plus className="w-3.5 h-3.5" />
+                    )}
+                    <span>إنشاء واجب جديد</span>
+                    <ExternalLink className="w-3 h-3 mr-0.5 text-blue-400" />
+                  </button>
                 </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    اختر الواجب المرتبط:
+                  </label>
+                  <select
+                    value={lessonHomeworkId}
+                    onChange={(e) => setLessonHomeworkId(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none shadow-sm cursor-pointer font-medium"
+                  >
+                    <option value="">-- بدون واجب لهذا الدرس --</option>
+                    {homeworkOptions.map((a: any) => (
+                      <option key={a.id} value={a.id}>
+                        {a.title} (واجب - {a.totalScore} درجة)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {newAssessmentId && lessonHomeworkId === newAssessmentId && (
+                  <div className="bg-blue-100/80 border border-blue-200 text-blue-900 text-xs px-3 py-2 rounded-xl flex items-center gap-2 animate-in fade-in">
+                    <CheckCircle2 className="w-4 h-4 text-blue-700 shrink-0" />
+                    <span className="font-semibold">
+                      تم ربط وتحديد هذا الواجب المضاف حديثاً تلقائياً ✓
+                    </span>
+                  </div>
+                )}
+
+                {lessonHomeworkId && (
+                  <div className="pt-2 border-t border-blue-100/80 flex items-center justify-between text-xs text-slate-600">
+                    <span className="flex items-center gap-1 text-emerald-700 font-bold text-[11px]">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                      تم ربط هذا الواجب بنجاح بهذا الدرس
+                    </span>
+                    <a
+                      href={`/teacher/assessments/${lessonHomeworkId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-blue-600 hover:underline flex items-center gap-1 font-medium"
+                    >
+                      <span>معاينة وتعديل الأسئلة</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                )}
               </div>
             </div>
           )}

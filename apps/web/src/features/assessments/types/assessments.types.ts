@@ -43,6 +43,7 @@ export interface AssessmentListItem {
   dueDate: string | null;
   deadline?: string | null;
   durationMinutes: number | null;
+  lessonId?: string | null;
   academicStage?: string | null;
   gradeLevel?: string | null;
   group?: {
@@ -93,6 +94,7 @@ export interface AssessmentDetail {
   isPublished: boolean;
   isAutoGraded: boolean;
   allowMultipleAttempts: boolean;
+  lessonId?: string | null;
   startTime?: string | null;
   endTime?: string | null;
   startDate?: string | null;
@@ -156,6 +158,7 @@ export interface UpdateAssessmentPayload {
   allowMultipleAttempts?: boolean;
   assessmentType?: 'HOMEWORK' | 'EXAM' | 'QUIZ' | 'ASSIGNMENT';
   courseId?: string | null;
+  lessonId?: string | null;
 }
 
 export interface AssessmentSubmissionListItem {

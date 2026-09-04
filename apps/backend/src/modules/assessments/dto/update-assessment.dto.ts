@@ -104,4 +104,11 @@ export class UpdateAssessmentDto {
   @IsOptional()
   @IsUUID()
   courseId?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Target online course lesson ID',
+  })
+  @IsOptional()
+  @IsUUID()
+  lessonId?: string | null;
 }

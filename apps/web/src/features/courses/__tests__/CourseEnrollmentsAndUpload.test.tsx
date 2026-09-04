@@ -12,7 +12,12 @@ import { LessonEditorModal } from '../components/LessonEditorModal';
 import { coursesApi } from '../api/courses.api';
 import { apiClient } from '@/lib/api/client';
 
-// Mock API and external libraries
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+  usePathname: () => '/',
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 vi.mock('@/lib/api/client', () => {
   const fn: any = vi.fn();
   fn.post = vi.fn();

@@ -1074,7 +1074,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
             >
               <Award className="w-4 h-4" />
               <span>الاختبارات والتقييم</span>
-              {(lessonViewer?.lessonQuiz || lessonViewer?.unitQuiz || course.courseQuiz) && (
+              {(lessonViewer?.lessonQuiz || lessonViewer?.lessonHomework || lessonViewer?.unitQuiz || course.courseQuiz) && (
                 <span className="w-2 h-2 rounded-full bg-amber-400" />
               )}
             </button>
@@ -1112,6 +1112,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 lessonId={selectedLessonId || undefined}
                 lessonTitle={activeLesson?.title || ''}
                 lessonQuiz={lessonViewer?.lessonQuiz || null}
+                lessonHomework={lessonViewer?.lessonHomework || null}
                 unitQuiz={lessonViewer?.unitQuiz || null}
                 courseQuiz={course.courseQuiz || null}
                 enforceSequentialLessons={course.enforceSequentialLessons ?? false}

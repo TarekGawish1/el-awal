@@ -515,6 +515,9 @@ export class CoursesService {
                 lessonQuiz: {
                   select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true },
                 },
+                assessments: {
+                  select: { id: true, title: true, type: true, assessmentType: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isPublished: true },
+                },
                 _count: {
                   select: { questions: true },
                 },
@@ -2447,6 +2450,9 @@ export class CoursesService {
         lessonQuiz: {
           select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true },
         },
+        assessments: {
+          select: { id: true, title: true, type: true, assessmentType: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isPublished: true },
+        },
         module: {
           include: {
             unitQuiz: {
@@ -2563,10 +2569,14 @@ export class CoursesService {
     // lesson-viewer renders the final mark from this payload directly.
     const quizViewerStudentId =
       user.role === UserRole.STUDENT || user.studentProfileId ? studentId : null;
-    const [lessonQuiz, unitQuiz, courseQuiz] = await Promise.all([
+    const homeworkAssessment = lesson.assessments?.find(
+      (a) => a.type === 'ASSIGNMENT' || a.type === 'HOMEWORK' || a.assessmentType === 'HOMEWORK',
+    );
+    const [lessonQuiz, unitQuiz, courseQuiz, lessonHomework] = await Promise.all([
       this.attachStudentSubmission(lesson.lessonQuiz, quizViewerStudentId),
       this.attachStudentSubmission(lesson.module.unitQuiz, quizViewerStudentId),
       this.attachStudentSubmission(course.courseQuiz, quizViewerStudentId),
+      this.attachStudentSubmission(homeworkAssessment || null, quizViewerStudentId),
     ]);
 
     return {
@@ -2584,8 +2594,10 @@ export class CoursesService {
       documentDownloadUrl,
       attachments: lesson.attachments,
       lessonQuiz,
+      lessonHomework,
       unitQuiz,
       courseQuiz,
+      assessments: lesson.assessments,
       lastPositionSeconds,
       isCompleted,
     };

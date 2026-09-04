@@ -82,15 +82,23 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
     isOpen: boolean;
     moduleId: string;
     lesson: CourseLesson | null;
+    initialTab?: "video" | "summary" | "attachments" | "quiz";
+    newAssessmentId?: string;
+    newAssessmentType?: string;
+    newAssessmentTitle?: string;
   }>({
     isOpen: false,
     moduleId: '',
     lesson: null,
+    initialTab: 'video',
   });
 
   const searchParams = useSearchParams();
   const urlLessonId = searchParams.get('lessonId');
   const urlModuleId = searchParams.get('moduleId');
+  const urlNewAssessmentId = searchParams.get('newAssessmentId');
+  const urlNewAssessmentType = searchParams.get('newAssessmentType');
+  const urlNewAssessmentTitle = searchParams.get('newAssessmentTitle');
 
   // Auto-open Lesson Modal when redirected back from assessment creation
   useEffect(() => {
@@ -102,11 +110,15 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
           isOpen: true,
           moduleId: mod.id,
           lesson: foundLesson,
+          initialTab: 'quiz',
+          newAssessmentId: urlNewAssessmentId || undefined,
+          newAssessmentType: urlNewAssessmentType || undefined,
+          newAssessmentTitle: urlNewAssessmentTitle || undefined,
         });
         break;
       }
     }
-  }, [urlLessonId, course?.modules]);
+  }, [urlLessonId, urlNewAssessmentId, urlNewAssessmentType, urlNewAssessmentTitle, course?.modules]);
 
   // Custom Delete Modals State (No JS Confirm)
   const [moduleToDelete, setModuleToDelete] = useState<{ id: string; title: string } | null>(null);
@@ -910,7 +922,19 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                             const hasVideo = Boolean(les.bunnyVideoId || les.contentUrl);
                             const hasSummary = Boolean(les.summary);
                             const hasAttachments = Boolean(les.attachments && les.attachments.length > 0);
-                            const hasQuiz = Boolean(les.lessonQuiz);
+                            const hasQuiz = Boolean(
+                              (les.lessonQuiz && (les.lessonQuiz.type === 'EXAM' || les.lessonQuiz.type === 'QUIZ')) ||
+                              les.assessments?.some((a) => a.type === 'EXAM' || a.type === 'QUIZ')
+                            );
+                            const hasHomework = Boolean(
+                              les.assessments?.some(
+                                (a) =>
+                                  a.type === 'ASSIGNMENT' ||
+                                  a.type === 'HOMEWORK' ||
+                                  (a as any).assessmentType === 'HOMEWORK',
+                              ) ||
+                              (les.lessonQuiz && (les.lessonQuiz.type === 'ASSIGNMENT' || les.lessonQuiz.type === 'HOMEWORK'))
+                            );
                             const isDraggedLesson = dragItem?.type === 'lesson' && dragItem.id === les.id;
                             const isDropIndicator =
                               !isDraggedLesson &&
@@ -999,6 +1023,11 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                                           <Award className="w-3 h-3" /> اختبار الدرس
                                         </span>
                                       )}
+                                      {hasHomework && (
+                                        <span className="flex items-center gap-1 text-blue-600 font-bold shrink-0">
+                                          <FileText className="w-3 h-3" /> واجب الدرس
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
                                 </div>
@@ -1055,6 +1084,10 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
           isOpen={lessonModalState.isOpen}
           courseId={courseId}
           moduleId={lessonModalState.moduleId}
+          initialTab={lessonModalState.initialTab}
+          newAssessmentId={lessonModalState.newAssessmentId}
+          newAssessmentType={lessonModalState.newAssessmentType}
+          newAssessmentTitle={lessonModalState.newAssessmentTitle}
           lesson={
             lessonModalState.lesson?.id
               ? course?.modules?.flatMap((m) => m.lessons)?.find((l) => l.id === lessonModalState.lesson?.id) ||
@@ -1066,6 +1099,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
               isOpen: false,
               moduleId: '',
               lesson: null,
+              initialTab: 'video',
             })
           }
         />

@@ -23,11 +23,13 @@ const createService = (overrides: Record<string, unknown> = {}) => {
     ...overrides,
   };
   const whatsapp = { sendTrackedProtectedMessage: jest.fn() };
+  const settingsService = { getEffectiveDeliveryChannel: jest.fn() };
   const config = { get: jest.fn((_: string, fallback: string) => fallback) };
   return {
     prisma,
     whatsapp,
-    service: new WhatsAppDispatcherService(prisma as never, whatsapp as never, config as never),
+    settingsService,
+    service: new WhatsAppDispatcherService(prisma as never, whatsapp as never, settingsService as never, config as never),
   };
 };
 

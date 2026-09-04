@@ -136,6 +136,7 @@ export function useCreateAssessment() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: assessmentKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['courses'] });
     },
   });
 }
@@ -180,6 +181,7 @@ export function useUpdateAssessment() {
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: assessmentKeys.lists() });
       queryClient.invalidateQueries({ queryKey: assessmentKeys.detail(variables.id) });
+      queryClient.invalidateQueries({ queryKey: ['courses'] });
     },
   });
 }
