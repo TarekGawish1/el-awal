@@ -29,6 +29,8 @@ export function AssessmentList() {
   const [filterType, setFilterType] = useState<'ALL' | 'EXAM' | 'ASSIGNMENT'>('ALL');
   const [filterStage, setFilterStage] = useState<string>('ALL');
   const [filterGrade, setFilterGrade] = useState<string>('ALL');
+  const [filterSource, setFilterSource] = useState<'ALL' | 'GROUP' | 'ONLINE'>('ALL');
+  const [filterCourseId, setFilterCourseId] = useState<string>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
 
   // Automatically synchronize local filters when global system academic period changes from top navbar
@@ -96,12 +98,32 @@ export function AssessmentList() {
     []
   );
 
+  // Unique courses derived from loaded assessments
+  const availableCourses = useMemo(() => {
+    const map = new Map<string, string>();
+    assessments.forEach((a) => {
+      if (a.course?.id && a.course?.title) map.set(a.course.id, a.course.title);
+    });
+    return Array.from(map.entries()).map(([id, title]) => ({ id, title }));
+  }, [assessments]);
+
   const filteredAssessments = useMemo(() => {
     return assessments.filter((assessment) => {
       const matchesSearch = assessment.title.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesType = filterType === 'ALL' || assessment.type === filterType;
       const matchesStage = filterStage === 'ALL' || assessment.academicStage === filterStage;
       const matchesGrade = filterGrade === 'ALL' || assessment.gradeLevel === filterGrade;
+
+      // Source filter: GROUP vs ONLINE COURSE
+      const isOnlineCourse = Boolean(assessment.course?.id);
+      const matchesSource =
+        filterSource === 'ALL' ||
+        (filterSource === 'ONLINE' && isOnlineCourse) ||
+        (filterSource === 'GROUP' && !isOnlineCourse);
+
+      // Course filter (only applies when source=ONLINE)
+      const matchesCourse =
+        filterCourseId === 'ALL' || assessment.course?.id === filterCourseId;
 
       // Filter by academic year
       const hasYearAttached = Boolean(
@@ -131,9 +153,9 @@ export function AssessmentList() {
         assessment.targetGroups?.some((tg) => tg.academicTerm === filterTerm) ||
         assessment.course?.academicTerm === filterTerm;
 
-      return matchesSearch && matchesType && matchesStage && matchesGrade && matchesYear && matchesTerm;
+      return matchesSearch && matchesType && matchesStage && matchesGrade && matchesSource && matchesCourse && matchesYear && matchesTerm;
     });
-  }, [assessments, searchQuery, filterType, filterStage, filterGrade, filterYear, filterTerm]);
+  }, [assessments, searchQuery, filterType, filterStage, filterGrade, filterSource, filterCourseId, filterYear, filterTerm]);
 
   const availableStages = ['PRIMARY', 'MIDDLE', 'SECONDARY'];
 
@@ -193,6 +215,8 @@ export function AssessmentList() {
     setFilterType('ALL');
     setFilterStage('ALL');
     setFilterGrade('ALL');
+    setFilterSource('ALL');
+    setFilterCourseId('ALL');
     setFilterYear(activeYear || 'ALL');
     setFilterTerm(activeTerm || 'ALL');
     setCurrentPage(1);
@@ -203,6 +227,8 @@ export function AssessmentList() {
     filterType !== 'ALL' ||
     filterStage !== 'ALL' ||
     filterGrade !== 'ALL' ||
+    filterSource !== 'ALL' ||
+    filterCourseId !== 'ALL' ||
     filterYear !== (activeYear || 'ALL') ||
     filterTerm !== (activeTerm || 'ALL');
 
@@ -301,6 +327,50 @@ export function AssessmentList() {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Source Filter Row: Groups vs Online Courses */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2 border-t border-slate-100">
+          <span className="text-xs font-semibold text-slate-500 shrink-0">مصدر التقييم:</span>
+          <div className="bg-slate-100 p-0.5 rounded-xl flex gap-1 w-full sm:w-auto shadow-xs border border-slate-200/50">
+            {[
+              { id: 'ALL', label: 'الكل' },
+              { id: 'GROUP', label: 'المجموعات الدراسية' },
+              { id: 'ONLINE', label: 'الكورسات أونلاين' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setFilterSource(tab.id as 'ALL' | 'GROUP' | 'ONLINE');
+                  setFilterCourseId('ALL');
+                  setCurrentPage(1);
+                }}
+                className={`flex-1 sm:flex-initial py-1.5 px-4 rounded-lg font-bold text-xs transition-all ${
+                  filterSource === tab.id
+                    ? tab.id === 'ONLINE'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'bg-white text-slate-800 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Course dropdown — visible only when filtering by online courses */}
+          {filterSource === 'ONLINE' && availableCourses.length > 0 && (
+            <Select
+              className="w-full sm:w-56 bg-white border-indigo-200 text-xs sm:text-sm"
+              value={filterCourseId}
+              onChange={(e) => { setFilterCourseId(e.target.value); setCurrentPage(1); }}
+              options={[
+                { label: 'جميع الكورسات', value: 'ALL' },
+                ...availableCourses.map(({ id, title }) => ({ label: title, value: id })),
+              ]}
+            />
+          )}
         </div>
 
         {/* Second Row: Academic Year, Term, Stage, Grade selectors */}
@@ -403,6 +473,19 @@ export function AssessmentList() {
             {filterGrade !== 'ALL' && (
               <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md">
                 {filterGrade}
+              </span>
+            )}
+            {filterSource === 'ONLINE' && (
+              <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 border border-indigo-100 px-2 py-0.5 rounded-md font-medium">
+                كورسات أونلاين
+                {filterCourseId !== 'ALL' && (
+                  <span className="font-bold">: {availableCourses.find(c => c.id === filterCourseId)?.title}</span>
+                )}
+              </span>
+            )}
+            {filterSource === 'GROUP' && (
+              <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-md font-medium">
+                مجموعات دراسية
               </span>
             )}
           </div>
