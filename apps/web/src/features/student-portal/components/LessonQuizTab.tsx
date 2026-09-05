@@ -35,6 +35,7 @@ interface LessonQuizTabProps {
   allLessons?: CourseLesson[];
   isPreviewMode?: boolean;
   onBypassQuiz?: (lessonId?: string) => void;
+  onSelectLesson?: (lessonId: string) => void;
 }
 
 // ─── Animated Score Ring ──────────────────────────────────────────────────────
@@ -95,6 +96,8 @@ function QuizCard({
   isLocked = false,
   lockReason,
   onBypassQuiz,
+  nextLesson,
+  onSelectNextLesson,
 }: {
   quiz: AssessmentSummary;
   level: 'lesson' | 'unit' | 'course';
@@ -104,6 +107,8 @@ function QuizCard({
   isLocked?: boolean;
   lockReason?: string;
   onBypassQuiz?: () => void;
+  nextLesson?: CourseLesson | null;
+  onSelectNextLesson?: () => void;
 }) {
   // Fetch the assessment detail for the review link + answers. But prefer the
   // submission/score that arrived WITH the lesson-viewer payload (immediate, no
@@ -262,6 +267,16 @@ function QuizCard({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {nextLesson && onSelectNextLesson && (
+                <button
+                  type="button"
+                  onClick={onSelectNextLesson}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all border shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+                >
+                  <span>الانتقال للدرس التالي ({nextLesson.title})</span>
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                </button>
+              )}
               <Link
                 href={href}
                 className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all border shadow-sm ${
@@ -656,6 +671,12 @@ export function LessonQuizTab({
 
   const hasAnyQuiz = Boolean(lessonQuiz || lessonHomework || unitQuiz || courseQuiz);
 
+  const currentIdx = allLessons?.findIndex((l) => l.id === lessonId) ?? -1;
+  const nextLesson =
+    currentIdx !== -1 && allLessons && currentIdx + 1 < allLessons.length
+      ? allLessons[currentIdx + 1]
+      : null;
+
   if (!hasAnyQuiz) {
     return (
       <div className="p-8 text-center bg-white border border-slate-200 rounded-2xl space-y-2 text-right shadow-sm">
@@ -713,6 +734,8 @@ export function LessonQuizTab({
           lessonId={lessonId}
           learnRoomUrl={learnRoomUrl}
           onBypassQuiz={onBypassQuiz ? () => onBypassQuiz(lessonId) : undefined}
+          nextLesson={nextLesson}
+          onSelectNextLesson={nextLesson && onSelectLesson ? () => onSelectLesson(nextLesson.id) : undefined}
         />
       )}
 
@@ -725,6 +748,8 @@ export function LessonQuizTab({
           lessonId={lessonId}
           learnRoomUrl={learnRoomUrl}
           onBypassQuiz={onBypassQuiz ? () => onBypassQuiz(lessonId) : undefined}
+          nextLesson={nextLesson}
+          onSelectNextLesson={nextLesson && onSelectLesson ? () => onSelectLesson(nextLesson.id) : undefined}
         />
       )}
 

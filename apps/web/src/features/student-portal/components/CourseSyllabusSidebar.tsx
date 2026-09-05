@@ -54,7 +54,9 @@ export function CourseSyllabusSidebar({
       if (quiz.isOptional) return true; // Optional exams/quizzes NEVER block student progression
       const submission = quiz.mySubmission;
       if (!submission) return false;
-      const mustPass = Boolean(requireExamPassingToUnlock || quiz.requirePassingScore);
+      const mustPass = quiz.requirePassingScore !== undefined
+        ? Boolean(quiz.requirePassingScore)
+        : Boolean(requireExamPassingToUnlock);
       if (mustPass) {
         const passScore = quiz.passingScore ?? 0;
         const score = submission.scoreObtained ?? 0;
@@ -191,7 +193,9 @@ export function CourseSyllabusSidebar({
             return;
           }
           if (prevMod.unitQuiz && !prevMod.unitQuiz.isOptional && !isQuizSatisfied(prevMod.unitQuiz)) {
-            const mustPassUnit = Boolean(requireExamPassingToUnlock || prevMod.unitQuiz.requirePassingScore);
+            const mustPassUnit = prevMod.unitQuiz.requirePassingScore !== undefined
+              ? Boolean(prevMod.unitQuiz.requirePassingScore)
+              : Boolean(requireExamPassingToUnlock);
             if (mustPassUnit && prevMod.unitQuiz.mySubmission && !prevMod.unitQuiz.mySubmission.isPassed) {
               toast(
                 `يجب اجتياز امتحان الوحدة السابقة (${prevMod.title}) بدرجة النجاح (${prevMod.unitQuiz.passingScore} من ${prevMod.unitQuiz.totalScore}) أولاً 🎯🔒`,
@@ -213,7 +217,9 @@ export function CourseSyllabusSidebar({
         const prev = idx > 0 ? modLessons[idx - 1] : null;
 
         if (prev?.lessonQuiz && !prev.lessonQuiz.isOptional && !isQuizSatisfied(prev.lessonQuiz)) {
-          const mustPassQuiz = Boolean(requireExamPassingToUnlock || prev.lessonQuiz.requirePassingScore);
+          const mustPassQuiz = prev.lessonQuiz.requirePassingScore !== undefined
+            ? Boolean(prev.lessonQuiz.requirePassingScore)
+            : Boolean(requireExamPassingToUnlock);
           if (mustPassQuiz && prev.lessonQuiz.mySubmission && !prev.lessonQuiz.mySubmission.isPassed) {
             toast(
               `يجب اجتياز اختبار الدرس السابق (${prev.title}) بدرجة النجاح (${prev.lessonQuiz.passingScore} من ${prev.lessonQuiz.totalScore}) لفتح هذا الدرس 🎯🔒`,
@@ -226,7 +232,9 @@ export function CourseSyllabusSidebar({
         }
 
         if (prev?.lessonHomework && !prev.lessonHomework.isOptional && !isQuizSatisfied(prev.lessonHomework)) {
-          const mustPassHw = Boolean(requireExamPassingToUnlock || prev.lessonHomework.requirePassingScore);
+          const mustPassHw = prev.lessonHomework.requirePassingScore !== undefined
+            ? Boolean(prev.lessonHomework.requirePassingScore)
+            : Boolean(requireExamPassingToUnlock);
           if (mustPassHw && prev.lessonHomework.mySubmission && !prev.lessonHomework.mySubmission.isPassed) {
             toast(
               `يجب اجتياز واجب الدرس السابق (${prev.title}) بدرجة النجاح (${prev.lessonHomework.passingScore} من ${prev.lessonHomework.totalScore}) لفتح هذا الدرس 🎯🔒`,
@@ -401,10 +409,13 @@ export function CourseSyllabusSidebar({
                 const isUnitPassed =
                   quiz.mySubmission?.isPassed ??
                   ((quiz.mySubmission?.scoreObtained ?? 0) >= (quiz.passingScore ?? 0));
+                const mustPassUnit = quiz.requirePassingScore !== undefined
+                  ? Boolean(quiz.requirePassingScore)
+                  : Boolean(requireExamPassingToUnlock);
                 const isUnitCompleted = Boolean(
                   quiz.mySubmission &&
                     (quiz.mySubmission.status === 'SUBMITTED' || quiz.mySubmission.status === 'GRADED') &&
-                    (!requireExamPassingToUnlock || isUnitPassed)
+                    (!mustPassUnit || isUnitPassed)
                 );
                 const isQuizActive = activeQuizId === quiz.id;
 

@@ -210,7 +210,9 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         const sub = uq.mySubmission;
         let isSatisfied = false;
         if (sub && (sub.status === 'SUBMITTED' || sub.status === 'GRADED')) {
-          const mustPass = Boolean(course?.requireExamPassingToUnlock || uq.requirePassingScore);
+          const mustPass = uq.requirePassingScore !== undefined
+            ? Boolean(uq.requirePassingScore)
+            : Boolean(course?.requireExamPassingToUnlock);
           if (mustPass) {
             const passScore = uq.passingScore ?? 0;
             const score = sub.scoreObtained ?? 0;
@@ -622,7 +624,9 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         totalMaxScore += Number(q.totalScore);
       }
 
-      const mustPass = Boolean(course.requireExamPassingToUnlock || q.requirePassingScore);
+      const mustPass = q.requirePassingScore !== undefined
+        ? Boolean(q.requirePassingScore)
+        : Boolean(course.requireExamPassingToUnlock);
       if (mustPass) {
         const passScore = q.passingScore ?? 0;
         const score = sub.scoreObtained ?? 0;
@@ -690,7 +694,9 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         setActiveTab('quiz');
         return;
       }
-      const mustPassQuiz = Boolean(course?.requireExamPassingToUnlock || currentQuiz.requirePassingScore);
+      const mustPassQuiz = currentQuiz.requirePassingScore !== undefined
+        ? Boolean(currentQuiz.requirePassingScore)
+        : Boolean(course?.requireExamPassingToUnlock);
       if (mustPassQuiz) {
         const passScore = currentQuiz.passingScore ?? 0;
         const score = currentQuiz.mySubmission.scoreObtained ?? 0;
@@ -713,7 +719,9 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         setActiveTab('quiz');
         return;
       }
-      const mustPassHw = Boolean(course?.requireExamPassingToUnlock || currentHomework.requirePassingScore);
+      const mustPassHw = currentHomework.requirePassingScore !== undefined
+        ? Boolean(currentHomework.requirePassingScore)
+        : Boolean(course?.requireExamPassingToUnlock);
       if (mustPassHw) {
         const passScore = currentHomework.passingScore ?? 0;
         const score = currentHomework.mySubmission.scoreObtained ?? 0;
@@ -847,7 +855,9 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
       );
       const isPassed =
         q.mySubmission?.isPassed ?? ((q.mySubmission?.scoreObtained ?? 0) >= (q.passingScore ?? 0));
-      const mustPass = Boolean(course.requireExamPassingToUnlock || q.requirePassingScore);
+      const mustPass = q.requirePassingScore !== undefined
+        ? Boolean(q.requirePassingScore)
+        : Boolean(course.requireExamPassingToUnlock);
       const isDone = isSubmitted && (!mustPass || isPassed);
 
       if (!isDone) {
@@ -871,7 +881,9 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
       );
       const isPassed =
         hw.mySubmission?.isPassed ?? ((hw.mySubmission?.scoreObtained ?? 0) >= (hw.passingScore ?? 0));
-      const mustPass = Boolean(course.requireExamPassingToUnlock || hw.requirePassingScore);
+      const mustPass = hw.requirePassingScore !== undefined
+        ? Boolean(hw.requirePassingScore)
+        : Boolean(course.requireExamPassingToUnlock);
       const isDone = isSubmitted && (!mustPass || isPassed);
 
       if (!isDone) {
@@ -895,7 +907,9 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
       );
       const isPassed =
         uq.mySubmission?.isPassed ?? ((uq.mySubmission?.scoreObtained ?? 0) >= (uq.passingScore ?? 0));
-      const mustPass = Boolean(course.requireExamPassingToUnlock || uq.requirePassingScore);
+      const mustPass = uq.requirePassingScore !== undefined
+        ? Boolean(uq.requirePassingScore)
+        : Boolean(course.requireExamPassingToUnlock);
       const isDone = isSubmitted && (!mustPass || isPassed);
 
       if (!isDone) {
@@ -923,7 +937,9 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
       );
       const isPassed =
         cq.mySubmission?.isPassed ?? ((cq.mySubmission?.scoreObtained ?? 0) >= (cq.passingScore ?? 0));
-      const mustPass = Boolean(course.requireExamPassingToUnlock || cq.requirePassingScore);
+      const mustPass = cq.requirePassingScore !== undefined
+        ? Boolean(cq.requirePassingScore)
+        : Boolean(course.requireExamPassingToUnlock);
       const isDone = isSubmitted && (!mustPass || isPassed);
 
       if (!isDone) {
@@ -1406,6 +1422,10 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 allLessons={allLessons}
                 isPreviewMode={isPreviewMode}
                 onBypassQuiz={handleBypassQuiz}
+                onSelectLesson={(id) => {
+                  setSelectedLessonId(id);
+                  setActiveTab('summary');
+                }}
               />
             )}
           </div>

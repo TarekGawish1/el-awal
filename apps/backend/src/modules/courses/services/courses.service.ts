@@ -2399,7 +2399,10 @@ export class CoursesService {
                   allSatisfied = false;
                   break;
                 }
-                if (courseRecord?.requireExamPassingToUnlock && ass.passingScore != null) {
+                const mustPass = (ass as any).requirePassingScore !== undefined
+                  ? Boolean((ass as any).requirePassingScore)
+                  : Boolean(courseRecord?.requireExamPassingToUnlock);
+                if (mustPass && ass.passingScore != null) {
                   const passed = studentSubs.some(
                     (s) => s.scoreObtained != null && Number(s.scoreObtained) >= Number(ass.passingScore),
                   );
@@ -2660,7 +2663,7 @@ export class CoursesService {
 
       const assessment = await this.prisma.assessment.findUnique({
         where: { id: lesson.lessonQuizId },
-        select: { passingScore: true },
+        select: { passingScore: true, requirePassingScore: true },
       });
 
       const quizSubmissions = await this.prisma.assessmentSubmission.findMany({
@@ -2678,12 +2681,17 @@ export class CoursesService {
       if (!hasSubmittedQuiz) {
         // Demote completion to false until quiz is submitted
         isCompletedToSave = false;
-      } else if (course?.requireExamPassingToUnlock && assessment?.passingScore != null) {
-        const hasPassedQuiz = quizSubmissions.some(
-          (s) => s.scoreObtained != null && Number(s.scoreObtained) >= Number(assessment.passingScore),
-        );
-        if (!hasPassedQuiz) {
-          isCompletedToSave = false;
+      } else {
+        const mustPass = assessment?.requirePassingScore !== undefined
+          ? Boolean(assessment.requirePassingScore)
+          : Boolean(course?.requireExamPassingToUnlock);
+        if (mustPass && assessment?.passingScore != null) {
+          const hasPassedQuiz = quizSubmissions.some(
+            (s) => s.scoreObtained != null && Number(s.scoreObtained) >= Number(assessment.passingScore),
+          );
+          if (!hasPassedQuiz) {
+            isCompletedToSave = false;
+          }
         }
       }
     }
