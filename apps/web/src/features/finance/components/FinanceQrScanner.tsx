@@ -5,7 +5,7 @@ import { Scanner } from '@yudiel/react-qr-scanner';
 import { useScanPaymentQr } from '../hooks/useFinance';
 import { useBooklets } from '@/features/booklets/hooks/useBooklets';
 import { Alert } from '@/components/ui/Alert';
-import { RefreshCcw, CreditCard, BookOpen } from 'lucide-react';
+import { RefreshCcw, CreditCard, BookOpen, Calendar } from 'lucide-react';
 import { parseStudentQr } from '@/lib/qr/qr-parser';
 import { initQrDetector } from '@/lib/qr/qr-detector-init';
 import toast from 'react-hot-toast';
@@ -25,6 +25,16 @@ export function FinanceQrScanner({
 }: FinanceQrScannerProps) {
   const [paymentType, setPaymentType] = useState<'TUITION' | 'BOOKLET'>('TUITION');
   const [selectedBookletId, setSelectedBookletId] = useState<string>('');
+  const [selectedPeriodMonth, setSelectedPeriodMonth] = useState<number>(periodMonth || new Date().getMonth() + 1);
+  const [selectedPeriodYear, setSelectedPeriodYear] = useState<number>(periodYear || new Date().getFullYear());
+
+  useEffect(() => {
+    if (periodMonth) setSelectedPeriodMonth(periodMonth);
+  }, [periodMonth]);
+
+  useEffect(() => {
+    if (periodYear) setSelectedPeriodYear(periodYear);
+  }, [periodYear]);
 
   const { booklets = [] } = useBooklets();
 
@@ -148,8 +158,8 @@ export function FinanceQrScanner({
         paymentType,
         bookletId: paymentType === 'BOOKLET' ? selectedBookletId : undefined,
         groupId: groupId || undefined,
-        periodYear,
-        periodMonth,
+        periodYear: selectedPeriodYear,
+        periodMonth: selectedPeriodMonth,
       },
       {
         onSuccess: (data) => {
@@ -166,7 +176,7 @@ export function FinanceQrScanner({
               message:
                 paymentType === 'BOOKLET'
                   ? `⚠️ تم سداد قيمة المذكرة لهذا الطالب مسبقاً (${amount} ج.م).`
-                  : `⚠️ تم سداد مصروفات شهر ${periodMonth} لهذا الطالب مسبقاً (${amount} ج.م).`,
+                  : `⚠️ تم سداد مصروفات شهر ${selectedPeriodMonth} لهذا الطالب مسبقاً (${amount} ج.م).`,
               studentName,
               bookletTitle,
               groupName: data.group?.name,
@@ -181,7 +191,7 @@ export function FinanceQrScanner({
               message:
                 paymentType === 'BOOKLET'
                   ? `تم تسجيل سداد المذكرة بنجاح بمبلغ ${amount} ج.م.`
-                  : `تم تسجيل سداد المصروفات بنجاح بمبلغ ${amount} ج.م لشهر ${periodMonth}.`,
+                  : `تم تسجيل سداد المصروفات بنجاح بمبلغ ${amount} ج.م لشهر ${selectedPeriodMonth}/${selectedPeriodYear}.`,
               studentName,
               bookletTitle,
               groupName: data.group?.name,
@@ -282,6 +292,66 @@ export function FinanceQrScanner({
           سداد قيمة مذكرة
         </button>
       </div>
+
+      {/* Month & Year Selector in Tuition Mode */}
+      {paymentType === 'TUITION' && (
+        <div className="w-full max-w-sm bg-slate-50 border border-slate-200/80 rounded-2xl p-3 space-y-2 animate-in fade-in duration-200">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-primary-600" />
+              <span>شهر وسنة الاشتراك المراد تحصيله:</span>
+            </label>
+            <span className="text-[11px] font-black text-primary-700 bg-primary-50 px-2 py-0.5 rounded-lg border border-primary-100">
+              شهر {selectedPeriodMonth} / {selectedPeriodYear}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 mb-1">الشهر</label>
+              <select
+                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                value={selectedPeriodMonth}
+                onChange={(e) => setSelectedPeriodMonth(Number(e.target.value))}
+              >
+                {[
+                  { m: 1, name: 'شهر 1 (يناير)' },
+                  { m: 2, name: 'شهر 2 (فبراير)' },
+                  { m: 3, name: 'شهر 3 (مارس)' },
+                  { m: 4, name: 'شهر 4 (أبريل)' },
+                  { m: 5, name: 'شهر 5 (مايو)' },
+                  { m: 6, name: 'شهر 6 (يونيو)' },
+                  { m: 7, name: 'شهر 7 (يوليو)' },
+                  { m: 8, name: 'شهر 8 (أغسطس)' },
+                  { m: 9, name: 'شهر 9 (سبتمبر)' },
+                  { m: 10, name: 'شهر 10 (أكتوبر)' },
+                  { m: 11, name: 'شهر 11 (نوفمبر)' },
+                  { m: 12, name: 'شهر 12 (ديسمبر)' },
+                ].map(({ m, name }) => (
+                  <option key={m} value={m}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 mb-1">السنة</label>
+              <select
+                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                value={selectedPeriodYear}
+                onChange={(e) => setSelectedPeriodYear(Number(e.target.value))}
+              >
+                {[selectedPeriodYear - 1, selectedPeriodYear, selectedPeriodYear + 1].map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Booklet Selector in Booklet Mode */}
       {paymentType === 'BOOKLET' && (

@@ -4,6 +4,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../database/prisma.service';
 import { AuthenticatedUser } from '../decorators/current-user.decorator';
+import { UserRole } from '@prisma/client';
 
 export interface JwtPayload {
   sub: string;
@@ -44,12 +45,25 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       throw new UnauthorizedException('User account is deactivated, invalid, or deleted');
     }
 
+    let effectiveRole = user.role;
+    if (payload.role) {
+      const isQualified =
+        payload.role === user.role ||
+        (payload.role === UserRole.PARENT && Boolean(user.parentProfile)) ||
+        (payload.role === UserRole.TEACHER && Boolean(user.teacherProfile)) ||
+        (payload.role === UserRole.STUDENT && Boolean(user.studentProfile)) ||
+        (payload.role === UserRole.SECRETARIAT && Boolean(user.secretariatProfile));
+      if (isQualified) {
+        effectiveRole = payload.role as UserRole;
+      }
+    }
+
     return {
       id: user.id,
       fullName: user.fullName,
       email: user.email || undefined,
       phone: user.phone || undefined,
-      role: user.role,
+      role: effectiveRole,
       teacherProfileId: user.teacherProfile?.id,
       studentProfileId: user.studentProfile?.id,
       parentProfileId: user.parentProfile?.id,
