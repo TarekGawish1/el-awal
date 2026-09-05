@@ -2,7 +2,7 @@
  
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   ArrowRight,
   ArrowLeft,
@@ -30,7 +30,7 @@ import {
 import { useCourseDetail, useLessonViewer, useLessonStreamAuth } from '@/features/courses/hooks/useCourses';
 import { coursesApi } from '@/features/courses/api/courses.api';
 import { useAuth } from '@/features/auth';
-import { CourseModule, CourseLesson, LessonViewerData } from '@/features/courses/types/courses.types';
+import { CourseModule, CourseLesson, LessonViewerData, AssessmentSummary } from '@/features/courses/types/courses.types';
 import { LessonQAPanel } from './LessonQAPanel';
 import { LessonSummaryTab } from './LessonSummaryTab';
 import { LessonResourcesTab } from './LessonResourcesTab';
@@ -56,6 +56,7 @@ function getPausedEmbedUrl(embedUrl: string): string {
 
 export function StudentCourseLearningRoom({ courseId, initialLessonId }: StudentCourseLearningRoomProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { data: course, isLoading: isCourseLoading, refetch: refetchCourse } = useCourseDetail(courseId);
   const { user } = useAuth();
   const isTeacherOrAdmin = user?.role === 'TEACHER' || user?.role === 'SECRETARIAT';
@@ -303,10 +304,21 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     }
   }, [courseId, progressScopeId]);
 
+  // Prompt student to take lesson exam/homework when video is watched
+  const [postVideoPrompt, setPostVideoPrompt] = useState<{
+    isOpen: boolean;
+    lessonId: string;
+    lessonTitle: string;
+    assessment: AssessmentSummary;
+    isHomework: boolean;
+  } | null>(null);
+  const hasPromptedQuizForLessonRef = useRef<string | null>(null);
+
   // Reset completion trigger state when changing lessons
   useEffect(() => {
     completionTriggeredRef.current = null;
     advancedLessonRef.current = null;
+    hasPromptedQuizForLessonRef.current = null;
   }, [selectedLessonId]);
 
   // Stable completion handler — reads from refs, never needs to be recreated
@@ -341,20 +353,27 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     const currentActiveLesson = activeLessonRef.current;
     const currentIsCompleted = isLessonCompletedRef.current;
     const currentQuiz = currentLessonViewer?.lessonQuiz;
-    const hasQuiz = Boolean(currentQuiz || currentActiveLesson?.lessonQuizId);
+    const currentHomework = currentLessonViewer?.lessonHomework;
+    const targetAssessment = currentQuiz || currentHomework;
+    const isHw = Boolean(!currentQuiz && currentHomework);
+
+    const sub = targetAssessment?.mySubmission;
+    const isAssessmentDone = Boolean(
+      sub &&
+        (sub.status === 'SUBMITTED' || sub.status === 'GRADED') &&
+        (!targetAssessment?.requirePassingScore || sub.isPassed)
+    );
+    const hasUncompletedAssessment = Boolean(targetAssessment && !isAssessmentDone);
     const isMandatoryQuiz = Boolean(
-      currentQuiz ? !currentQuiz.isOptional : currentActiveLesson?.lessonQuizId
+      hasUncompletedAssessment &&
+        (currentQuiz ? !currentQuiz.isOptional : currentHomework ? !currentHomework.isOptional : false)
     );
 
-    // ── Record completion (once per lesson; may fire at the 80% mark) ──────────────
+    // ── Record completion (once per lesson; may fire at the 80% mark or end) ──────────────
     if (isMostWatched && completionTriggeredRef.current !== lessonId) {
       completionTriggeredRef.current = lessonId;
 
-      // First-completion-only gate: if this lesson's popup was already shown (persisted
-      // across reloads), or the lesson is already completed on the server, stay fully
-      // silent — no toast, no automatic switch to the quiz tab.
       if (!notifiedLessonIdsRef.current.includes(lessonId) && !currentIsCompleted) {
-        // Record (and persist) that we've now shown the completion popup for this lesson.
         notifiedLessonIdsRef.current = [...notifiedLessonIdsRef.current, lessonId];
         if (typeof window !== 'undefined') {
           try {
@@ -364,33 +383,42 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
             );
           } catch {}
         }
+      }
 
-        if (isMandatoryQuiz) {
-          setActiveTabRef.current('quiz');
-          toast('أحسنت بمشاهدة شرح الدرس! يرجى حل اختبار الدرس لاحتساب إتمامه بنجاح 📝', { icon: '🎓' });
-        } else {
-          markLessonCompletedLocally(lessonId);
-          try {
-            await coursesApi.updateLessonProgress(lessonId, {
-              isCompleted: true,
-              lastPositionSeconds: Math.round(seconds || 0),
-            });
-            await refetchLessonRef.current();
-            if (currentQuiz?.isOptional) {
-              toast('أحسنت! تمت مشاهدة شرح الدرس، ويتوفر اختبار اختياري يمكنك خوضه أو متابعة الدروس 💡', { icon: '🎯' });
-            } else {
-              toast.success('أحسنت! تمت مشاهدة معظم شرح الدرس وتم رصد إتمامه بنجاح 🎯');
-            }
-          } catch {
-            // Ignore
-          }
+      // Always save video watch progress to backend
+      coursesApi
+        .updateLessonProgress(lessonId, {
+          isCompleted: !isMandatoryQuiz,
+          lastPositionSeconds: Math.round(seconds || 0),
+        })
+        .then(() => {
+          refetchLessonRef.current();
+        })
+        .catch(() => {});
+
+      if (!isMandatoryQuiz && !currentIsCompleted) {
+        markLessonCompletedLocally(lessonId);
+      }
+
+      // If this lesson has an uncompleted exam/homework, ask the student directly!
+      if (hasUncompletedAssessment && targetAssessment) {
+        if (hasPromptedQuizForLessonRef.current !== lessonId) {
+          hasPromptedQuizForLessonRef.current = lessonId;
+          setPostVideoPrompt({
+            isOpen: true,
+            lessonId,
+            lessonTitle: currentActiveLesson?.title || '',
+            assessment: targetAssessment,
+            isHomework: isHw,
+          });
         }
+      } else if (!currentIsCompleted) {
+        toast.success('أحسنت! تمت مشاهدة شرح الدرس وتم رصد إتمامه بنجاح 🎯');
       }
     }
 
-    // ── Reveal the next lesson once the video genuinely finishes ───────────────────
-    // Only for lessons without a mandatory gating quiz (optional quizzes allow smooth advance)
-    if (isHardEnd && !isMandatoryQuiz && advancedLessonRef.current !== lessonId) {
+    // ── Reveal the next lesson once the video genuinely finishes (if no uncompleted quiz) ───
+    if (isHardEnd && !isMandatoryQuiz && !hasUncompletedAssessment && advancedLessonRef.current !== lessonId) {
       advancedLessonRef.current = lessonId;
       advanceToNextLesson(lessonId);
     }
@@ -830,15 +858,21 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     [selectedLessonId, markLessonCompletedLocally, refetchLesson, advanceToNextLesson]
   );
 
-  // Jump to quiz from sidebar
-  const handleSelectQuizFromSidebar = useCallback((quizId: string) => {
-    setActiveTab('quiz');
-    setIsMobileSyllabusOpen(false);
-    setTimeout(() => {
-      const el = document.getElementById(`quiz-card-${quizId}`) || document.getElementById('lesson-content-tabs');
-      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 100);
-  }, []);
+  // Open quiz from sidebar directly in the assessment solver / review page
+  const handleSelectQuizFromSidebar = useCallback(
+    (quizId: string) => {
+      setIsMobileSyllabusOpen(false);
+      const isTeacher = isPreviewMode || (pathname?.includes('/preview') ?? false);
+      const returnUrl = courseId
+        ? isTeacher
+          ? `/teacher/courses/${courseId}/preview${selectedLessonId ? `?lessonId=${selectedLessonId}` : ''}`
+          : `/student/courses/${courseId}/learn${selectedLessonId ? `?lessonId=${selectedLessonId}` : ''}`
+        : '/student/courses';
+
+      window.location.href = `/student/assessments?id=${quizId}&courseId=${courseId}&returnUrl=${encodeURIComponent(returnUrl)}`;
+    },
+    [courseId, isPreviewMode, pathname, selectedLessonId]
+  );
 
   // Compute next step guidance banner info
   const nextStepInfo = useMemo(() => {
@@ -1200,6 +1234,16 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
               <button
                 type="button"
                 onClick={() => {
+                  if (nextStepInfo.type === 'unit_quiz' || nextStepInfo.type === 'course_quiz') {
+                    const isTeacher = isPreviewMode || (pathname?.includes('/preview') ?? false);
+                    const returnUrl = courseId
+                      ? isTeacher
+                        ? `/teacher/courses/${courseId}/preview${selectedLessonId ? `?lessonId=${selectedLessonId}` : ''}`
+                        : `/student/courses/${courseId}/learn${selectedLessonId ? `?lessonId=${selectedLessonId}` : ''}`
+                      : '/student/courses';
+                    window.location.href = `/student/assessments?id=${nextStepInfo.quizId}&courseId=${course.id}&returnUrl=${encodeURIComponent(returnUrl)}`;
+                    return;
+                  }
                   setActiveTab('quiz');
                   setTimeout(() => {
                     const el =
@@ -1401,7 +1445,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
             >
               <Award className="w-4 h-4" />
               <span>الاختبارات والتقييم</span>
-              {(lessonViewer?.lessonQuiz || lessonViewer?.lessonHomework || lessonViewer?.unitQuiz || course.courseQuiz) && (
+              {(lessonViewer?.lessonQuiz || lessonViewer?.lessonHomework) && (
                 <span className="w-2 h-2 rounded-full bg-amber-400" />
               )}
             </button>
@@ -1440,8 +1484,6 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 lessonTitle={activeLesson?.title || ''}
                 lessonQuiz={lessonViewer?.lessonQuiz || null}
                 lessonHomework={lessonViewer?.lessonHomework || null}
-                unitQuiz={lessonViewer?.unitQuiz || null}
-                courseQuiz={course.courseQuiz || null}
                 enforceSequentialLessons={course.enforceSequentialLessons ?? false}
                 completedLessonIds={completedLessonIds}
                 activeModule={activeModule || null}
@@ -1470,6 +1512,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
               completedLessonIds={completedLessonIds}
               enforceSequentialLessons={course?.enforceSequentialLessons ?? false}
               requireExamPassingToUnlock={course?.requireExamPassingToUnlock ?? false}
+              courseQuiz={course?.courseQuiz || null}
             />
           </div>
         </div>
@@ -1502,7 +1545,107 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 completedLessonIds={completedLessonIds}
                 enforceSequentialLessons={course?.enforceSequentialLessons ?? false}
                 requireExamPassingToUnlock={course?.requireExamPassingToUnlock ?? false}
+                courseQuiz={course?.courseQuiz || null}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Interactive Post-Video Assessment Prompt Modal */}
+      {postVideoPrompt?.isOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-100 text-center relative overflow-hidden animate-in zoom-in-95">
+            {/* Background decorative gradient */}
+            <div className="absolute -top-16 -right-16 w-36 h-36 bg-amber-100/60 rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute -bottom-16 -left-16 w-36 h-36 bg-primary-100/60 rounded-full blur-2xl pointer-events-none" />
+
+            <div className="relative z-10">
+              {/* Top badge / icon */}
+              <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center mx-auto mb-4 shadow-sm">
+                <Award className="w-8 h-8" />
+              </div>
+
+              <h3 className="text-lg font-black text-slate-900 leading-tight">
+                أحسنت! أكملت مشاهدة شرح الدرس 👏
+              </h3>
+              <p className="text-xs text-slate-600 mt-2 font-medium">
+                {postVideoPrompt.isHomework
+                  ? 'يوجد واجب منزلي مخصص لهذا الدرس، هل ترغب في البدء في حله الآن؟'
+                  : 'يوجد اختبار مخصص لقياس فهمك لهذا الدرس، هل ترغب في بدء الاختبار الآن؟'}
+              </p>
+
+              {/* Assessment summary box */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 my-5 text-right flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-primary-600 shrink-0 shadow-xs">
+                    <FileQuestion className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                        {postVideoPrompt.isHomework ? 'واجب الدرس' : 'اختبار الدرس'}
+                      </span>
+                      {postVideoPrompt.assessment.isOptional ? (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                          اختياري
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                          إجباري للمتابعة
+                        </span>
+                      )}
+                    </div>
+                    <h4 className="text-xs font-black text-slate-800 mt-1">
+                      {postVideoPrompt.assessment.title}
+                    </h4>
+                  </div>
+                </div>
+                <div className="text-left shrink-0">
+                  <span className="text-xs font-black font-mono text-slate-700">
+                    {postVideoPrompt.assessment.totalScore} د
+                  </span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const quizId = postVideoPrompt.assessment.id;
+                    const lId = postVideoPrompt.lessonId;
+                    setPostVideoPrompt(null);
+                    const returnUrl = encodeURIComponent(`/student/courses/${courseId}/learn?lessonId=${lId}`);
+                    router.push(
+                      `/student/assessments?id=${quizId}&courseId=${courseId}&lessonId=${lId}&returnUrl=${returnUrl}`
+                    );
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white font-black text-xs rounded-xl shadow-md shadow-primary-500/20 transition-all cursor-pointer"
+                >
+                  <span>{postVideoPrompt.isHomework ? 'بدء حل الواجب الآن ✍️' : 'بدء الاختبار الآن ✍️'}</span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPostVideoPrompt(null);
+                      setActiveTab('quiz');
+                    }}
+                    className="flex-1 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                  >
+                    عرض في التبويب
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPostVideoPrompt(null)}
+                    className="flex-1 py-2.5 px-3 bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-700 border border-slate-200 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                  >
+                    لاحقاً
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
