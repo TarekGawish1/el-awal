@@ -5,3 +5,4 @@ export * from './components/GroupDetails';
 export * from './components/GroupDetailsModal';
 export * from './components/GroupCard';
 export * from './components/GroupLinkGeneratorModal';
+export * from './components/GroupQrPrintModal';

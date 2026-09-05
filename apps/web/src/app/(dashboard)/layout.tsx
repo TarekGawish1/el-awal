@@ -517,6 +517,9 @@ export default function DashboardLayout({
                   <span className="text-sm font-bold text-neutral-900 leading-none">
                     {user?.fullName || 'المستخدم'}
                   </span>
+                  <span className="text-[11px] font-medium text-neutral-500 leading-none mt-1">
+                    {user?.role === 'TEACHER' ? 'مدرس معتمد' : user?.role === 'ADMIN' ? 'مدير النظام' : user?.role === 'STUDENT' ? 'طالب' : user?.role === 'PARENT' ? 'ولي أمر' : 'مساعد'}
+                  </span>
                 </div>
                 <ChevronDown className={`hidden sm:block w-4 h-4 text-neutral-400 transition-transform ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
               </button>
@@ -553,7 +556,7 @@ export default function DashboardLayout({
         {/* Main Content Area */}
         <main
           ref={mainScrollRef}
-          className="flex-1 min-h-0 w-full overflow-x-hidden overflow-y-auto custom-scrollbar pb-20 lg:pb-10 pt-3 px-3 sm:px-6"
+          className="flex-1 min-h-0 w-full overflow-x-hidden overflow-y-auto custom-scrollbar pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] lg:pb-10 pt-3 px-3 sm:px-6"
         >
           <div className="max-w-7xl mx-auto w-full min-h-full">
             {children}

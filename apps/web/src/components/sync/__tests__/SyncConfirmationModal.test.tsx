@@ -5,6 +5,7 @@ import { SyncConfirmationModal } from '../SyncConfirmationModal';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { offlineDb } from '@/lib/offline/db';
 import * as client from '@/lib/api/client';
+import { useAuthStore } from '@/features/auth/store/auth.store';
 
 vi.mock('@/lib/api/client', () => ({
   apiClient: vi.fn(),
@@ -16,6 +17,10 @@ describe('Reconnection Confirmation Gate & <SyncConfirmationModal />', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    useAuthStore.setState({
+      user: { id: 'teacher-101', role: 'TEACHER' } as any,
+      isAuthenticated: true,
+    });
     await offlineDb.wipeAllOfflineData();
     originalNavigatorOnLine = navigator.onLine;
   });

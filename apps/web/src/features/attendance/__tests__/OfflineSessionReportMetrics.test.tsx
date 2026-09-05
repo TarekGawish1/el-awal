@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useSessionReport, useScanQrAttendance, useManualAttendance } from '../hooks/use-attendance';
 import { offlineDb } from '@/lib/offline/db';
+import { useAuthStore } from '@/features/auth/store/auth.store';
 
 describe('Offline Session Report & "ملخص الحصة" Metrics Integration', () => {
   let queryClient: QueryClient;
@@ -11,6 +12,10 @@ describe('Offline Session Report & "ملخص الحصة" Metrics Integration', (
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    useAuthStore.setState({
+      user: { id: 'teacher-101', role: 'TEACHER' } as any,
+      isAuthenticated: true,
+    });
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false, gcTime: 0, networkMode: 'always' },

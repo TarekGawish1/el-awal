@@ -1564,7 +1564,7 @@ class OfflineDatabase {
       mutation.userId = currentUser.id;
     }
 
-    const allowedDomains = ['attendance', 'finance', 'progress'];
+    const allowedDomains = ['attendance', 'finance', 'progress', 'students', 'groups', 'assessments', 'generic'];
     if (!allowedDomains.includes(mutation.domain)) {
       throw new Error(`العمليات على (${mutation.domain}) غير مدعومة في وضع عدم الاتصال. يرجى الاتصال بالإنترنت.`);
     }

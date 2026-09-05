@@ -425,7 +425,7 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
   });
 
   describe('LessonQuizTab Component (Multi-Level Quizzes)', () => {
-    it('renders Lesson Quiz, Unit Quiz, and Course Final Exam in clean Arabic without English words', () => {
+    it('renders Lesson Quiz and Homework in clean Arabic without English words', () => {
       render(
         <LessonQuizTab
           lessonTitle="كان وأخواتها"
@@ -435,25 +435,18 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
             type: 'QUIZ',
             totalScore: 20,
           }}
-          unitQuiz={{
+          lessonHomework={{
             id: 'quiz-unit-1',
-            title: 'اختبار شامل للوحدة الأولى',
-            type: 'EXAM',
+            title: 'واجب على كان وأخواتها',
+            type: 'HOMEWORK',
             totalScore: 50,
-          }}
-          courseQuiz={{
-            id: 'quiz-course-final',
-            title: 'الامتحان النهائي لكورس النحو',
-            type: 'EXAM',
-            totalScore: 100,
           }}
         />
       );
 
       expect(screen.getByText('اختبار سريع على كان وأخواتها')).toBeInTheDocument();
       expect(screen.getByText(/الدرجة الإجمالية: 20 درجة/i)).toBeInTheDocument();
-      expect(screen.getByText(/اختبار شامل للوحدة الأولى/i)).toBeInTheDocument();
-      expect(screen.getByText(/الامتحان النهائي لكورس النحو/i)).toBeInTheDocument();
+      expect(screen.getByText(/واجب على كان وأخواتها/i)).toBeInTheDocument();
 
       // Ensure no English terms like Course Final Exam exist in the output
       expect(screen.queryByText(/Course Final Exam/i)).not.toBeInTheDocument();

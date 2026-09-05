@@ -23,7 +23,10 @@ const createService = (overrides: Record<string, unknown> = {}) => {
     ...overrides,
   };
   const whatsapp = { sendTrackedProtectedMessage: jest.fn() };
-  const settingsService = { getEffectiveDeliveryChannel: jest.fn() };
+  const settingsService = {
+    getEffectiveDeliveryChannel: jest.fn(),
+    isChannelAllowed: jest.fn().mockResolvedValue(true),
+  };
   const config = { get: jest.fn((_: string, fallback: string) => fallback) };
   return {
     prisma,

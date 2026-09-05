@@ -1687,7 +1687,7 @@ export class AssessmentsService {
           points: Number(q.points),
           correctAnswer: q.correctAnswer,
           optionsData: q.optionsData ? q.optionsData : undefined,
-          optionImages: q.optionImages ? q.optionImages : undefined,
+          optionImages: (q as any).optionImages ? (q as any).optionImages : undefined,
           explanation: q.explanation,
         })),
       },

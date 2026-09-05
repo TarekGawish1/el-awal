@@ -58,7 +58,7 @@ describe('Dashboard States & Auxiliary Components', () => {
         />
       );
 
-      expect(screen.getByText(/مرحباً، أستاذ طارق/i)).toBeInTheDocument();
+      expect(screen.getByText(/أستاذ طارق/i)).toBeInTheDocument();
       const refreshBtn = screen.getByLabelText('تحديث بيانات لوحة التحكم');
       fireEvent.click(refreshBtn);
       expect(handleRefresh).toHaveBeenCalledTimes(1);

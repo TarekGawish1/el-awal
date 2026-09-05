@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../services/auth.service';
 import { PrismaService } from '../../../core/database/prisma.service';
+import { NotificationsService } from '../../notifications/services/notifications.service';
 import { GroupEnrollmentStatus, UserRole } from '@prisma/client';
 
 describe('AuthService — registerByGroup', () => {
@@ -87,6 +88,10 @@ describe('AuthService — registerByGroup', () => {
     sendTextMessage: jest.fn().mockResolvedValue(true),
   };
 
+  const mockNotificationsService = {
+    sendNotification: jest.fn().mockResolvedValue(true),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -94,6 +99,7 @@ describe('AuthService — registerByGroup', () => {
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: NotificationsService, useValue: mockNotificationsService },
         { provide: 'WhatsAppService', useValue: mockWhatsAppService },
       ],
     }).compile();
@@ -258,6 +264,10 @@ describe('AuthService — getGroupInvite', () => {
     getOrThrow: jest.fn((key: string) => 'test-secret-32-chars-long-for-jwt-signing'),
   };
 
+  const mockNotificationsService = {
+    sendNotification: jest.fn().mockResolvedValue(true),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -265,6 +275,7 @@ describe('AuthService — getGroupInvite', () => {
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: NotificationsService, useValue: mockNotificationsService },
       ],
     }).compile();
 

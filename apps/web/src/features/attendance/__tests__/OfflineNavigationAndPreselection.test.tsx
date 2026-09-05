@@ -140,7 +140,7 @@ describe('Offline Navigation & Pre-Selection Resilience', () => {
     renderWithQuery(<TeacherAttendancePage />);
 
     await waitFor(() => {
-      expect(screen.getByText('حصة محددة من جدول الحصص')).toBeInTheDocument();
+      expect(screen.getAllByText('مجموعة الفيزياء للثانوية').length).toBeGreaterThan(0);
     });
 
     await waitFor(() => {

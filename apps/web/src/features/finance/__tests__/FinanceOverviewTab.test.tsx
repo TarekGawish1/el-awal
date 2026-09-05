@@ -120,15 +120,15 @@ describe('FinanceOverviewTab', () => {
     );
 
     // Initially both groups are displayed
-    expect(screen.getByText('مجموعة الأوائل')).toBeInTheDocument();
-    expect(screen.getByText('مجموعة النخبة')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'مجموعة الأوائل' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'مجموعة النخبة' })).toBeInTheDocument();
 
     // Search by group name
     const searchInput = screen.getByPlaceholderText('بحث باسم المجموعة أو الصف...');
     fireEvent.change(searchInput, { target: { value: 'الأوائل' } });
 
-    expect(screen.getByText('مجموعة الأوائل')).toBeInTheDocument();
-    expect(screen.queryByText('مجموعة النخبة')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'مجموعة الأوائل' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'مجموعة النخبة' })).not.toBeInTheDocument();
 
     // Reset search
     fireEvent.change(searchInput, { target: { value: '' } });
@@ -137,8 +137,8 @@ describe('FinanceOverviewTab', () => {
     const stageSelect = screen.getByLabelText('المرحلة الدراسية');
     fireEvent.change(stageSelect, { target: { value: 'PREPARATORY' } });
 
-    expect(screen.queryByText('مجموعة الأوائل')).not.toBeInTheDocument();
-    expect(screen.getByText('مجموعة النخبة')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'مجموعة الأوائل' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'مجموعة النخبة' })).toBeInTheDocument();
 
     // Click "كشف حساب المجموعة" button on the card
     const matrixBtn = screen.getByRole('button', { name: /كشف حساب المجموعة/i });
@@ -159,14 +159,14 @@ describe('FinanceOverviewTab', () => {
     );
 
     // Both courses are rendered initially
-    expect(screen.getByText('كورس الكيمياء المكثف')).toBeInTheDocument();
-    expect(screen.getByText('مراجعة الفيزياء الشاملة')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'كورس الكيمياء المكثف' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'مراجعة الفيزياء الشاملة' })).toBeInTheDocument();
 
     // Search for chemistry course
     const courseSearchInput = screen.getByPlaceholderText('بحث باسم الكورس أو المرحلة...');
     fireEvent.change(courseSearchInput, { target: { value: 'الكيمياء' } });
 
-    expect(screen.getByText('كورس الكيمياء المكثف')).toBeInTheDocument();
-    expect(screen.queryByText('مراجعة الفيزياء الشاملة')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'كورس الكيمياء المكثف' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'مراجعة الفيزياء الشاملة' })).not.toBeInTheDocument();
   });
 });

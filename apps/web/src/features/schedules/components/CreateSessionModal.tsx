@@ -27,6 +27,8 @@ const sessionSchema = z.object({
 
 type SessionFormData = z.infer<typeof sessionSchema>;
 
+const EMPTY_SESSIONS: LessonSessionItem[] = [];
+
 interface CreateSessionModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -42,7 +44,7 @@ export function CreateSessionModal({
   initialGroupId,
   initialDate,
   initialTime,
-  sessions = [],
+  sessions = EMPTY_SESSIONS,
 }: CreateSessionModalProps) {
   const { data: groups = [], isLoading: isLoadingGroups } = useGroups();
   const { activeYear, activeTerm } = useStoredAcademicPeriod(groups as any);
@@ -266,10 +268,12 @@ export function CreateSessionModal({
 
           {/* Group Select */}
           <div>
-            <Label className="mb-1 block text-xs font-bold text-slate-700">
+            <Label htmlFor="groupId" className="mb-1 block text-xs font-bold text-slate-700">
               المجموعة الدراسية <span className="text-red-500">*</span>
             </Label>
             <select
+              id="groupId"
+              aria-label="المجموعة الدراسية"
               {...register('groupId')}
               disabled={isPending || isLoadingGroups || !stage || !gradeLevel}
               className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"

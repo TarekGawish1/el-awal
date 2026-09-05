@@ -7,6 +7,7 @@ import { useStudents, useCreateStudent } from '@/features/students/hooks/use-stu
 import { offlineDb } from '@/lib/offline/db';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { apiClient } from '@/lib/api/client';
+import { useAuthStore } from '@/features/auth/store/auth.store';
 
 vi.mock('@/lib/api/client', () => ({
   apiClient: vi.fn(),
@@ -19,6 +20,10 @@ describe('Offline Groups & Students Filter Parity & Strict Two-Phase Reconciliat
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    useAuthStore.setState({
+      user: { id: 'teacher-101', role: 'TEACHER' } as any,
+      isAuthenticated: true,
+    });
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },

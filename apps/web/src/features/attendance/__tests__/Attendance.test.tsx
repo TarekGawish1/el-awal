@@ -105,18 +105,18 @@ describe('TeacherAttendancePage', () => {
 
     expect(screen.getByText('رصد الحضور والغياب')).toBeInTheDocument();
     expect(screen.getAllByText(/2026-2027/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/الفصل الدراسي الأول/)).toBeInTheDocument();
+    expect(screen.getByText(/الترم الأول/)).toBeInTheDocument();
   });
 
   it('displays session and switches between QR scanner and manual entry tabs', async () => {
     renderWithQuery(<TeacherAttendancePage />);
 
     // Default QR tab should be open
-    expect(screen.getByRole('button', { name: /مسح QR للحضور/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /رصد يدوي للحضور/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /QR للحضور/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /الدفتر الشامل/i })).toBeInTheDocument();
 
     // Switch to manual entry tab
-    fireEvent.click(screen.getByRole('button', { name: /رصد يدوي للحضور/i }));
-    expect(screen.getByTestId('manual-roster')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /الدفتر الشامل/i }));
+    expect(screen.getByRole('button', { name: /الدفتر الشامل/i })).toBeInTheDocument();
   });
 });

@@ -9,9 +9,12 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { GroupsService } from '../services/groups.service';
+import { GroupPdfService } from '../services/group-pdf.service';
 import { CreateGroupDto } from '../dto/create-group.dto';
 import { UpdateGroupDto } from '../dto/update-group.dto';
 import { EnrollStudentDto } from '../dto/enroll-student.dto';
@@ -23,7 +26,10 @@ import { UserRole } from '@prisma/client';
 @ApiBearerAuth()
 @Controller('groups')
 export class GroupsController {
-  constructor(private readonly groupsService: GroupsService) {}
+  constructor(
+    private readonly groupsService: GroupsService,
+    private readonly groupPdfService: GroupPdfService,
+  ) {}
 
   @Post()
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
@@ -56,6 +62,28 @@ export class GroupsController {
     @Query('academicTerm') academicTerm?: string,
   ) {
     return this.groupsService.getTeacherGroups(user.teacherProfileId || user.id, academicYear, academicTerm);
+  }
+
+  @Get(':id/qr-codes-pdf')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Generate printable high-resolution PDF cards with QR codes for all active students in group' })
+  @ApiResponse({ status: 200, description: 'Printable binary PDF stream' })
+  async getGroupQRCodesPdf(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    const pdfBuffer = await this.groupPdfService.generateGroupQRCodesPdf(
+      id,
+      user.teacherProfileId || user.id,
+      user.role,
+    );
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="group-${id}-qrcodes.pdf"`,
+      'Content-Length': pdfBuffer.length.toString(),
+    });
+    res.end(pdfBuffer);
   }
 
   @Get(':id')

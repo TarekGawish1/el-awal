@@ -59,7 +59,7 @@ describe('useAuth & Error Normalization', () => {
         message: 'Network failure',
       });
 
-      expect(normalizeAuthErrorMessage(error)).toBe('Network failure');
+      expect(normalizeAuthErrorMessage(error)).toBe('تعذر الاتصال بالخادم، يرجى التحقق من اتصال الإنترنت');
     });
   });
 });

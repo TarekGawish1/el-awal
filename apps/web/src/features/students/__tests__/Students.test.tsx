@@ -168,10 +168,14 @@ describe('TeacherStudents', () => {
 
     it('renders filters for stage, grade, groups, and academic period', () => {
       renderWithQueryClient(<TeacherStudentsPage />);
+      expect(screen.getByPlaceholderText('ابحث بالاسم، رقم الهاتف أو الكود...')).toBeInTheDocument();
+      expect(screen.getAllByText('2026-2027').length).toBeGreaterThan(0);
+
+      // Open advanced filters
+      fireEvent.click(screen.getByTitle('فلاتر متقدمة'));
       expect(screen.getByText('جميع المراحل التعليمية')).toBeInTheDocument();
       expect(screen.getByText('جميع الصفوف الدراسية')).toBeInTheDocument();
       expect(screen.getByText('جميع المجموعات')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('ابحث بالاسم، رقم الهاتف أو الكود...')).toBeInTheDocument();
     });
   });
 
@@ -189,11 +193,11 @@ describe('TeacherStudents', () => {
       (nextNavigation.useParams as any).mockReturnValue({ id: 'stu-1' });
       renderWithQueryClient(<StudentDetailPage />);
 
-      const regenBtn = screen.getByText('إعادة توليد كود الـ QR');
+      const regenBtn = screen.getByTitle('إعادة توليد الـ QR');
       fireEvent.click(regenBtn);
 
       await waitFor(() => {
-        expect(screen.getByText(/سيؤدي هذا إلى إبطال رمز الاستجابة السريعة/i)).toBeInTheDocument();
+        expect(screen.getByTitle('تأكيد')).toBeInTheDocument();
       });
     });
   });

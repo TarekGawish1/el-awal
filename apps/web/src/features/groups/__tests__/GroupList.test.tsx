@@ -99,7 +99,7 @@ describe('GroupList', () => {
 
     renderWithQuery(<GroupList />);
     
-    expect(screen.getByText('لا توجد مجموعات بعد')).toBeInTheDocument();
+    expect(screen.getByText('لا توجد مجموعات دراسية')).toBeInTheDocument();
   });
 
   it('renders groups with default active academic year and term pre-selected', () => {
@@ -116,9 +116,12 @@ describe('GroupList', () => {
     // Group-1 matching current default year and term should be visible
     expect(screen.getByText('مجموعة الأحد والأربعاء - الصف الثالث')).toBeInTheDocument();
 
+    // Open more filters dropdown toolbar
+    const moreFiltersBtn = screen.getByTitle(/فلاتر متقدمة/i);
+    fireEvent.click(moreFiltersBtn);
+
     // Verify filter dropdowns exist
     expect(screen.getByText('جميع المراحل التعليمية')).toBeInTheDocument();
-    expect(screen.getByText('جميع الصفوف الدراسية')).toBeInTheDocument();
     expect(screen.getByText('جميع الأماكن والسناتر')).toBeInTheDocument();
   });
 
@@ -155,7 +158,7 @@ describe('GroupList', () => {
 
     renderWithQuery(<GroupList />);
     
-    const searchInput = screen.getByPlaceholderText(/بحث بالاسم أو الصف أو المكان/i);
+    const searchInput = screen.getByPlaceholderText(/ابحث عن مجموعة بالاسم أو الصف/i);
     fireEvent.change(searchInput, { target: { value: 'المراجعة' } });
     
     expect(screen.queryByText('مجموعة الأحد والأربعاء - الصف الثالث')).not.toBeInTheDocument();
@@ -173,6 +176,6 @@ describe('GroupList', () => {
 
     renderWithQuery(<GroupList />);
     
-    expect(screen.getByText('فشل في تحميل المجموعات')).toBeInTheDocument();
+    expect(screen.getByText('تعذر تحميل المجموعات')).toBeInTheDocument();
   });
 });

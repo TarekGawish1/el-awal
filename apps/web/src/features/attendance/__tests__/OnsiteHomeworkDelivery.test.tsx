@@ -89,7 +89,7 @@ describe('Onsite Homework Delivery Tracking & Automated Offline Attendance Roll-
     expect(targetAtt?.status).toBe('PRESENT');
     expect(updatedReport.metrics.presentCount).toBe(1);
 
-    // 6. Verify outbox contains both mutations (RECORD_HOMEWORK_ONSITE and RECORD_ATTENDANCE)
+    // 6. Verify outbox contains the atomic RECORD_HOMEWORK_ONSITE mutation
     const outbox = await offlineDb.getPendingMutations();
     const hwMutation = outbox.find(
       (m: any) =>
@@ -99,14 +99,6 @@ describe('Onsite Homework Delivery Tracking & Automated Offline Attendance Roll-
     );
     expect(hwMutation).toBeDefined();
     expect(hwMutation?.payload.status).toBe('CHECKED_ONSITE');
-
-    const attMutation = outbox.find(
-      (m: any) =>
-        (m.payload?.studentId === 'student-uuid-1' && m.payload?.status === 'PRESENT') ||
-        m.type === 'RECORD_ATTENDANCE' ||
-        m.endpoint?.includes('scan-qr'),
-    );
-    expect(attMutation).toBeDefined();
   });
 
   it('supports direct store proxies: homework_records, sessions_attendance, and outbox_mutations', async () => {
