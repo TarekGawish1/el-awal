@@ -683,46 +683,6 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                 />
               </button>
             </div>
-
-            {course.enforceSequentialLessons && (
-              <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <span className="font-bold text-slate-700">شرط فتح الدرس التالي عند وجود اختبار/واجب:</span>
-                <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      updateCourseMutation.mutate({
-                        requireExamPassingToUnlock: false,
-                      })
-                    }
-                    disabled={updateCourseMutation.isPending}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                      !course.requireExamPassingToUnlock
-                        ? 'bg-white text-primary-900 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    مجرد حل وتسليم الاختبار
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      updateCourseMutation.mutate({
-                        requireExamPassingToUnlock: true,
-                      })
-                    }
-                    disabled={updateCourseMutation.isPending}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                      course.requireExamPassingToUnlock
-                        ? 'bg-white text-primary-900 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    النجاح واجتياز درجة النجاح 🎯
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="bg-white border border-cyan-100 p-4 sm:p-5 rounded-2xl flex items-center justify-between gap-3 sm:gap-4 shadow-sm">
