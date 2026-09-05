@@ -911,22 +911,32 @@ function AssessmentWrapper({
                     <div className="mr-11 grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
                       {question.optionsData.map((opt: string, i: number) => {
                         const isSelected = answers[question.id] === opt;
+                        const optImg = (question.optionImages as string[] | undefined)?.[i];
                         return (
                           <button
                             key={i}
                             onClick={() => handleSelectOption(question.id, opt)}
-                            className={`p-3.5 rounded-xl border text-right text-sm transition-all flex items-center gap-3 cursor-pointer ${
-                              isSelected 
-                                ? 'border-primary-500 bg-primary-50/50 text-primary-800 font-semibold ring-2 ring-primary-100' 
+                            className={`p-3.5 rounded-xl border text-right text-sm transition-all flex flex-col gap-2 cursor-pointer ${
+                              isSelected
+                                ? 'border-primary-500 bg-primary-50/50 text-primary-800 font-semibold ring-2 ring-primary-100'
                                 : 'border-slate-150 bg-slate-50 text-slate-600 hover:bg-slate-100/60'
                             }`}
                           >
-                            <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
-                              isSelected ? 'border-primary-600 bg-primary-600' : 'border-slate-300 bg-white'
-                            }`}>
-                              {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                            <div className="flex items-center gap-3">
+                              <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                                isSelected ? 'border-primary-600 bg-primary-600' : 'border-slate-300 bg-white'
+                              }`}>
+                                {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                              </div>
+                              {opt}
                             </div>
-                            {opt}
+                            {optImg && (
+                              <img
+                                src={optImg}
+                                alt={`صورة الخيار ${i + 1}`}
+                                className="w-full max-h-36 object-cover rounded-lg border border-slate-200 mt-1"
+                              />
+                            )}
                           </button>
                         );
                       })}

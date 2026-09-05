@@ -112,6 +112,7 @@ export function useCreateAssessment() {
             questionText: q.questionText,
             questionType: q.questionType,
             optionsData: q.optionsData,
+            optionImages: q.optionImages,
             points: q.points,
             correctAnswer: q.correctAnswer,
           })),

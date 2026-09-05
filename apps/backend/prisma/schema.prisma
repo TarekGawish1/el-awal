@@ -890,6 +890,7 @@ model AssessmentQuestion {
   questionText   String       @map("question_text") @db.Text
   questionType   QuestionType @map("question_type")
   optionsData    Json?        @map("options_data")
+  optionImages   Json?        @map("option_images")
   correctAnswer  String       @map("correct_answer") @db.Text
   explanation    String?      @map("explanation") @db.Text
   imageUrl       String?      @map("image_url") @db.Text

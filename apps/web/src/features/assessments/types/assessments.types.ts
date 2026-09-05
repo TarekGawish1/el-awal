@@ -21,6 +21,7 @@ export interface AssessmentQuestion {
   questionText: string;
   questionType: QuestionType;
   optionsData?: string[];
+  optionImages?: string[];
   correctAnswer?: string;
   points: number;
   explanation?: string | null;

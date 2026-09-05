@@ -241,21 +241,31 @@ export function AssessmentDetails({ assessmentId }: { assessmentId: string }) {
                 <div className="mr-11 mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
                   {(question.optionsData as string[]).map((opt, i) => {
                     const isCorrect = question.correctAnswer === opt;
+                    const optImg = (question.optionImages as string[] | undefined)?.[i];
                     return (
-                      <div 
-                        key={i} 
-                        className={`p-3 rounded-lg border text-sm flex items-center gap-2 ${
-                          isCorrect 
-                            ? 'border-green-200 bg-green-50 text-green-800 font-medium' 
+                      <div
+                        key={i}
+                        className={`p-3 rounded-lg border text-sm flex flex-col gap-2 ${
+                          isCorrect
+                            ? 'border-green-200 bg-green-50 text-green-800 font-medium'
                             : 'border-slate-100 bg-slate-50 text-slate-600'
                         }`}
                       >
-                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
-                          isCorrect ? 'border-green-500 bg-green-500' : 'border-slate-300 bg-white'
-                        }`}>
-                          {isCorrect && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                        <div className="flex items-center gap-2">
+                          <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                            isCorrect ? 'border-green-500 bg-green-500' : 'border-slate-300 bg-white'
+                          }`}>
+                            {isCorrect && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                          </div>
+                          {opt}
                         </div>
-                        {opt}
+                        {optImg && (
+                          <img
+                            src={optImg}
+                            alt={`صورة الخيار ${i + 1}`}
+                            className="w-full max-h-32 object-cover rounded-md border border-slate-200"
+                          />
+                        )}
                       </div>
                     );
                   })}

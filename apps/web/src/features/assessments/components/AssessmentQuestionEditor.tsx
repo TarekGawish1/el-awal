@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useFormContext, useFieldArray } from 'react-hook-form';
-import { Plus, Trash2, GripVertical, AlertCircle } from 'lucide-react';
+import { useFormContext } from 'react-hook-form';
+import { Plus, Trash2, GripVertical, AlertCircle, ImagePlus, X } from 'lucide-react';
 import { CreateAssessmentFormData } from '../types/assessments.schema';
 import { QuestionType } from '../types/assessments.types';
 import { Button } from '@/components/ui/Button';
@@ -19,24 +19,31 @@ interface AssessmentQuestionEditorProps {
 }
 
 export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestionEditorProps) {
-  const { register, watch, formState: { errors }, setValue, control } = useFormContext<CreateAssessmentFormData>();
+  const { register, watch, formState: { errors }, setValue } = useFormContext<CreateAssessmentFormData>();
   const questionType = watch(`questions.${index}.questionType`);
   const optionsData = watch(`questions.${index}.optionsData`) || [];
-  
+  const optionImages = (watch(`questions.${index}.optionImages`) || []) as string[];
+
   const questionErrors = errors.questions?.[index];
 
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadingOptionIndex, setUploadingOptionIndex] = useState<number | null>(null);
 
+  // ── Question-level image helpers ─────────────────────────────────────────
   const addOption = () => {
     setValue(`questions.${index}.optionsData`, [...optionsData, '']);
+    setValue(`questions.${index}.optionImages`, [...optionImages, '']);
   };
 
   const removeOption = (optIndex: number) => {
     const newOptions = [...optionsData];
     newOptions.splice(optIndex, 1);
     setValue(`questions.${index}.optionsData`, newOptions);
-    
-    // If the removed option was the correct answer, reset it
+
+    const newImages = [...optionImages];
+    newImages.splice(optIndex, 1);
+    setValue(`questions.${index}.optionImages`, newImages);
+
     const correctAnswer = watch(`questions.${index}.correctAnswer`);
     if (correctAnswer === optionsData[optIndex]) {
       setValue(`questions.${index}.correctAnswer`, '');
@@ -47,46 +54,79 @@ export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestion
     setValue(`questions.${index}.correctAnswer`, value, { shouldValidate: true });
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  // ── Generic upload helper ─────────────────────────────────────────────────
+  const uploadImage = async (
+    file: File,
+    onSuccess: (url: string) => void,
+    setLoading: (v: boolean) => void,
+  ) => {
     if (!file.type.startsWith('image/')) {
       toast.error('يرجى اختيار ملف صورة صحيح');
       return;
     }
-
     if (file.size > 5 * 1024 * 1024) {
       toast.error('حجم الصورة يجب أن لا يتجاوز 5 ميجابايت');
       return;
     }
-
-    setIsUploading(true);
+    setLoading(true);
     try {
-      // Primary: Direct multipart upload
       const res = await uploadRawFile(file, 'assessments');
-      setValue(`questions.${index}.imageUrl`, res.fileUrl, { shouldValidate: true });
+      onSuccess(res.fileUrl);
       toast.success('تم رفع الصورة بنجاح');
     } catch {
       try {
-        // Fallback: Presigned URL
         const presigned = await generatePresignedUrl({
           fileName: file.name,
           contentType: file.type || 'image/jpeg',
           fileSizeBytes: file.size,
           folder: 'assessments',
         });
-
         await uploadFileToR2(presigned.uploadUrl, file);
-        
-        setValue(`questions.${index}.imageUrl`, presigned.publicUrl, { shouldValidate: true });
+        onSuccess(presigned.publicUrl);
         toast.success('تم رفع الصورة بنجاح');
       } catch (error: any) {
         toast.error(error?.message || 'حدث خطأ أثناء رفع الصورة');
       }
     } finally {
-      setIsUploading(false);
+      setLoading(false);
     }
+  };
+
+  // ── Question image upload ─────────────────────────────────────────────────
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadImage(
+      file,
+      (url) => setValue(`questions.${index}.imageUrl`, url, { shouldValidate: true }),
+      setIsUploading,
+    );
+    e.target.value = '';
+  };
+
+  // ── Option image upload ───────────────────────────────────────────────────
+  const handleOptionImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, optIndex: number) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingOptionIndex(optIndex);
+    await uploadImage(
+      file,
+      (url) => {
+        const newImages = [...optionImages];
+        while (newImages.length <= optIndex) newImages.push('');
+        newImages[optIndex] = url;
+        setValue(`questions.${index}.optionImages`, newImages);
+      },
+      () => {}, // loading managed by uploadingOptionIndex
+    );
+    setUploadingOptionIndex(null);
+    e.target.value = '';
+  };
+
+  const removeOptionImage = (optIndex: number) => {
+    const newImages = [...optionImages];
+    newImages[optIndex] = '';
+    setValue(`questions.${index}.optionImages`, newImages);
   };
 
   return (
@@ -111,15 +151,15 @@ export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestion
           <div className="flex justify-between items-center mb-2">
             <Label>نص السؤال</Label>
             <div className="flex items-center gap-2">
-              <input 
-                type="file" 
-                id={`image-upload-${index}`} 
-                className="hidden" 
+              <input
+                type="file"
+                id={`image-upload-${index}`}
+                className="hidden"
                 accept="image/*"
                 onChange={handleImageUpload}
                 disabled={isUploading}
               />
-              <Label 
+              <Label
                 htmlFor={`image-upload-${index}`}
                 className={`text-xs px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded cursor-pointer transition-colors ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
@@ -127,7 +167,7 @@ export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestion
               </Label>
             </div>
           </div>
-          <Textarea 
+          <Textarea
             {...register(`questions.${index}.questionText`)}
             placeholder="اكتب نص السؤال هنا..."
             className={questionErrors?.questionText ? 'border-red-500' : ''}
@@ -136,15 +176,15 @@ export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestion
           {questionErrors?.questionText && (
             <p className="text-red-500 text-xs mt-1">{questionErrors.questionText.message}</p>
           )}
-          
+
           {watch(`questions.${index}.imageUrl`) && (
             <div className="mt-3 relative w-32 h-32 rounded-lg border border-slate-200 overflow-hidden group">
-              <img 
-                src={watch(`questions.${index}.imageUrl`)} 
-                alt="Question image" 
+              <img
+                src={watch(`questions.${index}.imageUrl`)}
+                alt="Question image"
                 className="w-full h-full object-cover"
               />
-              <button 
+              <button
                 type="button"
                 onClick={() => setValue(`questions.${index}.imageUrl`, '')}
                 className="absolute top-1 right-1 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
@@ -154,10 +194,10 @@ export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestion
             </div>
           )}
         </div>
-        
+
         <div>
           <Label className="mb-2 block">الدرجة</Label>
-          <Input 
+          <Input
             type="number"
             step="0.5"
             {...register(`questions.${index}.points`)}
@@ -172,7 +212,7 @@ export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestion
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <Label className="mb-2 block">نوع السؤال</Label>
-          <Select 
+          <Select
             options={[
               { label: 'اختيار من متعدد', value: QuestionType.MULTIPLE_CHOICE },
               { label: 'صح أم خطأ', value: QuestionType.TRUE_FALSE },
@@ -182,15 +222,17 @@ export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestion
             onChange={(e) => {
               const val = e.target.value as QuestionType;
               setValue(`questions.${index}.questionType`, val);
-              // Reset specific fields when type changes
               if (val === QuestionType.TRUE_FALSE) {
                 setValue(`questions.${index}.optionsData`, []);
+                setValue(`questions.${index}.optionImages`, []);
                 setValue(`questions.${index}.correctAnswer`, 'true');
               } else if (val === QuestionType.ESSAY) {
                 setValue(`questions.${index}.optionsData`, []);
+                setValue(`questions.${index}.optionImages`, []);
                 setValue(`questions.${index}.correctAnswer`, 'Teacher will grade this manually');
               } else if (val === QuestionType.MULTIPLE_CHOICE) {
                 setValue(`questions.${index}.optionsData`, ['الخيار الأول', 'الخيار الثاني', 'الخيار الثالث', 'الخيار الرابع']);
+                setValue(`questions.${index}.optionImages`, ['', '', '', '']);
                 setValue(`questions.${index}.correctAnswer`, '');
               }
             }}
@@ -199,7 +241,7 @@ export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestion
 
         <div>
           <Label className="mb-2 block">شرح الإجابة (اختياري)</Label>
-          <Input 
+          <Input
             {...register(`questions.${index}.explanation`)}
             placeholder="شرح يظهر للطالب بعد التقييم"
           />
@@ -216,55 +258,110 @@ export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestion
               إضافة خيار
             </Button>
           </div>
-          
+
           {questionErrors?.optionsData && !Array.isArray(questionErrors.optionsData) && (
-             <p className="text-red-500 text-xs mb-2">{(questionErrors.optionsData as any)?.message}</p>
+            <p className="text-red-500 text-xs mb-2">{(questionErrors.optionsData as any)?.message}</p>
           )}
 
-          <div className="space-y-3">
-            {optionsData.map((opt, optIndex) => (
-              <div key={optIndex} className="flex items-center gap-3">
-                <input 
-                  type="radio" 
-                  name={`correctAnswer-${index}`}
-                  checked={watch(`questions.${index}.correctAnswer`) === opt}
-                  onChange={() => setCorrectAnswer(opt)}
-                  className="w-4 h-4 text-primary bg-slate-100 border-slate-300 focus:ring-primary focus:ring-2"
-                />
-                <div className="flex-1">
-                  <Input 
-                    value={opt}
-                    onChange={(e) => {
-                      const newOptions = [...optionsData];
-                      const oldVal = newOptions[optIndex];
-                      newOptions[optIndex] = e.target.value;
-                      setValue(`questions.${index}.optionsData`, newOptions);
-                      
-                      if (watch(`questions.${index}.correctAnswer`) === oldVal) {
-                        setCorrectAnswer(e.target.value);
-                      }
-                    }}
-                    placeholder={`الخيار ${optIndex + 1}`}
-                    className={
-                      watch(`questions.${index}.correctAnswer`) === opt 
-                        ? 'border-green-400 bg-green-50' 
-                        : ''
-                    }
-                  />
+          <div className="space-y-4">
+            {optionsData.map((opt, optIndex) => {
+              const optImg = optionImages[optIndex] || '';
+              const isUploading = uploadingOptionIndex === optIndex;
+              const inputId = `opt-img-${index}-${optIndex}`;
+              return (
+                <div key={optIndex} className="space-y-2">
+                  {/* Text row */}
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name={`correctAnswer-${index}`}
+                      checked={watch(`questions.${index}.correctAnswer`) === opt}
+                      onChange={() => setCorrectAnswer(opt)}
+                      className="w-4 h-4 text-primary bg-slate-100 border-slate-300 focus:ring-primary focus:ring-2 shrink-0"
+                    />
+                    <div className="flex-1">
+                      <Input
+                        value={opt}
+                        onChange={(e) => {
+                          const newOptions = [...optionsData];
+                          const oldVal = newOptions[optIndex];
+                          newOptions[optIndex] = e.target.value;
+                          setValue(`questions.${index}.optionsData`, newOptions);
+                          if (watch(`questions.${index}.correctAnswer`) === oldVal) {
+                            setCorrectAnswer(e.target.value);
+                          }
+                        }}
+                        placeholder={`الخيار ${optIndex + 1}`}
+                        className={
+                          watch(`questions.${index}.correctAnswer`) === opt
+                            ? 'border-green-400 bg-green-50'
+                            : ''
+                        }
+                      />
+                    </div>
+
+                    {/* Image upload trigger */}
+                    <div className="shrink-0">
+                      <input
+                        type="file"
+                        id={inputId}
+                        className="hidden"
+                        accept="image/*"
+                        disabled={isUploading}
+                        onChange={(e) => handleOptionImageUpload(e, optIndex)}
+                      />
+                      <label
+                        htmlFor={inputId}
+                        title="إضافة صورة للخيار"
+                        className={`flex items-center justify-center w-8 h-8 rounded-lg border transition-colors cursor-pointer ${
+                          optImg
+                            ? 'border-primary-400 bg-primary-50 text-primary-600'
+                            : 'border-slate-200 bg-white text-slate-400 hover:text-primary-600 hover:border-primary-300'
+                        } ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        {isUploading ? (
+                          <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                          </svg>
+                        ) : (
+                          <ImagePlus className="w-4 h-4" />
+                        )}
+                      </label>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="text-slate-400 hover:text-red-500 shrink-0"
+                      onClick={() => removeOption(optIndex)}
+                      disabled={optionsData.length <= 2}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  {/* Option image preview */}
+                  {optImg && (
+                    <div className="mr-7 relative inline-block">
+                      <div className="relative w-28 h-28 rounded-lg border border-slate-200 overflow-hidden group shadow-xs">
+                        <img src={optImg} alt={`صورة الخيار ${optIndex + 1}`} className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => removeOptionImage(optIndex)}
+                          className="absolute top-1 left-1 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-1 text-center">صورة الخيار {optIndex + 1}</p>
+                    </div>
+                  )}
                 </div>
-                <Button 
-                  type="button" 
-                  variant="ghost" 
-                  className="text-slate-400 hover:text-red-500" 
-                  onClick={() => removeOption(optIndex)}
-                  disabled={optionsData.length <= 2}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
-            ))}
+              );
+            })}
           </div>
-          
+
           {questionErrors?.correctAnswer && (
             <div className="flex items-center gap-2 text-red-500 text-sm mt-2">
               <AlertCircle className="w-4 h-4" />
@@ -280,8 +377,8 @@ export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestion
           <Label className="font-semibold text-slate-700 mb-3 block">الإجابة الصحيحة</Label>
           <div className="flex gap-4">
             <label className={`flex-1 flex items-center justify-center p-3 border rounded-lg cursor-pointer transition-colors ${watch(`questions.${index}.correctAnswer`) === 'true' ? 'border-primary bg-primary/5 text-primary font-medium' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>
-              <input 
-                type="radio" 
+              <input
+                type="radio"
                 className="hidden"
                 checked={watch(`questions.${index}.correctAnswer`) === 'true'}
                 onChange={() => setCorrectAnswer('true')}
@@ -289,8 +386,8 @@ export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestion
               صحيحة
             </label>
             <label className={`flex-1 flex items-center justify-center p-3 border rounded-lg cursor-pointer transition-colors ${watch(`questions.${index}.correctAnswer`) === 'false' ? 'border-primary bg-primary/5 text-primary font-medium' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>
-              <input 
-                type="radio" 
+              <input
+                type="radio"
                 className="hidden"
                 checked={watch(`questions.${index}.correctAnswer`) === 'false'}
                 onChange={() => setCorrectAnswer('false')}
