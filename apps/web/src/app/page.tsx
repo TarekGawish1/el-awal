@@ -1391,26 +1391,42 @@ function CertificatesSection() {
                   </h3>
                 </div>
 
-                {/* Clean responsive grid without duplicates */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                  {stage.certificates.map((cert) => (
-                    <div
-                      key={cert.id}
-                      className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all group"
-                    >
-                      <div className="relative overflow-hidden rounded-xl bg-slate-50 border border-slate-100 aspect-[4/3] mb-3">
-                        <img
-                          src={cert.image}
-                          alt={cert.title}
-                          className="w-full h-full object-contain group-hover:scale-103 transition-transform duration-500"
-                        />
+                {/* Continuous Marquee with Fade Edges */}
+                <div 
+                  className="flex overflow-hidden -mx-6 md:-mx-4 pb-6 px-6 md:px-4"
+                  style={{
+                    WebkitMaskImage: 'linear-gradient(to right, transparent, black 8%, black 92%, transparent)',
+                    maskImage: 'linear-gradient(to right, transparent, black 8%, black 92%, transparent)'
+                  }}
+                >
+                  <motion.div
+                    className="flex gap-6 w-max"
+                    animate={{ x: ["0%", "25%"] }}
+                    transition={{
+                      repeat: Infinity,
+                      ease: "linear",
+                      duration: Math.max(18, stage.certificates.length * 5),
+                    }}
+                  >
+                    {[...stage.certificates, ...stage.certificates, ...stage.certificates, ...stage.certificates].map((cert, index) => (
+                      <div
+                        key={`${cert.id}-${index}`}
+                        className="shrink-0 w-[280px] sm:w-[320px] bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all group"
+                      >
+                        <div className="relative overflow-hidden rounded-xl bg-slate-50 border border-slate-100 aspect-[4/3] mb-3">
+                          <img
+                            src={cert.image}
+                            alt={cert.title}
+                            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
+                          />
+                        </div>
+                        <div className="text-center px-2 pb-1">
+                          <h4 className="font-bold text-slate-900 text-base truncate">{cert.student}</h4>
+                          <p className="text-xs text-amber-600 font-bold truncate mt-0.5">{cert.title}</p>
+                        </div>
                       </div>
-                      <div className="text-center px-2 pb-1">
-                        <h4 className="font-bold text-slate-900 text-base truncate">{cert.student}</h4>
-                        <p className="text-xs text-amber-600 font-bold truncate mt-0.5">{cert.title}</p>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </motion.div>
                 </div>
               </motion.div>
             ))
