@@ -653,6 +653,16 @@ export function LessonEditorModal({
       backgroundUploadTask?.embedUrl ||
       streamAuth?.embedUrl;
 
+    if (isUploadingVideo) {
+      toast.error("يرجى الانتظار حتى يكتمل رفع ومعالجة الفيديو قبل حفظ الدرس ⏳");
+      return;
+    }
+
+    if (!effectiveVideoId && !effectiveContentUrl) {
+      toast.error("يجب رفع أو اختيار فيديو لهذا الدرس 🎥 (لا يمكن حفظ الدرس بدون فيديو)");
+      return;
+    }
+
     const payload = {
       title: title.trim(),
       description: description.trim() || undefined,

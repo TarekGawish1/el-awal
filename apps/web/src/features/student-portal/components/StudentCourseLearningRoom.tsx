@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   BookOpen,
   CheckCircle,
+  CheckCircle2,
   FileText,
   FileQuestion,
   Paperclip,
@@ -55,7 +56,7 @@ function getPausedEmbedUrl(embedUrl: string): string {
 
 export function StudentCourseLearningRoom({ courseId, initialLessonId }: StudentCourseLearningRoomProps) {
   const pathname = usePathname();
-  const { data: course, isLoading: isCourseLoading } = useCourseDetail(courseId);
+  const { data: course, isLoading: isCourseLoading, refetch: refetchCourse } = useCourseDetail(courseId);
   const { user } = useAuth();
   const isTeacherOrAdmin = user?.role === 'TEACHER' || user?.role === 'SECRETARIAT';
   const isPreviewMode = isTeacherOrAdmin && (pathname?.includes('/preview') ?? false);
@@ -210,9 +211,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         const sub = uq.mySubmission;
         let isSatisfied = false;
         if (sub && (sub.status === 'SUBMITTED' || sub.status === 'GRADED')) {
-          const mustPass = uq.requirePassingScore !== undefined
-            ? Boolean(uq.requirePassingScore)
-            : Boolean(course?.requireExamPassingToUnlock);
+          const mustPass = Boolean(uq.requirePassingScore);
           if (mustPass) {
             const passScore = uq.passingScore ?? 0;
             const score = sub.scoreObtained ?? 0;
@@ -694,9 +693,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         setActiveTab('quiz');
         return;
       }
-      const mustPassQuiz = currentQuiz.requirePassingScore !== undefined
-        ? Boolean(currentQuiz.requirePassingScore)
-        : Boolean(course?.requireExamPassingToUnlock);
+      const mustPassQuiz = Boolean(currentQuiz.requirePassingScore);
       if (mustPassQuiz) {
         const passScore = currentQuiz.passingScore ?? 0;
         const score = currentQuiz.mySubmission.scoreObtained ?? 0;
@@ -719,9 +716,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         setActiveTab('quiz');
         return;
       }
-      const mustPassHw = currentHomework.requirePassingScore !== undefined
-        ? Boolean(currentHomework.requirePassingScore)
-        : Boolean(course?.requireExamPassingToUnlock);
+      const mustPassHw = Boolean(currentHomework.requirePassingScore);
       if (mustPassHw) {
         const passScore = currentHomework.passingScore ?? 0;
         const score = currentHomework.mySubmission.scoreObtained ?? 0;
@@ -750,6 +745,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         lastPositionSeconds: lessonViewer?.lastPositionSeconds || 0,
       });
       await refetchLesson();
+      await refetchCourse();
       toast.success(nextCompleted ? 'أحسنت! تم إتمام الدرس بنجاح 🎉' : 'تم إلغاء إتمام الدرس');
       // On manual completion, reveal the next lesson immediately (paused — no autoplay).
       if (nextCompleted) {
@@ -1280,9 +1276,22 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 <div className="flex flex-col items-center gap-3 text-slate-400 p-8 text-center">
                   <Video className="w-12 h-12 text-slate-600 stroke-[1.5]" />
                   <p className="text-xs font-bold text-slate-300">لا يوجد فيديو مخصص لهذا الدرس حالياً</p>
-                  <p className="text-[11px] text-slate-500">
-                    يمكنك تصفح ملخص الدرس أو تحميل المرفقات أو حل الاختبار التفاعلي من التبويبات بالأسفل.
+                  <p className="text-[11px] text-slate-500 max-w-md">
+                    يمكنك تصفح ملخص الدرس أو تحميل المرفقات أو حل الاختبار التفاعلي من التبويبات بالأسفل، ثم الضغط على الزر أدناه لاحتساب إتمام الدرس والانتقال للتالي.
                   </p>
+                  <button
+                    type="button"
+                    onClick={handleToggleComplete}
+                    disabled={isMarkingComplete}
+                    className={`mt-2 flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer ${
+                      isLessonCompleted
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        : 'bg-primary-600 hover:bg-primary-700 text-white'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{isLessonCompleted ? 'تم إتمام الدرس بنجاح ✔' : 'إتمام هذا الدرس والمتابعة 🚀'}</span>
+                  </button>
                 </div>
               )}
 
@@ -1309,11 +1318,28 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 </h2>
               </div>
 
-              {activeLesson?.isPreview && (
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 self-start sm:self-auto">
-                  معاينة مجانية متاحة
-                </span>
-              )}
+              <div className="flex items-center gap-2.5 flex-wrap">
+                {activeLesson?.isPreview && (
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 self-start sm:self-auto">
+                    معاينة مجانية متاحة
+                  </span>
+                )}
+                {activeLesson && (
+                  <button
+                    type="button"
+                    onClick={handleToggleComplete}
+                    disabled={isMarkingComplete}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-xs cursor-pointer ${
+                      isLessonCompleted
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                        : 'bg-primary-50 text-primary-700 border-primary-200 hover:bg-primary-600 hover:text-white'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>{isLessonCompleted ? 'الدرس مكتمل ✔' : 'تحديد كمكتمل'}</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
