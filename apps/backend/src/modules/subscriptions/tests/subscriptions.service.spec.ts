@@ -41,6 +41,9 @@ describe('SubscriptionsService', () => {
       findUnique: jest.fn(),
       findMany: jest.fn(),
     },
+    teacherBillingConfiguration: {
+      findUnique: jest.fn().mockResolvedValue(null),
+    },
   };
 
   const mockEventEmitter = {
@@ -357,7 +360,7 @@ describe('SubscriptionsService', () => {
       ]);
 
       mockPrismaService.studentPaymentRecord.findMany.mockResolvedValue([
-        { studentId: 'stu-1' }, // stu-1 paid
+        { studentId: 'stu-1', paymentStatus: PaymentStatus.PAID, amountPaid: 450.0 }, // stu-1 paid
       ]);
 
       const result = await service.getGroupDefaulters(groupId, 2026, 9, mockUser);
@@ -422,6 +425,56 @@ describe('SubscriptionsService', () => {
           periodYear: 2026,
           periodMonth: 8,
         }),
+      );
+    });
+
+    it('should recognize already paid student as duplicate and NOT emit payment.recorded', async () => {
+      const qrCodeToken = 'qr_tok_paid_student';
+      const studentId = 'stu-paid-1';
+      const groupId = 'group-1';
+
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue({
+        id: studentId,
+        qrCodeToken,
+        user: { fullName: 'طالب مسدد', phone: '01012345678', isActive: true },
+        groupEnrollments: [
+          {
+            groupId,
+            status: GroupEnrollmentStatus.ACTIVE,
+            group: { id: groupId, name: 'مجموعة النجوم', monthlyFee: 350.0, teacherId: 'teacher-1' },
+          },
+        ],
+      });
+
+      const existingPaidPayment = {
+        id: 'payment-existing-1',
+        studentId,
+        groupId,
+        periodYear: 2026,
+        periodMonth: 8,
+        amountExpected: 350.0,
+        amountPaid: 350.0,
+        paymentStatus: PaymentStatus.PAID,
+        paymentMethod: 'CASH',
+        notes: 'تم السداد مسبقاً',
+        student: { user: { fullName: 'طالب مسدد', phone: '01012345678' }, parentLinks: [] },
+        group: { id: groupId, name: 'مجموعة النجوم' },
+        booklet: null,
+      };
+
+      mockPrismaService.studentPaymentRecord.findFirst.mockResolvedValue(existingPaidPayment);
+
+      const result = await service.scanPaymentQr(mockUser, {
+        qrCodeToken,
+        periodYear: 2026,
+        periodMonth: 8,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.isDuplicate).toBe(true);
+      expect(mockEventEmitter.emit).not.toHaveBeenCalledWith(
+        'payment.recorded',
+        expect.anything(),
       );
     });
 
