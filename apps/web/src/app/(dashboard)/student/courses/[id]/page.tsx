@@ -96,9 +96,19 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
     }
   }, [courseId]);
 
-  const handleEnroll = () => {
+  const handleEnroll = async () => {
     if (isEnrolled) {
       router.push(`/student/courses/${courseId}/learn`);
+      return;
+    }
+    // Free course: bypass payment modal, enroll directly and navigate to learn page
+    if (course && (Number(course.price || 0) === 0 || course.isFree)) {
+      try {
+        await enrollMutation.mutateAsync(courseId);
+        router.push(`/student/courses/${courseId}/learn`);
+      } catch {
+        // Error toast handled by mutation's onError
+      }
       return;
     }
     setIsSubscriptionModalOpen(true);

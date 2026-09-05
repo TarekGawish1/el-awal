@@ -11,7 +11,7 @@ import {
   useEnrollInCourse,
 } from '../hooks/useStudentPortal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { BookOpen, FileText, QrCode, TrendingUp, Calendar, AlertTriangle, Clock, Users, Monitor, Award, CheckCircle, AlertCircle, FileQuestion, RotateCcw, Play, Video, X } from 'lucide-react';
+import { BookOpen, FileText, QrCode, TrendingUp, Calendar, AlertTriangle, Clock, Users, Monitor, Award, CheckCircle, AlertCircle, FileQuestion, RotateCcw, Play, Video, X, Sparkles } from 'lucide-react';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
 import Link from 'next/link';
@@ -377,7 +377,7 @@ function OnlineCoursesCatalog({
 
   const [courses, setCourses] = useState<any[]>([]);
   const [allPlatformCourses, setAllPlatformCourses] = useState<any[]>([]);
-  const [scope, setScope] = useState<'MY_GRADE' | 'ALL'>('MY_GRADE');
+  const [scope, setScope] = useState<'MY_GRADE' | 'ALL' | 'FREE'>('MY_GRADE');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -414,12 +414,23 @@ function OnlineCoursesCatalog({
     fetchCourses();
   }, [gradeLevel, academicStage]);
 
-  const displayedCourses = scope === 'MY_GRADE' && courses.length > 0 ? courses : allPlatformCourses;
+  const freeCourses = allPlatformCourses.filter((c: any) => Number(c.price || 0) === 0 || c.isFree === true);
+  const displayedCourses = scope === 'FREE' ? freeCourses : (scope === 'MY_GRADE' && courses.length > 0 ? courses : allPlatformCourses);
 
   const [selectedCourseForSub, setSelectedCourseForSub] = useState<any | null>(null);
   const [previewVideoModal, setPreviewVideoModal] = useState<{ title: string; videoUrl: string; teacherName?: string } | null>(null);
 
-  const handleQuickEnroll = (course: any) => {
+  const handleQuickEnroll = async (course: any) => {
+    // If course is free, skip the payment modal and enroll instantly
+    if (Number(course.price || 0) === 0 || course.isFree === true) {
+      try {
+        await enrollMutation.mutateAsync(course.id);
+        router.push(`/student/courses/${course.id}/learn`);
+      } catch {
+        // Error toast is handled in the mutation's onError
+      }
+      return;
+    }
     setSelectedCourseForSub(course);
   };
 
@@ -457,10 +468,12 @@ function OnlineCoursesCatalog({
           </div>
           <div>
             <h3 className="text-base sm:text-lg font-bold text-slate-800">
-              الدورات الأونلاين المتاحة للاشتراك
+              {scope === 'FREE' ? 'الكورسات المجانية' : 'الدورات الأونلاين المتاحة للاشتراك'}
             </h3>
             <p className="text-xs text-slate-500">
-              {courses.length > 0 && scope === 'MY_GRADE'
+              {scope === 'FREE'
+                ? 'يمكنك الانضمام والتعلم مجاناً بدون اشتراك'
+                : scope === 'MY_GRADE' && courses.length > 0
                 ? `معروض كورسات مخصصة لـ (${gradeLevel || 'مرحلتك الدراسية'})`
                 : 'معروض جميع الكورسات الأونلاين المتاحة على المنصة'}
             </p>
@@ -490,6 +503,18 @@ function OnlineCoursesCatalog({
             }`}
           >
             جميع الكورسات ({allPlatformCourses.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setScope('FREE')}
+            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 ${
+              scope === 'FREE'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-emerald-700'
+            }`}
+          >
+            <Sparkles className="w-3 h-3" />
+            مجانية ({freeCourses.length})
           </button>
         </div>
       </div>
@@ -740,6 +765,16 @@ function OnlineCoursesCatalog({
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
                       <span>إعادة الاشتراك</span>
+                    </button>
+                  ) : Number(course.price || 0) === 0 || course.isFree ? (
+                    <button
+                      type="button"
+                      onClick={() => handleQuickEnroll(course)}
+                      disabled={enrollMutation.isPending}
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-xs text-center transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>{enrollMutation.isPending ? 'جاري التسجيل...' : 'ابدأ التعلم مجاناً'}</span>
                     </button>
                   ) : (
                     <button

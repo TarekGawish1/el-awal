@@ -167,6 +167,7 @@ export function FinanceOverviewTab({
 }: FinanceOverviewTabProps) {
   const [selectedStage, setSelectedStage] = useState<string>('');
   const [selectedGrade, setSelectedGrade] = useState<string>('');
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('');
   const [groupSearchQuery, setGroupSearchQuery] = useState('');
   const [courseSearchQuery, setCourseSearchQuery] = useState('');
 
@@ -199,10 +200,11 @@ export function FinanceOverviewTab({
     return Object.values(GRADE_LEVELS_BY_STAGE).flat();
   }, [selectedStage]);
 
-  // Filter groups locally based on search query, stage, and gradeLevel
+  // Filter groups locally based on search query, stage, gradeLevel and selected group
   const filteredGroups = useMemo(() => {
     const list = analyticsData?.groups || [];
     return list.filter((group) => {
+      if (selectedGroupId && group.id !== selectedGroupId) return false;
       if (selectedStage) {
         const groupStage = group.stage || inferStageFromGrade(group.gradeLevel);
         if (groupStage !== selectedStage) return false;
@@ -218,7 +220,7 @@ export function FinanceOverviewTab({
       }
       return true;
     });
-  }, [analyticsData?.groups, selectedStage, selectedGrade, groupSearchQuery]);
+  }, [analyticsData?.groups, selectedStage, selectedGrade, selectedGroupId, groupSearchQuery]);
 
   // Filter online courses locally based on search query
   const filteredCourses = useMemo(() => {
@@ -238,7 +240,7 @@ export function FinanceOverviewTab({
     <div className="space-y-8 animate-in fade-in duration-300">
       {/* Top Filter Bar */}
       <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {/* Term Selector */}
           <div>
             <label className="text-xs font-bold text-slate-700 block mb-1">الفترة الدراسية</label>
@@ -301,6 +303,22 @@ export function FinanceOverviewTab({
                 <option key={grade} value={grade}>
                   {grade}
                 </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Group Selector */}
+          <div>
+            <label className="text-xs font-bold text-slate-700 block mb-1">المجموعة الدراسية</label>
+            <select
+              aria-label="المجموعة الدراسية"
+              value={selectedGroupId}
+              onChange={(e) => setSelectedGroupId(e.target.value)}
+              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium focus:border-indigo-500 focus:outline-none"
+            >
+              <option value="">جميع المجموعات</option>
+              {(analyticsData?.groups || []).map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
               ))}
             </select>
           </div>

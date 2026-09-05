@@ -223,11 +223,11 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex flex-col lg:flex-row">
+    <div className="h-screen h-[100dvh] bg-neutral-50 flex flex-col lg:flex-row overflow-hidden">
 
       {/* Sidebar Navigation */}
       <aside
-        className={`fixed inset-y-0 start-0 z-40 w-64 bg-white border-e border-neutral-200/90 flex flex-col justify-between transition-transform duration-200 ease-in-out lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 start-0 z-40 w-64 bg-white border-e border-neutral-200/90 flex flex-col justify-between transition-transform duration-200 ease-in-out lg:static lg:translate-x-0 lg:h-full shrink-0 overflow-hidden ${
           isMobileSidebarOpen ? 'translate-x-0 shadow-xl' : 'translate-x-full lg:translate-x-0'
         }`}
       >
@@ -371,7 +371,7 @@ export default function DashboardLayout({
       )}
 
       {/* Main Page Workspace & Header Wrapper */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Global Navigation Header */}
         <header className="pt-[env(safe-area-inset-top,0px)] bg-white/95 border-b border-neutral-200 sticky top-0 z-40 shadow-xs shrink-0 flex items-center justify-between px-2.5 sm:px-6 lg:px-8 min-h-[3.75rem] sm:min-h-[4rem] gap-1.5 sm:gap-4">
           <div className="flex items-center gap-1.5 sm:gap-4 shrink-0">
@@ -553,7 +553,7 @@ export default function DashboardLayout({
         {/* Main Content Area */}
         <main
           ref={mainScrollRef}
-          className="flex-1 min-h-0 w-full overflow-x-hidden overflow-y-auto custom-scrollbar pb-24 lg:pb-12 pt-3 px-3 sm:px-6"
+          className="flex-1 min-h-0 w-full overflow-x-hidden overflow-y-auto custom-scrollbar pb-20 lg:pb-10 pt-3 px-3 sm:px-6"
         >
           <div className="max-w-7xl mx-auto w-full min-h-full">
             {children}
