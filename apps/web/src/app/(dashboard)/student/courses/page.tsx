@@ -38,6 +38,7 @@ import {
   AlertCircle,
   RotateCcw,
   TrendingUp,
+  X,
 } from 'lucide-react';
 import { FeatureRequiresOnlineCard } from '@/components/offline/FeatureRequiresOnlineCard';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
@@ -57,6 +58,7 @@ export default function StudentCoursesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedCourseForSub, setSelectedCourseForSub] = useState<any | null>(null);
   const [certCourse, setCertCourse] = useState<{ title: string; teacherName?: string } | null>(null);
+  const [previewVideoModal, setPreviewVideoModal] = useState<{ title: string; videoUrl: string; teacherName?: string } | null>(null);
 
   // Set default tab to CATALOG if student has no enrolled courses
   useEffect(() => {
@@ -202,7 +204,29 @@ export default function StudentCoursesPage() {
                           <BookOpen className="w-12 h-12 opacity-40" />
                         </div>
                       )}
-                      <div className="absolute top-3 right-3 flex items-center gap-1.5 flex-wrap">
+
+                      {/* Play preview video overlay */}
+                      {c.previewVideoUrl && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewVideoModal({
+                              title: c.title,
+                              videoUrl: c.previewVideoUrl,
+                              teacherName: c.teacherName,
+                            });
+                          }}
+                          className="absolute inset-0 z-10 flex items-center justify-center bg-black/25 hover:bg-black/45 transition-all group/play cursor-pointer"
+                          title="مشاهدة الفيديو التعريفي (البرومو) للكورس"
+                        >
+                          <div className="w-12 h-12 bg-white/90 group-hover/play:bg-white text-primary-600 rounded-full flex items-center justify-center shadow-lg group-hover/play:scale-110 transition-transform">
+                            <Play className="w-5 h-5 fill-current ml-0.5" />
+                          </div>
+                        </button>
+                      )}
+
+                      <div className="absolute top-3 right-3 flex items-center gap-1.5 flex-wrap z-20">
                         <Badge variant="default" className="bg-white/95 text-slate-800 border-none shadow-xs font-semibold">
                           {c.subject || 'عام'}
                         </Badge>
@@ -226,10 +250,28 @@ export default function StudentCoursesPage() {
                         <h3 className="text-lg font-bold text-slate-800 line-clamp-1 group-hover:text-primary-600 transition-colors leading-tight">
                           {c.title}
                         </h3>
-                        <p className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
-                          <User className="w-3.5 h-3.5 text-slate-400" />
-                          المعلم: {c.teacherName}
-                        </p>
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <p className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
+                            <User className="w-3.5 h-3.5 text-slate-400" />
+                            المعلم: {c.teacherName}
+                          </p>
+                          {c.previewVideoUrl && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPreviewVideoModal({
+                                  title: c.title,
+                                  videoUrl: c.previewVideoUrl,
+                                  teacherName: c.teacherName,
+                                })
+                              }
+                              className="text-[11px] font-bold text-primary-600 hover:text-primary-700 hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <Video className="w-3.5 h-3.5" />
+                              <span>فيديو تعريفي 🎬</span>
+                            </button>
+                          )}
+                        </div>
                         <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed pt-1">
                           {c.description || 'لا يوجد وصف تفصيلي متاح لهذه الدورة.'}
                         </p>
@@ -363,6 +405,7 @@ export default function StudentCoursesPage() {
           studentAcademicStage={profile?.academicStage}
           myCourses={courses}
           onViewCertificate={(c) => setCertCourse(c)}
+          onWatchPreview={(c) => setPreviewVideoModal(c)}
         />
       )}
 
@@ -397,6 +440,64 @@ export default function StudentCoursesPage() {
           }}
         />
       )}
+
+      {/* Free Preview Promo Video Modal */}
+      {previewVideoModal && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setPreviewVideoModal(null)}
+        >
+          <div
+            className="bg-white rounded-3xl overflow-hidden max-w-3xl w-full shadow-2xl border border-slate-200 text-right animate-in zoom-in-95 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-slate-900 text-white p-5 flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary-600 flex items-center justify-center text-white shrink-0 shadow-sm">
+                  <Video className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">{previewVideoModal.title}</h3>
+                  <p className="text-xs text-slate-400">
+                    الفيديو التعريفي (البرومو الترويجي) • {previewVideoModal.teacherName || 'معلم المادة'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewVideoModal(null)}
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-6 bg-slate-950">
+              <div className="aspect-video w-full rounded-2xl overflow-hidden bg-black shadow-lg border border-slate-800">
+                <iframe
+                  src={`${previewVideoModal.videoUrl}${previewVideoModal.videoUrl.includes('?') ? '&' : '?'}autoplay=1`}
+                  className="w-full h-full border-0"
+                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            </div>
+
+            <div className="p-4 bg-white border-t border-slate-100 flex items-center justify-between">
+              <span className="text-xs text-slate-500 font-medium">
+                معاينة مجانية للمحتوى التمهيدي
+              </span>
+              <button
+                type="button"
+                onClick={() => setPreviewVideoModal(null)}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -406,11 +507,13 @@ function AvailableCoursesCatalogTab({
   studentAcademicStage,
   myCourses = [],
   onViewCertificate,
+  onWatchPreview,
 }: {
   studentGradeLevel?: string;
   studentAcademicStage?: string;
   myCourses?: any[];
   onViewCertificate?: (course: { title: string; teacherName?: string }) => void;
+  onWatchPreview?: (course: { title: string; videoUrl: string; teacherName?: string }) => void;
 }) {
   const router = useRouter();
   const enrollMutation = useEnrollInCourse();
@@ -538,22 +641,55 @@ function AvailableCoursesCatalogTab({
                 }`}
               >
                 {/* Banner / Cover */}
-                <div
-                  className={`h-36 bg-gradient-to-br ${
-                    isCompleted
-                      ? 'from-emerald-600 via-teal-600 to-teal-700'
-                      : index % 3 === 0
-                      ? 'from-blue-600 to-indigo-700'
-                      : index % 3 === 1
-                      ? 'from-indigo-600 to-purple-700'
-                      : 'from-emerald-600 to-teal-700'
-                  } relative p-4 flex items-start justify-between text-white`}
-                >
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <Badge className="bg-white/20 text-white border-none text-[11px] font-bold">
+                <div className="h-44 w-full bg-slate-100 relative overflow-hidden shrink-0">
+                  {c.coverImageUrl ? (
+                    <img
+                      src={c.coverImageUrl}
+                      alt={c.title}
+                      className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-500"
+                    />
+                  ) : (
+                    <div
+                      className={`w-full h-full bg-gradient-to-br ${
+                        isCompleted
+                          ? 'from-emerald-600 via-teal-600 to-teal-700'
+                          : index % 3 === 0
+                          ? 'from-blue-600 to-indigo-700'
+                          : index % 3 === 1
+                          ? 'from-indigo-600 to-purple-700'
+                          : 'from-emerald-600 to-teal-700'
+                      } flex items-center justify-center text-white`}
+                    >
+                      <BookOpen className="w-10 h-10 opacity-30" />
+                    </div>
+                  )}
+
+                  {/* Play preview button overlay if preview video exists */}
+                  {(c.previewVideoUrl || c.freeVideoUrl) && onWatchPreview && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onWatchPreview({
+                          title: c.title,
+                          videoUrl: c.previewVideoUrl || c.freeVideoUrl,
+                          teacherName: c.teacher?.user?.fullName || c.teacherName,
+                        });
+                      }}
+                      className="absolute inset-0 z-10 flex items-center justify-center bg-black/25 hover:bg-black/45 transition-all group/play cursor-pointer"
+                      title="مشاهدة الفيديو التعريفي (البرومو) للكورس"
+                    >
+                      <div className="w-12 h-12 bg-white/90 group-hover/play:bg-white text-primary-600 rounded-full flex items-center justify-center shadow-lg group-hover/play:scale-110 transition-transform">
+                        <Play className="w-5 h-5 fill-current ml-0.5" />
+                      </div>
+                    </button>
+                  )}
+
+                  <div className="absolute top-3 right-3 flex items-center gap-1.5 flex-wrap z-20">
+                    <Badge className="bg-white/95 text-slate-800 border-none text-[11px] font-bold shadow-xs">
                       {c.subject || 'مادة عامة'}
                     </Badge>
-                    <Badge className="bg-black/20 text-white border-none text-[11px]">
+                    <Badge className="bg-black/40 text-white border-none text-[11px]">
                       {c.gradeLevel}
                     </Badge>
                     {isPending && (
@@ -575,9 +711,11 @@ function AvailableCoursesCatalogTab({
                     ) : null}
                   </div>
 
-                  <Badge className="bg-white/25 text-white border-none text-[11px] font-bold">
-                    {c.academicTerm === 'FIRST_TERM' ? 'ترم أول' : 'ترم ثاني'}
-                  </Badge>
+                  <div className="absolute top-3 left-3 z-20">
+                    <Badge className="bg-white/90 text-slate-800 border-none text-[11px] font-bold shadow-xs">
+                      {c.academicTerm === 'FIRST_TERM' ? 'ترم أول' : 'ترم ثاني'}
+                    </Badge>
+                  </div>
                 </div>
 
                 {/* Content */}
@@ -672,6 +810,24 @@ function AvailableCoursesCatalogTab({
 
                   {/* Actions */}
                   <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
+                    {(c.previewVideoUrl || c.freeVideoUrl) && onWatchPreview && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onWatchPreview({
+                            title: c.title,
+                            videoUrl: c.previewVideoUrl || c.freeVideoUrl,
+                            teacherName: c.teacher?.user?.fullName || c.teacherName,
+                          })
+                        }
+                        className="py-2.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs text-center transition-colors border border-emerald-200/80 shadow-2xs flex items-center justify-center gap-1 cursor-pointer shrink-0"
+                        title="مشاهدة الفيديو التعريفي المجاني"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        <span>برومو 🎬</span>
+                      </button>
+                    )}
+
                     <Link
                       href={`/student/courses/${c.id}`}
                       className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs text-center transition-colors shadow-2xs"

@@ -2442,6 +2442,7 @@ export class CoursesService {
           subject: e.course.subject,
           gradeLevel: e.course.gradeLevel,
           coverImageUrl: e.course.coverImageUrl,
+          previewVideoUrl: e.course.previewVideoUrl || null,
           teacherName: e.course.teacher.user.fullName,
           enrolledAt: e.enrolledAt,
           enrollmentStatus: e.status,

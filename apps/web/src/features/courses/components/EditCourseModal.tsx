@@ -163,9 +163,8 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
         if (newUploadedKeyRef.current) {
           coursesApi.deleteUploadedFile(newUploadedKeyRef.current).catch(() => {});
         }
-        const taskId = previewUploadTaskIdRef.current || `preview-${course.id}`;
-        if (taskId) {
-          cancelUpload(taskId);
+        if (previewUploadTaskIdRef.current) {
+          cancelUpload(previewUploadTaskIdRef.current);
         }
         if (newlyUploadedBunnyVideoIdRef.current) {
           coursesApi.deleteUploadedFile(`bunny:${newlyUploadedBunnyVideoIdRef.current}`).catch(() => {});
@@ -258,7 +257,7 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
       if (newUploadedKeyRef.current) {
         coursesApi.deleteUploadedFile(newUploadedKeyRef.current).catch(() => {});
       }
-      const taskId = previewUploadTaskIdRef.current || backgroundUploadTask?.id || `preview-${course.id}`;
+      const taskId = previewUploadTaskIdRef.current || (isUploadingVideo ? backgroundUploadTask?.id : null);
       if (isUploadingVideo && taskId) {
         cancelUpload(taskId);
       }

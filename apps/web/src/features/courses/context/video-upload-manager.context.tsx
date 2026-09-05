@@ -117,21 +117,31 @@ export function VideoUploadManagerProvider({
   const cancelUpload = useCallback(
     (taskId: string) => {
       const xhr = activeXhrsRef.current[taskId];
+      const task = tasksRef.current[taskId];
+
+      // If there is no active XHR and no tracked task (or task is already finished/aborted), ignore
+      if (!xhr && (!task || task.status === 'aborted' || task.status === 'completed')) {
+        return;
+      }
+
       if (xhr) {
         xhr.abort();
         delete activeXhrsRef.current[taskId];
       }
 
-      const task = tasksRef.current[taskId];
       if (task?.videoId) {
-        coursesApi.deleteUploadedFile(`bunny:${task.videoId}`);
+        coursesApi.deleteUploadedFile(`bunny:${task.videoId}`).catch(() => {});
       }
 
       updateTask(taskId, {
         status: 'aborted',
         error: 'تم إلغاء رفع الفيديو بواسطة المستخدم',
       });
-      toast.error(`تم إلغاء رفع فيديو "${task?.lessonTitle || ''}"`);
+      if (task?.lessonTitle) {
+        toast.error(`تم إلغاء رفع فيديو "${task.lessonTitle}"`);
+      } else {
+        toast.error('تم إلغاء رفع الفيديو');
+      }
     },
     [updateTask],
   );

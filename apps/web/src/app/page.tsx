@@ -780,21 +780,30 @@ function CoursesSection() {
               >
                 {/* Image/Gradient Area */}
                 <div className={`h-48 w-full bg-gradient-to-br ${course.color || 'from-blue-600 to-cyan-600'} relative overflow-hidden flex items-start justify-start p-6`}>
-                  <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
+                  {course.coverImageUrl ? (
+                    <img
+                      src={course.coverImageUrl}
+                      alt={course.title}
+                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                  ) : (
+                    <>
+                      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay" />
+                      <div className="absolute -bottom-6 -left-6 text-white/20 text-9xl font-black -rotate-12 pointer-events-none">
+                        {index === 0 ? '∑' : index === 1 ? '∫' : '∞'}
+                      </div>
+                    </>
+                  )}
                   
-                  {course.hasFreeVideo && course.freeVideoUrl ? (
+                  {course.hasFreeVideo && course.freeVideoUrl && (
                      <div 
                        onClick={() => handleOpenCourseModal(course)}
-                       className="absolute inset-0 z-20 flex items-center justify-center cursor-pointer bg-black/15 group-hover:bg-black/35 transition-colors"
+                       className="absolute inset-0 z-20 flex items-center justify-center cursor-pointer bg-black/25 group-hover:bg-black/40 transition-colors"
                      >
                        <div className="w-16 h-16 bg-white/30 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
                           <PlayCircle className="h-8 w-8 text-white ml-0.5" />
                        </div>
                      </div>
-                  ) : (
-                    <div className="absolute -bottom-6 -left-6 text-white/20 text-9xl font-black -rotate-12 pointer-events-none">
-                      {index === 0 ? '∑' : index === 1 ? '∫' : '∞'}
-                    </div>
                   )}
 
                   <div className="relative z-10 flex items-center gap-2">
@@ -1346,6 +1355,11 @@ function CertificatesSection() {
     
     syncAndFetchCertificates();
   }, []);
+
+  const hasCertificates = stagesData.some((s) => s.certificates && s.certificates.length > 0);
+  if (!hasCertificates) {
+    return null;
+  }
 
   return (
     <section className="py-24 bg-slate-50 relative overflow-hidden" id="certificates" dir="rtl">
