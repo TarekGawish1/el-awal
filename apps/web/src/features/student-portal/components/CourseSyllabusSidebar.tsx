@@ -58,7 +58,11 @@ export function CourseSyllabusSidebar({
       if (mustPass) {
         const passScore = quiz.passingScore ?? 0;
         const score = submission.scoreObtained ?? 0;
-        return submission.isPassed ?? score >= passScore;
+        const isPassed = submission.isPassed ?? score >= passScore;
+        if (isPassed) return true;
+        // If single attempt only and already submitted, do not permanently deadlock progression
+        if (!quiz.allowMultipleAttempts) return true;
+        return false;
       }
       return submission.status === 'SUBMITTED' || submission.status === 'GRADED';
     },

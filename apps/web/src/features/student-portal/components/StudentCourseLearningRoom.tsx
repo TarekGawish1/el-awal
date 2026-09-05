@@ -215,7 +215,8 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
           if (mustPass) {
             const passScore = uq.passingScore ?? 0;
             const score = sub.scoreObtained ?? 0;
-            isSatisfied = sub.isPassed ?? score >= passScore;
+            const passed = sub.isPassed ?? score >= passScore;
+            isSatisfied = passed || !uq.allowMultipleAttempts;
           } else {
             isSatisfied = true;
           }
@@ -698,7 +699,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         const passScore = currentQuiz.passingScore ?? 0;
         const score = currentQuiz.mySubmission.scoreObtained ?? 0;
         const passed = currentQuiz.mySubmission.isPassed ?? (score >= passScore);
-        if (!passed) {
+        if (!passed && currentQuiz.allowMultipleAttempts) {
           toast.error(
             `يجب اجتياز الاختبار بدرجة النجاح (${passScore} من ${currentQuiz.totalScore}) لإتمام هذا الدرس والتقدم 🎯`,
           );
@@ -721,7 +722,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         const passScore = currentHomework.passingScore ?? 0;
         const score = currentHomework.mySubmission.scoreObtained ?? 0;
         const passed = currentHomework.mySubmission.isPassed ?? (score >= passScore);
-        if (!passed) {
+        if (!passed && currentHomework.allowMultipleAttempts) {
           toast.error(
             `يجب اجتياز الواجب بدرجة النجاح (${passScore} من ${currentHomework.totalScore}) لإتمام هذا الدرس والتقدم 🎯`,
           );

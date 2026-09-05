@@ -571,6 +571,11 @@ export class CoursesService {
               (mod.lessons || []).map(async (les) => ({
                 ...les,
                 lessonQuiz: await this.attachStudentSubmission(les.lessonQuiz, studentId),
+                assessments: await Promise.all(
+                  (les.assessments || []).map((ass: any) =>
+                    this.attachStudentSubmission(ass, studentId),
+                  ),
+                ),
               })),
             ),
           ]);
