@@ -6,6 +6,7 @@ import { AuthService } from '../services/auth.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import { UserRole } from '@prisma/client';
+import { NotificationsService } from '../../notifications/services/notifications.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -38,6 +39,10 @@ describe('AuthService', () => {
     getOrThrow: jest.fn((key: string) => 'test-secret-32-chars-long-for-jwt-signing'),
   };
 
+  const mockNotificationsService = {
+    sendNotification: jest.fn().mockResolvedValue(undefined),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -45,6 +50,7 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: NotificationsService, useValue: mockNotificationsService },
       ],
     }).compile();
 

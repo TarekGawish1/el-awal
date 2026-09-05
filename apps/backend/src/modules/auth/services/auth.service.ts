@@ -89,40 +89,93 @@ export class AuthService {
    * Compares password with stored bcrypt hash and generates access & refresh tokens.
    */
   async login(dto: LoginDto): Promise<AuthTokensResponseDto> {
+    const rawIdentifier = dto.identifier.trim();
+    const phoneVariants = getPhoneVariants(rawIdentifier);
+
     const user = await this.prisma.user.findFirst({
       where: {
         OR: [
-          { phone: dto.identifier },
-          { email: dto.identifier },
-          { studentProfile: { studentCode: dto.identifier } },
+          { phone: { in: phoneVariants } },
+          { email: rawIdentifier },
+          { studentProfile: { studentCode: rawIdentifier } },
         ],
         isActive: true,
         deletedAt: null,
       },
       include: {
         teacherProfile: { select: { id: true } },
-        studentProfile: { select: { id: true } },
-        parentProfile: { select: { id: true } },
+        studentProfile: { select: { id: true, tempAccessPin: true, pinExpiresAt: true } },
+        parentProfile: {
+          select: {
+            id: true,
+            studentLinks: {
+              include: {
+                student: {
+                  include: {
+                    user: { select: { passwordHash: true, phone: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
         secretariatProfile: { select: { id: true } },
       },
     });
 
     if (!user) {
       this.logger.warn(`Authentication failed: User [${dto.identifier}] not found or inactive`);
-      throw new UnauthorizedException('Invalid credentials or account is inactive');
+      throw new UnauthorizedException('بيانات الدخول غير صحيحة أو الحساب غير مفعل');
     }
 
     if (!dto.password) {
       throw new UnauthorizedException('كلمة المرور مطلوبة');
     }
 
-    const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!isPasswordValid) {
-      this.logger.warn(`Authentication failed: Invalid password for user [${dto.identifier}]`);
-      throw new UnauthorizedException('بيانات الدخول غير صحيحة أو الحساب غير نشط');
+    let isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
+
+    // If password doesn't match own passwordHash:
+    // A) Check student temporary access PIN if user is a student
+    if (!isPasswordValid && user.studentProfile?.tempAccessPin) {
+      if (
+        user.studentProfile.tempAccessPin === dto.password &&
+        (!user.studentProfile.pinExpiresAt || user.studentProfile.pinExpiresAt > new Date())
+      ) {
+        isPasswordValid = true;
+      }
     }
 
-    return this.issueTokens(user);
+    // B) Check linked student's password or tempAccessPin if user has a parentProfile
+    let authenticatedAsParentViaStudentPin = false;
+    if (!isPasswordValid && user.parentProfile?.studentLinks?.length) {
+      for (const link of user.parentProfile.studentLinks) {
+        if (link.student?.user?.passwordHash) {
+          const match = await bcrypt.compare(dto.password, link.student.user.passwordHash);
+          if (match) {
+            isPasswordValid = true;
+            authenticatedAsParentViaStudentPin = true;
+            break;
+          }
+        }
+        if (
+          link.student?.tempAccessPin &&
+          link.student.tempAccessPin === dto.password &&
+          (!link.student.pinExpiresAt || link.student.pinExpiresAt > new Date())
+        ) {
+          isPasswordValid = true;
+          authenticatedAsParentViaStudentPin = true;
+          break;
+        }
+      }
+    }
+
+    if (!isPasswordValid) {
+      this.logger.warn(`Authentication failed: Invalid password for user [${dto.identifier}]`);
+      throw new UnauthorizedException('بيانات الدخول غير صحيحة أو الحساب غير مفعل');
+    }
+
+    const overrideRole = authenticatedAsParentViaStudentPin ? UserRole.PARENT : undefined;
+    return this.issueTokens(user, overrideRole);
   }
 
   /**
@@ -188,7 +241,10 @@ export class AuthService {
       const directParent = await this.prisma.user.findFirst({
         where: {
           phone: { in: phoneVariants },
-          role: UserRole.PARENT,
+          OR: [
+            { role: UserRole.PARENT },
+            { parentProfile: { isNot: null } },
+          ],
           isActive: true,
           deletedAt: null,
         },
@@ -210,7 +266,8 @@ export class AuthService {
       }
     }
 
-    if (!parentUser || parentUser.role !== UserRole.PARENT || !parentUser.isActive || parentUser.deletedAt) {
+    const hasParentCapability = parentUser?.role === UserRole.PARENT || Boolean(parentUser?.parentProfile);
+    if (!parentUser || !hasParentCapability || !parentUser.isActive || parentUser.deletedAt) {
       this.logger.warn(`Parent access failed for identifier [${dto.studentPhone}]`);
       throw new UnauthorizedException('رقم الهاتف أو كود الطالب غير مسجل أو لا يوجد حساب ولي أمر مرتبط به');
     }
@@ -242,7 +299,11 @@ export class AuthService {
             break;
           }
         }
-        if (link.student?.tempAccessPin && link.student.tempAccessPin === password) {
+        if (
+          link.student?.tempAccessPin &&
+          link.student.tempAccessPin === password &&
+          (!link.student.pinExpiresAt || link.student.pinExpiresAt > new Date())
+        ) {
           isPasswordValid = true;
           break;
         }
@@ -254,7 +315,7 @@ export class AuthService {
       throw new UnauthorizedException('كلمة المرور غير صحيحة، يرجى التأكد من كلمة المرور أو استخدام رابط الدخول الآمن');
     }
 
-    return this.issueTokens(parentUser);
+    return this.issueTokens(parentUser, UserRole.PARENT);
   }
 
   /**
@@ -262,7 +323,8 @@ export class AuthService {
    * Public so the student self-registration flow can auto-authenticate after
    * a successful account claim.
    */
-  async issueTokens(user: AuthUserRecord): Promise<AuthTokensResponseDto> {
+  async issueTokens(user: AuthUserRecord, overrideRole?: UserRole): Promise<AuthTokensResponseDto> {
+    const effectiveRole = overrideRole || user.role;
     const accessSecret = this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
     const refreshSecret = this.configService.getOrThrow<string>('JWT_REFRESH_SECRET');
     const accessExpiry = this.configService.get<string>('JWT_ACCESS_EXPIRES_IN', '15m');
@@ -272,7 +334,7 @@ export class AuthService {
       sub: user.id,
       email: user.email || undefined,
       phone: user.phone || undefined,
-      role: user.role,
+      role: effectiveRole,
       typ: 'access',
     };
 
@@ -280,7 +342,7 @@ export class AuthService {
       sub: user.id,
       email: user.email || undefined,
       phone: user.phone || undefined,
-      role: user.role,
+      role: effectiveRole,
       typ: 'refresh',
       jti: randomUUID(),
     };
@@ -328,7 +390,7 @@ export class AuthService {
         fullName: user.fullName,
         email: user.email || undefined,
         phone: user.phone || undefined,
-        role: user.role,
+        role: effectiveRole,
         teacherProfileId: user.teacherProfile?.id,
         studentProfileId: user.studentProfile?.id,
         parentProfileId: user.parentProfile?.id,
