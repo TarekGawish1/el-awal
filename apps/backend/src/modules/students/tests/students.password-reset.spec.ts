@@ -75,6 +75,7 @@ describe('StudentsService — Password Reset & Credentials Access', () => {
 
   const mockNotificationsService = {
     createAndDispatch: jest.fn(),
+    sendNotification: jest.fn().mockResolvedValue(undefined),
   };
 
   const mockRealtimeGateway = {
@@ -141,7 +142,7 @@ describe('StudentsService — Password Reset & Credentials Access', () => {
       expect(result.newPassword).toBe('newSecretPass1');
       expect(result.studentCode).toBe('STU-2026-009');
       expect(mockPrismaService.$transaction).toHaveBeenCalled();
-      expect(mockWhatsAppService.sendMessage).toHaveBeenCalled();
+      expect(mockNotificationsService.sendNotification).toHaveBeenCalled();
     });
 
     it('allows secretariat to reset student password', async () => {

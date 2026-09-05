@@ -27,6 +27,15 @@ describe('AuthService', () => {
       update: jest.fn().mockResolvedValue({ id: 'session-1' }),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
+    parentStudentLink: {
+      findMany: jest.fn(),
+    },
+    parentProfile: {
+      findUnique: jest.fn(),
+    },
+    teacherAssistant: {
+      findFirst: jest.fn().mockResolvedValue(null),
+    },
   };
 
   const mockJwtService = {
@@ -259,6 +268,48 @@ describe('AuthService', () => {
       await expect(
         service.parentAccess({ studentPhone: '01011111111', password: 'secretpassword' }),
       ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('authenticates using linked student tempAccessPin and never expires even if pin was created in the past', async () => {
+      mockPrismaService.studentProfile.findFirst.mockResolvedValue({
+        user: { passwordHash: 'student-hash' },
+        parentLinks: [
+          {
+            parent: {
+              user: {
+                id: 'parent-user-1',
+                fullName: 'yara',
+                email: 'yara@test.com',
+                phone: '01067789574',
+                passwordHash: 'different-parent-pass',
+                role: UserRole.SECRETARIAT,
+                isActive: true,
+                deletedAt: null,
+                parentProfile: { id: 'parent-user-1' },
+              },
+            },
+          },
+        ],
+      });
+      mockPrismaService.parentStudentLink.findMany.mockResolvedValue([
+        {
+          student: {
+            tempAccessPin: '9sgiiY',
+            pinExpiresAt: new Date(Date.now() - 1000 * 60 * 60 * 24),
+            user: { passwordHash: 'student-hash', phone: '01067789570' },
+          },
+        },
+      ]);
+      mockJwtService.signAsync
+        .mockResolvedValueOnce('parent-access-token')
+        .mockResolvedValueOnce('parent-refresh-token');
+
+      (bcrypt.compare as jest.Mock) = jest.fn().mockResolvedValue(false);
+
+      const result = await service.parentAccess({ studentPhone: '01067789574', password: '9sgiiY' });
+
+      expect(result.user.role).toBe(UserRole.PARENT);
+      expect(result.accessToken).toBe('parent-access-token');
     });
   });
 });

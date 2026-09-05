@@ -135,17 +135,14 @@ export class AuthService {
     let isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
 
     // If password doesn't match own passwordHash:
-    // A) Check student temporary access PIN if user is a student
+    // A) Check student temporary access PIN if user is a student (permanent direct access)
     if (!isPasswordValid && user.studentProfile?.tempAccessPin) {
-      if (
-        user.studentProfile.tempAccessPin === dto.password &&
-        (!user.studentProfile.pinExpiresAt || user.studentProfile.pinExpiresAt > new Date())
-      ) {
+      if (user.studentProfile.tempAccessPin === dto.password) {
         isPasswordValid = true;
       }
     }
 
-    // B) Check linked student's password or tempAccessPin if user has a parentProfile
+    // B) Check linked student's password or tempAccessPin if user has a parentProfile (permanent direct access)
     let authenticatedAsParentViaStudentPin = false;
     if (!isPasswordValid && user.parentProfile?.studentLinks?.length) {
       for (const link of user.parentProfile.studentLinks) {
@@ -159,8 +156,7 @@ export class AuthService {
         }
         if (
           link.student?.tempAccessPin &&
-          link.student.tempAccessPin === dto.password &&
-          (!link.student.pinExpiresAt || link.student.pinExpiresAt > new Date())
+          link.student.tempAccessPin === dto.password
         ) {
           isPasswordValid = true;
           authenticatedAsParentViaStudentPin = true;
@@ -299,10 +295,19 @@ export class AuthService {
             break;
           }
         }
+        // Direct parent magic links NEVER expire
         if (
           link.student?.tempAccessPin &&
-          link.student.tempAccessPin === password &&
-          (!link.student.pinExpiresAt || link.student.pinExpiresAt > new Date())
+          link.student.tempAccessPin === password
+        ) {
+          isPasswordValid = true;
+          break;
+        }
+        // Fallback: check initial credentials saved during registration if available
+        const pending = (link.student as any)?.pendingCredentials;
+        if (
+          pending &&
+          (pending.studentPassword === password || pending.parentPassword === password)
         ) {
           isPasswordValid = true;
           break;
@@ -455,11 +460,26 @@ export class AuthService {
       throw new UnauthorizedException('User account is inactive or no longer exists');
     }
 
+    let effectiveRole = user.role;
+    if (decoded.role === UserRole.PARENT) {
+      const hasParentCapability =
+        user.role === UserRole.PARENT ||
+        Boolean(
+          await this.prisma.parentProfile.findUnique({
+            where: { id: user.id },
+            select: { id: true },
+          }),
+        );
+      if (hasParentCapability) {
+        effectiveRole = UserRole.PARENT;
+      }
+    }
+
     const accessPayload: JwtTokenPayload = {
       sub: user.id,
       email: user.email || undefined,
       phone: user.phone || undefined,
-      role: user.role,
+      role: effectiveRole,
       typ: 'access',
     };
 
@@ -468,7 +488,7 @@ export class AuthService {
       sub: user.id,
       email: user.email || undefined,
       phone: user.phone || undefined,
-      role: user.role,
+      role: effectiveRole,
       typ: 'refresh',
       jti: newRefreshJti,
     };
@@ -689,7 +709,7 @@ export class AuthService {
                 attendanceMode: 'CENTER',
                 emergencyPhone: parentPhone,
                 tempAccessPin: dto.password,
-                pinExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                pinExpiresAt: null,
               },
             },
           },

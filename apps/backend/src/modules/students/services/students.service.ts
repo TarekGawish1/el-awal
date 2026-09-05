@@ -120,7 +120,7 @@ export class StudentsService {
           dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
           emergencyPhone: dto.emergencyPhone,
           tempAccessPin: dto.password,
-          pinExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          pinExpiresAt: null,
           createdById: creatorId,
           createdByName: creatorName,
           updatedById: creatorId,
@@ -1149,7 +1149,7 @@ export class StudentsService {
 
     const newPassword = dto.newPassword?.trim() || generateSecurePassword(6);
     const passwordHash = await bcrypt.hash(newPassword, 10);
-    const pinExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const pinExpiresAt = null;
 
     // 1. Update user password and profile tempAccessPin
     await this.prisma.$transaction([
