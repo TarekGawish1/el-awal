@@ -113,6 +113,7 @@ function Navbar() {
         {/* Links (Desktop) */}
         <div className="hidden md:flex items-center gap-8">
           <a href="#" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-blue-600 font-bold transition-colors">الرئيسية</a>
+          <a href="#schedule" onClick={(e) => { e.preventDefault(); document.getElementById('schedule')?.scrollIntoView({ behavior: 'smooth' }); }} className="text-slate-600 font-medium hover:text-blue-600 transition-colors">مواعيد السنتر</a>
           <a href="#courses" onClick={(e) => { e.preventDefault(); document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth' }); }} className="text-slate-600 font-medium hover:text-blue-600 transition-colors">الكورسات</a>
           <a href="#about" onClick={(e) => { e.preventDefault(); document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' }); }} className="text-slate-600 font-medium hover:text-blue-600 transition-colors">من نحن</a>
           <a href="#contact" onClick={(e) => { e.preventDefault(); document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' }); }} className="text-slate-600 font-medium hover:text-blue-600 transition-colors">تواصل معنا</a>
@@ -764,8 +765,8 @@ function CoursesSection() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
               </svg>
             </div>
-            <h3 className="text-xl font-bold text-slate-800 mb-2">لا توجد كورسات متاحة حالياً</h3>
-            <p className="text-slate-500">لم يتم إضافة كورسات تطابق اختيارك في الوقت الحالي.</p>
+            <h3 className="text-xl font-bold text-slate-800 mb-2">لا يوجد دورات متاحة حالياً</h3>
+            <p className="text-slate-500">لم يتم إضافة دورات تطابق اختيارك في الوقت الحالي.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -1232,57 +1233,12 @@ function CertificatesSection() {
   const [stagesData, setStagesData] = useState(CERTIFICATES_BY_STAGE);
 
   useEffect(() => {
-    const syncAndFetchCertificates = async () => {
+    const fetchCertificates = async () => {
       try {
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.al-awal.online/api/v1';
 
-        // 1. Get local storage certificates
-        let localCerts: any[] = [];
-        try {
-          localCerts = JSON.parse(localStorage.getItem('saved_certificates') || '[]');
-        } catch(localError) {
-          console.warn("Could not parse local certificates", localError);
-        }
-
-        // 2. Sync unsynced local certificates to backend
-        const syncedFlags = JSON.parse(localStorage.getItem('synced_certificates') || '{}');
-        let needsRefetch = false;
-
-        for (const cert of localCerts) {
-          if (!syncedFlags[cert.id]) {
-            try {
-              // Upload to backend using the thumbnail base64 as fileUrl
-              const formData = new FormData();
-              formData.append('studentName', cert.studentName || 'طالب');
-              formData.append('subject', cert.subject || 'عام');
-              formData.append('score', cert.score || '100');
-              formData.append('issueDate', cert.issueDate || '');
-              formData.append('year', cert.year || '');
-              formData.append('stage', cert.stage || (cert.data && cert.data.stage) || '');
-              formData.append('grade', cert.grade || (cert.data && cert.data.grade) || '');
-              formData.append('fileUrl', cert.image); // Sending base64 as url fallback
-
-              const uploadRes = await fetch(`${baseUrl}/certificates`, {
-                method: 'POST',
-                body: formData
-              });
-
-              if (uploadRes.ok) {
-                syncedFlags[cert.id] = true;
-                needsRefetch = true;
-              }
-            } catch (err) {
-              console.error("Failed to sync cert", err);
-            }
-          }
-        }
-
-        if (needsRefetch) {
-          localStorage.setItem('synced_certificates', JSON.stringify(syncedFlags));
-        }
-
-        // 3. Fetch all certificates from backend (which now includes the synced ones)
-        let apiCerts = [];
+        // 1. Fetch certificates from backend API
+        let apiCerts: any[] = [];
         try {
           const res = await fetch(`${baseUrl}/certificates/public`);
           if (res.ok) {
@@ -1293,29 +1249,51 @@ function CertificatesSection() {
           console.warn("Could not fetch API certificates", apiError);
         }
 
-        // Ensure arrays
+        // 2. Get local certificates as fallback
+        let localCerts: any[] = [];
+        try {
+          localCerts = JSON.parse(localStorage.getItem('saved_certificates') || '[]');
+        } catch (localError) {
+          console.warn("Could not parse local certificates", localError);
+        }
+
         if (!Array.isArray(apiCerts)) apiCerts = [];
         if (!Array.isArray(localCerts)) localCerts = [];
 
-        // Merge backend certs with local certs (fallback)
         const mappedApiCerts = apiCerts.map((c: any) => ({
           id: c.id,
           title: c.subject ? `التفوق في ${c.subject}` : 'شهادة تقدير',
           student: c.studentName || 'طالب',
           image: c.fileUrl || 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate',
-          stage: c.stage
+          stage: c.stage,
         }));
 
-        const mappedLocalCerts = localCerts.map((c: any) => ({
-          id: c.id,
-          title: c.subject ? `التفوق في ${c.subject}` : 'شهادة تقدير',
-          student: c.studentName || 'طالب',
-          image: c.image || 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate',
-          stage: c.stage || (c.data && c.data.stage)
-        }));
+        const nonDuplicateLocal = localCerts
+          .filter((l: any) => !mappedApiCerts.some((a: any) => 
+            a.id === l.id || 
+            (a.student?.trim() === l.studentName?.trim() && a.title?.includes(l.subject?.trim()))
+          ))
+          .map((c: any) => ({
+            id: c.id,
+            title: c.subject ? `التفوق في ${c.subject}` : 'شهادة تقدير',
+            student: c.studentName || 'طالب',
+            image: c.image || 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate',
+            stage: c.stage || (c.data && c.data.stage),
+          }));
 
-        const combined = [...mappedApiCerts, ...mappedLocalCerts];
-        const uniqueSaved = Array.from(new Map(combined.map(item => [item.student, item])).values());
+        const combined = [...mappedApiCerts, ...nonDuplicateLocal];
+
+        // Deduplicate strictly by student + subject + stage
+        const seen = new Set<string>();
+        const uniqueSaved: any[] = [];
+        for (const item of combined) {
+          const key = `${item.student?.trim()}_${item.title?.trim()}_${item.stage?.trim()}`;
+          if (!seen.has(key) && !seen.has(item.id)) {
+            seen.add(key);
+            seen.add(item.id);
+            uniqueSaved.push(item);
+          }
+        }
 
         if (uniqueSaved.length > 0) {
           const newSecondary = uniqueSaved.filter((c: any) => c.stage === 'الثانوية');
@@ -1324,13 +1302,13 @@ function CertificatesSection() {
           const newOther = uniqueSaved.filter((c: any) => !['الثانوية', 'الإعدادية', 'الابتدائية'].includes(c.stage));
 
           const nextStages = CERTIFICATES_BY_STAGE.map(stage => {
-            if (stage.stageId === 'secondary' && newSecondary.length > 0) {
+            if (stage.stageId === 'secondary') {
               return { ...stage, certificates: newSecondary };
             }
-            if (stage.stageId === 'preparatory' && newPreparatory.length > 0) {
+            if (stage.stageId === 'preparatory') {
               return { ...stage, certificates: newPreparatory };
             }
-            if (stage.stageId === 'primary' && newPrimary.length > 0) {
+            if (stage.stageId === 'primary') {
               return { ...stage, certificates: newPrimary };
             }
             return stage;
@@ -1346,14 +1324,14 @@ function CertificatesSection() {
 
           setStagesData(nextStages);
         } else {
-          setStagesData(CERTIFICATES_BY_STAGE); // Reset if nothing found
+          setStagesData(CERTIFICATES_BY_STAGE);
         }
       } catch (e) {
-        console.error('Failed to sync/fetch certificates:', e);
+        console.error('Failed to fetch certificates:', e);
       }
     };
     
-    syncAndFetchCertificates();
+    fetchCertificates();
   }, []);
 
   const hasCertificates = stagesData.some((s) => s.certificates && s.certificates.length > 0);
@@ -1401,63 +1379,41 @@ function CertificatesSection() {
             stagesData.filter(stage => stage.certificates && stage.certificates.length > 0).map((stage, stageIndex) => (
               <motion.div
                 key={stage.stageId}
-              className="relative"
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: stageIndex * 0.1 }}
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-bold text-slate-800 border-r-4 border-amber-500 pr-4">
-                  {stage.stageName}
-                </h3>
-              </div>
-
-              {/* Continuous Marquee with Fade Edges */}
-              <div 
-                className="flex overflow-hidden -mx-6 md:-mx-4 pb-6 px-6 md:px-4"
-                style={{
-                  WebkitMaskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)',
-                  maskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)'
-                }}
+                className="relative"
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: stageIndex * 0.1 }}
               >
-                <motion.div
-                  className="flex gap-6 w-max"
-                  animate={{ x: ["0%", "25%"] }}
-                  transition={{
-                    repeat: Infinity,
-                    ease: "linear",
-                    duration: 20,
-                  }}
-                >
-                  {[...stage.certificates, ...stage.certificates, ...stage.certificates, ...stage.certificates].map((cert, index) => (
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-2xl font-bold text-slate-800 border-r-4 border-amber-500 pr-4">
+                    {stage.stageName}
+                  </h3>
+                </div>
+
+                {/* Clean responsive grid without duplicates */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  {stage.certificates.map((cert) => (
                     <div
-                      key={`${cert.id}-${index}`}
-                      className="shrink-0 w-[280px] sm:w-[320px] bg-white rounded-2xl p-3 border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all group"
+                      key={cert.id}
+                      className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all group"
                     >
-                      <div className="relative overflow-hidden rounded-xl bg-slate-100 aspect-[4/3] mb-4">
+                      <div className="relative overflow-hidden rounded-xl bg-slate-50 border border-slate-100 aspect-[4/3] mb-3">
                         <img
                           src={cert.image}
                           alt={cert.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          className="w-full h-full object-contain group-hover:scale-103 transition-transform duration-500"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
-                          <div className="text-white">
-                            <div className="font-bold text-lg">{cert.student}</div>
-                            <div className="text-sm text-slate-200">{cert.title}</div>
-                          </div>
-                        </div>
                       </div>
-                      <div className="text-center px-2 pb-2">
-                        <h4 className="font-bold text-slate-900 truncate">{cert.student}</h4>
-                        <p className="text-sm text-slate-500 truncate">{cert.title}</p>
+                      <div className="text-center px-2 pb-1">
+                        <h4 className="font-bold text-slate-900 text-base truncate">{cert.student}</h4>
+                        <p className="text-xs text-amber-600 font-bold truncate mt-0.5">{cert.title}</p>
                       </div>
                     </div>
                   ))}
-                </motion.div>
-              </div>
-            </motion.div>
-          ))
+                </div>
+              </motion.div>
+            ))
           )}
         </div>
       </div>
@@ -1749,8 +1705,8 @@ export default function RootPage() {
           transition={{ duration: 1, delay: 0.2 }}
         >
           <HeroSection />
-          <CoursesSection />
           <CenterScheduleSection />
+          <CoursesSection />
           <TestimonialsSection />
           <CertificatesSection />
           <AboutUsSection />

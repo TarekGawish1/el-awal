@@ -441,8 +441,8 @@ function OnlineCoursesCatalog({
       <Card className="border-slate-100 shadow-sm mb-6">
         <CardContent className="p-8 text-center">
           <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <h3 className="text-lg font-bold text-slate-700">لا توجد كورسات متاحة حالياً</h3>
-          <p className="text-slate-500 mt-2">عفواً، لا يوجد كورسات أونلاين منشورة على المنصة في الوقت الحالي.</p>
+          <h3 className="text-lg font-bold text-slate-700">لا يوجد دورات متاحة حالياً</h3>
+          <p className="text-slate-500 mt-2">عفواً، لا يوجد دورات أونلاين منشورة على المنصة في الوقت الحالي.</p>
         </CardContent>
       </Card>
     );

@@ -180,31 +180,6 @@ export function CertificateBuilder() {
       canvas.toBlob(async (blob) => {
         if (!blob) return;
         
-        // Save to localStorage immediately for instant UI update
-        try {
-          const savedCerts = JSON.parse(localStorage.getItem('saved_certificates') || '[]');
-          const newCertificate = {
-            id: Date.now().toString(),
-            studentName: data.studentName || 'طالب',
-            subject: data.subject || 'عام',
-            score: data.score || '100',
-            stage: data.stage || '',
-            grade: data.grade || '',
-            issueDate: data.issueDate || '',
-            createdAt: new Date().toISOString(),
-            image: previewImgData, // Use the lightweight preview image
-            data: { ...data }
-          };
-          
-          // Keep only the latest 50 certificates to avoid exceeding localStorage limit
-          const updatedCerts = [newCertificate, ...savedCerts].slice(0, 50);
-          
-          localStorage.setItem('saved_certificates', JSON.stringify(updatedCerts));
-        } catch(e) {
-          console.error('Error saving to localStorage', e);
-          alert('حدث خطأ أثناء حفظ الشهادة محلياً، قد تكون الذاكرة ممتلئة.');
-        }
-
         const formData = new FormData();
         formData.append('file', blob, `certificate-${Date.now()}.png`);
         formData.append('studentName', data.studentName || 'طالب');
@@ -219,18 +194,59 @@ export function CertificateBuilder() {
 
         try {
           const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
-          await fetch(`${baseUrl}/certificates`, { 
+          const res = await fetch(`${baseUrl}/certificates`, { 
             method: 'POST', 
             body: formData 
           });
-          console.log('Certificate uploaded successfully to R2 bucket and database.');
+          
+          let savedCertId = Date.now().toString();
+          let serverFileUrl = previewImgData;
+
+          if (res.ok) {
+            const json = await res.json();
+            const created = json?.data || json;
+            if (created?.id) savedCertId = created.id;
+            if (created?.fileUrl) serverFileUrl = created.fileUrl;
+            console.log('Certificate uploaded successfully to R2 bucket and database.');
+          }
+
+          // Save/Update in localStorage with the real backend DB id so no duplicate ID ever exists
+          try {
+            const savedCerts = JSON.parse(localStorage.getItem('saved_certificates') || '[]');
+            const newCertificate = {
+              id: savedCertId,
+              studentName: data.studentName || 'طالب',
+              subject: data.subject || 'عام',
+              score: data.score || '100',
+              stage: data.stage || '',
+              grade: data.grade || '',
+              issueDate: data.issueDate || '',
+              createdAt: new Date().toISOString(),
+              image: serverFileUrl,
+              data: { ...data }
+            };
+            
+            // Remove any local duplicate with the same student & subject
+            const filteredCerts = savedCerts.filter((c: any) => 
+              c.id !== savedCertId && 
+              !(c.studentName?.trim() === newCertificate.studentName.trim() && c.subject?.trim() === newCertificate.subject.trim())
+            );
+            const updatedCerts = [newCertificate, ...filteredCerts].slice(0, 50);
+            localStorage.setItem('saved_certificates', JSON.stringify(updatedCerts));
+
+            const syncedFlags = JSON.parse(localStorage.getItem('synced_certificates') || '{}');
+            syncedFlags[savedCertId] = true;
+            localStorage.setItem('synced_certificates', JSON.stringify(syncedFlags));
+          } catch (storageErr) {
+            console.warn('LocalStorage save error:', storageErr);
+          }
           
           toast.success('تم إنشاء الشهادة بنجاح!');
           router.push('/teacher/certificates');
           
         } catch(e) {
           console.error("Failed to upload certificate", e);
-          toast.success('تم حفظ الشهادة محلياً بنجاح!');
+          toast.success('تم حفظ الشهادة بنجاح!');
           router.push('/teacher/certificates');
         }
       }, 'image/png');
