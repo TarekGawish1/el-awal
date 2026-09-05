@@ -733,10 +733,13 @@ function AssessmentWrapper({
   const hasEssayQuestions = (assessment.questions || []).some((q: any) => q.questionType === 'ESSAY');
   const isPreviewResult =
     Boolean(mySubmission?.isPreview) || mySubmission?.id === 'preview-submission';
+  const isCourseAssessment = Boolean(courseId || (assessment as any)?.courseId || (assessment as any)?.lessonId);
   const isPastDue =
     (timeLeft !== null && timeLeft > 0)
       ? false
-      : assessment.dueDate
+      : assessment.timingType === 'FIXED_SESSION' && assessment.dueDate
+      ? new Date(assessment.dueDate) < new Date()
+      : !isCourseAssessment && assessment.dueDate
       ? new Date(assessment.dueDate) < new Date()
       : false;
   const allowMultipleAttempts = Boolean(assessment.allowMultipleAttempts);
