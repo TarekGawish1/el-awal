@@ -96,7 +96,7 @@ export class ContentService {
       const url = params.fileUrl;
       if (url.includes('/uploads/')) {
         key = url.substring(url.indexOf('/uploads/') + 1);
-      } else if (url.includes('bunny:') || url.includes('b-cdn.net')) {
+      } else if (url.includes('bunny:') || url.includes('b-cdn.net') || url.includes('mediadelivery.net')) {
         const match = url.match(/([a-f0-9\-]{36})/i);
         if (match) key = `bunny:${match[1]}`;
       } else {

@@ -21,6 +21,8 @@ export interface VideoUploadTask {
   lessonId?: string;
   courseId?: string;
   moduleId?: string;
+  isCoursePreview?: boolean;
+  oldPreviewUrl?: string;
   lessonTitle: string;
   fileName: string;
   fileSize: number;
@@ -51,6 +53,8 @@ export interface StartUploadOptions {
   lessonId?: string;
   courseId?: string;
   moduleId?: string;
+  isCoursePreview?: boolean;
+  oldPreviewUrl?: string;
   lessonTitle: string;
   onSuccess?: (result: {
     videoId: string;
@@ -69,6 +73,7 @@ interface VideoUploadManagerContextType {
     lessonId?: string,
     moduleId?: string,
   ) => VideoUploadTask | undefined;
+  getTaskForCoursePreview: (courseId?: string) => VideoUploadTask | undefined;
   attachLessonIdToTask: (taskId: string, lessonId: string) => void;
 }
 
@@ -180,10 +185,35 @@ export function VideoUploadManagerProvider({
     [tasks],
   );
 
+  const getTaskForCoursePreview = useCallback(
+    (courseId?: string) => {
+      if (!courseId) return undefined;
+      const allTasks = Object.values(tasks);
+      return allTasks.find(
+        (t) =>
+          t.courseId === courseId &&
+          t.isCoursePreview &&
+          (t.status === 'uploading' ||
+            t.status === 'inspecting' ||
+            t.status === 'processing' ||
+            t.status === 'completed'),
+      );
+    },
+    [tasks],
+  );
+
   const startUpload = useCallback(
     async (options: StartUploadOptions): Promise<string> => {
-      const { file, lessonId, courseId, moduleId, lessonTitle, onSuccess } =
-        options;
+      const {
+        file,
+        lessonId,
+        courseId,
+        moduleId,
+        lessonTitle,
+        isCoursePreview,
+        oldPreviewUrl,
+        onSuccess,
+      } = options;
 
       const validation = validateVideoFile(file);
       if (!validation.isValid) {
@@ -195,13 +225,17 @@ export function VideoUploadManagerProvider({
       }
 
       const taskId =
-        lessonId || `upload-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        lessonId ||
+        (isCoursePreview && courseId ? `preview-${courseId}` : undefined) ||
+        `upload-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
       const initialTask: VideoUploadTask = {
         id: taskId,
         lessonId,
         courseId,
         moduleId,
+        isCoursePreview,
+        oldPreviewUrl,
         lessonTitle: lessonTitle || file.name,
         fileName: file.name,
         fileSize: file.size,
@@ -343,6 +377,36 @@ export function VideoUploadManagerProvider({
                 }
               }
 
+              // If courseId and isCoursePreview are set, auto-save preview video to course in background
+              const isPreview = currentTaskState?.isCoursePreview ?? isCoursePreview;
+              const targetCourseId = currentTaskState?.courseId || courseId;
+
+              if (isPreview && targetCourseId) {
+                try {
+                  await coursesApi.updateCourse(targetCourseId, {
+                    previewVideoUrl: creds.embedUrl,
+                  });
+                  queryClient.invalidateQueries({ queryKey: ['courses'] });
+                  queryClient.invalidateQueries({
+                    queryKey: ['course-details', targetCourseId],
+                  });
+                  queryClient.invalidateQueries({
+                    queryKey: ['course-outline', targetCourseId],
+                  });
+                  queryClient.invalidateQueries({
+                    queryKey: ['course-public-details', targetCourseId],
+                  });
+
+                  // Clean up previous preview video from Bunny if replaced
+                  const prevUrl = currentTaskState?.oldPreviewUrl || oldPreviewUrl;
+                  if (prevUrl && prevUrl !== creds.embedUrl) {
+                    coursesApi.deleteUploadedFile(prevUrl).catch(() => {});
+                  }
+                } catch (saveErr) {
+                  console.warn('Auto background update of course preview video failed:', saveErr);
+                }
+              }
+
               toast.success(
                 `تم اكتمال رفع فيديو "${lessonTitle || file.name}" بنجاح! 🚀`,
                 { duration: 6000 },
@@ -411,6 +475,7 @@ export function VideoUploadManagerProvider({
         cancelUpload,
         dismissTask,
         getTaskForLesson,
+        getTaskForCoursePreview,
         attachLessonIdToTask,
       }}
     >
@@ -426,6 +491,7 @@ const defaultContextValue: VideoUploadManagerContextType = {
   cancelUpload: () => {},
   dismissTask: () => {},
   getTaskForLesson: () => undefined,
+  getTaskForCoursePreview: () => undefined,
   attachLessonIdToTask: () => {},
 };
 

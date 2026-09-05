@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+
 import {
   X,
   BookOpen,
@@ -18,12 +19,24 @@ import {
   Check,
   Video,
   Play,
+  UploadCloud,
+  Trash2,
+  Loader2,
+  Gauge,
+  CheckCircle,
 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useUpdateCourse } from '../hooks/useCourses';
 import { coursesApi } from '../api/courses.api';
 import { CourseDetail } from '../types/courses.types';
 import { useAssessments } from '@/features/assessments/hooks/use-assessments';
 import { FileUploadZone } from './FileUploadZone';
+import { useVideoUploadManager } from '../context/video-upload-manager.context';
+import {
+  validateVideoFile,
+  formatVideoSize,
+  formatEtaArabic,
+} from '../utils/video-optimizer';
 import toast from 'react-hot-toast';
 
 interface EditCourseModalProps {
@@ -58,11 +71,15 @@ const COMMON_SUBJECTS = [
 ];
 
 export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCourseModalProps) {
+  const queryClient = useQueryClient();
   const updateMutation = useUpdateCourse(course.id);
   const { data: assessmentsData } = useAssessments();
   const assessments = Array.isArray(assessmentsData)
     ? assessmentsData
     : (assessmentsData?.data || []);
+
+  const { startUpload, cancelUpload, getTaskForCoursePreview } = useVideoUploadManager();
+  const backgroundUploadTask = getTaskForCoursePreview(course.id);
 
   const [title, setTitle] = useState(course.title || '');
   const [description, setDescription] = useState(course.description || '');
@@ -86,8 +103,29 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
   );
 
   const initialCoverUrlRef = useRef<string | null>(course.coverImageUrl || null);
+  const initialPreviewVideoUrlRef = useRef<string | null>(course.previewVideoUrl || null);
   const isSubmittedRef = useRef(false);
   const newUploadedKeyRef = useRef<string | null>(null);
+  const newlyUploadedBunnyVideoIdRef = useRef<string | null>(null);
+  const newlyUploadedPreviewUrlRef = useRef<string | null>(null);
+  const previewUploadTaskIdRef = useRef<string | null>(null);
+
+  const isUploadingVideo =
+    backgroundUploadTask?.status === 'uploading' ||
+    backgroundUploadTask?.status === 'inspecting' ||
+    backgroundUploadTask?.status === 'processing';
+
+  // Sync background upload completion to modal preview
+  useEffect(() => {
+    if (!backgroundUploadTask) return;
+    if (backgroundUploadTask.status === 'completed' && backgroundUploadTask.embedUrl) {
+      setPreviewVideoUrl(backgroundUploadTask.embedUrl);
+      newlyUploadedPreviewUrlRef.current = backgroundUploadTask.embedUrl;
+      if (backgroundUploadTask.videoId) {
+        newlyUploadedBunnyVideoIdRef.current = backgroundUploadTask.videoId;
+      }
+    }
+  }, [backgroundUploadTask]);
 
   useEffect(() => {
     if (isOpen) {
@@ -109,19 +147,43 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
       setEnforceSequentialLessons(course.enforceSequentialLessons ?? false);
       setRequireExamPassingToUnlock(course.requireExamPassingToUnlock ?? false);
       initialCoverUrlRef.current = course.coverImageUrl || null;
+      initialPreviewVideoUrlRef.current = course.previewVideoUrl || null;
       isSubmittedRef.current = false;
       newUploadedKeyRef.current = null;
+      newlyUploadedBunnyVideoIdRef.current = null;
+      newlyUploadedPreviewUrlRef.current = null;
+      previewUploadTaskIdRef.current = null;
     }
   }, [isOpen, course]);
 
-  // Clean up any newly uploaded staged image on unmount/cancel if not submitted
+  // Clean up any newly uploaded staged image or video on unmount/cancel if not submitted
   useEffect(() => {
     return () => {
-      if (!isSubmittedRef.current && newUploadedKeyRef.current) {
-        coursesApi.deleteUploadedFile(newUploadedKeyRef.current).catch(() => {});
+      if (!isSubmittedRef.current) {
+        if (newUploadedKeyRef.current) {
+          coursesApi.deleteUploadedFile(newUploadedKeyRef.current).catch(() => {});
+        }
+        const taskId = previewUploadTaskIdRef.current || `preview-${course.id}`;
+        if (taskId) {
+          cancelUpload(taskId);
+        }
+        if (newlyUploadedBunnyVideoIdRef.current) {
+          coursesApi.deleteUploadedFile(`bunny:${newlyUploadedBunnyVideoIdRef.current}`).catch(() => {});
+        } else if (newlyUploadedPreviewUrlRef.current) {
+          coursesApi.deleteUploadedFile(newlyUploadedPreviewUrlRef.current).catch(() => {});
+        }
+        // Revert course preview video if background manager auto-saved it while modal was open
+        if (
+          newlyUploadedPreviewUrlRef.current &&
+          initialPreviewVideoUrlRef.current !== newlyUploadedPreviewUrlRef.current
+        ) {
+          coursesApi.updateCourse(course.id, {
+            previewVideoUrl: initialPreviewVideoUrlRef.current,
+          }).catch(() => {});
+        }
       }
     };
-  }, []);
+  }, [course.id, cancelUpload]);
 
   if (!isOpen) return null;
 
@@ -133,9 +195,88 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
     }
   };
 
+  const handleDirectVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validation = validateVideoFile(file);
+    if (!validation.isValid) {
+      toast.error(validation.error || 'حجم الفيديو يتجاوز الحد الأقصى المسموح به (2 جيجابايت)');
+      e.target.value = '';
+      return;
+    }
+
+    // If there was a newly uploaded video in this modal session that was not saved, clean it up first
+    if (newlyUploadedBunnyVideoIdRef.current) {
+      coursesApi.deleteUploadedFile(`bunny:${newlyUploadedBunnyVideoIdRef.current}`).catch(() => {});
+      newlyUploadedBunnyVideoIdRef.current = null;
+    }
+
+    try {
+      const taskId = await startUpload({
+        file,
+        courseId: course.id,
+        isCoursePreview: true,
+        oldPreviewUrl: initialPreviewVideoUrlRef.current || undefined,
+        lessonTitle: `برومو كورس: ${title.trim() || course.title}`,
+        onSuccess: (res) => {
+          setPreviewVideoUrl(res.embedUrl);
+          newlyUploadedPreviewUrlRef.current = res.embedUrl;
+          newlyUploadedBunnyVideoIdRef.current = res.videoId;
+        },
+      });
+      previewUploadTaskIdRef.current = taskId;
+    } catch (err) {
+      console.error('Failed to start preview video upload:', err);
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const handleCancelVideoUpload = () => {
+    const taskId = previewUploadTaskIdRef.current || backgroundUploadTask?.id || `preview-${course.id}`;
+    if (taskId) {
+      cancelUpload(taskId);
+    }
+    previewUploadTaskIdRef.current = null;
+  };
+
+  const handleRemovePreviewVideo = () => {
+    if (newlyUploadedBunnyVideoIdRef.current) {
+      coursesApi.deleteUploadedFile(`bunny:${newlyUploadedBunnyVideoIdRef.current}`).catch(() => {});
+      newlyUploadedBunnyVideoIdRef.current = null;
+    } else if (newlyUploadedPreviewUrlRef.current) {
+      coursesApi.deleteUploadedFile(newlyUploadedPreviewUrlRef.current).catch(() => {});
+      newlyUploadedPreviewUrlRef.current = null;
+    }
+    setPreviewVideoUrl('');
+    toast.success('تمت إزالة الفيديو التعريفي');
+  };
+
   const handleCancel = () => {
-    if (!isSubmittedRef.current && newUploadedKeyRef.current) {
-      coursesApi.deleteUploadedFile(newUploadedKeyRef.current).catch(() => {});
+    if (!isSubmittedRef.current) {
+      if (newUploadedKeyRef.current) {
+        coursesApi.deleteUploadedFile(newUploadedKeyRef.current).catch(() => {});
+      }
+      const taskId = previewUploadTaskIdRef.current || backgroundUploadTask?.id || `preview-${course.id}`;
+      if (isUploadingVideo && taskId) {
+        cancelUpload(taskId);
+      }
+      if (newlyUploadedBunnyVideoIdRef.current) {
+        coursesApi.deleteUploadedFile(`bunny:${newlyUploadedBunnyVideoIdRef.current}`).catch(() => {});
+        newlyUploadedBunnyVideoIdRef.current = null;
+      } else if (newlyUploadedPreviewUrlRef.current) {
+        coursesApi.deleteUploadedFile(newlyUploadedPreviewUrlRef.current).catch(() => {});
+        newlyUploadedPreviewUrlRef.current = null;
+      }
+      if (previewVideoUrl && previewVideoUrl !== initialPreviewVideoUrlRef.current) {
+        coursesApi.updateCourse(course.id, {
+          previewVideoUrl: initialPreviewVideoUrlRef.current,
+        }).then(() => {
+          queryClient.invalidateQueries({ queryKey: ['course-details', course.id] });
+          queryClient.invalidateQueries({ queryKey: ['courses'] });
+        }).catch(() => {});
+      }
     }
     onClose();
   };
@@ -150,7 +291,8 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
     try {
       isSubmittedRef.current = true;
       const finalPrice = isFreeCourse ? 0 : (parseFloat(price) || 0);
-      await updateMutation.mutateAsync({
+
+      const payload: Parameters<typeof updateMutation.mutateAsync>[0] = {
         title: title.trim(),
         description: description.trim() || undefined,
         subject: subject.trim(),
@@ -160,14 +302,21 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
         academicYear: academicYear.trim(),
         price: finalPrice,
         coverImageUrl: coverImageUrl || undefined,
-        previewVideoUrl: previewVideoUrl.trim() || null,
         courseQuizId: courseQuizId || null,
         hasCertificate,
         enforceSequentialLessons,
         requireExamPassingToUnlock,
-      });
+      };
 
-      // If cover was replaced and submission succeeded, clean up old image if different
+      // If video upload is still active in background, we omit previewVideoUrl from payload
+      // so video-upload-manager can auto-save the embedUrl when upload completes!
+      if (!isUploadingVideo) {
+        payload.previewVideoUrl = previewVideoUrl.trim() || null;
+      }
+
+      await updateMutation.mutateAsync(payload);
+
+      // Clean up old cover if replaced
       if (
         initialCoverUrlRef.current &&
         coverImageUrl &&
@@ -176,7 +325,23 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
         coursesApi.deleteUploadedFile(initialCoverUrlRef.current).catch(() => {});
       }
 
-      toast.success('تم تحديث بيانات الكورس بنجاح');
+      // Clean up old preview video if changed/removed and not currently uploading
+      if (
+        initialPreviewVideoUrlRef.current &&
+        previewVideoUrl !== initialPreviewVideoUrlRef.current &&
+        !isUploadingVideo
+      ) {
+        coursesApi.deleteUploadedFile(initialPreviewVideoUrlRef.current).catch(() => {});
+      }
+
+      if (isUploadingVideo) {
+        toast.success('تم حفظ التغييرات، ويستمر رفع الفيديو في الخلفية بأمان 🚀', {
+          duration: 5000,
+        });
+      } else {
+        toast.success('تم تحديث بيانات الكورس بنجاح');
+      }
+
       onClose();
       if (onSuccess) onSuccess();
     } catch {
@@ -420,7 +585,7 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
           </div>
 
           {/* Course Preview / Info Video */}
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5">
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <Video className="w-4 h-4 text-primary-600" />
@@ -431,23 +596,150 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
               </span>
             </div>
             <p className="text-[11px] text-slate-500 leading-relaxed">
-              فيديو قصير تعريفي يشرح مميزات ومحتوى الكورس للطلاب قبل اتخاذ قرار الشراء أو الاشتراك.
+              فيديو قصير تعريفي يشرح مميزات ومحتوى الكورس للطلاب قبل اتخاذ قرار الشراء أو الاشتراك (رفع مباشر إلى سيرفرات البث السحابي).
             </p>
-            <input
-              type="url"
-              value={previewVideoUrl}
-              onChange={(e) => setPreviewVideoUrl(e.target.value)}
-              placeholder="رابط تضمين الفيديو (Bunny Stream / YouTube / Vimeo)"
-              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-xs font-mono text-left dir-ltr"
-            />
-            {previewVideoUrl && (
-              <div className="mt-2 aspect-video w-full rounded-xl overflow-hidden bg-black border border-slate-200 shadow-xs">
-                <iframe
-                  src={previewVideoUrl}
-                  className="w-full h-full border-0"
-                  allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
-                  allowFullScreen
+
+            {/* 1. Upload in Progress Card */}
+            {isUploadingVideo && backgroundUploadTask && (
+              <div className="p-4 bg-white border border-primary-200 rounded-2xl shadow-xs space-y-3 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-primary-600" />
+                    {backgroundUploadTask.status === 'inspecting'
+                      ? 'جاري فحص وتجهيز الفيديو والضغط السحابي...'
+                      : 'جاري الرفع المباشر إلى سيرفرات البث السحابي (Bunny Stream)...'}
+                  </span>
+                  <span className="font-mono text-primary-600 text-sm">
+                    {backgroundUploadTask.progress}%
+                  </span>
+                </div>
+
+                <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                  <div
+                    className="bg-primary-600 h-full transition-all duration-300 rounded-full"
+                    style={{ width: `${backgroundUploadTask.progress}%` }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between flex-wrap gap-2 text-[11px] text-slate-500 font-medium pt-1 border-t border-slate-100">
+                  <div className="flex items-center gap-3">
+                    {backgroundUploadTask.totalBytes > 0 && (
+                      <span>
+                        تم رفع:{' '}
+                        <strong className="text-slate-800 font-mono">
+                          {formatVideoSize(backgroundUploadTask.uploadedBytes)}
+                        </strong>{' '}
+                        من{' '}
+                        <strong className="text-slate-800 font-mono">
+                          {formatVideoSize(backgroundUploadTask.totalBytes)}
+                        </strong>
+                      </span>
+                    )}
+                    {backgroundUploadTask.speedMbps > 0 && (
+                      <span className="flex items-center gap-1 text-primary-600">
+                        <Gauge className="w-3.5 h-3.5" />
+                        <span className="font-mono">{backgroundUploadTask.speedMbps} ميجابايت/ث</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    {backgroundUploadTask.etaSeconds > 0 && (
+                      <span className="text-slate-600">
+                        الوقت المتبقي:{' '}
+                        <strong className="text-slate-800">
+                          {formatEtaArabic(backgroundUploadTask.etaSeconds)}
+                        </strong>
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleCancelVideoUpload}
+                      className="text-rose-600 hover:text-rose-700 hover:underline text-[11px] font-bold transition-colors cursor-pointer"
+                    >
+                      إلغاء الرفع
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50/80 border border-blue-100/90 rounded-xl p-2.5 text-center text-xs text-blue-800 flex items-center justify-center gap-2">
+                  <span className="text-base leading-none">💡</span>
+                  <span className="font-medium">
+                    يستمر رفع الفيديو في الخلفية بأمان — يمكنك الضغط على "حفظ التغييرات" وسيكتمل الرفع والربط تلقائياً.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* 2. Video Already Uploaded / Ready */}
+            {!isUploadingVideo && previewVideoUrl && (
+              <div className="space-y-3">
+                <div className="aspect-video w-full rounded-2xl overflow-hidden bg-black border border-slate-200 shadow-xs relative">
+                  <iframe
+                    src={previewVideoUrl}
+                    className="w-full h-full border-0"
+                    allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
+                    allowFullScreen
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl shadow-xs">
+                  <div className="flex items-center gap-2 text-xs text-slate-700">
+                    <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span className="font-medium">الفيديو التعريفي مفعّل وجاهز للعرض</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer transition-colors flex items-center gap-1.5">
+                      <UploadCloud className="w-3.5 h-3.5 text-slate-600" />
+                      <span>تغيير الفيديو</span>
+                      <input
+                        type="file"
+                        accept="video/*"
+                        onChange={handleDirectVideoUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleRemovePreviewVideo}
+                      className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition-colors cursor-pointer"
+                      title="حذف الفيديو"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 3. Empty State: Direct Video Upload Dropzone */}
+            {!isUploadingVideo && !previewVideoUrl && (
+              <div className="border-2 border-dashed border-slate-200 hover:border-primary-500 rounded-2xl p-6 text-center cursor-pointer transition-colors relative bg-white group">
+                <input
+                  type="file"
+                  accept="video/*"
+                  onChange={handleDirectVideoUpload}
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
                 />
+                <div className="pointer-events-none flex flex-col items-center gap-2 text-slate-600">
+                  <div className="w-12 h-12 rounded-2xl bg-primary-50 text-primary-600 flex items-center justify-center group-hover:scale-105 transition-transform border border-primary-100 shadow-xs">
+                    <UploadCloud className="w-6 h-6" />
+                  </div>
+                  <p className="text-xs font-bold text-slate-900">
+                    انقر لاختيار فيديو أو سحبه هنا للرفع المباشر إلى سيرفرات البث السحابي
+                  </p>
+                  <div className="flex items-center flex-wrap justify-center gap-2 text-[11px] text-slate-500 mt-1">
+                    <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-medium">
+                      الحد الأقصى: 2 جيجابايت
+                    </span>
+                    <span>•</span>
+                    <span className="text-emerald-600 font-medium">
+                      تشفير وحماية سحابية تلقائية
+                    </span>
+                    <span>•</span>
+                    <span>دقة فائقة HLS متكيفة</span>
+                  </div>
+                </div>
               </div>
             )}
           </div>
