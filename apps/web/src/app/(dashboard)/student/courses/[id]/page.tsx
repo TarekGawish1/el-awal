@@ -52,6 +52,9 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
   const isEnrolled = enrollment && (enrollment.enrollmentStatus === 'ACTIVE' || (!enrollment.enrollmentStatus && enrollment.accessStatus === 'ACTIVE'));
   const isPending = enrollment?.enrollmentStatus === 'PENDING';
   const isDropped = enrollment?.enrollmentStatus === 'DROPPED';
+  const progress = Number(enrollment?.progressPercentage || 0);
+  const completedLessons = Number(enrollment?.completedLessons || 0);
+  const isCompleted = isEnrolled && (Boolean(enrollment?.isCompleted) || progress >= 100);
 
   useEffect(() => {
     async function fetchCourseDetails() {
@@ -166,6 +169,22 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
               <Badge className="bg-emerald-500/20 text-emerald-300 border-none px-3 py-1">
                 {course.academicTerm === 'FIRST_TERM' ? 'الترم الأول' : 'الترم الثاني'}
               </Badge>
+              {isEnrolled && (
+                <Badge className={`${
+                  isCompleted 
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold shadow-sm' 
+                    : 'bg-emerald-500/30 text-emerald-200'
+                } border-none px-3 py-1 flex items-center gap-1`}>
+                  {isCompleted ? (
+                    <>
+                      <Award className="w-3.5 h-3.5 text-amber-200" />
+                      <span>مكتمل 100% 🎓</span>
+                    </>
+                  ) : (
+                    <span>مشترك بالفعل • {progress}%</span>
+                  )}
+                </Badge>
+              )}
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">{course.title}</h1>
@@ -204,13 +223,59 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
             </div>
 
             {isEnrolled ? (
-              <Link
-                href={`/student/courses/${courseId}/learn`}
-                className="w-full py-3.5 px-6 rounded-xl font-bold bg-emerald-500 hover:bg-emerald-600 text-white transition-all shadow-lg flex items-center justify-center gap-2 text-sm"
-              >
-                <Play className="w-4 h-4 fill-current" />
-                <span>أنت مشترك بالفعل • دخول الكورس</span>
-              </Link>
+              <div className="space-y-3">
+                <div className="p-3 bg-white/10 rounded-xl border border-white/15 text-right space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-emerald-300 flex items-center gap-1">
+                      {isCompleted ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>أتممت هذه الدورة بنجاح 🎉</span>
+                        </>
+                      ) : (
+                        'مستوى التقدم'
+                      )}
+                    </span>
+                    <span className="font-black text-white">{progress}%</span>
+                  </div>
+                  <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        isCompleted ? 'bg-gradient-to-r from-emerald-400 to-teal-400' : 'bg-primary-400'
+                      }`}
+                      style={{ width: `${Math.min(progress, 100)}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-300">
+                    <span>
+                      {totalLessonsCount > 0
+                        ? `${completedLessons || Math.round((progress / 100) * totalLessonsCount)} من ${totalLessonsCount} درس مكتمل`
+                        : (isCompleted ? 'جميع الدروس مكتملة' : 'في بداية المسار')}
+                    </span>
+                  </div>
+                </div>
+
+                <Link
+                  href={`/student/courses/${courseId}/learn`}
+                  className={`w-full py-3.5 px-6 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 text-sm text-white ${
+                    isCompleted
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-emerald-500/25'
+                      : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/25'
+                  }`}
+                >
+                  {isCompleted ? (
+                    <>
+                      <Award className="w-4 h-4 text-amber-200" />
+                      <span>مراجعة محتوى الدورة 🎓</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4 fill-current" />
+                      <span>دخول غرفة التعلم والمشاهدة</span>
+                    </>
+                  )}
+                </Link>
+              </div>
             ) : isPending ? (
               <button
                 type="button"

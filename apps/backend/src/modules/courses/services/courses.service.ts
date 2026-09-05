@@ -2355,6 +2355,18 @@ export class CoursesService {
           where: { module: { courseId: e.courseId } },
         });
 
+        const completedLessons = isActive
+          ? await this.prisma.courseProgress.count({
+              where: {
+                studentId,
+                isCompleted: true,
+                lesson: { module: { courseId: e.courseId } },
+              },
+            })
+          : 0;
+
+        const isCompleted = isActive && totalLessons > 0 && progressPercentage >= 100;
+
         // Compute certificate eligibility (all lessons AND all quizzes completed)
         let isCertificateEligible = false;
         if (isActive && progressPercentage >= 100 && totalLessons > 0) {
@@ -2439,7 +2451,9 @@ export class CoursesService {
             (isActive ? CourseAccessStatus.ACTIVE : CourseAccessStatus.SUSPENDED),
           totalModules: e.course._count.modules,
           totalLessons,
+          completedLessons,
           progressPercentage,
+          isCompleted,
           isCertificateEligible,
         };
       }),

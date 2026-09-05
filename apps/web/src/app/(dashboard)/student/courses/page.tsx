@@ -37,11 +37,13 @@ import {
   CheckCircle,
   AlertCircle,
   RotateCcw,
+  TrendingUp,
 } from 'lucide-react';
 import { FeatureRequiresOnlineCard } from '@/components/offline/FeatureRequiresOnlineCard';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import { useRouter } from 'next/navigation';
 import { CourseSubscriptionModal } from '@/features/student-portal/components/CourseSubscriptionModal';
+import { CourseCertificateModal } from '@/features/student-portal/components/CourseCertificateModal';
 import toast from 'react-hot-toast';
 
 export default function StudentCoursesPage() {
@@ -54,6 +56,7 @@ export default function StudentCoursesPage() {
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedCourseForSub, setSelectedCourseForSub] = useState<any | null>(null);
+  const [certCourse, setCertCourse] = useState<{ title: string; teacherName?: string } | null>(null);
 
   // Set default tab to CATALOG if student has no enrolled courses
   useEffect(() => {
@@ -209,6 +212,12 @@ export default function StudentCoursesPage() {
                             <span>قيد المراجعة</span>
                           </Badge>
                         )}
+                        {c.progressPercentage >= 100 && (
+                          <Badge className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white border-none text-[11px] font-extrabold shadow-sm flex items-center gap-1 ring-1 ring-white/30">
+                            <Award className="w-3.5 h-3.5 text-amber-200" />
+                            <span>مكتمل 100% 🎓</span>
+                          </Badge>
+                        )}
                       </div>
                     </div>
 
@@ -228,22 +237,50 @@ export default function StudentCoursesPage() {
 
                       <div className="space-y-3 pt-3 border-t border-slate-100">
                         {/* Progress tracker */}
-                        <div className="space-y-1.5">
-                          <div className="flex justify-between text-xs font-bold">
-                            <span className="text-slate-500">نسبة الإنجاز</span>
-                            <span className="text-primary-600">{c.progressPercentage || 0}%</span>
+                        <div className={`p-3 rounded-xl border transition-all ${
+                          c.progressPercentage >= 100
+                            ? 'bg-gradient-to-b from-emerald-50/90 to-teal-50/50 border-emerald-200'
+                            : 'bg-slate-50 border-slate-100'
+                        }`}>
+                          <div className="flex justify-between text-xs font-bold mb-1.5">
+                            <span className={c.progressPercentage >= 100 ? 'text-emerald-800 font-bold flex items-center gap-1' : 'text-slate-600 flex items-center gap-1'}>
+                              {c.progressPercentage >= 100 ? (
+                                <>
+                                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                  <span>أتممت الدورة بنجاح 🎉</span>
+                                </>
+                              ) : (
+                                <>
+                                  <TrendingUp className="w-3.5 h-3.5 text-primary-600 shrink-0" />
+                                  <span>نسبة الإنجاز</span>
+                                </>
+                              )}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-md text-xs font-black ${
+                              c.progressPercentage >= 100 ? 'bg-emerald-200 text-emerald-950' : 'bg-primary-100/70 text-primary-800'
+                            }`}>
+                              {c.progressPercentage || 0}%
+                            </span>
                           </div>
-                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                          <div className="w-full bg-slate-200/80 rounded-full h-2 overflow-hidden">
                             <div
-                              className="bg-primary-600 h-full rounded-full transition-all duration-300"
-                              style={{ width: `${c.progressPercentage || 0}%` }}
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                c.progressPercentage >= 100
+                                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 shadow-xs'
+                                  : 'bg-primary-600'
+                              }`}
+                              style={{ width: `${Math.min(c.progressPercentage || 0, 100)}%` }}
                             />
                           </div>
-                        </div>
 
-                        <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
-                          <span>{c.totalModules} فصول</span>
-                          <span>{c.totalLessons} دروس رقمية</span>
+                          <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2 font-medium">
+                            <span>{c.totalModules} فصول</span>
+                            <span>
+                              {c.completedLessons != null 
+                                ? `${c.completedLessons} من ${c.totalLessons} درس مكتمل` 
+                                : `${c.totalLessons} دروس رقمية`}
+                            </span>
+                          </div>
                         </div>
 
                         {c.enrollmentStatus === 'PENDING' ? (
@@ -263,13 +300,40 @@ export default function StudentCoursesPage() {
                             <span>طلبك قيد المراجعة ⏳ (عرض الإيصال)</span>
                           </button>
                         ) : (
-                          <Link
-                            href={`/student/courses/${c.courseId}/learn`}
-                            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl py-3 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer mt-2 transition-colors shadow-lg shadow-indigo-600/20"
-                          >
-                            <Play className="w-3.5 h-3.5 fill-current" />
-                            <span>{c.progressPercentage > 0 ? 'استئناف التعلم' : 'دخول غرفة التعلم والمشاهدة'}</span>
-                          </Link>
+                          <div className="flex items-center gap-2 mt-2">
+                            <Link
+                              href={`/student/courses/${c.courseId}/learn`}
+                              className={`flex-1 rounded-xl py-3 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all shadow-sm ${
+                                c.progressPercentage >= 100
+                                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-emerald-500/20'
+                                  : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20'
+                              }`}
+                            >
+                              {c.progressPercentage >= 100 ? (
+                                <>
+                                  <Award className="w-3.5 h-3.5 text-amber-200" />
+                                  <span>مراجعة الدورة 🎓</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Play className="w-3.5 h-3.5 fill-current" />
+                                  <span>{c.progressPercentage > 0 ? 'استئناف التعلم' : 'دخول غرفة التعلم والمشاهدة'}</span>
+                                </>
+                              )}
+                            </Link>
+
+                            {c.progressPercentage >= 100 && c.isCertificateEligible && (
+                              <button
+                                type="button"
+                                onClick={() => setCertCourse({ title: c.title, teacherName: c.teacherName })}
+                                className="px-3 py-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                                title="تحميل شهادة الإتمام"
+                              >
+                                <Award className="w-4 h-4 text-amber-600" />
+                                <span className="hidden sm:inline">شهادتي</span>
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     </CardContent>
@@ -298,6 +362,24 @@ export default function StudentCoursesPage() {
           studentGradeLevel={profile?.gradeLevel}
           studentAcademicStage={profile?.academicStage}
           myCourses={courses}
+          onViewCertificate={(c) => setCertCourse(c)}
+        />
+      )}
+
+      {certCourse && (
+        <CourseCertificateModal
+          isOpen={!!certCourse}
+          onClose={() => setCertCourse(null)}
+          data={{
+            studentName: profile?.user?.fullName || 'طالب',
+            courseTitle: certCourse.title,
+            teacherName: certCourse.teacherName,
+            completedAt: new Date().toLocaleDateString('ar-EG', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            }),
+          }}
         />
       )}
 
@@ -323,10 +405,12 @@ function AvailableCoursesCatalogTab({
   studentGradeLevel,
   studentAcademicStage,
   myCourses = [],
+  onViewCertificate,
 }: {
   studentGradeLevel?: string;
   studentAcademicStage?: string;
   myCourses?: any[];
+  onViewCertificate?: (course: { title: string; teacherName?: string }) => void;
 }) {
   const router = useRouter();
   const enrollMutation = useEnrollInCourse();
@@ -363,9 +447,8 @@ function AvailableCoursesCatalogTab({
 
     const matchesStage =
       selectedStage === 'ALL' ||
-      (selectedStage === 'SECONDARY' && (c.academicStage?.includes('ثانوي') || c.gradeLevel?.includes('ثانوي'))) ||
-      (selectedStage === 'PREPARATORY' && (c.academicStage?.includes('إعدادي') || c.gradeLevel?.includes('إعدادي'))) ||
-      (selectedStage === 'PRIMARY' && (c.academicStage?.includes('ابتدائي') || c.gradeLevel?.includes('ابتدائي')));
+      (selectedStage === 'MY_GRADE' && c.gradeLevel === studentGradeLevel) ||
+      c.academicStage === selectedStage;
 
     return matchesSearch && matchesStage;
   });
@@ -376,59 +459,60 @@ function AvailableCoursesCatalogTab({
     setSelectedCourseForSub(course);
   };
 
-  if (isLoading) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Skeleton className="h-64 w-full rounded-2xl" />
-        <Skeleton className="h-64 w-full rounded-2xl" />
-        <Skeleton className="h-64 w-full rounded-2xl" />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
-      {/* Search & Filter Header */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+      {/* Search & Filters */}
+      <div className="flex flex-col sm:flex-row gap-4 justify-between items-stretch sm:items-center bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
         <div className="relative flex-1">
           <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="ابحث باسم الكورس أو المادة أو الصف الدراسي..."
+            placeholder="ابحث عن دورة أو مادة أو معلم..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pr-10 pl-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all"
+            className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all text-right"
           />
         </div>
 
         <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-          {[
-            { id: 'ALL', label: 'جميع المراحل' },
-            { id: 'SECONDARY', label: 'المرحلة الثانوية' },
-            { id: 'PREPARATORY', label: 'المرحلة الإعدادية' },
-            { id: 'PRIMARY', label: 'المرحلة الابتدائية' },
-          ].map((st) => (
+          <button
+            type="button"
+            onClick={() => setSelectedStage('ALL')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+              selectedStage === 'ALL'
+                ? 'bg-primary-600 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            الكل ({catalog.length})
+          </button>
+          {studentGradeLevel && (
             <button
-              key={st.id}
               type="button"
-              onClick={() => setSelectedStage(st.id)}
-              className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
-                selectedStage === st.id
+              onClick={() => setSelectedStage('MY_GRADE')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                selectedStage === 'MY_GRADE'
                   ? 'bg-primary-600 text-white shadow-xs'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              {st.label}
+              مرحلتي الدراسية
             </button>
-          ))}
+          )}
         </div>
       </div>
 
-      {filteredCatalog.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
-          <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <h4 className="font-bold text-slate-800 text-base">لا توجد كورسات مطابقة لخيارات البحث</h4>
-          <p className="text-xs text-slate-500 mt-1">جرب تغيير كلمات البحث أو اختيار مرحلة دراسية أخرى.</p>
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <Skeleton className="h-72 w-full rounded-2xl" />
+          <Skeleton className="h-72 w-full rounded-2xl" />
+          <Skeleton className="h-72 w-full rounded-2xl" />
+        </div>
+      ) : filteredCatalog.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center max-w-lg mx-auto">
+          <Compass className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+          <h3 className="text-base font-bold text-slate-700">لا توجد دورات تطابق البحث</h3>
+          <p className="text-slate-400 text-xs mt-1">جرب البحث بكلمات أخرى أو اختر تصفية مختلفة.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -438,17 +522,27 @@ function AvailableCoursesCatalogTab({
             const isPending = enrollment?.enrollmentStatus === 'PENDING';
             const isRejected = enrollment?.enrollmentStatus === 'DROPPED';
 
+            const progress = Number(enrollment?.progressPercentage || 0);
+            const totalLessons = Number(enrollment?.totalLessons ?? c.lessonsCount ?? c._count?.lessons ?? 0);
+            const completedLessons = Number(
+              enrollment?.completedLessons ?? (totalLessons > 0 ? Math.round((progress / 100) * totalLessons) : 0)
+            );
+            const isCompleted = isEnrolled && (Boolean(enrollment?.isCompleted) || (progress >= 100 && (totalLessons > 0 || completedLessons > 0)));
+            const isCertificateEligible = Boolean(enrollment?.isCertificateEligible);
+
             return (
               <div
                 key={c.id}
                 className={`bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col group hover:shadow-md transition-all text-right ${
-                  isPending ? 'border-amber-300 ring-1 ring-amber-200' : 'border-slate-200/80 hover:border-slate-300'
+                  isPending ? 'border-amber-300 ring-1 ring-amber-200' : isCompleted ? 'border-emerald-200 ring-1 ring-emerald-100' : 'border-slate-200/80 hover:border-slate-300'
                 }`}
               >
                 {/* Banner / Cover */}
                 <div
                   className={`h-36 bg-gradient-to-br ${
-                    index % 3 === 0
+                    isCompleted
+                      ? 'from-emerald-600 via-teal-600 to-teal-700'
+                      : index % 3 === 0
                       ? 'from-blue-600 to-indigo-700'
                       : index % 3 === 1
                       ? 'from-indigo-600 to-purple-700'
@@ -468,12 +562,17 @@ function AvailableCoursesCatalogTab({
                         <span>قيد المراجعة</span>
                       </Badge>
                     )}
-                    {isEnrolled && (
+                    {isCompleted ? (
+                      <Badge className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white border-none text-[11px] font-extrabold shadow-md flex items-center gap-1 ring-1 ring-white/30">
+                        <Award className="w-3.5 h-3.5 text-amber-200" />
+                        <span>مكتمل 100% 🎓</span>
+                      </Badge>
+                    ) : isEnrolled ? (
                       <Badge className="bg-emerald-500 text-white border-none text-[11px] font-bold shadow-xs flex items-center gap-1">
                         <CheckCircle className="w-3 h-3" />
-                        <span>مشترك بالفعل</span>
+                        <span>مشترك بالفعل{progress > 0 ? ` • ${progress}%` : ''}</span>
                       </Badge>
-                    )}
+                    ) : null}
                   </div>
 
                   <Badge className="bg-white/25 text-white border-none text-[11px] font-bold">
@@ -508,6 +607,69 @@ function AvailableCoursesCatalogTab({
                     </p>
                   </div>
 
+                  {/* Progress Box for Enrolled Courses */}
+                  {isEnrolled && (
+                    <div className={`p-3 rounded-xl border transition-all ${
+                      isCompleted
+                        ? 'bg-gradient-to-b from-emerald-50/90 to-teal-50/50 border-emerald-200'
+                        : 'bg-slate-50 border-slate-100'
+                    }`}>
+                      <div className="flex items-center justify-between text-xs mb-2">
+                        <div className="flex items-center gap-1.5">
+                          {isCompleted ? (
+                            <span className="text-emerald-800 flex items-center gap-1.5 font-extrabold text-xs">
+                              <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                              <span>أتممت هذه الدورة بنجاح 🎉</span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-700 flex items-center gap-1.5 font-semibold text-xs">
+                              <TrendingUp className="w-3.5 h-3.5 text-primary-600 shrink-0" />
+                              <span>مستوى التقدم في الكورس</span>
+                            </span>
+                          )}
+                        </div>
+                        <span className={`text-xs font-black px-2 py-0.5 rounded-lg shrink-0 ${
+                          isCompleted
+                            ? 'bg-emerald-200 text-emerald-950 font-bold'
+                            : 'bg-primary-100/80 text-primary-800'
+                        }`}>
+                          {progress}%
+                        </span>
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="w-full h-2 bg-slate-200/80 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            isCompleted
+                              ? 'bg-gradient-to-r from-emerald-500 to-teal-500 shadow-xs'
+                              : 'bg-gradient-to-r from-primary-600 to-indigo-500'
+                          }`}
+                          style={{ width: `${Math.min(progress, 100)}%` }}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2 font-medium">
+                        <span>
+                          {totalLessons > 0 ? `${completedLessons} من ${totalLessons} درس مكتمل` : (isCompleted ? 'جميع الدروس مكتملة' : 'في بداية المسار')}
+                        </span>
+                        {isCompleted && isCertificateEligible && onViewCertificate && (
+                          <button
+                            type="button"
+                            onClick={() => onViewCertificate({
+                              title: c.title,
+                              teacherName: c.teacher?.user?.fullName || c.teacherName,
+                            })}
+                            className="text-amber-700 hover:text-amber-800 font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                          >
+                            <Award className="w-3.5 h-3.5 text-amber-500" />
+                            <span>عرض الشهادة</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Actions */}
                   <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
                     <Link
@@ -517,7 +679,15 @@ function AvailableCoursesCatalogTab({
                       تفاصيل المنهج
                     </Link>
 
-                    {isEnrolled ? (
+                    {isCompleted ? (
+                      <Link
+                        href={`/student/courses/${c.id}/learn`}
+                        className="flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs text-center transition-all shadow-xs flex items-center justify-center gap-1.5"
+                      >
+                        <Award className="w-3.5 h-3.5 text-amber-200" />
+                        <span>مراجعة الكورس 🎓</span>
+                      </Link>
+                    ) : isEnrolled ? (
                       <Link
                         href={`/student/courses/${c.id}/learn`}
                         className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs text-center transition-colors shadow-xs flex items-center justify-center gap-1.5"
