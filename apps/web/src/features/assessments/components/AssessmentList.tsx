@@ -330,9 +330,9 @@ export function AssessmentList() {
         </div>
 
         {/* Source Filter Row: Groups vs Online Courses */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2 border-t border-slate-100">
+        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
           <span className="text-xs font-semibold text-slate-500 shrink-0">مصدر التقييم:</span>
-          <div className="bg-slate-100 p-0.5 rounded-xl flex gap-1 w-full sm:w-auto shadow-xs border border-slate-200/50">
+          <div className="bg-slate-100 p-0.5 rounded-xl flex gap-1 shadow-xs border border-slate-200/50 shrink-0">
             {[
               { id: 'ALL', label: 'الكل' },
               { id: 'GROUP', label: 'المجموعات الدراسية' },
@@ -346,7 +346,7 @@ export function AssessmentList() {
                   setFilterCourseId('ALL');
                   setCurrentPage(1);
                 }}
-                className={`flex-1 sm:flex-initial py-1.5 px-4 rounded-lg font-bold text-xs transition-all ${
+                className={`h-8 px-3.5 rounded-lg font-bold text-xs flex items-center justify-center transition-all ${
                   filterSource === tab.id
                     ? tab.id === 'ONLINE'
                       ? 'bg-indigo-600 text-white shadow-sm'
@@ -361,15 +361,18 @@ export function AssessmentList() {
 
           {/* Course dropdown — visible only when filtering by online courses */}
           {filterSource === 'ONLINE' && availableCourses.length > 0 && (
-            <Select
-              className="w-full sm:w-56 bg-white border-indigo-200 text-xs sm:text-sm"
-              value={filterCourseId}
-              onChange={(e) => { setFilterCourseId(e.target.value); setCurrentPage(1); }}
-              options={[
-                { label: 'جميع الكورسات', value: 'ALL' },
-                ...availableCourses.map(({ id, title }) => ({ label: title, value: id })),
-              ]}
-            />
+            <div className="w-48 sm:w-52 shrink-0">
+              <Select
+                containerClassName="w-full"
+                className="h-8 py-0 px-3 bg-white border-indigo-200 text-xs font-medium rounded-lg text-slate-700 shadow-2xs"
+                value={filterCourseId}
+                onChange={(e) => { setFilterCourseId(e.target.value); setCurrentPage(1); }}
+                options={[
+                  { label: 'جميع الكورسات', value: 'ALL' },
+                  ...availableCourses.map(({ id, title }) => ({ label: title, value: id })),
+                ]}
+              />
+            </div>
           )}
         </div>
 

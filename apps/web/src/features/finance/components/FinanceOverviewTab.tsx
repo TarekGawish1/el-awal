@@ -168,6 +168,7 @@ export function FinanceOverviewTab({
   const [selectedStage, setSelectedStage] = useState<string>('');
   const [selectedGrade, setSelectedGrade] = useState<string>('');
   const [selectedGroupId, setSelectedGroupId] = useState<string>('');
+  const [selectedCourseId, setSelectedCourseId] = useState<string>('');
   const [groupSearchQuery, setGroupSearchQuery] = useState('');
   const [courseSearchQuery, setCourseSearchQuery] = useState('');
 
@@ -222,17 +223,18 @@ export function FinanceOverviewTab({
     });
   }, [analyticsData?.groups, selectedStage, selectedGrade, selectedGroupId, groupSearchQuery]);
 
-  // Filter online courses locally based on search query
+  // Filter online courses locally based on search query and selectedCourseId
   const filteredCourses = useMemo(() => {
     const list = analyticsData?.onlineCourses || [];
-    if (!courseSearchQuery.trim()) return list;
-    const query = courseSearchQuery.trim().toLowerCase();
     return list.filter((course) => {
+      if (selectedCourseId && course.id !== selectedCourseId) return false;
+      if (!courseSearchQuery.trim()) return true;
+      const query = courseSearchQuery.trim().toLowerCase();
       const matchesTitle = course.title.toLowerCase().includes(query);
       const matchesGrade = course.gradeLevel ? course.gradeLevel.toLowerCase().includes(query) : false;
       return matchesTitle || matchesGrade;
     });
-  }, [analyticsData?.onlineCourses, courseSearchQuery]);
+  }, [analyticsData?.onlineCourses, selectedCourseId, courseSearchQuery]);
 
   const overview = analyticsData?.overview;
 
@@ -462,16 +464,47 @@ export function FinanceOverviewTab({
             </p>
           </div>
 
-          {/* Course Search Filter */}
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute right-3 top-2.5 h-4 w-4 text-slate-400" />
-            <input
-              type="text"
-              value={courseSearchQuery}
-              onChange={(e) => setCourseSearchQuery(e.target.value)}
-              placeholder="بحث باسم الكورس أو المرحلة..."
-              className="h-9 w-full rounded-xl border border-slate-200 bg-white pr-9 pl-3 text-xs font-medium text-slate-700 placeholder:text-slate-400 focus:border-purple-500 focus:outline-none"
-            />
+          {/* Course Filters: Dropdown + Search Input + Reset */}
+          <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
+            {/* Course Dropdown Filter */}
+            <select
+              aria-label="تصفية حسب الكورس"
+              value={selectedCourseId}
+              onChange={(e) => setSelectedCourseId(e.target.value)}
+              className="h-9 w-full sm:w-48 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 focus:border-purple-500 focus:outline-none shadow-2xs"
+            >
+              <option value="">جميع الكورسات ({analyticsData?.onlineCourses?.length || 0})</option>
+              {(analyticsData?.onlineCourses || []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+
+            {/* Course Search Filter */}
+            <div className="relative w-full sm:w-60">
+              <Search className="absolute right-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                value={courseSearchQuery}
+                onChange={(e) => setCourseSearchQuery(e.target.value)}
+                placeholder="بحث باسم الكورس أو المرحلة..."
+                className="h-9 w-full rounded-xl border border-slate-200 bg-white pr-9 pl-3 text-xs font-medium text-slate-700 placeholder:text-slate-400 focus:border-purple-500 focus:outline-none"
+              />
+            </div>
+
+            {(selectedCourseId || courseSearchQuery) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCourseId('');
+                  setCourseSearchQuery('');
+                }}
+                className="text-xs font-bold text-purple-600 hover:text-purple-800 px-2 py-1 transition-colors shrink-0"
+              >
+                إعادة ضبط
+              </button>
+            )}
           </div>
         </div>
 

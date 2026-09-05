@@ -9,10 +9,11 @@ export interface SelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectE
   error?: string;
   options: { label: string; value: string }[];
   onChange?: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  containerClassName?: string;
 }
 
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, label, error, options, id, value, onChange, disabled, ...props }, ref) => {
+  ({ className, containerClassName, label, error, options, id, value, onChange, disabled, ...props }, ref) => {
     const selectId = id || (label ? `select-${label.replace(/\s+/g, '-').toLowerCase()}` : undefined);
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -36,7 +37,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     };
 
     return (
-      <div className="w-full relative" ref={containerRef}>
+      <div className={cn("w-full relative", containerClassName)} ref={containerRef}>
         {label && (
           <label htmlFor={selectId} className="block text-xs font-semibold text-neutral-700 mb-1.5">
             {label}
@@ -54,10 +55,10 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
               className
             )}
           >
-            <span className={!selectedOption || selectedOption.value === '' ? 'text-neutral-500' : ''}>
+            <span className={cn("truncate", !selectedOption || selectedOption.value === '' ? 'text-neutral-500' : '')}>
               {selectedOption ? selectedOption.label : '-- اختر --'}
             </span>
-            <ChevronDown className={cn("h-4 w-4 text-neutral-400 transition-transform", isOpen && "rotate-180")} />
+            <ChevronDown className={cn("h-4 w-4 text-neutral-400 transition-transform shrink-0 ml-1.5", isOpen && "rotate-180")} />
           </button>
           
           {isOpen && (
