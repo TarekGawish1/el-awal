@@ -150,6 +150,14 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
   // Custom Delete Modals State (No JS Confirm)
   const [moduleToDelete, setModuleToDelete] = useState<{ id: string; title: string } | null>(null);
   const [lessonToDelete, setLessonToDelete] = useState<{ id: string; title: string } | null>(null);
+  const [assessmentToDelete, setAssessmentToDelete] = useState<{
+    id: string;
+    title: string;
+    type: 'EXAM' | 'HOMEWORK';
+    scope: 'course' | 'unit' | 'lesson';
+    targetId?: string;
+  } | null>(null);
+  const [isDeletingAssessment, setIsDeletingAssessment] = useState(false);
 
   // Inline New Module State
   const [isCreatingModule, setIsCreatingModule] = useState(false);
@@ -228,15 +236,6 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
       courseQuizId: courseQuizId || null,
     });
   };
-
-  const [assessmentToDelete, setAssessmentToDelete] = useState<{
-    id: string;
-    title: string;
-    type: 'EXAM' | 'HOMEWORK';
-    scope: 'course' | 'unit' | 'lesson';
-    targetId?: string;
-  } | null>(null);
-  const [isDeletingAssessment, setIsDeletingAssessment] = useState(false);
 
   const handleUnlinkAssessment = async () => {
     if (!assessmentToDelete) return;
