@@ -621,6 +621,7 @@ export function LessonQuizTab({
   allLessons = [],
   isPreviewMode = false,
   onBypassQuiz,
+  onSelectLesson,
 }: LessonQuizTabProps) {
   const pathname = usePathname();
   const isTeacherPreview = isPreviewMode || (pathname?.includes('/preview') ?? false);
