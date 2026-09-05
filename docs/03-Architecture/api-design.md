@@ -361,7 +361,7 @@ Rate limiting is enforced at the gateway and application layers via `@nestjs/thr
       "expiresIn": 86400,
       "user": {
         "id": "a1b2c3d4-5678-90ab-cdef-123456789abc",
-        "fullName": "أ. طارق عبد الله",
+        "fullName": "أ. أحمد غريب",
         "email": "teacher@elawal.edu",
         "role": "TEACHER"
       }
@@ -401,7 +401,7 @@ Rate limiting is enforced at the gateway and application layers via `@nestjs/thr
     "statusCode": 200,
     "data": {
       "id": "a1b2c3d4-5678-90ab-cdef-123456789abc",
-      "fullName": "أ. طارق عبد الله",
+      "fullName": "أ. أحمد غريب",
       "role": "TEACHER",
       "email": "teacher@elawal.edu",
       "phone": "+201012345678",

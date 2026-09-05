@@ -23,7 +23,7 @@ describe('StudentGroupPage', () => {
           monthlyFee: 500,
           schedules: [{ id: 'schedule-1', dayOfWeek: 1, startTime: '10:00', endTime: '12:00', location: 'القاعة الرئيسية' }],
         },
-        teacher: { id: 'teacher-1', fullName: 'أ. طارق عبد الله' },
+        teacher: { id: 'teacher-1', fullName: 'أ. أحمد غريب' },
         subscription: { year: 2026, month: 8, amountExpected: 500, amountPaid: 500, paymentStatus: 'PAID', isPaid: true },
       },
       isLoading: false,

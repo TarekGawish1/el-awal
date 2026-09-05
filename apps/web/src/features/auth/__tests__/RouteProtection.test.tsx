@@ -85,7 +85,7 @@ describe('Dashboard Route Protection & Authentication Guard', () => {
     vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({ LogoutConfirmation: <></>, 
       user: {
         id: 'usr-1',
-        fullName: 'أ. طارق عبد الله',
+        fullName: 'أ. أحمد غريب',
         email: 'teacher@elawal.com',
         role: 'TEACHER',
       },
@@ -110,7 +110,7 @@ describe('Dashboard Route Protection & Authentication Guard', () => {
 
     expect(mockReplace).not.toHaveBeenCalled();
     expect(screen.getByText('Protected Dashboard Content')).toBeInTheDocument();
-    expect(screen.getByText('أ. طارق عبد الله')).toBeInTheDocument();
+    expect(screen.getByText('أ. أحمد غريب')).toBeInTheDocument();
     expect(screen.getByText('مدرس معتمد')).toBeInTheDocument();
   });
 });

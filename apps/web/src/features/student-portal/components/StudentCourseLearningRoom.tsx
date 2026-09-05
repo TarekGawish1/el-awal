@@ -1010,7 +1010,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
   const certData = {
     studentName: (user as any)?.fullName || (user as any)?.name || 'الطالب',
     courseTitle: course?.title || '',
-    teacherName: (course as any)?.teacher?.user?.fullName || (course as any)?.teacherName || 'أ. طارق عبد الله',
+    teacherName: (course as any)?.teacher?.user?.fullName || (course as any)?.teacherName || 'أ. أحمد غريب',
     subject: course?.subject || 'المنهج الدراسي',
     gradeLevel: course?.gradeLevel || 'الصف الدراسي',
     academicStage: course?.academicStage || 'المرحلة الدراسية',

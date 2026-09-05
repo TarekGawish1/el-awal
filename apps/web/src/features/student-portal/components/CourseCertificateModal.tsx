@@ -72,7 +72,7 @@ export function CourseCertificateModal({ isOpen, onClose, data }: CourseCertific
       ? new Date(data.completedAt).toLocaleDateString('ar-EG')
       : new Date().toLocaleDateString('ar-EG'),
     year: new Date().getFullYear().toString(),
-    teacherName: data.teacherName || 'أ. طارق عبد الله',
+    teacherName: data.teacherName || 'أ. أحمد غريب',
     stage: data.academicStage || 'المرحلة الثانوية',
     grade: data.gradeLevel || 'الصف الثالث الثانوي',
     yearPos: { x: 143, y: 573 },

@@ -156,7 +156,7 @@ describe('AssessmentsService', () => {
       isPublished: true,
       allowMultipleAttempts: false,
       dueDate: null,
-      teacher: { user: { fullName: 'أ. طارق عبد الله' } },
+      teacher: { user: { fullName: 'أ. أحمد غريب' } },
       group: null,
       course: null,
       questions: [

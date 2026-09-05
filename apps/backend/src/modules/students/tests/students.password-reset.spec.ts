@@ -128,7 +128,7 @@ describe('StudentsService — Password Reset & Credentials Access', () => {
     it('resets password, updates tempAccessPin and dispatches WhatsApp alert', async () => {
       mockPrismaService.groupEnrollment.findFirst.mockResolvedValue({ id: 'enr-1' });
       mockPrismaService.studentProfile.findUnique.mockResolvedValue(mockStudentProfile);
-      mockPrismaService.user.findUnique.mockResolvedValue({ fullName: 'أ. طارق عبد الله' });
+      mockPrismaService.user.findUnique.mockResolvedValue({ fullName: 'أ. أحمد غريب' });
       mockPrismaService.$transaction.mockResolvedValue([{}, {}]);
 
       const result = await service.resetStudentPassword(

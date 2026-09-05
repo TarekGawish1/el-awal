@@ -205,7 +205,7 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
             <div className="flex items-center gap-4 text-xs sm:text-sm text-slate-300 pt-2 flex-wrap">
               <div className="flex items-center gap-1.5">
                 <User className="w-4 h-4 text-primary-400" />
-                <span>المعلم: <strong className="text-white">{course.teacher?.user?.fullName || course.teacherName || 'أ. طارق عبد الله'}</strong></span>
+                <span>المعلم: <strong className="text-white">{course.teacher?.user?.fullName || course.teacherName || 'أ. أحمد غريب'}</strong></span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Layers className="w-4 h-4 text-primary-400" />

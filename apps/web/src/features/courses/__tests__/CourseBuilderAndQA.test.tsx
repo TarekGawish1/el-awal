@@ -560,7 +560,7 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
       // Re-mock useAuth with TEACHER role
       const { useAuth } = await import('@/features/auth');
       vi.mocked(useAuth).mockReturnValue({
-        user: { id: 'teacher-1', fullName: 'أ. طارق عبد الله', role: 'TEACHER' },
+        user: { id: 'teacher-1', fullName: 'أ. أحمد غريب', role: 'TEACHER' },
       } as any);
 
       render(

@@ -303,10 +303,10 @@ describe('CoursesService', () => {
 
     it('should allow a teacher previewing the course to submit a question gracefully', async () => {
       mockPrismaService.studentProfile.findUnique.mockResolvedValue(null);
-      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'user-teacher-1', fullName: 'أ. طارق عبد الله' });
+      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'user-teacher-1', fullName: 'أ. أحمد غريب' });
       mockPrismaService.studentProfile.create.mockResolvedValue({
         id: 'user-teacher-1',
-        user: { fullName: 'أ. طارق عبد الله' },
+        user: { fullName: 'أ. أحمد غريب' },
       });
       mockPrismaService.lessonQuestion.create.mockResolvedValue({
         id: 'q-teacher-1',
@@ -314,7 +314,7 @@ describe('CoursesService', () => {
         videoTimestamp: 0,
         lessonId: 'lesson-1',
         studentId: 'user-teacher-1',
-        student: { user: { fullName: 'أ. طارق عبد الله' } },
+        student: { user: { fullName: 'أ. أحمد غريب' } },
         replies: [],
       });
 
@@ -330,7 +330,7 @@ describe('CoursesService', () => {
 
       expect(result.id).toBe('q-teacher-1');
       expect(result.videoTimestamp).toBe(0);
-      expect(result.studentName).toBe('أ. طارق عبد الله');
+      expect(result.studentName).toBe('أ. أحمد غريب');
     });
 
     it('should create a reply to a question with author role and name', async () => {
@@ -974,7 +974,7 @@ describe('CoursesService', () => {
         title: 'شرح تفاضل 2ث',
         price: 500,
         status: CourseStatus.PUBLISHED,
-        teacher: { user: { fullName: 'أ. طارق عبد الله', phone: '01011111111' } },
+        teacher: { user: { fullName: 'أ. أحمد غريب', phone: '01011111111' } },
       });
 
       mockPrismaService.studentProfile.findUnique.mockResolvedValue({

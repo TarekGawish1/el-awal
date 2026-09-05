@@ -65,7 +65,7 @@ describe('AuthService', () => {
 
       const mockUser = {
         id: 'user-uuid-1',
-        fullName: 'أ. طارق عبد الله',
+        fullName: 'أ. أحمد غريب',
         email: 'teacher@elawal.com',
         phone: '+201000000001',
         passwordHash,

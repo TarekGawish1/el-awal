@@ -23,7 +23,7 @@ describe('El Awal Backend E2E Integration Suite (e2e)', () => {
     id: 'teacher-user-1',
     phone: '01000000001',
     email: 'teacher@elawal.com',
-    fullName: 'أ. طارق عبد الله',
+    fullName: 'أ. أحمد غريب',
     role: UserRole.TEACHER,
     isActive: true,
     deletedAt: null,

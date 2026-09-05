@@ -652,7 +652,7 @@ function OnlineCoursesCatalog({
                   </div>
 
                   <p className="text-xs font-semibold text-slate-500">
-                    المعلم: <strong className="text-slate-800">{course.teacher?.user?.fullName || course.teacherName || 'أ. طارق عبد الله'}</strong>
+                    المعلم: <strong className="text-slate-800">{course.teacher?.user?.fullName || course.teacherName || 'أ. أحمد غريب'}</strong>
                   </p>
 
                   <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed">
