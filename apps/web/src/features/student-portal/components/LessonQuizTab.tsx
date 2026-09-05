@@ -670,7 +670,23 @@ export function LessonQuizTab({
     }
   }
 
-  const hasAnyQuiz = Boolean(lessonQuiz || lessonHomework || unitQuiz || courseQuiz);
+  // In enforceSequentialLessons mode, only show unit quiz once all lessons in the unit are finished,
+  // and only show course final quiz once all lessons in the entire course are finished.
+  const shouldShowUnitQuiz = Boolean(
+    unitQuiz && (!enforceSequentialLessons || isUnitLessonsCompleted)
+  );
+  const shouldShowCourseQuiz = Boolean(
+    courseQuiz && (!enforceSequentialLessons || completedAllCourseLessons)
+  );
+
+  const presentQuizzes = [
+    lessonQuiz,
+    lessonHomework,
+    shouldShowUnitQuiz ? unitQuiz : null,
+    shouldShowCourseQuiz ? courseQuiz : null,
+  ].filter(Boolean) as AssessmentSummary[];
+
+  const hasAnyQuiz = presentQuizzes.length > 0;
 
   const currentIdx = allLessons?.findIndex((l) => l.id === lessonId) ?? -1;
   const nextLesson =
@@ -691,7 +707,6 @@ export function LessonQuizTab({
   }
 
   // The attempt policy is now per-quiz, so summarise it across the quizzes actually shown.
-  const presentQuizzes = [lessonQuiz, lessonHomework, unitQuiz, courseQuiz].filter(Boolean) as AssessmentSummary[];
   const allAllowMultiple =
     presentQuizzes.length > 0 && presentQuizzes.every((q) => q.allowMultipleAttempts);
   const noneAllowMultiple = presentQuizzes.every((q) => !q.allowMultipleAttempts);
@@ -755,7 +770,7 @@ export function LessonQuizTab({
       )}
 
       {/* 2. UNIT LEVEL QUIZ */}
-      {unitQuiz && (
+      {shouldShowUnitQuiz && unitQuiz && (
         <QuizCard
           quiz={unitQuiz}
           level="unit"
@@ -769,7 +784,7 @@ export function LessonQuizTab({
       )}
 
       {/* 3. COURSE LEVEL FINAL QUIZ */}
-      {courseQuiz && (
+      {shouldShowCourseQuiz && courseQuiz && (
         <QuizCard
           quiz={courseQuiz}
           level="course"

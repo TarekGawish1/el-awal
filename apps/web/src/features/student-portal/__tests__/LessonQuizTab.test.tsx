@@ -124,7 +124,7 @@ describe('LessonQuizTab', () => {
       ],
     };
 
-    it('locks unit and course final exams when enforceSequentialLessons is true and lessons are incomplete', () => {
+    it('hides unit and course final exams when enforceSequentialLessons is true and lessons are incomplete', () => {
       render(
         <LessonQuizTab
           courseId="course-1"
@@ -139,10 +139,9 @@ describe('LessonQuizTab', () => {
         />,
       );
 
-      // Both should show locked indicators
-      expect(screen.getByText('مقفل حتى إتمام دروس الوحدة')).toBeInTheDocument();
-      expect(screen.getByText('مقفل حتى إنهاء المنهج')).toBeInTheDocument();
-      expect(screen.getByText(/ترتيب المنهج الإلزامي مفعّل/)).toBeInTheDocument();
+      // In enforce mode, unit exam and course exam should NOT be shown until their lessons are finished
+      expect(screen.queryByText('اختبار الوحدة 1')).not.toBeInTheDocument();
+      expect(screen.queryByText('الامتحان النهائي للكورس')).not.toBeInTheDocument();
     });
 
     it('unlocks unit exam when all lessons in that unit are completed', () => {
