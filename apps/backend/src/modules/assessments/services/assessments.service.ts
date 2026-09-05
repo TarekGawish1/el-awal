@@ -281,7 +281,6 @@ export class AssessmentsService {
     );
 
     const where: any = {
-      ...(query.groupId ? { groupId: query.groupId } : {}),
       ...(query.courseId ? { courseId: query.courseId } : {}),
       ...(query.type ? { type: query.type } : {}),
       ...(query.isPublished !== undefined
@@ -290,9 +289,22 @@ export class AssessmentsService {
       ...(cursorFilter || {}),
     };
 
+    if (query.groupId) {
+      where.AND = where.AND || [];
+      where.AND.push({
+        OR: [
+          { groupId: query.groupId },
+          { targetGroups: { some: { id: query.groupId } } },
+        ],
+      });
+    }
+
+    let targetStudentId: string | null = null;
+
     if (user.role === UserRole.STUDENT) {
+      targetStudentId = user.studentProfileId || user.id;
       where.isPublished = true;
-      const studentId = user.studentProfileId || user.id;
+      const studentId = targetStudentId;
       // Students only see physical (onsite) group exams: strictly exclude
       // online course / lesson quizzes and only surface assessments linked to a
       // physical group the student is actively enrolled in.
@@ -305,11 +317,29 @@ export class AssessmentsService {
     } else if (user.role === UserRole.PARENT) {
       where.isPublished = true;
       const parentId = user.parentProfileId || user.id;
-      where.OR = [
-        { group: { enrollments: { some: { status: GroupEnrollmentStatus.ACTIVE, student: { parentLinks: { some: { parentId } } } } } } },
-        { targetGroups: { some: { enrollments: { some: { status: GroupEnrollmentStatus.ACTIVE, student: { parentLinks: { some: { parentId } } } } } } } },
-        { course: { enrollments: { some: { status: CourseEnrollmentStatus.ACTIVE, student: { parentLinks: { some: { parentId } } } } } } },
-      ];
+
+      if (query.studentId) {
+        const link = await this.prisma.parentStudentLink.findFirst({
+          where: { parentId, studentId: query.studentId },
+        });
+        if (link) {
+          targetStudentId = query.studentId;
+        }
+      }
+
+      if (targetStudentId) {
+        where.OR = [
+          { group: { enrollments: { some: { status: GroupEnrollmentStatus.ACTIVE, studentId: targetStudentId } } } },
+          { targetGroups: { some: { enrollments: { some: { status: GroupEnrollmentStatus.ACTIVE, studentId: targetStudentId } } } } },
+          { course: { enrollments: { some: { status: CourseEnrollmentStatus.ACTIVE, studentId: targetStudentId } } } },
+        ];
+      } else {
+        where.OR = [
+          { group: { enrollments: { some: { status: GroupEnrollmentStatus.ACTIVE, student: { parentLinks: { some: { parentId } } } } } } },
+          { targetGroups: { some: { enrollments: { some: { status: GroupEnrollmentStatus.ACTIVE, student: { parentLinks: { some: { parentId } } } } } } } },
+          { course: { enrollments: { some: { status: CourseEnrollmentStatus.ACTIVE, student: { parentLinks: { some: { parentId } } } } } } },
+        ];
+      }
     } else if (user.role === UserRole.TEACHER) {
       const teacherId = user.teacherProfileId || user.id;
       where.teacherId = teacherId;
@@ -360,12 +390,25 @@ export class AssessmentsService {
         targetGroups: { select: { id: true, name: true, academicYear: true, academicTerm: true } },
         course: { select: { id: true, title: true, academicYear: true, academicTerm: true } },
         _count: { select: { questions: true, submissions: true } },
+        ...(targetStudentId
+          ? {
+              submissions: {
+                where: { studentId: targetStudentId },
+                select: {
+                  id: true,
+                  status: true,
+                  scoreObtained: true,
+                  submittedAt: true,
+                },
+              },
+            }
+          : {}),
       },
     });
 
-    // Students see session-linked homework at its effective deadline (next
+    // Students and parents see session-linked homework at its effective deadline (next
     // session), so expired-by-record homework stays visible while actionable.
-    if (user.role === UserRole.STUDENT) {
+    if (user.role === UserRole.STUDENT || user.role === UserRole.PARENT) {
       await this.maybeApplyEffectiveDueDates(assessments as any[]);
     }
 
@@ -652,18 +695,24 @@ export class AssessmentsService {
     }
 
     // Security projection: Redact answers if student has not completed & graded
-    const sanitizedQuestions = assessment.questions.map((q) => {
-      if (isPrivileged || isGraded) {
-        return q;
-      }
-      const { correctAnswer, explanation, ...safeQuestion } = q;
-      return safeQuestion;
-    });
+    // For parents: zero-leak questions (only aware that homework exists, question details strictly concealed)
+    let sanitizedQuestions: any[] = [];
+    if (user.role === UserRole.PARENT) {
+      sanitizedQuestions = [];
+    } else {
+      sanitizedQuestions = assessment.questions.map((q) => {
+        if (isPrivileged || isGraded) {
+          return q;
+        }
+        const { correctAnswer, explanation, ...safeQuestion } = q;
+        return safeQuestion;
+      });
+    }
 
-    // Session-linked homework is shown to students at its effective deadline
+    // Session-linked homework is shown to students and parents at its effective deadline
     // (start of the next session), keeping it open while actionable.
     const effectiveDueDate =
-      user.role === UserRole.STUDENT
+      user.role === UserRole.STUDENT || user.role === UserRole.PARENT
         ? await this.resolveEffectiveDueDate(assessment)
         : assessment.dueDate;
 

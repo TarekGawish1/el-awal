@@ -5,8 +5,25 @@ import { useStudent } from '@/features/students/hooks/use-students';
 import { useStudentAttendanceHistory } from '@/features/attendance/hooks/use-attendance';
 import { useStudentPaymentHistory } from '@/features/finance/hooks/useFinance';
 import { useGroup } from '@/features/groups/hooks/useGroups';
+import { useAssessments } from '@/features/assessments/hooks/use-assessments';
+import { formatArabicDate, formatArabicTime } from '@/lib/utils/formatters';
 import { Badge, Skeleton } from '@/components/ui';
-import { Users, ClipboardList, Check, Wallet, AlertCircle, X, Calendar, BookOpen, Clock, FileWarning, TrendingUp, HelpCircle } from 'lucide-react';
+import {
+  Users,
+  ClipboardList,
+  Check,
+  Wallet,
+  AlertCircle,
+  X,
+  Calendar,
+  BookOpen,
+  Clock,
+  FileWarning,
+  TrendingUp,
+  HelpCircle,
+  FileText,
+  CheckCircle2,
+} from 'lucide-react';
 
 interface ChildDetailsViewProps {
   studentId: string;
@@ -16,6 +33,14 @@ export function ChildDetailsView({ studentId }: ChildDetailsViewProps) {
   const { data: student, isLoading: isStudentLoading, isError: isStudentError } = useStudent(studentId);
   const { data: attendanceHistory, isLoading: isAttendanceLoading } = useStudentAttendanceHistory(studentId, 10);
   const { data: paymentHistory, isLoading: isPaymentLoading } = useStudentPaymentHistory(studentId);
+  const { data: assignmentsData, isLoading: isAssignmentsLoading } = useAssessments({
+    type: 'ASSIGNMENT',
+    studentId,
+  });
+  const { data: examsData, isLoading: isExamsLoading } = useAssessments({
+    type: 'EXAM',
+    studentId,
+  });
   
   const enrollments = student?.groupEnrollments || [];
   const primaryGroupId = enrollments[0]?.group?.id;
@@ -97,6 +122,30 @@ export function ChildDetailsView({ studentId }: ChildDetailsViewProps) {
   }
 
 
+  // Filter assignments and exams for this child (physical group / general)
+  const assignments = (assignmentsData?.data || []).filter((item: any) => {
+    if (item.courseId || item.lessonId) return false;
+    return true;
+  });
+
+  const exams = (examsData?.data || []).filter((item: any) => {
+    if (item.courseId || item.lessonId) return false;
+    return true;
+  });
+
+  const upcomingExam = exams.find((e: any) => {
+    const rawDate = e.startTime || e.startDate || e.dueDate;
+    if (!rawDate) return false;
+    return new Date(rawDate).getTime() >= Date.now();
+  }) || exams[0];
+
+  const pendingAssignments = assignments.filter((a: any) => {
+    const sub = a.submissions?.[0];
+    return !(sub?.status === 'SUBMITTED' || sub?.status === 'GRADED');
+  });
+  const pendingAssignmentsCount = pendingAssignments.length;
+  const currentHomework = pendingAssignments[0] || assignments[0];
+
   return (
     <div className="space-y-6">
       {/* Student Header */}
@@ -171,8 +220,9 @@ export function ChildDetailsView({ studentId }: ChildDetailsViewProps) {
         </div>
       </div>
 
-      {/* Upcoming (Session & Exams) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* Upcoming Overview (Next Session, Next Exam, Current Homework) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Next Session */}
         <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100/50 flex items-start gap-3">
           <div className="p-2 bg-blue-100 text-blue-600 rounded-xl mt-0.5">
             <Clock className="w-5 h-5" />
@@ -184,16 +234,196 @@ export function ChildDetailsView({ studentId }: ChildDetailsViewProps) {
           </div>
         </div>
         
+        {/* Next Exam */}
         <div className="bg-amber-50/50 p-4 rounded-2xl border border-amber-100/50 flex items-start gap-3">
           <div className="p-2 bg-amber-100 text-amber-600 rounded-xl mt-0.5">
             <BookOpen className="w-5 h-5" />
           </div>
           <div>
             <p className="text-xs font-bold text-amber-600 mb-1">الامتحان القادم</p>
-            <p className="text-sm font-bold text-slate-800">لا يوجد امتحانات قادمة مسجلة</p>
-            <p className="text-[10px] text-slate-500 mt-1 font-semibold">سيتم إشعارك عند تحديد موعد</p>
+            {upcomingExam ? (
+              <>
+                <p className="text-sm font-bold text-slate-800 line-clamp-1">{upcomingExam.title}</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-semibold">
+                  {upcomingExam.dueDate || upcomingExam.startTime
+                    ? `${formatArabicDate(upcomingExam.dueDate || upcomingExam.startTime)}`
+                    : upcomingExam.group?.name || 'مجموعتك الدراسية'}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-bold text-slate-800">لا يوجد امتحانات قادمة مسجلة</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-semibold">سيتم إشعارك عند تحديد موعد</p>
+              </>
+            )}
           </div>
         </div>
+
+        {/* Current Homework */}
+        <div className={`p-4 rounded-2xl border flex items-start gap-3 ${
+          pendingAssignmentsCount > 0
+            ? 'bg-purple-50/50 border-purple-100/50'
+            : assignments.length > 0
+            ? 'bg-emerald-50/50 border-emerald-100/50'
+            : 'bg-slate-50 border-slate-100'
+        }`}>
+          <div className={`p-2 rounded-xl mt-0.5 ${
+            pendingAssignmentsCount > 0
+              ? 'bg-purple-100 text-purple-600'
+              : assignments.length > 0
+              ? 'bg-emerald-100 text-emerald-600'
+              : 'bg-slate-100 text-slate-500'
+          }`}>
+            <FileText className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <p className={`text-xs font-bold mb-1 ${
+              pendingAssignmentsCount > 0
+                ? 'text-purple-700'
+                : assignments.length > 0
+                ? 'text-emerald-700'
+                : 'text-slate-500'
+            }`}>
+              الواجب المنزلي المطلوب
+            </p>
+            {pendingAssignmentsCount > 0 && currentHomework ? (
+              <>
+                <p className="text-sm font-bold text-slate-800 line-clamp-1">{currentHomework.title}</p>
+                <p className="text-[10px] text-purple-700 mt-1 font-bold flex items-center gap-1">
+                  {currentHomework.dueDate ? `التسليم: ${formatArabicDate(currentHomework.dueDate)}` : 'مطلوب إنجازه'}
+                </p>
+              </>
+            ) : assignments.length > 0 ? (
+              <>
+                <p className="text-sm font-bold text-emerald-800">تم تسليم كافة الواجبات ✅</p>
+                <p className="text-[10px] text-emerald-600 mt-1 font-semibold">مستوى ممتاز ومتابعة مستمرة</p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-bold text-slate-700">لا توجد واجبات حالياً</p>
+                <p className="text-[10px] text-slate-400 mt-1 font-semibold">سيتم إشعارك عند تعيين واجب</p>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Detailed Assigned Homework Section (Purely informative for parent - zero question leak) */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+            <FileText className="w-4 h-4 text-primary-600" />
+            الواجبات المنزلية والمهام المطلوبة
+          </h4>
+          {pendingAssignmentsCount > 0 ? (
+            <Badge variant="warning" className="text-[11px] font-bold px-2 py-0.5 bg-amber-50 text-amber-800 border-amber-200">
+              {pendingAssignmentsCount} واجب مطلوب تسليمه
+            </Badge>
+          ) : assignments.length > 0 ? (
+            <Badge variant="success" className="text-[11px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-700 border-emerald-200">
+              تم تسليم الكل بنجاح ✅
+            </Badge>
+          ) : null}
+        </div>
+
+        {isAssignmentsLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-20 w-full rounded-2xl" />
+            <Skeleton className="h-20 w-full rounded-2xl" />
+          </div>
+        ) : assignments.length === 0 ? (
+          <div className="bg-slate-50/70 border border-slate-100 rounded-2xl p-6 text-center">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-2">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+            <p className="text-sm font-bold text-slate-800">لا توجد واجبات منزلية مطلوبة حالياً</p>
+            <p className="text-xs text-slate-500 mt-1">كافة الواجبات تم إنجازها أو لم يتم تعيين واجب جديد بعد.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {assignments.map((item: any) => {
+              const submission = item.submissions?.[0];
+              const isSubmitted = submission?.status === 'SUBMITTED' || submission?.status === 'GRADED';
+              const isGraded = submission?.status === 'GRADED';
+              const isOverdue = item.dueDate ? !isSubmitted && new Date(item.dueDate).getTime() < Date.now() : false;
+              const targetGroupName = item.group?.name || item.targetGroups?.[0]?.name || primaryGroup?.name || 'المجموعة الدراسية';
+
+              return (
+                <div
+                  key={item.id}
+                  className={`p-4 rounded-2xl border transition-all ${
+                    isSubmitted
+                      ? 'bg-emerald-50/20 border-emerald-100/70'
+                      : isOverdue
+                      ? 'bg-rose-50/30 border-rose-100/70'
+                      : 'bg-white border-slate-100 shadow-xs'
+                  }`}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h5 className="font-bold text-sm text-slate-900">{item.title}</h5>
+                        <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+                          {targetGroupName}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap pt-0.5">
+                        {item.dueDate ? (
+                          <span className={`flex items-center gap-1 font-medium ${isOverdue ? 'text-rose-600 font-bold' : 'text-slate-600'}`}>
+                            <Clock className="w-3.5 h-3.5" />
+                            موعد التسليم: {formatArabicDate(item.dueDate)} — {formatArabicTime(item.dueDate)}
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-slate-600">
+                            <Clock className="w-3.5 h-3.5" />
+                            موعد التسليم: قبل موعد الحصة القادمة
+                          </span>
+                        )}
+
+                        <span className="text-slate-300">•</span>
+                        <span>{item._count?.questions || 0} أسئلة</span>
+                        <span className="text-slate-300">•</span>
+                        <span>{item.totalScore} درجة</span>
+                      </div>
+                    </div>
+
+                    {/* Status Badge */}
+                    <div className="shrink-0 flex items-center gap-2">
+                      {isSubmitted ? (
+                        <div className="text-end">
+                          <Badge variant="success" className="px-2.5 py-1 text-xs font-bold bg-emerald-100 text-emerald-800 border-emerald-200">
+                            ✅ تم تسليم الواجب
+                          </Badge>
+                          {isGraded && submission.scoreObtained !== null && (
+                            <p className="text-[11px] font-black text-emerald-700 mt-1">
+                              الدرجة: {submission.scoreObtained} / {item.totalScore}
+                            </p>
+                          )}
+                        </div>
+                      ) : isOverdue ? (
+                        <Badge variant="error" className="px-2.5 py-1 text-xs font-bold bg-rose-100 text-rose-800 border-rose-200">
+                          ⚠️ فات موعد التسليم
+                        </Badge>
+                      ) : (
+                        <Badge variant="warning" className="px-2.5 py-1 text-xs font-bold bg-amber-100 text-amber-800 border-amber-200">
+                          📝 مطلوب حله وتسليمه
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Parent Notice */}
+                  <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                    <span className="flex items-center gap-1">
+                      📌 يتم حل أسئلة الواجب من خلال حساب الطالب على المنصة.
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Detailed Homework & Performance */}

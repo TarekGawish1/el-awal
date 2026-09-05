@@ -35,4 +35,9 @@ export class AssessmentQueryDto extends CursorPaginationDto {
   @IsOptional()
   @IsString()
   academicTerm?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by student ID (e.g. for parents viewing a specific child)' })
+  @IsOptional()
+  @IsUUID()
+  studentId?: string;
 }

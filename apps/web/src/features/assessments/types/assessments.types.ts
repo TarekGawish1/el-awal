@@ -70,6 +70,12 @@ export interface AssessmentListItem {
     submissions: number;
     questions: number;
   };
+  submissions?: Array<{
+    id: string;
+    status: SubmissionStatus;
+    scoreObtained: number | null;
+    submittedAt: string | null;
+  }>;
 }
 
 export interface AssessmentAttemptSummary {
