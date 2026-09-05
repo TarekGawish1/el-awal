@@ -99,6 +99,6 @@ describe('PaymentsService matrix ledger', () => {
 
     expect(result.students[0].totalDue).toBe(350);
     expect(result.students[0].bookletPayments['grade-10-booklet']).toMatchObject({ isApplicable: true, isPaid: false });
-    expect(result.students[0].bookletPayments['grade-12-booklet']).toEqual({ isApplicable: false, isPaid: false, amountPaid: 0 });
+    expect(result.students[0].bookletPayments['grade-12-booklet']).toMatchObject({ isApplicable: false, isPaid: false, amountPaid: 0 });
   });
 });

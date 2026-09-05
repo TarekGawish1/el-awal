@@ -2,13 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { FinanceDashboard } from '../components/FinanceDashboard';
 import { useGroups } from '@/features/groups/hooks/useGroups';
-import { usePayments, useGroupDefaulters, useScanPaymentQr } from '../hooks/useFinance';
-import { useBooklets } from '@/features/booklets/hooks/useBooklets';
+import { useGroupDefaulters } from '../hooks/useFinance';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
   usePathname: () => '/teacher/finance',
+}));
+
+vi.mock('@/core/hooks/usePermissions', () => ({
+  usePermissions: () => ({
+    can: () => true,
+    role: 'TEACHER',
+  }),
 }));
 
 // Mock dependencies
@@ -46,23 +52,44 @@ vi.mock('@yudiel/react-qr-scanner', () => ({
 }));
 
 vi.mock('../hooks/useFinance', () => ({
-  usePayments: vi.fn(),
   useGroupDefaulters: vi.fn(),
-  useDeletePayment: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useMatrixLedger: vi.fn(() => ({ data: null, isLoading: false })),
+  useStudentPaymentHistory: vi.fn(() => ({ data: [], isLoading: false })),
+  usePayments: vi.fn(() => ({ data: undefined, isLoading: false })),
   useRecordPayment: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useScanPaymentQr: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
-  useFinanceAnalytics: vi.fn(() => ({ data: { totalCollected: 1000, studentsPaid: 10, targetRevenue: 5000 }, isLoading: false })),
+  useFinanceDashboardAnalytics: vi.fn(() => ({
+    data: {
+      overview: {
+        subscriptions: { expected: 1000, collected: 600, remaining: 400, rate: 60 },
+        booklets: { expected: 500, collected: 300, remaining: 200, rate: 60 },
+        onlineCourses: { expected: 2000, collected: 1500, remaining: 500, rate: 75 },
+        grandTotal: { expected: 3500, collected: 2400, remaining: 1100, rate: 68.57 },
+      },
+      groups: [
+        {
+          id: 'group-1',
+          name: 'مجموعة الأوائل',
+          stage: 'SECONDARY',
+          gradeLevel: 'الصف الأول الثانوي',
+          studentCount: 20,
+          subscription: { expected: 600, collected: 400, remaining: 200, rate: 66.67 },
+          booklets: { expected: 200, collected: 100, remaining: 100, rate: 50 },
+          total: { expected: 800, collected: 500, remaining: 300, rate: 62.5 },
+        },
+      ],
+      onlineCourses: [],
+    },
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  })),
 }));
 
 describe('FinanceDashboard', () => {
   beforeEach(() => {
     vi.mocked(useGroups).mockReturnValue({
       data: [{ id: 'group-1', name: 'مجموعة الأوائل', gradeLevel: 'G1', monthlyFee: 300 }],
-      isLoading: false,
-    } as any);
-
-    vi.mocked(usePayments).mockReturnValue({
-      data: undefined,
       isLoading: false,
     } as any);
 
@@ -109,20 +136,14 @@ describe('FinanceDashboard', () => {
     expect(screen.getByTestId('mock-qr-scanner')).toBeInTheDocument();
   });
 
-  it('allows selecting a group and switching between tabs', () => {
+  it('allows opening manual payment recording modal', () => {
     render(<FinanceDashboard />);
 
-    // Switch to manual tab
+    // Switch to manual recording
     fireEvent.click(screen.getByRole('button', { name: /\+ تسجيل مصروف/i }));
 
-    // Group select label should be visible in manual tab
-    expect(screen.getByText(/المجموعة الدراسية/i)).toBeInTheDocument();
-
-    // Select group
-    fireEvent.change(screen.getByLabelText('المجموعة الدراسية'), { target: { value: 'group-1' } });
-
-    expect(screen.getByText(/الطلاب المتأخرين عن السداد/i)).toBeInTheDocument();
-    expect(screen.getAllByText('طالب متأخر').length).toBeGreaterThan(0);
+    // Modal should be opened
+    expect(screen.getByText(/تسجيل مصروف \/ سداد/i)).toBeInTheDocument();
   });
 
   it('renders the booklets management view when booklets tab is selected', () => {

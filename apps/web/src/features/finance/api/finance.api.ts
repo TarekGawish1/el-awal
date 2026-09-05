@@ -10,6 +10,7 @@ import {
   MatrixLedgerResponse,
   BillingConfigurationResponse,
   FinanceAnalyticsResponse,
+  FinanceDashboardResponse,
 } from '../types/finance.types';
 
 export async function fetchPayments(query: PaymentQuery = {}): Promise<CursorPaginatedResponse<StudentPaymentRecord>> {
@@ -102,3 +103,18 @@ export async function updateBillingConfiguration(payload: {
     body: JSON.stringify(payload),
   });
 }
+
+export async function fetchFinanceDashboardAnalytics(query: {
+  academicPeriodId?: string;
+  academicYear?: string;
+  academicTerm?: string;
+  stage?: string;
+  gradeLevel?: string;
+  groupId?: string;
+  month?: number;
+}): Promise<FinanceDashboardResponse> {
+  return apiClient<FinanceDashboardResponse>('/payments/dashboard-analytics', {
+    params: query as Record<string, string | number | boolean | undefined>,
+  });
+}
+

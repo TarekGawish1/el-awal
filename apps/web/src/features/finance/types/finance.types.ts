@@ -225,3 +225,41 @@ export interface FinanceAnalyticsResponse {
   };
   groups: FinanceAnalyticsGroup[];
 }
+
+export interface FinanceDashboardMetric {
+  expected: number;
+  collected: number;
+  remaining: number;
+  rate: number;
+}
+
+export interface FinanceDashboardGroup {
+  id: string;
+  name: string;
+  stage: string;
+  gradeLevel: string;
+  studentCount: number;
+  subscription: FinanceDashboardMetric;
+  booklets: FinanceDashboardMetric;
+  total: FinanceDashboardMetric;
+}
+
+export interface FinanceDashboardOnlineCourse {
+  id: string;
+  title: string;
+  price: number;
+  enrolledStudents: number;
+  totalCollected: number;
+  gradeLevel?: string;
+}
+
+export interface FinanceDashboardResponse {
+  overview: {
+    grandTotal: FinanceDashboardMetric;
+    subscriptions: FinanceDashboardMetric;
+    booklets: FinanceDashboardMetric;
+    onlineCourses: FinanceDashboardMetric;
+  };
+  groups: FinanceDashboardGroup[];
+  onlineCourses: FinanceDashboardOnlineCourse[];
+}

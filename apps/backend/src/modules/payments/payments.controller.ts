@@ -15,6 +15,17 @@ import { PaymentsService } from './payments.service';
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
+  @Get('dashboard-analytics')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @RequirePermissions(AssistantPermission.VIEW_FINANCE)
+  @ApiOperation({ summary: 'Get granular dashboard analytics for subscriptions, booklets, and online courses' })
+  async getDashboardAnalytics(
+    @Query() query: FinanceAnalyticsQueryDto & { month?: number | string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.paymentsService.getDashboardAnalytics(user, query);
+  }
+
   @Get('analytics')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @RequirePermissions(AssistantPermission.VIEW_FINANCE)
