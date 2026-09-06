@@ -151,6 +151,8 @@ export interface MatrixPaymentCell {
   remainingAmount?: number;
   paidAt?: string | Date;
   isStarted?: boolean;
+  calculationReason?: string | null;
+  rateMultiplier?: number;
 }
 
 export interface MatrixLedgerStudent {

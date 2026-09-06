@@ -80,4 +80,42 @@ describe('RecordPaymentModal booklet eligibility', () => {
     expect(screen.queryByRole('option', { name: /مذكرة مجموعة أخرى/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /مذكرة صف آخر/i })).not.toBeInTheDocument();
   });
+
+  it('displays mid-month tuition proration banner and expected half fee for mid-month student', () => {
+    vi.mocked(useGroupDefaulters).mockReturnValue({
+      data: {
+        defaulters: [
+          {
+            studentId: 'student-mid',
+            fullName: 'سارة خالد',
+            gradeLevel: 'G1',
+            monthlyFeeExpected: 150,
+            rateMultiplier: 0.5,
+            calculationReason: 'نصف شهر (انضمام بين يوم 10 و 20 في الشهر)',
+          },
+        ],
+      },
+      isLoading: false,
+    } as any);
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RecordPaymentModal
+          isOpen={true}
+          onClose={vi.fn()}
+          groupId="group-1"
+          periodYear={2026}
+          periodMonth={8}
+        />
+      </QueryClientProvider>,
+    );
+
+    const studentSelect = screen.getByRole('option', { name: /سارة خالد/i }).closest('select')!;
+    fireEvent.change(studentSelect, { target: { value: 'student-mid' } });
+
+    expect(screen.getByText(/اشتراك نصف شهر \(انضمام منتصف الشهر\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/نصف شهر \(انضمام بين يوم 10 و 20 في الشهر\)/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /سداد نصف الشهر \(150 ج.م\)/i })).toBeInTheDocument();
+  });
 });
+

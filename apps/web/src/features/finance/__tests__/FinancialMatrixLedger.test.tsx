@@ -49,13 +49,17 @@ const ledger = {
 
 describe('FinancialMatrixLedger', () => {
   beforeEach(() => {
+    localStorage.clear();
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-15T12:00:00.000Z'));
     vi.mocked(useMatrixLedger).mockReturnValue({ data: ledger, isLoading: false, isError: false } as any);
     vi.mocked(useRecordPayment).mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
   });
 
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    localStorage.clear();
+    vi.useRealTimers();
+  });
 
   it('renders only booklets for the selected grade', () => {
     render(<FinancialMatrixLedger groups={[]} />);
@@ -161,4 +165,55 @@ describe('FinancialMatrixLedger', () => {
       expect.objectContaining({ stage: 'SECONDARY', gradeLevel: 'الصف الأول الثانوي' }),
     );
   });
+
+  it('renders "نصف شهر" badge for half-fee student and "معفى" for exempt student', () => {
+    const proratedLedger = {
+      ...ledger,
+      students: [
+        {
+          id: 'student-half',
+          studentCode: 'STU-HALF',
+          fullName: 'طالب نصف شهر',
+          gradeLevel: 'الصف الأول الثانوي',
+          groupId: 'group-1',
+          groupName: 'المجموعة أ',
+          monthlyFee: 300,
+          monthlyPayments: {
+            8: { isPaid: true, amountPaid: 150, amountExpected: 150, rateMultiplier: 0.5, calculationReason: 'نصف شهر' },
+          },
+          bookletPayments: {},
+          totalPaid: 150,
+          totalDue: 0,
+        },
+        {
+          id: 'student-exempt',
+          studentCode: 'STU-EXEMPT',
+          fullName: 'طالب معفى',
+          gradeLevel: 'الصف الأول الثانوي',
+          groupId: 'group-1',
+          groupName: 'المجموعة أ',
+          monthlyFee: 300,
+          monthlyPayments: {
+            8: { isPaid: true, amountPaid: 0, amountExpected: 0, rateMultiplier: 0, calculationReason: 'معفى من اشتراك الشهر الحالي' },
+          },
+          bookletPayments: {},
+          totalPaid: 0,
+          totalDue: 0,
+        },
+      ],
+    };
+
+    vi.mocked(useMatrixLedger).mockReturnValue({ data: proratedLedger, isLoading: false, isError: false } as any);
+
+    render(<FinancialMatrixLedger groups={[]} />);
+    fireEvent.change(screen.getByLabelText('المرحلة الدراسية'), { target: { value: 'SECONDARY' } });
+    fireEvent.change(screen.getByLabelText('الصف الدراسي'), { target: { value: 'الصف الأول الثانوي' } });
+
+    expect(screen.getByText('نصف شهر')).toBeInTheDocument();
+    expect(screen.getByText('معفى')).toBeInTheDocument();
+  });
 });
+
+
+
+
