@@ -375,7 +375,7 @@ export class AuthService {
     });
 
     let permissions: string[] = [];
-    if (user.role === UserRole.SECRETARIAT) {
+    if (effectiveRole === UserRole.SECRETARIAT || user.role === UserRole.SECRETARIAT) {
       const link = await this.prisma.teacherAssistant.findFirst({
         where: { assistantId: user.id, status: 'ACTIVE' },
         select: { permissions: true },
@@ -403,6 +403,41 @@ export class AuthService {
         permissions,
       },
     };
+  }
+
+  /**
+   * Switches the active role of the currently authenticated user.
+   * The user must have the corresponding profile to switch to a given role.
+   * Returns a fresh set of tokens with the new effective role.
+   */
+  async switchRole(userId: string, targetRole: UserRole): Promise<AuthTokensResponseDto> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId, isActive: true, deletedAt: null },
+      include: {
+        teacherProfile: { select: { id: true } },
+        studentProfile: { select: { id: true } },
+        parentProfile: { select: { id: true } },
+        secretariatProfile: { select: { id: true } },
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('الحساب غير موجود أو غير مفعل');
+    }
+
+    // Check if user has the required profile for the target role
+    const roleProfileMap: Record<string, boolean> = {
+      [UserRole.TEACHER]: Boolean(user.teacherProfile),
+      [UserRole.STUDENT]: Boolean(user.studentProfile),
+      [UserRole.PARENT]: Boolean(user.parentProfile),
+      [UserRole.SECRETARIAT]: Boolean(user.secretariatProfile),
+    };
+
+    if (!roleProfileMap[targetRole]) {
+      throw new BadRequestException('ليس لديك صلاحية التبديل إلى هذا الدور');
+    }
+
+    return this.issueTokens(user, targetRole);
   }
 
   /**
@@ -460,18 +495,26 @@ export class AuthService {
       throw new UnauthorizedException('User account is inactive or no longer exists');
     }
 
+    // Preserve role override from JWT (supports all role switches, not just PARENT)
     let effectiveRole = user.role;
-    if (decoded.role === UserRole.PARENT) {
-      const hasParentCapability =
-        user.role === UserRole.PARENT ||
-        Boolean(
-          await this.prisma.parentProfile.findUnique({
-            where: { id: user.id },
-            select: { id: true },
-          }),
-        );
-      if (hasParentCapability) {
-        effectiveRole = UserRole.PARENT;
+    if (decoded.role && decoded.role !== user.role) {
+      const fullUser = await this.prisma.user.findUnique({
+        where: { id: user.id },
+        include: {
+          teacherProfile: { select: { id: true } },
+          studentProfile: { select: { id: true } },
+          parentProfile: { select: { id: true } },
+          secretariatProfile: { select: { id: true } },
+        },
+      });
+      const roleProfileMap: Record<string, boolean> = {
+        [UserRole.TEACHER]: Boolean(fullUser?.teacherProfile),
+        [UserRole.STUDENT]: Boolean(fullUser?.studentProfile),
+        [UserRole.PARENT]: Boolean(fullUser?.parentProfile),
+        [UserRole.SECRETARIAT]: Boolean(fullUser?.secretariatProfile),
+      };
+      if (roleProfileMap[decoded.role as string]) {
+        effectiveRole = decoded.role as UserRole;
       }
     }
 

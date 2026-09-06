@@ -404,9 +404,16 @@ export class AttendanceService {
       session.endTime,
     );
 
+    const sessionDateEnd = new Date(session.sessionDate);
+    sessionDateEnd.setHours(23, 59, 59, 999);
+
+    const eligibleEnrollments = session.group.enrollments.filter(
+      (e) => !e.enrolledAt || new Date(e.enrolledAt).getTime() <= sessionDateEnd.getTime(),
+    );
+
     if (hasEndedPlusOneHour) {
       const existingStudentIds = new Set(session.attendanceRecords.map((r) => r.studentId));
-      const missingEnrollments = session.group.enrollments.filter(
+      const missingEnrollments = eligibleEnrollments.filter(
         (e) => !existingStudentIds.has(e.studentId),
       );
 
@@ -441,7 +448,7 @@ export class AttendanceService {
       }
     }
 
-    const totalEnrolled = session.group.enrollments.length;
+    const totalEnrolled = eligibleEnrollments.length;
     const presentCount = session.attendanceRecords.filter((r) => r.status === AttendanceStatus.PRESENT).length;
     const absentCount = session.attendanceRecords.filter((r) => r.status === AttendanceStatus.ABSENT).length;
     const excusedCount = session.attendanceRecords.filter((r) => r.status === AttendanceStatus.EXCUSED).length;
@@ -463,13 +470,14 @@ export class AttendanceService {
         homeworkCheckedCount,
       },
       homeworkRecords: session.homeworkRecords || [],
-      records: session.group.enrollments.map((e) => {
+      records: eligibleEnrollments.map((e) => {
         const r = session.attendanceRecords.find((ar) => ar.studentId === e.studentId);
         const hw = session.homeworkRecords?.find((hr) => hr.studentId === e.studentId);
         return {
           id: r?.id || `unrecorded-${e.studentId}`,
           studentId: e.studentId,
           studentCode: e.student.studentCode,
+          qrCodeToken: e.student.qrCodeToken || '',
           fullName: e.student.user.fullName,
           phone: e.student.user.phone,
           status: r?.status || null,

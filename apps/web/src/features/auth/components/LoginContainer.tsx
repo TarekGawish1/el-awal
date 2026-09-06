@@ -6,15 +6,19 @@ import { GraduationCap } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui';
 import { LoginForm } from './LoginForm';
 import { useAuth } from '../hooks/useAuth';
-import { getRoleLandingRoute, sanitizeRedirectUrl } from '../utils/role-routing';
+import { getRoleLandingRoute, sanitizeRedirectUrl, hasMultipleRoles } from '../utils/role-routing';
 
 export function LoginContainer() {
   const router = useRouter();
   const { user, isAuthenticated, isInitialized } = useAuth();
 
-  // If already authenticated, redirect to the requested route or role dashboard
+  // If already authenticated, redirect to role picker (multi-role) or role dashboard
   useEffect(() => {
     if (isInitialized && isAuthenticated && user) {
+      if (hasMultipleRoles(user)) {
+        router.replace('/select-role');
+        return;
+      }
       const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
       const requestedRedirect = searchParams?.get('redirect');
       const safeRedirect = sanitizeRedirectUrl(requestedRedirect, user.role);

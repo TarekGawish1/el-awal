@@ -59,11 +59,13 @@ export function ManualHomeworkChecklist({
       let candidateStudents: Array<{ id: string; studentCode?: string; fullName?: string }> = [];
 
       if (sessionReport?.records && sessionReport.records.length > 0) {
-        candidateStudents = sessionReport.records.map((r: any) => ({
-          id: r.studentId,
-          studentCode: r.studentCode,
-          fullName: r.fullName,
-        }));
+        candidateStudents = sessionReport.records
+          .filter((r: any) => r.fullName !== 'طالب غير متزامن' && !String(r.studentId).startsWith('qr_tok_'))
+          .map((r: any) => ({
+            id: r.studentId,
+            studentCode: r.studentCode,
+            fullName: r.fullName,
+          }));
       } else if (groupId) {
         const roster = await offlineDb.getRoster(groupId);
         if (roster?.students && roster.students.length > 0) {

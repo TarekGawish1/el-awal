@@ -207,23 +207,40 @@ export function OnsiteHomeworkScanner({
       }
 
       const cleanToken = parsed.token || parsed.studentId || parsed.studentCode || rawValue.trim();
+      const effectiveGroupId = groupId || sessionReport?.groupId;
 
       // 1. Find student in local IndexedDB
-      const matchQr = await offlineDb.findStudentByQrToken(rawValue);
+      let matchQr = await offlineDb.findStudentByQrToken(rawValue, effectiveGroupId);
+      if (!matchQr && cleanToken !== rawValue) {
+        matchQr = await offlineDb.findStudentByQrToken(cleanToken, effectiveGroupId);
+      }
       let student = matchQr?.student;
       if (!student) {
         student = await offlineDb.getStudentByIdOffline(cleanToken);
       }
 
-      // 2. Check session report records
+      // 2. Search through all offline students
+      if (!student) {
+        const allStudents = await offlineDb.getStudentsOffline();
+        student = allStudents.find(
+          (s: any) =>
+            s.qrCodeToken === cleanToken ||
+            s.qrCodeToken === rawValue ||
+            s.studentCode === cleanToken ||
+            (parsed.studentCode && s.studentCode === parsed.studentCode) ||
+            s.id === cleanToken ||
+            (parsed.studentId && s.id === parsed.studentId),
+        );
+      }
+
+      // 3. Check session report records
       if (!student && sessionReport?.records) {
         const match = sessionReport.records.find(
           (r: any) =>
             r.studentId === cleanToken ||
-            r.qrCodeToken === cleanToken ||
-            r.studentCode === cleanToken ||
-            (parsed.studentId && r.studentId === parsed.studentId) ||
-            (parsed.studentCode && r.studentCode === parsed.studentCode),
+            (r.qrCodeToken && (r.qrCodeToken === cleanToken || r.qrCodeToken === rawValue)) ||
+            (r.studentCode && (r.studentCode === cleanToken || r.studentCode === parsed.studentCode)) ||
+            (parsed.studentId && r.studentId === parsed.studentId),
         );
         if (match) {
           student = {
@@ -238,15 +255,17 @@ export function OnsiteHomeworkScanner({
         }
       }
 
-      // 3. Check group roster if still not resolved
-      if (!student && groupId) {
-        const roster = await offlineDb.getRoster(groupId);
+      // 4. Check group roster if still not resolved
+      if (!student && effectiveGroupId) {
+        const roster = await offlineDb.getRoster(effectiveGroupId);
         if (roster?.students) {
           const match = roster.students.find(
             (s: any) =>
               s.id === cleanToken ||
               s.qrCodeToken === cleanToken ||
-              s.studentCode === cleanToken,
+              s.qrCodeToken === rawValue ||
+              s.studentCode === cleanToken ||
+              (parsed.studentCode && s.studentCode === parsed.studentCode),
           );
           if (match) {
             student = match;
@@ -255,7 +274,7 @@ export function OnsiteHomeworkScanner({
         }
       }
 
-      // 4. Online dynamic lookup fallback
+      // 5. Online dynamic lookup fallback
       if (!student && typeof navigator !== 'undefined' && navigator.onLine) {
         try {
           const searchRes = await apiClient<any>(`/students?search=${encodeURIComponent(cleanToken)}&limit=1`, {
@@ -280,30 +299,18 @@ export function OnsiteHomeworkScanner({
       }
 
       if (!student) {
-        const isQueued = await offlineDb.isAttendanceRecordedOffline(sessionId, '', cleanToken);
-        if (isQueued) {
-          playBeep('duplicate');
-          setFlashType('duplicate');
-          setLastScanResult({
-            success: true,
-            message: 'تم تسجيل الواجب مسبقاً (قيد الانتظار للتحقق)',
-          });
-          toast('تم تسجيل الواجب مسبقاً', { icon: '⚠️' });
-          setTimeout(() => {
-            setLocked(false);
-            setFlashType(null);
-          }, 1800);
-          return;
-        }
-
-        student = {
-          id: '',
-          fullName: 'طالب غير متزامن',
-          studentCode: '',
-          qrCodeToken: cleanToken,
-          groupId: '',
-          gradeLevel: '',
-        };
+        playBeep('error');
+        setFlashType('error');
+        setLastScanResult({
+          success: false,
+          message: 'بيانات الطالب غير مسجلة في قاعدة البيانات المحلية. يرجى التأكد من مسح رمز الطالب الصحيح أو تحديث البيانات عند توفر الإنترنت.',
+        });
+        toast.error('بيانات الطالب غير مسجلة محلياً');
+        setTimeout(() => {
+          setLocked(false);
+          setFlashType(null);
+        }, 1800);
+        return;
       }
 
       // Check if homework is already checked locally or on server

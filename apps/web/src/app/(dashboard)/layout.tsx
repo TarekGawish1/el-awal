@@ -42,12 +42,16 @@ import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { NotificationBell } from '@/features/notifications/components/NotificationBell';
 import { WhatsAppConnectionManager } from '@/components/admin/WhatsAppConnectionManager';
-import { isRouteAllowedForRole, getRoleLandingRoute } from '@/features/auth/utils/role-routing';
+import { isRouteAllowedForRole, getRoleLandingRoute, getAvailableRoles, getRoleLabel as getRoleLabelUtil } from '@/features/auth/utils/role-routing';
+import { switchRoleRequest } from '@/features/auth/api/auth.api';
+import { useAuthStore } from '@/features/auth/store/auth.store';
+import { UserRole } from '@/features/auth/types/auth.types';
 import { useStudentProfile } from '@/features/student-portal/hooks/useStudentPortal';
 import { usePermissions } from '@/core/hooks/usePermissions';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
+import toast from 'react-hot-toast';
 
 export default function DashboardLayout({
   children,
@@ -63,10 +67,15 @@ export default function DashboardLayout({
   const [isSyncMenuOpen, setIsSyncMenuOpen] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
+  const [isSwitchingRole, setIsSwitchingRole] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, isAuthenticated, isInitialized, logout, LogoutConfirmation } = useAuth();
+  const { setSession } = useAuthStore();
   const isOnline = useOnlineStatus();
+  const availableRoles = getAvailableRoles(user);
+  const canSwitchRoles = availableRoles.length > 1;
   
   const mainScrollRef = useRef<HTMLDivElement>(null);
 
@@ -168,6 +177,23 @@ export default function DashboardLayout({
         return 'ولي أمر';
       default:
         return 'مستخدم مسجل';
+    }
+  };
+
+  const handleSwitchRole = async (targetRole: UserRole) => {
+    if (isSwitchingRole || user?.role === targetRole) return;
+    setIsSwitchingRole(true);
+    setIsProfileMenuOpen(false);
+    try {
+      const newSession = await switchRoleRequest(targetRole);
+      setSession(newSession);
+      queryClient.clear();
+      router.push(getRoleLandingRoute(targetRole));
+      toast.success(`تم التبديل إلى: ${getRoleLabelUtil(targetRole)}`);
+    } catch (err: any) {
+      toast.error(err?.message || 'حدث خطأ أثناء تبديل الدور');
+    } finally {
+      setIsSwitchingRole(false);
     }
   };
 
@@ -533,17 +559,51 @@ export default function DashboardLayout({
                     onClick={() => setIsProfileMenuOpen(false)}
                     aria-hidden="true"
                   />
-                  <div className="absolute end-0 top-full mt-2 w-56 bg-white border border-neutral-100 rounded-xl shadow-lg z-50 overflow-hidden flex flex-col p-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="absolute end-0 top-full mt-2 w-64 bg-white border border-neutral-100 rounded-xl shadow-lg z-50 overflow-hidden flex flex-col p-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="px-3 py-2.5 border-b border-neutral-100 sm:hidden">
                       <p className="text-sm font-bold text-neutral-900 truncate">{user?.fullName || 'المستخدم'}</p>
                     </div>
+
+                    {/* Role Switcher Section */}
+                    {canSwitchRoles && (
+                      <div className="px-1 py-1.5">
+                        <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider px-2 mb-1">تبديل الدور</p>
+                        {availableRoles.map((role) => {
+                          const isActive = user?.role === role;
+                          return (
+                            <button
+                              key={role}
+                              onClick={() => handleSwitchRole(role)}
+                              disabled={isSwitchingRole || isActive}
+                              className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors cursor-pointer
+                                ${isActive
+                                  ? 'bg-primary-50 text-primary-700 font-bold cursor-default'
+                                  : 'text-neutral-700 hover:bg-neutral-50 font-medium'
+                                }
+                                ${isSwitchingRole && !isActive ? 'opacity-50 cursor-not-allowed' : ''}
+                              `}
+                            >
+                              <span className={`w-2 h-2 rounded-full shrink-0 ${isActive ? 'bg-primary-600' : 'bg-neutral-300'}`} />
+                              <span>{getRoleLabelUtil(role)}</span>
+                              {isActive && (
+                                <span className="mr-auto text-[10px] bg-primary-100 text-primary-600 px-1.5 py-0.5 rounded-full font-bold">
+                                  الحالي
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {canSwitchRoles && <div className="border-t border-neutral-100 my-0.5" />}
                     
                     <button
                       onClick={() => {
                         setIsProfileMenuOpen(false);
                         logout();
                       }}
-                      className="w-full flex items-center gap-2 px-3 py-2 mt-1 text-sm font-medium text-error-600 hover:bg-error-50 rounded-lg transition-colors cursor-pointer"
+                      className="w-full flex items-center gap-2 px-3 py-2 mt-0.5 text-sm font-medium text-error-600 hover:bg-error-50 rounded-lg transition-colors cursor-pointer"
                     >
                       <LogOut className="w-4 h-4" />
                       <span>تسجيل الخروج</span>

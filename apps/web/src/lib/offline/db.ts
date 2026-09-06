@@ -601,12 +601,24 @@ class OfflineDatabase {
   }
 
   public async putStudent(student: StudentEntity): Promise<void> {
-    const existing = this.memoryStudents.get(student.id) || {};
-    this.memoryStudents.set(student.id, { ...existing, ...student, updatedAt: Date.now() });
+    const existingMem = this.memoryStudents.get(student.id);
+    const mergedMem = {
+      ...(existingMem || {}),
+      ...student,
+      qrCodeToken: student.qrCodeToken || existingMem?.qrCodeToken || '',
+      updatedAt: Date.now(),
+    };
+    this.memoryStudents.set(student.id, mergedMem);
     if (!this.isSupported()) return;
     try {
+      const existing = await this.getStudentByIdOffline(student.id);
+      const toSave = {
+        ...(existing || {}),
+        ...student,
+        qrCodeToken: student.qrCodeToken || existing?.qrCodeToken || '',
+      };
       const { store } = await this.getStore('students', 'readwrite');
-      store.put(student);
+      store.put(toSave);
     } catch {}
   }
 
@@ -1982,6 +1994,46 @@ class OfflineDatabase {
       }
     }
 
+    if (this.isSupported()) {
+      try {
+        const { store } = await this.getStore('students', 'readonly');
+        for (const candidate of candidateList) {
+          let matchedStudent: any = null;
+          if (store.indexNames.contains('idx_qrCodeToken')) {
+            matchedStudent = await new Promise<any>((resolve) => {
+              const req = store.index('idx_qrCodeToken').get(candidate);
+              req.onsuccess = () => resolve(req.result || null);
+              req.onerror = () => resolve(null);
+            });
+          }
+          if (!matchedStudent && store.indexNames.contains('idx_studentCode')) {
+            matchedStudent = await new Promise<any>((resolve) => {
+              const req = store.index('idx_studentCode').get(candidate);
+              req.onsuccess = () => resolve(req.result || null);
+              req.onerror = () => resolve(null);
+            });
+          }
+          if (matchedStudent) {
+            const studentGroupIds: string[] = Array.isArray(matchedStudent.groupIds)
+              ? matchedStudent.groupIds
+              : [matchedStudent.groupId].filter((id): id is string => Boolean(id));
+
+            const effectiveGroupId =
+              preferredGroupId && (studentGroupIds.includes(preferredGroupId) || matchedStudent.groupId === preferredGroupId)
+                ? preferredGroupId
+                : matchedStudent.groupId || '';
+
+            const group = effectiveGroupId ? await this.getGroupByIdOffline(effectiveGroupId) : null;
+            return {
+              student: matchedStudent,
+              groupId: effectiveGroupId,
+              groupName: group?.name || 'المجموعة الدراسية',
+            };
+          }
+        }
+      } catch {}
+    }
+
     // 2. Search all students by qrCodeToken, studentCode, id, or phone - AUTHORITATIVE
     const allStudents = await this.getStudentsOffline();
     const foundDirect = allStudents.find(matchesStudent);
@@ -2285,19 +2337,29 @@ class OfflineDatabase {
 
   public async getSessionReport(sessionId: string): Promise<any | null> {
     const cleanId = String(sessionId).trim().toLowerCase();
+    let report: any = null;
     if (!this.isSupported()) {
-      return this.memoryReports.get(cleanId) || null;
+      report = this.memoryReports.get(cleanId) || null;
+    } else {
+      try {
+        const { store } = await this.getStore('cached_queries', 'readonly');
+        report = await new Promise((resolve) => {
+          const req = store.get(`session_report_${cleanId}`);
+          req.onsuccess = () => resolve(req.result?.data || this.memoryReports.get(cleanId) || null);
+          req.onerror = () => resolve(this.memoryReports.get(cleanId) || null);
+        });
+      } catch {
+        report = this.memoryReports.get(cleanId) || null;
+      }
     }
-    try {
-      const { store } = await this.getStore('cached_queries', 'readonly');
-      return new Promise((resolve) => {
-        const req = store.get(`session_report_${cleanId}`);
-        req.onsuccess = () => resolve(req.result?.data || this.memoryReports.get(cleanId) || null);
-        req.onerror = () => resolve(this.memoryReports.get(cleanId) || null);
-      });
-    } catch {
-      return this.memoryReports.get(cleanId) || null;
+
+    if (report?.records && Array.isArray(report.records)) {
+      report.records = report.records.filter(
+        (r: any) => r.fullName !== 'طالب غير متزامن' && !String(r.studentId).startsWith('qr_tok_')
+      );
     }
+
+    return report;
   }
 
   public async recordAttendanceOffline(
@@ -2359,23 +2421,53 @@ class OfflineDatabase {
       };
     }
 
-    const records = Array.isArray(currentReport.records) ? [...currentReport.records] : [];
-    const studentIdx = records.findIndex((r: any) => String(r.studentId).trim() === String(record.studentId).trim());
+    let records = Array.isArray(currentReport.records) ? [...currentReport.records] : [];
 
-    const updatedRecord = {
-      id: `offline-${Date.now()}-${record.studentId}`,
-      studentId: record.studentId,
-      studentCode: record.studentCode || records[studentIdx]?.studentCode || '',
-      fullName: record.studentName || records[studentIdx]?.fullName || 'طالب',
-      status: record.status,
-      recordingMethod: record.recordingMethod || 'QR_SCAN',
-      recordedAt: record.recordedAt || new Date().toISOString(),
-      notes: record.notes || records[studentIdx]?.notes || null,
-    };
+    // Filter out historical ghost records
+    records = records.filter(
+      (r: any) => r.fullName !== 'طالب غير متزامن' && !String(r.studentId).startsWith('qr_tok_')
+    );
+
+    const cleanInputStudentId = String(record.studentId).trim();
+    let studentIdx = records.findIndex((r: any) => String(r.studentId).trim() === cleanInputStudentId);
+
+    if (studentIdx === -1) {
+      // Try resolving by studentCode, qrCodeToken, or candidate
+      studentIdx = records.findIndex(
+        (r: any) =>
+          (record.studentCode && r.studentCode && String(r.studentCode).trim().toLowerCase() === String(record.studentCode).trim().toLowerCase()) ||
+          (r.studentCode && String(r.studentCode).trim().toLowerCase() === cleanInputStudentId.toLowerCase()) ||
+          (r.qrCodeToken && String(r.qrCodeToken).trim() === cleanInputStudentId)
+      );
+    }
+
+    if (studentIdx === -1) {
+      // Check offlineDb by QR token
+      const match = await this.findStudentByQrToken(cleanInputStudentId);
+      if (match?.student?.id) {
+        studentIdx = records.findIndex((r: any) => String(r.studentId).trim() === String(match.student.id).trim());
+      }
+    }
 
     if (studentIdx >= 0) {
-      records[studentIdx] = { ...records[studentIdx], ...updatedRecord };
-    } else {
+      records[studentIdx] = {
+        ...records[studentIdx],
+        status: record.status,
+        recordingMethod: record.recordingMethod || 'QR_SCAN',
+        recordedAt: record.recordedAt || new Date().toISOString(),
+        notes: record.notes || records[studentIdx]?.notes || null,
+      };
+    } else if (record.studentName !== 'طالب غير متزامن' && !cleanInputStudentId.startsWith('qr_tok_')) {
+      const updatedRecord = {
+        id: `offline-${Date.now()}-${cleanInputStudentId}`,
+        studentId: cleanInputStudentId,
+        studentCode: record.studentCode || '',
+        fullName: record.studentName || 'طالب',
+        status: record.status,
+        recordingMethod: record.recordingMethod || 'QR_SCAN',
+        recordedAt: record.recordedAt || new Date().toISOString(),
+        notes: record.notes || null,
+      };
       records.push(updatedRecord);
     }
 
@@ -2811,7 +2903,27 @@ class OfflineDatabase {
     const recordedMethod = data.recordedMethod || 'QR_SCAN';
     const now = Date.now();
     const cleanSessionId = String(data.sessionId).trim();
-    const cleanStudentId = String(data.studentId).trim();
+    let cleanStudentId = String(data.studentId).trim();
+    let studentName = data.studentName;
+    let studentCode = data.studentCode;
+    let qrCodeToken = data.qrCodeToken;
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanStudentId);
+    if (!isUuid) {
+      const match = await this.findStudentByQrToken(qrCodeToken || cleanStudentId);
+      if (match?.student) {
+        cleanStudentId = match.student.id;
+        if (!studentName || studentName === 'طالب غير متزامن') {
+          studentName = match.student.fullName || match.student.user?.fullName || studentName;
+        }
+        if (!studentCode) {
+          studentCode = match.student.studentCode || studentCode;
+        }
+        if (!qrCodeToken) {
+          qrCodeToken = match.student.qrCodeToken || qrCodeToken;
+        }
+      }
+    }
 
     // 1. Check existing homework record for (assessmentId, studentId, sessionId)
     const allHw = await this.getAllHomeworkRecords();
@@ -2835,8 +2947,8 @@ class OfflineDatabase {
       feedback: data.feedback !== undefined ? data.feedback : existing?.feedback || null,
       clientTimestamp: now,
       syncStatus: 'PENDING',
-      studentName: data.studentName,
-      studentCode: data.studentCode,
+      studentName,
+      studentCode,
     };
 
     await this.homework_records.put(homeworkRecord);
@@ -2851,7 +2963,7 @@ class OfflineDatabase {
       payload: {
         assessmentId: data.assessmentId,
         studentId: cleanStudentId,
-        qrCodeToken: data.qrCodeToken,
+        qrCodeToken,
         sessionId: cleanSessionId,
         status,
         recordedMethod,
@@ -2875,8 +2987,8 @@ class OfflineDatabase {
         status: 'PRESENT',
         recordingMethod: recordedMethod,
         recordedAt: new Date(now).toISOString(),
-        studentName: data.studentName,
-        studentCode: data.studentCode,
+        studentName,
+        studentCode,
       });
 
       attendanceRecord = updatedReport?.records?.find(

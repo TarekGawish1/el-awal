@@ -14,6 +14,7 @@ export const API_ENDPOINTS = {
     REGISTER_BY_GROUP: '/auth/register-by-group',
     LOGOUT: '/auth/logout',
     REFRESH: '/auth/refresh',
+    SWITCH_ROLE: '/auth/switch-role',
     ME: '/users/me',
   },
   USERS: {

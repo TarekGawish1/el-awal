@@ -94,15 +94,17 @@ export function QrHomeworkScanner({
 
     if (sessionReport?.records && Array.isArray(sessionReport.records)) {
       for (const r of sessionReport.records) {
-        if (r.studentId) {
-          offlineDb.putStudent({
-            id: r.studentId,
-            fullName: r.fullName || r.studentName || 'طالب',
-            studentCode: r.studentCode || '',
-            qrCodeToken: r.qrCodeToken || '',
-            groupId: sessionReport.groupId || groupId || '',
-            gradeLevel: r.gradeLevel || '',
-          }).catch(() => { });
+        if (r.studentId && r.fullName !== 'طالب غير متزامن' && !String(r.studentId).startsWith('qr_tok_')) {
+          offlineDb.getStudentByIdOffline(r.studentId).then((existing) => {
+            offlineDb.putStudent({
+              id: r.studentId,
+              fullName: r.fullName || r.studentName || existing?.fullName || 'طالب',
+              studentCode: r.studentCode || existing?.studentCode || '',
+              qrCodeToken: r.qrCodeToken || existing?.qrCodeToken || '',
+              groupId: sessionReport.groupId || groupId || existing?.groupId || '',
+              gradeLevel: r.gradeLevel || existing?.gradeLevel || '',
+            }).catch(() => { });
+          });
         }
       }
     }
@@ -211,21 +213,42 @@ export function QrHomeworkScanner({
       }
 
       const cleanToken = parsed.token || parsed.studentId || parsed.studentCode || rawValue.trim();
+      const effectiveGroupId = groupId || sessionReport?.groupId;
 
-      const matchQr = await offlineDb.findStudentByQrToken(rawValue);
+      // 1. Check local IndexedDB with preferred group id
+      let matchQr = await offlineDb.findStudentByQrToken(rawValue, effectiveGroupId);
+      if (!matchQr && cleanToken !== rawValue) {
+        matchQr = await offlineDb.findStudentByQrToken(cleanToken, effectiveGroupId);
+      }
       let student = matchQr?.student;
+
+      // 2. If not found, try getStudentByIdOffline
       if (!student) {
         student = await offlineDb.getStudentByIdOffline(cleanToken);
       }
 
+      // 3. If not found, search through all offline students
+      if (!student) {
+        const allStudents = await offlineDb.getStudentsOffline();
+        student = allStudents.find(
+          (s: any) =>
+            s.qrCodeToken === cleanToken ||
+            s.qrCodeToken === rawValue ||
+            s.studentCode === cleanToken ||
+            (parsed.studentCode && s.studentCode === parsed.studentCode) ||
+            s.id === cleanToken ||
+            (parsed.studentId && s.id === parsed.studentId),
+        );
+      }
+
+      // 4. Check sessionReport.records
       if (!student && sessionReport?.records) {
         const match = sessionReport.records.find(
           (r: any) =>
             r.studentId === cleanToken ||
-            r.qrCodeToken === cleanToken ||
-            r.studentCode === cleanToken ||
-            (parsed.studentId && r.studentId === parsed.studentId) ||
-            (parsed.studentCode && r.studentCode === parsed.studentCode),
+            (r.qrCodeToken && (r.qrCodeToken === cleanToken || r.qrCodeToken === rawValue)) ||
+            (r.studentCode && (r.studentCode === cleanToken || r.studentCode === parsed.studentCode)) ||
+            (parsed.studentId && r.studentId === parsed.studentId),
         );
         if (match) {
           student = {
@@ -240,6 +263,26 @@ export function QrHomeworkScanner({
         }
       }
 
+      // 5. Check group roster
+      if (!student && effectiveGroupId) {
+        const roster = await offlineDb.getRoster(effectiveGroupId);
+        if (roster?.students) {
+          const match = roster.students.find(
+            (s: any) =>
+              s.id === cleanToken ||
+              s.qrCodeToken === cleanToken ||
+              s.qrCodeToken === rawValue ||
+              s.studentCode === cleanToken ||
+              (parsed.studentCode && s.studentCode === parsed.studentCode),
+          );
+          if (match) {
+            student = match;
+            offlineDb.putStudent(student).catch(() => { });
+          }
+        }
+      }
+
+      // 6. Online lookup fallback if online
       if (!student && typeof navigator !== 'undefined' && navigator.onLine) {
         try {
           const searchRes = await apiClient<any>(`/students?search=${encodeURIComponent(cleanToken)}&limit=1`, {
@@ -262,14 +305,18 @@ export function QrHomeworkScanner({
       }
 
       if (!student) {
-        student = {
-          id: cleanToken,
-          fullName: 'طالب غير متزامن',
-          studentCode: '',
-          qrCodeToken: cleanToken,
-          groupId: '',
-          gradeLevel: '',
-        };
+        playBeep('error');
+        setFlashType('error');
+        setLastScanResult({
+          success: false,
+          message: 'بيانات الطالب غير مسجلة في قاعدة البيانات المحلية. يرجى التأكد من مسح رمز الطالب الصحيح أو تحديث البيانات عند توفر الإنترنت.',
+        });
+        toast.error('بيانات الطالب غير مسجلة محلياً');
+        setTimeout(() => {
+          setLocked(false);
+          setFlashType(null);
+        }, 2000);
+        return;
       }
 
       // ── Duplicate check: already has a homework record for this session?
@@ -628,17 +675,19 @@ export function QrHomeworkScanner({
                 <span>قائمة الطلاب (تسجيل يدوي)</span>
               </h4>
               <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-bold">
-                {sessionReport?.records?.length || 0} طالب
+                {sessionReport?.records?.filter((s: any) => s.fullName !== 'طالب غير متزامن' && !String(s.studentId).startsWith('qr_tok_')).length || 0} طالب
               </span>
             </div>
 
-            {(!sessionReport?.records || sessionReport.records.length === 0) ? (
+            {(!sessionReport?.records || sessionReport.records.filter((s: any) => s.fullName !== 'طالب غير متزامن' && !String(s.studentId).startsWith('qr_tok_')).length === 0) ? (
               <div className="text-center py-8 text-slate-400 text-xs">
                 لا توجد بيانات طلاب لهذه الحصة بعد.
               </div>
             ) : (
               <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-                {sessionReport.records.map((student: any) => {
+                {sessionReport.records
+                  .filter((s: any) => s.fullName !== 'طالب غير متزامن' && !String(s.studentId).startsWith('qr_tok_'))
+                  .map((student: any) => {
                   const record = localHomeworkRecords.find((r) => r.studentId === student.studentId);
                   const status = record?.status;
 

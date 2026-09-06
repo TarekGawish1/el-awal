@@ -1,4 +1,4 @@
-import { UserRole } from '../types/auth.types';
+import { AuthUser, UserRole } from '../types/auth.types';
 
 /**
  * Maps authenticated user role to the canonical application landing route
@@ -89,4 +89,50 @@ export function sanitizeRedirectUrl(
   }
 
   return null;
+}
+
+/**
+ * Returns all available roles for a user based on which profile IDs are present.
+ */
+export function getAvailableRoles(user: AuthUser | null | undefined): UserRole[] {
+  if (!user) return [];
+  const roles: UserRole[] = [];
+  if (user.teacherProfileId) roles.push('TEACHER');
+  if (user.secretariatProfileId) roles.push('SECRETARIAT');
+  if (user.studentProfileId) roles.push('STUDENT');
+  if (user.parentProfileId) roles.push('PARENT');
+  return roles;
+}
+
+/**
+ * Returns true if the user has more than one profile (eligible for role-switching).
+ */
+export function hasMultipleRoles(user: AuthUser | null | undefined): boolean {
+  return getAvailableRoles(user).length > 1;
+}
+
+/**
+ * Maps a UserRole to a human-readable Arabic label.
+ */
+export function getRoleLabel(role: UserRole): string {
+  switch (role) {
+    case 'TEACHER': return 'مدرس';
+    case 'SECRETARIAT': return 'مساعد / سكرتارية';
+    case 'STUDENT': return 'طالب';
+    case 'PARENT': return 'ولي أمر';
+    default: return 'مستخدم';
+  }
+}
+
+/**
+ * Maps a UserRole to an emoji/icon identifier for the role picker UI.
+ */
+export function getRoleIcon(role: UserRole): string {
+  switch (role) {
+    case 'TEACHER': return 'teacher';
+    case 'SECRETARIAT': return 'secretariat';
+    case 'STUDENT': return 'student';
+    case 'PARENT': return 'parent';
+    default: return 'user';
+  }
 }

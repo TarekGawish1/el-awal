@@ -6,7 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { loginUser, logoutUser } from '../api/auth.api';
 import { useAuthStore } from '../store/auth.store';
 import { LoginCredentials, AuthTokensResponse } from '../types/auth.types';
-import { getRoleLandingRoute, sanitizeRedirectUrl } from '../utils/role-routing';
+import { getRoleLandingRoute, sanitizeRedirectUrl, hasMultipleRoles } from '../utils/role-routing';
 import { ApiError } from '@/lib/api/errors';
 import { offlineDb } from '@/lib/offline/db';
 import toast from 'react-hot-toast';
@@ -86,13 +86,19 @@ export function useAuth() {
         });
       }
 
-      // 4. Determine redirect path (query param or role-based landing)
+      // 4. If user has multiple profiles, redirect to role selection screen
+      if (hasMultipleRoles(data.user)) {
+        router.push('/select-role');
+        return;
+      }
+
+      // 5. Determine redirect path (query param or role-based landing)
       const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
       const requestedRedirect = searchParams?.get('redirect');
       const safeRedirect = sanitizeRedirectUrl(requestedRedirect, data.user.role);
       const destination = safeRedirect || getRoleLandingRoute(data.user.role);
 
-      // 5. Navigate to destination
+      // 6. Navigate to destination
       router.push(destination);
     },
   });

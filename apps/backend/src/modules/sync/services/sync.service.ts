@@ -989,17 +989,23 @@ export class SyncService {
 
           // 2. Resolve target student
           let resolvedStudentId = op.studentId;
-          if (!resolvedStudentId && op.qrCodeToken) {
-            const student = await tx.studentProfile.findFirst({
-              where: {
-                OR: [
-                  { qrCodeToken: op.qrCodeToken.trim() },
-                  { id: op.qrCodeToken.trim() },
-                ],
-              },
-            });
-            if (student) {
-              resolvedStudentId = student.id;
+          const isTargetUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resolvedStudentId || '');
+          if ((!resolvedStudentId || !isTargetUuid) && (op.qrCodeToken || resolvedStudentId)) {
+            const tokenToLookup = (op.qrCodeToken || resolvedStudentId).trim();
+            const isLookupUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tokenToLookup);
+            if (tx.studentProfile?.findFirst) {
+              const student = await tx.studentProfile.findFirst({
+                where: {
+                  OR: [
+                    { qrCodeToken: tokenToLookup },
+                    { studentCode: tokenToLookup },
+                    ...(isLookupUuid ? [{ id: tokenToLookup }] : []),
+                  ],
+                },
+              });
+              if (student) {
+                resolvedStudentId = student.id;
+              }
             }
           }
 
@@ -2096,14 +2102,17 @@ export class SyncService {
             } = mutation.payload || {};
 
             let targetStudentId = studentId;
+            const isTargetUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetStudentId || '');
 
-            if (!targetStudentId && qrCodeToken) {
+            if ((!targetStudentId || !isTargetUuid) && (qrCodeToken || targetStudentId)) {
+              const lookupToken = (qrCodeToken || targetStudentId).trim();
+              const isLookupUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lookupToken);
               const student = await this.prisma.studentProfile.findFirst({
                 where: {
                   OR: [
-                    { id: qrCodeToken },
-                    { qrCodeToken: qrCodeToken },
-                    { studentCode: qrCodeToken },
+                    { qrCodeToken: lookupToken },
+                    { studentCode: lookupToken },
+                    ...(isLookupUuid ? [{ id: lookupToken }] : []),
                   ],
                   user: { isActive: true },
                 },
@@ -2293,10 +2302,11 @@ export class SyncService {
               mutation.payload || {};
 
             let targetStudentId = studentId;
+            const isTargetUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetStudentId || '');
 
-            // 1. Resolve uncached QR codes
-            if (!targetStudentId && qrCodeToken) {
-              const trimmedToken = qrCodeToken.trim();
+            // 1. Resolve uncached QR codes or non-UUID tokens
+            if ((!targetStudentId || !isTargetUuid) && (qrCodeToken || targetStudentId)) {
+              const trimmedToken = (qrCodeToken || targetStudentId).trim();
               const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmedToken);
               
               const student = await this.prisma.studentProfile.findFirst({
@@ -2524,17 +2534,23 @@ export class SyncService {
 
           // 3. Resolve target student
           let resolvedStudentId = op.studentId;
-          if (!resolvedStudentId && op.qrCodeToken) {
-            const student = await tx.studentProfile.findFirst({
-              where: {
-                OR: [
-                  { qrCodeToken: op.qrCodeToken.trim() },
-                  { id: op.qrCodeToken.trim() },
-                ],
-              },
-            });
-            if (student) {
-              resolvedStudentId = student.id;
+          const isTargetUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resolvedStudentId || '');
+          if ((!resolvedStudentId || !isTargetUuid) && (op.qrCodeToken || resolvedStudentId)) {
+            const tokenToLookup = (op.qrCodeToken || resolvedStudentId).trim();
+            const isLookupUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tokenToLookup);
+            if (tx.studentProfile?.findFirst) {
+              const student = await tx.studentProfile.findFirst({
+                where: {
+                  OR: [
+                    { qrCodeToken: tokenToLookup },
+                    { studentCode: tokenToLookup },
+                    ...(isLookupUuid ? [{ id: tokenToLookup }] : []),
+                  ],
+                },
+              });
+              if (student) {
+                resolvedStudentId = student.id;
+              }
             }
           }
 

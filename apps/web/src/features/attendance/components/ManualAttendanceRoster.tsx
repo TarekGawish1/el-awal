@@ -27,11 +27,17 @@ export function ManualAttendanceRoster({ sessionId, records, isCompact = false }
 
   const { mutate, isPending, error, isSuccess } = useManualAttendance();
 
+  const filteredRecords = React.useMemo(() => {
+    return (records || []).filter(
+      (r) => r.fullName !== 'طالب غير متزامن' && !String(r.studentId).startsWith('qr_tok_')
+    );
+  }, [records]);
+
   useEffect(() => {
     const initialStatusState: Record<string, AttendanceStatus> = {};
     const initialNotesState: Record<string, string> = {};
 
-    records.forEach((r) => {
+    filteredRecords.forEach((r) => {
       if (r.status) {
         initialStatusState[r.studentId] = r.status;
       }
@@ -43,7 +49,7 @@ export function ManualAttendanceRoster({ sessionId, records, isCompact = false }
     setLocalRecords(initialStatusState);
     setLocalNotes(initialNotesState);
     setHasChanges(false);
-  }, [records]);
+  }, [filteredRecords]);
 
   const handleStatusChange = (
     studentId: string,
@@ -126,7 +132,7 @@ export function ManualAttendanceRoster({ sessionId, records, isCompact = false }
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
-            {records.length === 0 ? (
+            {filteredRecords.length === 0 ? (
               <tr>
                 <td colSpan={3} className="px-6 py-12 text-center text-slate-500">
                   <div className="flex flex-col items-center justify-center space-y-2">
@@ -138,7 +144,7 @@ export function ManualAttendanceRoster({ sessionId, records, isCompact = false }
                 </td>
               </tr>
             ) : (
-              records.map((record) => {
+              filteredRecords.map((record) => {
                 const currentStatus = localRecords[record.studentId] || record.status;
                 const currentNote = localNotes[record.studentId];
 
@@ -221,12 +227,12 @@ export function ManualAttendanceRoster({ sessionId, records, isCompact = false }
 
       {/* Mobile Card Roster View */}
       <div className="block md:hidden space-y-3">
-        {records.length === 0 ? (
+        {filteredRecords.length === 0 ? (
           <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-100 text-slate-500 text-sm">
             لا يوجد طلاب مسجلين في هذه المجموعة.
           </div>
         ) : (
-          records.map((record) => {
+          filteredRecords.map((record) => {
             const currentStatus = localRecords[record.studentId] || record.status;
             const currentNote = localNotes[record.studentId];
 
