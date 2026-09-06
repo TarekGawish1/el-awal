@@ -356,8 +356,8 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
                 <div className="relative">
                   <input
                     type="number"
-                    min="1"
-                    step="10"
+                    min="0"
+                    step="1"
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                     placeholder="مثال: 250"
