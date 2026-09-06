@@ -101,4 +101,51 @@ describe('PaymentsService matrix ledger', () => {
     expect(result.students[0].bookletPayments['grade-10-booklet']).toMatchObject({ isApplicable: true, isPaid: false });
     expect(result.students[0].bookletPayments['grade-12-booklet']).toMatchObject({ isApplicable: false, isPaid: false, amountPaid: 0 });
   });
+
+  it('correctly calculates prorated tuition in the matrix ledger for mid-month enrollments', async () => {
+    const students = [
+      // Enrolled Aug 5 (Full 100% -> 300 EGP)
+      {
+        id: 'stu-day5', studentCode: 'STU-5', gradeLevel: 'الصف الأول الثانوي', user: { fullName: 'طالب 5', phone: '' },
+        groupEnrollments: [{ groupId: 'group-1', enrolledAt: new Date('2026-08-05T00:00:00Z'), group: { id: 'group-1', name: 'المجموعة أ', monthlyFee: 300 } }],
+      },
+      // Enrolled Aug 14 (Half 50% -> 150 EGP)
+      {
+        id: 'stu-day14', studentCode: 'STU-14', gradeLevel: 'الصف الأول الثانوي', user: { fullName: 'طالب 14', phone: '' },
+        groupEnrollments: [{ groupId: 'group-1', enrolledAt: new Date('2026-08-14T00:00:00Z'), group: { id: 'group-1', name: 'المجموعة أ', monthlyFee: 300 } }],
+      },
+      // Enrolled Aug 25 (Exempt 0% -> 0 EGP, isPaid: true)
+      {
+        id: 'stu-day25', studentCode: 'STU-25', gradeLevel: 'الصف الأول الثانوي', user: { fullName: 'طالب 25', phone: '' },
+        groupEnrollments: [{ groupId: 'group-1', enrolledAt: new Date('2026-08-25T00:00:00Z'), group: { id: 'group-1', name: 'المجموعة أ', monthlyFee: 300 } }],
+      },
+    ];
+
+    prisma.studentProfile.count.mockResolvedValue(students.length);
+    prisma.studentProfile.findMany.mockResolvedValue(students);
+    prisma.booklet.findMany.mockResolvedValue([]);
+    prisma.studentPaymentRecord.findMany.mockResolvedValue([]);
+
+    const result = await service.getMatrixLedger(
+      { id: 'teacher-user', teacherProfileId: 'teacher-1', role: UserRole.TEACHER },
+      { academicPeriodId: '2026-2027:FIRST_TERM' },
+    );
+
+    // Month 8 is August
+    const s1Month8 = result.students[0].monthlyPayments[8];
+    expect(s1Month8.amountExpected).toBe(300);
+    expect(s1Month8.rateMultiplier).toBe(1.0);
+    expect(s1Month8.isPaid).toBe(false);
+
+    const s2Month8 = result.students[1].monthlyPayments[8];
+    expect(s2Month8.amountExpected).toBe(150);
+    expect(s2Month8.rateMultiplier).toBe(0.5);
+    expect(s2Month8.isPaid).toBe(false);
+
+    const s3Month8 = result.students[2].monthlyPayments[8];
+    expect(s3Month8.amountExpected).toBe(0);
+    expect(s3Month8.rateMultiplier).toBe(0.0);
+    expect(s3Month8.isPaid).toBe(true); // Exempt
+  });
 });
+

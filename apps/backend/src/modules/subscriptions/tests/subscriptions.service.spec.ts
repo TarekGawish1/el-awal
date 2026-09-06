@@ -369,6 +369,78 @@ describe('SubscriptionsService', () => {
       expect(result.totalDefaulters).toBe(1);
       expect(result.defaulters[0].studentId).toBe('stu-2');
     });
+
+    it('should correctly prorate expected tuition fees based on mid-month enrollment dates', async () => {
+      const groupId = 'group-prorate-1';
+
+      mockPrismaService.academicGroup.findUnique.mockResolvedValue({
+        id: groupId,
+        name: 'مجموعة النخبة',
+        monthlyFee: 300.0,
+      });
+
+      mockPrismaService.groupEnrollment.findMany.mockResolvedValue([
+        // Student 1: Enrolled Sept 5 (Days 1-9 -> 100% full fee: 300)
+        {
+          studentId: 'stu-early',
+          enrolledAt: new Date('2026-09-05T10:00:00Z'),
+          status: GroupEnrollmentStatus.ACTIVE,
+          student: {
+            id: 'stu-early',
+            studentCode: 'STU-001',
+            gradeLevel: 'الصف الأول',
+            user: { fullName: 'طالب أول الشهر', phone: '0101' },
+            parentLinks: [],
+          },
+        },
+        // Student 2: Enrolled Sept 15 (Days 10-20 -> 50% half fee: 150)
+        {
+          studentId: 'stu-mid',
+          enrolledAt: new Date('2026-09-15T10:00:00Z'),
+          status: GroupEnrollmentStatus.ACTIVE,
+          student: {
+            id: 'stu-mid',
+            studentCode: 'STU-002',
+            gradeLevel: 'الصف الأول',
+            user: { fullName: 'طالب منتصف الشهر', phone: '0102' },
+            parentLinks: [],
+          },
+        },
+        // Student 3: Enrolled Sept 25 (Day 21+ -> Exempt: 0 fee, not a defaulter)
+        {
+          studentId: 'stu-late',
+          enrolledAt: new Date('2026-09-25T10:00:00Z'),
+          status: GroupEnrollmentStatus.ACTIVE,
+          student: {
+            id: 'stu-late',
+            studentCode: 'STU-003',
+            gradeLevel: 'الصف الأول',
+            user: { fullName: 'طالب نهاية الشهر', phone: '0103' },
+            parentLinks: [],
+          },
+        },
+      ]);
+
+      mockPrismaService.studentPaymentRecord.findMany.mockResolvedValue([]);
+
+      const result = await service.getGroupDefaulters(groupId, 2026, 9, mockUser);
+
+      expect(result.totalEnrolled).toBe(3);
+      // Late student is exempt (0 expected fee), so only early and mid students are defaulters
+      expect(result.totalDefaulters).toBe(2);
+
+      const earlyDefaulter = result.defaulters.find((d: any) => d.studentId === 'stu-early');
+      expect(earlyDefaulter).toBeDefined();
+      expect(earlyDefaulter.monthlyFeeExpected).toBe(300);
+      expect(earlyDefaulter.rateMultiplier).toBe(1.0);
+      expect(earlyDefaulter.calculationReason).toBe('اشتراك شهر كامل (انضمام قبل يوم 10)');
+
+      const midDefaulter = result.defaulters.find((d: any) => d.studentId === 'stu-mid');
+      expect(midDefaulter).toBeDefined();
+      expect(midDefaulter.monthlyFeeExpected).toBe(150);
+      expect(midDefaulter.rateMultiplier).toBe(0.5);
+      expect(midDefaulter.calculationReason).toBe('نصف شهر (انضمام بين يوم 10 و 20 في الشهر)');
+    });
   });
 
   describe('scanPaymentQr', () => {

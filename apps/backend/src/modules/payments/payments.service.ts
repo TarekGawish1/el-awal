@@ -4,6 +4,11 @@ import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../core/security/decorators/current-user.decorator';
 import { MatrixLedgerQueryDto } from './dto/matrix-ledger-query.dto';
 import { FinanceAnalyticsQueryDto } from './dto/finance-analytics-query.dto';
+import {
+  calculateProratedTuition,
+  isEnrolledInPeriod,
+  isPeriodBeforeEnrollment,
+} from '../subscriptions/utils/proration.util';
 
 const FIRST_TERM_MONTHS = [8, 9, 10, 11, 12, 1];
 const SECOND_TERM_MONTHS = [2, 3, 4, 5, 6, 7];
@@ -322,9 +327,8 @@ export class PaymentsService {
       const enrollmentDate = enrollment?.enrolledAt ? new Date(enrollment.enrolledAt) : new Date(student.createdAt);
       const enrollYear = enrollmentDate.getFullYear();
       const enrollMonth = enrollmentDate.getMonth() + 1;
-      const enrollDay = enrollmentDate.getDate();
 
-      const monthlyPayments: Record<number, { paymentId?: string; isApplicable?: boolean; isPaid: boolean; isPartiallyPaid: boolean; amountPaid: number; amountExpected: number; remainingAmount: number; paidAt?: Date; isStarted: boolean }> = {};
+      const monthlyPayments: Record<number, { paymentId?: string; isApplicable?: boolean; isPaid: boolean; isPartiallyPaid: boolean; amountPaid: number; amountExpected: number; remainingAmount: number; paidAt?: Date; isStarted: boolean; calculationReason?: string; rateMultiplier?: number }> = {};
       const bookletPayments: Record<string, { paymentId?: string; isApplicable: boolean; isPaid: boolean; isPartiallyPaid: boolean; amountPaid: number; amountExpected: number; remainingAmount: number; paidAt?: Date }> = {};
       let totalDue = 0;
       let totalPaid = 0;
@@ -338,10 +342,22 @@ export class PaymentsService {
         // Check if month is before enrollment date
         const isBeforeEnrollment = monthYear < enrollYear || (monthYear === enrollYear && month < enrollMonth);
         const isJoiningMonth = monthYear === enrollYear && month === enrollMonth;
-        const isHalfMonth = isJoiningMonth && enrollDay > 15;
-        const effectiveFee = isBeforeEnrollment ? 0 : isHalfMonth ? Math.round(monthlyFee / 2) : monthlyFee;
 
-        const isPaid = isBeforeEnrollment ? false : Boolean(payment && (payment.isPaid || amountPaid >= effectiveFee) && (effectiveFee === 0 || amountPaid > 0));
+        let effectiveFee = monthlyFee;
+        let prorationReason: string | undefined = undefined;
+        let rateMultiplier = 1.0;
+
+        if (isBeforeEnrollment) {
+          effectiveFee = 0;
+        } else if (isJoiningMonth) {
+          const proration = calculateProratedTuition(monthlyFee, enrollmentDate);
+          effectiveFee = proration.expectedAmount;
+          prorationReason = proration.calculationReason;
+          rateMultiplier = proration.rateMultiplier;
+        }
+
+        const isExemptByProration = isJoiningMonth && effectiveFee === 0;
+        const isPaid = isBeforeEnrollment ? false : Boolean((payment && (payment.isPaid || amountPaid >= effectiveFee) && (effectiveFee === 0 || amountPaid > 0)) || (isExemptByProration && !payment));
         const isPartiallyPaid = Boolean(!isBeforeEnrollment && amountPaid > 0 && amountPaid < effectiveFee);
         const isStarted = this.isMonthStarted(academicYear, academicTerm, month, paymentTiming);
 
@@ -355,6 +371,8 @@ export class PaymentsService {
           remainingAmount: isBeforeEnrollment ? 0 : Math.max(0, effectiveFee - amountPaid),
           paidAt: payment?.paidAt,
           isStarted,
+          calculationReason: prorationReason,
+          rateMultiplier,
         };
         totalPaid += amountPaid;
         if (isStarted && !isBeforeEnrollment) {
@@ -550,13 +568,15 @@ export class PaymentsService {
           for (const m of billingMonths) {
             const mYear = m >= 8 ? startYear : startYear + 1;
             if (enrollment.enrolledAt) {
-              if (mYear < enrollYear || (mYear === enrollYear && m < enrollMonth)) {
+              if (isPeriodBeforeEnrollment(enrollmentDate, mYear, m)) {
                 continue;
               }
             }
 
-            const isJoiningMonth = Boolean(enrollment.enrolledAt && mYear === enrollYear && m === enrollMonth);
-            const fee = isJoiningMonth && enrollDay > 15 ? Math.round(groupFee / 2) : groupFee;
+            const isJoiningMonth = Boolean(enrollment.enrolledAt && isEnrolledInPeriod(enrollmentDate, mYear, m));
+            const fee = isJoiningMonth
+              ? calculateProratedTuition(groupFee, enrollmentDate).expectedAmount
+              : groupFee;
             studentExpected += fee;
           }
           tuitionExpectedByGroup.set(groupId, (tuitionExpectedByGroup.get(groupId) || 0) + studentExpected);
@@ -808,13 +828,15 @@ export class PaymentsService {
           for (const m of billingMonths) {
             const mYear = m >= 8 ? startYear : startYear + 1;
             if (enrollment.enrolledAt) {
-              if (mYear < enrollYear || (mYear === enrollYear && m < enrollMonth)) {
+              if (isPeriodBeforeEnrollment(enrollmentDate, mYear, m)) {
                 continue;
               }
             }
 
-            const isJoiningMonth = Boolean(enrollment.enrolledAt && mYear === enrollYear && m === enrollMonth);
-            const fee = isJoiningMonth && enrollDay > 15 ? Math.round(groupFee / 2) : groupFee;
+            const isJoiningMonth = Boolean(enrollment.enrolledAt && isEnrolledInPeriod(enrollmentDate, mYear, m));
+            const fee = isJoiningMonth
+              ? calculateProratedTuition(groupFee, enrollmentDate).expectedAmount
+              : groupFee;
             studentExpected += fee;
           }
           tuitionExpectedByGroup.set(groupId, (tuitionExpectedByGroup.get(groupId) || 0) + studentExpected);

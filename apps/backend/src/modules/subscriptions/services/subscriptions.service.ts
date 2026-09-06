@@ -14,6 +14,11 @@ import { CancelPaymentDto } from '../dto/cancel-payment.dto';
 import { PaymentStatus, PaymentType, GroupEnrollmentStatus, UserRole } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
+import {
+  calculateProratedTuition,
+  isEnrolledInPeriod,
+  isPeriodBeforeEnrollment,
+} from '../utils/proration.util';
 
 @Injectable()
 export class SubscriptionsService {
@@ -233,7 +238,13 @@ export class SubscriptionsService {
 
       groupName = group.name;
       if (amountExpected === undefined) {
-        amountExpected = Number(group.monthlyFee);
+        if (enrollment.enrolledAt && isEnrolledInPeriod(enrollment.enrolledAt, periodYear, periodMonth)) {
+          amountExpected = calculateProratedTuition(Number(group.monthlyFee), new Date(enrollment.enrolledAt)).expectedAmount;
+        } else if (enrollment.enrolledAt && isPeriodBeforeEnrollment(enrollment.enrolledAt, periodYear, periodMonth)) {
+          amountExpected = 0;
+        } else {
+          amountExpected = Number(group.monthlyFee);
+        }
       }
     }
 
@@ -533,6 +544,7 @@ export class SubscriptionsService {
 
     // Flow B: QR Tuition Payment
     let targetGroup: { id: string; name: string; monthlyFee: any; teacherId: string } | null = null;
+    let targetEnrollment: any = null;
 
     if (dto.groupId) {
       const group = await this.prisma.academicGroup.findUnique({
@@ -550,6 +562,7 @@ export class SubscriptionsService {
       }
 
       targetGroup = group;
+      targetEnrollment = student.groupEnrollments.find((e) => e.groupId === group.id);
     } else {
       // Auto-resolve group from student's active enrollments
       let eligibleEnrollments = student.groupEnrollments;
@@ -562,10 +575,19 @@ export class SubscriptionsService {
 
       if (eligibleEnrollments.length > 0) {
         targetGroup = eligibleEnrollments[0].group;
+        targetEnrollment = eligibleEnrollments[0];
       }
     }
 
-    const amountExpected = targetGroup ? Number(targetGroup.monthlyFee) : 0;
+    let defaultExpected = targetGroup ? Number(targetGroup.monthlyFee) : 0;
+    if (targetGroup && targetEnrollment?.enrolledAt) {
+      if (isEnrolledInPeriod(targetEnrollment.enrolledAt, periodYear, periodMonth)) {
+        defaultExpected = calculateProratedTuition(Number(targetGroup.monthlyFee), new Date(targetEnrollment.enrolledAt)).expectedAmount;
+      } else if (isPeriodBeforeEnrollment(targetEnrollment.enrolledAt, periodYear, periodMonth)) {
+        defaultExpected = 0;
+      }
+    }
+    const amountExpected = defaultExpected;
     const amountPaid = dto.amountPaid !== undefined ? dto.amountPaid : amountExpected;
 
     // 3. Check for previous payment in this period
@@ -900,19 +922,24 @@ export class SubscriptionsService {
       ? []
       : enrollments
           .filter((e) => {
-            const enrollmentDate = new Date(e.enrolledAt);
-            const enrollYear = enrollmentDate.getFullYear();
-            const enrollMonth = enrollmentDate.getMonth() + 1;
-            const enrollDay = enrollmentDate.getDate();
+            const enrollmentDate = e.enrolledAt ? new Date(e.enrolledAt) : null;
 
             // 1. If period is before the student enrolled, do NOT ask him to pay!
-            if (periodYear < enrollYear || (periodYear === enrollYear && periodMonth < enrollMonth)) {
+            if (enrollmentDate && isPeriodBeforeEnrollment(enrollmentDate, periodYear, periodMonth)) {
               return false;
             }
 
-            // 2. If enrolled in middle of month (> day 15), expect half month fee
-            const isJoiningMonth = periodYear === enrollYear && periodMonth === enrollMonth;
-            const expectedFee = isJoiningMonth && enrollDay > 15 ? Math.round(groupFee / 2) : groupFee;
+            // 2. Prorated calculation for joining month
+            const isJoiningMonth = enrollmentDate ? isEnrolledInPeriod(enrollmentDate, periodYear, periodMonth) : false;
+            const prorated = isJoiningMonth && enrollmentDate
+              ? calculateProratedTuition(groupFee, enrollmentDate)
+              : null;
+            const expectedFee = prorated ? prorated.expectedAmount : groupFee;
+
+            // Day 21 onwards exempt from current month: not a defaulter
+            if (expectedFee === 0) {
+              return false;
+            }
 
             const record = paymentMap.get(e.studentId);
             if (!record) return true;
@@ -921,12 +948,12 @@ export class SubscriptionsService {
             return !isFullyPaid;
           })
       .map((e) => {
-        const enrollmentDate = new Date(e.enrolledAt);
-        const enrollYear = enrollmentDate.getFullYear();
-        const enrollMonth = enrollmentDate.getMonth() + 1;
-        const enrollDay = enrollmentDate.getDate();
-        const isJoiningMonth = periodYear === enrollYear && periodMonth === enrollMonth;
-        const expectedFee = isJoiningMonth && enrollDay > 15 ? Math.round(groupFee / 2) : groupFee;
+        const enrollmentDate = e.enrolledAt ? new Date(e.enrolledAt) : null;
+        const isJoiningMonth = enrollmentDate ? isEnrolledInPeriod(enrollmentDate, periodYear, periodMonth) : false;
+        const proration = isJoiningMonth && enrollmentDate
+          ? calculateProratedTuition(groupFee, enrollmentDate)
+          : null;
+        const expectedFee = proration ? proration.expectedAmount : groupFee;
 
         const record = paymentMap.get(e.studentId);
         const amountPaid = Number(record?.amountPaid || 0);
@@ -944,6 +971,8 @@ export class SubscriptionsService {
           paymentRecordId: record?.id || null,
           parentName: e.student.parentLinks[0]?.parent.user.fullName || null,
           parentPhone: e.student.parentLinks[0]?.parent.user.phone || null,
+          calculationReason: proration?.calculationReason || null,
+          rateMultiplier: proration?.rateMultiplier ?? 1.0,
         };
       });
 
