@@ -109,7 +109,7 @@ export class OfflineSyncEngine {
     // Perform initial downstream delta pull to populate local db on startup
     if (typeof navigator !== 'undefined' && navigator.onLine) {
       setTimeout(() => {
-        this.checkAndSync();
+        this.checkAndSync({ skipCooldown: true });
       }, 1000);
     }
   }
@@ -129,12 +129,12 @@ export class OfflineSyncEngine {
       // Auto-sync on window focus or tab visibility (e.g. returning to app)
       window.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible' && navigator.onLine) {
-          this.checkAndSync();
+          this.checkAndSync({ skipCooldown: true });
         }
       });
       window.addEventListener('focus', () => {
         if (navigator.onLine) {
-          this.checkAndSync();
+          this.checkAndSync({ skipCooldown: true });
         }
       });
 
@@ -437,12 +437,11 @@ export class OfflineSyncEngine {
         this.notify('ONLINE');
         const pendingCount = await offlineDb.getPendingCount();
         if (pendingCount > 0) {
-          // Silent auto-syncing on reconnection is disabled: pause automatic
-          // dispatching and require explicit user confirmation via <SyncConfirmationModal />.
           this.syncConfirmationRequired = true;
           this.notify('SYNC_REVIEW_REQUIRED', { pendingCount });
         } else {
-          this.triggerSync();
+          this.syncConfirmationRequired = false;
+          this.checkAndSync({ skipCooldown: true });
         }
       } else {
         this.notify('OFFLINE');
@@ -537,10 +536,9 @@ export class OfflineSyncEngine {
     }, 300);
   }
 
-  private async checkAndSync() {
+  public async checkAndSync(options?: { skipCooldown?: boolean }) {
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : this.isOnlineState;
     if (!isOnline) return;
-    if (this.syncConfirmationRequired) return;
 
     const verified = await this.verifyConnection();
     if (verified) {
@@ -551,7 +549,10 @@ export class OfflineSyncEngine {
       //    added by other devices into the local IndexedDB database
       if (this.isAutoSyncEnabled() && !bootstrapManager.isBootstrapping()) {
         try {
-          await bootstrapManager.performBootstrap({ queryClient: this.queryClient });
+          await bootstrapManager.performBootstrap({
+            queryClient: this.queryClient,
+            skipCooldown: options?.skipCooldown,
+          });
         } catch (err) {
           console.warn('Background auto-pull downstream sync error:', err);
         }

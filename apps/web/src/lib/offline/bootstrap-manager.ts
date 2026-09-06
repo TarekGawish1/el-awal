@@ -269,9 +269,22 @@ class BootstrapManager {
           qc.invalidateQueries({ queryKey: ['today-sessions'] });
           qc.invalidateQueries({ queryKey: ['sessions'] });
         }
+        if (payload.attendance.length > 0) {
+          qc.invalidateQueries({ queryKey: ['attendance'] });
+          qc.invalidateQueries({ queryKey: ['sessions'] });
+          qc.invalidateQueries({ queryKey: ['today-sessions'] });
+        }
+        if (payload.homework.length > 0) {
+          qc.invalidateQueries({ queryKey: ['homework-records'] });
+          qc.invalidateQueries({ queryKey: ['sessions'] });
+        }
         if (payload.payments.length > 0) qc.invalidateQueries({ queryKey: ['payments'] });
         if (payload.booklets.length > 0) qc.invalidateQueries({ queryKey: ['booklets'] });
         if (payload.assessments.length > 0) qc.invalidateQueries({ queryKey: ['assessments'] });
+
+        if (typeof qc.refetchQueries === 'function') {
+          qc.refetchQueries({ type: 'active' });
+        }
       }
 
       const syncTimestamp = response.timestamp || rootData.timestamp || Date.now();

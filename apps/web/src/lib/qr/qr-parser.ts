@@ -152,6 +152,7 @@ export function parseStudentQr(rawInput: unknown): ParsedQrPayload {
     raw.startsWith('qr_token_') ||
     /^QR[-_]/i.test(raw) ||
     /^qr[-_]/i.test(raw) ||
+    /^STU[-_]?\d+/i.test(raw) ||
     /^STU[-_]/i.test(raw) ||
     /^stu[-_]/i.test(raw) ||
     isUuid
@@ -162,7 +163,7 @@ export function parseStudentQr(rawInput: unknown): ParsedQrPayload {
       type: 'STUDENT_QR',
       token: raw,
       studentId: isUuid ? raw : undefined,
-      studentCode: /^STU[-_]/i.test(raw) ? raw : undefined,
+      studentCode: /^STU/i.test(raw) ? raw : undefined,
     };
   }
 

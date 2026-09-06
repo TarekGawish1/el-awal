@@ -93,7 +93,8 @@ export function useTodaySessions(
       }
     },
     networkMode: 'always',
-    staleTime: 30 * 1000,
+    staleTime: 10 * 1000,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -319,7 +320,11 @@ export function useSessionReport(sessionId: string | null) {
     },
     enabled: !!sessionId,
     networkMode: 'always',
-    staleTime: 30 * 1000,
+    staleTime: 5 * 1000,
+    refetchOnWindowFocus: true,
+    refetchInterval: () => {
+      return typeof navigator !== 'undefined' && navigator.onLine ? 5000 : false;
+    },
   });
 }
 

@@ -41,6 +41,8 @@ export function QrHomeworkScanner({
   assessmentTitle = 'واجب الحصة الدراسية',
   onSuccess,
 }: QrHomeworkScannerProps) {
+  const [activeAssessmentId, setActiveAssessmentId] = useState<string>(assessmentId);
+  const [availableAssessments, setAvailableAssessments] = useState<Array<{ id: string; title: string }>>([]);
   const [locked, setLocked] = useState(false);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [cameraKey, setCameraKey] = useState(0);
@@ -74,6 +76,22 @@ export function QrHomeworkScanner({
 
   useEffect(() => {
     let isMounted = true;
+    const effectiveGroupId = groupId || sessionReport?.groupId;
+
+    // Load available homework assessments for this group from IndexedDB
+    offlineDb.getAssessmentsOffline().then((allAssessments) => {
+      if (!isMounted) return;
+      const matchingHw = allAssessments.filter(
+        (a: any) =>
+          (a.type === 'ASSIGNMENT' || a.assessmentType === 'ASSIGNMENT') &&
+          (!effectiveGroupId || !a.groupId || a.groupId === effectiveGroupId)
+      );
+      setAvailableAssessments(matchingHw.map((a: any) => ({ id: a.id, title: a.title })));
+      if (matchingHw.length > 0 && activeAssessmentId === 'default-session-homework') {
+        setActiveAssessmentId(matchingHw[0].id);
+      }
+    }).catch(() => {});
+
     if (sessionReport?.records && Array.isArray(sessionReport.records)) {
       for (const r of sessionReport.records) {
         if (r.studentId) {
@@ -109,7 +127,7 @@ export function QrHomeworkScanner({
     }
 
     offlineDb
-      .getHomeworkRecordsForSession(sessionId, assessmentId)
+      .getHomeworkRecordsForSession(sessionId, activeAssessmentId)
       .then((records) => {
         if (isMounted) {
           setLocalHomeworkRecords(records);
@@ -122,7 +140,7 @@ export function QrHomeworkScanner({
     return () => {
       isMounted = false;
     };
-  }, [sessionId, assessmentId, sessionReport, groupId]);
+  }, [sessionId, activeAssessmentId, sessionReport, groupId]);
 
   const playBeep = useCallback(
     (type: 'success' | 'duplicate' | 'error') => {
@@ -255,7 +273,7 @@ export function QrHomeworkScanner({
       }
 
       // ── Duplicate check: already has a homework record for this session?
-      const existingHw = await offlineDb.getHomeworkRecordsForSession(sessionId, assessmentId);
+      const existingHw = await offlineDb.getHomeworkRecordsForSession(sessionId, activeAssessmentId);
       const alreadyRecorded = existingHw.find(
         (h) => h.studentId === student.id || h.studentId === cleanToken
       );
@@ -293,7 +311,7 @@ export function QrHomeworkScanner({
 
       // 1. Save homework record + auto-record attendance in IndexedDB atomically
       const { attendanceRecord } = await offlineDb.recordHomeworkOnsiteOffline({
-        assessmentId,
+        assessmentId: activeAssessmentId,
         studentId: scannedStudent.id,
         sessionId,
         status,
@@ -379,7 +397,7 @@ export function QrHomeworkScanner({
       const studentCode = student.studentCode || '';
 
       await offlineDb.recordHomeworkOnsiteOffline({
-        assessmentId,
+        assessmentId: activeAssessmentId,
         studentId: student.studentId || student.id,
         sessionId,
         status,
@@ -411,17 +429,29 @@ export function QrHomeworkScanner({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-indigo-50/70 border border-indigo-200">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm shrink-0">
             <ClipboardCheck className="w-5 h-5" />
           </div>
           <div>
             <h3 className="font-bold text-slate-800 text-sm md:text-base">
               QR للواجب و الحضور معاً
             </h3>
-            <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
-              <span>سيتم سؤالك عن حالة الواجب بعد المسح.</span>
-            </p>
+            <div className="flex flex-wrap items-center gap-2 mt-1.5">
+              <span className="text-xs font-semibold text-slate-600">الواجب المراد تقييمه:</span>
+              <select
+                value={activeAssessmentId}
+                onChange={(e) => setActiveAssessmentId(e.target.value)}
+                className="text-xs font-bold bg-white border border-indigo-200 rounded-lg px-2.5 py-1 text-slate-800 focus:ring-1 focus:ring-indigo-500 shadow-xs cursor-pointer"
+              >
+                <option value="default-session-homework">{assessmentTitle} (تلقائي)</option>
+                {availableAssessments.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.title}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 

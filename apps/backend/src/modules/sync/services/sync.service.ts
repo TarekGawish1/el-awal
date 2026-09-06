@@ -5,11 +5,13 @@ import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
+  Optional,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { CoursesService } from '../../courses/services/courses.service';
+import { RealtimeGateway } from '../../../realtime/realtime.gateway';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
 import { BatchProgressSyncDto } from '../dto/batch-progress-sync.dto';
 import { SyncAttendanceBatchDto } from '../dto/sync-attendance.dto';
@@ -77,6 +79,7 @@ export class SyncService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly coursesService: CoursesService,
+    @Optional() private readonly realtimeGateway?: RealtimeGateway,
   ) {}
 
   /**
@@ -568,7 +571,7 @@ export class SyncService {
             session: {
               groupId: { in: groupIds },
             },
-            ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
+            ...(sinceDate ? { recordedAt: { gte: sinceDate } } : {}),
           },
           include: {
             student: {
@@ -1099,6 +1102,10 @@ export class SyncService {
           });
         }
       }
+    }
+
+    if (result.syncedCount > 0) {
+      this.realtimeGateway?.notifyAttendanceChanged([user.id]);
     }
 
     return result;
@@ -2405,6 +2412,12 @@ export class SyncService {
       }
     }
 
+    const hasSuccessAttendanceOrHw = results.some((r) => r.status === 'SUCCESS');
+    if (hasSuccessAttendanceOrHw) {
+      this.realtimeGateway?.notifyAttendanceChanged([user.id]);
+      this.realtimeGateway?.notifyHomeworkChanged([user.id]);
+    }
+
     return results;
   }
 
@@ -2669,6 +2682,11 @@ export class SyncService {
           reason: err.message || 'Database error processing homework operation',
         });
       }
+    }
+
+    if (result.syncedCount > 0) {
+      this.realtimeGateway?.notifyHomeworkChanged([user.id]);
+      this.realtimeGateway?.notifyAttendanceChanged([user.id]);
     }
 
     return result;

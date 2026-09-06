@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ForbiddenException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../../core/database/prisma.service';
@@ -13,6 +14,7 @@ import { CursorPaginationDto } from '../../../common/dto/cursor-pagination.dto';
 import { AttendanceStatus, RecordingMethod, GroupEnrollmentStatus, UserRole } from '@prisma/client';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { isSessionEndedPlusOneHour } from '../utils/attendance.util';
+import { RealtimeGateway } from '../../../realtime/realtime.gateway';
 
 @Injectable()
 export class AttendanceService {
@@ -22,6 +24,7 @@ export class AttendanceService {
     private readonly prisma: PrismaService,
     private readonly attendanceRepository: AttendanceRepository,
     private readonly eventEmitter: EventEmitter2,
+    @Optional() private readonly realtimeGateway?: RealtimeGateway,
   ) {}
 
   /**
@@ -194,6 +197,8 @@ export class AttendanceService {
         })
       : '';
 
+    this.realtimeGateway?.notifyAttendanceChanged([user.id, session.group?.teacherId]);
+
     return {
       isDuplicate: result.isDuplicate,
       isCrossGroupSuccess: !directEnrollment,
@@ -317,6 +322,8 @@ export class AttendanceService {
         where: { groupId: session.groupId, status: GroupEnrollmentStatus.ACTIVE },
       }),
     ]);
+
+    this.realtimeGateway?.notifyAttendanceChanged([user.id, session.group?.teacherId]);
 
     return {
       sessionId,

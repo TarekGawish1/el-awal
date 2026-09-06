@@ -37,6 +37,7 @@ import { getNavigationSectionsForRole } from '@/config/navigation';
 import { usePendingReservations } from '@/features/groups';
 import { useRealtimeReservations } from '@/lib/realtime/useRealtimeReservations';
 import { useRealtimeInquiries } from '@/lib/realtime/useRealtimeInquiries';
+import { useRealtimeAttendance } from '@/lib/realtime/useRealtimeAttendance';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { NotificationBell } from '@/features/notifications/components/NotificationBell';
@@ -185,6 +186,7 @@ export default function DashboardLayout({
   const { data: pendingReservations } = usePendingReservations(isReservationsRole);
   const pendingReservationsCount = pendingReservations?.length ?? 0;
   useRealtimeReservations(isReservationsRole);
+  useRealtimeAttendance(isReservationsRole);
 
   // Unread website contact inquiries count badge (teacher/secretariat only) — pushed live via WebSocket
   const { data: unreadInquiriesCount = 0 } = useQuery({
