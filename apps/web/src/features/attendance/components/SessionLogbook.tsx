@@ -4,7 +4,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSessionReport, useManualAttendance } from '../hooks/use-attendance';
 import toast from 'react-hot-toast';
 import { offlineDb } from '@/lib/offline/db';
-import { ClipboardCheck, ClipboardList, CheckCircle2, XCircle, AlertTriangle, UserCheck, Search, ChevronDown } from 'lucide-react';
+import { apiClient } from '@/lib/api/client';
+import { syncEngine } from '@/lib/offline/sync-engine';
+import { useQueryClient } from '@tanstack/react-query';
+import { ClipboardCheck, ClipboardList, CheckCircle2, XCircle, AlertTriangle, UserCheck, Search, ChevronDown, RotateCcw } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 
 const ATTENDANCE_OPTIONS = {
@@ -85,6 +88,22 @@ function StatusDropdown({
               </button>
             );
           })}
+
+          {value && (
+            <div className="pt-1 mt-1 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  onChange('');
+                  setIsOpen(false);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-rose-500" />
+                <span>إلغاء التحديد</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -96,12 +115,38 @@ interface SessionLogbookProps {
 }
 
 export function SessionLogbook({ sessionId }: SessionLogbookProps) {
+  const queryClient = useQueryClient();
   const { data: sessionReport, isLoading } = useSessionReport(sessionId);
   const { mutate: updateAttendance } = useManualAttendance();
   const [homeworkRecords, setHomeworkRecords] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const handleAttendanceChange = (student: any, newStatus: string) => {
+  const handleAttendanceChange = async (student: any, newStatus: string) => {
+    if (!newStatus) {
+      // Revert/unrecord attendance selection
+      await offlineDb.revertAttendanceRecordOffline(sessionId, student.studentId);
+      if (syncEngine.isOnline()) {
+        try {
+          await apiClient(`/attendance/sessions/${sessionId}/records/${student.studentId}`, {
+            method: 'DELETE',
+          });
+        } catch (e) {
+          console.warn('Failed to delete attendance record online:', e);
+        }
+      } else {
+        await syncEngine.enqueue(
+          'attendance',
+          `/attendance/sessions/${sessionId}/records/${student.studentId}`,
+          'DELETE',
+          { sessionId, studentId: student.studentId },
+        );
+      }
+      queryClient.invalidateQueries({ queryKey: ['session-report', sessionId] });
+      queryClient.invalidateQueries({ queryKey: ['session-details', sessionId] });
+      toast.success(`تم إلغاء تسجيل حضور: ${student.fullName || student.studentName}`);
+      return;
+    }
+
     if (newStatus === 'ABSENT') {
       offlineDb.deleteHomeworkForSessionStudent(sessionId, student.studentId).catch(() => {});
       setHomeworkRecords((prev) => prev.filter((r) => r.studentId !== student.studentId));
@@ -123,6 +168,36 @@ export function SessionLogbook({ sessionId }: SessionLogbookProps) {
   };
 
   const handleHomeworkChange = async (student: any, newStatus: string) => {
+    if (!newStatus) {
+      // Revert/unrecord homework selection
+      try {
+        await offlineDb.deleteHomeworkForSessionStudent(sessionId, student.studentId);
+        if (syncEngine.isOnline()) {
+          try {
+            await apiClient(`/attendance/sessions/${sessionId}/homework/${student.studentId}`, {
+              method: 'DELETE',
+            });
+          } catch (e) {
+            console.warn('Failed to delete homework record online:', e);
+          }
+        } else {
+          await syncEngine.enqueue(
+            'attendance',
+            `/attendance/sessions/${sessionId}/homework/${student.studentId}`,
+            'DELETE',
+            { sessionId, studentId: student.studentId },
+          );
+        }
+        setHomeworkRecords((prev) => prev.filter((r) => r.studentId !== student.studentId));
+        queryClient.invalidateQueries({ queryKey: ['session-report', sessionId] });
+        queryClient.invalidateQueries({ queryKey: ['homework-records', sessionId] });
+        toast.success(`تم إلغاء تقييم واجب: ${student.fullName || student.studentName}`);
+      } catch (e) {
+        toast.error('حدث خطأ أثناء إلغاء الواجب');
+      }
+      return;
+    }
+
     try {
       await offlineDb.recordHomeworkOnsiteOffline({
         assessmentId: 'default-session-homework',

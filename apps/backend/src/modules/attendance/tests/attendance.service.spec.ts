@@ -28,6 +28,7 @@ describe('AttendanceService', () => {
     attendanceRecord: {
       count: jest.fn(),
       upsert: jest.fn(),
+      deleteMany: jest.fn(),
     },
     homeworkRecord: {
       deleteMany: jest.fn(),
@@ -309,6 +310,46 @@ describe('AttendanceService', () => {
         'student.absence.recorded',
         expect.objectContaining({ studentId }),
       );
+    });
+
+    it('should remove attendance record when removeAttendanceRecord is called', async () => {
+      const sessionId = 'session-1';
+      const studentId = 'stu-1';
+      const mockTeacherUser: any = { id: 'teacher-1', role: UserRole.TEACHER, teacherProfileId: 'teacher-1' };
+
+      mockPrismaService.lessonSession.findUnique.mockResolvedValue({
+        id: sessionId,
+        groupId: 'group-1',
+        group: { id: 'group-1', teacherId: mockTeacherUser.teacherProfileId },
+      });
+      mockPrismaService.attendanceRecord.deleteMany.mockResolvedValue({ count: 1 });
+
+      const res = await service.removeAttendanceRecord(sessionId, studentId, mockTeacherUser);
+
+      expect(res.success).toBe(true);
+      expect(mockPrismaService.attendanceRecord.deleteMany).toHaveBeenCalledWith({
+        where: { sessionId, studentId },
+      });
+    });
+
+    it('should remove homework record when removeHomeworkRecord is called', async () => {
+      const sessionId = 'session-1';
+      const studentId = 'stu-1';
+      const mockTeacherUser: any = { id: 'teacher-1', role: UserRole.TEACHER, teacherProfileId: 'teacher-1' };
+
+      mockPrismaService.lessonSession.findUnique.mockResolvedValue({
+        id: sessionId,
+        groupId: 'group-1',
+        group: { id: 'group-1', teacherId: mockTeacherUser.teacherProfileId },
+      });
+      mockPrismaService.homeworkRecord.deleteMany.mockResolvedValue({ count: 1 });
+
+      const res = await service.removeHomeworkRecord(sessionId, studentId, mockTeacherUser);
+
+      expect(res.success).toBe(true);
+      expect(mockPrismaService.homeworkRecord.deleteMany).toHaveBeenCalledWith({
+        where: { sessionId, studentId },
+      });
     });
   });
 });

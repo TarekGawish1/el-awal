@@ -1363,6 +1363,7 @@ export class OfflineSyncEngine {
     const pending = await offlineDb.getPendingMutations(currentUserId);
     for (const m of pending) {
       await this.undoMutation(m.id);
+      await offlineDb.removeMutation(m.id);
     }
 
     this.syncConfirmationRequired = false;
@@ -1453,12 +1454,23 @@ export class OfflineSyncEngine {
       errorMessage?.includes('already registered') ||
       errorMessage?.includes('Collision') ||
       errorMessage?.includes('400') ||
+      errorMessage?.includes('404') ||
       errorMessage?.includes('409') ||
       errorMessage?.includes('422') ||
       errorMessage?.includes('تكرار') ||
-      errorMessage?.includes('مسجل مسبقاً');
+      errorMessage?.includes('مسجل مسبقاً') ||
+      errorMessage?.includes('INVALID_QR_CODE') ||
+      errorMessage?.includes('SESSION_NOT_FOUND') ||
+      errorMessage?.includes('STUDENT_NOT_ENROLLED') ||
+      errorMessage?.includes('STUDENT_INACTIVE_OR_NOT_FOUND') ||
+      errorMessage?.includes('NOT_FOUND') ||
+      errorMessage?.includes('Cannot record attendance for non-enrolled') ||
+      errorMessage?.includes('non-enrolled') ||
+      errorMessage?.includes('not found') ||
+      errorMessage?.includes('Not Found') ||
+      errorMessage?.includes('Missing required parameters');
 
-    if (isValidationError) {
+    if (isValidationError || (mutation.retryCount >= 5)) {
       await offlineDb.recordConflict({
         id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : generateClientOperationId(),
         operationId: mutation.id,

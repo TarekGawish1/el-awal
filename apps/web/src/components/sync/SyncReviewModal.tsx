@@ -15,6 +15,7 @@ import {
   ArrowRight,
   ShieldCheck,
   Zap,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -23,6 +24,7 @@ import {
   OutboxSummary,
   IncomingDiffSummary,
 } from '@/lib/offline/sync-engine';
+import { offlineDb } from '@/lib/offline/db';
 
 interface SyncReviewModalProps {
   isOpen: boolean;
@@ -48,6 +50,7 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
   });
   const [isLoadingDiff, setIsLoadingDiff] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [isDiscarding, setIsDiscarding] = useState(false);
   const [syncProgress, setSyncProgress] = useState(0);
   const [syncStageText, setSyncStageText] = useState('');
   const [isComplete, setIsComplete] = useState(false);
@@ -97,12 +100,32 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
     syncEngine.setAutoSyncEnabled(newVal);
   };
 
+  const handleDiscardStuckOperations = async () => {
+    if (!window.confirm('هل أنت متأكد من مسح وتفريغ العمليات المحلية العالقة؟ لن يتم إرسالها إلى الخادم.')) {
+      return;
+    }
+    setIsDiscarding(true);
+    try {
+      const allMutations = await offlineDb.getPendingMutations();
+      for (const m of allMutations) {
+        await offlineDb.removeMutation(m.id);
+      }
+      await syncEngine.discardAllLocalChanges();
+      await loadData();
+    } catch (err) {
+      console.error('Failed to discard stuck operations:', err);
+    } finally {
+      setIsDiscarding(false);
+    }
+  };
+
   const handleExecuteSync = async () => {
     setIsExecuting(true);
     setSyncProgress(10);
     setSyncStageText('جاري تجهيز الاتصال...');
 
     try {
+      await syncEngine.resetFailedMutations();
       await syncEngine.executeBidirectionalSync((progress, step) => {
         setSyncProgress(progress);
         setSyncStageText(step);
@@ -384,6 +407,20 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
           </label>
 
           <div className="flex items-center gap-2.5 w-full sm:w-auto">
+            {outboxSummary.totalCount > 0 && !isComplete && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDiscardStuckOperations}
+                disabled={isExecuting || isDiscarding}
+                className="flex-1 sm:flex-none rounded-xl text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 gap-1.5"
+                title="مسح وتفريغ العمليات العالقة محلياً"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDiscarding ? 'جاري المسح...' : 'مسح العمليات العالقة'}</span>
+              </Button>
+            )}
+
             <Button
               variant="outline"
               size="sm"

@@ -549,4 +549,78 @@ export class AttendanceService {
       status,
     );
   }
+
+  /**
+   * Removes an attendance record for a student in a lesson session (resets to unrecorded).
+   */
+  async removeAttendanceRecord(sessionId: string, studentId: string, user: AuthenticatedUser) {
+    const session = await this.prisma.lessonSession.findUnique({
+      where: { id: sessionId },
+      include: { group: true },
+    });
+
+    if (!session) {
+      throw new NotFoundException(`Lesson session [${sessionId}] not found`);
+    }
+
+    if (user.role === UserRole.TEACHER) {
+      const teacherId = user.teacherProfileId || user.id;
+      if (session.group.teacherId !== teacherId && session.group.teacherId !== user.id) {
+        throw new ForbiddenException('You do not own the academic group for this session');
+      }
+    }
+
+    await this.prisma.attendanceRecord.deleteMany({
+      where: {
+        sessionId,
+        studentId,
+      },
+    });
+
+    this.realtimeGateway?.notifyAttendanceChanged([user.id, session.group?.teacherId]);
+
+    return {
+      success: true,
+      sessionId,
+      studentId,
+      message: 'Attendance record removed successfully',
+    };
+  }
+
+  /**
+   * Removes a homework record for a student in a lesson session (resets to unassessed).
+   */
+  async removeHomeworkRecord(sessionId: string, studentId: string, user: AuthenticatedUser) {
+    const session = await this.prisma.lessonSession.findUnique({
+      where: { id: sessionId },
+      include: { group: true },
+    });
+
+    if (!session) {
+      throw new NotFoundException(`Lesson session [${sessionId}] not found`);
+    }
+
+    if (user.role === UserRole.TEACHER) {
+      const teacherId = user.teacherProfileId || user.id;
+      if (session.group.teacherId !== teacherId && session.group.teacherId !== user.id) {
+        throw new ForbiddenException('You do not own the academic group for this session');
+      }
+    }
+
+    if (typeof this.prisma.homeworkRecord?.deleteMany === 'function') {
+      await this.prisma.homeworkRecord.deleteMany({
+        where: {
+          sessionId,
+          studentId,
+        },
+      });
+    }
+
+    return {
+      success: true,
+      sessionId,
+      studentId,
+      message: 'Homework record removed successfully',
+    };
+  }
 }

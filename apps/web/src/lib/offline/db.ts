@@ -1668,6 +1668,41 @@ class OfflineDatabase {
     }
   }
 
+  public async claimUnassociatedMutations(userId: string): Promise<number> {
+    if (!userId) return 0;
+    let claimedCount = 0;
+
+    for (const [, mem] of this.memoryOutbox.entries()) {
+      if (!mem.userId) {
+        mem.userId = userId;
+        claimedCount++;
+      }
+    }
+
+    if (!this.isSupported()) return claimedCount;
+
+    try {
+      const { store } = await this.getStore('outbox_mutations', 'readwrite');
+      const all: OutboxMutationRecord[] = await new Promise((resolve, reject) => {
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+
+      for (const m of all) {
+        if (!m.userId) {
+          m.userId = userId;
+          store.put(m);
+          claimedCount++;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to claim unassociated mutations in IndexedDB:', e);
+    }
+
+    return claimedCount;
+  }
+
   public async updateMutationStatus(
     id: string,
     status: MutationStatus,
@@ -2585,6 +2620,22 @@ class OfflineDatabase {
     };
 
     await this.cacheSessionReport(cleanSessionId, updatedReport);
+
+    // Purge any pending un-synced attendance mutations from sync_outbox for this student & session
+    const mutations = await this.getPendingMutations();
+    for (const m of mutations) {
+      const p = m.payload || {};
+      const matchSession = String(p.sessionId || '').trim().toLowerCase() === cleanSessionId;
+      const matchStudent = String(p.studentId || '').trim().toLowerCase() === String(studentId).trim().toLowerCase();
+      const isAttendanceMutation =
+        m.type === 'RECORD_ATTENDANCE' ||
+        p.type === 'RECORD_ATTENDANCE' ||
+        (m.domain === 'attendance' && m.method === 'POST');
+
+      if (matchSession && matchStudent && isAttendanceMutation) {
+        await this.removeMutation(m.id);
+      }
+    }
   }
 
   // ==========================================
