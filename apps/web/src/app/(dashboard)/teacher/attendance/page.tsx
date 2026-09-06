@@ -303,9 +303,8 @@ function TeacherAttendanceContent() {
       } else {
         setSelectedSessionId(filteredSessions[0].id);
       }
-    } else if (filteredAllSessions.length > 0) {
-      setSelectedSessionId(filteredAllSessions[0].id);
     } else {
+      // If there are no sessions today and no param was passed, do not auto-select an expired past session
       setSelectedSessionId('');
     }
   }, [filteredSessions, filteredAllSessions, sessions, allTeacherSessions, selectedSessionId, paramSessionId, paramGroupId]);
