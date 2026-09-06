@@ -111,7 +111,7 @@ export function GroupQrPrintModal({
                 <h2 className="text-lg sm:text-xl font-extrabold text-slate-800">
                   طباعة كروت الـ QR Codes للطلاب
                 </h2>
-                <Badge variant="primary" className="text-xs">
+                <Badge variant="default" className="text-xs">
                   {activeStudents.length} طالب
                 </Badge>
               </div>

@@ -13,7 +13,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://YOUR-DOMAIN.com'),
+  metadataBase: new URL('https://al-awal.online'),
   title: 'منصة الأول التعليمية | لوحة تحكم المدرس',
   description: 'نظام إدارة التعليم وحصص الحضور الذكي والتقييمات للطلاب والمدرسين',
   applicationName: 'منصة الأول التعليمية',

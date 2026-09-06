@@ -518,7 +518,7 @@ export default function DashboardLayout({
                     {user?.fullName || 'المستخدم'}
                   </span>
                   <span className="text-[11px] font-medium text-neutral-500 leading-none mt-1">
-                    {user?.role === 'TEACHER' ? 'مدرس معتمد' : user?.role === 'ADMIN' ? 'مدير النظام' : user?.role === 'STUDENT' ? 'طالب' : user?.role === 'PARENT' ? 'ولي أمر' : 'مساعد'}
+                    {user?.role === 'TEACHER' ? 'مدرس معتمد' : user?.role === 'STUDENT' ? 'طالب' : user?.role === 'PARENT' ? 'ولي أمر' : 'مساعد'}
                   </span>
                 </div>
                 <ChevronDown className={`hidden sm:block w-4 h-4 text-neutral-400 transition-transform ${isProfileMenuOpen ? 'rotate-180' : ''}`} />

@@ -18,6 +18,6 @@ export default function robots(): MetadataRoute.Robots {
         '/api/',
       ],
     },
-    sitemap: 'https://YOUR-DOMAIN.com/sitemap.xml',
+    sitemap: 'https://al-awal.online/sitemap.xml',
   };
 }
