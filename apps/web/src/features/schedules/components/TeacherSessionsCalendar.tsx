@@ -83,10 +83,19 @@ export function TeacherSessionsCalendar() {
 
   const { data: rawSessions = [], isLoading, isError, error, refetch } = useTeacherSessions(queryParams);
 
-  // Filter sessions by selected grades
+  // Filter sessions by selected grades and guarantee chronological sorting
   const sessions = useMemo(() => {
-    if (selectedGrades.length === 0) return rawSessions;
-    return rawSessions.filter((s) => s.group?.gradeLevel && selectedGrades.includes(s.group.gradeLevel));
+    const list =
+      selectedGrades.length === 0
+        ? rawSessions
+        : rawSessions.filter((s) => s.group?.gradeLevel && selectedGrades.includes(s.group.gradeLevel));
+
+    return [...list].sort((a, b) => {
+      const da = toLocalDateStr(a.sessionDate);
+      const db = toLocalDateStr(b.sessionDate);
+      if (da !== db) return da.localeCompare(db);
+      return (a.startTime || '').localeCompare(b.startTime || '');
+    });
   }, [rawSessions, selectedGrades]);
 
   // Extract all distinct grade levels

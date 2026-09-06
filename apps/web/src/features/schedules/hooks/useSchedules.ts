@@ -34,17 +34,29 @@ export function useTeacherSessions(query?: TeacherCalendarQuery) {
     queryFn: async (): Promise<LessonSessionItem[]> => {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       if (!isOnline) {
-        const sessions = await offlineDb.getSessionsOffline(query?.groupId);
+        const sessions = await offlineDb.getSessionsOffline({
+          groupId: query?.groupId,
+          academicYear: query?.academicYear,
+          academicTerm: query?.academicTerm,
+        });
         return sessions as unknown as LessonSessionItem[];
       }
       try {
         const sessions = await fetchTeacherSessions(query);
-        if (sessions && sessions.length > 0) {
-          offlineDb.bulkPutSessions(sessions as any);
+        if (sessions && Array.isArray(sessions)) {
+          await offlineDb.syncSessionsSnapshot(sessions as any, {
+            groupId: query?.groupId,
+            academicYear: query?.academicYear,
+            academicTerm: query?.academicTerm,
+          });
         }
         return sessions;
       } catch {
-        const sessions = await offlineDb.getSessionsOffline(query?.groupId);
+        const sessions = await offlineDb.getSessionsOffline({
+          groupId: query?.groupId,
+          academicYear: query?.academicYear,
+          academicTerm: query?.academicTerm,
+        });
         return sessions as unknown as LessonSessionItem[];
       }
     },
@@ -196,8 +208,10 @@ export function useDeleteSession() {
     mutationFn: async (id: string) => {
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
+      // Always remove from local offline store first to prevent ghost/stale sessions
+      await offlineDb.removeSession(id);
+
       if (!isOnline) {
-        await offlineDb.removeSession(id);
         await syncEngine.enqueue(
           'generic',
           API_ENDPOINTS.SCHEDULES.DELETE_SESSION(id),

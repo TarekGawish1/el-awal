@@ -178,7 +178,11 @@ class BootstrapManager {
 
       // 3. Ingest Pre-generated Sessions
       if (payload.sessions.length > 0) {
-        await offlineDb.bulkPutSessions(payload.sessions);
+        if (isDeltaResponse) {
+          await offlineDb.bulkPutSessions(payload.sessions);
+        } else {
+          await offlineDb.syncSessionsSnapshot(payload.sessions);
+        }
       }
 
       this.notify('PROGRESS', 75, 'حفظ السجلات المالية والمذكرات والاختبارات محلياً...');
