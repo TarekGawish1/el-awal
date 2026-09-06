@@ -19,6 +19,7 @@
  */
 
 import { parseStudentQr } from '../qr/qr-parser';
+import { isSessionEndedPlusOneHour } from '@/features/schedules/utils/time.utils';
 
 export interface StudentEntity {
   id: string;
@@ -2325,6 +2326,12 @@ class OfflineDatabase {
       const initialStudents = roster?.students?.length ? roster.students : groupStudents;
       const studentCount = initialStudents.length;
 
+      const sessionDateStr = session?.sessionDate;
+      const startTime = session?.startTime;
+      const endTime = session?.endTime;
+      const isEndedPlusOneHour = isSessionEndedPlusOneHour(sessionDateStr, startTime, endTime);
+      const initialAbsentCount = isEndedPlusOneHour ? studentCount : 0;
+
       currentReport = {
         sessionId,
         sessionDate: session?.sessionDate || new Date().toISOString(),
@@ -2334,7 +2341,7 @@ class OfflineDatabase {
         metrics: {
           totalEnrolled: studentCount,
           presentCount: 0,
-          absentCount: studentCount,
+          absentCount: initialAbsentCount,
           excusedCount: 0,
           attendanceRatePercentage: 0,
         },
@@ -2343,11 +2350,12 @@ class OfflineDatabase {
           studentId: s.id,
           studentCode: s.studentCode || '',
           fullName: s.fullName || s.user?.fullName || 'طالب',
-          status: null,
-          recordingMethod: null,
+          status: isEndedPlusOneHour ? 'ABSENT' : null,
+          recordingMethod: isEndedPlusOneHour ? 'MANUAL' : null,
           recordedAt: null,
-          notes: null,
+          notes: isEndedPlusOneHour ? 'غياب تلقائي بعد انتهاء الحصة' : null,
         })),
+        session: session || null,
       };
     }
 
@@ -2371,10 +2379,19 @@ class OfflineDatabase {
       records.push(updatedRecord);
     }
 
+    const sessionDateStr = currentReport.sessionDate || currentReport.session?.sessionDate;
+    const startTime = currentReport.session?.startTime;
+    const endTime = currentReport.session?.endTime;
+    const isEndedPlusOneHour = isSessionEndedPlusOneHour(sessionDateStr, startTime, endTime);
+
     const totalEnrolled = Math.max(records.length, currentReport.metrics?.totalEnrolled || 0);
     const presentCount = records.filter((r: any) => r.status === 'PRESENT').length;
     const excusedCount = records.filter((r: any) => r.status === 'EXCUSED').length;
-    const absentCount = records.filter((r: any) => r.status === 'ABSENT' || !r.status).length;
+    const explicitAbsentCount = records.filter((r: any) => r.status === 'ABSENT').length;
+    const remainingUnrecorded = Math.max(0, totalEnrolled - presentCount - excusedCount - explicitAbsentCount);
+    const absentCount = isEndedPlusOneHour
+      ? explicitAbsentCount + remainingUnrecorded
+      : explicitAbsentCount;
     const attendanceRatePercentage = totalEnrolled > 0 ? Math.round((presentCount / totalEnrolled) * 100) : 0;
 
     const updatedReport = {
@@ -2418,10 +2435,19 @@ class OfflineDatabase {
       };
     }
 
+    const sessionDateStr = currentReport.sessionDate || currentReport.session?.sessionDate;
+    const startTime = currentReport.session?.startTime;
+    const endTime = currentReport.session?.endTime;
+    const isEndedPlusOneHour = isSessionEndedPlusOneHour(sessionDateStr, startTime, endTime);
+
     const totalEnrolled = Math.max(records.length, currentReport.metrics?.totalEnrolled || 0);
     const presentCount = records.filter((r: any) => r.status === 'PRESENT').length;
     const excusedCount = records.filter((r: any) => r.status === 'EXCUSED').length;
-    const absentCount = records.filter((r: any) => r.status === 'ABSENT' || !r.status).length;
+    const explicitAbsentCount = records.filter((r: any) => r.status === 'ABSENT').length;
+    const remainingUnrecorded = Math.max(0, totalEnrolled - presentCount - excusedCount - explicitAbsentCount);
+    const absentCount = isEndedPlusOneHour
+      ? explicitAbsentCount + remainingUnrecorded
+      : explicitAbsentCount;
     const attendanceRatePercentage = totalEnrolled > 0 ? Math.round((presentCount / totalEnrolled) * 100) : 0;
 
     const updatedReport = {

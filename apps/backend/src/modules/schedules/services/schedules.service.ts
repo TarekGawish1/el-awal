@@ -945,12 +945,15 @@ export class SchedulesService {
     if (academicYear) whereGroup.academicYear = academicYear;
     if (academicTerm) whereGroup.academicTerm = academicTerm;
 
-    whereGroup.schedules = {
-      some: { dayOfWeek }
+    const whereRecurringGroup = {
+      ...whereGroup,
+      schedules: {
+        some: { dayOfWeek }
+      }
     };
 
     const groupsWithSchedules = await this.prisma.academicGroup.findMany({
-      where: whereGroup,
+      where: whereRecurringGroup,
       include: {
         schedules: {
           where: { dayOfWeek }
@@ -958,48 +961,53 @@ export class SchedulesService {
       }
     });
 
-    const generatedSessions: any[] = [];
-
-    await this.prisma.$transaction(async (tx) => {
-      for (const group of groupsWithSchedules) {
-        for (const schedule of group.schedules) {
-          let session = await tx.lessonSession.findFirst({
-            where: {
-              groupId: group.id,
-              sessionDate: sessionDateOnly,
-              startTime: schedule.startTime,
-            },
-            include: {
-              group: { select: { id: true, name: true, gradeLevel: true } },
-              _count: { select: { attendanceRecords: true, educationalContents: true } }
-            }
-          });
-
-          if (!session) {
-            const dateStr = sessionDateOnly.toISOString().split('T')[0];
-            const topic = `حصة ${dateStr}`;
-
-            session = await tx.lessonSession.create({
-              data: {
+    if (groupsWithSchedules.length > 0) {
+      await this.prisma.$transaction(async (tx) => {
+        for (const group of groupsWithSchedules) {
+          for (const schedule of group.schedules) {
+            const existing = await tx.lessonSession.findFirst({
+              where: {
                 groupId: group.id,
-                scheduleId: schedule.id,
                 sessionDate: sessionDateOnly,
                 startTime: schedule.startTime,
-                topic,
               },
-              include: {
-                group: { select: { id: true, name: true, gradeLevel: true } },
-                _count: { select: { attendanceRecords: true, educationalContents: true } }
-              }
             });
+
+            if (!existing) {
+              const dateStr = sessionDateOnly.toISOString().split('T')[0];
+              const topic = `حصة ${dateStr}`;
+
+              await tx.lessonSession.create({
+                data: {
+                  groupId: group.id,
+                  scheduleId: schedule.id,
+                  sessionDate: sessionDateOnly,
+                  startTime: schedule.startTime,
+                  endTime: schedule.endTime,
+                  topic,
+                },
+              });
+            }
           }
-          generatedSessions.push(session);
         }
-      }
+      });
+    }
+
+    // Return ALL sessions for today across the active groups (including manually created sessions)
+    const todaySessions = await this.prisma.lessonSession.findMany({
+      where: {
+        group: whereGroup,
+        sessionDate: sessionDateOnly,
+        isCancelled: false,
+      },
+      include: {
+        group: { select: { id: true, name: true, gradeLevel: true, academicYear: true, academicTerm: true } },
+        _count: { select: { attendanceRecords: true, educationalContents: true } },
+      },
+      orderBy: { startTime: 'asc' },
     });
 
-    generatedSessions.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
-    return generatedSessions;
+    return todaySessions;
   }
 
   /**

@@ -12,6 +12,7 @@ import { BatchAttendanceDto } from '../dto/batch-attendance.dto';
 import { CursorPaginationDto } from '../../../common/dto/cursor-pagination.dto';
 import { AttendanceStatus, RecordingMethod, GroupEnrollmentStatus, UserRole } from '@prisma/client';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
+import { isSessionEndedPlusOneHour } from '../utils/attendance.util';
 
 @Injectable()
 export class AttendanceService {
@@ -386,6 +387,50 @@ export class AttendanceService {
       const teacherId = user.teacherProfileId || user.id;
       if (session.group.teacherId !== teacherId && session.group.teacherId !== user.id) {
         throw new ForbiddenException('You do not own the academic group for this session');
+      }
+    }
+
+    // Auto-mark missing enrolled students as ABSENT only if the session ended by at least 1 hour
+    const hasEndedPlusOneHour = isSessionEndedPlusOneHour(
+      session.sessionDate,
+      session.startTime,
+      session.endTime,
+    );
+
+    if (hasEndedPlusOneHour) {
+      const existingStudentIds = new Set(session.attendanceRecords.map((r) => r.studentId));
+      const missingEnrollments = session.group.enrollments.filter(
+        (e) => !existingStudentIds.has(e.studentId),
+      );
+
+      if (missingEnrollments.length > 0) {
+        const autoAbsenceData = missingEnrollments.map((e) => ({
+          sessionId: session.id,
+          studentId: e.studentId,
+          status: AttendanceStatus.ABSENT,
+          recordingMethod: RecordingMethod.MANUAL,
+          recordedById: session.group.teacherId,
+          notes: 'غياب تلقائي بعد انتهاء الحصة',
+          recordedAt: new Date(),
+        }));
+
+        await this.prisma.attendanceRecord.createMany({
+          data: autoAbsenceData,
+          skipDuplicates: true,
+        });
+
+        for (const ad of autoAbsenceData) {
+          session.attendanceRecords.push({
+            id: `auto-${session.id}-${ad.studentId}`,
+            sessionId: session.id,
+            studentId: ad.studentId,
+            status: AttendanceStatus.ABSENT,
+            recordingMethod: RecordingMethod.MANUAL,
+            notes: 'غياب تلقائي بعد انتهاء الحصة',
+            recordedAt: ad.recordedAt,
+            recordedBy: null,
+          } as any);
+        }
       }
     }
 
