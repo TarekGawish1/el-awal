@@ -397,3 +397,51 @@ export function toLocalDateStr(d?: Date | string | null): string {
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
+
+/**
+ * Checks whether a lesson session has ended plus a 1-hour grace period.
+ * Business Rule: Unrecorded students should only be recorded or counted as ABSENT
+ * after the session has ended by at least one hour.
+ * Before that time, unrecorded students remain pending (null status, not absent).
+ */
+export function isSessionEndedPlusOneHour(
+  sessionDate?: Date | string | null,
+  startTime?: string | null,
+  endTime?: string | null,
+  now: Date = new Date(),
+): boolean {
+  if (!sessionDate) return false;
+
+  try {
+    const dateStr = sessionDate instanceof Date
+      ? sessionDate.toISOString().split('T')[0]
+      : String(sessionDate).trim().split('T')[0];
+
+    const parts = dateStr.split('-').map(Number);
+    if (parts.length < 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) {
+      return false;
+    }
+    const [y, m, d] = parts;
+
+    let endMinutes = parseTimeToMinutes(endTime);
+    if (endMinutes === null) {
+      const startMinutes = parseTimeToMinutes(startTime);
+      if (startMinutes !== null) {
+        // Default session duration is 2 hours (120 minutes)
+        endMinutes = startMinutes + 120;
+      } else {
+        // Fallback to end of the day
+        endMinutes = 23 * 60 + 59;
+      }
+    }
+
+    const endHour = Math.floor(endMinutes / 60);
+    const endMin = endMinutes % 60;
+    const sessionEndTime = new Date(y, m - 1, d, endHour, endMin, 0, 0);
+
+    const ONE_HOUR_MS = 60 * 60 * 1000;
+    return now.getTime() > (sessionEndTime.getTime() + ONE_HOUR_MS);
+  } catch {
+    return false;
+  }
+}

@@ -144,4 +144,45 @@ describe('Offline Session Report & "ملخص الحصة" Metrics Integration', (
     expect(reportResult.current.data.metrics.absentCount).toBe(1);
     expect(reportResult.current.data.metrics.attendanceRatePercentage).toBe(80);
   });
+
+  it('keeps absentCount at 0 for an active/today session until 1 hour after session end', async () => {
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // Create session today with future/active timing (e.g. 23:00 end time)
+    await offlineDb.bulkPutSessions([
+      {
+        id: 'session-today',
+        groupId: 'group-1',
+        sessionDate: `${todayStr}T16:00:00.000Z`,
+        startTime: '16:00',
+        endTime: '23:59',
+        topic: 'حصة اليوم التجريبية',
+      },
+    ]);
+
+    const { result } = renderHook(() => useSessionReport('session-today'), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    // In offline mode, unrecorded students must NOT be counted as absent yet
+    expect(result.current.data.metrics.totalEnrolled).toBe(10);
+    expect(result.current.data.metrics.presentCount).toBe(0);
+    expect(result.current.data.metrics.absentCount).toBe(0);
+    expect(result.current.data.records[0].status).toBeNull();
+
+    // Teacher scans 1 student
+    const { result: scanMutation } = renderHook(() => useScanQrAttendance(), { wrapper });
+    await act(async () => {
+      await scanMutation.current.mutateAsync({
+        sessionId: 'session-today',
+        qrCodeToken: 'QR-STU-100',
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.data?.metrics?.presentCount).toBe(1);
+    });
+
+    // Absent count must still be 0 (unrecorded are pending, not absent)
+    expect(result.current.data.metrics.absentCount).toBe(0);
+  });
 });

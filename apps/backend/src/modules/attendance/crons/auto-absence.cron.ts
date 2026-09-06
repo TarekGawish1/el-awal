@@ -3,6 +3,7 @@ import { PrismaService } from '../../../core/database/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AttendanceStatus, RecordingMethod, GroupEnrollmentStatus, AssessmentType, HomeworkSubmissionStatus } from '@prisma/client';
 import * as cron from 'node-cron';
+import { isSessionEndedPlusOneHour } from '../utils/attendance.util';
 
 @Injectable()
 export class AutoAbsenceCron implements OnModuleInit, OnModuleDestroy {
@@ -30,13 +31,13 @@ export class AutoAbsenceCron implements OnModuleInit, OnModuleDestroy {
     try {
       this.logger.log('Running AutoAbsenceCron to mark absentees...');
       
-      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
       
       const sessions = await this.prisma.lessonSession.findMany({
         where: {
           isCancelled: false,
           sessionDate: {
-            gte: oneDayAgo,
+            gte: threeDaysAgo,
           },
         },
         include: {
@@ -45,21 +46,9 @@ export class AutoAbsenceCron implements OnModuleInit, OnModuleDestroy {
       });
       
       for (const session of sessions) {
-        if (!session.endTime && !session.startTime) continue;
-        
-        const dateStr = session.sessionDate.toISOString().split('T')[0];
-        const timePart = session.endTime || session.startTime;
-        const timePartSecs = timePart.split(':').length === 2 ? `${timePart}:00` : timePart;
-        
-        let sessionEndDateTime = new Date(`${dateStr}T${timePartSecs}`);
-        
-        if (!session.endTime && session.startTime) {
-           sessionEndDateTime = new Date(sessionEndDateTime.getTime() + 2 * 60 * 60 * 1000);
+        if (!isSessionEndedPlusOneHour(session.sessionDate, session.startTime, session.endTime, now)) {
+          continue;
         }
-        
-        const ONE_HOUR = 60 * 60 * 1000;
-        
-        if (now.getTime() > (sessionEndDateTime.getTime() + ONE_HOUR)) {
           
           const activeEnrollments = await this.prisma.groupEnrollment.findMany({
             where: {
@@ -170,8 +159,6 @@ export class AutoAbsenceCron implements OnModuleInit, OnModuleDestroy {
               this.logger.log(`AutoAbsence: Marked ${missingHomeworkIds.length} students as NOT_SUBMITTED homework for session ${session.id}`);
             }
           }
-          
-        }
       }
     } catch (error) {
       this.logger.error('Auto absence cron failed', error);
