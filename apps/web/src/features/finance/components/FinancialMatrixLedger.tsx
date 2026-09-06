@@ -21,6 +21,7 @@ import {
 } from '@/features/groups/hooks/useAcademicPeriod';
 import { inferStageFromGrade } from '@/lib/constants/grades';
 import { FinanceFiltersBar, TERM_MONTHS } from './FinanceFiltersBar';
+import { matchesSearch } from '@/lib/utils/search';
 
 const ARABIC_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 
@@ -255,8 +256,8 @@ export function FinancialMatrixLedger({ groups = [], initialStage = '', initialG
   const booklets = useMemo(() => (ledger?.booklets || []).filter((booklet) => !gradeLevel || booklet.gradeLevel === gradeLevel), [ledger?.booklets, gradeLevel]);
   const visibleStudents = useMemo(() => (ledger?.students || []).filter((student) => {
     if (gradeLevel && student.gradeLevel !== gradeLevel) return false;
-    const value = search.trim().toLocaleLowerCase();
-    return !value || student.fullName.toLocaleLowerCase().includes(value) || (student.studentCode || '').toLocaleLowerCase().includes(value);
+    if (!search.trim()) return true;
+    return matchesSearch(student.fullName, search) || (student.studentCode ? student.studentCode.toLowerCase().includes(search.toLowerCase().trim()) : false);
   }), [ledger?.students, gradeLevel, search]);
 
   const setStageAndReset = (value: string) => { setStage(value); setGradeLevel(''); setGroupId(''); setPage(1); };

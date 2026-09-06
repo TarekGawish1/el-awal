@@ -18,6 +18,7 @@ import { GroupFinancialCard } from './GroupFinancialCard';
 import { OnlineCourseFinancialCard } from './OnlineCourseFinancialCard';
 import { GRADE_LEVELS_BY_STAGE, inferStageFromGrade } from '@/lib/constants/grades';
 import { FinanceDashboardMetric } from '../types/finance.types';
+import { matchesSearch } from '@/lib/utils/search';
 
 export const TERM_MONTHS: Record<'FIRST_TERM' | 'SECOND_TERM', number[]> = {
   FIRST_TERM: [8, 9, 10, 11, 12, 1],
@@ -168,7 +169,6 @@ export function FinanceOverviewTab({
   const [selectedStage, setSelectedStage] = useState<string>('');
   const [selectedGrade, setSelectedGrade] = useState<string>('');
   const [selectedGroupId, setSelectedGroupId] = useState<string>('');
-  const [selectedCourseId, setSelectedCourseId] = useState<string>('');
   const [groupSearchQuery, setGroupSearchQuery] = useState('');
   const [courseSearchQuery, setCourseSearchQuery] = useState('');
 
@@ -214,27 +214,24 @@ export function FinanceOverviewTab({
         return false;
       }
       if (groupSearchQuery.trim()) {
-        const query = groupSearchQuery.trim().toLowerCase();
-        const matchesName = group.name.toLowerCase().includes(query);
-        const matchesGrade = group.gradeLevel.toLowerCase().includes(query);
+        const matchesName = matchesSearch(group.name, groupSearchQuery);
+        const matchesGrade = matchesSearch(group.gradeLevel, groupSearchQuery);
         if (!matchesName && !matchesGrade) return false;
       }
       return true;
     });
   }, [analyticsData?.groups, selectedStage, selectedGrade, selectedGroupId, groupSearchQuery]);
 
-  // Filter online courses locally based on search query and selectedCourseId
+  // Filter online courses locally based on search query
   const filteredCourses = useMemo(() => {
     const list = analyticsData?.onlineCourses || [];
     return list.filter((course) => {
-      if (selectedCourseId && course.id !== selectedCourseId) return false;
       if (!courseSearchQuery.trim()) return true;
-      const query = courseSearchQuery.trim().toLowerCase();
-      const matchesTitle = course.title.toLowerCase().includes(query);
-      const matchesGrade = course.gradeLevel ? course.gradeLevel.toLowerCase().includes(query) : false;
+      const matchesTitle = matchesSearch(course.title, courseSearchQuery);
+      const matchesGrade = course.gradeLevel ? matchesSearch(course.gradeLevel, courseSearchQuery) : false;
       return matchesTitle || matchesGrade;
     });
-  }, [analyticsData?.onlineCourses, selectedCourseId, courseSearchQuery]);
+  }, [analyticsData?.onlineCourses, courseSearchQuery]);
 
   const overview = analyticsData?.overview;
 
@@ -464,42 +461,23 @@ export function FinanceOverviewTab({
             </p>
           </div>
 
-          {/* Course Filters: Dropdown + Search Input + Reset */}
-          <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
-            {/* Course Dropdown Filter */}
-            <select
-              aria-label="تصفية حسب الكورس"
-              value={selectedCourseId}
-              onChange={(e) => setSelectedCourseId(e.target.value)}
-              className="h-9 w-full sm:w-48 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 focus:border-purple-500 focus:outline-none shadow-2xs"
-            >
-              <option value="">جميع الكورسات ({analyticsData?.onlineCourses?.length || 0})</option>
-              {(analyticsData?.onlineCourses || []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.title}
-                </option>
-              ))}
-            </select>
-
-            {/* Course Search Filter */}
-            <div className="relative w-full sm:w-60">
+          {/* Course Search Filter */}
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
+            <div className="relative w-full sm:w-72">
               <Search className="absolute right-3 top-2.5 h-4 w-4 text-slate-400" />
               <input
                 type="text"
                 value={courseSearchQuery}
                 onChange={(e) => setCourseSearchQuery(e.target.value)}
                 placeholder="بحث باسم الكورس أو المرحلة..."
-                className="h-9 w-full rounded-xl border border-slate-200 bg-white pr-9 pl-3 text-xs font-medium text-slate-700 placeholder:text-slate-400 focus:border-purple-500 focus:outline-none"
+                className="h-9 w-full rounded-xl border border-slate-200 bg-white pr-9 pl-3 text-xs font-medium text-slate-700 placeholder:text-slate-400 focus:border-purple-500 focus:outline-none shadow-2xs"
               />
             </div>
 
-            {(selectedCourseId || courseSearchQuery) && (
+            {courseSearchQuery && (
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedCourseId('');
-                  setCourseSearchQuery('');
-                }}
+                onClick={() => setCourseSearchQuery('')}
                 className="text-xs font-bold text-purple-600 hover:text-purple-800 px-2 py-1 transition-colors shrink-0"
               >
                 إعادة ضبط

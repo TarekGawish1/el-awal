@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import toast from 'react-hot-toast';
 import { formatBookletMismatchMessage, isBookletEligibleForStudent } from '../utils/bookletEligibility';
+import { matchesSearch } from '@/lib/utils/search';
 
 const paymentSchema = z.object({
   studentId: z.string().min(1, 'يجب اختيار الطالب'),
@@ -202,8 +203,10 @@ export function RecordPaymentModal({
         }
       }
       if (!studentSearchQuery.trim()) return true;
-      const q = studentSearchQuery.trim().toLowerCase();
-      return s.name.toLowerCase().includes(q) || (s.studentCode && s.studentCode.toLowerCase().includes(q));
+      return (
+        matchesSearch(s.name, studentSearchQuery) ||
+        (s.studentCode ? s.studentCode.toLowerCase().includes(studentSearchQuery.toLowerCase().trim()) : false)
+      );
     });
   }, [availableStudents, showOnlyUnpaid, paymentType, selectedBookletId, matrixLedgerData, studentSearchQuery]);
 

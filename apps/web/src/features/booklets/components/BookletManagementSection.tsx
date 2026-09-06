@@ -23,6 +23,7 @@ import { CreateBookletModal } from './CreateBookletModal';
 import { EditBookletModal } from './EditBookletModal';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import toast from 'react-hot-toast';
+import { matchesSearch } from '@/lib/utils/search';
 
 interface Props {
   groups?: Array<{ id: string; name: string; gradeLevel?: string }>;
@@ -44,10 +45,9 @@ export function BookletManagementSection({ groups = [] }: Props) {
   // Filter by search query
   const filteredBooklets = booklets.filter((b) => {
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      const matchTitle = b.title.toLowerCase().includes(q);
-      const matchGrade = b.gradeLevel.toLowerCase().includes(q);
-      const matchGroup = b.group?.name?.toLowerCase().includes(q);
+      const matchTitle = matchesSearch(b.title, searchQuery);
+      const matchGrade = matchesSearch(b.gradeLevel, searchQuery);
+      const matchGroup = b.group?.name ? matchesSearch(b.group.name, searchQuery) : false;
       if (!matchTitle && !matchGrade && !matchGroup) return false;
     }
     return true;
