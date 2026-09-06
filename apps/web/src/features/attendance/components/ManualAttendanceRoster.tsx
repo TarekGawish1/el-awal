@@ -7,6 +7,7 @@ import { ExcuseNoteModal } from './ExcuseNoteModal';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Alert';
 import { FileText, Edit2, CheckCircle2 } from 'lucide-react';
+import { offlineDb } from '@/lib/offline/db';
 
 interface ManualAttendanceRosterProps {
   sessionId: string;
@@ -92,6 +93,13 @@ export function ManualAttendanceRoster({ sessionId, records, isCompact = false }
           notes: localNotes[studentId] || undefined,
         })),
     };
+
+    // For any student marked ABSENT, delete their homework record offline as well
+    for (const [studentId, status] of Object.entries(localRecords)) {
+      if (status === 'ABSENT') {
+        offlineDb.deleteHomeworkForSessionStudent(sessionId, studentId).catch(() => {});
+      }
+    }
 
     mutate({ sessionId, payload }, {
       onSuccess: () => setHasChanges(false),

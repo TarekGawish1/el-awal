@@ -82,8 +82,13 @@ export function OnsiteHomeworkScanner({
       }
     }
 
+    const absentStudentIds = new Set<string>(
+      sessionReport?.records?.filter((r: any) => r.status === 'ABSENT').map((r: any) => String(r.studentId)) || []
+    );
+
     if (sessionReport?.homeworkRecords && Array.isArray(sessionReport.homeworkRecords)) {
       for (const hr of sessionReport.homeworkRecords) {
+        if (absentStudentIds.has(hr.studentId)) continue;
         offlineDb.homework_records
           .put({
             id: hr.id,
@@ -101,14 +106,20 @@ export function OnsiteHomeworkScanner({
       }
     }
 
+    // Clean up any absent students from offlineDb homework records for this session
+    for (const absentId of absentStudentIds) {
+      offlineDb.deleteHomeworkForSessionStudent(sessionId, absentId).catch(() => {});
+    }
+
     offlineDb
       .getHomeworkRecordsForSession(sessionId, assessmentId)
       .then((records) => {
         if (isMounted) {
-          const localCount = records.filter((r) => r.status === 'CHECKED_ONSITE').length;
+          const validRecords = records.filter((r) => !absentStudentIds.has(r.studentId));
+          const localCount = validRecords.filter((r) => r.status === 'CHECKED_ONSITE').length;
           const serverCount =
             sessionReport?.metrics?.homeworkCheckedCount ??
-            sessionReport?.records?.filter((r: any) => r.homeworkStatus === 'CHECKED_ONSITE').length ??
+            sessionReport?.records?.filter((r: any) => r.status !== 'ABSENT' && r.homeworkStatus === 'CHECKED_ONSITE').length ??
             0;
           setCheckedCount(Math.max(localCount, serverCount));
         }

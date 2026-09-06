@@ -22,10 +22,15 @@ describe('AttendanceService', () => {
     },
     groupEnrollment: {
       findUnique: jest.fn(),
+      findMany: jest.fn(),
       count: jest.fn(),
     },
     attendanceRecord: {
       count: jest.fn(),
+      upsert: jest.fn(),
+    },
+    homeworkRecord: {
+      deleteMany: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -245,6 +250,65 @@ describe('AttendanceService', () => {
         studentUser,
       );
       expect(result).toBeDefined();
+    });
+  });
+
+  describe('recordManualBatch', () => {
+    it('should delete homework records when student is marked ABSENT', async () => {
+      const sessionId = 'session-1';
+      const studentId = 'stu-1';
+      const mockTeacherUser: any = { id: 'teacher-1', role: UserRole.TEACHER };
+
+      mockPrismaService.lessonSession.findUnique.mockResolvedValue({
+        id: sessionId,
+        groupId: 'group-1',
+        group: { id: 'group-1', name: 'Group 1', teacherId: 'teacher-1' },
+        sessionDate: new Date(),
+      });
+
+      mockPrismaService.groupEnrollment.count.mockResolvedValue(1);
+      mockPrismaService.groupEnrollment.findMany.mockResolvedValue([
+        { studentId, status: GroupEnrollmentStatus.ACTIVE },
+      ]);
+      mockPrismaService.groupEnrollment.findUnique.mockResolvedValue({
+        groupId: 'group-1',
+        studentId,
+        status: GroupEnrollmentStatus.ACTIVE,
+      });
+
+      const mockTx = {
+        attendanceRecord: {
+          upsert: jest.fn().mockResolvedValue({ id: 'rec-1', status: AttendanceStatus.ABSENT }),
+        },
+        homeworkRecord: {
+          deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+      };
+
+      mockPrismaService.$transaction.mockImplementation(async (callback: any) => {
+        return callback(mockTx);
+      });
+
+      mockPrismaService.attendanceRecord.count.mockResolvedValue(0);
+
+      await service.recordManualBatch(
+        sessionId,
+        {
+          records: [{ studentId, status: AttendanceStatus.ABSENT }],
+        },
+        mockTeacherUser,
+      );
+
+      expect(mockTx.homeworkRecord.deleteMany).toHaveBeenCalledWith({
+        where: {
+          sessionId,
+          studentId,
+        },
+      });
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'student.absence.recorded',
+        expect.objectContaining({ studentId }),
+      );
     });
   });
 });

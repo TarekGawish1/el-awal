@@ -109,8 +109,13 @@ export function QrHomeworkScanner({
       }
     }
 
+    const absentStudentIds = new Set<string>(
+      sessionReport?.records?.filter((r: any) => r.status === 'ABSENT').map((r: any) => String(r.studentId)) || []
+    );
+
     if (sessionReport?.homeworkRecords && Array.isArray(sessionReport.homeworkRecords)) {
       for (const hr of sessionReport.homeworkRecords) {
+        if (absentStudentIds.has(hr.studentId)) continue;
         offlineDb.homework_records
           .put({
             id: hr.id,
@@ -128,13 +133,19 @@ export function QrHomeworkScanner({
       }
     }
 
+    // Clean up any absent students from offlineDb homework records for this session
+    for (const absentId of absentStudentIds) {
+      offlineDb.deleteHomeworkForSessionStudent(sessionId, absentId).catch(() => {});
+    }
+
     offlineDb
       .getHomeworkRecordsForSession(sessionId, activeAssessmentId)
       .then((records) => {
         if (isMounted) {
-          setLocalHomeworkRecords(records);
-          const localCount = records.length;
-          const serverCount = sessionReport?.homeworkRecords?.length ?? 0;
+          const validRecords = records.filter((r) => !absentStudentIds.has(r.studentId));
+          setLocalHomeworkRecords(validRecords);
+          const localCount = validRecords.length;
+          const serverCount = sessionReport?.homeworkRecords?.filter((hr: any) => !absentStudentIds.has(hr.studentId))?.length ?? 0;
           setCheckedCount(Math.max(localCount, serverCount));
         }
       })
@@ -688,7 +699,8 @@ export function QrHomeworkScanner({
                 {sessionReport.records
                   .filter((s: any) => s.fullName !== 'طالب غير متزامن' && !String(s.studentId).startsWith('qr_tok_'))
                   .map((student: any) => {
-                  const record = localHomeworkRecords.find((r) => r.studentId === student.studentId);
+                  const isAbsent = student.status === 'ABSENT';
+                  const record = isAbsent ? null : localHomeworkRecords.find((r) => r.studentId === student.studentId);
                   const status = record?.status;
 
                   return (
@@ -697,13 +709,15 @@ export function QrHomeworkScanner({
                       className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 hover:bg-slate-100/70 transition-colors text-xs"
                     >
                       <div className="flex items-center gap-2.5">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${status === 'CHECKED_ONSITE' ? 'bg-emerald-100 text-emerald-700' :
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
+                          status === 'CHECKED_ONSITE' ? 'bg-emerald-100 text-emerald-700' :
                           status === 'NOT_SUBMITTED' ? 'bg-rose-100 text-rose-700' :
-                            status === 'INCOMPLETE' ? 'bg-amber-100 text-amber-700' :
-                              status === 'EXCUSED' ? 'bg-slate-200 text-slate-700' :
-                                'bg-white text-slate-300 border border-slate-200'
-                          }`}>
-                          {status === 'CHECKED_ONSITE' ? '✓' : status === 'NOT_SUBMITTED' ? '✗' : status === 'INCOMPLETE' ? '!' : status === 'EXCUSED' ? '-' : '?'}
+                          status === 'INCOMPLETE' ? 'bg-amber-100 text-amber-700' :
+                          status === 'EXCUSED' ? 'bg-slate-200 text-slate-700' :
+                          isAbsent ? 'bg-rose-50 text-rose-500 border border-rose-200' :
+                          'bg-white text-slate-300 border border-slate-200'
+                        }`}>
+                          {status === 'CHECKED_ONSITE' ? '✓' : status === 'NOT_SUBMITTED' ? '✗' : status === 'INCOMPLETE' ? '!' : status === 'EXCUSED' ? '-' : isAbsent ? 'غ' : '?'}
                         </div>
                         <div>
                           <p className="font-bold text-slate-800 text-sm">{student.fullName || student.studentName}</p>

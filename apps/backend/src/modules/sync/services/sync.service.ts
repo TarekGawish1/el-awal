@@ -1091,6 +1091,15 @@ export class SyncService {
             },
           });
 
+          if (op.status === AttendanceStatus.ABSENT && typeof tx.homeworkRecord?.deleteMany === 'function') {
+            await tx.homeworkRecord.deleteMany({
+              where: {
+                sessionId: op.sessionId,
+                studentId: resolvedStudentId,
+              },
+            });
+          }
+
           result.syncedCount++;
           result.processedOperationIds.push(op.id);
         });
@@ -2394,6 +2403,16 @@ export class SyncService {
                 recordedAt: recordDate,
               },
             });
+
+            // If marked ABSENT, remove any homework record for this student in this session
+            if (status === AttendanceStatus.ABSENT && typeof this.prisma.homeworkRecord?.deleteMany === 'function') {
+              await this.prisma.homeworkRecord.deleteMany({
+                where: {
+                  sessionId,
+                  studentId: targetStudentId,
+                },
+              });
+            }
 
             results.push({ mutationId: mutation.id, status: 'SUCCESS' });
             break;

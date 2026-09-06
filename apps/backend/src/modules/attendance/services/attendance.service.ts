@@ -303,8 +303,17 @@ export class AttendanceService {
 
         updatedRecords.push(record);
 
-        // If marked absent, emit event for guardian notification
+        // If marked absent, remove any homework record for this session and emit event for guardian notification
         if (item.status === AttendanceStatus.ABSENT) {
+          if (typeof tx.homeworkRecord?.deleteMany === 'function') {
+            await tx.homeworkRecord.deleteMany({
+              where: {
+                sessionId,
+                studentId: item.studentId,
+              },
+            });
+          }
+
           this.eventEmitter.emit('student.absence.recorded', {
             studentId: item.studentId,
             groupName: session.group.name,

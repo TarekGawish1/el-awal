@@ -2471,6 +2471,31 @@ class OfflineDatabase {
       records.push(updatedRecord);
     }
 
+    // If student is marked ABSENT, automatically remove any homework record for this session
+    if (record.status === 'ABSENT') {
+      const targetId = cleanInputStudentId;
+      const resolvedId =
+        studentIdx >= 0 && records[studentIdx]?.studentId
+          ? String(records[studentIdx].studentId).trim()
+          : targetId;
+
+      await this.deleteHomeworkForSessionStudent(cleanSessionId, targetId);
+      if (resolvedId && resolvedId !== targetId) {
+        await this.deleteHomeworkForSessionStudent(cleanSessionId, resolvedId);
+      }
+
+      if (studentIdx >= 0) {
+        records[studentIdx] = {
+          ...records[studentIdx],
+          homeworkStatus: 'NOT_SUBMITTED',
+          isHomeworkSubmitted: false,
+          homeworkScore: null,
+          homeworkFeedback: null,
+          homeworkCheckedAt: null,
+        };
+      }
+    }
+
     const sessionDateStr = currentReport.sessionDate || currentReport.session?.sessionDate;
     const startTime = currentReport.session?.startTime;
     const endTime = currentReport.session?.endTime;
@@ -2866,6 +2891,70 @@ class OfflineDatabase {
       const { store } = await this.getStore('homework_records', 'readwrite');
       store.delete(id);
     } catch {}
+  }
+
+  public async deleteHomeworkForSessionStudent(sessionId: string, studentId: string): Promise<void> {
+    const cleanSessionId = String(sessionId).trim().toLowerCase();
+    const cleanStudentId = String(studentId).trim();
+
+    // 1. Delete from memory and IndexedDB homework_records
+    const allHw = await this.getAllHomeworkRecords();
+    const toDelete = allHw.filter(
+      (h) =>
+        String(h.sessionId).trim().toLowerCase() === cleanSessionId &&
+        String(h.studentId).trim().toLowerCase() === cleanStudentId.toLowerCase(),
+    );
+    for (const hw of toDelete) {
+      await this.deleteHomeworkRecord(hw.id);
+    }
+
+    // 2. Clear from cached session report if present
+    const cachedReport = await this.getSessionReport(cleanSessionId);
+    if (cachedReport) {
+      let changed = false;
+      if (Array.isArray(cachedReport.homeworkRecords)) {
+        const origLen = cachedReport.homeworkRecords.length;
+        cachedReport.homeworkRecords = cachedReport.homeworkRecords.filter(
+          (hr: any) => String(hr.studentId).trim().toLowerCase() !== cleanStudentId.toLowerCase(),
+        );
+        if (cachedReport.homeworkRecords.length !== origLen) changed = true;
+      }
+      if (Array.isArray(cachedReport.records)) {
+        cachedReport.records = cachedReport.records.map((r: any) => {
+          if (String(r.studentId).trim().toLowerCase() === cleanStudentId.toLowerCase()) {
+            changed = true;
+            return {
+              ...r,
+              homeworkStatus: 'NOT_SUBMITTED',
+              isHomeworkSubmitted: false,
+              homeworkScore: null,
+              homeworkFeedback: null,
+              homeworkCheckedAt: null,
+            };
+          }
+          return r;
+        });
+      }
+      if (changed) {
+        await this.cacheSessionReport(cleanSessionId, cachedReport);
+      }
+    }
+
+    // 3. Purge any pending un-synced homework mutations from sync_outbox for this student & session
+    const mutations = await this.getPendingMutations();
+    for (const m of mutations) {
+      const p = m.payload || {};
+      const matchSession = String(p.sessionId || '').trim().toLowerCase() === cleanSessionId;
+      const matchStudent = String(p.studentId || '').trim().toLowerCase() === cleanStudentId.toLowerCase();
+      const isHomeworkMutation =
+        m.type === 'RECORD_HOMEWORK_ONSITE' ||
+        m.endpoint?.includes('homework') ||
+        p.assessmentId !== undefined;
+
+      if (matchSession && matchStudent && isHomeworkMutation) {
+        await this.removeMutation(m.id);
+      }
+    }
   }
 
   public async getSessionAttendanceRecord(sessionId: string, studentId: string): Promise<any | null> {

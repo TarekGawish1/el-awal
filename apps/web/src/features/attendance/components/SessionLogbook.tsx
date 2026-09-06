@@ -102,6 +102,11 @@ export function SessionLogbook({ sessionId }: SessionLogbookProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleAttendanceChange = (student: any, newStatus: string) => {
+    if (newStatus === 'ABSENT') {
+      offlineDb.deleteHomeworkForSessionStudent(sessionId, student.studentId).catch(() => {});
+      setHomeworkRecords((prev) => prev.filter((r) => r.studentId !== student.studentId));
+    }
+
     updateAttendance({
       sessionId,
       payload: {

@@ -105,6 +105,13 @@ export class AutoAbsenceCron implements OnModuleInit, OnModuleDestroy {
             skipDuplicates: true,
           });
 
+          await this.prisma.homeworkRecord.deleteMany({
+            where: {
+              sessionId: session.id,
+              studentId: { in: missingAttendanceIds },
+            },
+          });
+
           missingAttendanceIds.forEach((studentId) => {
             if (shouldSendLiveNotification) {
               this.eventEmitter.emit('student.absence.recorded', {
