@@ -25,6 +25,7 @@ import { API_ENDPOINTS } from '@/lib/api/endpoints';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { initQrDetector } from '@/lib/qr/qr-detector-init';
 import { useQueryClient } from '@tanstack/react-query';
+import { toLocalDateStr } from '@/features/schedules/utils/time.utils';
 
 interface QrHomeworkScannerProps {
   sessionId: string;
@@ -43,6 +44,7 @@ export function QrHomeworkScanner({
 }: QrHomeworkScannerProps) {
   const [activeAssessmentId, setActiveAssessmentId] = useState<string>(assessmentId);
   const [availableAssessments, setAvailableAssessments] = useState<Array<{ id: string; title: string }>>([]);
+  const [autoHomeworkLabel, setAutoHomeworkLabel] = useState<string>(assessmentTitle);
   const [locked, setLocked] = useState(false);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [cameraKey, setCameraKey] = useState(0);
@@ -78,17 +80,95 @@ export function QrHomeworkScanner({
     let isMounted = true;
     const effectiveGroupId = groupId || sessionReport?.groupId;
 
-    // Load available homework assessments for this group from IndexedDB
-    offlineDb.getAssessmentsOffline().then((allAssessments) => {
+    // Load available homework assessments and sessions for this group
+    Promise.all([
+      offlineDb.getAssessmentsOffline(),
+      effectiveGroupId ? offlineDb.getSessionsOffline(effectiveGroupId) : Promise.resolve([]),
+    ]).then(([allAssessments, groupSessions]) => {
       if (!isMounted) return;
+
       const matchingHw = allAssessments.filter(
         (a: any) =>
           (a.type === 'ASSIGNMENT' || a.assessmentType === 'ASSIGNMENT') &&
           (!effectiveGroupId || !a.groupId || a.groupId === effectiveGroupId)
       );
       setAvailableAssessments(matchingHw.map((a: any) => ({ id: a.id, title: a.title })));
-      if (matchingHw.length > 0 && activeAssessmentId === 'default-session-homework') {
-        setActiveAssessmentId(matchingHw[0].id);
+
+      // 1. Identify Current and Previous Session
+      const currentSession = groupSessions.find((s) => s.id === sessionId) || {
+        id: sessionId,
+        sessionDate: sessionReport?.sessionDate || new Date().toISOString(),
+        startTime: '',
+        topic: sessionReport?.topic,
+      };
+
+      const curDateStr = toLocalDateStr(currentSession.sessionDate);
+      const curTimeStr = currentSession.startTime || '23:59';
+      const curDateTime = `${curDateStr}T${curTimeStr}`;
+
+      const previousSessions = groupSessions.filter((s) => {
+        if (s.id === sessionId || s.isCancelled) return false;
+        const sDateStr = toLocalDateStr(s.sessionDate);
+        const sTimeStr = s.startTime || '00:00';
+        return `${sDateStr}T${sTimeStr}` < curDateTime;
+      });
+
+      previousSessions.sort((a, b) => {
+        const da = `${toLocalDateStr(a.sessionDate)}T${a.startTime || '00:00'}`;
+        const db = `${toLocalDateStr(b.sessionDate)}T${b.startTime || '00:00'}`;
+        return db.localeCompare(da);
+      });
+
+      const previousSession = previousSessions[0] || null;
+      const dynamicLabel = previousSession
+        ? `واجب الحصة السابقة (${previousSession.topic || toLocalDateStr(previousSession.sessionDate)})`
+        : assessmentTitle;
+      setAutoHomeworkLabel(dynamicLabel);
+
+      // 2. Automatically select the homework of the previous session
+      if (activeAssessmentId === 'default-session-homework' || !activeAssessmentId) {
+        let bestHomework: any = null;
+
+        // Priority 1: Check existing recorded homework in this session
+        const existingRecordedId = sessionReport?.homeworkRecords?.find(
+          (hr: any) => hr.assessmentId && hr.assessmentId !== 'default-session-homework'
+        )?.assessmentId;
+        if (existingRecordedId) {
+          bestHomework = matchingHw.find((a: any) => a.id === existingRecordedId);
+        }
+
+        // Priority 2: Homework whose dueDate is today's session (assigned in previous session for submission today)
+        if (!bestHomework && curDateStr) {
+          bestHomework = matchingHw.find((a: any) => a.dueDate && toLocalDateStr(a.dueDate) === curDateStr);
+        }
+
+        // Priority 3: Homework explicitly titled after or matching previous session's topic or date
+        if (!bestHomework && previousSession) {
+          const prevDateStr = toLocalDateStr(previousSession.sessionDate);
+          bestHomework = matchingHw.find((a: any) => {
+            const title = a.title?.toLowerCase() || '';
+            if (previousSession.topic && title.includes(previousSession.topic.toLowerCase())) return true;
+            if (title.includes(prevDateStr)) return true;
+            return false;
+          });
+        }
+
+        // Priority 4: Homework created between previous session and current session
+        if (!bestHomework && previousSession) {
+          const prevTime = new Date(previousSession.sessionDate).getTime();
+          const currTime = new Date(currentSession.sessionDate).getTime();
+          bestHomework = matchingHw.find((a: any) => {
+            if (!a.createdAt) return false;
+            const created = new Date(a.createdAt).getTime();
+            return created >= prevTime - 24 * 3600 * 1000 && created <= currTime;
+          });
+        }
+
+        if (bestHomework) {
+          setActiveAssessmentId(bestHomework.id);
+        } else {
+          setActiveAssessmentId('default-session-homework');
+        }
       }
     }).catch(() => {});
 
@@ -642,7 +722,7 @@ export function QrHomeworkScanner({
                 onChange={(e) => setActiveAssessmentId(e.target.value)}
                 className="text-xs font-bold bg-white border border-indigo-200 rounded-lg px-2.5 py-1 text-slate-800 focus:ring-1 focus:ring-indigo-500 shadow-xs cursor-pointer"
               >
-                <option value="default-session-homework">{assessmentTitle} (تلقائي)</option>
+                <option value="default-session-homework">{autoHomeworkLabel} (تلقائي)</option>
                 {availableAssessments.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.title}

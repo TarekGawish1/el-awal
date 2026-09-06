@@ -274,7 +274,16 @@ export class PaymentsService {
     const allTermPaymentPeriods = availableMonths.map((month) => ({ periodYear: paymentYearForMonth(month), periodMonth: month }));
     const paymentConditions: any[] = [];
     if (groupIds.length > 0 && paymentPeriods.length > 0) {
-      paymentConditions.push({ paymentType: PaymentType.TUITION, groupId: { in: groupIds }, OR: paymentPeriods });
+      paymentConditions.push({
+        paymentType: PaymentType.TUITION,
+        OR: paymentPeriods,
+        AND: {
+          OR: [
+            { groupId: { in: groupIds } },
+            { groupId: null },
+          ],
+        },
+      });
     }
     if (booklets.length > 0 && allTermPaymentPeriods.length > 0) {
       paymentConditions.push({ paymentType: PaymentType.BOOKLET, bookletId: { in: booklets.map((booklet) => booklet.id) }, OR: allTermPaymentPeriods });
@@ -347,7 +356,9 @@ export class PaymentsService {
         let prorationReason: string | undefined = undefined;
         let rateMultiplier = 1.0;
 
-        if (isBeforeEnrollment) {
+        const hasPayment = Boolean(payment && (payment.isPaid || amountPaid > 0));
+
+        if (isBeforeEnrollment && !hasPayment) {
           effectiveFee = 0;
         } else if (isJoiningMonth) {
           const proration = calculateProratedTuition(monthlyFee, enrollmentDate);
@@ -357,26 +368,29 @@ export class PaymentsService {
         }
 
         const isExemptByProration = isJoiningMonth && effectiveFee === 0;
-        const isPaid = isBeforeEnrollment ? false : Boolean((payment && (payment.isPaid || amountPaid >= effectiveFee) && (effectiveFee === 0 || amountPaid > 0)) || (isExemptByProration && !payment));
-        const isPartiallyPaid = Boolean(!isBeforeEnrollment && amountPaid > 0 && amountPaid < effectiveFee);
+        const isPaid = (isBeforeEnrollment && !hasPayment)
+          ? false
+          : Boolean((payment && (payment.isPaid || amountPaid >= effectiveFee) && (effectiveFee === 0 || amountPaid > 0)) || (isExemptByProration && !payment));
+        const isPartiallyPaid = Boolean((!isBeforeEnrollment || hasPayment) && amountPaid > 0 && amountPaid < effectiveFee);
         const isStarted = this.isMonthStarted(academicYear, academicTerm, month, paymentTiming);
+        const isApplicable = !isBeforeEnrollment || hasPayment;
 
         monthlyPayments[month] = {
           paymentId: payment?.paymentId,
-          isApplicable: !isBeforeEnrollment,
+          isApplicable,
           isPaid,
           isPartiallyPaid,
           amountPaid,
-          amountExpected: effectiveFee,
-          remainingAmount: isBeforeEnrollment ? 0 : Math.max(0, effectiveFee - amountPaid),
+          amountExpected: hasPayment ? Math.max(effectiveFee, amountPaid) : effectiveFee,
+          remainingAmount: (isBeforeEnrollment && !hasPayment) ? 0 : Math.max(0, effectiveFee - amountPaid),
           paidAt: payment?.paidAt,
           isStarted,
           calculationReason: prorationReason,
           rateMultiplier,
         };
         totalPaid += amountPaid;
-        if (isStarted && !isBeforeEnrollment) {
-          totalDue += Math.max(0, effectiveFee - amountPaid);
+        if (isStarted && (!isBeforeEnrollment || hasPayment)) {
+          totalDue += Math.max(0, (hasPayment ? Math.max(effectiveFee, amountPaid) : effectiveFee) - amountPaid);
         }
       }
 
