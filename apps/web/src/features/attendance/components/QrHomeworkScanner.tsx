@@ -905,45 +905,6 @@ export function QrHomeworkScanner({
                         >
                           ✗
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleManualRecord(student, 'INCOMPLETE')}
-                          className={`h-8 w-8 p-0 rounded-lg font-bold transition-all ${
-                            status === 'INCOMPLETE'
-                              ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 ring-2 ring-amber-500/30'
-                              : 'text-amber-600 hover:bg-amber-50'
-                          }`}
-                          title={status === 'INCOMPLETE' ? 'إلغاء التحديد (تراجع)' : 'ناقص'}
-                        >
-                          !
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleManualRecord(student, 'EXCUSED')}
-                          className={`h-8 w-8 p-0 rounded-lg font-bold transition-all ${
-                            status === 'EXCUSED'
-                              ? 'bg-slate-200 text-slate-700 hover:bg-slate-300 ring-2 ring-slate-400/40'
-                              : 'text-slate-500 hover:bg-slate-100'
-                          }`}
-                          title={status === 'EXCUSED' ? 'إلغاء التحديد (تراجع)' : 'بعذر'}
-                        >
-                          -
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleToggleAbsence(student)}
-                          className={`h-8 w-8 p-0 rounded-lg font-bold transition-all ${
-                            isAbsent
-                              ? 'bg-rose-600 text-white hover:bg-rose-700 ring-2 ring-rose-600/30'
-                              : 'text-slate-400 hover:bg-rose-50 hover:text-rose-600'
-                          }`}
-                          title={isAbsent ? 'إلغاء تسجيل الغياب (تراجع)' : 'تسجيل غائب وحذف الواجب'}
-                        >
-                          غ
-                        </Button>
                       </div>
                     </div>
                   );
