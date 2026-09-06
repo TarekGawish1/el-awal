@@ -57,8 +57,36 @@ export function CertificatesClient() {
         image: c.fileUrl,
       }));
 
-      const combined = [...mappedApiCerts, ...localCerts];
-      const uniqueSaved = Array.from(new Map(combined.map(item => [item.id, item])).values());
+      // Filter out local certificates that are already present in the API
+      const nonDuplicateLocalCerts = localCerts.filter((local: any) => {
+        return !mappedApiCerts.some((api: any) =>
+          api.id === local.id ||
+          (api.studentName?.trim() === local.studentName?.trim() && api.subject?.trim() === local.subject?.trim())
+        );
+      });
+
+      // Keep localStorage clean of redundant duplicates
+      if (nonDuplicateLocalCerts.length !== localCerts.length) {
+        try {
+          localStorage.setItem('saved_certificates', JSON.stringify(nonDuplicateLocalCerts));
+        } catch (e) {
+          console.warn('Could not update localStorage', e);
+        }
+      }
+
+      const combined = [...mappedApiCerts, ...nonDuplicateLocalCerts];
+      
+      // Deduplicate by studentName + subject + stage to guarantee single appearance
+      const seen = new Set<string>();
+      const uniqueSaved: any[] = [];
+      for (const item of combined) {
+        const key = `${item.studentName?.trim()}_${item.subject?.trim()}_${item.stage?.trim()}`;
+        if (!seen.has(key) && !seen.has(item.id)) {
+          seen.add(key);
+          seen.add(item.id);
+          uniqueSaved.push(item);
+        }
+      }
       
       // Sort by creation date (newest first)
       uniqueSaved.sort((a: any, b: any) => {

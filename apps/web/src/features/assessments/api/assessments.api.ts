@@ -74,3 +74,9 @@ export async function reEvaluateAssessmentSubmissions(id: string): Promise<any> 
     method: 'POST',
   });
 }
+
+export async function deleteAssessment(id: string): Promise<{ success: boolean; message: string }> {
+  return await apiClient<{ success: boolean; message: string }>(API_ENDPOINTS.ASSESSMENTS.DETAIL(id), {
+    method: 'DELETE',
+  });
+}

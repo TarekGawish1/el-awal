@@ -221,7 +221,7 @@ describe('Offline Subpage Navigation & Resilient Hydration', () => {
     expect(screen.getByText('العودة لقائمة المجموعات')).toBeInTheDocument();
   });
 
-  it('renders StudentDetailsModal for quick offline view without page navigation', () => {
+  it('renders StudentDetailsModal for quick offline view without page navigation', async () => {
     const handleClose = vi.fn();
     renderWithClient(
       <StudentDetailsModal
@@ -231,11 +231,15 @@ describe('Offline Subpage Navigation & Resilient Hydration', () => {
       />
     );
 
-    expect(screen.getAllByText('عمر خالد المنشاوي')[0]).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getAllByText('عمر خالد المنشاوي')[0]).toBeInTheDocument();
+    });
     expect(screen.getAllByText('STU-101001')[0]).toBeInTheDocument();
-    expect(screen.getByText('مجموعة الفيزياء للثانوية')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('مجموعة الفيزياء للثانوية')).toBeInTheDocument();
+    });
     expect(screen.getByText('خالد المنشاوي')).toBeInTheDocument();
-    expect(screen.getByText('عرض الصفحة الكاملة')).toBeInTheDocument();
+    expect(screen.getByTitle('فتح الصفحة الكاملة')).toBeInTheDocument();
   });
 
   it('renders GroupDetailsModal for quick offline group view without page navigation', () => {

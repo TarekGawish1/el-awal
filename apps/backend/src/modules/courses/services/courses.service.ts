@@ -54,6 +54,7 @@ import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagina
 import { resolveOfficialSubmission } from '../../assessments/utils/submission-grade.util';
 import { normalizeEgyptianPhone } from '../../../common/utils/phone.util';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
+import { RealtimeGateway } from '../../../realtime/realtime.gateway';
 import { createHash, randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 
@@ -68,6 +69,7 @@ export class CoursesService {
     private readonly storageService: StorageService,
     private readonly aiModeration: AiModerationService,
     @Optional() private readonly notificationsService?: NotificationsService,
+    @Optional() private readonly realtimeGateway?: RealtimeGateway,
   ) {}
 
   /**
@@ -104,8 +106,10 @@ export class CoursesService {
           academicTerm: dto.academicTerm || 'FIRST_TERM',
           price: dto.price || 0.0,
           coverImageUrl: dto.coverImageUrl,
+          previewVideoUrl: dto.previewVideoUrl || null,
           courseQuizId: dto.courseQuizId || null,
           enforceSequentialLessons: dto.enforceSequentialLessons ?? false,
+          requireExamPassingToUnlock: dto.requireExamPassingToUnlock ?? false,
           hasCertificate: dto.hasCertificate ?? true,
           teacherId,
           status: CourseStatus.DRAFT,
@@ -308,6 +312,7 @@ export class CoursesService {
         academicTerm: c.academicTerm,
         price: c.price,
         coverImageUrl: c.coverImageUrl,
+        previewVideoUrl: c.previewVideoUrl || null,
         hasCertificate: c.hasCertificate,
         createdAt: c.createdAt,
         teacher: c.teacher,
@@ -418,6 +423,7 @@ export class CoursesService {
       academicTerm: course.academicTerm,
       price: course.price,
       coverImageUrl: course.coverImageUrl,
+      previewVideoUrl: course.previewVideoUrl || null,
       hasCertificate: course.hasCertificate,
       createdAt: course.createdAt,
       teacher: course.teacher,
@@ -458,6 +464,11 @@ export class CoursesService {
     });
 
     const official = resolveOfficialSubmission(submissions);
+    const isPassed = official
+      ? base.passingScore != null && official.scoreObtained != null
+        ? Number(official.scoreObtained) >= Number(base.passingScore)
+        : (official.status === 'SUBMITTED' || official.status === 'GRADED')
+      : false;
 
     return {
       ...base,
@@ -470,6 +481,7 @@ export class CoursesService {
                 ? Number(official.scoreObtained)
                 : null,
             attemptNumber: official.attemptNumber,
+            isPassed,
           }
         : null,
     };
@@ -486,7 +498,7 @@ export class CoursesService {
           include: { user: { select: { fullName: true, email: true, phone: true } } },
         },
         courseQuiz: {
-          select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true },
+          select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true },
         },
         groupAccess: {
           include: {
@@ -497,14 +509,17 @@ export class CoursesService {
           orderBy: { orderIndex: 'asc' },
           include: {
             unitQuiz: {
-              select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true },
+              select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true, requirePassingScore: true },
             },
             lessons: {
               orderBy: { orderIndex: 'asc' },
               include: {
                 attachments: true,
                 lessonQuiz: {
-                  select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true },
+                  select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true, requirePassingScore: true },
+                },
+                assessments: {
+                  select: { id: true, title: true, type: true, assessmentType: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isPublished: true, isOptional: true, requirePassingScore: true },
                 },
                 _count: {
                   select: { questions: true },
@@ -556,6 +571,11 @@ export class CoursesService {
               (mod.lessons || []).map(async (les) => ({
                 ...les,
                 lessonQuiz: await this.attachStudentSubmission(les.lessonQuiz, studentId),
+                assessments: await Promise.all(
+                  (les.assessments || []).map((ass: any) =>
+                    this.attachStudentSubmission(ass, studentId),
+                  ),
+                ),
               })),
             ),
           ]);
@@ -568,11 +588,59 @@ export class CoursesService {
       ),
     ]);
 
+    const allLessons = (enrichedModules || []).flatMap((m) => m.lessons || []);
+    const totalLessons = allLessons.length;
+    const allLessonsCompleted = totalLessons > 0 && completedLessonIds.length >= totalLessons;
+
+    const courseQuizzes: { id: string; mySubmission: any; passingScore: number | null }[] = [];
+    if (enrichedCourseQuiz) {
+      courseQuizzes.push(enrichedCourseQuiz);
+    }
+    (enrichedModules || []).forEach((m) => {
+      if (m.unitQuiz) {
+        courseQuizzes.push(m.unitQuiz);
+      }
+      (m.lessons || []).forEach((l) => {
+        if (l.lessonQuiz) {
+          courseQuizzes.push(l.lessonQuiz);
+        }
+      });
+    });
+
+    const uniqueQuizMap = new Map<string, { id: string; mySubmission: any; passingScore: number | null }>();
+    courseQuizzes.forEach((q) => {
+      if (q && q.id) uniqueQuizMap.set(q.id, q);
+    });
+    const uniqueQuizzes = Array.from(uniqueQuizMap.values());
+    const totalQuizzesCount = uniqueQuizzes.length;
+
+    let completedQuizzesCount = 0;
+    if (studentId) {
+      completedQuizzesCount = uniqueQuizzes.filter((q) => {
+        const sub = q.mySubmission;
+        if (!sub) return false;
+        const isSubmitted = sub.status === 'SUBMITTED' || sub.status === 'GRADED';
+        if (!isSubmitted) return false;
+        if (course.requireExamPassingToUnlock) {
+          return sub.isPassed === true;
+        }
+        return true;
+      }).length;
+    }
+
+    const allQuizzesCompleted = totalQuizzesCount === 0 || completedQuizzesCount === totalQuizzesCount;
+    const isCertificateEligible = allLessonsCompleted && allQuizzesCompleted;
+
     return {
       ...course,
       modules: enrichedModules,
       courseQuiz: enrichedCourseQuiz,
       completedLessonIds,
+      allLessonsCompleted,
+      allQuizzesCompleted,
+      totalQuizzesCount,
+      completedQuizzesCount,
+      isCertificateEligible,
     };
   }
 
@@ -606,9 +674,11 @@ export class CoursesService {
         ...(dto.academicTerm !== undefined ? { academicTerm: dto.academicTerm } : {}),
         ...(dto.price !== undefined ? { price: dto.price } : {}),
         ...(dto.coverImageUrl !== undefined ? { coverImageUrl: dto.coverImageUrl } : {}),
+        ...(dto.previewVideoUrl !== undefined ? { previewVideoUrl: dto.previewVideoUrl } : {}),
         ...(dto.status ? { status: dto.status } : {}),
         ...(dto.courseQuizId !== undefined ? { courseQuizId: dto.courseQuizId } : {}),
         ...(dto.enforceSequentialLessons !== undefined ? { enforceSequentialLessons: dto.enforceSequentialLessons } : {}),
+        ...(dto.requireExamPassingToUnlock !== undefined ? { requireExamPassingToUnlock: dto.requireExamPassingToUnlock } : {}),
         ...(dto.hasCertificate !== undefined ? { hasCertificate: dto.hasCertificate } : {}),
       },
     });
@@ -1717,6 +1787,14 @@ export class CoursesService {
       return this.enrollCourse(courseId, resolvedStudentId);
     }
 
+    // Ensure progress is completely reset to zero when applying for a new subscription
+    await this.prisma.courseProgress.deleteMany({
+      where: {
+        studentId: resolvedStudentId,
+        courseId,
+      },
+    });
+
     // Paid course: validate receipt if provided or save pending application
     const enrollment = await this.prisma.courseEnrollment.upsert({
       where: {
@@ -1771,6 +1849,12 @@ export class CoursesService {
           this.logger.warn(`Failed to dispatch teacher notification for course subscription`, err);
         });
     }
+
+    // Broadcast instant realtime push to teacher's subscription dashboard
+    this.realtimeGateway?.notifyCourseSubscriptionsChanged([
+      course.teacherId,
+      course.teacher?.user?.id,
+    ]);
 
     return {
       enrollmentId: enrollment.id,
@@ -1887,6 +1971,10 @@ export class CoursesService {
         studentName: e.student?.user?.fullName || 'طالب',
         studentCode: e.student?.studentCode || '',
         studentPhone: e.student?.user?.phone || '',
+        senderPhone: e.senderPhone || e.student?.user?.phone || '',
+        transferAmount: e.transferAmount ? Number(e.transferAmount) : Number(e.course.price),
+        receiptImageUrl: e.receiptImageUrl || null,
+        paymentMethod: e.paymentMethod,
         date: e.enrolledAt ? new Date(e.enrolledAt).toISOString().split('T')[0] : '',
         enrolledAt: e.enrolledAt,
         status: e.status,
@@ -1976,6 +2064,11 @@ export class CoursesService {
           });
       }
 
+      this.realtimeGateway?.notifyCourseSubscriptionsChanged([
+        enrollment.course.teacherId,
+        enrollment.student?.user?.id,
+      ]);
+
       return {
         enrollmentId: updatedEnrollment.id,
         courseId: updatedEnrollment.courseId,
@@ -2051,11 +2144,131 @@ export class CoursesService {
         });
     }
 
+    this.realtimeGateway?.notifyCourseSubscriptionsChanged([
+      enrollment.course.teacherId,
+      enrollment.student?.user?.id,
+    ]);
+
     return {
       enrollmentId: updated.id,
       status: updated.status,
       rejectionReason: updated.rejectionReason,
       message: 'تم رفض طلب الاشتراك.',
+    };
+  }
+
+  /**
+   * Cancels/revokes an active student's enrollment and suspends course access.
+   */
+  async cancelStudentSubscription(
+    enrollmentId: string,
+    user: AuthenticatedUser,
+    reason?: string,
+  ) {
+    const enrollment = await this.prisma.courseEnrollment.findUnique({
+      where: { id: enrollmentId },
+      include: { course: true, student: { include: { user: true } } },
+    });
+
+    if (!enrollment) {
+      throw new NotFoundException(`اشتراك الطالب [${enrollmentId}] غير موجود`);
+    }
+
+    if (
+      user.role === UserRole.TEACHER &&
+      enrollment.course.teacherId !== user.teacherProfileId &&
+      enrollment.course.teacherId !== user.id
+    ) {
+      throw new ForbiddenException('غير مصرح لك بإلغاء هذا الاشتراك');
+    }
+
+    const updated = await this.prisma.courseEnrollment.update({
+      where: { id: enrollmentId },
+      data: {
+        status: CourseEnrollmentStatus.DROPPED,
+        rejectionReason: reason || 'تم إلغاء الاشتراك في الكورس من قبل المعلم.',
+        reviewedAt: new Date(),
+        reviewedById: user.id,
+      },
+    });
+
+    // Suspend course access
+    await this.prisma.courseAccess.updateMany({
+      where: { enrollmentId },
+      data: { accessStatus: CourseAccessStatus.SUSPENDED },
+    });
+
+    // Reset student course progress so that if they re-enroll they start from zero
+    await this.prisma.courseProgress.deleteMany({
+      where: {
+        studentId: enrollment.studentId,
+        courseId: enrollment.courseId,
+      },
+    });
+
+    // Reset student's submissions on any quizzes/exams attached to this course
+    const [courseRecord, unitQuizzes, lessonQuizzes] = await Promise.all([
+      this.prisma.course.findUnique({
+        where: { id: enrollment.courseId },
+        select: { courseQuizId: true },
+      }),
+      this.prisma.courseModule.findMany({
+        where: { courseId: enrollment.courseId, unitQuizId: { not: null } },
+        select: { unitQuizId: true },
+      }),
+      this.prisma.courseLesson.findMany({
+        where: { module: { courseId: enrollment.courseId }, lessonQuizId: { not: null } },
+        select: { lessonQuizId: true },
+      }),
+    ]);
+
+    const quizIds: string[] = [
+      ...(courseRecord?.courseQuizId ? [courseRecord.courseQuizId] : []),
+      ...unitQuizzes.map((u) => u.unitQuizId as string),
+      ...lessonQuizzes.map((l) => l.lessonQuizId as string),
+    ];
+
+    if (quizIds.length > 0) {
+      await this.prisma.assessmentSubmission.deleteMany({
+        where: {
+          assessmentId: { in: quizIds },
+          studentId: enrollment.studentId,
+        },
+      });
+    }
+
+    // Notify student
+    if (this.notificationsService && enrollment.student?.user?.id) {
+      this.notificationsService
+        .sendNotification({
+          recipientId: enrollment.student.user.id,
+          notificationType: NotificationType.GENERAL_ANNOUNCEMENT,
+          type: 'COURSE_SUBSCRIPTION_CANCELLED',
+          title: `تم إلغاء اشتراكك في الكورس`,
+          body: `تم إلغاء اشتراكك في كورس "${enrollment.course.title}" من قبل المعلم.${reason ? ` السبب: ${reason}` : ''}`,
+          channels: [NotificationChannel.IN_APP, NotificationChannel.WEB_PUSH],
+          data: {
+            courseId: enrollment.courseId,
+            enrollmentId: enrollment.id,
+            reason: updated.rejectionReason,
+          },
+          referenceEntityId: enrollment.id,
+        })
+        .catch((err) => {
+          this.logger.warn(`Failed to dispatch student cancellation notification`, err);
+        });
+    }
+
+    this.realtimeGateway?.notifyCourseSubscriptionsChanged([
+      enrollment.course.teacherId,
+      enrollment.student?.user?.id,
+    ]);
+
+    return {
+      enrollmentId: updated.id,
+      status: updated.status,
+      rejectionReason: updated.rejectionReason,
+      message: 'تم إلغاء اشتراك الطالب وتعليق وصوله للكورس بنجاح.',
     };
   }
 
@@ -2142,6 +2355,85 @@ export class CoursesService {
           where: { module: { courseId: e.courseId } },
         });
 
+        const completedLessons = isActive
+          ? await this.prisma.courseProgress.count({
+              where: {
+                studentId,
+                isCompleted: true,
+                lesson: { module: { courseId: e.courseId } },
+              },
+            })
+          : 0;
+
+        const isCompleted = isActive && totalLessons > 0 && progressPercentage >= 100;
+
+        // Compute certificate eligibility (all lessons AND all quizzes completed)
+        let isCertificateEligible = false;
+        if (isActive && progressPercentage >= 100 && totalLessons > 0) {
+          const [courseRecord, unitQuizzes, lessonQuizzes] = await Promise.all([
+            this.prisma.course.findUnique({
+              where: { id: e.courseId },
+              select: { courseQuizId: true, requireExamPassingToUnlock: true, hasCertificate: true },
+            }),
+            this.prisma.courseModule.findMany({
+              where: { courseId: e.courseId, unitQuizId: { not: null } },
+              select: { unitQuizId: true },
+            }),
+            this.prisma.courseLesson.findMany({
+              where: { module: { courseId: e.courseId }, lessonQuizId: { not: null } },
+              select: { lessonQuizId: true },
+            }),
+          ]);
+
+          if (courseRecord?.hasCertificate !== false) {
+            const quizIds = [
+              ...(courseRecord?.courseQuizId ? [courseRecord.courseQuizId] : []),
+              ...unitQuizzes.map((u) => u.unitQuizId as string),
+              ...lessonQuizzes.map((l) => l.lessonQuizId as string),
+            ];
+
+            if (quizIds.length === 0) {
+              isCertificateEligible = true;
+            } else {
+              const assessments = await this.prisma.assessment.findMany({
+                where: { id: { in: quizIds } },
+                select: { id: true, passingScore: true },
+              });
+
+              const submissions = await this.prisma.assessmentSubmission.findMany({
+                where: {
+                  assessmentId: { in: quizIds },
+                  studentId,
+                  status: { in: ['SUBMITTED', 'GRADED'] },
+                },
+                select: { assessmentId: true, scoreObtained: true },
+              });
+
+              let allSatisfied = true;
+              for (const ass of assessments) {
+                const studentSubs = submissions.filter((s) => s.assessmentId === ass.id);
+                if (studentSubs.length === 0) {
+                  allSatisfied = false;
+                  break;
+                }
+                const mustPass = (ass as any).requirePassingScore !== undefined
+                  ? Boolean((ass as any).requirePassingScore)
+                  : Boolean(courseRecord?.requireExamPassingToUnlock);
+                if (mustPass && ass.passingScore != null) {
+                  const passed = studentSubs.some(
+                    (s) => s.scoreObtained != null && Number(s.scoreObtained) >= Number(ass.passingScore),
+                  );
+                  if (!passed) {
+                    allSatisfied = false;
+                    break;
+                  }
+                }
+              }
+              isCertificateEligible = allSatisfied;
+            }
+          }
+        }
+
         return {
           courseId: e.course.id,
           id: e.course.id,
@@ -2150,6 +2442,7 @@ export class CoursesService {
           subject: e.course.subject,
           gradeLevel: e.course.gradeLevel,
           coverImageUrl: e.course.coverImageUrl,
+          previewVideoUrl: e.course.previewVideoUrl || null,
           teacherName: e.course.teacher.user.fullName,
           enrolledAt: e.enrolledAt,
           enrollmentStatus: e.status,
@@ -2159,7 +2452,10 @@ export class CoursesService {
             (isActive ? CourseAccessStatus.ACTIVE : CourseAccessStatus.SUSPENDED),
           totalModules: e.course._count.modules,
           totalLessons,
+          completedLessons,
           progressPercentage,
+          isCompleted,
+          isCertificateEligible,
         };
       }),
     );
@@ -2179,12 +2475,15 @@ export class CoursesService {
       include: {
         attachments: true,
         lessonQuiz: {
-          select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true },
+          select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true, requirePassingScore: true },
+        },
+        assessments: {
+          select: { id: true, title: true, type: true, assessmentType: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isPublished: true, isOptional: true, requirePassingScore: true },
         },
         module: {
           include: {
             unitQuiz: {
-              select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true },
+              select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true, requirePassingScore: true },
             },
             course: {
               include: {
@@ -2192,7 +2491,7 @@ export class CoursesService {
                   include: { user: { select: { fullName: true } } },
                 },
                 courseQuiz: {
-                  select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true },
+                  select: { id: true, title: true, type: true, totalScore: true, durationMinutes: true, passingScore: true, allowMultipleAttempts: true, isOptional: true, requirePassingScore: true },
                 },
               },
             },
@@ -2297,10 +2596,14 @@ export class CoursesService {
     // lesson-viewer renders the final mark from this payload directly.
     const quizViewerStudentId =
       user.role === UserRole.STUDENT || user.studentProfileId ? studentId : null;
-    const [lessonQuiz, unitQuiz, courseQuiz] = await Promise.all([
+    const homeworkAssessment = lesson.assessments?.find(
+      (a) => a.type === 'ASSIGNMENT' || a.type === 'HOMEWORK' || a.assessmentType === 'HOMEWORK',
+    );
+    const [lessonQuiz, unitQuiz, courseQuiz, lessonHomework] = await Promise.all([
       this.attachStudentSubmission(lesson.lessonQuiz, quizViewerStudentId),
       this.attachStudentSubmission(lesson.module.unitQuiz, quizViewerStudentId),
       this.attachStudentSubmission(course.courseQuiz, quizViewerStudentId),
+      this.attachStudentSubmission(homeworkAssessment || null, quizViewerStudentId),
     ]);
 
     return {
@@ -2318,8 +2621,10 @@ export class CoursesService {
       documentDownloadUrl,
       attachments: lesson.attachments,
       lessonQuiz,
+      lessonHomework,
       unitQuiz,
       courseQuiz,
+      assessments: lesson.assessments,
       lastPositionSeconds,
       isCompleted,
     };
@@ -2368,15 +2673,25 @@ export class CoursesService {
 
     const targetStudentId = studentProfile?.id || studentId;
 
-    // Enforce that lessons with linked quizzes CANNOT be marked complete without quiz submission
+    // Enforce that lessons with linked quizzes CANNOT be marked complete without quiz submission (and passing if required)
     let isCompletedToSave = dto.isCompleted || false;
     if (isCompletedToSave && lesson.lessonQuizId) {
+      const course = await this.prisma.course.findUnique({
+        where: { id: courseId },
+        select: { requireExamPassingToUnlock: true, enforceSequentialLessons: true },
+      });
+
+      const assessment = await this.prisma.assessment.findUnique({
+        where: { id: lesson.lessonQuizId },
+        select: { passingScore: true, requirePassingScore: true },
+      });
+
       const quizSubmissions = await this.prisma.assessmentSubmission.findMany({
         where: {
           assessmentId: lesson.lessonQuizId,
           studentId: targetStudentId,
         },
-        select: { status: true },
+        select: { status: true, scoreObtained: true },
       });
 
       const hasSubmittedQuiz = quizSubmissions.some(
@@ -2384,8 +2699,20 @@ export class CoursesService {
       );
 
       if (!hasSubmittedQuiz) {
-        // Demote completion to false until quiz is passed
+        // Demote completion to false until quiz is submitted
         isCompletedToSave = false;
+      } else {
+        const mustPass = assessment?.requirePassingScore !== undefined
+          ? Boolean(assessment.requirePassingScore)
+          : Boolean(course?.requireExamPassingToUnlock);
+        if (mustPass && assessment?.passingScore != null) {
+          const hasPassedQuiz = quizSubmissions.some(
+            (s) => s.scoreObtained != null && Number(s.scoreObtained) >= Number(assessment.passingScore),
+          );
+          if (!hasPassedQuiz) {
+            isCompletedToSave = false;
+          }
+        }
       }
     }
 

@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   ArrowRight,
   BookOpen,
@@ -26,6 +27,11 @@ import {
   ExternalLink,
   Settings2,
   Calendar,
+  Sparkles,
+  Gift,
+  CreditCard,
+  X,
+  Play,
 } from 'lucide-react';
 import {
   useCourseDetail,
@@ -38,11 +44,13 @@ import {
   useReorderLessons,
 } from '../hooks/useCourses';
 import { useAssessments } from '@/features/assessments/hooks/use-assessments';
+import { deleteAssessment, updateAssessment } from '@/features/assessments/api/assessments.api';
 import { CourseModule, CourseLesson } from '../types/courses.types';
 import { LessonEditorModal } from './LessonEditorModal';
 import { EditCourseModal } from './EditCourseModal';
 import { CourseGroupAccessModal } from './CourseGroupAccessModal';
 import { CourseEnrollmentsTab } from './CourseEnrollmentsTab';
+import { useQueryClient } from '@tanstack/react-query';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import toast from 'react-hot-toast';
 
@@ -51,7 +59,8 @@ interface CourseBuilderViewProps {
 }
 
 export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
-  const { data: course, isLoading } = useCourseDetail(courseId);
+  const queryClient = useQueryClient();
+  const { data: course, isLoading, refetch: refetchCourse } = useCourseDetail(courseId);
   const updateCourseMutation = useUpdateCourse(courseId);
   const createModuleMutation = useCreateModule(courseId);
   const updateModuleMutation = useUpdateModule(courseId);
@@ -74,19 +83,83 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
   // Modals & Active State
   const [isEditCourseModalOpen, setIsEditCourseModalOpen] = useState(false);
   const [isGroupAccessModalOpen, setIsGroupAccessModalOpen] = useState(false);
+  const [isPreviewVideoModalOpen, setIsPreviewVideoModalOpen] = useState(false);
   const [lessonModalState, setLessonModalState] = useState<{
     isOpen: boolean;
     moduleId: string;
     lesson: CourseLesson | null;
+    initialTab?: "video" | "summary" | "attachments" | "quiz";
+    newAssessmentId?: string;
+    newAssessmentType?: string;
+    newAssessmentTitle?: string;
   }>({
     isOpen: false,
     moduleId: '',
     lesson: null,
+    initialTab: 'video',
   });
+
+  const searchParams = useSearchParams();
+  const urlLessonId = searchParams.get('lessonId');
+  const urlModuleId = searchParams.get('moduleId');
+  const urlNewAssessmentId = searchParams.get('newAssessmentId');
+  const urlNewAssessmentType = searchParams.get('newAssessmentType');
+  const urlNewAssessmentTitle = searchParams.get('newAssessmentTitle');
+
+  // Refetch course and stream-auth when arriving with a lesson in the URL
+  useEffect(() => {
+    if (urlLessonId && courseId) {
+      refetchCourse();
+      queryClient.invalidateQueries({ queryKey: ['courses', courseId] });
+      queryClient.invalidateQueries({ queryKey: ['lesson-stream-auth', urlLessonId] });
+    }
+  }, [urlLessonId, courseId]);
+
+  // Auto-open Lesson Modal when redirected back from assessment creation
+  useEffect(() => {
+    if (!urlLessonId || !course?.modules) return;
+    for (const mod of course.modules) {
+      const foundLesson = mod.lessons?.find((l) => l.id === urlLessonId);
+      if (foundLesson) {
+        setLessonModalState({
+          isOpen: true,
+          moduleId: mod.id,
+          lesson: foundLesson,
+          initialTab: 'quiz',
+          newAssessmentId: urlNewAssessmentId || undefined,
+          newAssessmentType: urlNewAssessmentType || undefined,
+          newAssessmentTitle: urlNewAssessmentTitle || undefined,
+        });
+        break;
+      }
+    }
+  }, [urlLessonId, urlNewAssessmentId, urlNewAssessmentType, urlNewAssessmentTitle, course?.modules]);
+
+  // Keep open lesson in sync with the latest course data
+  useEffect(() => {
+    if (!lessonModalState.isOpen || !lessonModalState.lesson?.id || !course?.modules) return;
+    const freshLesson = course.modules
+      .flatMap((m) => m.lessons || [])
+      .find((l) => l.id === lessonModalState.lesson?.id);
+    if (freshLesson && freshLesson !== lessonModalState.lesson) {
+      setLessonModalState((prev) => ({
+        ...prev,
+        lesson: freshLesson,
+      }));
+    }
+  }, [course?.modules, lessonModalState.isOpen, lessonModalState.lesson?.id]);
 
   // Custom Delete Modals State (No JS Confirm)
   const [moduleToDelete, setModuleToDelete] = useState<{ id: string; title: string } | null>(null);
   const [lessonToDelete, setLessonToDelete] = useState<{ id: string; title: string } | null>(null);
+  const [assessmentToDelete, setAssessmentToDelete] = useState<{
+    id: string;
+    title: string;
+    type: 'EXAM' | 'HOMEWORK';
+    scope: 'course' | 'unit' | 'lesson';
+    targetId?: string;
+  } | null>(null);
+  const [isDeletingAssessment, setIsDeletingAssessment] = useState(false);
 
   // Inline New Module State
   const [isCreatingModule, setIsCreatingModule] = useState(false);
@@ -164,6 +237,53 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
     await updateCourseMutation.mutateAsync({
       courseQuizId: courseQuizId || null,
     });
+  };
+
+  const handleUnlinkAssessment = async () => {
+    if (!assessmentToDelete) return;
+    const { id, scope, targetId } = assessmentToDelete;
+    try {
+      setIsDeletingAssessment(true);
+      if (scope === 'course') {
+        await updateCourseMutation.mutateAsync({ courseQuizId: null });
+        toast.success('تم إلغاء ربط امتحان الكورس بنجاح');
+      } else if (scope === 'unit' && targetId) {
+        await updateModuleMutation.mutateAsync({ moduleId: targetId, data: { unitQuizId: null } });
+        toast.success('تم إلغاء ربط امتحان الوحدة بنجاح');
+      } else if (scope === 'lesson' && targetId) {
+        await updateAssessment(id, { lessonId: null });
+        toast.success('تم إلغاء ربط التقييم من الدرس بنجاح');
+      }
+      await queryClient.invalidateQueries({ queryKey: ['courses'] });
+      await queryClient.invalidateQueries({ queryKey: ['assessments'] });
+    } catch (err: any) {
+      toast.error(err?.message || 'حدث خطأ أثناء إلغاء الربط');
+    } finally {
+      setIsDeletingAssessment(false);
+      setAssessmentToDelete(null);
+    }
+  };
+
+  const handlePermanentlyDeleteAssessment = async () => {
+    if (!assessmentToDelete) return;
+    const { id, scope, targetId } = assessmentToDelete;
+    try {
+      setIsDeletingAssessment(true);
+      if (scope === 'course') {
+        await updateCourseMutation.mutateAsync({ courseQuizId: null });
+      } else if (scope === 'unit' && targetId) {
+        await updateModuleMutation.mutateAsync({ moduleId: targetId, data: { unitQuizId: null } });
+      }
+      await deleteAssessment(id);
+      toast.success('تم حذف التقييم بالكامل بنجاح');
+      await queryClient.invalidateQueries({ queryKey: ['courses'] });
+      await queryClient.invalidateQueries({ queryKey: ['assessments'] });
+    } catch (err: any) {
+      toast.error(err?.message || 'حدث خطأ أثناء حذف التقييم');
+    } finally {
+      setIsDeletingAssessment(false);
+      setAssessmentToDelete(null);
+    }
   };
 
   const modules = course.modules || [];
@@ -271,127 +391,260 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 text-right animate-in fade-in">
-      {/* Top Breadcrumb & Controls Card (Light Header Banner) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/teacher/courses"
-            className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-primary-50 hover:text-primary-600 text-slate-700 flex items-center justify-center transition-colors shrink-0 border border-slate-200"
-          >
-            <ArrowRight className="w-5 h-5" />
-          </Link>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-3 py-0.5 rounded-full text-[11px] font-bold bg-primary-50 text-primary-700 border border-primary-100">
-                {course.subject}
-              </span>
-              <span className="px-3 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700">
-                {course.gradeLevel}
-              </span>
-              {course.academicStage && (
-                <span className="px-3 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
-                  {course.academicStage}
+      {/* Redesigned Hero Header Card */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-xs relative overflow-hidden">
+        {/* Top Accent Gradient Bar */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary-600 via-indigo-600 to-emerald-500" />
+
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          {/* Right Section: Navigation & Course Metadata */}
+          <div className="flex items-start gap-4">
+            <Link
+              href="/teacher/courses"
+              className="w-11 h-11 rounded-2xl bg-slate-50 hover:bg-primary-50 hover:text-primary-600 text-slate-600 flex items-center justify-center transition-all shrink-0 border border-slate-200/80 shadow-2xs group cursor-pointer"
+              title="العودة إلى قائمة الكورسات"
+            >
+              <ArrowRight className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+            </Link>
+
+            <div className="space-y-2">
+              {/* Badges Pill Row */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-black bg-primary-50 text-primary-700 border border-primary-100/80">
+                  <BookOpen className="w-3.5 h-3.5 text-primary-600" />
+                  <span>{course.subject}</span>
                 </span>
-              )}
-              <span
-                className={`px-3 py-0.5 rounded-full text-[11px] font-bold ${
-                  course.status === 'PUBLISHED'
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    : 'bg-amber-50 text-amber-700 border border-amber-200'
-                }`}
-              >
-                {course.status === 'PUBLISHED' ? 'منشور أونلاين' : 'مسودة قيد التجهيز'}
-              </span>
-              {Number(course.price) > 0 && (
-                <span className="px-3 py-0.5 rounded-full text-[11px] font-bold bg-slate-900 text-white font-mono">
-                  {course.price} ج.م
+
+                <span className="px-3 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200/60">
+                  {course.gradeLevel}
                 </span>
+
+                {course.academicStage && (
+                  <span className="px-3 py-1 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                    {course.academicStage}
+                  </span>
+                )}
+
+                {/* Status Badge with Live Indicator */}
+                <span
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border ${
+                    course.status === 'PUBLISHED'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-amber-50 text-amber-700 border-amber-200'
+                  }`}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      course.status === 'PUBLISHED' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                    }`}
+                  />
+                  <span>{course.status === 'PUBLISHED' ? 'منشور أونلاين' : 'مسودة قيد التجهيز'}</span>
+                </span>
+
+                {/* Price Badge */}
+                {Number(course.price) === 0 ? (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-black bg-emerald-600 text-white shadow-2xs">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>كورس مجاني 🎁</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold bg-slate-900 text-white font-mono shadow-2xs">
+                    <CreditCard className="w-3.5 h-3.5 text-slate-300" />
+                    <span>{course.price} ج.م</span>
+                  </span>
+                )}
+
+                {course.hasCertificate && (
+                  <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/70">
+                    <Award className="w-3.5 h-3.5 text-amber-600" />
+                    <span>شهادة إتمام</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Title & Quick Edit */}
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                  {course.title}
+                </h1>
+                <button
+                  type="button"
+                  onClick={() => setIsEditCourseModalOpen(true)}
+                  className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-xl transition-all cursor-pointer border border-transparent hover:border-primary-200"
+                  title="تعديل اسم وبيانات الكورس"
+                >
+                  <Edit className="w-4 h-4" />
+                </button>
+              </div>
+
+              {course.description && (
+                <p className="text-xs text-slate-500 line-clamp-1 max-w-2xl">
+                  {course.description}
+                </p>
               )}
-            </div>
-            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-              <h1 className="text-xl font-bold text-slate-900">{course.title}</h1>
-              <button
-                type="button"
-                onClick={() => setIsEditCourseModalOpen(true)}
-                className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-                title="تعديل اسم وبيانات الكورس"
-              >
-                <Edit className="w-4 h-4" />
-              </button>
             </div>
           </div>
-        </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setIsEditCourseModalOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition-colors border border-slate-200 shadow-sm"
-          >
-            <Settings2 className="w-4 h-4 text-primary-600" />
-            <span>تعديل بيانات الكورس</span>
-          </button>
+          {/* Left Section: Action Buttons Toolbar */}
+          <div className="flex items-center gap-2 flex-wrap self-stretch lg:self-center justify-start lg:justify-end border-t lg:border-t-0 pt-3 lg:pt-0 border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsEditCourseModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-all border border-slate-200/80 cursor-pointer shadow-2xs"
+            >
+              <Settings2 className="w-4 h-4 text-slate-600" />
+              <span>تعديل الكورس</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setIsGroupAccessModalOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition-colors border border-slate-200 shadow-sm"
-          >
-            <Users className="w-4 h-4 text-emerald-600" />
-            <span>صلاحيات المجموعات ({course.groupAccess?.length || 0})</span>
-          </button>
+            {course.previewVideoUrl && (
+              <button
+                type="button"
+                onClick={() => setIsPreviewVideoModalOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold transition-all border border-emerald-200/80 cursor-pointer shadow-2xs"
+                title="معاينة الفيديو التعريفي (البرومو) للكورس"
+              >
+                <Play className="w-4 h-4 fill-emerald-600 text-emerald-600" />
+                <span>معاينة البرومو 🎬</span>
+              </button>
+            )}
 
-          <Link
-            href={`/teacher/courses/${course.id}/preview`}
-            target="_blank"
-            className="flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition-colors border border-slate-200 shadow-sm"
-          >
-            <Eye className="w-4 h-4 text-primary-600" />
-            <span>معاينة قاعة المشاهدة</span>
-          </Link>
+            <button
+              type="button"
+              onClick={() => setIsGroupAccessModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-all border border-slate-200/80 cursor-pointer shadow-2xs"
+            >
+              <Users className="w-4 h-4 text-emerald-600" />
+              <span>المجموعات ({course.groupAccess?.length || 0})</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={handleTogglePublish}
-            disabled={updateCourseMutation.isPending}
-            className={`flex items-center gap-1.5 px-5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
-              course.status === 'PUBLISHED'
-                ? 'bg-amber-600 hover:bg-amber-700 text-white'
-                : 'bg-primary-600 hover:bg-primary-700 text-white shadow-sm'
-            }`}
-          >
-            {course.status === 'PUBLISHED' ? <Lock className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
-            <span>{course.status === 'PUBLISHED' ? 'تحويل لمسودة' : 'نشر الكورس الآن'}</span>
-          </button>
+            <Link
+              href={`/teacher/courses/${course.id}/preview`}
+              target="_blank"
+              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition-all border border-indigo-200/60 cursor-pointer shadow-2xs"
+            >
+              <Eye className="w-4 h-4 text-indigo-600" />
+              <span>معاينة كطالب</span>
+            </Link>
+
+            <button
+              type="button"
+              onClick={handleTogglePublish}
+              disabled={updateCourseMutation.isPending}
+              className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer ${
+                course.status === 'PUBLISHED'
+                  ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                  : 'bg-primary-600 hover:bg-primary-700 text-white'
+              }`}
+            >
+              {course.status === 'PUBLISHED' ? <Lock className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
+              <span>{course.status === 'PUBLISHED' ? 'تحويل لمسودة' : 'نشر الكورس أونلاين'}</span>
+            </button>
+          </div>
         </div>
       </div>
 
+      {/* Course Promo / Preview Video Section for Teacher */}
+      {course.previewVideoUrl ? (
+        <div className="bg-white border border-emerald-200/80 rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-xs relative overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0 shadow-2xs">
+                <Video className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-sm sm:text-base font-black text-slate-900">
+                    الفيديو التعريفي بالكورس (البرومو) 🎬
+                  </h3>
+                  <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                    مفعل وجاهز للعرض للطلاب
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  هذا الفيديو يظهر في واجهة المنصة وصفحة الكورسات لجذب الطلاب قبل الاشتراك.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsEditCourseModalOpen(true)}
+                className="px-3.5 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold transition-all border border-slate-200 cursor-pointer"
+              >
+                تغيير الفيديو
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsPreviewVideoModalOpen(true)}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span>تكبير الفيديو</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 aspect-video max-w-3xl mx-auto rounded-2xl overflow-hidden bg-black border border-slate-200 shadow-md">
+            <iframe
+              src={`${course.previewVideoUrl}${course.previewVideoUrl.includes('?') ? '&' : '?'}autoplay=0`}
+              loading="lazy"
+              className="w-full h-full border-0"
+              allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="bg-gradient-to-l from-slate-50 to-amber-50/50 border border-slate-200/80 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-100/70 text-amber-700 border border-amber-200/60 flex items-center justify-center shrink-0">
+              <Video className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+                لم تقم بإضافة فيديو تعريفي (برومو) لهذا الكورس بعد
+              </h4>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                إضافة فيديو تعريفي قصير يشرح محتوى الكورس يشجع الطلاب على الاشتراك في الدورة.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsEditCourseModalOpen(true)}
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 self-start sm:self-auto cursor-pointer"
+          >
+            رفع فيديو تعريفي 🎬
+          </button>
+        </div>
+      )}
+
       {/* Top View Selector Tabs (Curriculum vs Enrollments) */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-1.5 flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 shadow-sm text-xs">
+      <div className="bg-slate-100/80 p-1 rounded-2xl flex flex-col sm:flex-row items-stretch sm:items-center gap-1 border border-slate-200/80 text-xs">
         <button
           type="button"
           onClick={() => setActiveTopTab('curriculum')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 sm:px-4 rounded-xl font-bold transition-all text-center ${
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bold transition-all text-center cursor-pointer ${
             activeTopTab === 'curriculum'
-              ? 'bg-primary-600 text-white shadow-sm'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              ? 'bg-white text-primary-700 shadow-xs border border-slate-200/60 font-black'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
           }`}
         >
-          <Layers className="w-4 h-4 shrink-0" />
+          <Layers className="w-4 h-4 shrink-0 text-primary-600" />
           <span>منهج وفصول الكورس ({modules.length} فصول • {totalLessons} دروس)</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTopTab('enrollments')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 sm:px-4 rounded-xl font-bold transition-all text-center ${
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bold transition-all text-center cursor-pointer ${
             activeTopTab === 'enrollments'
-              ? 'bg-primary-600 text-white shadow-sm'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              ? 'bg-white text-primary-700 shadow-xs border border-slate-200/60 font-black'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
           }`}
         >
-          <GraduationCap className="w-4 h-4 shrink-0" />
+          <GraduationCap className="w-4 h-4 shrink-0 text-primary-600" />
           <span>الطلاب والمشتركون في الكورس</span>
         </button>
       </div>
@@ -435,59 +688,92 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                   </option>
                 ))}
               </select>
-              <Link
-                href={`/teacher/assessments/new?type=EXAM&courseId=${courseId}&courseName=${encodeURIComponent(course.title)}&scope=COURSE`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm shrink-0 whitespace-nowrap"
-                title="إنشاء امتحان شامل جديد لهذا الكورس وربطه تلقائياً"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>إنشاء امتحان</span>
-                <ExternalLink className="w-3 h-3 opacity-70" />
-              </Link>
+              {course.courseQuizId ? (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Link
+                    href={`/teacher/assessments/${course.courseQuizId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-3 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 whitespace-nowrap"
+                    title="تعديل تفاصيل وأسئلة الامتحان الشامل"
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                    <span>تعديل الأسئلة</span>
+                    <ExternalLink className="w-3 h-3 opacity-70" />
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAssessmentToDelete({
+                        id: course.courseQuizId!,
+                        title: course.courseQuiz?.title || 'الامتحان الشامل للكورس',
+                        type: 'EXAM',
+                        scope: 'course',
+                      })
+                    }
+                    className="p-2 text-slate-400 hover:text-rose-600 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-200 rounded-xl transition-colors shadow-xs shrink-0 cursor-pointer"
+                    title="إلغاء ربط أو حذف امتحان الكورس"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <Link
+                  href={`/teacher/assessments/new?type=EXAM&courseId=${courseId}&courseName=${encodeURIComponent(course.title)}&scope=COURSE`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm shrink-0 whitespace-nowrap"
+                  title="إنشاء امتحان شامل جديد لهذا الكورس وربطه تلقائياً"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>إنشاء امتحان</span>
+                  <ExternalLink className="w-3 h-3 opacity-70" />
+                </Link>
+              )}
             </div>
           </div>
 
           {/* Course Settings: Sequential Lessons Enforcement */}
-          <div className="bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl flex items-center justify-between gap-3 sm:gap-4 shadow-sm">
-            <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center border border-slate-200 shrink-0">
-                <Lock className="w-4 h-4 sm:w-5 sm:h-5" />
+          <div className="bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl flex flex-col gap-3 shadow-sm">
+            <div className="flex items-center justify-between gap-3 sm:gap-4">
+              <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center border border-slate-200 shrink-0">
+                  <Lock className="w-4 h-4 sm:w-5 sm:h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm font-bold text-slate-900">ترتيب مشاهدة الدروس</p>
+                  <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
+                    {course.enforceSequentialLessons
+                      ? 'المنهج مرتب — يجب إتمام كل درس بالترتيب'
+                      : 'حرية المشاهدة — يمكن للطالب المشاهدة بأي ترتيب'}
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs sm:text-sm font-bold text-slate-900">ترتيب مشاهدة الدروس</p>
-                <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
-                  {course.enforceSequentialLessons
-                    ? 'المنهج مرتب — يجب إتمام كل درس بالترتيب'
-                    : 'حرية المشاهدة — يمكن للطالب المشاهدة بأي ترتيب'}
-                </p>
-              </div>
-            </div>
 
-            <button
-              type="button"
-              onClick={() =>
-                updateCourseMutation.mutate({
-                  enforceSequentialLessons: !course.enforceSequentialLessons,
-                })
-              }
-              disabled={updateCourseMutation.isPending}
-              className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 transition-colors duration-200 ease-in-out focus:outline-none ${
-                course.enforceSequentialLessons
-                  ? 'bg-primary-600 border-primary-600'
-                  : 'bg-slate-200 border-slate-200'
-              }`}
-              role="switch"
-              aria-checked={course.enforceSequentialLessons ?? false}
-              title={course.enforceSequentialLessons ? 'إلغاء التسلسل الإلزامي' : 'تفعيل التسلسل الإلزامي'}
-            >
-              <span
-                className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm transform transition-transform duration-200 ease-in-out mt-0.5 ${
-                  course.enforceSequentialLessons ? '-translate-x-5' : 'translate-x-0.5'
+              <button
+                type="button"
+                onClick={() =>
+                  updateCourseMutation.mutate({
+                    enforceSequentialLessons: !course.enforceSequentialLessons,
+                  })
+                }
+                disabled={updateCourseMutation.isPending}
+                className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 transition-colors duration-200 ease-in-out focus:outline-none ${
+                  course.enforceSequentialLessons
+                    ? 'bg-primary-600 border-primary-600'
+                    : 'bg-slate-200 border-slate-200'
                 }`}
-              />
-            </button>
+                role="switch"
+                aria-checked={course.enforceSequentialLessons ?? false}
+                title={course.enforceSequentialLessons ? 'إلغاء التسلسل الإلزامي' : 'تفعيل التسلسل الإلزامي'}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm transform transition-transform duration-200 ease-in-out mt-0.5 ${
+                    course.enforceSequentialLessons ? '-translate-x-5' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
 
           <div className="bg-white border border-cyan-100 p-4 sm:p-5 rounded-2xl flex items-center justify-between gap-3 sm:gap-4 shadow-sm">
@@ -723,17 +1009,49 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                               ))}
                             </select>
                           </div>
-                          <Link
-                            href={`/teacher/assessments/new?type=EXAM&courseId=${courseId}&moduleId=${mod.id}&moduleName=${encodeURIComponent(mod.title)}&scope=UNIT`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 px-2.5 py-1.5 bg-amber-50 text-amber-700 hover:bg-amber-500 hover:text-white border border-amber-200 rounded-xl text-[11px] font-bold transition-all shrink-0 cursor-pointer"
-                            title={`إنشاء اختبار لوحدة "${mod.title}" وربطه تلقائياً`}
-                          >
-                            <Plus className="w-3 h-3" />
-                            <span className="hidden sm:inline">إنشاء اختبار</span>
-                            <ExternalLink className="w-2.5 h-2.5 opacity-70" />
-                          </Link>
+                          {mod.unitQuizId ? (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Link
+                                href={`/teacher/assessments/${mod.unitQuizId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 px-2.5 py-1.5 bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 rounded-xl text-[11px] font-bold transition-all shrink-0 cursor-pointer"
+                                title="تعديل تفاصيل وأسئلة امتحان الوحدة"
+                              >
+                                <Edit className="w-3 h-3" />
+                                <span className="hidden sm:inline">تعديل الأسئلة</span>
+                                <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+                              </Link>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setAssessmentToDelete({
+                                    id: mod.unitQuizId!,
+                                    title: mod.unitQuiz?.title || 'امتحان الوحدة',
+                                    type: 'EXAM',
+                                    scope: 'unit',
+                                    targetId: mod.id,
+                                  })
+                                }
+                                className="p-1.5 text-slate-400 hover:text-rose-600 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-200 rounded-xl transition-colors shrink-0 cursor-pointer"
+                                title="إلغاء ربط أو حذف امتحان الوحدة"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <Link
+                              href={`/teacher/assessments/new?type=EXAM&courseId=${courseId}&moduleId=${mod.id}&moduleName=${encodeURIComponent(mod.title)}&scope=UNIT`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 px-2.5 py-1.5 bg-amber-50 text-amber-700 hover:bg-amber-500 hover:text-white border border-amber-200 rounded-xl text-[11px] font-bold transition-all shrink-0 cursor-pointer"
+                              title={`إنشاء اختبار لوحدة "${mod.title}" وربطه تلقائياً`}
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span className="hidden sm:inline">إنشاء اختبار</span>
+                              <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+                            </Link>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">
@@ -800,7 +1118,37 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                             const hasVideo = Boolean(les.bunnyVideoId || les.contentUrl);
                             const hasSummary = Boolean(les.summary);
                             const hasAttachments = Boolean(les.attachments && les.attachments.length > 0);
-                            const hasQuiz = Boolean(les.lessonQuiz);
+                            const hasQuiz = Boolean(
+                              (les.lessonQuiz && (les.lessonQuiz.type === 'EXAM' || les.lessonQuiz.type === 'QUIZ')) ||
+                              les.assessments?.some((a) => a.type === 'EXAM' || a.type === 'QUIZ')
+                            );
+                            const linkedQuiz =
+                              (les.lessonQuiz && (les.lessonQuiz.type === 'EXAM' || les.lessonQuiz.type === 'QUIZ'))
+                                ? les.lessonQuiz
+                                : les.assessments?.find((a) => a.type === 'EXAM' || a.type === 'QUIZ');
+                            const linkedQuizId = linkedQuiz?.id || (hasQuiz ? les.lessonQuizId : undefined);
+
+                            const hasHomework = Boolean(
+                              les.assessments?.some(
+                                (a) =>
+                                  a.type === 'ASSIGNMENT' ||
+                                  a.type === 'HOMEWORK' ||
+                                  (a as any).assessmentType === 'HOMEWORK',
+                              ) ||
+                              (les.lessonQuiz && (les.lessonQuiz.type === 'ASSIGNMENT' || les.lessonQuiz.type === 'HOMEWORK'))
+                            );
+                            const linkedHomework =
+                              les.assessments?.find(
+                                (a) =>
+                                  a.type === 'ASSIGNMENT' ||
+                                  a.type === 'HOMEWORK' ||
+                                  (a as any).assessmentType === 'HOMEWORK',
+                              ) ||
+                              (les.lessonQuiz && (les.lessonQuiz.type === 'ASSIGNMENT' || les.lessonQuiz.type === 'HOMEWORK')
+                                ? les.lessonQuiz
+                                : null);
+                            const linkedHomeworkId = linkedHomework?.id;
+
                             const isDraggedLesson = dragItem?.type === 'lesson' && dragItem.id === les.id;
                             const isDropIndicator =
                               !isDraggedLesson &&
@@ -885,15 +1233,95 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                                         </span>
                                       )}
                                       {hasQuiz && (
-                                        <span className="flex items-center gap-1 text-purple-600 font-bold shrink-0">
-                                          <Award className="w-3 h-3" /> اختبار الدرس
-                                        </span>
+                                        <div className="flex items-center gap-1.5 bg-purple-50 text-purple-700 px-2 py-0.5 rounded-lg border border-purple-200 text-[10px] sm:text-[11px] font-bold shrink-0">
+                                          <Award className="w-3 h-3 text-purple-600 shrink-0" />
+                                          <span>اختبار الدرس</span>
+                                          {linkedQuizId && (
+                                            <div className="flex items-center gap-0.5 mr-1">
+                                              <Link
+                                                href={`/teacher/assessments/${linkedQuizId}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="p-0.5 hover:text-purple-900 rounded transition-colors"
+                                                title="تعديل تفاصيل وأسئلة الاختبار"
+                                              >
+                                                <Edit className="w-2.5 h-2.5" />
+                                              </Link>
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  setAssessmentToDelete({
+                                                    id: linkedQuizId,
+                                                    title: linkedQuiz?.title || 'اختبار الدرس',
+                                                    type: 'EXAM',
+                                                    scope: 'lesson',
+                                                    targetId: les.id,
+                                                  })
+                                                }
+                                                className="p-0.5 hover:text-rose-600 rounded transition-colors"
+                                                title="إلغاء ربط أو حذف الاختبار"
+                                              >
+                                                <Trash2 className="w-2.5 h-2.5" />
+                                              </button>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                      {hasHomework && (
+                                        <div className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-2 py-0.5 rounded-lg border border-blue-200 text-[10px] sm:text-[11px] font-bold shrink-0">
+                                          <FileText className="w-3 h-3 text-blue-600 shrink-0" />
+                                          <span>واجب الدرس</span>
+                                          {linkedHomeworkId && (
+                                            <div className="flex items-center gap-0.5 mr-1">
+                                              <Link
+                                                href={`/teacher/assessments/${linkedHomeworkId}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="p-0.5 hover:text-blue-900 rounded transition-colors"
+                                                title="تعديل تفاصيل وأسئلة الواجب"
+                                              >
+                                                <Edit className="w-2.5 h-2.5" />
+                                              </Link>
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  setAssessmentToDelete({
+                                                    id: linkedHomeworkId,
+                                                    title: linkedHomework?.title || 'واجب الدرس',
+                                                    type: 'HOMEWORK',
+                                                    scope: 'lesson',
+                                                    targetId: les.id,
+                                                  })
+                                                }
+                                                className="p-0.5 hover:text-rose-600 rounded transition-colors"
+                                                title="إلغاء ربط أو حذف الواجب"
+                                              >
+                                                <Trash2 className="w-2.5 h-2.5" />
+                                              </button>
+                                            </div>
+                                          )}
+                                        </div>
                                       )}
                                     </div>
                                   </div>
                                 </div>
 
                                 <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setLessonModalState({
+                                        isOpen: true,
+                                        moduleId: mod.id,
+                                        lesson: les,
+                                        initialTab: 'quiz',
+                                      })
+                                    }
+                                    className="p-1.5 sm:p-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 bg-white rounded-xl border border-purple-200 transition-colors shadow-xs cursor-pointer"
+                                    title="إدارة اختبار وواجب الدرس"
+                                  >
+                                    <Award className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                  </button>
                                   <button
                                     type="button"
                                     onClick={() =>
@@ -945,6 +1373,10 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
           isOpen={lessonModalState.isOpen}
           courseId={courseId}
           moduleId={lessonModalState.moduleId}
+          initialTab={lessonModalState.initialTab}
+          newAssessmentId={lessonModalState.newAssessmentId}
+          newAssessmentType={lessonModalState.newAssessmentType}
+          newAssessmentTitle={lessonModalState.newAssessmentTitle}
           lesson={
             lessonModalState.lesson?.id
               ? course?.modules?.flatMap((m) => m.lessons)?.find((l) => l.id === lessonModalState.lesson?.id) ||
@@ -956,6 +1388,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
               isOpen: false,
               moduleId: '',
               lesson: null,
+              initialTab: 'video',
             })
           }
         />
@@ -1008,6 +1441,71 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
         onClose={() => setLessonToDelete(null)}
       />
 
+      {/* Delete / Unlink Assessment Dialog */}
+      {assessmentToDelete && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
+          <div
+            className="w-full max-w-lg rounded-t-3xl sm:rounded-2xl bg-white border border-slate-200 p-5 sm:p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200 text-right"
+            dir="rtl"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 border border-rose-100 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    إدارة {assessmentToDelete.type === 'EXAM' ? 'الامتحان' : 'الواجب'}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {assessmentToDelete.title}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAssessmentToDelete(null)}
+                disabled={isDeletingAssessment}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+              يمكنك اختيار <strong>إلغاء الربط فقط</strong> لإزالة هذا التقييم من هذا الموضع مع بقائه في بنك الاختبارات للاستخدام في أي وقت، أو اختيار <strong>حذف التقييم نهائياً</strong> لحذفه بالكامل مع كافة أسئلته وتسليمات الطلاب المرتبطة به.
+            </p>
+
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setAssessmentToDelete(null)}
+                disabled={isDeletingAssessment}
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors text-center cursor-pointer"
+              >
+                تراجع
+              </button>
+              <button
+                type="button"
+                onClick={handleUnlinkAssessment}
+                disabled={isDeletingAssessment}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 transition-colors text-center cursor-pointer"
+              >
+                {isDeletingAssessment ? 'جاري المعالجة...' : 'إلغاء الربط فقط'}
+              </button>
+              <button
+                type="button"
+                onClick={handlePermanentlyDeleteAssessment}
+                disabled={isDeletingAssessment}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors shadow-sm text-center cursor-pointer"
+              >
+                {isDeletingAssessment ? 'جاري الحذف...' : 'حذف التقييم نهائياً'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Edit Course Details & Settings Modal */}
       {isEditCourseModalOpen && course && (
         <EditCourseModal
@@ -1015,6 +1513,62 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
           course={course}
           onClose={() => setIsEditCourseModalOpen(false)}
         />
+      )}
+
+      {/* Preview Video Fullscreen Modal */}
+      {isPreviewVideoModalOpen && course?.previewVideoUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setIsPreviewVideoModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-3xl overflow-hidden max-w-4xl w-full shadow-2xl border border-slate-200 text-right animate-in zoom-in-95 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-slate-900 text-white p-5 flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shrink-0">
+                  <Video className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">{course.title}</h3>
+                  <p className="text-xs text-slate-400">معاينة الفيديو التعريفي (البرومو الترويجي)</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPreviewVideoModalOpen(false)}
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-6 bg-slate-950">
+              <div className="aspect-video w-full rounded-2xl overflow-hidden bg-black shadow-lg border border-slate-800">
+                <iframe
+                  src={`${course.previewVideoUrl}${course.previewVideoUrl.includes('?') ? '&' : '?'}autoplay=1`}
+                  className="w-full h-full border-0"
+                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            </div>
+
+            <div className="p-4 bg-white border-t border-slate-100 flex items-center justify-between">
+              <span className="text-xs text-slate-500 font-medium">
+                جاهز ومفعل للظهور في واجهة المنصة للطلاب
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsPreviewVideoModalOpen(false)}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+              >
+                إغلاق النافذة
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

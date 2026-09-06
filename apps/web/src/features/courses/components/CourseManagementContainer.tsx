@@ -31,6 +31,8 @@ import {
   RefreshCw,
   Loader2,
   Copy,
+  UserMinus,
+  Filter,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTeacherCourses, useDeleteCourse } from '../hooks/useCourses';
@@ -40,6 +42,7 @@ import { CourseDetail } from '../types/courses.types';
 import { CreateCourseModal } from './CreateCourseModal';
 import { EditCourseModal } from './EditCourseModal';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { useRealtimeCourseSubscriptions } from '@/lib/realtime/useRealtimeCourseSubscriptions';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
@@ -405,6 +408,7 @@ function CourseEnrollmentsView() {
     amount: number;
     phone: string;
     enrollmentId: string;
+    isActive?: boolean;
   } | null>(null);
 
   // Reject Modal State
@@ -415,15 +419,61 @@ function CourseEnrollmentsView() {
   } | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
 
-  // Real-time polling every 5 seconds
+  // Cancel Active Subscription Modal State
+  const [cancelModalTarget, setCancelModalTarget] = useState<{
+    enrollmentId: string;
+    studentName: string;
+    courseName: string;
+  } | null>(null);
+  const [cancellationReason, setCancellationReason] = useState('');
+
+  // Real-time WebSocket live updates (zero polling delay)
+  useRealtimeCourseSubscriptions();
+
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['teacher-subscriptions'],
     queryFn: coursesApi.getTeacherSubscriptions,
-    refetchInterval: 5000,
   });
+
+  const [courseFilter, setCourseFilter] = useState('ALL');
+  const [studentSearch, setStudentSearch] = useState('');
 
   const pendingRequests = data?.pendingRequests ?? [];
   const activeStudents = data?.activeStudents ?? [];
+
+  // Distinct courses for filter dropdown
+  const distinctCourses = useMemo(() => {
+    const map = new Map<string, string>();
+    pendingRequests.forEach((r) => map.set(r.courseId, r.courseName));
+    activeStudents.forEach((s) => map.set(s.courseId, s.courseName));
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [pendingRequests, activeStudents]);
+
+  const filteredPending = useMemo(() => {
+    return pendingRequests.filter((r) => {
+      const matchesCourse = courseFilter === 'ALL' || r.courseId === courseFilter;
+      const matchesSearch =
+        !studentSearch ||
+        r.studentName.toLowerCase().includes(studentSearch.toLowerCase()) ||
+        r.studentCode.toLowerCase().includes(studentSearch.toLowerCase()) ||
+        r.studentPhone.includes(studentSearch) ||
+        r.senderPhone.includes(studentSearch);
+      return matchesCourse && matchesSearch;
+    });
+  }, [pendingRequests, courseFilter, studentSearch]);
+
+  const filteredActive = useMemo(() => {
+    return activeStudents.filter((s) => {
+      const matchesCourse = courseFilter === 'ALL' || s.courseId === courseFilter;
+      const matchesSearch =
+        !studentSearch ||
+        s.studentName.toLowerCase().includes(studentSearch.toLowerCase()) ||
+        s.studentCode.toLowerCase().includes(studentSearch.toLowerCase()) ||
+        s.studentPhone.includes(studentSearch) ||
+        (s.senderPhone && s.senderPhone.includes(studentSearch));
+      return matchesCourse && matchesSearch;
+    });
+  }, [activeStudents, courseFilter, studentSearch]);
 
   const approveMutation = useMutation({
     mutationFn: (enrollmentId: string) => coursesApi.approveEnrollment(enrollmentId),
@@ -451,6 +501,22 @@ function CourseEnrollmentsView() {
     },
     onError: (err: any) => {
       toast.error(err?.message || 'تعذر رفض الطلب');
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
+      coursesApi.cancelEnrollment(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teacher-subscriptions'] });
+      queryClient.invalidateQueries({ queryKey: ['teacher-courses'] });
+      toast.success('تم إلغاء اشتراك الطالب وتعليق وصوله للكورس بنجاح.');
+      setCancelModalTarget(null);
+      setCancellationReason('');
+      setSelectedReceipt(null);
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر إلغاء الاشتراك');
     },
   });
 
@@ -517,6 +583,52 @@ function CourseEnrollmentsView() {
         </div>
       </div>
 
+      {/* Filter & Search Bar */}
+      <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        {/* Search Input */}
+        <div className="relative flex-1">
+          <input
+            type="text"
+            value={studentSearch}
+            onChange={(e) => setStudentSearch(e.target.value)}
+            placeholder="بحث باسم الطالب، كود الطالب، أو رقم هاتف المحفظة..."
+            className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-primary-500 rounded-xl px-4 py-2.5 pr-10 text-xs text-slate-800 placeholder-slate-400 outline-none transition-all"
+          />
+          <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3" />
+          {studentSearch && (
+            <button
+              type="button"
+              onClick={() => setStudentSearch('')}
+              className="absolute left-3 top-2.5 text-slate-400 hover:text-slate-600 text-xs p-1 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Filter by Course Selector */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+            <Filter className="w-4 h-4 text-primary-600" />
+            <span>فلترة حسب الكورس:</span>
+          </div>
+          <select
+            value={courseFilter}
+            onChange={(e) => setCourseFilter(e.target.value)}
+            className="bg-slate-50 border border-slate-200 focus:bg-white focus:border-primary-500 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 outline-none cursor-pointer min-w-[180px]"
+          >
+            <option value="ALL">
+              جميع الكورسات ({distinctCourses.length})
+            </option>
+            {distinctCourses.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         {isLoading ? (
           <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-3">
@@ -524,12 +636,18 @@ function CourseEnrollmentsView() {
             <p className="text-sm font-medium">جاري تحميل طلبات الاشتراك والبيانات...</p>
           </div>
         ) : filter === 'PENDING' ? (
-          pendingRequests.length === 0 ? (
+          filteredPending.length === 0 ? (
             <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-2">
               <CheckCircle className="w-10 h-10 text-emerald-500/80 mb-1" />
-              <p className="text-sm font-bold text-slate-700">لا توجد طلبات اشتراك معلقة حالياً 🎉</p>
+              <p className="text-sm font-bold text-slate-700">
+                {pendingRequests.length === 0
+                  ? 'لا توجد طلبات اشتراك معلقة حالياً 🎉'
+                  : 'لا توجد طلبات مطابقة لخيارات الفلترة أو البحث'}
+              </p>
               <p className="text-xs text-slate-400 max-w-sm">
-                عند قيام أي طالب برفع إيصال التحويل والاشتراك في أي كورس من كورساتك، سيظهر طلبه هنا فوراً في الوقت الفعلي مع صورة الإيصال.
+                {pendingRequests.length === 0
+                  ? 'عند قيام أي طالب برفع إيصال التحويل والاشتراك في أي كورس من كورساتك، سيظهر طلبه هنا فوراً في الوقت الفعلي مع صورة الإيصال.'
+                  : 'جرب اختيار كورس آخر أو مسح كلمة البحث لمعاينة جميع الطلبات المعلقة.'}
               </p>
             </div>
           ) : (
@@ -546,7 +664,7 @@ function CourseEnrollmentsView() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {pendingRequests.map((req) => (
+                  {filteredPending.map((req) => (
                     <tr key={req.enrollmentId} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="font-bold text-slate-900 text-sm">{req.studentName}</div>
@@ -659,10 +777,14 @@ function CourseEnrollmentsView() {
               </table>
             </div>
           )
-        ) : activeStudents.length === 0 ? (
+        ) : filteredActive.length === 0 ? (
           <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-2">
             <Users className="w-10 h-10 text-slate-300 mb-1" />
-            <p className="text-sm font-bold text-slate-700">لا يوجد طلاب مفعل اشتراكهم بعد</p>
+            <p className="text-sm font-bold text-slate-700">
+              {activeStudents.length === 0
+                ? 'لا يوجد طلاب مفعل اشتراكهم بعد'
+                : 'لا يوجد طلاب مطابقون لخيارات الفلترة أو البحث'}
+            </p>
             <p className="text-xs text-slate-400">
               عند قبول أي طلب اشتراك سيظهر الطالب هنا في قائمة المشتركين الفعليين.
             </p>
@@ -674,48 +796,119 @@ function CourseEnrollmentsView() {
                 <tr>
                   <th className="px-6 py-4">اسم وبيانات الطالب</th>
                   <th className="px-6 py-4">الكورس المشترك به</th>
-                  <th className="px-6 py-4">سعر الكورس</th>
+                  <th className="px-6 py-4">بيانات السداد</th>
+                  <th className="px-6 py-4">إيصال السداد</th>
                   <th className="px-6 py-4">تاريخ التفعيل والانضمام</th>
-                  <th className="px-6 py-4 text-left">حالة الوصول</th>
+                  <th className="px-6 py-4">حالة الوصول</th>
+                  <th className="px-6 py-4 text-left">إجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {activeStudents.map((student) => (
-                  <tr key={student.enrollmentId} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="font-bold text-slate-900 text-sm">{student.studentName}</div>
-                      <div className="flex items-center gap-2 mt-1">
-                        {student.studentCode && (
-                          <span className="font-mono text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200">
-                            {student.studentCode}
+                {filteredActive.map((student) => {
+                  const receiptUrl = student.receiptImageUrl
+                    ? resolveReceiptUrl(student.receiptImageUrl)
+                    : null;
+
+                  return (
+                    <tr key={student.enrollmentId} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-slate-900 text-sm">{student.studentName}</div>
+                        <div className="flex items-center gap-2 mt-1">
+                          {student.studentCode && (
+                            <span className="font-mono text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200">
+                              {student.studentCode}
+                            </span>
+                          )}
+                          {student.studentPhone && (
+                            <span className="text-xs text-slate-500 font-mono">
+                              {student.studentPhone}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-xs font-bold text-slate-700 bg-slate-100 inline-flex px-2.5 py-1 rounded-md border border-slate-200">
+                          {student.courseName}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-xs font-bold text-slate-800 font-mono">
+                          {student.transferAmount || student.coursePrice} ج.م
+                        </div>
+                        {student.senderPhone && (
+                          <div className="text-[11px] text-slate-500 font-mono mt-0.5 flex items-center gap-1">
+                            <Phone className="w-3 h-3 text-slate-400" />
+                            <span>{student.senderPhone}</span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        {receiptUrl ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSelectedReceipt({
+                                url: receiptUrl,
+                                studentName: student.studentName,
+                                courseName: student.courseName,
+                                amount: student.transferAmount || student.coursePrice,
+                                phone: student.senderPhone || student.studentPhone,
+                                enrollmentId: student.enrollmentId,
+                                isActive: true,
+                              })
+                            }
+                            className="group flex items-center gap-2 p-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-primary-300 rounded-xl transition-all cursor-pointer shadow-2xs"
+                            title="انقر لمعاينة إيصال الدفع"
+                          >
+                            <img
+                              src={receiptUrl}
+                              alt="إيصال"
+                              className="w-10 h-10 object-cover rounded-lg border border-slate-200 group-hover:scale-105 transition-transform"
+                            />
+                            <div className="text-right">
+                              <span className="block text-xs font-bold text-primary-600 group-hover:underline">
+                                معاينة الإيصال
+                              </span>
+                              <span className="block text-[10px] text-slate-400 font-medium">
+                                انقر للتكبير 🔍
+                              </span>
+                            </div>
+                          </button>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 font-medium inline-block">
+                            يدوي / بدون إيصال
                           </span>
                         )}
-                        {student.studentPhone && (
-                          <span className="text-xs text-slate-500 font-mono">
-                            {student.studentPhone}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-xs font-bold text-slate-700 bg-slate-100 inline-flex px-2.5 py-1 rounded-md border border-slate-200">
-                        {student.courseName}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-xs font-bold text-slate-700 font-mono">
-                      {student.coursePrice} ج.م
-                    </td>
-                    <td className="px-6 py-4 text-xs text-slate-500 font-mono">
-                      {student.date}
-                    </td>
-                    <td className="px-6 py-4 text-left">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        <CheckCircle className="w-3.5 h-3.5" />
-                        <span>نشط ومفعل</span>
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-6 py-4 text-xs text-slate-500 font-mono">
+                        {student.date}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          <span>نشط ومفعل</span>
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-left">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCancelModalTarget({
+                              enrollmentId: student.enrollmentId,
+                              studentName: student.studentName,
+                              courseName: student.courseName,
+                            })
+                          }
+                          className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 hover:border-rose-300 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ml-auto"
+                          title="إلغاء اشتراك الطالب وتعليق وصوله للكورس"
+                        >
+                          <UserMinus className="w-3.5 h-3.5" />
+                          <span>إلغاء الاشتراك</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -782,32 +975,53 @@ function CourseEnrollmentsView() {
 
             {/* Actions Bar */}
             <div className="p-4 bg-white border-t border-slate-100 flex items-center justify-between gap-3">
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => approveMutation.mutate(selectedReceipt.enrollmentId)}
-                  disabled={approveMutation.isPending}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>تأكيد الإيصال وقبول الاشتراك</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const target = {
-                      enrollmentId: selectedReceipt.enrollmentId,
-                      studentName: selectedReceipt.studentName,
-                      courseName: selectedReceipt.courseName,
-                    };
-                    setSelectedReceipt(null);
-                    setRejectTarget(target);
-                  }}
-                  className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                >
-                  رفض الطلب
-                </button>
-              </div>
+              {selectedReceipt.isActive ? (
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = {
+                        enrollmentId: selectedReceipt.enrollmentId,
+                        studentName: selectedReceipt.studentName,
+                        courseName: selectedReceipt.courseName,
+                      };
+                      setSelectedReceipt(null);
+                      setCancelModalTarget(target);
+                    }}
+                    className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    <UserMinus className="w-4 h-4" />
+                    <span>إلغاء اشتراك هذا الطالب</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => approveMutation.mutate(selectedReceipt.enrollmentId)}
+                    disabled={approveMutation.isPending}
+                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>تأكيد الإيصال وقبول الاشتراك</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = {
+                        enrollmentId: selectedReceipt.enrollmentId,
+                        studentName: selectedReceipt.studentName,
+                        courseName: selectedReceipt.courseName,
+                      };
+                      setSelectedReceipt(null);
+                      setRejectTarget(target);
+                    }}
+                    className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    رفض الطلب
+                  </button>
+                </div>
+              )}
 
               <button
                 type="button"
@@ -875,6 +1089,70 @@ function CourseEnrollmentsView() {
               >
                 {rejectMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 <span>تأكيد الرفض</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Active Subscription Modal */}
+      {cancelModalTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div
+            dir="rtl"
+            className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden p-6 space-y-4"
+          >
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center">
+                <UserMinus className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-slate-900">إلغاء اشتراك الطالب في الكورس</h4>
+                <p className="text-xs text-slate-500 line-clamp-1">{cancelModalTarget.studentName} - {cancelModalTarget.courseName}</p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-amber-50 border border-amber-200/60 rounded-xl text-xs text-amber-800 leading-relaxed">
+              تنبيه: سيؤدي إلغاء الاشتراك إلى إيقاف وصول الطالب لدروس وفيديوهات الكورس فوراً وإرسال إشعار له بسبب الإلغاء.
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                سبب إلغاء الاشتراك (اختياري - سيظهر للطالب في الإشعار):
+              </label>
+              <textarea
+                value={cancellationReason}
+                onChange={(e) => setCancellationReason(e.target.value)}
+                placeholder="مثال: تم استرداد المبلغ، أو انتهاء فترة الاشتراك المتفق عليها."
+                rows={3}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all resize-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setCancelModalTarget(null);
+                  setCancellationReason('');
+                }}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                تراجع
+              </button>
+              <button
+                type="button"
+                disabled={cancelMutation.isPending}
+                onClick={() =>
+                  cancelMutation.mutate({
+                    id: cancelModalTarget.enrollmentId,
+                    reason: cancellationReason.trim(),
+                  })
+                }
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+              >
+                {cancelMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>تأكيد إلغاء الاشتراك</span>
               </button>
             </div>
           </div>

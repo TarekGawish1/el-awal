@@ -72,6 +72,14 @@ export class CreateCourseDto {
   coverImageUrl?: string;
 
   @ApiPropertyOptional({
+    description: 'Course preview / promo video URL for prospective students',
+    example: 'https://iframe.mediadelivery.net/embed/123/abc',
+  })
+  @IsOptional()
+  @IsString()
+  previewVideoUrl?: string;
+
+  @ApiPropertyOptional({
     description: 'Academic year, e.g. 2026-2027',
     example: '2026-2027',
   })
@@ -102,6 +110,14 @@ export class CreateCourseDto {
   @IsOptional()
   @IsBoolean()
   enforceSequentialLessons?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'If true, students must pass the quiz (achieve passingScore) instead of just submitting to unlock next lesson',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  requireExamPassingToUnlock?: boolean;
 
   @ApiPropertyOptional({
     description: 'Whether students receive a certificate after completing the course',

@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import { GroupEnrollmentStatus, PaymentStatus, PaymentType, UserRole } from '@prisma/client';
+import { CourseEnrollmentStatus, GroupEnrollmentStatus, PaymentStatus, PaymentType, UserRole } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../core/security/decorators/current-user.decorator';
 import { MatrixLedgerQueryDto } from './dto/matrix-ledger-query.dto';
@@ -549,17 +549,13 @@ export class PaymentsService {
 
           for (const m of billingMonths) {
             const mYear = m >= 8 ? startYear : startYear + 1;
-            // 1. Is month due based on PREPAID vs POSTPAID timing?
-            const isStarted = this.isMonthStarted(academicYear, academicTerm, m, paymentTiming);
-            if (!isStarted) continue;
-
-            // 2. Is month before enrollment date?
-            if (mYear < enrollYear || (mYear === enrollYear && m < enrollMonth)) {
-              continue;
+            if (enrollment.enrolledAt) {
+              if (mYear < enrollYear || (mYear === enrollYear && m < enrollMonth)) {
+                continue;
+              }
             }
 
-            // 3. Pro-rate half month if enrolled after day 15
-            const isJoiningMonth = mYear === enrollYear && m === enrollMonth;
+            const isJoiningMonth = Boolean(enrollment.enrolledAt && mYear === enrollYear && m === enrollMonth);
             const fee = isJoiningMonth && enrollDay > 15 ? Math.round(groupFee / 2) : groupFee;
             studentExpected += fee;
           }
@@ -660,6 +656,319 @@ export class PaymentsService {
         },
       },
       groups: groupRows,
+    };
+  }
+
+  async getDashboardAnalytics(user: AuthenticatedUser, query: FinanceAnalyticsQueryDto & { month?: number | string }) {
+    if (user.role !== UserRole.TEACHER && user.role !== UserRole.SECRETARIAT) {
+      throw new ForbiddenException('Only teachers and secretariat can view the financial analytics');
+    }
+
+    const { academicYear, academicTerm, availableMonths } = this.parsePeriod(query as MatrixLedgerQueryDto);
+    const teacherId = await this.resolveTeacherId(user);
+    const billingConfiguration = teacherId
+      ? await this.prisma.teacherBillingConfiguration.findUnique({
+          where: { teacherId_academicYear_academicTerm: { teacherId, academicYear, academicTerm } },
+        })
+      : null;
+    const { excludedMonths, paymentTiming } = this.parseBillingConfig(
+      billingConfiguration?.excludedMonths,
+      availableMonths,
+    );
+    const months = availableMonths.filter((month) => !excludedMonths.includes(month));
+
+    const requestedMonth = Number(query.month || query.periodMonth) || 0;
+    const isMonthScope =
+      requestedMonth >= 1 && requestedMonth <= 12 && availableMonths.includes(requestedMonth) && !excludedMonths.includes(requestedMonth);
+    const billingMonths = isMonthScope ? [requestedMonth] : months;
+
+    const stageGrades = query.stage && query.stage !== 'ALL' ? STAGE_GRADE_LEVELS[query.stage] || [] : [];
+    let gradeLevelFilter: any;
+    if (query.gradeLevel && query.gradeLevel !== 'ALL') {
+      gradeLevelFilter = query.gradeLevel;
+    } else if (stageGrades.length > 0) {
+      gradeLevelFilter = { in: stageGrades };
+    }
+
+    const groupWhere: any = {
+      isActive: true,
+      academicYear,
+      academicTerm,
+      ...(teacherId ? { teacherId } : {}),
+      ...(query.groupId ? { id: query.groupId } : {}),
+      ...(gradeLevelFilter ? { gradeLevel: gradeLevelFilter } : {}),
+    };
+
+    const studentWhere: any = {
+      academicStatus: 'ACTIVE',
+      user: { isActive: true },
+      groupEnrollments: { some: { status: GroupEnrollmentStatus.ACTIVE, group: groupWhere } },
+      ...(gradeLevelFilter ? { gradeLevel: gradeLevelFilter } : {}),
+    };
+
+    const bookletWhere: any = {
+      isActive: true,
+      academicYear,
+      academicTerm,
+      ...(teacherId ? { teacherProfileId: teacherId } : {}),
+      ...(gradeLevelFilter ? { gradeLevel: gradeLevelFilter } : {}),
+      ...(query.groupId ? { OR: [{ groupId: null }, { groupId: query.groupId }] } : {}),
+    };
+
+    const courseWhere: any = {
+      ...(teacherId ? { teacherId } : {}),
+      ...(gradeLevelFilter ? { gradeLevel: gradeLevelFilter } : {}),
+      ...(academicYear ? { OR: [{ academicYear }, { academicYear: null }] } : {}),
+    };
+
+    const [groups, students, booklets, courses] = await Promise.all([
+      this.prisma.academicGroup.findMany({
+        where: groupWhere,
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, name: true, gradeLevel: true, monthlyFee: true },
+      }),
+      this.prisma.studentProfile.findMany({
+        where: studentWhere,
+        select: {
+          id: true,
+          gradeLevel: true,
+          groupEnrollments: {
+            where: { status: GroupEnrollmentStatus.ACTIVE, group: groupWhere },
+            select: { groupId: true, enrolledAt: true },
+          },
+        },
+      }),
+      this.prisma.booklet.findMany({
+        where: bookletWhere,
+        select: { id: true, title: true, price: true, gradeLevel: true, groupId: true },
+      }),
+      this.prisma.course.findMany({
+        where: courseWhere,
+        include: {
+          enrollments: {
+            select: {
+              id: true,
+              status: true,
+              transferAmount: true,
+              enrolledAt: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    const studentIds = students.map((student) => student.id);
+    const payments =
+      studentIds.length === 0
+        ? []
+        : await this.prisma.studentPaymentRecord.findMany({
+            where: {
+              studentId: { in: studentIds },
+              paymentType: { in: [PaymentType.TUITION, PaymentType.BOOKLET] },
+              paymentStatus: { in: [PaymentStatus.PAID, PaymentStatus.EXEMPT] },
+            },
+            select: {
+              studentId: true,
+              groupId: true,
+              bookletId: true,
+              paymentType: true,
+              periodYear: true,
+              periodMonth: true,
+              amountPaid: true,
+              paymentStatus: true,
+            },
+          });
+
+    const groupIds = new Set(groups.map((group) => group.id));
+    const primaryGroupByStudent = new Map<string, string | null>();
+    const studentCountByGroup = new Map<string, number>();
+    const studentCountByGrade = new Map<string, number>();
+    const tuitionExpectedByGroup = new Map<string, number>();
+    const startYear = parseInt(academicYear.split('-')[0], 10) || new Date().getFullYear();
+
+    for (const student of students) {
+      const enrollmentGroupIds = student.groupEnrollments.map((enrollment) => enrollment.groupId);
+      primaryGroupByStudent.set(student.id, enrollmentGroupIds[0] || null);
+      studentCountByGrade.set(student.gradeLevel, (studentCountByGrade.get(student.gradeLevel) || 0) + 1);
+
+      for (const enrollment of student.groupEnrollments) {
+        const groupId = enrollment.groupId;
+        studentCountByGroup.set(groupId, (studentCountByGroup.get(groupId) || 0) + 1);
+
+        const group = groups.find((g) => g.id === groupId);
+        if (group) {
+          const groupFee = Number(group.monthlyFee);
+          let studentExpected = 0;
+          const enrollmentDate = new Date(enrollment.enrolledAt);
+          const enrollYear = enrollmentDate.getFullYear();
+          const enrollMonth = enrollmentDate.getMonth() + 1;
+          const enrollDay = enrollmentDate.getDate();
+
+          for (const m of billingMonths) {
+            const mYear = m >= 8 ? startYear : startYear + 1;
+            if (enrollment.enrolledAt) {
+              if (mYear < enrollYear || (mYear === enrollYear && m < enrollMonth)) {
+                continue;
+              }
+            }
+
+            const isJoiningMonth = Boolean(enrollment.enrolledAt && mYear === enrollYear && m === enrollMonth);
+            const fee = isJoiningMonth && enrollDay > 15 ? Math.round(groupFee / 2) : groupFee;
+            studentExpected += fee;
+          }
+          tuitionExpectedByGroup.set(groupId, (tuitionExpectedByGroup.get(groupId) || 0) + studentExpected);
+        }
+      }
+    }
+
+    const tuitionCollectedByGroup = new Map<string, number>();
+    const bookletCollectedByGroup = new Map<string, number>();
+    for (const payment of payments) {
+      const attributedGroupId =
+        payment.groupId && groupIds.has(payment.groupId) ? payment.groupId : primaryGroupByStudent.get(payment.studentId) || null;
+      if (!attributedGroupId || !groupIds.has(attributedGroupId)) continue;
+      if (isMonthScope && payment.paymentType === PaymentType.TUITION && Number(payment.periodMonth) !== requestedMonth) continue;
+      const target = payment.paymentType === PaymentType.BOOKLET ? bookletCollectedByGroup : tuitionCollectedByGroup;
+      target.set(attributedGroupId, (target.get(attributedGroupId) || 0) + Number(payment.amountPaid || 0));
+    }
+
+    const groupRows = groups.map((group) => {
+      const studentCount = studentCountByGroup.get(group.id) || 0;
+      const tuitionExpected = round2(tuitionExpectedByGroup.get(group.id) || 0);
+      const bookletsExpected = round2(
+        booklets
+          .filter((booklet) => booklet.gradeLevel === group.gradeLevel && (!booklet.groupId || booklet.groupId === group.id))
+          .reduce((sum, booklet) => sum + Number(booklet.price) * studentCount, 0),
+      );
+      const tuitionCollected = round2(tuitionCollectedByGroup.get(group.id) || 0);
+      const bookletsCollected = round2(bookletCollectedByGroup.get(group.id) || 0);
+      const totalExpected = round2(tuitionExpected + bookletsExpected);
+      const totalCollected = round2(tuitionCollected + bookletsCollected);
+
+      return {
+        id: group.id,
+        name: group.name,
+        gradeLevel: group.gradeLevel,
+        stage: this.inferStage(group.gradeLevel),
+        studentCount,
+        subscription: {
+          expected: tuitionExpected,
+          collected: tuitionCollected,
+          remaining: Math.max(0, round2(tuitionExpected - tuitionCollected)),
+          rate: rate(tuitionCollected, tuitionExpected),
+        },
+        booklets: {
+          expected: bookletsExpected,
+          collected: bookletsCollected,
+          remaining: Math.max(0, round2(bookletsExpected - bookletsCollected)),
+          rate: rate(bookletsCollected, bookletsExpected),
+        },
+        total: {
+          expected: totalExpected,
+          collected: totalCollected,
+          remaining: Math.max(0, round2(totalExpected - totalCollected)),
+          rate: rate(totalCollected, totalExpected),
+        },
+      };
+    });
+
+    // Calculate Online Courses Breakdown
+    let totalCoursesExpected = 0;
+    let totalCoursesCollected = 0;
+
+    const courseRows = courses.map((course) => {
+      const price = Number(course.price || 0);
+      const enrollments = course.enrollments || [];
+
+      const filteredEnrollments = isMonthScope
+        ? enrollments.filter((e) => {
+            const d = new Date(e.enrolledAt);
+            return d.getMonth() + 1 === requestedMonth;
+          })
+        : enrollments;
+
+      const activeEnrollments = filteredEnrollments.filter((e) => e.status === CourseEnrollmentStatus.ACTIVE);
+      const pendingEnrollments = filteredEnrollments.filter((e) => e.status === CourseEnrollmentStatus.PENDING);
+
+      const enrolledStudents = activeEnrollments.length;
+      const collected = activeEnrollments.reduce((sum, e) => {
+        const paid = e.transferAmount != null ? Number(e.transferAmount) : price;
+        return sum + paid;
+      }, 0);
+
+      const expected = round2(collected + pendingEnrollments.length * price);
+
+      totalCoursesExpected += expected;
+      totalCoursesCollected += collected;
+
+      return {
+        id: course.id,
+        title: course.title,
+        price,
+        enrolledStudents,
+        totalCollected: round2(collected),
+        gradeLevel: course.gradeLevel,
+      };
+    });
+
+    const overviewSubscriptionsExpected = round2(groupRows.reduce((sum, group) => sum + group.subscription.expected, 0));
+    const overviewSubscriptionsCollected = round2(groupRows.reduce((sum, group) => sum + group.subscription.collected, 0));
+    const overviewSubscriptionsRemaining = Math.max(0, round2(overviewSubscriptionsExpected - overviewSubscriptionsCollected));
+    const overviewSubscriptionsRate = rate(overviewSubscriptionsCollected, overviewSubscriptionsExpected);
+
+    const overviewBookletsExpected = round2(
+      booklets.reduce(
+        (sum, booklet) =>
+          sum +
+          Number(booklet.price) *
+            (booklet.groupId ? studentCountByGroup.get(booklet.groupId) || 0 : studentCountByGrade.get(booklet.gradeLevel) || 0),
+        0,
+      ),
+    );
+    const overviewBookletsCollected = round2(groupRows.reduce((sum, group) => sum + group.booklets.collected, 0));
+    const overviewBookletsRemaining = Math.max(0, round2(overviewBookletsExpected - overviewBookletsCollected));
+    const overviewBookletsRate = rate(overviewBookletsCollected, overviewBookletsExpected);
+
+    const overviewOnlineCoursesExpected = round2(totalCoursesExpected);
+    const overviewOnlineCoursesCollected = round2(totalCoursesCollected);
+    const overviewOnlineCoursesRemaining = Math.max(0, round2(overviewOnlineCoursesExpected - overviewOnlineCoursesCollected));
+    const overviewOnlineCoursesRate = rate(overviewOnlineCoursesCollected, overviewOnlineCoursesExpected);
+
+    const grandTotalExpected = round2(overviewSubscriptionsExpected + overviewBookletsExpected + overviewOnlineCoursesExpected);
+    const grandTotalCollected = round2(overviewSubscriptionsCollected + overviewBookletsCollected + overviewOnlineCoursesCollected);
+    const grandTotalRemaining = Math.max(0, round2(grandTotalExpected - grandTotalCollected));
+    const grandTotalRate = rate(grandTotalCollected, grandTotalExpected);
+
+    return {
+      overview: {
+        grandTotal: {
+          expected: grandTotalExpected,
+          collected: grandTotalCollected,
+          remaining: grandTotalRemaining,
+          rate: grandTotalRate,
+        },
+        subscriptions: {
+          expected: overviewSubscriptionsExpected,
+          collected: overviewSubscriptionsCollected,
+          remaining: overviewSubscriptionsRemaining,
+          rate: overviewSubscriptionsRate,
+        },
+        booklets: {
+          expected: overviewBookletsExpected,
+          collected: overviewBookletsCollected,
+          remaining: overviewBookletsRemaining,
+          rate: overviewBookletsRate,
+        },
+        onlineCourses: {
+          expected: overviewOnlineCoursesExpected,
+          collected: overviewOnlineCoursesCollected,
+          remaining: overviewOnlineCoursesRemaining,
+          rate: overviewOnlineCoursesRate,
+        },
+      },
+      groups: groupRows,
+      onlineCourses: courseRows,
     };
   }
 }

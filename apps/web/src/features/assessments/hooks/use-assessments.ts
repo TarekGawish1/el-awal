@@ -112,6 +112,7 @@ export function useCreateAssessment() {
             questionText: q.questionText,
             questionType: q.questionType,
             optionsData: q.optionsData,
+            optionImages: q.optionImages,
             points: q.points,
             correctAnswer: q.correctAnswer,
           })),
@@ -136,6 +137,7 @@ export function useCreateAssessment() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: assessmentKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['courses'] });
     },
   });
 }
@@ -180,6 +182,7 @@ export function useUpdateAssessment() {
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: assessmentKeys.lists() });
       queryClient.invalidateQueries({ queryKey: assessmentKeys.detail(variables.id) });
+      queryClient.invalidateQueries({ queryKey: ['courses'] });
     },
   });
 }

@@ -11,8 +11,9 @@ import {
   fetchBillingConfiguration,
   updateBillingConfiguration,
   fetchFinanceAnalytics,
+  fetchFinanceDashboardAnalytics,
 } from '../api/finance.api';
-import { PaymentQuery, RecordPaymentPayload, ScanPaymentQrPayload, DefaultersResponse, ScanPaymentQrResponse, StudentPaymentRecord, FinanceAnalyticsResponse } from '../types/finance.types';
+import { PaymentQuery, RecordPaymentPayload, ScanPaymentQrPayload, DefaultersResponse, ScanPaymentQrResponse, StudentPaymentRecord, FinanceAnalyticsResponse, FinanceDashboardResponse } from '../types/finance.types';
 import { offlineDb } from '@/lib/offline/db';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
@@ -30,7 +31,29 @@ export const financeKeys = {
   matrixLedger: (query: Record<string, unknown>) => [...financeKeys.all, 'matrix-ledger', query] as const,
   billingConfiguration: (academicYear: string, academicTerm: string) => [...financeKeys.all, 'billing-configuration', academicYear, academicTerm] as const,
   financeAnalytics: (query: Record<string, unknown>) => [...financeKeys.all, 'finance-analytics', query] as const,
+  dashboardAnalytics: (query: Record<string, unknown>) => [...financeKeys.all, 'dashboard-analytics', query] as const,
 };
+
+export function useFinanceDashboardAnalytics(
+  query: {
+    academicPeriodId?: string;
+    academicYear?: string;
+    academicTerm?: string;
+    stage?: string;
+    gradeLevel?: string;
+    groupId?: string;
+    month?: number;
+  },
+  options?: { enabled?: boolean }
+) {
+  return useQuery<FinanceDashboardResponse>({
+    queryKey: financeKeys.dashboardAnalytics(query),
+    queryFn: () => fetchFinanceDashboardAnalytics(query),
+    enabled: options?.enabled ?? true,
+    staleTime: 30_000,
+  });
+}
+
 
 export function useMatrixLedger(query: {
   gradeLevel?: string;

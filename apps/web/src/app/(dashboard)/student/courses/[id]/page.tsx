@@ -20,6 +20,7 @@ import {
   HelpCircle,
   FileText,
   AlertCircle,
+  RotateCcw,
 } from 'lucide-react';
 import { useStudentCourses } from '@/features/student-portal/hooks/useStudentPortal';
 import { useEnrollInCourse } from '@/features/student-portal/hooks/useStudentPortal';
@@ -50,7 +51,10 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
   const enrollment = myCourses.find((c: any) => c.courseId === courseId || c.id === courseId);
   const isEnrolled = enrollment && (enrollment.enrollmentStatus === 'ACTIVE' || (!enrollment.enrollmentStatus && enrollment.accessStatus === 'ACTIVE'));
   const isPending = enrollment?.enrollmentStatus === 'PENDING';
-  const isRejected = enrollment?.enrollmentStatus === 'DROPPED';
+  const isDropped = enrollment?.enrollmentStatus === 'DROPPED';
+  const progress = Number(enrollment?.progressPercentage || 0);
+  const completedLessons = Number(enrollment?.completedLessons || 0);
+  const isCompleted = isEnrolled && (Boolean(enrollment?.isCompleted) || progress >= 100);
 
   useEffect(() => {
     async function fetchCourseDetails() {
@@ -62,11 +66,20 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
           const courseData = data.data || data;
           setCourse(courseData);
 
-          // Find first preview lesson if available
-          const allLessons = (courseData.modules || []).flatMap((m: any) => m.lessons || []);
-          const firstPreview = allLessons.find((l: any) => l.isPreview && l.freeVideoUrl);
-          if (firstPreview) {
-            setActivePreviewLesson(firstPreview);
+          // Find course preview video or first preview lesson if available
+          if (courseData.previewVideoUrl) {
+            setActivePreviewLesson({
+              id: 'course-preview-intro',
+              title: 'فيديو تعريفي بالكورس 🎬',
+              freeVideoUrl: courseData.previewVideoUrl,
+              isCourseIntro: true,
+            });
+          } else {
+            const allLessons = (courseData.modules || []).flatMap((m: any) => m.lessons || []);
+            const firstPreview = allLessons.find((l: any) => l.isPreview && l.freeVideoUrl);
+            if (firstPreview) {
+              setActivePreviewLesson(firstPreview);
+            }
           }
         } else {
           toast.error('تعذر تحميل بيانات الكورس المطلوب');
@@ -83,9 +96,19 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
     }
   }, [courseId]);
 
-  const handleEnroll = () => {
+  const handleEnroll = async () => {
     if (isEnrolled) {
       router.push(`/student/courses/${courseId}/learn`);
+      return;
+    }
+    // Free course: bypass payment modal, enroll directly and navigate to learn page
+    if (course && (Number(course.price || 0) === 0 || course.isFree)) {
+      try {
+        await enrollMutation.mutateAsync(courseId);
+        router.push(`/student/courses/${courseId}/learn`);
+      } catch {
+        // Error toast handled by mutation's onError
+      }
       return;
     }
     setIsSubscriptionModalOpen(true);
@@ -156,6 +179,22 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
               <Badge className="bg-emerald-500/20 text-emerald-300 border-none px-3 py-1">
                 {course.academicTerm === 'FIRST_TERM' ? 'الترم الأول' : 'الترم الثاني'}
               </Badge>
+              {isEnrolled && (
+                <Badge className={`${
+                  isCompleted 
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold shadow-sm' 
+                    : 'bg-emerald-500/30 text-emerald-200'
+                } border-none px-3 py-1 flex items-center gap-1`}>
+                  {isCompleted ? (
+                    <>
+                      <Award className="w-3.5 h-3.5 text-amber-200" />
+                      <span>مكتمل 100% 🎓</span>
+                    </>
+                  ) : (
+                    <span>مشترك بالفعل • {progress}%</span>
+                  )}
+                </Badge>
+              )}
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">{course.title}</h1>
@@ -166,7 +205,7 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
             <div className="flex items-center gap-4 text-xs sm:text-sm text-slate-300 pt-2 flex-wrap">
               <div className="flex items-center gap-1.5">
                 <User className="w-4 h-4 text-primary-400" />
-                <span>المعلم: <strong className="text-white">{course.teacher?.user?.fullName || course.teacherName || 'أ. طارق عبد الله'}</strong></span>
+                <span>المعلم: <strong className="text-white">{course.teacher?.user?.fullName || course.teacherName || 'أ. أحمد غريب'}</strong></span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Layers className="w-4 h-4 text-primary-400" />
@@ -194,13 +233,59 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
             </div>
 
             {isEnrolled ? (
-              <Link
-                href={`/student/courses/${courseId}/learn`}
-                className="w-full py-3.5 px-6 rounded-xl font-bold bg-emerald-500 hover:bg-emerald-600 text-white transition-all shadow-lg flex items-center justify-center gap-2 text-sm"
-              >
-                <Play className="w-4 h-4 fill-current" />
-                <span>أنت مشترك بالفعل • دخول الكورس</span>
-              </Link>
+              <div className="space-y-3">
+                <div className="p-3 bg-white/10 rounded-xl border border-white/15 text-right space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-emerald-300 flex items-center gap-1">
+                      {isCompleted ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>أتممت هذه الدورة بنجاح 🎉</span>
+                        </>
+                      ) : (
+                        'مستوى التقدم'
+                      )}
+                    </span>
+                    <span className="font-black text-white">{progress}%</span>
+                  </div>
+                  <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        isCompleted ? 'bg-gradient-to-r from-emerald-400 to-teal-400' : 'bg-primary-400'
+                      }`}
+                      style={{ width: `${Math.min(progress, 100)}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-300">
+                    <span>
+                      {totalLessonsCount > 0
+                        ? `${completedLessons || Math.round((progress / 100) * totalLessonsCount)} من ${totalLessonsCount} درس مكتمل`
+                        : (isCompleted ? 'جميع الدروس مكتملة' : 'في بداية المسار')}
+                    </span>
+                  </div>
+                </div>
+
+                <Link
+                  href={`/student/courses/${courseId}/learn`}
+                  className={`w-full py-3.5 px-6 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 text-sm text-white ${
+                    isCompleted
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-emerald-500/25'
+                      : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/25'
+                  }`}
+                >
+                  {isCompleted ? (
+                    <>
+                      <Award className="w-4 h-4 text-amber-200" />
+                      <span>مراجعة محتوى الدورة 🎓</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4 fill-current" />
+                      <span>دخول غرفة التعلم والمشاهدة</span>
+                    </>
+                  )}
+                </Link>
+              </div>
             ) : isPending ? (
               <button
                 type="button"
@@ -210,14 +295,14 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
                 <Clock className="w-4 h-4 animate-pulse" />
                 <span>طلبك قيد المراجعة ⏳ (عرض تفاصيل الإيصال)</span>
               </button>
-            ) : isRejected ? (
+            ) : isDropped ? (
               <button
                 type="button"
                 onClick={() => setIsSubscriptionModalOpen(true)}
-                className="w-full py-3.5 px-6 rounded-xl font-bold bg-rose-600 hover:bg-rose-700 text-white transition-all shadow-lg flex items-center justify-center gap-2 text-sm cursor-pointer"
+                className="w-full py-3.5 px-6 rounded-xl font-bold bg-primary-600 hover:bg-primary-700 text-white transition-all shadow-lg shadow-primary-500/25 flex items-center justify-center gap-2 text-sm cursor-pointer"
               >
-                <AlertCircle className="w-4 h-4" />
-                <span>تم الرفض • إعادة إرسال الإيصال</span>
+                <RotateCcw className="w-4 h-4" />
+                <span>إعادة الاشتراك في الكورس</span>
               </button>
             ) : (
               <button
@@ -250,9 +335,13 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
               <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <PlayCircle className="w-5 h-5 text-emerald-400 animate-pulse" />
-                  <span className="text-xs sm:text-sm font-bold truncate">معاينة مجانية: {activePreviewLesson.title}</span>
+                  <span className="text-xs sm:text-sm font-bold truncate">
+                    {activePreviewLesson.isCourseIntro ? 'فيديو تعريفي بالكورس' : `معاينة مجانية: ${activePreviewLesson.title}`}
+                  </span>
                 </div>
-                <Badge className="bg-emerald-500/20 text-emerald-300 border-none text-xs">درس تجريبي مجاني</Badge>
+                <Badge className="bg-emerald-500/20 text-emerald-300 border-none text-xs">
+                  {activePreviewLesson.isCourseIntro ? 'فيديو تعريفي تمهيدي 🎬' : 'درس تجريبي مجاني'}
+                </Badge>
               </div>
               <div className="aspect-video w-full bg-black relative">
                 <iframe
@@ -263,6 +352,37 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
                   allowFullScreen
                 />
               </div>
+            </div>
+          )}
+
+          {/* Promo Video Banner if not currently watching it */}
+          {course.previewVideoUrl && activePreviewLesson?.id !== 'course-preview-intro' && (
+            <div className="bg-gradient-to-l from-primary-50 to-blue-50 border border-primary-200/70 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                  <Video className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-xs sm:text-sm font-bold text-slate-900">فيديو تعريفي بالكورس (برومو تمهيدي)</h3>
+                  <p className="text-[11px] text-slate-500">شاهد نبذة شاملة عن محتوى الكورس وطريقة الشرح قبل الاشتراك</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setActivePreviewLesson({
+                    id: 'course-preview-intro',
+                    title: 'فيديو تعريفي بالكورس 🎬',
+                    freeVideoUrl: course.previewVideoUrl,
+                    isCourseIntro: true,
+                  });
+                  window.scrollTo({ top: 150, behavior: 'smooth' });
+                }}
+                className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5 shrink-0 cursor-pointer"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span>مشاهدة الفيديو</span>
+              </button>
             </div>
           )}
 
@@ -372,7 +492,7 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
               {course.hasCertificate && (
                 <li className="flex items-start gap-2.5">
                   <Award className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                  <span className="font-bold text-slate-800">شهادة إتمام معتمدة تصدر فور إكمال 100% من محتوى الكورس.</span>
+                  <span className="font-bold text-slate-800">شهادة إتمام معتمدة تصدر فور إكمال جميع دروس واختبارات الكورس.</span>
                 </li>
               )}
             </ul>
@@ -394,6 +514,15 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
                 >
                   <Clock className="w-3.5 h-3.5 animate-pulse" />
                   <span>طلبك قيد المراجعة ⏳</span>
+                </button>
+              ) : isDropped ? (
+                <button
+                  type="button"
+                  onClick={() => setIsSubscriptionModalOpen(true)}
+                  className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold text-xs transition-colors shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>إعادة الاشتراك في الكورس</span>
                 </button>
               ) : (
                 <button

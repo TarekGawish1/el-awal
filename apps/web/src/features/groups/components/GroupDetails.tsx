@@ -3,7 +3,41 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Users, UserPlus, FileText, AlertCircle, CalendarDays, Settings, Trash2, Loader2, MapPin, ClipboardCheck } from 'lucide-react';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import { ArrowRight, Users, UserPlus, FileText, AlertCircle, CalendarDays, Settings, Trash2, Loader2, MapPin, ClipboardCheck, Printer } from 'lucide-react';
 import { useGroup, useDeleteGroup } from '../hooks/useGroups';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -14,6 +48,7 @@ import { GroupSessionAttachments } from './GroupSessionAttachments';
 import { AddStudentModal } from './AddStudentModal';
 import { DeleteGroupModal } from './DeleteGroupModal';
 import { EditGroupModal } from './EditGroupModal';
+import { GroupQrPrintModal } from './GroupQrPrintModal';
 import toast from 'react-hot-toast';
 
 interface GroupDetailsProps {
@@ -28,6 +63,7 @@ export function GroupDetails({ id }: GroupDetailsProps) {
   const [isAddStudentModalOpen, setIsAddStudentModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
 
   const handleConfirmDelete = async () => {
     try {
@@ -206,15 +242,24 @@ export function GroupDetails({ id }: GroupDetailsProps) {
             )}
           </div>
 
-          <div className="flex flex-col gap-2 w-full sm:w-auto">
-            <Button onClick={() => setIsAddStudentModalOpen(true)}>
-              <UserPlus className="w-4 h-4 ml-2" />
-              إضافة طالب
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <Button
+              variant="outline"
+              onClick={() => setIsQrModalOpen(true)}
+              className="gap-2 text-slate-700 hover:text-slate-900 border-slate-200 bg-white shadow-xs"
+            >
+              <Printer className="w-4 h-4 ml-1.5 text-primary-600" />
+              <span>طباعة كروت الـ QR ({group._count?.enrollments || 0})</span>
             </Button>
 
             <Button variant="outline" onClick={() => router.push(`/teacher/attendance?groupId=${group.id}`)}>
               <FileText className="w-4 h-4 ml-2" />
               كشف الحضور
+            </Button>
+
+            <Button onClick={() => setIsAddStudentModalOpen(true)}>
+              <UserPlus className="w-4 h-4 ml-2" />
+              إضافة طالب
             </Button>
           </div>
         </div>
@@ -280,6 +325,16 @@ export function GroupDetails({ id }: GroupDetailsProps) {
         onClose={() => setIsEditModalOpen(false)}
         group={group}
       />
+
+      {isQrModalOpen && (
+        <GroupQrPrintModal
+          groupId={id}
+          groupName={group.name}
+          gradeLevel={group.gradeLevel}
+          isOpen={isQrModalOpen}
+          onClose={() => setIsQrModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

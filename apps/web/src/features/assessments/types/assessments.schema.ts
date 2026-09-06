@@ -9,6 +9,7 @@ export const questionSchema = z.object({
   displayOrder: z.number().int(),
   questionNumber: z.number().int(),
   optionsData: z.array(z.string().min(1, 'الخيار لا يمكن أن يكون فارغاً')).optional(),
+  optionImages: z.array(z.string()).optional(),
   correctAnswer: z.string().optional(),
   imageUrl: z.string().optional(),
 }).superRefine((data, ctx) => {
@@ -64,6 +65,8 @@ export const createAssessmentSchema = z.object({
   durationMinutes: z.coerce.number().min(1, 'المدة يجب أن تكون دقيقة واحدة على الأقل').optional().nullable(),
   isAutoGraded: z.boolean(),
   allowMultipleAttempts: z.boolean().optional(),
+  isOptional: z.boolean().optional(),
+  requirePassingScore: z.boolean().optional(),
   questions: z.array(questionSchema).min(1, 'يجب إضافة سؤال واحد على الأقل'),
 }).superRefine((data, ctx) => {
   if (data.passingScore > data.totalScore) {

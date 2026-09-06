@@ -415,6 +415,13 @@ export class SubscriptionsService {
           bookletId: dto.bookletId,
           paymentType: PaymentType.BOOKLET,
         },
+        include: {
+          student: {
+            include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+          },
+          group: { select: { id: true, name: true } },
+          booklet: { select: { id: true, title: true, price: true } },
+        },
       });
 
       const isDuplicate = !!(
@@ -425,26 +432,30 @@ export class SubscriptionsService {
 
       let payment: any;
       if (existingPayment) {
-        payment = await this.prisma.studentPaymentRecord.update({
-          where: { id: existingPayment.id },
-          data: {
-            amountPaid,
-            amountExpected,
-            paymentStatus: PaymentStatus.PAID,
-            paymentMethod: dto.paymentMethod || 'CASH',
-            receiptNumber: dto.receiptNumber || existingPayment.receiptNumber,
-            notes: dto.notes || existingPayment.notes,
-            recordedById: user.id,
-            updatedAt: new Date(),
-          },
-          include: {
-            student: {
-              include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+        if (isDuplicate) {
+          payment = existingPayment;
+        } else {
+          payment = await this.prisma.studentPaymentRecord.update({
+            where: { id: existingPayment.id },
+            data: {
+              amountPaid,
+              amountExpected,
+              paymentStatus: PaymentStatus.PAID,
+              paymentMethod: dto.paymentMethod || 'CASH',
+              receiptNumber: dto.receiptNumber || existingPayment.receiptNumber,
+              notes: dto.notes || existingPayment.notes,
+              recordedById: user.id,
+              updatedAt: new Date(),
             },
-            group: { select: { id: true, name: true } },
-            booklet: { select: { id: true, title: true, price: true } },
-          },
-        });
+            include: {
+              student: {
+                include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+              },
+              group: { select: { id: true, name: true } },
+              booklet: { select: { id: true, title: true, price: true } },
+            },
+          });
+        }
       } else {
         payment = await this.prisma.studentPaymentRecord.create({
           data: {
@@ -480,20 +491,23 @@ export class SubscriptionsService {
         }
       }
 
-      this.eventEmitter.emit('payment.recorded', {
-        studentId: student.id,
-        studentName: student.user.fullName,
-        parentPhone: student.user.phone,
-        paymentType: 'BOOKLET',
-        bookletId: dto.bookletId,
-        bookletTitle: booklet.title,
-        amountPaid: Number(payment.amountPaid),
-        periodYear,
-        periodMonth,
-      });
+      // CRITICAL: Only emit payment.recorded and send WhatsApp receipt if NOT duplicate
+      if (!isDuplicate) {
+        this.eventEmitter.emit('payment.recorded', {
+          studentId: student.id,
+          studentName: student.user.fullName,
+          parentPhone: student.user.phone,
+          paymentType: 'BOOKLET',
+          bookletId: dto.bookletId,
+          bookletTitle: booklet.title,
+          amountPaid: Number(payment.amountPaid),
+          periodYear,
+          periodMonth,
+        });
+      }
 
       this.logger.log(
-        `QR Booklet Payment processed: Student [${student.user.fullName}], Booklet [${booklet.title}], Paid: ${amountPaid} EGP`,
+        `QR Booklet Payment processed: Student [${student.user.fullName}], Booklet [${booklet.title}], Paid: ${amountPaid} EGP (Duplicate: ${isDuplicate})`,
       );
 
       return {
@@ -563,6 +577,13 @@ export class SubscriptionsService {
         periodMonth,
         paymentType: PaymentType.TUITION,
       },
+      include: {
+        student: {
+          include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+        },
+        group: { select: { id: true, name: true } },
+        booklet: { select: { id: true, title: true, price: true } },
+      },
     });
 
     const isDuplicate = !!(
@@ -574,26 +595,30 @@ export class SubscriptionsService {
     // 4. Upsert payment record
     let payment: any;
     if (existingPayment) {
-      payment = await this.prisma.studentPaymentRecord.update({
-        where: { id: existingPayment.id },
-        data: {
-          amountPaid,
-          amountExpected,
-          paymentStatus: PaymentStatus.PAID,
-          paymentMethod: dto.paymentMethod || 'CASH',
-          receiptNumber: dto.receiptNumber,
-          notes: dto.notes || 'تم السداد عبر مسح رمز الـ QR',
-          recordedById: user.id,
-          updatedAt: new Date(),
-        },
-        include: {
-          student: {
-            include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+      if (isDuplicate) {
+        payment = existingPayment;
+      } else {
+        payment = await this.prisma.studentPaymentRecord.update({
+          where: { id: existingPayment.id },
+          data: {
+            amountPaid,
+            amountExpected,
+            paymentStatus: PaymentStatus.PAID,
+            paymentMethod: dto.paymentMethod || 'CASH',
+            receiptNumber: dto.receiptNumber,
+            notes: dto.notes || 'تم السداد عبر مسح رمز الـ QR',
+            recordedById: user.id,
+            updatedAt: new Date(),
           },
-          group: { select: { id: true, name: true } },
-          booklet: { select: { id: true, title: true, price: true } },
-        },
-      });
+          include: {
+            student: {
+              include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+            },
+            group: { select: { id: true, name: true } },
+            booklet: { select: { id: true, title: true, price: true } },
+          },
+        });
+      }
     } else {
       payment = await this.prisma.studentPaymentRecord.create({
         data: {
@@ -621,20 +646,23 @@ export class SubscriptionsService {
       });
     }
 
-    // 5. Emit payment recorded event
-    this.eventEmitter.emit('payment.recorded', {
-      studentId: student.id,
-      studentName: student.user.fullName,
-      parentPhone: student.user.phone,
-      groupName: targetGroup ? targetGroup.name : 'عام',
-      paymentType: 'TUITION',
-      amountPaid: Number(payment.amountPaid),
-      periodYear,
-      periodMonth,
-    });
+    // 5. Emit payment recorded event ONLY IF NOT A DUPLICATE
+    // Do not notify parents or send duplicate WhatsApp receipts if student already paid!
+    if (!isDuplicate) {
+      this.eventEmitter.emit('payment.recorded', {
+        studentId: student.id,
+        studentName: student.user.fullName,
+        parentPhone: student.user.phone,
+        groupName: targetGroup ? targetGroup.name : 'عام',
+        paymentType: 'TUITION',
+        amountPaid: Number(payment.amountPaid),
+        periodYear,
+        periodMonth,
+      });
+    }
 
     this.logger.log(
-      `QR Payment processed: Student [${student.user.fullName}], Period ${periodMonth}/${periodYear}, Paid: ${amountPaid} EGP`,
+      `QR Payment processed: Student [${student.user.fullName}], Period ${periodMonth}/${periodYear}, Paid: ${amountPaid} EGP (Duplicate: ${isDuplicate})`,
     );
 
     return {

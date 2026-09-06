@@ -30,7 +30,7 @@ describe('LoginForm Component', () => {
 
     render(<LoginForm />);
 
-    expect(screen.getByLabelText(/البريد الإلكتروني أو رقم الهاتف/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/كود الطالب أو رقم الهاتف|البريد الإلكتروني/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^كلمة المرور/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /تسجيل الدخول/i })).toBeInTheDocument();
   });
@@ -56,7 +56,7 @@ describe('LoginForm Component', () => {
     const submitBtn = screen.getByRole('button', { name: /تسجيل الدخول/i });
     fireEvent.click(submitBtn);
 
-    expect(await screen.findByText('يرجى إدخال البريد الإلكتروني أو رقم الهاتف المسجل')).toBeInTheDocument();
+    expect(await screen.findByText('يرجى إدخال كود الطالب أو رقم الهاتف')).toBeInTheDocument();
     expect(await screen.findByText('يرجى إدخال كلمة المرور')).toBeInTheDocument();
     expect(mockLogin).not.toHaveBeenCalled();
   });
@@ -79,7 +79,7 @@ describe('LoginForm Component', () => {
 
     render(<LoginForm />);
 
-    const identifierInput = screen.getByLabelText(/البريد الإلكتروني أو رقم الهاتف/i);
+    const identifierInput = screen.getByLabelText(/كود الطالب أو رقم الهاتف|البريد الإلكتروني/i);
     const passwordInput = screen.getByLabelText(/^كلمة المرور/i);
 
     fireEvent.change(identifierInput, { target: { value: 'teacher@elawal.com' } });
@@ -142,7 +142,7 @@ describe('LoginForm Component', () => {
 
     render(<LoginForm />);
 
-    const identifierInput = screen.getByLabelText(/البريد الإلكتروني أو رقم الهاتف/i);
+    const identifierInput = screen.getByLabelText(/كود الطالب أو رقم الهاتف|البريد الإلكتروني/i);
     const passwordInput = screen.getByLabelText(/^كلمة المرور/i);
 
     fireEvent.change(identifierInput, { target: { value: 'teacher@elawal.com' } });

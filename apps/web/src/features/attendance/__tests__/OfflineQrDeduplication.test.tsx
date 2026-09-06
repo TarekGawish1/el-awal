@@ -22,12 +22,18 @@ vi.mock('@yudiel/react-qr-scanner', () => ({
   ),
 }));
 
+import { useAuthStore } from '@/features/auth/store/auth.store';
+
 describe('Offline QR Deduplication & Idempotency Engine', () => {
   let queryClient: QueryClient;
   let originalNavigatorOnLine: boolean;
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    useAuthStore.setState({
+      user: { id: 'teacher-101', role: 'TEACHER' } as any,
+      isAuthenticated: true,
+    });
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },

@@ -1,21 +1,25 @@
 export type CourseStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 export type LessonType = 'VIDEO' | 'DOCUMENT' | 'LIVE';
-export type AssessmentType = 'EXAM' | 'HOMEWORK' | 'QUIZ';
+export type AssessmentType = 'EXAM' | 'HOMEWORK' | 'QUIZ' | 'ASSIGNMENT';
 
 export interface AssessmentQuizSubmissionSummary {
   status: 'SUBMITTED' | 'GRADED' | 'UNSOLVED' | 'PENDING';
   scoreObtained: number | null;
   attemptNumber: number;
+  isPassed?: boolean;
 }
 
 export interface AssessmentSummary {
   id: string;
   title: string;
   type: AssessmentType;
+  assessmentType?: 'HOMEWORK' | 'EXAM' | 'QUIZ' | 'ASSIGNMENT' | string;
   totalScore: number;
   durationMinutes?: number | null;
   passingScore?: number | null;
   allowMultipleAttempts?: boolean;
+  isOptional?: boolean;
+  requirePassingScore?: boolean;
   attemptCount?: number;
   mySubmission?: AssessmentQuizSubmissionSummary | null;
 }
@@ -68,6 +72,8 @@ export interface CourseLesson {
   isPreview: boolean;
   lessonQuizId?: string | null;
   lessonQuiz?: AssessmentSummary | null;
+  lessonHomework?: AssessmentSummary | null;
+  assessments?: AssessmentSummary[];
   attachments?: LessonAttachment[];
   _count?: {
     attachments?: number;
@@ -113,9 +119,11 @@ export interface CourseDetail {
   academicTerm?: string | null;
   price: number | string;
   coverImageUrl?: string | null;
+  previewVideoUrl?: string | null;
   status: CourseStatus;
   orderIndex: number;
   enforceSequentialLessons?: boolean;
+  requireExamPassingToUnlock?: boolean;
   hasCertificate?: boolean;
   courseQuizId?: string | null;
   courseQuiz?: AssessmentSummary | null;
@@ -134,6 +142,12 @@ export interface CourseDetail {
   };
   totalLessons?: number;
   totalDurationSeconds?: number;
+  completedLessonIds?: string[];
+  allLessonsCompleted?: boolean;
+  allQuizzesCompleted?: boolean;
+  totalQuizzesCount?: number;
+  completedQuizzesCount?: number;
+  isCertificateEligible?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -167,8 +181,10 @@ export interface LessonViewerData {
   documentDownloadUrl?: string | null;
   attachments?: LessonAttachment[];
   lessonQuiz?: AssessmentSummary | null;
+  lessonHomework?: AssessmentSummary | null;
   unitQuiz?: AssessmentSummary | null;
   courseQuiz?: AssessmentSummary | null;
+  assessments?: AssessmentSummary[];
   lastPositionSeconds: number;
   isCompleted: boolean;
 }

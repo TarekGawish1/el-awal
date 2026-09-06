@@ -1,0 +1,58 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "genspark": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Genspark",
+      "options": {
+        "baseURL": "https://www.genspark.ai/api/llm_proxy/v1",
+        "apiKey": "gsk-eyJjb2dlbl9pZCI6Ijg4MGRiNWNhLTNjN2QtNDE1OS1hNjk5LTg1MGYwZGJmOWMwNiIsImtleV9pZCI6ImJhMWFiNzA0LTljYTUtNGMzOS05MTNkLTg0MmY2ZDQyYjdhNyIsImN0aW1lIjoxNzg4NjM3NzkxLCJjbGF1ZGVfYmlnX21vZGVsIjpudWxsLCJjbGF1ZGVfbWlkZGxlX21vZGVsIjpudWxsLCJjbGF1ZGVfc21hbGxfbW9kZWwiOm51bGx9fB2IFVo9oT8FFqjnHiAshRB-gHga21eQX13wN0b3I9ST"
+      },
+      "models": {
+        "claude-opus-5": { "name": "Claude Opus 5" },
+        "claude-opus-4-8": { "name": "Claude Opus 4.8" },
+        "claude-opus-4-7": { "name": "Claude Opus 4.7" },
+        "claude-opus-4-6": { "name": "Claude Opus 4.6" },
+        "claude-sonnet-5": { "name": "Claude Sonnet 5" },
+        "claude-sonnet-4-6": { "name": "Claude Sonnet 4.6" },
+        "claude-haiku-4-5": { "name": "Claude Haiku 4.5" },
+
+        "gpt-5.5-pro": { "name": "GPT-5.5 Pro" },
+        "gpt-5.4-pro": { "name": "GPT-5.4 Pro" },
+        "gpt-5.2-pro": { "name": "GPT-5.2 Pro" },
+        "gpt-5.6-sol": { "name": "GPT-5.6 Sol" },
+        "gpt-5.6-terra": { "name": "GPT-5.6 Terra" },
+        "gpt-5.6-luna": { "name": "GPT-5.6 Luna" },
+        "gpt-5.5": { "name": "GPT-5.5" },
+        "gpt-5.4": { "name": "GPT-5.4" },
+        "gpt-5.4-mini": { "name": "GPT-5.4 Mini" },
+        "gpt-5.4-nano": { "name": "GPT-5.4 Nano" },
+
+        "gemini-3-flash-preview": { "name": "Gemini 3 Flash Preview" },
+        "gemini-3-1-pro-preview": { "name": "Gemini 3.1 Pro Preview" },
+        "gemini-3-1-flash-lite": { "name": "Gemini 3.1 Flash Lite" },
+        "gemini-3-5-flash": { "name": "Gemini 3.5 Flash" },
+        "gemini-3-6-flash": { "name": "Gemini 3.6 Flash" },
+        "gemini-3-7-flash": { "name": "Gemini 3.7 Flash" },
+        "gemini-3-8-flash": { "name": "Gemini 3.8 Flash" },
+
+        "deepseek-v4-pro": { "name": "DeepSeek V4 Pro" },
+        "deepseek-v4-flash": { "name": "DeepSeek V4 Flash" },
+        "deepseek-v4-pro-0813": { "name": "DeepSeek V4 Pro 0813" },
+
+        "minimax-m2-7": { "name": "Minimax M2.7" },
+        "minimax-m3": { "name": "Minimax M3" },
+        "kimi-k3": { "name": "Kimi K3" },
+        "solar-pro-4": { "name": "Solar Pro 4" },
+        "nemotron-3-ultra": { "name": "Nemotron 3 Ultra" },
+
+        "glm-5-2": { "name": "GLM-5.2" },
+        "glm-5-3": { "name": "GLM-5.3" },
+        "grok-4-5": { "name": "Grok 4.5" },
+        "grok-4-6": { "name": "Grok 4.6" }
+      }
+    }
+  },
+  "model": "genspark/claude-sonnet-4-6",
+  "small_model": "genspark/gemini-3-1-flash-lite"
+}

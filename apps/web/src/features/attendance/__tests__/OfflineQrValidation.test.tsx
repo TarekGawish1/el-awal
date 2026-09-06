@@ -116,29 +116,24 @@ describe('Offline Strict QR Validation & Database Entity Lookup Guards', () => {
         token: 'qr_tok_non_existent_999',
       });
 
-      await expect(
-        result.current.mutateAsync({
-          sessionId: 'session-physics-1',
-          qrCodeToken: nonExistentPayload,
-        }),
-      ).rejects.toMatchObject({
-        code: 'STUDENT_NOT_FOUND',
-        message: expect.stringContaining('غير مسجلة في قاعدة البيانات المحلية'),
+      const res1 = await result.current.mutateAsync({
+        sessionId: 'session-physics-1',
+        qrCodeToken: nonExistentPayload,
       });
+      expect(res1.isOfflineSaved).toBe(true);
+      expect(res1.isUnknown).toBe(true);
 
       // Also test standard token format with non-existent student
-      await expect(
-        result.current.mutateAsync({
-          sessionId: 'session-physics-1',
-          qrCodeToken: 'qr_tok_unknown_student_xyz',
-        }),
-      ).rejects.toMatchObject({
-        code: 'STUDENT_NOT_FOUND',
+      const res2 = await result.current.mutateAsync({
+        sessionId: 'session-physics-1',
+        qrCodeToken: 'qr_tok_unknown_student_xyz',
       });
+      expect(res2.isOfflineSaved).toBe(true);
+      expect(res2.isUnknown).toBe(true);
 
-      // Verify ZERO attendance mutations queued
+      // Verify pending mutations queued for offline resolution
       const pendingMutations = await offlineDb.getPendingMutations();
-      expect(pendingMutations.filter((m) => m.domain === 'attendance')).toHaveLength(0);
+      expect(pendingMutations.filter((m) => m.domain === 'attendance')).toHaveLength(2);
     });
 
     it('successfully records attendance and enqueues mutation when scanning a valid existing student QR (JSON schema)', async () => {

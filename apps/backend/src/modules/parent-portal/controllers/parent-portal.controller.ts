@@ -16,7 +16,7 @@ export class ParentPortalController {
   constructor(private readonly parentPortalService: ParentPortalService) {}
 
   @Get('students')
-  @Roles(UserRole.PARENT)
+  @Roles(UserRole.PARENT, UserRole.SECRETARIAT, UserRole.TEACHER)
   @ApiOperation({ summary: 'List all children/students linked to the authenticated parent' })
   async getLinkedStudents(@CurrentUser() user: AuthenticatedUser) {
     return this.parentPortalService.getLinkedStudents(
@@ -25,7 +25,7 @@ export class ParentPortalController {
   }
 
   @Get('students/:studentId/overview')
-  @Roles(UserRole.PARENT)
+  @Roles(UserRole.PARENT, UserRole.SECRETARIAT, UserRole.TEACHER)
   @ApiOperation({ summary: 'Consolidated real-time KPI card overview (Attendance %, Exam averages, Billing alerts)' })
   @ApiResponse({ status: 200, description: 'Child KPI metrics summary' })
   @ApiResponse({ status: 403, description: 'Guardianship link verification failed' })
@@ -40,7 +40,7 @@ export class ParentPortalController {
   }
 
   @Get('students/:studentId/attendance')
-  @Roles(UserRole.PARENT)
+  @Roles(UserRole.PARENT, UserRole.SECRETARIAT, UserRole.TEACHER)
   @ApiOperation({ summary: 'Keyset cursor-paginated physical classroom attendance history for child' })
   async getStudentAttendance(
     @Param('studentId') studentId: string,
@@ -55,7 +55,7 @@ export class ParentPortalController {
   }
 
   @Get('students/:studentId/assessments')
-  @Roles(UserRole.PARENT)
+  @Roles(UserRole.PARENT, UserRole.SECRETARIAT, UserRole.TEACHER)
   @ApiOperation({ summary: 'List graded exam/assignment submissions and instructor feedback for child' })
   async getStudentAssessments(
     @Param('studentId') studentId: string,
@@ -68,7 +68,7 @@ export class ParentPortalController {
   }
 
   @Get('students/:studentId/courses')
-  @Roles(UserRole.PARENT)
+  @Roles(UserRole.PARENT, UserRole.SECRETARIAT, UserRole.TEACHER)
   @ApiOperation({ summary: 'Online course enrollment and lesson completion progress for child' })
   async getStudentCourses(
     @Param('studentId') studentId: string,

@@ -1,7 +1,15 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import NotificationBell from './NotificationBell';
 import { useNotifications, useUnreadCount, useMarkAllRead, useMarkRead } from '@/hooks/useNotifications';
+
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false } },
+});
+
+const renderWithClient = (ui: React.ReactElement) =>
+  render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
 
 const push = vi.fn();
 
@@ -46,7 +54,7 @@ describe('NotificationBell', () => {
   });
 
   it('shows the homework badge and routes to the student homework dashboard', () => {
-    render(<NotificationBell />);
+    renderWithClient(<NotificationBell />);
 
     expect(screen.getByText('1')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'الإشعارات' }));

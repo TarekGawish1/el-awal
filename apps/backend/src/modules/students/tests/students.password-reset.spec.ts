@@ -75,6 +75,7 @@ describe('StudentsService — Password Reset & Credentials Access', () => {
 
   const mockNotificationsService = {
     createAndDispatch: jest.fn(),
+    sendNotification: jest.fn().mockResolvedValue(undefined),
   };
 
   const mockRealtimeGateway = {
@@ -128,7 +129,7 @@ describe('StudentsService — Password Reset & Credentials Access', () => {
     it('resets password, updates tempAccessPin and dispatches WhatsApp alert', async () => {
       mockPrismaService.groupEnrollment.findFirst.mockResolvedValue({ id: 'enr-1' });
       mockPrismaService.studentProfile.findUnique.mockResolvedValue(mockStudentProfile);
-      mockPrismaService.user.findUnique.mockResolvedValue({ fullName: 'أ. طارق عبد الله' });
+      mockPrismaService.user.findUnique.mockResolvedValue({ fullName: 'أ. أحمد غريب' });
       mockPrismaService.$transaction.mockResolvedValue([{}, {}]);
 
       const result = await service.resetStudentPassword(
@@ -141,7 +142,7 @@ describe('StudentsService — Password Reset & Credentials Access', () => {
       expect(result.newPassword).toBe('newSecretPass1');
       expect(result.studentCode).toBe('STU-2026-009');
       expect(mockPrismaService.$transaction).toHaveBeenCalled();
-      expect(mockWhatsAppService.sendMessage).toHaveBeenCalled();
+      expect(mockNotificationsService.sendNotification).toHaveBeenCalled();
     });
 
     it('allows secretariat to reset student password', async () => {

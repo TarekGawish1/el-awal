@@ -14,6 +14,11 @@ import {
 describe('Offline Booklet Engine (IndexedDB & Memory Store)', () => {
   beforeEach(async () => {
     await wipeAllOfflineData();
+    const { useAuthStore } = await import('@/features/auth/store/auth.store');
+    useAuthStore.setState({
+      user: { id: 'test-teacher-id', fullName: 'أستاذ اختبار', role: 'TEACHER' } as any,
+      isAuthenticated: true,
+    });
   });
 
   it('can store and query booklets with grade and group filters', async () => {

@@ -5,6 +5,7 @@ import { renderHook, act } from '@testing-library/react';
 import { useStudents } from '../hooks/use-students';
 import { offlineDb } from '@/lib/offline/db';
 import { syncEngine } from '@/lib/offline/sync-engine';
+import { useAuthStore } from '@/features/auth/store/auth.store';
 
 describe('Student Offline Filter Parity & Sync Conflict Surfacing', () => {
   let queryClient: QueryClient;
@@ -12,6 +13,10 @@ describe('Student Offline Filter Parity & Sync Conflict Surfacing', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    useAuthStore.setState({
+      user: { id: 'teacher-101', role: 'TEACHER' } as any,
+      isAuthenticated: true,
+    });
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },

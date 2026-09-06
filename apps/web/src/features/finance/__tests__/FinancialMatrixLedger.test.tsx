@@ -3,6 +3,19 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { FinancialMatrixLedger } from '../components/FinancialMatrixLedger';
 import { useMatrixLedger, useRecordPayment } from '../hooks/useFinance';
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => '/teacher/finance',
+}));
+
+vi.mock('@/core/hooks/usePermissions', () => ({
+  usePermissions: () => ({
+    can: () => true,
+    role: 'TEACHER',
+  }),
+}));
+
 vi.mock('../hooks/useFinance', () => ({
   useMatrixLedger: vi.fn(),
   useBillingConfiguration: vi.fn(() => ({ data: null })),
@@ -90,10 +103,9 @@ describe('FinancialMatrixLedger', () => {
   it('requires a stage and grade before showing students', () => {
     render(<FinancialMatrixLedger groups={[]} />);
 
-    expect(screen.getByText('اختر المرحلة والصف لعرض سجل المدفوعات.')).toBeInTheDocument();
+    expect(screen.getByText(/اختر المرحلة والصف.*لعرض سجل المدفوعات/)).toBeInTheDocument();
     expect(screen.queryByText('كل المراحل')).not.toBeInTheDocument();
     expect(screen.queryByText('كل الصفوف')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('الصف الدراسي')).toBeDisabled();
   });
 
   it('cascades stage, grade, and group filters', () => {

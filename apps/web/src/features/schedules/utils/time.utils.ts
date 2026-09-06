@@ -116,14 +116,8 @@ export function doTimeIntervalsOverlap(
   const eA = parseTimeToMinutes(endA);
   const eB = parseTimeToMinutes(endB);
 
-  // If BOTH sessions have no endTime, they only conflict if they start at the exact same minute
-  if ((eA === null || eA <= sA) && (eB === null || eB <= sB)) {
-    return sA === sB;
-  }
-
-  // Use a minimal 1-minute fallback only when one side has a real endTime
-  const resolvedEA = (eA !== null && eA > sA) ? eA : sA + 1;
-  const resolvedEB = (eB !== null && eB > sB) ? eB : sB + 1;
+  const resolvedEA = (eA !== null && eA > sA) ? eA : sA + 90;
+  const resolvedEB = (eB !== null && eB > sB) ? eB : sB + 90;
 
   return sA < resolvedEB && sB < resolvedEA;
 }

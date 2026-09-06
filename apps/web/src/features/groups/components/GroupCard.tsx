@@ -1,12 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { Users, ArrowLeft } from 'lucide-react';
+import { Users, ArrowLeft, Printer } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { CreatorBadge } from '@/components/ui/CreatorBadge';
 import { Group } from '../types/groups.types';
+import { GroupQrPrintModal } from './GroupQrPrintModal';
 
 interface GroupCardProps {
   group: Group;
@@ -14,17 +15,33 @@ interface GroupCardProps {
 }
 
 export function GroupCard({ group, onClick }: GroupCardProps) {
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const isSecondTerm = group.academicTerm === 'SECOND_TERM';
   const termText = isSecondTerm ? 'ترم ثانٍ' : 'ترم أول';
 
   const cardContent = (
     <Card className="hover:border-primary-200 hover:shadow-md transition-all h-full flex flex-col group overflow-hidden bg-white border-slate-200">
       <div className="p-5 flex-1 flex flex-col">
-        {/* Top: Status */}
-        <div className="mb-3">
+        {/* Top: Status & Print Action */}
+        <div className="mb-3 flex items-center justify-between">
           <Badge variant={group.status === 'ACTIVE' ? 'success' : 'default'} className="font-medium text-[11px] px-2 py-0.5">
             {group.status === 'ACTIVE' ? 'نشط' : 'غير نشط'}
           </Badge>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsQrModalOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-primary-700 bg-slate-50 hover:bg-primary-50 border border-slate-200/80 hover:border-primary-200 py-1 px-2.5 rounded-lg transition-colors"
+            title="طباعة كروت الـ QR Codes للطلاب"
+            aria-label="طباعة كروت الـ QR Codes للطلاب"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>كروت QR</span>
+          </button>
         </div>
         
         {/* Middle: Title & Main Info */}
@@ -73,17 +90,27 @@ export function GroupCard({ group, onClick }: GroupCardProps) {
     </Card>
   );
 
-  if (onClick) {
-    return (
-      <div onClick={onClick} role="button" tabIndex={0} className="block text-start focus:outline-none h-full outline-none">
-        {cardContent}
-      </div>
-    );
-  }
-
   return (
-    <Link href={`/teacher/groups/${group.id}`} className="block h-full outline-none">
-      {cardContent}
-    </Link>
+    <>
+      {onClick ? (
+        <div onClick={onClick} role="button" tabIndex={0} className="block text-start focus:outline-none h-full outline-none">
+          {cardContent}
+        </div>
+      ) : (
+        <Link href={`/teacher/groups/${group.id}`} className="block h-full outline-none">
+          {cardContent}
+        </Link>
+      )}
+
+      {isQrModalOpen && (
+        <GroupQrPrintModal
+          groupId={group.id}
+          groupName={group.name}
+          gradeLevel={group.gradeLevel}
+          isOpen={isQrModalOpen}
+          onClose={() => setIsQrModalOpen(false)}
+        />
+      )}
+    </>
   );
 }

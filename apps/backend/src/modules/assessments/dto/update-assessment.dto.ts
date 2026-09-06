@@ -99,9 +99,30 @@ export class UpdateAssessmentDto {
   allowMultipleAttempts?: boolean;
 
   @ApiPropertyOptional({
+    description: 'Whether this assessment is optional for students',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isOptional?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Whether students must achieve the passing score to progress to the next lesson or unit',
+  })
+  @IsOptional()
+  @IsBoolean()
+  requirePassingScore?: boolean;
+
+  @ApiPropertyOptional({
     description: 'Target online course ID',
   })
   @IsOptional()
   @IsUUID()
   courseId?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Target online course lesson ID',
+  })
+  @IsOptional()
+  @IsUUID()
+  lessonId?: string | null;
 }

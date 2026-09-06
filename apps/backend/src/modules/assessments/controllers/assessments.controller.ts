@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -183,6 +184,21 @@ export class AssessmentsController {
   ) {
     const isSecretariat = user.role === UserRole.SECRETARIAT;
     return this.assessmentsService.reEvaluateAutoGradedSubmissions(
+      id,
+      user.teacherProfileId || user.id,
+      isSecretariat,
+    );
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Delete an assessment permanently' })
+  async deleteAssessment(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const isSecretariat = user.role === UserRole.SECRETARIAT;
+    return this.assessmentsService.deleteAssessment(
       id,
       user.teacherProfileId || user.id,
       isSecretariat,

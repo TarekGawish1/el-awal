@@ -44,6 +44,14 @@ export class CreateQuestionDto {
   @IsArray()
   optionsData?: string[];
 
+  @ApiPropertyOptional({
+    description: 'Image URLs parallel to optionsData — optionImages[i] is the image for optionsData[i]',
+    example: ['https://cdn.el-awal.com/opt1.jpg', '', '', ''],
+  })
+  @IsOptional()
+  @IsArray()
+  optionImages?: string[];
+
   @ApiProperty({
     description: 'Correct answer string used for automated grading',
     example: 'خبر كان منصوب',

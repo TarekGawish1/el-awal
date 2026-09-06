@@ -89,7 +89,7 @@ async function main() {
   // ==============================================================================
   const teacherUser = await prisma.user.create({
     data: {
-      fullName: 'أ. طارق عبد الله',
+      fullName: 'أ. أحمد غريب',
       email: 'teacher@elawal.com',
       phone: '+201000000001',
       passwordHash,

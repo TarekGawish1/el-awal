@@ -123,17 +123,39 @@ export class AssessmentsService {
       if (!courseModule || courseModule.courseId !== dto.courseId) {
         throw new BadRequestException('Module does not belong to the specified course');
       }
+    } else if (dto.courseLinkScope === AssessmentCourseLinkScope.LESSON) {
+      if (!dto.lessonId) {
+        throw new BadRequestException('A lesson ID is required to link a lesson assessment');
+      }
+
+      const courseLesson = await this.prisma.courseLesson.findUnique({
+        where: { id: dto.lessonId },
+        include: { module: true },
+      });
+      if (!courseLesson || courseLesson.module.courseId !== dto.courseId) {
+        throw new BadRequestException('Lesson does not belong to the specified course');
+      }
     }
 
-    // 2. Verify sum of question points matches total assessment score
+    // 2. Verify and auto-sync total assessment score with questions point sum
     const totalCalculated = dto.questions.reduce(
       (sum, q) => sum + Number(q.points),
       0,
     );
 
-    if (Math.abs(totalCalculated - Number(dto.totalScore)) > 0.01) {
+    if (totalCalculated > 0) {
+      if (!dto.totalScore || Math.abs(totalCalculated - Number(dto.totalScore)) > 0.01) {
+        this.logger.warn(
+          `Auto-adjusting totalScore from ${dto.totalScore} to match actual question points sum (${totalCalculated})`,
+        );
+        dto.totalScore = totalCalculated;
+      }
+      if (dto.passingScore && Number(dto.passingScore) > totalCalculated) {
+        dto.passingScore = Math.max(0.5, Math.round(totalCalculated * 0.5));
+      }
+    } else if (Math.abs(totalCalculated - Number(dto.totalScore)) > 0.01) {
       throw new BadRequestException(
-        `Sum of question points (${totalCalculated}) does not match declared totalScore (${dto.totalScore})`,
+        `مجموع درجات الأسئلة (${totalCalculated}) لا يطابق الدرجة الكلية للاختبار (${dto.totalScore})`,
       );
     }
 
@@ -150,7 +172,9 @@ export class AssessmentsService {
     const endTimeDate = rawEndTime ? new Date(rawEndTime) : null;
     const timingType =
       dto.timingType ||
-      (storedType === AssessmentType.EXAM
+      (dto.requirePassingScore || dto.courseId || dto.courseLinkScope || dto.lessonId
+        ? ExamTimingType.FLEXIBLE_WINDOW
+        : storedType === AssessmentType.EXAM
         ? ExamTimingType.FIXED_SESSION
         : undefined);
 
@@ -178,7 +202,11 @@ export class AssessmentsService {
           lessonId: dto.lessonId,
           isAutoGraded,
           isPublished: dto.isPublished ?? true,
-          allowMultipleAttempts: dto.allowMultipleAttempts ?? false,
+          allowMultipleAttempts: dto.requirePassingScore
+            ? (dto.allowMultipleAttempts ?? true)
+            : (dto.allowMultipleAttempts ?? false),
+          isOptional: dto.isOptional ?? false,
+          requirePassingScore: dto.requirePassingScore ?? false,
           teacherId,
           targetGroups: dto.targetGroupIds?.length ? {
             connect: dto.targetGroupIds.map(id => ({ id }))
@@ -192,6 +220,7 @@ export class AssessmentsService {
         questionText: q.questionText,
         questionType: q.questionType,
         optionsData: q.optionsData ? q.optionsData : undefined,
+        optionImages: q.optionImages ? q.optionImages : undefined,
         correctAnswer: q.correctAnswer,
         explanation: q.explanation,
         imageUrl: q.imageUrl,
@@ -212,6 +241,13 @@ export class AssessmentsService {
           where: { id: dto.moduleId! },
           data: { unitQuizId: assessment.id },
         });
+      } else if (dto.courseLinkScope === AssessmentCourseLinkScope.LESSON && dto.lessonId) {
+        if (storedType === AssessmentType.EXAM) {
+          await tx.courseLesson.update({
+            where: { id: dto.lessonId },
+            data: { lessonQuizId: assessment.id },
+          });
+        }
       }
 
       this.logger.log(
@@ -245,7 +281,6 @@ export class AssessmentsService {
     );
 
     const where: any = {
-      ...(query.groupId ? { groupId: query.groupId } : {}),
       ...(query.courseId ? { courseId: query.courseId } : {}),
       ...(query.type ? { type: query.type } : {}),
       ...(query.isPublished !== undefined
@@ -254,9 +289,22 @@ export class AssessmentsService {
       ...(cursorFilter || {}),
     };
 
+    if (query.groupId) {
+      where.AND = where.AND || [];
+      where.AND.push({
+        OR: [
+          { groupId: query.groupId },
+          { targetGroups: { some: { id: query.groupId } } },
+        ],
+      });
+    }
+
+    let targetStudentId: string | null = null;
+
     if (user.role === UserRole.STUDENT) {
+      targetStudentId = user.studentProfileId || user.id;
       where.isPublished = true;
-      const studentId = user.studentProfileId || user.id;
+      const studentId = targetStudentId;
       // Students only see physical (onsite) group exams: strictly exclude
       // online course / lesson quizzes and only surface assessments linked to a
       // physical group the student is actively enrolled in.
@@ -269,11 +317,29 @@ export class AssessmentsService {
     } else if (user.role === UserRole.PARENT) {
       where.isPublished = true;
       const parentId = user.parentProfileId || user.id;
-      where.OR = [
-        { group: { enrollments: { some: { status: GroupEnrollmentStatus.ACTIVE, student: { parentLinks: { some: { parentId } } } } } } },
-        { targetGroups: { some: { enrollments: { some: { status: GroupEnrollmentStatus.ACTIVE, student: { parentLinks: { some: { parentId } } } } } } } },
-        { course: { enrollments: { some: { status: CourseEnrollmentStatus.ACTIVE, student: { parentLinks: { some: { parentId } } } } } } },
-      ];
+
+      if (query.studentId) {
+        const link = await this.prisma.parentStudentLink.findFirst({
+          where: { parentId, studentId: query.studentId },
+        });
+        if (link) {
+          targetStudentId = query.studentId;
+        }
+      }
+
+      if (targetStudentId) {
+        where.OR = [
+          { group: { enrollments: { some: { status: GroupEnrollmentStatus.ACTIVE, studentId: targetStudentId } } } },
+          { targetGroups: { some: { enrollments: { some: { status: GroupEnrollmentStatus.ACTIVE, studentId: targetStudentId } } } } },
+          { course: { enrollments: { some: { status: CourseEnrollmentStatus.ACTIVE, studentId: targetStudentId } } } },
+        ];
+      } else {
+        where.OR = [
+          { group: { enrollments: { some: { status: GroupEnrollmentStatus.ACTIVE, student: { parentLinks: { some: { parentId } } } } } } },
+          { targetGroups: { some: { enrollments: { some: { status: GroupEnrollmentStatus.ACTIVE, student: { parentLinks: { some: { parentId } } } } } } } },
+          { course: { enrollments: { some: { status: CourseEnrollmentStatus.ACTIVE, student: { parentLinks: { some: { parentId } } } } } } },
+        ];
+      }
     } else if (user.role === UserRole.TEACHER) {
       const teacherId = user.teacherProfileId || user.id;
       where.teacherId = teacherId;
@@ -324,12 +390,25 @@ export class AssessmentsService {
         targetGroups: { select: { id: true, name: true, academicYear: true, academicTerm: true } },
         course: { select: { id: true, title: true, academicYear: true, academicTerm: true } },
         _count: { select: { questions: true, submissions: true } },
+        ...(targetStudentId
+          ? {
+              submissions: {
+                where: { studentId: targetStudentId },
+                select: {
+                  id: true,
+                  status: true,
+                  scoreObtained: true,
+                  submittedAt: true,
+                },
+              },
+            }
+          : {}),
       },
     });
 
-    // Students see session-linked homework at its effective deadline (next
+    // Students and parents see session-linked homework at its effective deadline (next
     // session), so expired-by-record homework stays visible while actionable.
-    if (user.role === UserRole.STUDENT) {
+    if (user.role === UserRole.STUDENT || user.role === UserRole.PARENT) {
       await this.maybeApplyEffectiveDueDates(assessments as any[]);
     }
 
@@ -429,7 +508,7 @@ export class AssessmentsService {
             enforceSequentialLessons: true,
             modules: {
               include: {
-                unitQuiz: { select: { id: true } },
+                unitQuiz: { select: { id: true, isOptional: true } },
                 lessons: { select: { id: true } },
               },
             },
@@ -501,8 +580,8 @@ export class AssessmentsService {
         }
 
         const unitQuizIds = course.modules
-          .map((m) => m.unitQuiz?.id)
-          .filter((id): id is string => Boolean(id) && id !== assessment.id);
+          .filter((m) => m.unitQuiz && !m.unitQuiz.isOptional && m.unitQuiz.id !== assessment.id)
+          .map((m) => m.unitQuiz!.id);
 
         if (unitQuizIds.length > 0 && studentId) {
           const distinctSubmissions = await this.prisma.assessmentSubmission.findMany({
@@ -616,18 +695,24 @@ export class AssessmentsService {
     }
 
     // Security projection: Redact answers if student has not completed & graded
-    const sanitizedQuestions = assessment.questions.map((q) => {
-      if (isPrivileged || isGraded) {
-        return q;
-      }
-      const { correctAnswer, explanation, ...safeQuestion } = q;
-      return safeQuestion;
-    });
+    // For parents: zero-leak questions (only aware that homework exists, question details strictly concealed)
+    let sanitizedQuestions: any[] = [];
+    if (user.role === UserRole.PARENT) {
+      sanitizedQuestions = [];
+    } else {
+      sanitizedQuestions = assessment.questions.map((q) => {
+        if (isPrivileged || isGraded) {
+          return q;
+        }
+        const { correctAnswer, explanation, ...safeQuestion } = q;
+        return safeQuestion;
+      });
+    }
 
-    // Session-linked homework is shown to students at its effective deadline
+    // Session-linked homework is shown to students and parents at its effective deadline
     // (start of the next session), keeping it open while actionable.
     const effectiveDueDate =
-      user.role === UserRole.STUDENT
+      user.role === UserRole.STUDENT || user.role === UserRole.PARENT
         ? await this.resolveEffectiveDueDate(assessment)
         : assessment.dueDate;
 
@@ -653,6 +738,8 @@ export class AssessmentsService {
       deadline: effectiveEndTime,
       isPublished: assessment.isPublished,
       allowMultipleAttempts: assessment.allowMultipleAttempts,
+      isOptional: assessment.isOptional,
+      requirePassingScore: assessment.requirePassingScore,
       teacher: assessment.teacher,
       group: assessment.group,
       targetGroups: assessment.targetGroups,
@@ -705,6 +792,8 @@ export class AssessmentsService {
         id: true,
         totalScore: true,
         allowMultipleAttempts: true,
+        isOptional: true,
+        requirePassingScore: true,
       },
     });
 
@@ -722,6 +811,8 @@ export class AssessmentsService {
         percentage: null,
         attemptsCount: 0,
         allowMultipleAttempts: assessment.allowMultipleAttempts,
+        isOptional: assessment.isOptional,
+        requirePassingScore: assessment.requirePassingScore,
       };
     }
 
@@ -746,6 +837,8 @@ export class AssessmentsService {
       percentage,
       attemptsCount: submissions.length,
       allowMultipleAttempts: assessment.allowMultipleAttempts,
+      isOptional: assessment.isOptional,
+      requirePassingScore: assessment.requirePassingScore,
     };
   }
 
@@ -785,7 +878,7 @@ export class AssessmentsService {
             enforceSequentialLessons: true,
             modules: {
               include: {
-                unitQuiz: { select: { id: true } },
+                unitQuiz: { select: { id: true, isOptional: true } },
                 lessons: { select: { id: true } },
               },
             },
@@ -832,8 +925,8 @@ export class AssessmentsService {
         }
 
         const unitQuizIds = course.modules
-          .map((m) => m.unitQuiz?.id)
-          .filter((id): id is string => Boolean(id) && id !== assessment.id);
+          .filter((m) => m.unitQuiz && !m.unitQuiz.isOptional && m.unitQuiz.id !== assessment.id)
+          .map((m) => m.unitQuiz!.id);
 
         if (unitQuizIds.length > 0) {
           const distinctSubmissions = await this.prisma.assessmentSubmission.findMany({
@@ -1044,6 +1137,19 @@ export class AssessmentsService {
           code: 'EXAM_WINDOW_EXPIRED',
         });
       }
+      if (assessment.durationMinutes) {
+        const studentStartedAt =
+          priorSubmissions[0]?.startedAt || now;
+        const allowedDurationMs = assessment.durationMinutes * 60 * 1000;
+        const individualExpiry = studentStartedAt.getTime() + allowedDurationMs;
+        if (now.getTime() > individualExpiry + GRACE_PERIOD_MS) {
+          throw new BadRequestException({
+            message: 'انتهت المدة المحددة لتسليم الاختبار',
+            code: 'EXAM_TIME_EXPIRED',
+          });
+        }
+      }
+    } else if ((timingType as any) === 'DURATION_ONLY') {
       if (assessment.durationMinutes) {
         const studentStartedAt =
           priorSubmissions[0]?.startedAt || now;
@@ -1581,6 +1687,7 @@ export class AssessmentsService {
           points: Number(q.points),
           correctAnswer: q.correctAnswer,
           optionsData: q.optionsData ? q.optionsData : undefined,
+          optionImages: (q as any).optionImages ? (q as any).optionImages : undefined,
           explanation: q.explanation,
         })),
       },
@@ -1669,7 +1776,13 @@ export class AssessmentsService {
         ...(dto.allowMultipleAttempts !== undefined && {
           allowMultipleAttempts: dto.allowMultipleAttempts,
         }),
+        ...(dto.isOptional !== undefined && { isOptional: dto.isOptional }),
+        ...(dto.requirePassingScore !== undefined && {
+          requirePassingScore: dto.requirePassingScore,
+          ...(dto.requirePassingScore && dto.allowMultipleAttempts === undefined && { allowMultipleAttempts: true }),
+        }),
         ...(dto.courseId !== undefined && { courseId: dto.courseId || null }),
+        ...(dto.lessonId !== undefined && { lessonId: dto.lessonId || null }),
         ...(dto.assessmentType !== undefined && {
           assessmentType: dto.assessmentType,
           type:
@@ -1893,6 +2006,74 @@ export class AssessmentsService {
       assessmentId,
       reEvaluatedCount: updatedSubmissionsCount,
       message: `تمت إعادة تقييم ${updatedSubmissionsCount} تسليم بنجاح`,
+    };
+  }
+
+  /**
+   * Permanently deletes an assessment and cleans up relations on course, modules, and lessons.
+   */
+  async deleteAssessment(
+    assessmentId: string,
+    teacherId: string,
+    isSecretariat: boolean,
+  ) {
+    const assessment = await this.prisma.assessment.findUnique({
+      where: { id: assessmentId },
+    });
+
+    if (!assessment) {
+      throw new NotFoundException('التقييم المطلوب غير موجود');
+    }
+
+    if (!isSecretariat && assessment.teacherId !== teacherId) {
+      throw new ForbiddenException('غير مصرح لك بحذف هذا التقييم');
+    }
+
+    // 1. Unlink from Course, CourseModule, and CourseLesson
+    await this.prisma.course.updateMany({
+      where: { courseQuizId: assessmentId },
+      data: { courseQuizId: null },
+    });
+    await this.prisma.courseModule.updateMany({
+      where: { unitQuizId: assessmentId },
+      data: { unitQuizId: null },
+    });
+    await this.prisma.courseLesson.updateMany({
+      where: { lessonQuizId: assessmentId },
+      data: { lessonQuizId: null },
+    });
+
+    // 2. Cascade delete submissions & answers if any
+    const submissions = await this.prisma.assessmentSubmission.findMany({
+      where: { assessmentId },
+      select: { id: true },
+    });
+    if (submissions.length > 0) {
+      const subIds = submissions.map((s) => s.id);
+      await this.prisma.studentAnswer.deleteMany({
+        where: { submissionId: { in: subIds } },
+      });
+      await this.prisma.assessmentSubmission.deleteMany({
+        where: { assessmentId },
+      });
+    }
+
+    // 3. Delete questions
+    await this.prisma.assessmentQuestion.deleteMany({
+      where: { assessmentId },
+    });
+
+    // 4. Delete assessment
+    await this.prisma.assessment.delete({
+      where: { id: assessmentId },
+    });
+
+    this.logger.log(`Assessment [${assessmentId}] deleted by teacher [${teacherId}]`);
+
+    return {
+      success: true,
+      assessmentId,
+      message: 'تم حذف الاختبار/الواجب بنجاح',
     };
   }
 }

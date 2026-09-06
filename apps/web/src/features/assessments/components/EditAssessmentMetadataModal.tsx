@@ -31,6 +31,8 @@ const editMetadataSchema = z.object({
   dueDate: z.string().optional().nullable(),
   courseId: z.string().optional().nullable(),
   allowMultipleAttempts: z.boolean().optional(),
+  isOptional: z.boolean().optional(),
+  requirePassingScore: z.boolean().optional(),
 });
 
 type EditMetadataFormData = z.infer<typeof editMetadataSchema>;
@@ -59,6 +61,8 @@ export function EditAssessmentMetadataModal({ isOpen, onClose, assessment }: Edi
         dueDate: rawEnd ? new Date(rawEnd).toISOString().slice(0, 16) : undefined,
         courseId: assessment.courseId || undefined,
         allowMultipleAttempts: assessment.allowMultipleAttempts ?? false,
+        isOptional: assessment.isOptional ?? false,
+        requirePassingScore: assessment.requirePassingScore ?? false,
       });
     }
   }, [isOpen, assessment, reset]);
@@ -67,6 +71,13 @@ export function EditAssessmentMetadataModal({ isOpen, onClose, assessment }: Edi
 
   const onSubmit = (data: EditMetadataFormData) => {
     const payload: any = { ...data };
+    if (data.requirePassingScore) {
+      payload.requirePassingScore = true;
+      payload.allowMultipleAttempts = true;
+      payload.isOptional = false;
+    } else {
+      payload.requirePassingScore = false;
+    }
     if (isExam) {
       if (data.startTime) {
         payload.startDate = new Date(data.startTime).toISOString();
@@ -213,6 +224,43 @@ export function EditAssessmentMetadataModal({ isOpen, onClose, assessment }: Edi
             />
           </div>
 
+          <div className="p-3.5 rounded-xl border border-primary-200 bg-primary-50/50 space-y-2">
+            <Label className="block font-bold text-slate-800 text-xs">
+              🎯 اشتراط اجتياز ودرجة النجاح للتقدم في الكورس
+            </Label>
+            <p className="text-slate-600 text-xs leading-relaxed">
+              يلزم الطالب بتحقيق درجة النجاح على الأقل لفتح المحتوى القادم أو إنهاء الكورس. (يُفعّل المحاولات المتعددة تلقائياً).
+            </p>
+            <div className="bg-white p-1.5 rounded-xl border border-slate-200 flex gap-2 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setValue('requirePassingScore', false, { shouldDirty: true })}
+                className={`flex-1 py-2 px-3 rounded-lg font-bold text-xs transition-all ${
+                  !watch('requirePassingScore')
+                    ? 'bg-primary-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                📝 تسليم عادي
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setValue('requirePassingScore', true, { shouldDirty: true });
+                  setValue('allowMultipleAttempts', true, { shouldDirty: true });
+                  setValue('isOptional', false, { shouldDirty: true });
+                }}
+                className={`flex-1 py-2 px-3 rounded-lg font-bold text-xs transition-all ${
+                  watch('requirePassingScore')
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                🎯 اشتراط درجة النجاح
+              </button>
+            </div>
+          </div>
+
           <div>
             <Label className="mb-2 block">نظام المحاولات</Label>
             <div className="bg-white p-2 rounded-xl border border-slate-200 flex gap-2 shadow-sm">
@@ -241,6 +289,37 @@ export function EditAssessmentMetadataModal({ isOpen, onClose, assessment }: Edi
             </div>
             <p className="text-slate-500 text-xs mt-2">
               عند السماح بمحاولات متعددة يتم اعتماد أعلى درجة كدرجة رسمية مع الاحتفاظ بسجل كل المحاولات.
+            </p>
+          </div>
+
+          <div>
+            <Label className="mb-2 block">إلزامية التقييم (اختياري / إجباري)</Label>
+            <div className="bg-white p-2 rounded-xl border border-slate-200 flex gap-2 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setValue('isOptional', false, { shouldDirty: true })}
+                className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${
+                  !watch('isOptional')
+                    ? 'bg-primary-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                ⚠️ إجباري (مطلوب للتقدم)
+              </button>
+              <button
+                type="button"
+                onClick={() => setValue('isOptional', true, { shouldDirty: true })}
+                className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${
+                  watch('isOptional')
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                ✨ اختياري (يمكن تخطيه)
+              </button>
+            </div>
+            <p className="text-slate-500 text-xs mt-2">
+              التقييم الاختياري يتيح للطالب تجاوزه دون أن يمنعه من فتح الدروس أو الوحدات القادمة.
             </p>
           </div>
         </form>

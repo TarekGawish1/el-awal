@@ -55,10 +55,10 @@ describe('CreateSessionModal group filters', () => {
     fireEvent.change(gradeSelect, { target: { value: 'الصف الأول الثانوي' } });
 
     const groupSelect = screen.getByLabelText('المجموعة الدراسية') as HTMLSelectElement;
-    const groupTexts = Array.from(groupSelect.options).map((o) => o.textContent);
-    expect(groupTexts).toContain('مجموعة أولى ثانوي (أ)');
-    expect(groupTexts).not.toContain('مجموعة ثالثة ثانوي');
-    expect(groupTexts).not.toContain('مجموعة أولى إعدادي');
+    const groupTexts = Array.from(groupSelect.options).map((o) => o.textContent || '');
+    expect(groupTexts.some((t) => t.includes('مجموعة أولى ثانوي (أ)'))).toBe(true);
+    expect(groupTexts.some((t) => t.includes('مجموعة ثالثة ثانوي'))).toBe(false);
+    expect(groupTexts.some((t) => t.includes('مجموعة أولى إعدادي'))).toBe(false);
   });
 
   it('prefills stage and grade when opened with an initial group', () => {

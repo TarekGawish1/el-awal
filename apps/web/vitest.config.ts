@@ -12,6 +12,8 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/scratch_playwright/**'],
     // By default Vitest spawns one worker fork per CPU core. On machines with many
     // cores / limited RAM (notably Windows) that exhausts committable memory during
     // worker startup and crashes with "JavaScript heap out of memory" + "spawn UNKNOWN"

@@ -42,6 +42,7 @@ export const API_ENDPOINTS = {
     ENROLL: (id: string) => `/groups/${id}/students`,
     REMOVE_STUDENT: (groupId: string, studentId: string) => `/groups/${groupId}/students/${studentId}`,
     REGISTRATION_LINK: (id: string) => `/groups/${id}/registration-link`,
+    QR_CODES_PDF: (id: string) => `/groups/${id}/qr-codes-pdf`,
     SCHEDULES: (id: string) => `/schedules/group/${id}`,
     SESSIONS: (id: string) => `/schedules/group/${id}/sessions`,
   },

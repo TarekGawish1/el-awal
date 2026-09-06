@@ -53,6 +53,7 @@ vi.mock('@/features/auth', () => ({
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
   usePathname: () => '/',
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock('@/lib/offline/use-online-status', () => ({
@@ -424,7 +425,7 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
   });
 
   describe('LessonQuizTab Component (Multi-Level Quizzes)', () => {
-    it('renders Lesson Quiz, Unit Quiz, and Course Final Exam in clean Arabic without English words', () => {
+    it('renders Lesson Quiz and Homework in clean Arabic without English words', () => {
       render(
         <LessonQuizTab
           lessonTitle="كان وأخواتها"
@@ -434,25 +435,18 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
             type: 'QUIZ',
             totalScore: 20,
           }}
-          unitQuiz={{
+          lessonHomework={{
             id: 'quiz-unit-1',
-            title: 'اختبار شامل للوحدة الأولى',
-            type: 'EXAM',
+            title: 'واجب على كان وأخواتها',
+            type: 'HOMEWORK',
             totalScore: 50,
-          }}
-          courseQuiz={{
-            id: 'quiz-course-final',
-            title: 'الامتحان النهائي لكورس النحو',
-            type: 'EXAM',
-            totalScore: 100,
           }}
         />
       );
 
       expect(screen.getByText('اختبار سريع على كان وأخواتها')).toBeInTheDocument();
       expect(screen.getByText(/الدرجة الإجمالية: 20 درجة/i)).toBeInTheDocument();
-      expect(screen.getByText(/اختبار شامل للوحدة الأولى/i)).toBeInTheDocument();
-      expect(screen.getByText(/الامتحان النهائي لكورس النحو/i)).toBeInTheDocument();
+      expect(screen.getByText(/واجب على كان وأخواتها/i)).toBeInTheDocument();
 
       // Ensure no English terms like Course Final Exam exist in the output
       expect(screen.queryByText(/Course Final Exam/i)).not.toBeInTheDocument();
@@ -559,7 +553,7 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
       // Re-mock useAuth with TEACHER role
       const { useAuth } = await import('@/features/auth');
       vi.mocked(useAuth).mockReturnValue({
-        user: { id: 'teacher-1', fullName: 'أ. طارق عبد الله', role: 'TEACHER' },
+        user: { id: 'teacher-1', fullName: 'أ. أحمد غريب', role: 'TEACHER' },
       } as any);
 
       render(
@@ -587,13 +581,13 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
 
       render(<CourseBuilderView courseId="course-1" />, { wrapper });
 
-      const previewLink = await screen.findByRole('link', { name: /معاينة قاعة المشاهدة/i });
+      const previewLink = await screen.findByRole('link', { name: /معاينة كطالب/i });
       expect(previewLink).toBeInTheDocument();
       expect(previewLink).toHaveAttribute('href', '/teacher/courses/course-1/preview');
       expect(previewLink).toHaveAttribute('target', '_blank');
     });
 
-    it('opens EditCourseModal when clicking تعديل بيانات الكورس button and submits updates', async () => {
+    it('opens EditCourseModal when clicking تعديل الكورس button and submits updates', async () => {
       vi.mocked(coursesApi.getCourseDetails).mockResolvedValue({
         id: 'course-1',
         title: 'شرح تفاضل 2ث',
@@ -618,7 +612,7 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
 
       render(<CourseBuilderView courseId="course-1" />, { wrapper });
 
-      const editBtn = await screen.findByRole('button', { name: /تعديل بيانات الكورس/i });
+      const editBtn = await screen.findByRole('button', { name: /تعديل الكورس/i });
       expect(editBtn).toBeInTheDocument();
       fireEvent.click(editBtn);
 
@@ -635,7 +629,12 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
 
       // Submit form
       const saveBtn = screen.getByRole('button', { name: /حفظ التغييرات/i });
-      fireEvent.click(saveBtn);
+      const form = saveBtn.closest('div.bg-white')?.querySelector('form')!;
+      if (form) {
+        fireEvent.submit(form);
+      } else {
+        fireEvent.click(saveBtn);
+      }
 
       await waitFor(() => {
         expect(coursesApi.updateCourse).toHaveBeenCalledWith(
@@ -677,6 +676,115 @@ describe('Arabic Localized Course Learning Room & Multi-Level Tabs', () => {
 
       // Grade select should now contain middle school grades
       expect(screen.getByDisplayValue('الصف الأول الإعدادي')).toBeInTheDocument();
+    });
+  });
+
+  describe('Course Certificate Unlocking Requirements (Lessons + Exams)', () => {
+    it('does NOT show certificate claim button when lessons are finished but exams remain incomplete', async () => {
+      vi.mocked(coursesApi.getCourseDetails).mockResolvedValue({
+        id: 'course-cert-1',
+        title: 'شرح تفاضل 2ث',
+        subject: 'الرياضيات',
+        gradeLevel: 'الصف الثاني الثانوي',
+        status: 'PUBLISHED',
+        hasCertificate: true,
+        completedLessonIds: ['les-1', 'les-2'],
+        modules: [
+          {
+            id: 'mod-1',
+            title: 'الوحدة الأولى',
+            lessons: [
+              {
+                id: 'les-1',
+                title: 'الدرس الأول',
+                lessonQuiz: { id: 'quiz-1', title: 'اختبار الدرس الأول', totalScore: 20, mySubmission: null },
+              },
+              {
+                id: 'les-2',
+                title: 'الدرس الثاني',
+              },
+            ],
+          },
+        ],
+      } as any);
+
+      vi.mocked(coursesApi.getLessonStreamAuth).mockResolvedValue({
+        lessonId: 'les-1',
+        courseId: 'course-cert-1',
+        title: 'الدرس الأول',
+        videoStatus: 'READY',
+        embedUrl: 'https://iframe.mediadelivery.net/embed/123/video-1',
+        playbackUrl: 'https://video.example.com/playlist.m3u8',
+      } as any);
+
+      render(
+        <StudentCourseLearningRoom courseId="course-cert-1" initialLessonId="les-1" />,
+        { wrapper }
+      );
+
+      // Verify the celebratory certificate claim button is NOT present
+      expect(screen.queryByRole('button', { name: /احصل على شهادتك/i })).not.toBeInTheDocument();
+
+      // Verify the pending exams guidance banner IS present
+      expect(
+        await screen.findByText(/أتممت جميع الدروس! يتبقى عليك إتمام الاختبارات للحصول على الشهادة/i)
+      ).toBeInTheDocument();
+      expect(screen.getByText(/تم إنجاز 0 من 1 اختبارات/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /الانتقال للاختبارات والتقييم/i })).toBeInTheDocument();
+    });
+
+    it('shows certificate claim button when all lessons AND all attached quizzes are completed', async () => {
+      vi.mocked(coursesApi.getCourseDetails).mockResolvedValue({
+        id: 'course-cert-2',
+        title: 'شرح تفاضل 2ث',
+        subject: 'الرياضيات',
+        gradeLevel: 'الصف الثاني الثانوي',
+        status: 'PUBLISHED',
+        hasCertificate: true,
+        completedLessonIds: ['les-1'],
+        modules: [
+          {
+            id: 'mod-1',
+            title: 'الوحدة الأولى',
+            lessons: [
+              {
+                id: 'les-1',
+                title: 'الدرس الأول',
+                lessonQuiz: {
+                  id: 'quiz-1',
+                  title: 'اختبار الدرس الأول',
+                  totalScore: 20,
+                  mySubmission: { status: 'GRADED', scoreObtained: 18, isPassed: true },
+                },
+              },
+            ],
+          },
+        ],
+      } as any);
+
+      vi.mocked(coursesApi.getLessonStreamAuth).mockResolvedValue({
+        lessonId: 'les-1',
+        courseId: 'course-cert-2',
+        title: 'الدرس الأول',
+        videoStatus: 'READY',
+        embedUrl: 'https://iframe.mediadelivery.net/embed/123/video-1',
+        playbackUrl: 'https://video.example.com/playlist.m3u8',
+      } as any);
+
+      render(
+        <StudentCourseLearningRoom courseId="course-cert-2" initialLessonId="les-1" />,
+        { wrapper }
+      );
+
+      // Verify the celebratory certificate claim button is present and clickable
+      const certBtn = await screen.findByRole('button', { name: /احصل على شهادتك/i });
+      expect(certBtn).toBeInTheDocument();
+      expect(screen.getByText(/أتممت الدورة واختباراتها بالكامل!/i)).toBeInTheDocument();
+
+      // Pending exams banner should NOT be present
+      expect(
+        screen.queryByText(/يتبقى عليك إتمام الاختبارات للحصول على الشهادة/i)
+      ).not.toBeInTheDocument();
     });
   });
 });

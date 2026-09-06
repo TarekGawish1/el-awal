@@ -11,7 +11,7 @@ import {
   useEnrollInCourse,
 } from '../hooks/useStudentPortal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { BookOpen, FileText, QrCode, TrendingUp, Calendar, AlertTriangle, Clock, Users, Monitor, Award, CheckCircle, AlertCircle } from 'lucide-react';
+import { BookOpen, FileText, QrCode, TrendingUp, Calendar, AlertTriangle, Clock, Users, Monitor, Award, CheckCircle, AlertCircle, FileQuestion, RotateCcw, Play, Video, X, Sparkles } from 'lucide-react';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
 import Link from 'next/link';
@@ -166,7 +166,11 @@ export function StudentDashboard() {
       ) : (
         <>
           {profile?.attendanceMode === 'ONLINE' && (
-            <OnlineCoursesCatalog gradeLevel={profile.gradeLevel} academicStage={profile.academicStage || undefined} />
+            <OnlineCoursesCatalog
+              gradeLevel={profile.gradeLevel}
+              academicStage={profile.academicStage || undefined}
+              onViewCertificate={(course) => setCertCourse(course)}
+            />
           )}
 
           {/* Next Session Details Card */}
@@ -278,12 +282,25 @@ export function StudentDashboard() {
                 {courses.slice(0, 3).map((course: any) => (
                   <div key={course.courseId} className="bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition-colors">
                     <div className="flex items-center justify-between p-4">
-                      <Link href={`/student/courses/${course.courseId}/learn`} className="flex-1 min-w-0">
-                        <h4 className="font-bold text-slate-800 truncate">{course.title}</h4>
-                        <p className="text-xs text-slate-500 mt-1">{course.teacherName}</p>
-                      </Link>
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        {course.coverImageUrl ? (
+                          <img
+                            src={course.coverImageUrl}
+                            alt={course.title}
+                            className="w-12 h-12 rounded-xl object-cover shrink-0 border border-slate-200"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-xl bg-primary-100 text-primary-600 flex items-center justify-center shrink-0">
+                            <BookOpen className="w-6 h-6" />
+                          </div>
+                        )}
+                        <Link href={`/student/courses/${course.courseId}/learn`} className="flex-1 min-w-0">
+                          <h4 className="font-bold text-slate-800 truncate hover:text-primary-600 transition-colors">{course.title}</h4>
+                          <p className="text-xs text-slate-500 mt-1">{course.teacherName}</p>
+                        </Link>
+                      </div>
                       <div className="flex items-center gap-2 flex-shrink-0 ml-3">
-                        {course.progressPercentage >= 100 ? (
+                        {course.progressPercentage >= 100 && course.isCertificateEligible !== false ? (
                           <button
                             type="button"
                             onClick={() => setCertCourse({ title: course.title, teacherName: course.teacherName })}
@@ -293,22 +310,43 @@ export function StudentDashboard() {
                             <Award className="w-3.5 h-3.5" />
                             شهادتي
                           </button>
+                        ) : course.progressPercentage >= 100 && course.isCertificateEligible === false ? (
+                          <Link
+                            href={`/student/courses/${course.courseId}/learn`}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors"
+                            title="أكملت الدروس - اضغط لإتمام الاختبارات واستلام الشهادة"
+                          >
+                            <FileQuestion className="w-3 h-3 text-amber-600" />
+                            يتبقى الاختبارات
+                          </Link>
                         ) : (
                           <Badge variant="outline" className="bg-white">نسبة الإنجاز: {course.progressPercentage || 0}%</Badge>
                         )}
                       </div>
                     </div>
                     {/* Progress bar */}
-                    {course.progressPercentage < 100 && (
-                      <div className="px-4 pb-3">
-                        <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary-500 rounded-full transition-all"
-                            style={{ width: `${Math.min(course.progressPercentage || 0, 100)}%` }}
-                          />
-                        </div>
+                    <div className="px-4 pb-3">
+                      <div className="flex items-center justify-between text-[11px] mb-1">
+                        <span className={course.progressPercentage >= 100 ? 'text-emerald-700 font-bold flex items-center gap-1' : 'text-slate-500 font-medium'}>
+                          {course.progressPercentage >= 100 ? '🎉 أتممت الدورة (100%)' : `التقدم: ${course.progressPercentage || 0}%`}
+                        </span>
+                        {course.totalLessons > 0 && (
+                          <span className="text-slate-400 text-[10px]">
+                            {course.completedLessons ?? Math.round(((course.progressPercentage || 0) / 100) * course.totalLessons)} من {course.totalLessons} درس
+                          </span>
+                        )}
                       </div>
-                    )}
+                      <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            course.progressPercentage >= 100
+                              ? 'bg-gradient-to-r from-emerald-500 to-teal-500'
+                              : 'bg-primary-500'
+                          }`}
+                          style={{ width: `${Math.min(course.progressPercentage || 0, 100)}%` }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -324,14 +362,22 @@ export function StudentDashboard() {
   );
 }
 
-function OnlineCoursesCatalog({ gradeLevel, academicStage }: { gradeLevel?: string; academicStage?: string }) {
+function OnlineCoursesCatalog({
+  gradeLevel,
+  academicStage,
+  onViewCertificate,
+}: {
+  gradeLevel?: string;
+  academicStage?: string;
+  onViewCertificate?: (course: { title: string; teacherName?: string }) => void;
+}) {
   const router = useRouter();
   const { data: myCourses = [] } = useStudentCourses();
   const enrollMutation = useEnrollInCourse();
 
   const [courses, setCourses] = useState<any[]>([]);
   const [allPlatformCourses, setAllPlatformCourses] = useState<any[]>([]);
-  const [scope, setScope] = useState<'MY_GRADE' | 'ALL'>('MY_GRADE');
+  const [scope, setScope] = useState<'MY_GRADE' | 'ALL' | 'FREE'>('MY_GRADE');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -368,11 +414,23 @@ function OnlineCoursesCatalog({ gradeLevel, academicStage }: { gradeLevel?: stri
     fetchCourses();
   }, [gradeLevel, academicStage]);
 
-  const displayedCourses = scope === 'MY_GRADE' && courses.length > 0 ? courses : allPlatformCourses;
+  const freeCourses = allPlatformCourses.filter((c: any) => Number(c.price || 0) === 0 || c.isFree === true);
+  const displayedCourses = scope === 'FREE' ? freeCourses : (scope === 'MY_GRADE' && courses.length > 0 ? courses : allPlatformCourses);
 
   const [selectedCourseForSub, setSelectedCourseForSub] = useState<any | null>(null);
+  const [previewVideoModal, setPreviewVideoModal] = useState<{ title: string; videoUrl: string; teacherName?: string } | null>(null);
 
-  const handleQuickEnroll = (course: any) => {
+  const handleQuickEnroll = async (course: any) => {
+    // If course is free, skip the payment modal and enroll instantly
+    if (Number(course.price || 0) === 0 || course.isFree === true) {
+      try {
+        await enrollMutation.mutateAsync(course.id);
+        router.push(`/student/courses/${course.id}/learn`);
+      } catch {
+        // Error toast is handled in the mutation's onError
+      }
+      return;
+    }
     setSelectedCourseForSub(course);
   };
 
@@ -394,8 +452,8 @@ function OnlineCoursesCatalog({ gradeLevel, academicStage }: { gradeLevel?: stri
       <Card className="border-slate-100 shadow-sm mb-6">
         <CardContent className="p-8 text-center">
           <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <h3 className="text-lg font-bold text-slate-700">لا توجد كورسات متاحة حالياً</h3>
-          <p className="text-slate-500 mt-2">عفواً، لا يوجد كورسات أونلاين منشورة على المنصة في الوقت الحالي.</p>
+          <h3 className="text-lg font-bold text-slate-700">لا يوجد دورات متاحة حالياً</h3>
+          <p className="text-slate-500 mt-2">عفواً، لا يوجد دورات أونلاين منشورة على المنصة في الوقت الحالي.</p>
         </CardContent>
       </Card>
     );
@@ -410,10 +468,12 @@ function OnlineCoursesCatalog({ gradeLevel, academicStage }: { gradeLevel?: stri
           </div>
           <div>
             <h3 className="text-base sm:text-lg font-bold text-slate-800">
-              الدورات الأونلاين المتاحة للاشتراك
+              {scope === 'FREE' ? 'الكورسات المجانية' : 'الدورات الأونلاين المتاحة للاشتراك'}
             </h3>
             <p className="text-xs text-slate-500">
-              {courses.length > 0 && scope === 'MY_GRADE'
+              {scope === 'FREE'
+                ? 'يمكنك الانضمام والتعلم مجاناً بدون اشتراك'
+                : scope === 'MY_GRADE' && courses.length > 0
                 ? `معروض كورسات مخصصة لـ (${gradeLevel || 'مرحلتك الدراسية'})`
                 : 'معروض جميع الكورسات الأونلاين المتاحة على المنصة'}
             </p>
@@ -444,6 +504,18 @@ function OnlineCoursesCatalog({ gradeLevel, academicStage }: { gradeLevel?: stri
           >
             جميع الكورسات ({allPlatformCourses.length})
           </button>
+          <button
+            type="button"
+            onClick={() => setScope('FREE')}
+            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 ${
+              scope === 'FREE'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-emerald-700'
+            }`}
+          >
+            <Sparkles className="w-3 h-3" />
+            مجانية ({freeCourses.length})
+          </button>
         </div>
       </div>
 
@@ -464,47 +536,101 @@ function OnlineCoursesCatalog({ gradeLevel, academicStage }: { gradeLevel?: stri
           const isPending = enrollment?.enrollmentStatus === 'PENDING';
           const isRejected = enrollment?.enrollmentStatus === 'DROPPED';
 
+          const progress = Number(enrollment?.progressPercentage || 0);
+          const totalLessons = Number(enrollment?.totalLessons ?? course.lessonsCount ?? course._count?.lessons ?? 0);
+          const completedLessons = Number(
+            enrollment?.completedLessons ?? (totalLessons > 0 ? Math.round((progress / 100) * totalLessons) : 0)
+          );
+          const isCompleted = isEnrolled && (Boolean(enrollment?.isCompleted) || (progress >= 100 && (totalLessons > 0 || completedLessons > 0)));
+          const isCertificateEligible = Boolean(enrollment?.isCertificateEligible);
+
           return (
             <div
               key={course.id}
               className={`bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col group hover:shadow-md transition-all text-right ${
-                isPending ? 'border-amber-300 ring-1 ring-amber-200' : 'border-slate-100 hover:border-slate-200'
+                isPending ? 'border-amber-300 ring-1 ring-amber-200' : isCompleted ? 'border-emerald-200 ring-1 ring-emerald-100' : 'border-slate-100 hover:border-slate-200'
               }`}
             >
-              {/* Card Banner */}
-              <div
-                className={`h-32 bg-gradient-to-br ${
-                  index % 3 === 0
-                    ? 'from-blue-600 to-indigo-600'
-                    : index % 3 === 1
-                    ? 'from-indigo-600 to-purple-600'
-                    : 'from-emerald-600 to-teal-600'
-                } relative p-4 flex items-start justify-between text-white`}
-              >
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <Badge className="bg-white/20 text-white border-none text-[11px] font-bold">
-                    {course.subject || 'مادة عامة'}
-                  </Badge>
-                  <Badge className="bg-black/20 text-white border-none text-[11px]">
-                    {course.gradeLevel}
-                  </Badge>
-                  {isPending && (
-                    <Badge className="bg-amber-500 text-white border-none text-[11px] font-bold shadow-xs flex items-center gap-1 animate-pulse">
-                      <Clock className="w-3 h-3" />
-                      <span>قيد المراجعة</span>
-                    </Badge>
-                  )}
-                  {isEnrolled && (
-                    <Badge className="bg-emerald-500 text-white border-none text-[11px] font-bold shadow-xs flex items-center gap-1">
-                      <CheckCircle className="w-3 h-3" />
-                      <span>مشترك بالفعل</span>
-                    </Badge>
-                  )}
-                </div>
+              {/* Card Banner / Thumbnail */}
+              <div className="h-36 w-full bg-slate-100 relative overflow-hidden shrink-0 group/cover">
+                {course.coverImageUrl ? (
+                  <>
+                    <img
+                      src={course.coverImageUrl}
+                      alt={course.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/30 pointer-events-none" />
+                  </>
+                ) : (
+                  <div
+                    className={`w-full h-full bg-gradient-to-br ${
+                      isCompleted
+                        ? 'from-emerald-600 via-teal-600 to-teal-700'
+                        : index % 3 === 0
+                        ? 'from-blue-600 to-indigo-600'
+                        : index % 3 === 1
+                        ? 'from-indigo-600 to-purple-600'
+                        : 'from-emerald-600 to-teal-600'
+                    } flex items-center justify-center text-white`}
+                  >
+                    <BookOpen className="w-12 h-12 opacity-30" />
+                  </div>
+                )}
 
-                <Badge className="bg-white/25 text-white border-none text-[11px] font-bold">
-                  {course.academicTerm === 'FIRST_TERM' ? 'ترم أول' : 'ترم ثاني'}
-                </Badge>
+                {/* Preview Video Play Overlay */}
+                {(course.previewVideoUrl || course.freeVideoUrl) && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPreviewVideoModal({
+                        title: course.title,
+                        videoUrl: course.previewVideoUrl || course.freeVideoUrl,
+                        teacherName: course.teacher?.user?.fullName || course.teacherName,
+                      });
+                    }}
+                    className="absolute inset-0 z-10 flex items-center justify-center bg-black/20 hover:bg-black/40 transition-all group/play cursor-pointer"
+                    title="مشاهدة الفيديو التعريفي (البرومو) للكورس"
+                  >
+                    <div className="w-11 h-11 bg-white/90 group-hover/play:bg-white text-primary-600 rounded-full flex items-center justify-center shadow-lg group-hover/play:scale-110 transition-transform">
+                      <Play className="w-5 h-5 fill-current ml-0.5" />
+                    </div>
+                  </button>
+                )}
+
+                {/* Badges on top */}
+                <div className="absolute top-3 inset-x-3 flex items-start justify-between z-20 pointer-events-none">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Badge className="bg-slate-900/80 backdrop-blur-md text-white border border-white/20 text-[11px] font-bold shadow-xs">
+                      {course.subject || 'مادة عامة'}
+                    </Badge>
+                    <Badge className="bg-black/60 backdrop-blur-md text-white border border-white/10 text-[11px]">
+                      {course.gradeLevel}
+                    </Badge>
+                    {isPending && (
+                      <Badge className="bg-amber-500 text-white border-none text-[11px] font-bold shadow-xs flex items-center gap-1 animate-pulse">
+                        <Clock className="w-3 h-3" />
+                        <span>قيد المراجعة</span>
+                      </Badge>
+                    )}
+                    {isCompleted ? (
+                      <Badge className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white border-none text-[11px] font-extrabold shadow-md flex items-center gap-1 ring-1 ring-white/30">
+                        <Award className="w-3.5 h-3.5 text-amber-200" />
+                        <span>مكتمل 100% 🎓</span>
+                      </Badge>
+                    ) : isEnrolled ? (
+                      <Badge className="bg-emerald-500 text-white border-none text-[11px] font-bold shadow-xs flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" />
+                        <span>مشترك بالفعل{progress > 0 ? ` • ${progress}%` : ''}</span>
+                      </Badge>
+                    ) : null}
+                  </div>
+
+                  <Badge className="bg-white/90 backdrop-blur-md text-slate-800 border-none text-[11px] font-bold shadow-xs shrink-0">
+                    {course.academicTerm === 'FIRST_TERM' ? 'ترم أول' : 'ترم ثاني'}
+                  </Badge>
+                </div>
               </div>
 
               {/* Card Body */}
@@ -526,13 +652,76 @@ function OnlineCoursesCatalog({ gradeLevel, academicStage }: { gradeLevel?: stri
                   </div>
 
                   <p className="text-xs font-semibold text-slate-500">
-                    المعلم: <strong className="text-slate-800">{course.teacher?.user?.fullName || course.teacherName || 'أ. طارق عبد الله'}</strong>
+                    المعلم: <strong className="text-slate-800">{course.teacher?.user?.fullName || course.teacherName || 'أ. أحمد غريب'}</strong>
                   </p>
 
                   <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed">
                     {course.description || 'شرح مبسط ومفصل للمنهج مع تدريبات تفاعلية ومذكرات رقمية.'}
                   </p>
                 </div>
+
+                {/* Progress Box for Enrolled Courses */}
+                {isEnrolled && (
+                  <div className={`p-3 rounded-xl border transition-all ${
+                    isCompleted
+                      ? 'bg-gradient-to-b from-emerald-50/90 to-teal-50/50 border-emerald-200 shadow-2xs'
+                      : 'bg-slate-50/90 border-slate-100'
+                  }`}>
+                    <div className="flex items-center justify-between text-xs mb-2">
+                      <div className="flex items-center gap-1.5">
+                        {isCompleted ? (
+                          <span className="text-emerald-800 flex items-center gap-1.5 font-extrabold text-xs">
+                            <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                            <span>أتممت هذه الدورة بنجاح 🎉</span>
+                          </span>
+                        ) : (
+                          <span className="text-slate-700 flex items-center gap-1.5 font-semibold text-xs">
+                            <TrendingUp className="w-3.5 h-3.5 text-primary-600 shrink-0" />
+                            <span>مستوى التقدم في الكورس</span>
+                          </span>
+                        )}
+                      </div>
+                      <span className={`text-xs font-black px-2 py-0.5 rounded-lg shrink-0 ${
+                        isCompleted
+                          ? 'bg-emerald-200 text-emerald-950 font-bold'
+                          : 'bg-primary-100/80 text-primary-800'
+                      }`}>
+                        {progress}%
+                      </span>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="w-full h-2 bg-slate-200/80 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          isCompleted
+                            ? 'bg-gradient-to-r from-emerald-500 to-teal-500 shadow-xs'
+                            : 'bg-gradient-to-r from-primary-600 to-indigo-500'
+                        }`}
+                        style={{ width: `${Math.min(progress, 100)}%` }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2 font-medium">
+                      <span>
+                        {totalLessons > 0 ? `${completedLessons} من ${totalLessons} درس مكتمل` : (isCompleted ? 'جميع الدروس مكتملة' : 'في بداية المسار')}
+                      </span>
+                      {isCompleted && isCertificateEligible && onViewCertificate && (
+                        <button
+                          type="button"
+                          onClick={() => onViewCertificate({
+                            title: course.title,
+                            teacherName: course.teacher?.user?.fullName || course.teacherName,
+                          })}
+                          className="text-amber-700 hover:text-amber-800 font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                        >
+                          <Award className="w-3.5 h-3.5 text-amber-500" />
+                          <span>عرض الشهادة</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Card Actions */}
                 <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
@@ -543,7 +732,15 @@ function OnlineCoursesCatalog({ gradeLevel, academicStage }: { gradeLevel?: stri
                     تفاصيل المنهج
                   </Link>
 
-                  {isEnrolled ? (
+                  {isCompleted ? (
+                    <Link
+                      href={`/student/courses/${course.id}/learn`}
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs text-center transition-all shadow-xs flex items-center justify-center gap-1.5"
+                    >
+                      <Award className="w-3.5 h-3.5 text-amber-200" />
+                      <span>مراجعة الكورس 🎓</span>
+                    </Link>
+                  ) : isEnrolled ? (
                     <Link
                       href={`/student/courses/${course.id}/learn`}
                       className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs text-center transition-colors shadow-xs flex items-center justify-center gap-1.5"
@@ -564,10 +761,20 @@ function OnlineCoursesCatalog({ gradeLevel, academicStage }: { gradeLevel?: stri
                     <button
                       type="button"
                       onClick={() => handleQuickEnroll(course)}
-                      className="flex-1 py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs text-center transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs text-center transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
                     >
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      <span>إعادة المحاولة</span>
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>إعادة الاشتراك</span>
+                    </button>
+                  ) : Number(course.price || 0) === 0 || course.isFree ? (
+                    <button
+                      type="button"
+                      onClick={() => handleQuickEnroll(course)}
+                      disabled={enrollMutation.isPending}
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-xs text-center transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>{enrollMutation.isPending ? 'جاري التسجيل...' : 'ابدأ التعلم مجاناً'}</span>
                     </button>
                   ) : (
                     <button
@@ -599,6 +806,64 @@ function OnlineCoursesCatalog({ gradeLevel, academicStage }: { gradeLevel?: stri
             gradeLevel: selectedCourseForSub.gradeLevel,
           }}
         />
+      )}
+
+      {/* Course Promo / Preview Video Modal */}
+      {previewVideoModal && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setPreviewVideoModal(null)}
+        >
+          <div
+            className="bg-white rounded-3xl overflow-hidden max-w-3xl w-full shadow-2xl border border-slate-200 text-right animate-in zoom-in-95 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-slate-900 text-white p-5 flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary-600 flex items-center justify-center text-white shrink-0 shadow-sm">
+                  <Video className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">{previewVideoModal.title}</h3>
+                  <p className="text-xs text-slate-400">
+                    الفيديو التعريفي (البرومو الترويجي) • {previewVideoModal.teacherName || 'معلم المادة'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewVideoModal(null)}
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-6 bg-slate-950">
+              <div className="aspect-video w-full rounded-2xl overflow-hidden bg-black shadow-lg border border-slate-800">
+                <iframe
+                  src={`${previewVideoModal.videoUrl}${previewVideoModal.videoUrl.includes('?') ? '&' : '?'}autoplay=1`}
+                  className="w-full h-full border-0"
+                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            </div>
+
+            <div className="p-4 bg-white border-t border-slate-100 flex items-center justify-between">
+              <span className="text-xs text-slate-500 font-medium">
+                معاينة مجانية للمحتوى التمهيدي
+              </span>
+              <button
+                type="button"
+                onClick={() => setPreviewVideoModal(null)}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

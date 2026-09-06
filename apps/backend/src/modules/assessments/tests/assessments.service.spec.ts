@@ -156,7 +156,7 @@ describe('AssessmentsService', () => {
       isPublished: true,
       allowMultipleAttempts: false,
       dueDate: null,
-      teacher: { user: { fullName: 'أ. طارق عبد الله' } },
+      teacher: { user: { fullName: 'أ. أحمد غريب' } },
       group: null,
       course: null,
       questions: [
@@ -203,6 +203,20 @@ describe('AssessmentsService', () => {
 
       expect(result.questions[0]).toHaveProperty('correctAnswer', 'ب');
       expect(result.questions[0]).toHaveProperty('explanation');
+    });
+
+    it('should strictly redact all questions for parent requests (zero question leak)', async () => {
+      mockPrismaService.assessment.findUnique.mockResolvedValue(mockAssessment);
+
+      const parentUser: any = {
+        id: 'parent-user-1',
+        parentProfileId: 'parent-profile-1',
+        role: UserRole.PARENT,
+      };
+
+      const result = await service.getAssessmentById(assessmentId, parentUser);
+
+      expect(result.questions).toEqual([]);
     });
   });
 

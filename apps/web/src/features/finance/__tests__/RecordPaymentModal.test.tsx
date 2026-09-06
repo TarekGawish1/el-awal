@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { RecordPaymentModal } from '../components/RecordPaymentModal';
 import { useBooklets } from '@/features/booklets/hooks/useBooklets';
 import { useGroupDefaulters, useRecordPayment } from '../hooks/useFinance';
+import { useGroups } from '@/features/groups/hooks/useGroups';
 
 vi.mock('@/features/booklets/hooks/useBooklets', () => ({
   useBooklets: vi.fn(),
@@ -11,6 +12,7 @@ vi.mock('@/features/booklets/hooks/useBooklets', () => ({
 vi.mock('../hooks/useFinance', () => ({
   useGroupDefaulters: vi.fn(),
   useRecordPayment: vi.fn(),
+  useMatrixLedger: vi.fn(() => ({ data: null, isLoading: false })),
 }));
 
 vi.mock('react-hot-toast', () => ({
@@ -30,6 +32,7 @@ const queryClient = new QueryClient({
 describe('RecordPaymentModal booklet eligibility', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useGroups).mockReturnValue({ data: [], isLoading: false } as any);
     vi.mocked(useRecordPayment).mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
     vi.mocked(useGroupDefaulters).mockReturnValue({
       data: {
@@ -69,7 +72,8 @@ describe('RecordPaymentModal booklet eligibility', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /سداد قيمة مذكرة/i }));
-    fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'student-1' } });
+    const studentSelect = screen.getByRole('option', { name: /أحمد/i }).closest('select')!;
+    fireEvent.change(studentSelect, { target: { value: 'student-1' } });
 
     expect(screen.getByRole('option', { name: /مذكرة عامة للصف الأول/i })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: /مذكرة مجموعة الطالب/i })).toBeInTheDocument();

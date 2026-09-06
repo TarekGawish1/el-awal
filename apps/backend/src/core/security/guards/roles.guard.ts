@@ -26,7 +26,13 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('المستخدم غير مسجل أو لا يملك دوراً صالحاً');
     }
 
-    const hasRole = requiredRoles.includes(user.role);
+    const hasRole =
+      requiredRoles.includes(user.role) ||
+      (requiredRoles.includes(UserRole.PARENT) && Boolean(user.parentProfileId)) ||
+      (requiredRoles.includes(UserRole.TEACHER) && Boolean(user.teacherProfileId)) ||
+      (requiredRoles.includes(UserRole.STUDENT) && Boolean(user.studentProfileId)) ||
+      (requiredRoles.includes(UserRole.SECRETARIAT) && Boolean(user.secretariatProfileId));
+
     if (!hasRole) {
       this.logger.warn(
         `Access denied for user [${user.id || 'unknown'}] with role [${user.role}]. Requires one of roles: [${requiredRoles.join(', ')}]`,

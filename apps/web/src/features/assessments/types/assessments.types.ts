@@ -21,6 +21,7 @@ export interface AssessmentQuestion {
   questionText: string;
   questionType: QuestionType;
   optionsData?: string[];
+  optionImages?: string[];
   correctAnswer?: string;
   points: number;
   explanation?: string | null;
@@ -37,12 +38,14 @@ export interface AssessmentListItem {
   totalScore: number;
   passingScore: number;
   isPublished: boolean;
+  requirePassingScore?: boolean;
   startTime?: string | null;
   endTime?: string | null;
   startDate?: string | null;
   dueDate: string | null;
   deadline?: string | null;
   durationMinutes: number | null;
+  lessonId?: string | null;
   academicStage?: string | null;
   gradeLevel?: string | null;
   group?: {
@@ -67,6 +70,12 @@ export interface AssessmentListItem {
     submissions: number;
     questions: number;
   };
+  submissions?: Array<{
+    id: string;
+    status: SubmissionStatus;
+    scoreObtained: number | null;
+    submittedAt: string | null;
+  }>;
 }
 
 export interface AssessmentAttemptSummary {
@@ -93,6 +102,9 @@ export interface AssessmentDetail {
   isPublished: boolean;
   isAutoGraded: boolean;
   allowMultipleAttempts: boolean;
+  isOptional?: boolean;
+  requirePassingScore?: boolean;
+  lessonId?: string | null;
   startTime?: string | null;
   endTime?: string | null;
   startDate?: string | null;
@@ -137,6 +149,8 @@ export interface CreateAssessmentPayload {
   isPublished: boolean;
   isAutoGraded?: boolean;
   allowMultipleAttempts?: boolean;
+  isOptional?: boolean;
+  requirePassingScore?: boolean;
   questions: Omit<AssessmentQuestion, 'id'>[];
 }
 
@@ -154,8 +168,11 @@ export interface UpdateAssessmentPayload {
   deadline?: string;
   isPublished?: boolean;
   allowMultipleAttempts?: boolean;
+  isOptional?: boolean;
+  requirePassingScore?: boolean;
   assessmentType?: 'HOMEWORK' | 'EXAM' | 'QUIZ' | 'ASSIGNMENT';
   courseId?: string | null;
+  lessonId?: string | null;
 }
 
 export interface AssessmentSubmissionListItem {

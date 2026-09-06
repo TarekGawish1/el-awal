@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm, FormProvider, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowLeft, ArrowRight, Check, Plus, AlertTriangle, FileText, CheckCircle2, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Plus, AlertTriangle, FileText, CheckCircle2, Trash2, X } from 'lucide-react';
 import { generatePresignedUrl, uploadFileToR2, uploadRawFile } from '@/features/content/api/content.api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -27,6 +27,36 @@ import toast from 'react-hot-toast';
 type Step = 'metadata' | 'questions' | 'review';
 
 import { Group, GroupSchedule } from '../../groups/types/groups.types';
+
+function showLogicalConflictToast(message: string) {
+  toast.custom(
+    (t) => (
+      <div
+        className={`${
+          t.visible ? 'animate-in fade-in zoom-in-95' : 'animate-out fade-out'
+        } max-w-md w-full bg-rose-900 text-white shadow-2xl rounded-2xl pointer-events-auto flex items-start justify-between gap-3 p-4 border border-rose-700/80`}
+        dir="rtl"
+      >
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          <span className="text-xl shrink-0 mt-0.5">⚠️</span>
+          <div className="flex-1 text-right">
+            <p className="text-xs font-bold text-rose-100">تعارض في إعدادات التقييم</p>
+            <p className="text-xs text-rose-200 mt-1 leading-relaxed">{message}</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => toast.dismiss(t.id)}
+          className="mr-1 text-rose-300 hover:text-white p-1 rounded-lg hover:bg-rose-800/60 transition-colors shrink-0"
+          title="إغلاق"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    ),
+    { duration: 8000 }
+  );
+}
 
 function getGroupNextSessionDate(group: Group): Date | null {
   if (!group.schedules || group.schedules.length === 0) {
@@ -125,11 +155,12 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
   const paramCourseName = searchParams.get('courseName');
   const paramModuleId = searchParams.get('moduleId');
   const paramModuleName = searchParams.get('moduleName');
+  const paramLessonId = searchParams.get('lessonId');
+  const paramLessonTitle = searchParams.get('lessonTitle');
   const paramScope = searchParams.get('scope');
   const courseLinkScope =
-    type === 'EXAM' &&
     paramCourseId &&
-    (paramScope === 'COURSE' || (paramScope === 'UNIT' && paramModuleId))
+    (paramScope === 'COURSE' || (paramScope === 'UNIT' && paramModuleId) || (paramScope === 'LESSON' && paramLessonId))
       ? paramScope
       : null;
 
@@ -137,7 +168,7 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
 
   const [currentStep, setCurrentStep] = useState<Step>('metadata');
   const [targetScope, setTargetScope] = useState<'GROUPS' | 'COURSE'>(paramCourseId ? 'COURSE' : 'GROUPS');
-  const [dueDateOption, setDueDateOption] = useState<'NEXT_SESSION' | 'CUSTOM'>(paramDueDate ? 'CUSTOM' : 'NEXT_SESSION');
+  const [dueDateOption, setDueDateOption] = useState<'NEXT_SESSION' | 'CUSTOM' | 'NO_DEADLINE'>(paramCourseId ? 'NO_DEADLINE' : (paramDueDate ? 'CUSTOM' : 'NEXT_SESSION'));
   const [homeworkMode, setHomeworkMode] = useState<'INTERACTIVE' | 'BOOKLET'>('BOOKLET');
   const [startPage, setStartPage] = useState<number | ''>('');
   const [endPage, setEndPage] = useState<number | ''>('');
@@ -159,6 +190,8 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
       endTime: '',
       isAutoGraded: true,
       allowMultipleAttempts: false,
+      isOptional: false,
+      requirePassingScore: false,
       questions: [
         {
           questionNumber: 1,
@@ -286,6 +319,12 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
 
   // Pre-fill the exam title when creating from a course builder context.
   useEffect(() => {
+    if (courseLinkScope === 'LESSON' && paramLessonTitle && !methods.getValues('title')) {
+      const prefix = type === 'ASSIGNMENT' ? 'واجب درس' : 'اختبار درس';
+      methods.setValue('title', `${prefix}: ${paramLessonTitle}`, { shouldValidate: true });
+      return;
+    }
+
     if (courseLinkScope === 'UNIT' && paramModuleName && !methods.getValues('title')) {
       methods.setValue('title', `اختبار وحدة: ${paramModuleName}`, { shouldValidate: true });
       return;
@@ -298,7 +337,7 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
         methods.setValue('title', `الاختبار النهائي: ${courseName}`, { shouldValidate: true });
       }
     }
-  }, [courseLinkScope, paramCourseId, paramCourseName, paramModuleName, teacherCourses, methods]);
+  }, [courseLinkScope, paramCourseId, paramCourseName, paramModuleName, paramLessonTitle, type, teacherCourses, methods]);
 
   // Prefill group & topic from search params if provided (e.g. from session calendar modal)
   useEffect(() => {
@@ -449,6 +488,20 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
         if (isValid && fields.length === 0) {
           toast.error('يجب إضافة سؤال واحد على الأقل');
           isValid = false;
+        } else if (isValid) {
+          // Auto-sync totalScore to match sum of questions points
+          const currentQuestions = methods.getValues('questions') || [];
+          const currentSum = currentQuestions.reduce((sum, q) => sum + (Number(q.points) || 0), 0);
+          if (currentSum > 0) {
+            methods.setValue('totalScore', currentSum, { shouldValidate: true, shouldDirty: true });
+            const currentPass = Number(methods.getValues('passingScore'));
+            if (currentPass > currentSum || currentPass === 50) {
+              methods.setValue('passingScore', Math.max(0.5, Math.round(currentSum * 0.5)), {
+                shouldValidate: true,
+                shouldDirty: true,
+              });
+            }
+          }
         }
       }
     }
@@ -465,6 +518,11 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
       const { displayOrder, ...rest } = q;
       return { ...rest, questionNumber: idx + 1 };
     });
+
+    const calculatedTotal = payloadQuestions.reduce(
+      (sum, q) => sum + (Number(q.points) || 0),
+      0,
+    );
     
     // Scrub empty fields
     const payload: any = {
@@ -472,7 +530,14 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
       type,
       isPublished,
       questions: payloadQuestions,
+      totalScore: calculatedTotal > 0 ? calculatedTotal : Number(data.totalScore) || 10,
+      requirePassingScore: Boolean(data.requirePassingScore),
+      allowMultipleAttempts: data.requirePassingScore ? (data.allowMultipleAttempts ?? true) : Boolean(data.allowMultipleAttempts),
     };
+
+    if (!payload.passingScore || Number(payload.passingScore) > payload.totalScore) {
+      payload.passingScore = Math.max(0.5, Math.round(payload.totalScore * 0.5));
+    }
     
     if (type === 'ASSIGNMENT') {
       delete payload.durationMinutes;
@@ -505,11 +570,35 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
       payload.courseLinkScope = courseLinkScope;
       if (courseLinkScope === 'UNIT' && paramModuleId) {
         payload.moduleId = paramModuleId;
+      } else if (courseLinkScope === 'LESSON' && paramLessonId) {
+        payload.moduleId = paramModuleId;
+        payload.lessonId = paramLessonId;
       }
     }
     
     // Remove extra properties that the backend ValidationPipe forbids
     delete payload.isAutoGraded;
+
+    // Clean up all falsy / empty string fields so class-validator does not reject them
+    [
+      'groupId',
+      'courseId',
+      'moduleId',
+      'lessonId',
+      'courseLinkScope',
+      'startTime',
+      'endTime',
+      'startDate',
+      'dueDate',
+      'deadline',
+      'academicStage',
+      'gradeLevel',
+      'description',
+    ].forEach((key) => {
+      if (payload[key] === '' || payload[key] === null || payload[key] === undefined) {
+        delete payload[key];
+      }
+    });
 
     const label = type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار';
     // When the assessment is linked to an online course (typically created via the
@@ -523,7 +612,11 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
         onSuccess: (res: any) => {
           toast.success(isPublished ? `تم إنشاء ونشر ${label} بنجاح` : `تم حفظ ${label} كمسودة`);
           const id = res?.id || res?.data?.id;
-          if (courseIdForRedirect) {
+          if (paramLessonId && paramCourseId) {
+            router.push(
+              `/teacher/courses/${paramCourseId}?moduleId=${paramModuleId || ''}&lessonId=${paramLessonId}&newAssessmentId=${id || ''}&newAssessmentType=${payload.type || ''}&newAssessmentTitle=${encodeURIComponent(payload.title || '')}`,
+            );
+          } else if (courseIdForRedirect) {
             router.push(`/teacher/courses/${courseIdForRedirect}`);
           } else if (id) {
             router.push(`/teacher/assessments/${id}`);
@@ -532,7 +625,12 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
           }
         },
         onError: (err: any) => {
-          toast.error(err?.message || `حدث خطأ أثناء إنشاء ${label}`);
+          const serverMsg =
+            err?.response?.data?.message ||
+            err?.data?.message ||
+            err?.message ||
+            `حدث خطأ أثناء إنشاء ${label}`;
+          toast.error(Array.isArray(serverMsg) ? serverMsg.join(', ') : serverMsg);
         }
       }
     );
@@ -603,12 +701,14 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                   <span className="text-xl shrink-0 mt-0.5">🔗</span>
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-amber-900">
-                      {courseLinkScope === 'UNIT' && paramModuleName
+                      {courseLinkScope === 'LESSON' && paramLessonTitle
+                        ? `سيتم ربط هذا ${type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار'} تلقائياً بالدرس: "${paramLessonTitle}"`
+                        : courseLinkScope === 'UNIT' && paramModuleName
                         ? `سيتم ربط هذا الاختبار تلقائياً بوحدة: "${paramModuleName}"`
                         : 'سيتم ربط هذا الاختبار تلقائياً كاختبار نهائي للكورس'}
                     </p>
                     <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
-                      بمجرد حفظ الاختبار سيظهر مرتبطاً في صفحة الكورس دون الحاجة لاختياره يدوياً.
+                      بمجرد حفظ {type === 'ASSIGNMENT' ? 'الواجب' : 'الاختبار'} سيتم ربطه وإعادتك مباشرة لصفحة الكورس ونافذة الدرس.
                     </p>
                   </div>
                 </div>
@@ -637,6 +737,9 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                       onClick={() => {
                         setTargetScope('GROUPS');
                         methods.setValue('courseId', null);
+                        if (dueDateOption === 'NO_DEADLINE') {
+                          setDueDateOption('NEXT_SESSION');
+                        }
                       }}
                       className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
                         targetScope === 'GROUPS'
@@ -654,6 +757,10 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                       onClick={() => {
                         setTargetScope('COURSE');
                         methods.setValue('targetGroupIds', []);
+                        if (dueDateOption === 'NEXT_SESSION') {
+                          setDueDateOption('NO_DEADLINE');
+                          methods.setValue('dueDate', '', { shouldValidate: true });
+                        }
                       }}
                       className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
                         targetScope === 'COURSE'
@@ -806,31 +913,47 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                     <div>
                       <Label className="mb-2 block font-medium">موعد التسليم <span className="text-red-500">*</span></Label>
                       <div className="flex flex-wrap gap-3 mb-3">
+                        {targetScope !== 'COURSE' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDueDateOption('NEXT_SESSION');
+                              const calculatedDate = getNextSessionDate(allGroups || [], watchedTargetGroupIds || []);
+                              if (calculatedDate) {
+                                methods.setValue('dueDate', calculatedDate.toISOString(), { shouldValidate: true, shouldDirty: true });
+                              } else {
+                                methods.setValue('dueDate', '', { shouldValidate: true });
+                              }
+                            }}
+                            className={`py-2 px-4 rounded-xl border-2 text-sm font-bold transition-all shadow-sm cursor-pointer ${
+                              dueDateOption === 'NEXT_SESSION'
+                                ? 'border-primary-500 bg-primary-50 text-primary-700 ring-2 ring-primary-50'
+                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                            }`}
+                          >
+                            🗓️ الحصة القادمة (تلقائي)
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => {
-                            setDueDateOption('NEXT_SESSION');
-                            const calculatedDate = getNextSessionDate(allGroups || [], watchedTargetGroupIds || []);
-                            if (calculatedDate) {
-                              methods.setValue('dueDate', calculatedDate.toISOString(), { shouldValidate: true, shouldDirty: true });
-                            } else {
-                              methods.setValue('dueDate', '', { shouldValidate: true });
-                            }
+                            setDueDateOption('NO_DEADLINE');
+                            methods.setValue('dueDate', '', { shouldValidate: true, shouldDirty: true });
                           }}
-                          className={`py-2 px-4 rounded-xl border-2 text-sm font-bold transition-all shadow-sm ${
-                            dueDateOption === 'NEXT_SESSION'
-                              ? 'border-primary-500 bg-primary-50 text-primary-700 ring-2 ring-primary-50'
+                          className={`py-2 px-4 rounded-xl border-2 text-sm font-bold transition-all shadow-sm cursor-pointer ${
+                            dueDateOption === 'NO_DEADLINE'
+                              ? 'border-emerald-500 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-50'
                               : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                           }`}
                         >
-                          🗓️ الحصة القادمة (تلقائي)
+                          🔓 مفتوح بدون موعد تسليم (متاح دائماً)
                         </button>
                         <button
                           type="button"
                           onClick={() => {
                             setDueDateOption('CUSTOM');
                           }}
-                          className={`py-2 px-4 rounded-xl border-2 text-sm font-bold transition-all shadow-sm ${
+                          className={`py-2 px-4 rounded-xl border-2 text-sm font-bold transition-all shadow-sm cursor-pointer ${
                             dueDateOption === 'CUSTOM'
                               ? 'border-primary-500 bg-primary-50 text-primary-700 ring-2 ring-primary-50'
                               : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
@@ -841,7 +964,14 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                       </div>
                     </div>
 
-                    {dueDateOption === 'NEXT_SESSION' ? (
+                    {dueDateOption === 'NO_DEADLINE' ? (
+                      <div className="bg-emerald-50/80 p-4 rounded-xl border border-emerald-200 text-xs text-emerald-900 flex items-center gap-2.5 max-w-lg leading-relaxed shadow-2xs">
+                        <span className="text-base">🔓</span>
+                        <span>
+                          الواجب متاح دائماً بدون موعد تسليم نهائي. يمكن لطلاب الكورس حل وتسليم الواجب في أي وقت يناسبهم دون تقييد بموعد إغلاق.
+                        </span>
+                      </div>
+                    ) : dueDateOption === 'NEXT_SESSION' ? (
                       <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm max-w-lg space-y-3">
                         <span className="text-slate-500 block">تواريخ التسليم التلقائية لكل مجموعة (موعد الحصة القادمة):</span>
                         {watchedTargetGroupIds && watchedTargetGroupIds.length > 0 ? (
@@ -1045,39 +1175,138 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
 
               </div>
 
-              {/* Attempt policy: single vs. multiple attempts */}
-              {type === 'EXAM' && (
-                <div className="mt-6">
-                  <Label className="mb-2 block">نظام المحاولات</Label>
-                  <p className="text-slate-500 text-sm mb-3">
-                    حدد ما إذا كان بإمكان الطالب حل هذا الاختبار أكثر من مرة. عند اختيار "محاولات متعددة" يتم اعتماد أعلى درجة كدرجة رسمية مع الاحتفاظ بسجل كل المحاولات.
-                  </p>
-                  <div className="bg-white p-2 rounded-xl border border-slate-200 flex gap-2 max-w-md shadow-sm">
-                    <button
-                      type="button"
-                      onClick={() => methods.setValue('allowMultipleAttempts', false, { shouldDirty: true })}
-                      className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${
-                        !formDataValues.allowMultipleAttempts
-                          ? 'bg-primary-600 text-white shadow-sm'
-                          : 'text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      🔒 محاولة واحدة
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => methods.setValue('allowMultipleAttempts', true, { shouldDirty: true })}
-                      className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${
-                        formDataValues.allowMultipleAttempts
-                          ? 'bg-primary-600 text-white shadow-sm'
-                          : 'text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      🔁 محاولات متعددة
-                    </button>
-                  </div>
+              {/* Passing Requirement for Progression */}
+              <div className="mt-6 p-4.5 rounded-2xl border border-primary-200 bg-gradient-to-br from-primary-50/70 via-indigo-50/40 to-white shadow-2xs space-y-2.5">
+                <label className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <span className="text-base">🎯</span>
+                  <span>اشتراط اجتياز ودرجة النجاح للتقدم في الكورس</span>
+                  <span className="text-xs text-primary-700 font-normal">(للدروس والوحدات وإتمام الدورة)</span>
+                </label>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  عند تفعيل هذا الخيار، لن يتمكن الطالب من فتح الدرس أو الوحدة التالية أو إنهاء الكورس حتى يحقق درجة النجاح المطلوبة على الأقل ({formDataValues.passingScore || 50} من {formDataValues.totalScore || 100}).
+                  ويتم تلقائياً تفعيل المحاولات المتعددة وإتاحة وقت مرن لتمكين الطالب من الإعادة حتى النجاح.
+                </p>
+                <div className="bg-white p-2 rounded-xl border border-slate-200 flex gap-2 max-w-md shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      methods.setValue('requirePassingScore', false, { shouldDirty: true });
+                    }}
+                    className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${
+                      !formDataValues.requirePassingScore
+                        ? 'bg-primary-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    📝 تسليم عادي (يكفي الحل)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      methods.setValue('requirePassingScore', true, { shouldDirty: true });
+                      methods.setValue('allowMultipleAttempts', true, { shouldDirty: true });
+                      methods.setValue('isOptional', false, { shouldDirty: true });
+                      if (type === 'EXAM' && scheduleMode !== 'DURATION_ONLY') {
+                        selectScheduleMode('DURATION_ONLY');
+                      }
+                    }}
+                    className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all ${
+                      formDataValues.requirePassingScore
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    🎯 إلزامي اجتياز درجة النجاح
+                  </button>
                 </div>
-              )}
+              </div>
+
+              {/* Attempt policy: single vs. multiple attempts (for both EXAM and ASSIGNMENT) */}
+              <div className="mt-6">
+                <Label className="mb-2 block font-bold text-slate-800">
+                  {type === 'ASSIGNMENT' ? 'نظام محاولات الواجب' : 'نظام محاولات الاختبار'}
+                </Label>
+                <p className="text-slate-500 text-sm mb-3">
+                  {type === 'ASSIGNMENT'
+                    ? 'حدد ما إذا كان بإمكان الطالب إعادة حل وتسليم الواجب أكثر من مرة، أو الاكتفاء بمحاولة تسليم واحدة فقط.'
+                    : 'حدد ما إذا كان بإمكان الطالب حل هذا الاختبار أكثر من مرة. عند اختيار "محاولات متعددة" يتم اعتماد أعلى درجة كدرجة رسمية مع الاحتفاظ بسجل كل المحاولات.'}
+                </p>
+                <div className="bg-white p-2 rounded-xl border border-slate-200 flex gap-2 max-w-md shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (formDataValues.requirePassingScore) {
+                        showLogicalConflictToast(
+                          'لا يمكن تفعيل محاولة واحدة فقط مع اشتراط درجة النجاح للتقدم، حتى لا يتعطل تقدم الطالب نهائياً في الكورس عند الرسوب. تم الإبقاء على المحاولات المتعددة.'
+                        );
+                        return;
+                      }
+                      methods.setValue('allowMultipleAttempts', false, { shouldDirty: true });
+                    }}
+                    className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all cursor-pointer ${
+                      !formDataValues.allowMultipleAttempts
+                        ? 'bg-primary-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    🔒 محاولة واحدة
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => methods.setValue('allowMultipleAttempts', true, { shouldDirty: true })}
+                    className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all cursor-pointer ${
+                      formDataValues.allowMultipleAttempts
+                        ? 'bg-primary-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    🔁 محاولات متعددة
+                  </button>
+                </div>
+              </div>
+
+              {/* Optional vs Mandatory Assessment Policy */}
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                  <span>إلزامية التقييم للطلاب</span>
+                  <span className="text-xs text-slate-400 font-normal">(هل يمكن للطالب تخطي هذا الاختبار/الواجب؟)</span>
+                </label>
+                <p className="text-xs text-slate-500">
+                  إذا تم تحديد "اختياري"، سيتمكن الطالب من تجاوز التقييم دون أن يمنعه ذلك من الانتقال للدروس والوحدات القادمة.
+                </p>
+                <div className="bg-white p-2 rounded-xl border border-slate-200 flex gap-2 max-w-md shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => methods.setValue('isOptional', false, { shouldDirty: true })}
+                    className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all cursor-pointer ${
+                      !formDataValues.isOptional
+                        ? 'bg-primary-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    ⚠️ إجباري (مطلوب للتقدم)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (formDataValues.requirePassingScore) {
+                        showLogicalConflictToast(
+                          'لا يمكن جعل التقييم اختيارياً مع اشتراط درجة النجاح للتقدم. تم إلغاء اشتراط درجة النجاح تلقائياً.'
+                        );
+                        methods.setValue('requirePassingScore', false, { shouldDirty: true });
+                      }
+                      methods.setValue('isOptional', true, { shouldDirty: true });
+                    }}
+                    className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all cursor-pointer ${
+                      formDataValues.isOptional
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    ✨ اختياري (يمكن تخطيه)
+                  </button>
+                </div>
+              </div>
 
               <div className="pt-6 mt-6 border-t border-slate-100 flex justify-end">
                 <Button onClick={() => nextStep('questions')}>

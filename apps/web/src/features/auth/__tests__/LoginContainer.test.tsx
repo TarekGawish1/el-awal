@@ -76,7 +76,7 @@ describe('LoginContainer Component', () => {
     vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({ LogoutConfirmation: <></>, 
       user: {
         id: 'usr-1',
-        fullName: 'أ. طارق عبد الله',
+        fullName: 'أ. أحمد غريب',
         role: 'TEACHER',
       },
       isAuthenticated: true,

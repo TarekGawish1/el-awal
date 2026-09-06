@@ -1,13 +1,16 @@
 'use client';
  
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   ArrowRight,
+  ArrowLeft,
   BookOpen,
   CheckCircle,
+  CheckCircle2,
   FileText,
+  FileQuestion,
   Paperclip,
   Award,
   MessageSquare,
@@ -27,7 +30,7 @@ import {
 import { useCourseDetail, useLessonViewer, useLessonStreamAuth } from '@/features/courses/hooks/useCourses';
 import { coursesApi } from '@/features/courses/api/courses.api';
 import { useAuth } from '@/features/auth';
-import { CourseModule, CourseLesson, LessonViewerData } from '@/features/courses/types/courses.types';
+import { CourseModule, CourseLesson, LessonViewerData, AssessmentSummary } from '@/features/courses/types/courses.types';
 import { LessonQAPanel } from './LessonQAPanel';
 import { LessonSummaryTab } from './LessonSummaryTab';
 import { LessonResourcesTab } from './LessonResourcesTab';
@@ -53,7 +56,8 @@ function getPausedEmbedUrl(embedUrl: string): string {
 
 export function StudentCourseLearningRoom({ courseId, initialLessonId }: StudentCourseLearningRoomProps) {
   const pathname = usePathname();
-  const { data: course, isLoading: isCourseLoading } = useCourseDetail(courseId);
+  const router = useRouter();
+  const { data: course, isLoading: isCourseLoading, refetch: refetchCourse } = useCourseDetail(courseId);
   const { user } = useAuth();
   const isTeacherOrAdmin = user?.role === 'TEACHER' || user?.role === 'SECRETARIAT';
   const isPreviewMode = isTeacherOrAdmin && (pathname?.includes('/preview') ?? false);
@@ -149,16 +153,17 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
       : [];
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
     if (isOnline) {
-      // Online: the server is authoritative. Keep only server-confirmed completions plus
-      // this session's optimistic ones — drop any stale/foreign entries from the cache.
-      setCompletedLessonIds(
-        Array.from(new Set([...serverList, ...Array.from(sessionCompletedRef.current)])),
-      );
+      // Online: the server is authoritative.
+      setCompletedLessonIds(serverList);
+      sessionCompletedRef.current = new Set(serverList);
+      try {
+        localStorage.setItem(progressStorageKey, JSON.stringify(serverList));
+      } catch {}
     } else {
       // Offline: server data may be a stale cache; union it with whatever we already have.
       setCompletedLessonIds((prev) => Array.from(new Set([...prev, ...serverList])));
     }
-  }, [course]);
+  }, [course, progressStorageKey]);
 
   // Persist (per-student) whenever it changes — write even when empty so clearing sticks.
   useEffect(() => {
@@ -192,9 +197,47 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     if (idx === -1) return;
     const next = lessons[idx + 1];
     if (!next) return; // already at the final lesson — nothing to advance to
+
+    // Check if crossing a unit boundary and the current unit has a mandatory unit exam
+    const currentModule = course?.modules?.find((m: CourseModule) =>
+      m.lessons?.some((l: CourseLesson) => l.id === currentLessonId)
+    );
+    const nextModule = course?.modules?.find((m: CourseModule) =>
+      m.lessons?.some((l: CourseLesson) => l.id === next.id)
+    );
+
+    if (currentModule && nextModule && currentModule.id !== nextModule.id) {
+      if (currentModule.unitQuiz && !currentModule.unitQuiz.isOptional) {
+        const uq = currentModule.unitQuiz;
+        const sub = uq.mySubmission;
+        let isSatisfied = false;
+        if (sub && (sub.status === 'SUBMITTED' || sub.status === 'GRADED')) {
+          const mustPass = Boolean(uq.requirePassingScore);
+          if (mustPass) {
+            const passScore = uq.passingScore ?? 0;
+            const score = sub.scoreObtained ?? 0;
+            const passed = sub.isPassed ?? score >= passScore;
+            isSatisfied = passed || !uq.allowMultipleAttempts;
+          } else {
+            isSatisfied = true;
+          }
+        }
+        if (!isSatisfied) {
+          setActiveTab('quiz');
+          toast(
+            `أحسنت بإنهاء دروس الوحدة (${currentModule.title})! يرجى أداء امتحان الوحدة أولاً لفتح دروس الوحدة التالية 🎯📝`,
+            { icon: '🔒', duration: 5500 }
+          );
+          const el = document.getElementById(`quiz-card-${uq.id}`) || document.getElementById('lesson-content-tabs');
+          el?.scrollIntoView({ behavior: 'smooth' });
+          return;
+        }
+      }
+    }
+
     setSelectedLessonId(next.id);
     setActiveTab('summary');
-  }, []);
+  }, [course]);
 
   // Sync completed state from lessonViewer
   useEffect(() => {
@@ -261,10 +304,21 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     }
   }, [courseId, progressScopeId]);
 
+  // Prompt student to take lesson exam/homework when video is watched
+  const [postVideoPrompt, setPostVideoPrompt] = useState<{
+    isOpen: boolean;
+    lessonId: string;
+    lessonTitle: string;
+    assessment: AssessmentSummary;
+    isHomework: boolean;
+  } | null>(null);
+  const hasPromptedQuizForLessonRef = useRef<string | null>(null);
+
   // Reset completion trigger state when changing lessons
   useEffect(() => {
     completionTriggeredRef.current = null;
     advancedLessonRef.current = null;
+    hasPromptedQuizForLessonRef.current = null;
   }, [selectedLessonId]);
 
   // Stable completion handler — reads from refs, never needs to be recreated
@@ -298,20 +352,28 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     const currentLessonViewer = lessonViewerRef.current;
     const currentActiveLesson = activeLessonRef.current;
     const currentIsCompleted = isLessonCompletedRef.current;
-    const hasQuiz = Boolean(
-      currentLessonViewer?.lessonQuiz ||
-      currentActiveLesson?.lessonQuizId
+    const currentQuiz = currentLessonViewer?.lessonQuiz;
+    const currentHomework = currentLessonViewer?.lessonHomework;
+    const targetAssessment = currentQuiz || currentHomework;
+    const isHw = Boolean(!currentQuiz && currentHomework);
+
+    const sub = targetAssessment?.mySubmission;
+    const isAssessmentDone = Boolean(
+      sub &&
+        (sub.status === 'SUBMITTED' || sub.status === 'GRADED') &&
+        (!targetAssessment?.requirePassingScore || sub.isPassed)
+    );
+    const hasUncompletedAssessment = Boolean(targetAssessment && !isAssessmentDone);
+    const isMandatoryQuiz = Boolean(
+      hasUncompletedAssessment &&
+        (currentQuiz ? !currentQuiz.isOptional : currentHomework ? !currentHomework.isOptional : false)
     );
 
-    // ── Record completion (once per lesson; may fire at the 80% mark) ──────────────
+    // ── Record completion (once per lesson; may fire at the 80% mark or end) ──────────────
     if (isMostWatched && completionTriggeredRef.current !== lessonId) {
       completionTriggeredRef.current = lessonId;
 
-      // First-completion-only gate: if this lesson's popup was already shown (persisted
-      // across reloads), or the lesson is already completed on the server, stay fully
-      // silent — no toast, no automatic switch to the quiz tab.
       if (!notifiedLessonIdsRef.current.includes(lessonId) && !currentIsCompleted) {
-        // Record (and persist) that we've now shown the completion popup for this lesson.
         notifiedLessonIdsRef.current = [...notifiedLessonIdsRef.current, lessonId];
         if (typeof window !== 'undefined') {
           try {
@@ -321,31 +383,42 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
             );
           } catch {}
         }
+      }
 
-        if (hasQuiz) {
-          setActiveTabRef.current('quiz');
-          toast('أحسنت بمشاهدة شرح الدرس! يرجى حل اختبار الدرس لاحتساب إتمامه بنجاح 📝', { icon: '🎓' });
-        } else {
-          markLessonCompletedLocally(lessonId);
-          try {
-            await coursesApi.updateLessonProgress(lessonId, {
-              isCompleted: true,
-              lastPositionSeconds: Math.round(seconds || 0),
-            });
-            await refetchLessonRef.current();
-            toast.success('أحسنت! تمت مشاهدة معظم شرح الدرس وتم رصد إتمامه بنجاح 🎯');
-          } catch {
-            // Ignore
-          }
+      // Always save video watch progress to backend
+      coursesApi
+        .updateLessonProgress(lessonId, {
+          isCompleted: !isMandatoryQuiz,
+          lastPositionSeconds: Math.round(seconds || 0),
+        })
+        .then(() => {
+          refetchLessonRef.current();
+        })
+        .catch(() => {});
+
+      if (!isMandatoryQuiz && !currentIsCompleted) {
+        markLessonCompletedLocally(lessonId);
+      }
+
+      // If this lesson has an uncompleted exam/homework, ask the student directly!
+      if (hasUncompletedAssessment && targetAssessment) {
+        if (hasPromptedQuizForLessonRef.current !== lessonId) {
+          hasPromptedQuizForLessonRef.current = lessonId;
+          setPostVideoPrompt({
+            isOpen: true,
+            lessonId,
+            lessonTitle: currentActiveLesson?.title || '',
+            assessment: targetAssessment,
+            isHomework: isHw,
+          });
         }
+      } else if (!currentIsCompleted) {
+        toast.success('أحسنت! تمت مشاهدة شرح الدرس وتم رصد إتمامه بنجاح 🎯');
       }
     }
 
-    // ── Reveal the next lesson once the video genuinely finishes ───────────────────
-    // Only for lessons without a gating quiz (quiz lessons keep the student on the quiz
-    // tab until they solve it). Loads the next video paused — advanceToNextLesson only
-    // re-selects, and Bunny embeds never autoplay.
-    if (isHardEnd && !hasQuiz && advancedLessonRef.current !== lessonId) {
+    // ── Reveal the next lesson once the video genuinely finishes (if no uncompleted quiz) ───
+    if (isHardEnd && !isMandatoryQuiz && !hasUncompletedAssessment && advancedLessonRef.current !== lessonId) {
       advancedLessonRef.current = lessonId;
       advanceToNextLesson(lessonId);
     }
@@ -495,20 +568,144 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
   }, [selectedLessonId, handleVideoProgressOrEnd, initIframePlayer]);
   //  ↑ Re-registers only when the lesson changes, not on every completion state update
 
-  // ── Course completion detection ─────────────────────────────────────────
-  const isCourseCompleted = totalLessonsCount > 0 && completedLessonIds.length >= totalLessonsCount;
+  // ── Course completion detection (Lessons) ──────────────────────────────
+  const areAllLessonsCompleted = totalLessonsCount > 0 && completedLessonIds.length >= totalLessonsCount;
+
+  // ── Course exams / quizzes completion detection ─────────────────────────
+  const { allQuizzes, completedQuizzesCount, areAllQuizzesCompleted, averageExamScore } = useMemo(() => {
+    if (!course) {
+      return { allQuizzes: [], completedQuizzesCount: 0, areAllQuizzesCompleted: true, averageExamScore: 100 };
+    }
+
+    const quizzes: { id: string; title: string; quiz: any; type: 'lesson' | 'unit' | 'course' }[] = [];
+
+    // 1. Lesson quizzes and homeworks
+    (course.modules || []).forEach((mod) => {
+      (mod.lessons || []).forEach((les) => {
+        if (les.lessonQuiz) {
+          const quizObj = les.id === selectedLessonId && lessonViewer?.lessonQuiz ? lessonViewer.lessonQuiz : les.lessonQuiz;
+          quizzes.push({ id: quizObj.id, title: quizObj.title, quiz: quizObj, type: 'lesson' });
+        }
+        if (les.lessonHomework) {
+          const hwObj = les.id === selectedLessonId && lessonViewer?.lessonHomework ? lessonViewer.lessonHomework : les.lessonHomework;
+          quizzes.push({ id: hwObj.id, title: hwObj.title, quiz: hwObj, type: 'lesson' });
+        }
+        if (les.assessments && Array.isArray(les.assessments)) {
+          les.assessments.forEach((ass: any) => {
+            if (ass?.id) {
+              quizzes.push({ id: ass.id, title: ass.title, quiz: ass, type: 'lesson' });
+            }
+          });
+        }
+      });
+    });
+
+    // 2. Unit quizzes
+    (course.modules || []).forEach((mod) => {
+      if (mod.unitQuiz) {
+        const quizObj = mod.id === activeModule?.id && lessonViewer?.unitQuiz ? lessonViewer.unitQuiz : mod.unitQuiz;
+        quizzes.push({ id: quizObj.id, title: quizObj.title, quiz: quizObj, type: 'unit' });
+      }
+    });
+
+    // 3. Course final quiz
+    if (course.courseQuiz) {
+      const quizObj = lessonViewer?.courseQuiz || course.courseQuiz;
+      quizzes.push({ id: quizObj.id, title: quizObj.title, quiz: quizObj, type: 'course' });
+    }
+
+    // Unique by assessment id
+    const uniqueQuizzes = Array.from(new Map(quizzes.map((q) => [q.id, q])).values());
+
+    if (uniqueQuizzes.length === 0) {
+      return { allQuizzes: [], completedQuizzesCount: 0, areAllQuizzesCompleted: true, averageExamScore: 100 };
+    }
+
+    let totalScoreObtained = 0;
+    let totalMaxScore = 0;
+
+    const completed = uniqueQuizzes.filter((item) => {
+      const q = item.quiz;
+      let sub = q.mySubmission;
+
+      if (isPreviewMode && !sub && typeof window !== 'undefined') {
+        try {
+          const raw = localStorage.getItem(`el_awal_preview_quiz_${q.id}`);
+          if (raw) {
+            const p = JSON.parse(raw);
+            sub = {
+              status: p.status || 'GRADED',
+              scoreObtained: p.score ?? p.scoreObtained,
+              attemptNumber: 1,
+              isPassed: p.isPassed ?? true,
+            };
+          }
+        } catch {}
+      }
+
+      if (!sub) return false;
+      const isSubmitted = sub.status === 'SUBMITTED' || sub.status === 'GRADED';
+      if (!isSubmitted) return false;
+
+      if (sub.scoreObtained != null && q.totalScore) {
+        totalScoreObtained += Number(sub.scoreObtained);
+        totalMaxScore += Number(q.totalScore);
+      }
+
+      const mustPass = q.requirePassingScore !== undefined
+        ? Boolean(q.requirePassingScore)
+        : Boolean(course.requireExamPassingToUnlock);
+      if (mustPass) {
+        const passScore = q.passingScore ?? 0;
+        const score = sub.scoreObtained ?? 0;
+        const passed = sub.isPassed ?? (score >= passScore);
+        return passed;
+      }
+
+      return true;
+    });
+
+    const averageExamScore = totalMaxScore > 0 ? Math.round((totalScoreObtained / totalMaxScore) * 100) : 100;
+
+    return {
+      allQuizzes: uniqueQuizzes,
+      completedQuizzesCount: completed.length,
+      areAllQuizzesCompleted: completed.length === uniqueQuizzes.length,
+      averageExamScore,
+    };
+  }, [course, lessonViewer, selectedLessonId, activeModule?.id, isPreviewMode]);
+
+  // Overall full completion (All lessons AND all attached quizzes/exams finished)
+  const isCourseFullyCompleted = areAllLessonsCompleted && areAllQuizzesCompleted;
 
   // Certificate modal state
   const [isCertificateOpen, setIsCertificateOpen] = useState(false);
 
-  // Show a one-time celebration toast when the course becomes fully complete
+  // Show a one-time celebration toast when the course becomes fully complete (lessons + exams)
   const courseCompletedToastShownRef = useRef(false);
   useEffect(() => {
-    if (isCourseCompleted && !courseCompletedToastShownRef.current) {
+    if (isCourseFullyCompleted && !courseCompletedToastShownRef.current) {
       courseCompletedToastShownRef.current = true;
-      toast.success('🎓 تهانينا! أتممت الدورة بالكامل! احصل على شهادتك الآن!', { duration: 5000 });
+      toast.success('🎓 تهانينا! أتممت الدورة وجميع اختباراتها بنجاح! يمكنك استلام شهادتك الآن!', { duration: 6000 });
     }
-  }, [isCourseCompleted]);
+  }, [isCourseFullyCompleted]);
+
+  const handleClaimCertificate = () => {
+    if (!isCourseFullyCompleted) {
+      if (!areAllLessonsCompleted) {
+        toast.error('يجب إكمال جميع دروس الدورة أولاً للحصول على الشهادة 📚🔒');
+      } else {
+        toast.error(
+          `يجب حل واجتياز جميع اختبارات الدورة (${completedQuizzesCount}/${allQuizzes.length}) للحصول على شهادة الإتمام 📝🔒`,
+        );
+        setActiveTab('quiz');
+        const tabsElement = document.getElementById('lesson-content-tabs');
+        if (tabsElement) tabsElement.scrollIntoView({ behavior: 'smooth' });
+      }
+      return;
+    }
+    setIsCertificateOpen(true);
+  };
 
   // Progress Tracking: Mark Completed
   const [isMarkingComplete, setIsMarkingComplete] = useState(false);
@@ -517,11 +714,50 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     const lessonId = selectedLessonId;
     const nextCompleted = !isLessonCompleted;
 
-    // Enforce quiz requirement: student cannot mark lesson complete if quiz has not been submitted
-    if (nextCompleted && lessonViewer?.lessonQuiz && !lessonViewer.lessonQuiz.mySubmission) {
-      toast.error('لا يمكن إتمام هذا الدرس قبل حل واجتياز اختباره الإلكتروني بنجاح 📝');
-      setActiveTab('quiz');
-      return;
+    // Enforce quiz requirement: student cannot mark lesson complete if MANDATORY quiz has not been submitted or passed
+    const currentQuiz = lessonViewer?.lessonQuiz;
+    if (nextCompleted && currentQuiz && !currentQuiz.isOptional) {
+      if (!currentQuiz.mySubmission) {
+        toast.error('لا يمكن إتمام هذا الدرس قبل حل وتسليم اختباره الإلكتروني 📝');
+        setActiveTab('quiz');
+        return;
+      }
+      const mustPassQuiz = Boolean(currentQuiz.requirePassingScore);
+      if (mustPassQuiz) {
+        const passScore = currentQuiz.passingScore ?? 0;
+        const score = currentQuiz.mySubmission.scoreObtained ?? 0;
+        const passed = currentQuiz.mySubmission.isPassed ?? (score >= passScore);
+        if (!passed && currentQuiz.allowMultipleAttempts) {
+          toast.error(
+            `يجب اجتياز الاختبار بدرجة النجاح (${passScore} من ${currentQuiz.totalScore}) لإتمام هذا الدرس والتقدم 🎯`,
+          );
+          setActiveTab('quiz');
+          return;
+        }
+      }
+    }
+
+    // Enforce homework requirement: student cannot mark lesson complete if MANDATORY homework has not been submitted or passed
+    const currentHomework = lessonViewer?.lessonHomework;
+    if (nextCompleted && currentHomework && !currentHomework.isOptional) {
+      if (!currentHomework.mySubmission) {
+        toast.error('لا يمكن إتمام هذا الدرس قبل حل وتسليم الواجب المنزلي 📝');
+        setActiveTab('quiz');
+        return;
+      }
+      const mustPassHw = Boolean(currentHomework.requirePassingScore);
+      if (mustPassHw) {
+        const passScore = currentHomework.passingScore ?? 0;
+        const score = currentHomework.mySubmission.scoreObtained ?? 0;
+        const passed = currentHomework.mySubmission.isPassed ?? (score >= passScore);
+        if (!passed && currentHomework.allowMultipleAttempts) {
+          toast.error(
+            `يجب اجتياز الواجب بدرجة النجاح (${passScore} من ${currentHomework.totalScore}) لإتمام هذا الدرس والتقدم 🎯`,
+          );
+          setActiveTab('quiz');
+          return;
+        }
+      }
     }
 
     // Optimistic UI update
@@ -538,6 +774,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         lastPositionSeconds: lessonViewer?.lastPositionSeconds || 0,
       });
       await refetchLesson();
+      await refetchCourse();
       toast.success(nextCompleted ? 'أحسنت! تم إتمام الدرس بنجاح 🎉' : 'تم إلغاء إتمام الدرس');
       // On manual completion, reveal the next lesson immediately (paused — no autoplay).
       if (nextCompleted) {
@@ -600,6 +837,159 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     }
   }, []);
 
+  // Bypass an optional quiz/homework
+  const handleBypassQuiz = useCallback(
+    async (targetLessonId?: string) => {
+      const id = targetLessonId || selectedLessonId;
+      if (!id) return;
+      markLessonCompletedLocally(id);
+      try {
+        await coursesApi.updateLessonProgress(id, {
+          isCompleted: true,
+          lastPositionSeconds: 0,
+        });
+        await refetchLesson();
+        toast.success('تم تخطي الاختبار الاختياري بنجاح والتقدم ⏭️');
+        advanceToNextLesson(id);
+      } catch {
+        toast.error('تعذر تسجيل التخطي');
+      }
+    },
+    [selectedLessonId, markLessonCompletedLocally, refetchLesson, advanceToNextLesson]
+  );
+
+  // Open quiz from sidebar directly in the assessment solver / review page
+  const handleSelectQuizFromSidebar = useCallback(
+    (quizId: string) => {
+      setIsMobileSyllabusOpen(false);
+      const isTeacher = isPreviewMode || (pathname?.includes('/preview') ?? false);
+      const returnUrl = courseId
+        ? isTeacher
+          ? `/teacher/courses/${courseId}/preview${selectedLessonId ? `?lessonId=${selectedLessonId}` : ''}`
+          : `/student/courses/${courseId}/learn${selectedLessonId ? `?lessonId=${selectedLessonId}` : ''}`
+        : '/student/courses';
+
+      window.location.href = `/student/assessments?id=${quizId}&courseId=${courseId}&returnUrl=${encodeURIComponent(returnUrl)}`;
+    },
+    [courseId, isPreviewMode, pathname, selectedLessonId]
+  );
+
+  // Compute next step guidance banner info
+  const nextStepInfo = useMemo(() => {
+    if (!course || !activeLesson) return null;
+
+    // 1. Current lesson has an uncompleted quiz
+    if (lessonViewer?.lessonQuiz) {
+      const q = lessonViewer.lessonQuiz;
+      const isSubmitted = Boolean(
+        q.mySubmission && (q.mySubmission.status === 'SUBMITTED' || q.mySubmission.status === 'GRADED')
+      );
+      const isPassed =
+        q.mySubmission?.isPassed ?? ((q.mySubmission?.scoreObtained ?? 0) >= (q.passingScore ?? 0));
+      const mustPass = q.requirePassingScore !== undefined
+        ? Boolean(q.requirePassingScore)
+        : Boolean(course.requireExamPassingToUnlock);
+      const isDone = isSubmitted && (!mustPass || isPassed);
+
+      if (!isDone) {
+        return {
+          type: 'lesson_quiz' as const,
+          title: `اختبار الدرس: ${q.title}`,
+          isOptional: Boolean(q.isOptional),
+          totalScore: q.totalScore,
+          quizId: q.id,
+          badge: q.isOptional ? 'اختياري لتثبيت الفهم' : mustPass ? 'إجباري (يشترط النجاح للمتابعة)' : 'إجباري للانتقال للدرس التالي',
+          actionText: 'بدء اختبار الدرس الآن 📝',
+        };
+      }
+    }
+
+    // 1.5. Current lesson has an uncompleted homework
+    if (lessonViewer?.lessonHomework) {
+      const hw = lessonViewer.lessonHomework;
+      const isSubmitted = Boolean(
+        hw.mySubmission && (hw.mySubmission.status === 'SUBMITTED' || hw.mySubmission.status === 'GRADED')
+      );
+      const isPassed =
+        hw.mySubmission?.isPassed ?? ((hw.mySubmission?.scoreObtained ?? 0) >= (hw.passingScore ?? 0));
+      const mustPass = hw.requirePassingScore !== undefined
+        ? Boolean(hw.requirePassingScore)
+        : Boolean(course.requireExamPassingToUnlock);
+      const isDone = isSubmitted && (!mustPass || isPassed);
+
+      if (!isDone) {
+        return {
+          type: 'lesson_quiz' as const,
+          title: `واجب الدرس: ${hw.title}`,
+          isOptional: Boolean(hw.isOptional),
+          totalScore: hw.totalScore,
+          quizId: hw.id,
+          badge: hw.isOptional ? 'واجب اختياري للتطبيق' : mustPass ? 'إجباري (يشترط النجاح للمتابعة)' : 'إجباري للانتقال للدرس التالي',
+          actionText: 'بدء حل الواجب الآن 📝',
+        };
+      }
+    }
+
+    // 2. Unit has a unitQuiz that is not yet completed
+    if (activeModule?.unitQuiz) {
+      const uq = lessonViewer?.unitQuiz || activeModule.unitQuiz;
+      const isSubmitted = Boolean(
+        uq.mySubmission && (uq.mySubmission.status === 'SUBMITTED' || uq.mySubmission.status === 'GRADED')
+      );
+      const isPassed =
+        uq.mySubmission?.isPassed ?? ((uq.mySubmission?.scoreObtained ?? 0) >= (uq.passingScore ?? 0));
+      const mustPass = uq.requirePassingScore !== undefined
+        ? Boolean(uq.requirePassingScore)
+        : Boolean(course.requireExamPassingToUnlock);
+      const isDone = isSubmitted && (!mustPass || isPassed);
+
+      if (!isDone) {
+        const modLessons = activeModule.lessons || [];
+        const allLessonsDoneInModule = modLessons.every((l) => completedLessonIds.includes(l.id));
+
+        return {
+          type: 'unit_quiz' as const,
+          title: `امتحان الوحدة: ${uq.title} (${activeModule.title})`,
+          isOptional: Boolean(uq.isOptional),
+          totalScore: uq.totalScore,
+          quizId: uq.id,
+          badge: uq.isOptional ? 'امتحان اختياري شامل' : mustPass ? 'مطلوب النجاح لاجتياز الوحدة' : 'مطلوب لاجتياز الوحدة وفتح الوحدة التالية',
+          actionText: allLessonsDoneInModule ? 'بدء امتحان الوحدة الآن 🎯' : 'امتحان الوحدة بانتظارك بعد إتمام الدروس 📝',
+          isReady: allLessonsDoneInModule,
+        };
+      }
+    }
+
+    // 3. All lessons and unit exams done, but course final quiz remaining
+    if (course.courseQuiz && areAllLessonsCompleted) {
+      const cq = lessonViewer?.courseQuiz || course.courseQuiz;
+      const isSubmitted = Boolean(
+        cq.mySubmission && (cq.mySubmission.status === 'SUBMITTED' || cq.mySubmission.status === 'GRADED')
+      );
+      const isPassed =
+        cq.mySubmission?.isPassed ?? ((cq.mySubmission?.scoreObtained ?? 0) >= (cq.passingScore ?? 0));
+      const mustPass = cq.requirePassingScore !== undefined
+        ? Boolean(cq.requirePassingScore)
+        : Boolean(course.requireExamPassingToUnlock);
+      const isDone = isSubmitted && (!mustPass || isPassed);
+
+      if (!isDone) {
+        return {
+          type: 'course_quiz' as const,
+          title: `الامتحان الشامل والنهائي للدورة: ${cq.title}`,
+          isOptional: Boolean(cq.isOptional),
+          totalScore: cq.totalScore,
+          quizId: cq.id,
+          badge: 'مطلوب للحصول على شهادة التخرج والتقدير',
+          actionText: 'بدء الامتحان النهائي الشامل 🏆',
+          isReady: true,
+        };
+      }
+    }
+
+    return null;
+  }, [course, activeLesson, lessonViewer, activeModule, completedLessonIds, areAllLessonsCompleted]);
+
   if (isCourseLoading) {
     return (
       <div className="flex items-center justify-center min-h-[500px]">
@@ -620,25 +1010,25 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
   const certData = {
     studentName: (user as any)?.fullName || (user as any)?.name || 'الطالب',
     courseTitle: course?.title || '',
-    teacherName: (course as any)?.teacher?.user?.fullName || (course as any)?.teacherName || 'أ. طارق عبد الله',
+    teacherName: (course as any)?.teacher?.user?.fullName || (course as any)?.teacherName || 'أ. أحمد غريب',
     subject: course?.subject || 'المنهج الدراسي',
     gradeLevel: course?.gradeLevel || 'الصف الدراسي',
     academicStage: course?.academicStage || 'المرحلة الدراسية',
-    score: '100',
+    score: String(averageExamScore || '100'),
     completedAt: new Date().toISOString(),
   };
 
   return (
     <div className="space-y-6 text-right animate-in fade-in">
-      {/* Certificate Modal */}
+      {/* Certificate Modal - strictly only accessible when fully completed */}
       <CourseCertificateModal
-        isOpen={isCertificateOpen}
+        isOpen={isCertificateOpen && isCourseFullyCompleted}
         onClose={() => setIsCertificateOpen(false)}
         data={certData}
       />
 
-      {/* 🎓 Course Completion Celebration Banner */}
-      {isCourseCompleted && course.hasCertificate !== false && (
+      {/* 🎓 Course Full Completion (Lessons + Exams) Celebration Banner */}
+      {isCourseFullyCompleted && course.hasCertificate !== false && (
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-400 p-1 shadow-lg shadow-amber-200/50">
           <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 rounded-xl px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-4">
             {/* Decorative shimmer strip */}
@@ -651,20 +1041,61 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 <Trophy className="w-8 h-8 text-amber-600" />
               </div>
               <div className="text-right">
-                <h3 className="text-lg font-extrabold text-amber-900">🎉 أحسنت! أتممت الدورة بالكامل!</h3>
+                <h3 className="text-lg font-extrabold text-amber-900">🎉 أحسنت! أتممت الدورة واختباراتها بالكامل!</h3>
                 <p className="text-sm text-amber-700/80 mt-0.5">
-                  لقد أكملت جميع دروس دورة <span className="font-bold">{course.title}</span> بنجاح
+                  لقد أكملت جميع الدروس واجتزت كافة الاختبارات في دورة <span className="font-bold">{course.title}</span> بنجاح
                 </p>
               </div>
             </div>
 
             <button
               type="button"
-              onClick={() => setIsCertificateOpen(true)}
-              className="z-10 flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-sm rounded-xl shadow-md shadow-amber-300/50 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap"
+              onClick={handleClaimCertificate}
+              className="z-10 flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-sm rounded-xl shadow-md shadow-amber-300/50 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap cursor-pointer"
             >
               <Award className="w-5 h-5" />
               احصل على شهادتك
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 📝 Lessons Complete but Exams Pending Banner (Exact Case in User Screenshot) */}
+      {areAllLessonsCompleted && !areAllQuizzesCompleted && course.hasCertificate !== false && (
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-500 via-indigo-500 to-primary-600 p-1 shadow-md shadow-indigo-100">
+          <div className="bg-gradient-to-r from-blue-50 via-indigo-50/70 to-slate-50 rounded-xl px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-4 z-10">
+              <div className="p-3 bg-indigo-100 text-indigo-700 rounded-2xl shadow-sm shrink-0">
+                <FileQuestion className="w-8 h-8" />
+              </div>
+              <div className="text-right">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base sm:text-lg font-extrabold text-indigo-950">
+                    📚 أتممت جميع الدروس! يتبقى عليك إتمام الاختبارات للحصول على الشهادة
+                  </h3>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                    تم إنجاز {completedQuizzesCount} من {allQuizzes.length} اختبارات
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-indigo-800/80 mt-1">
+                  لا يمكنك استلام شهادة إتمام دورة <span className="font-bold">{course.title}</span> إلا بعد حل {course.requireExamPassingToUnlock ? 'واجتياز' : 'وتسليم'} جميع الاختبارات المرفقة بالدورة.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('quiz');
+                const tabsElement = document.getElementById('lesson-content-tabs');
+                if (tabsElement) {
+                  tabsElement.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+              className="z-10 flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-primary-600 hover:from-indigo-700 hover:to-primary-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap cursor-pointer"
+            >
+              <FileQuestion className="w-4 h-4" />
+              الانتقال للاختبارات والتقييم 📝
             </button>
           </div>
         </div>
@@ -758,6 +1189,83 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Player & Tab Content */}
         <div className="lg:col-span-8 space-y-6">
+          {/* Next-Step Guidance Banner */}
+          {nextStepInfo && (
+            <div
+              className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs transition-all ${
+                nextStepInfo.type === 'unit_quiz'
+                  ? 'bg-gradient-to-r from-amber-50 to-orange-50/70 border-amber-200 text-amber-950'
+                  : nextStepInfo.type === 'course_quiz'
+                  ? 'bg-gradient-to-r from-indigo-50 to-purple-50/70 border-indigo-200 text-indigo-950'
+                  : 'bg-primary-50/70 border-primary-200 text-primary-950'
+              }`}
+            >
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${
+                    nextStepInfo.type === 'unit_quiz'
+                      ? 'bg-amber-500 text-white'
+                      : nextStepInfo.type === 'course_quiz'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-primary-600 text-white'
+                  }`}
+                >
+                  <FileQuestion className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-extrabold uppercase tracking-wide opacity-80">
+                      الخطوة التالية الموصى بها
+                    </span>
+                    <span
+                      className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                        nextStepInfo.isOptional
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : 'bg-amber-200/90 text-amber-900 border border-amber-300'
+                      }`}
+                    >
+                      {nextStepInfo.badge}
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm font-bold mt-0.5">{nextStepInfo.title}</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (nextStepInfo.type === 'unit_quiz' || nextStepInfo.type === 'course_quiz') {
+                    const isTeacher = isPreviewMode || (pathname?.includes('/preview') ?? false);
+                    const returnUrl = courseId
+                      ? isTeacher
+                        ? `/teacher/courses/${courseId}/preview${selectedLessonId ? `?lessonId=${selectedLessonId}` : ''}`
+                        : `/student/courses/${courseId}/learn${selectedLessonId ? `?lessonId=${selectedLessonId}` : ''}`
+                      : '/student/courses';
+                    window.location.href = `/student/assessments?id=${nextStepInfo.quizId}&courseId=${course.id}&returnUrl=${encodeURIComponent(returnUrl)}`;
+                    return;
+                  }
+                  setActiveTab('quiz');
+                  setTimeout(() => {
+                    const el =
+                      document.getElementById(`quiz-card-${nextStepInfo.quizId}`) ||
+                      document.getElementById('lesson-content-tabs');
+                    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }, 80);
+                }}
+                className={`w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 cursor-pointer ${
+                  nextStepInfo.type === 'unit_quiz'
+                    ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                    : nextStepInfo.type === 'course_quiz'
+                    ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                    : 'bg-primary-600 hover:bg-primary-700 text-white'
+                }`}
+              >
+                <span>{nextStepInfo.actionText}</span>
+                <ArrowLeft className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* Strict 16:9 Aspect Ratio Video Player Card */}
           <div ref={videoContainerRef} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
             <div
@@ -813,9 +1321,22 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 <div className="flex flex-col items-center gap-3 text-slate-400 p-8 text-center">
                   <Video className="w-12 h-12 text-slate-600 stroke-[1.5]" />
                   <p className="text-xs font-bold text-slate-300">لا يوجد فيديو مخصص لهذا الدرس حالياً</p>
-                  <p className="text-[11px] text-slate-500">
-                    يمكنك تصفح ملخص الدرس أو تحميل المرفقات أو حل الاختبار التفاعلي من التبويبات بالأسفل.
+                  <p className="text-[11px] text-slate-500 max-w-md">
+                    يمكنك تصفح ملخص الدرس أو تحميل المرفقات أو حل الاختبار التفاعلي من التبويبات بالأسفل، ثم الضغط على الزر أدناه لاحتساب إتمام الدرس والانتقال للتالي.
                   </p>
+                  <button
+                    type="button"
+                    onClick={handleToggleComplete}
+                    disabled={isMarkingComplete}
+                    className={`mt-2 flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer ${
+                      isLessonCompleted
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        : 'bg-primary-600 hover:bg-primary-700 text-white'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{isLessonCompleted ? 'تم إتمام الدرس بنجاح ✔' : 'إتمام هذا الدرس والمتابعة 🚀'}</span>
+                  </button>
                 </div>
               )}
 
@@ -842,16 +1363,33 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 </h2>
               </div>
 
-              {activeLesson?.isPreview && (
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 self-start sm:self-auto">
-                  معاينة مجانية متاحة
-                </span>
-              )}
+              <div className="flex items-center gap-2.5 flex-wrap">
+                {activeLesson?.isPreview && (
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 self-start sm:self-auto">
+                    معاينة مجانية متاحة
+                  </span>
+                )}
+                {activeLesson && (
+                  <button
+                    type="button"
+                    onClick={handleToggleComplete}
+                    disabled={isMarkingComplete}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-xs cursor-pointer ${
+                      isLessonCompleted
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                        : 'bg-primary-50 text-primary-700 border-primary-200 hover:bg-primary-600 hover:text-white'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>{isLessonCompleted ? 'الدرس مكتمل ✔' : 'تحديد كمكتمل'}</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Clean Light Pill Tabs */}
-          <div className="bg-slate-100 p-1.5 rounded-xl flex items-center gap-1 overflow-x-auto text-xs shadow-sm">
+          <div id="lesson-content-tabs" className="bg-slate-100 p-1.5 rounded-xl flex items-center gap-1 overflow-x-auto text-xs shadow-sm">
             <button
               type="button"
               onClick={() => setActiveTab('summary')}
@@ -907,7 +1445,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
             >
               <Award className="w-4 h-4" />
               <span>الاختبارات والتقييم</span>
-              {(lessonViewer?.lessonQuiz || lessonViewer?.unitQuiz || course.courseQuiz) && (
+              {(lessonViewer?.lessonQuiz || lessonViewer?.lessonHomework) && (
                 <span className="w-2 h-2 rounded-full bg-amber-400" />
               )}
             </button>
@@ -945,14 +1483,18 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 lessonId={selectedLessonId || undefined}
                 lessonTitle={activeLesson?.title || ''}
                 lessonQuiz={lessonViewer?.lessonQuiz || null}
-                unitQuiz={lessonViewer?.unitQuiz || null}
-                courseQuiz={course.courseQuiz || null}
+                lessonHomework={lessonViewer?.lessonHomework || null}
                 enforceSequentialLessons={course.enforceSequentialLessons ?? false}
                 completedLessonIds={completedLessonIds}
                 activeModule={activeModule || null}
                 allModules={course.modules || []}
                 allLessons={allLessons}
                 isPreviewMode={isPreviewMode}
+                onBypassQuiz={handleBypassQuiz}
+                onSelectLesson={(id) => {
+                  setSelectedLessonId(id);
+                  setActiveTab('summary');
+                }}
               />
             )}
           </div>
@@ -962,12 +1504,15 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
         <div className="hidden lg:block lg:col-span-4">
           <div className="sticky top-6">
             <CourseSyllabusSidebar
-              modules={course.modules || []}
+              modules={course?.modules || []}
               allLessons={allLessons}
               activeLessonId={selectedLessonId}
               onSelectLesson={(id) => setSelectedLessonId(id)}
+              onSelectQuiz={handleSelectQuizFromSidebar}
               completedLessonIds={completedLessonIds}
-              enforceSequentialLessons={course.enforceSequentialLessons ?? false}
+              enforceSequentialLessons={course?.enforceSequentialLessons ?? false}
+              requireExamPassingToUnlock={course?.requireExamPassingToUnlock ?? false}
+              courseQuiz={course?.courseQuiz || null}
             />
           </div>
         </div>
@@ -989,16 +1534,118 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
             </div>
             <div className="py-4 flex-1">
               <CourseSyllabusSidebar
-                modules={course.modules || []}
+                modules={course?.modules || []}
                 allLessons={allLessons}
                 activeLessonId={selectedLessonId}
                 onSelectLesson={(id) => {
                   setSelectedLessonId(id);
                   setIsMobileSyllabusOpen(false);
                 }}
+                onSelectQuiz={handleSelectQuizFromSidebar}
                 completedLessonIds={completedLessonIds}
-                enforceSequentialLessons={course.enforceSequentialLessons ?? false}
+                enforceSequentialLessons={course?.enforceSequentialLessons ?? false}
+                requireExamPassingToUnlock={course?.requireExamPassingToUnlock ?? false}
+                courseQuiz={course?.courseQuiz || null}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Interactive Post-Video Assessment Prompt Modal */}
+      {postVideoPrompt?.isOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-100 text-center relative overflow-hidden animate-in zoom-in-95">
+            {/* Background decorative gradient */}
+            <div className="absolute -top-16 -right-16 w-36 h-36 bg-amber-100/60 rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute -bottom-16 -left-16 w-36 h-36 bg-primary-100/60 rounded-full blur-2xl pointer-events-none" />
+
+            <div className="relative z-10">
+              {/* Top badge / icon */}
+              <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center mx-auto mb-4 shadow-sm">
+                <Award className="w-8 h-8" />
+              </div>
+
+              <h3 className="text-lg font-black text-slate-900 leading-tight">
+                أحسنت! أكملت مشاهدة شرح الدرس 👏
+              </h3>
+              <p className="text-xs text-slate-600 mt-2 font-medium">
+                {postVideoPrompt.isHomework
+                  ? 'يوجد واجب منزلي مخصص لهذا الدرس، هل ترغب في البدء في حله الآن؟'
+                  : 'يوجد اختبار مخصص لقياس فهمك لهذا الدرس، هل ترغب في بدء الاختبار الآن؟'}
+              </p>
+
+              {/* Assessment summary box */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 my-5 text-right flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-primary-600 shrink-0 shadow-xs">
+                    <FileQuestion className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                        {postVideoPrompt.isHomework ? 'واجب الدرس' : 'اختبار الدرس'}
+                      </span>
+                      {postVideoPrompt.assessment.isOptional ? (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                          اختياري
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                          إجباري للمتابعة
+                        </span>
+                      )}
+                    </div>
+                    <h4 className="text-xs font-black text-slate-800 mt-1">
+                      {postVideoPrompt.assessment.title}
+                    </h4>
+                  </div>
+                </div>
+                <div className="text-left shrink-0">
+                  <span className="text-xs font-black font-mono text-slate-700">
+                    {postVideoPrompt.assessment.totalScore} د
+                  </span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const quizId = postVideoPrompt.assessment.id;
+                    const lId = postVideoPrompt.lessonId;
+                    setPostVideoPrompt(null);
+                    const returnUrl = encodeURIComponent(`/student/courses/${courseId}/learn?lessonId=${lId}`);
+                    router.push(
+                      `/student/assessments?id=${quizId}&courseId=${courseId}&lessonId=${lId}&returnUrl=${returnUrl}`
+                    );
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white font-black text-xs rounded-xl shadow-md shadow-primary-500/20 transition-all cursor-pointer"
+                >
+                  <span>{postVideoPrompt.isHomework ? 'بدء حل الواجب الآن ✍️' : 'بدء الاختبار الآن ✍️'}</span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPostVideoPrompt(null);
+                      setActiveTab('quiz');
+                    }}
+                    className="flex-1 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                  >
+                    عرض في التبويب
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPostVideoPrompt(null)}
+                    className="flex-1 py-2.5 px-3 bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-700 border border-slate-200 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                  >
+                    لاحقاً
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

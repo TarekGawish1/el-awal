@@ -349,6 +349,20 @@ export const coursesApi = {
     });
   },
 
+  cancelEnrollment: async (
+    enrollmentId: string,
+    reason?: string,
+  ): Promise<{
+    enrollmentId: string;
+    status: string;
+    message: string;
+  }> => {
+    return apiClient(`/courses/enrollments/${enrollmentId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
   getTeacherSubscriptions: async (): Promise<{
     pendingRequests: Array<{
       enrollmentId: string;
@@ -376,6 +390,10 @@ export const coursesApi = {
       studentName: string;
       studentCode: string;
       studentPhone: string;
+      senderPhone: string;
+      transferAmount: number;
+      receiptImageUrl?: string | null;
+      paymentMethod: string;
       date: string;
       enrolledAt: string;
       status: string;

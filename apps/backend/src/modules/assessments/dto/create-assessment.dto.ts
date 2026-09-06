@@ -21,6 +21,7 @@ import { CreateQuestionDto } from './create-question.dto';
 export enum AssessmentCourseLinkScope {
   COURSE = 'COURSE',
   UNIT = 'UNIT',
+  LESSON = 'LESSON',
 }
 
 export class CreateAssessmentDto {
@@ -216,6 +217,22 @@ export class CreateAssessmentDto {
   @IsOptional()
   @IsBoolean()
   allowMultipleAttempts?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Whether this assessment is optional for students. Optional assessments do not block progression to subsequent lessons or units.',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isOptional?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Whether students must achieve the passing score to progress to the next lesson or unit',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  requirePassingScore?: boolean;
 
   @ApiProperty({
     type: [CreateQuestionDto],

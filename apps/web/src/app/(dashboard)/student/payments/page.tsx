@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useStudentProfile, useStudentPayments } from '@/features/student-portal/hooks/useStudentPortal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Pagination } from '@/components/ui/Pagination';
-import { DollarSign, Receipt, CreditCard, AlertCircle, CheckCircle2, RefreshCw, Landmark } from 'lucide-react';
+import { DollarSign, Receipt, CreditCard, AlertCircle, CheckCircle2, RefreshCw, Landmark, Filter } from 'lucide-react';
 import { formatArabicDate, formatNumber } from '@/lib/utils/formatters';
 
 const ARABIC_MONTHS = [
@@ -18,22 +18,41 @@ export default function StudentPaymentsPage() {
   const { data: profile, isLoading: isProfileLoading } = useStudentProfile();
   const { data: paymentsData, isLoading: isPaymentsLoading } = useStudentPayments();
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedGroupId, setSelectedGroupId] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('');
 
   const PAGE_SIZE = 8;
 
   const payments = paymentsData || [];
-  const totalPaid = payments
+
+  const uniqueGroups = useMemo(() => {
+    const map = new Map<string, string>();
+    payments.forEach((p: any) => {
+      if (p.group?.id && p.group?.name) map.set(p.group.id, p.group.name);
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [payments]);
+
+  const filteredPayments = useMemo(() => {
+    return payments.filter((p: any) => {
+      if (selectedGroupId && p.group?.id !== selectedGroupId) return false;
+      if (selectedStatus && p.paymentStatus !== selectedStatus) return false;
+      return true;
+    });
+  }, [payments, selectedGroupId, selectedStatus]);
+
+  const totalPaid = filteredPayments
     .filter((p: any) => p.paymentStatus === 'PAID')
     .reduce((sum: number, p: any) => sum + (p.amountPaid || 0), 0);
 
-  const totalPending = payments
+  const totalPending = filteredPayments
     .filter((p: any) => p.paymentStatus === 'PENDING' || p.paymentStatus === 'OVERDUE')
     .reduce((sum: number, p: any) => sum + Math.max(0, (p.amountExpected || 0) - (p.amountPaid || 0)), 0);
 
-  const overdueCount = payments.filter((p: any) => p.paymentStatus === 'OVERDUE').length;
+  const overdueCount = filteredPayments.filter((p: any) => p.paymentStatus === 'OVERDUE').length;
 
-  const totalPages = Math.ceil(payments.length / PAGE_SIZE);
-  const paginatedPayments = payments.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const totalPages = Math.ceil(filteredPayments.length / PAGE_SIZE);
+  const paginatedPayments = filteredPayments.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -143,18 +162,59 @@ export default function StudentPaymentsPage() {
 
       {/* Payments History Table */}
       <Card className="border-none shadow-sm shadow-slate-200/50 overflow-hidden">
-        <CardHeader className="border-b border-slate-100 bg-white pb-4">
-          <CardTitle className="text-md flex items-center gap-2 font-bold text-slate-800">
-            <Receipt className="w-5 h-5 text-primary-600" />
-            سجل إيصالات السداد التفصيلي
-          </CardTitle>
+        <CardHeader className="border-b border-slate-100 bg-white pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <CardTitle className="text-md flex items-center gap-2 font-bold text-slate-800">
+              <Receipt className="w-5 h-5 text-primary-600" />
+              سجل إيصالات السداد التفصيلي
+            </CardTitle>
+            {payments.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+                {uniqueGroups.length > 0 && (
+                  <select
+                    aria-label="تصفية حسب المجموعة"
+                    value={selectedGroupId}
+                    onChange={(e) => { setSelectedGroupId(e.target.value); setCurrentPage(1); }}
+                    className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 focus:border-primary-500 focus:outline-none"
+                  >
+                    <option value="">جميع المجموعات</option>
+                    {uniqueGroups.map(({ id, name }) => (
+                      <option key={id} value={id}>{name}</option>
+                    ))}
+                  </select>
+                )}
+                <select
+                  aria-label="تصفية حسب حالة الدفع"
+                  value={selectedStatus}
+                  onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
+                  className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 focus:border-primary-500 focus:outline-none"
+                >
+                  <option value="">جميع الحالات</option>
+                  <option value="PAID">مدفوع</option>
+                  <option value="PENDING">قيد الانتظار</option>
+                  <option value="OVERDUE">متأخر</option>
+                  <option value="EXEMPT">معفى</option>
+                </select>
+                {(selectedGroupId || selectedStatus) && (
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedGroupId(''); setSelectedStatus(''); setCurrentPage(1); }}
+                    className="h-8 px-2 rounded-lg text-xs font-medium text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors"
+                  >
+                    إلغاء الفلتر
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="p-0">
-          {payments.length === 0 ? (
+          {filteredPayments.length === 0 ? (
             <div className="text-center py-16 px-4">
               <Receipt className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <p className="text-slate-500 font-medium">لا توجد دفعات أو اشتراكات مسجلة بعد.</p>
-              <p className="text-xs text-slate-400 mt-1">عند تسجيل السكرتارية أو المدرس لأي دفعة مالية، ستظهر التفاصيل هنا.</p>
+              <p className="text-slate-500 font-medium">{payments.length === 0 ? 'لا توجد دفعات أو اشتراكات مسجلة بعد.' : 'لا توجد نتائج تطابق الفلتر المحدد.'}</p>
+              <p className="text-xs text-slate-400 mt-1">{payments.length === 0 ? 'عند تسجيل السكرتارية أو المدرس لأي دفعة مالية، ستظهر التفاصيل هنا.' : 'جرّب تغيير خيارات الفلتر لعرض المزيد من النتائج.'}</p>
             </div>
           ) : (
             <>
@@ -271,7 +331,7 @@ export default function StudentPaymentsPage() {
                   <Pagination
                     currentPage={currentPage}
                     totalPages={totalPages}
-                    totalItems={payments.length}
+                    totalItems={filteredPayments.length}
                     pageSize={PAGE_SIZE}
                     onPageChange={setCurrentPage}
                     itemLabel="إيصال"

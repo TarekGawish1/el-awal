@@ -489,7 +489,7 @@ export class OfflineSyncEngine {
     } = {},
   ): Promise<string> {
     // ENFORCE STRICT OFFLINE BUSINESS BOUNDARY
-    const allowedDomains = ['attendance', 'finance', 'progress'];
+    const allowedDomains = ['attendance', 'finance', 'progress', 'students', 'groups', 'assessments', 'generic'];
     if (!allowedDomains.includes(domain)) {
       throw new Error(`العمليات على (${domain}) غير مدعومة في وضع عدم الاتصال. يرجى الاتصال بالإنترنت.`);
     }

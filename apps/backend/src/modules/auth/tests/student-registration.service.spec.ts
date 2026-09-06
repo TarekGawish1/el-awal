@@ -5,6 +5,7 @@ import { AuthService } from '../services/auth.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import { UserRole } from '@prisma/client';
+import { NotificationsService } from '../../notifications/services/notifications.service';
 
 describe('StudentRegistrationService', () => {
   let service: StudentRegistrationService;
@@ -121,6 +122,10 @@ describe('StudentRegistrationService', () => {
         StudentRegistrationService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: AuthService, useValue: mockAuthService },
+        {
+          provide: NotificationsService,
+          useValue: { sendNotification: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 

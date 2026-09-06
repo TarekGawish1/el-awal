@@ -569,9 +569,11 @@ model Course {
   academicTerm  String?      @default("FIRST_TERM") @map("academic_term") @db.VarChar(30)
   price         Decimal      @default(0.00) @map("price") @db.Decimal(10, 2)
   coverImageUrl String?      @map("cover_image_url") @db.Text
+  previewVideoUrl String?    @map("preview_video_url") @db.Text
   status        CourseStatus @default(DRAFT) @map("status")
   orderIndex                  Int          @default(0) @map("order_index")
   enforceSequentialLessons    Boolean      @default(false) @map("enforce_sequential_lessons")
+  requireExamPassingToUnlock  Boolean      @default(false) @map("require_exam_passing_to_unlock")
   hasCertificate               Boolean      @default(true) @map("has_certificate")
   courseQuizId  String?      @unique(map: "uq_course_quiz") @map("course_quiz_id") @db.Uuid
   createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -848,6 +850,8 @@ model Assessment {
   isAutoGraded    Boolean        @default(false) @map("is_auto_graded")
   isPublished     Boolean        @default(true) @map("is_published")
   allowMultipleAttempts Boolean  @default(false) @map("allow_multiple_attempts")
+  isOptional            Boolean  @default(false) @map("is_optional")
+  requirePassingScore   Boolean  @default(false) @map("require_passing_score")
   homeworkDeliveryType HomeworkDeliveryType @default(ONSITE) @map("homework_delivery_type")
   timingType      ExamTimingType? @default(FIXED_SESSION) @map("timing_type")
   startTime       DateTime?      @map("start_time") @db.Timestamptz(6)
@@ -886,6 +890,7 @@ model AssessmentQuestion {
   questionText   String       @map("question_text") @db.Text
   questionType   QuestionType @map("question_type")
   optionsData    Json?        @map("options_data")
+  optionImages   Json?        @map("option_images")
   correctAnswer  String       @map("correct_answer") @db.Text
   explanation    String?      @map("explanation") @db.Text
   imageUrl       String?      @map("image_url") @db.Text
