@@ -17,6 +17,10 @@ import { Label } from '@/components/ui/Label';
 import toast from 'react-hot-toast';
 import { formatBookletMismatchMessage, isBookletEligibleForStudent } from '../utils/bookletEligibility';
 import { matchesSearch } from '@/lib/utils/search';
+import {
+  calculateProratedTuition,
+  isEnrolledInPeriod,
+} from '../utils/proration.util';
 
 const paymentSchema = z.object({
   studentId: z.string().min(1, 'يجب اختيار الطالب'),
@@ -136,14 +140,19 @@ export function RecordPaymentModal({
         isPaid: boolean;
         isPartiallyPaid: boolean;
         studentCode?: string;
+        calculationReason?: string;
+        rateMultiplier?: number;
       }
     >();
 
     defaulters.forEach((d) => {
       const amountPaid = d.amountPaid || 0;
-      const fee = d.monthlyFeeExpected || groupFee;
+      const fee = d.monthlyFeeExpected !== undefined ? d.monthlyFeeExpected : groupFee;
       const remainingAmount = d.remainingAmount ?? Math.max(0, fee - amountPaid);
       const isPartiallyPaid = Boolean(d.isPartiallyPaid || amountPaid > 0);
+      const calculationReason = (d as any).calculationReason || (fee < groupFee ? (fee === 0 ? 'معفى من اشتراك الشهر الحالي' : 'نصف شهر (انضمام منتصف الشهر)') : undefined);
+      const rateMultiplier = (d as any).rateMultiplier ?? (fee === 0 ? 0 : fee < groupFee ? 0.5 : 1.0);
+
       map.set(d.studentId, {
         id: d.studentId,
         name: d.fullName,
@@ -153,20 +162,36 @@ export function RecordPaymentModal({
         isPaid: false,
         isPartiallyPaid,
         studentCode: d.studentCode || undefined,
+        calculationReason,
+        rateMultiplier,
       });
     });
 
     groupEnrollments.forEach((e) => {
       if (e.student?.id && !map.has(e.student.id)) {
+        const enrollmentDate = e.enrolledAt ? new Date(e.enrolledAt) : null;
+        let fee = groupFee;
+        let calculationReason: string | undefined = undefined;
+        let rateMultiplier = 1.0;
+
+        if (enrollmentDate && isEnrolledInPeriod(enrollmentDate, currentPeriodYear, currentPeriodMonth)) {
+          const proration = calculateProratedTuition(groupFee, enrollmentDate);
+          fee = proration.expectedAmount;
+          calculationReason = proration.calculationReason;
+          rateMultiplier = proration.rateMultiplier;
+        }
+
         map.set(e.student.id, {
           id: e.student.id,
           name: e.student.user?.name || 'طالب',
-          fee: groupFee,
-          amountPaid: groupFee,
+          fee,
+          amountPaid: fee,
           remainingAmount: 0,
           isPaid: true,
           isPartiallyPaid: false,
           studentCode: e.student.code,
+          calculationReason,
+          rateMultiplier,
         });
       }
     });
@@ -183,13 +208,14 @@ export function RecordPaymentModal({
             isPaid: false,
             isPartiallyPaid: false,
             studentCode: s.studentCode,
+            rateMultiplier: 1.0,
           });
         }
       });
     }
 
     return Array.from(map.values());
-  }, [defaulters, groupEnrollments, selectedGroupId, allStudents, groupFee]);
+  }, [defaulters, groupEnrollments, selectedGroupId, allStudents, groupFee, currentPeriodYear, currentPeriodMonth]);
 
   const filteredStudents = useMemo(() => {
     return availableStudents.filter((s) => {
@@ -424,7 +450,7 @@ export function RecordPaymentModal({
         ? booklet
           ? Number(booklet.price)
           : data.amountPaid
-        : student?.fee || groupFee || data.amountPaid;
+        : (student?.fee !== undefined ? student.fee : (groupFee || data.amountPaid));
 
     const studentPrevPaid = paymentType === 'TUITION' ? (student?.amountPaid || 0) : 0;
     const currentInstallment = Number(data.amountPaid || 0);
@@ -675,8 +701,12 @@ export function RecordPaymentModal({
                     <option key={s.id} value={s.id}>
                       {s.name} {s.studentCode ? `[${s.studentCode}]` : ''}
                       {paymentType === 'TUITION' && (
-                        s.isPaid
-                          ? ` — (مسدد بالفعل — ${s.fee} ج.م)`
+                        s.rateMultiplier === 0
+                          ? ' — (معفى من اشتراك الشهر الحالي — انضمام بعد يوم 20)'
+                          : s.rateMultiplier === 0.5
+                          ? ` — (نصف شهر — المطلوب: ${s.fee} ج.م)`
+                          : s.isPaid
+                          ? ' — (مسدد بالفعل)'
                           : s.isPartiallyPaid
                           ? ` — (سداد جزئي: مدفوع ${s.amountPaid} ج.م • متبقي ${s.remainingAmount} ج.م)`
                           : ` — (غير مسدد — المطلوب: ${s.fee} ج.م)`
@@ -698,10 +728,29 @@ export function RecordPaymentModal({
                 </p>
               )}
 
-              {paymentType === 'BOOKLET' && isBookletAlreadyPaid && (
-                <div className="mt-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs font-bold text-emerald-800 animate-in fade-in">
-                  <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>هذا الطالب قام بسداد واستلام هذه المذكرة مسبقاً بالكامل! (تم منع تكرار الدفع).</span>
+              {paymentType === 'TUITION' && selectedStudent && selectedStudent.rateMultiplier !== undefined && selectedStudent.rateMultiplier < 1.0 && (
+                <div className={`mt-2 p-3 rounded-xl border flex items-start gap-2.5 text-xs font-bold animate-in fade-in ${
+                  selectedStudent.rateMultiplier === 0
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-amber-50 border-amber-200 text-amber-900'
+                }`}>
+                  <AlertCircle className={`w-4 h-4 shrink-0 mt-0.5 ${
+                    selectedStudent.rateMultiplier === 0 ? 'text-emerald-600' : 'text-amber-600'
+                  }`} />
+                  <div>
+                    <div className="font-extrabold">
+                      {selectedStudent.rateMultiplier === 0
+                        ? 'إعفاء من اشتراك الشهر الحالي (طالب جديد)'
+                        : 'اشتراك نصف شهر (انضمام منتصف الشهر)'}
+                    </div>
+                    <p className="text-[11px] font-medium mt-0.5 opacity-90">
+                      {selectedStudent.calculationReason || (
+                        selectedStudent.rateMultiplier === 0
+                          ? 'التحق الطالب بعد يوم 20 في الشهر، لذلك يعفى من اشتراك الشهر الحالي وتكون الرسوم 0 ج.م.'
+                          : `التحق الطالب بين يوم 10 و 20 في الشهر، لذلك يُحسب 50% فقط (${selectedStudent.fee} ج.م بدلاً من ${groupFee} ج.م).`
+                      )}
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
@@ -759,17 +808,30 @@ export function RecordPaymentModal({
                         <button
                           type="button"
                           onClick={() => setValue('amountPaid', currentExpectedAmount)}
-                          className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
+                          className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-lg transition-colors cursor-pointer border border-emerald-200"
                         >
-                          سداد كامل ({currentExpectedAmount} ج.م)
+                          {selectedStudent?.rateMultiplier === 0.5
+                            ? `سداد نصف الشهر (${currentExpectedAmount} ج.م)`
+                            : `سداد كامل (${currentExpectedAmount} ج.م)`}
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setValue('amountPaid', Math.round(currentExpectedAmount / 2))}
-                          className="text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
-                        >
-                          سداد النصف ({Math.round(currentExpectedAmount / 2)} ج.م)
-                        </button>
+                        {selectedStudent?.rateMultiplier !== 0.5 && currentExpectedAmount > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setValue('amountPaid', Math.round(currentExpectedAmount / 2))}
+                            className="text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-lg transition-colors cursor-pointer border border-amber-200"
+                          >
+                            سداد النصف ({Math.round(currentExpectedAmount / 2)} ج.م)
+                          </button>
+                        )}
+                        {selectedStudent?.rateMultiplier === 0.5 && groupFee > currentExpectedAmount && (
+                          <button
+                            type="button"
+                            onClick={() => setValue('amountPaid', groupFee)}
+                            className="text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer border border-slate-300"
+                          >
+                            سداد شهر كامل ({groupFee} ج.م)
+                          </button>
+                        )}
                       </>
                     )}
                   </div>
