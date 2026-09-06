@@ -14,7 +14,7 @@ import {
   XCircle,
   ClipboardCheck,
   UserCheck,
-  Sparkles,
+  RotateCcw,
   Volume2,
   VolumeX,
 } from 'lucide-react';
@@ -449,14 +449,151 @@ export function QrHomeworkScanner({
     }
   };
 
+  const handleRemoveHomework = async (student: any) => {
+    const studentId = student.studentId || student.id;
+    const studentName = student.fullName || student.studentName || 'طالب';
+
+    try {
+      await offlineDb.deleteHomeworkForSessionStudent(sessionId, studentId);
+
+      if (syncEngine.isOnline()) {
+        try {
+          await apiClient(`/attendance/sessions/${sessionId}/homework/${studentId}`, {
+            method: 'DELETE',
+          });
+        } catch (e) {
+          console.warn('Failed to delete homework online:', e);
+        }
+      } else {
+        await syncEngine.enqueue(
+          'attendance',
+          `/attendance/sessions/${sessionId}/homework/${studentId}`,
+          'DELETE',
+          { sessionId, studentId },
+        );
+      }
+
+      setLocalHomeworkRecords((prev) => prev.filter((r) => r.studentId !== studentId));
+      setCheckedCount((c) => Math.max(0, c - 1));
+      queryClient.invalidateQueries({ queryKey: ['session-report', sessionId] });
+      queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'report'] });
+      toast.success(`تم إلغاء تقييم الواجب: ${studentName}`);
+    } catch (err) {
+      console.error('Failed to remove homework:', err);
+      toast.error('حدث خطأ أثناء إلغاء الواجب');
+    }
+  };
+
+  const handleToggleAbsence = async (student: any) => {
+    const studentId = student.studentId || student.id;
+    const studentName = student.fullName || student.studentName || 'طالب';
+    const studentCode = student.studentCode || '';
+    const isCurrentlyAbsent = student.status === 'ABSENT';
+
+    try {
+      if (isCurrentlyAbsent) {
+        // Undo absence: revert attendance record AND remove homework
+        await offlineDb.revertAttendanceRecordOffline(sessionId, studentId);
+        await offlineDb.deleteHomeworkForSessionStudent(sessionId, studentId);
+        setLocalHomeworkRecords((prev) => prev.filter((r) => r.studentId !== studentId));
+
+        if (syncEngine.isOnline()) {
+          try {
+            await apiClient(`/attendance/sessions/${sessionId}/records/${studentId}`, {
+              method: 'DELETE',
+            });
+            await apiClient(`/attendance/sessions/${sessionId}/homework/${studentId}`, {
+              method: 'DELETE',
+            });
+          } catch (e) {
+            console.warn('Failed to delete attendance/homework online:', e);
+          }
+        } else {
+          await syncEngine.enqueue(
+            'attendance',
+            `/attendance/sessions/${sessionId}/records/${studentId}`,
+            'DELETE',
+            { sessionId, studentId },
+          );
+          await syncEngine.enqueue(
+            'attendance',
+            `/attendance/sessions/${sessionId}/homework/${studentId}`,
+            'DELETE',
+            { sessionId, studentId },
+          );
+        }
+        toast.success(`تم إلغاء غياب الطالب: ${studentName}`);
+      } else {
+        // Mark ABSENT: record absence AND delete homework
+        await offlineDb.recordAttendanceOffline(sessionId, {
+          studentId,
+          status: 'ABSENT',
+          recordingMethod: 'MANUAL',
+          studentName,
+          studentCode,
+        });
+        await offlineDb.deleteHomeworkForSessionStudent(sessionId, studentId);
+        setLocalHomeworkRecords((prev) => prev.filter((r) => r.studentId !== studentId));
+
+        if (syncEngine.isOnline()) {
+          try {
+            await apiClient(`/attendance/sessions/${sessionId}/records`, {
+              method: 'POST',
+              body: JSON.stringify({
+                records: [{ studentId, status: 'ABSENT', notes: 'تسجيل غياب يدوي' }],
+              }),
+            });
+            await apiClient(`/attendance/sessions/${sessionId}/homework/${studentId}`, {
+              method: 'DELETE',
+            });
+          } catch (e) {
+            console.warn('Failed to record absence online:', e);
+          }
+        } else {
+          await syncEngine.enqueue(
+            'attendance',
+            `/attendance/sessions/${sessionId}/records`,
+            'POST',
+            {
+              sessionId,
+              records: [{ studentId, status: 'ABSENT', notes: 'تسجيل غياب يدوي' }],
+            },
+          );
+          await syncEngine.enqueue(
+            'attendance',
+            `/attendance/sessions/${sessionId}/homework/${studentId}`,
+            'DELETE',
+            { sessionId, studentId },
+          );
+        }
+        toast.success(`تم تسجيل غياب الطالب وحذف الواجب: ${studentName}`);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['session-report', sessionId] });
+      queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'report'] });
+    } catch (err) {
+      console.error('Failed to toggle absence:', err);
+      toast.error('حدث خطأ أثناء تعديل الغياب');
+    }
+  };
+
   const handleManualRecord = async (student: any, status: 'CHECKED_ONSITE' | 'NOT_SUBMITTED' | 'INCOMPLETE' | 'EXCUSED') => {
     try {
+      const studentId = student.studentId || student.id;
       const studentName = student.fullName || student.studentName || 'طالب';
       const studentCode = student.studentCode || '';
 
+      const currentRecord = localHomeworkRecords.find((r) => r.studentId === studentId);
+
+      // If clicked status is already active, toggle off and remove homework!
+      if (currentRecord?.status === status) {
+        await handleRemoveHomework(student);
+        return;
+      }
+
       await offlineDb.recordHomeworkOnsiteOffline({
         assessmentId: activeAssessmentId,
-        studentId: student.studentId || student.id,
+        studentId,
         sessionId,
         status,
         recordedMethod: 'MANUAL',
@@ -469,15 +606,18 @@ export function QrHomeworkScanner({
 
       setLocalHomeworkRecords((prev) => {
         const newRecords = [...prev];
-        const existingIdx = newRecords.findIndex((r) => r.studentId === (student.studentId || student.id));
+        const existingIdx = newRecords.findIndex((r) => r.studentId === studentId);
         if (existingIdx !== -1) {
           newRecords[existingIdx].status = status;
         } else {
-          newRecords.push({ studentId: student.studentId || student.id, status });
+          newRecords.push({ studentId, status });
           setCheckedCount((c) => c + 1);
         }
         return newRecords;
       });
+
+      queryClient.invalidateQueries({ queryKey: ['session-report', sessionId] });
+      queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'report'] });
 
     } catch (err: any) {
       toast.error('حدث خطأ أثناء رصد الواجب يدوياً');
@@ -728,12 +868,27 @@ export function QrHomeworkScanner({
                       </div>
 
                       <div className="flex items-center gap-1 rtl:sm:mr-auto">
+                        {status && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveHomework(student)}
+                            className="h-8 w-8 p-0 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                            title="إلغاء تقييم الواجب (تراجع)"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleManualRecord(student, 'CHECKED_ONSITE')}
-                          className={`h-8 w-8 p-0 rounded-lg ${status === 'CHECKED_ONSITE' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'text-emerald-600 hover:bg-emerald-50'}`}
-                          title="حل الواجب"
+                          className={`h-8 w-8 p-0 rounded-lg font-bold transition-all ${
+                            status === 'CHECKED_ONSITE'
+                              ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 ring-2 ring-emerald-500/30'
+                              : 'text-emerald-600 hover:bg-emerald-50'
+                          }`}
+                          title={status === 'CHECKED_ONSITE' ? 'إلغاء التحديد (تراجع)' : 'حل الواجب'}
                         >
                           ✓
                         </Button>
@@ -741,8 +896,12 @@ export function QrHomeworkScanner({
                           variant="ghost"
                           size="sm"
                           onClick={() => handleManualRecord(student, 'NOT_SUBMITTED')}
-                          className={`h-8 w-8 p-0 rounded-lg ${status === 'NOT_SUBMITTED' ? 'bg-rose-100 text-rose-700 hover:bg-rose-200' : 'text-rose-600 hover:bg-rose-50'}`}
-                          title="لم يحل"
+                          className={`h-8 w-8 p-0 rounded-lg font-bold transition-all ${
+                            status === 'NOT_SUBMITTED'
+                              ? 'bg-rose-100 text-rose-700 hover:bg-rose-200 ring-2 ring-rose-500/30'
+                              : 'text-rose-600 hover:bg-rose-50'
+                          }`}
+                          title={status === 'NOT_SUBMITTED' ? 'إلغاء التحديد (تراجع)' : 'لم يحل'}
                         >
                           ✗
                         </Button>
@@ -750,8 +909,12 @@ export function QrHomeworkScanner({
                           variant="ghost"
                           size="sm"
                           onClick={() => handleManualRecord(student, 'INCOMPLETE')}
-                          className={`h-8 w-8 p-0 rounded-lg ${status === 'INCOMPLETE' ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'text-amber-600 hover:bg-amber-50'}`}
-                          title="ناقص"
+                          className={`h-8 w-8 p-0 rounded-lg font-bold transition-all ${
+                            status === 'INCOMPLETE'
+                              ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 ring-2 ring-amber-500/30'
+                              : 'text-amber-600 hover:bg-amber-50'
+                          }`}
+                          title={status === 'INCOMPLETE' ? 'إلغاء التحديد (تراجع)' : 'ناقص'}
                         >
                           !
                         </Button>
@@ -759,10 +922,27 @@ export function QrHomeworkScanner({
                           variant="ghost"
                           size="sm"
                           onClick={() => handleManualRecord(student, 'EXCUSED')}
-                          className={`h-8 w-8 p-0 rounded-lg ${status === 'EXCUSED' ? 'bg-slate-200 text-slate-700 hover:bg-slate-300' : 'text-slate-500 hover:bg-slate-100'}`}
-                          title="بعذر"
+                          className={`h-8 w-8 p-0 rounded-lg font-bold transition-all ${
+                            status === 'EXCUSED'
+                              ? 'bg-slate-200 text-slate-700 hover:bg-slate-300 ring-2 ring-slate-400/40'
+                              : 'text-slate-500 hover:bg-slate-100'
+                          }`}
+                          title={status === 'EXCUSED' ? 'إلغاء التحديد (تراجع)' : 'بعذر'}
                         >
                           -
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleToggleAbsence(student)}
+                          className={`h-8 w-8 p-0 rounded-lg font-bold transition-all ${
+                            isAbsent
+                              ? 'bg-rose-600 text-white hover:bg-rose-700 ring-2 ring-rose-600/30'
+                              : 'text-slate-400 hover:bg-rose-50 hover:text-rose-600'
+                          }`}
+                          title={isAbsent ? 'إلغاء تسجيل الغياب (تراجع)' : 'تسجيل غائب وحذف الواجب'}
+                        >
+                          غ
                         </Button>
                       </div>
                     </div>

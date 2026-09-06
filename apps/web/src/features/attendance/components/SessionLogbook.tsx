@@ -125,13 +125,20 @@ export function SessionLogbook({ sessionId }: SessionLogbookProps) {
     if (!newStatus) {
       // Revert/unrecord attendance selection
       await offlineDb.revertAttendanceRecordOffline(sessionId, student.studentId);
+      // Remove homework for this student when undoing attendance/absence
+      await offlineDb.deleteHomeworkForSessionStudent(sessionId, student.studentId);
+      setHomeworkRecords((prev) => prev.filter((r) => r.studentId !== student.studentId));
+
       if (syncEngine.isOnline()) {
         try {
           await apiClient(`/attendance/sessions/${sessionId}/records/${student.studentId}`, {
             method: 'DELETE',
           });
+          await apiClient(`/attendance/sessions/${sessionId}/homework/${student.studentId}`, {
+            method: 'DELETE',
+          });
         } catch (e) {
-          console.warn('Failed to delete attendance record online:', e);
+          console.warn('Failed to delete attendance/homework record online:', e);
         }
       } else {
         await syncEngine.enqueue(
@@ -140,16 +147,39 @@ export function SessionLogbook({ sessionId }: SessionLogbookProps) {
           'DELETE',
           { sessionId, studentId: student.studentId },
         );
+        await syncEngine.enqueue(
+          'attendance',
+          `/attendance/sessions/${sessionId}/homework/${student.studentId}`,
+          'DELETE',
+          { sessionId, studentId: student.studentId },
+        );
       }
       queryClient.invalidateQueries({ queryKey: ['session-report', sessionId] });
       queryClient.invalidateQueries({ queryKey: ['session-details', sessionId] });
-      toast.success(`تم إلغاء تسجيل حضور: ${student.fullName || student.studentName}`);
+      queryClient.invalidateQueries({ queryKey: ['homework-records', sessionId] });
+      toast.success(`تم إلغاء تسجيل الحضور والواجب: ${student.fullName || student.studentName}`);
       return;
     }
 
     if (newStatus === 'ABSENT') {
-      offlineDb.deleteHomeworkForSessionStudent(sessionId, student.studentId).catch(() => {});
+      await offlineDb.deleteHomeworkForSessionStudent(sessionId, student.studentId).catch(() => {});
       setHomeworkRecords((prev) => prev.filter((r) => r.studentId !== student.studentId));
+      if (syncEngine.isOnline()) {
+        try {
+          await apiClient(`/attendance/sessions/${sessionId}/homework/${student.studentId}`, {
+            method: 'DELETE',
+          });
+        } catch (e) {
+          console.warn('Failed to delete homework online on absence:', e);
+        }
+      } else {
+        await syncEngine.enqueue(
+          'attendance',
+          `/attendance/sessions/${sessionId}/homework/${student.studentId}`,
+          'DELETE',
+          { sessionId, studentId: student.studentId },
+        );
+      }
     }
 
     updateAttendance({

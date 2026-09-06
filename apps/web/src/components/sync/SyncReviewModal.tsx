@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from "react";
 import {
   UploadCloud,
   DownloadCloud,
@@ -16,15 +16,15 @@ import {
   ShieldCheck,
   Zap,
   Trash2,
-} from 'lucide-react';
-import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
+} from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 import {
   syncEngine,
   OutboxSummary,
   IncomingDiffSummary,
-} from '@/lib/offline/sync-engine';
-import { offlineDb } from '@/lib/offline/db';
+} from "@/lib/offline/sync-engine";
+import { offlineDb } from "@/lib/offline/db";
 
 interface SyncReviewModalProps {
   isOpen: boolean;
@@ -32,8 +32,14 @@ interface SyncReviewModalProps {
   onSuccess?: () => void;
 }
 
-export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalProps) {
-  const [activeTab, setActiveTab] = useState<'outgoing' | 'incoming'>('outgoing');
+export function SyncReviewModal({
+  isOpen,
+  onClose,
+  onSuccess,
+}: SyncReviewModalProps) {
+  const [activeTab, setActiveTab] = useState<"outgoing" | "incoming">(
+    "outgoing",
+  );
   const [outboxSummary, setOutboxSummary] = useState<OutboxSummary>({
     students: [],
     groups: [],
@@ -52,7 +58,7 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
   const [isExecuting, setIsExecuting] = useState(false);
   const [isDiscarding, setIsDiscarding] = useState(false);
   const [syncProgress, setSyncProgress] = useState(0);
-  const [syncStageText, setSyncStageText] = useState('');
+  const [syncStageText, setSyncStageText] = useState("");
   const [isComplete, setIsComplete] = useState(false);
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(true);
 
@@ -67,7 +73,7 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
         const diff = await syncEngine.getSyncDiff();
         setIncomingDiff(diff);
       } catch (err) {
-        console.warn('Failed to load sync diff:', err);
+        console.warn("Failed to load sync diff:", err);
       } finally {
         setIsLoadingDiff(false);
       }
@@ -78,7 +84,7 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
     if (isOpen) {
       setIsComplete(false);
       setSyncProgress(0);
-      setSyncStageText('');
+      setSyncStageText("");
       loadData();
     }
   }, [isOpen, loadData]);
@@ -87,11 +93,11 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
     if (!isOpen) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === "Escape") onClose();
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
   const handleToggleAutoSync = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -101,7 +107,11 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
   };
 
   const handleDiscardStuckOperations = async () => {
-    if (!window.confirm('هل أنت متأكد من مسح وتفريغ العمليات المحلية العالقة؟ لن يتم إرسالها إلى الخادم.')) {
+    if (
+      !window.confirm(
+        "هل أنت متأكد من مسح وتفريغ العمليات المحلية العالقة؟ لن يتم إرسالها إلى الخادم.",
+      )
+    ) {
       return;
     }
     setIsDiscarding(true);
@@ -113,7 +123,7 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
       await syncEngine.discardAllLocalChanges();
       await loadData();
     } catch (err) {
-      console.error('Failed to discard stuck operations:', err);
+      console.error("Failed to discard stuck operations:", err);
     } finally {
       setIsDiscarding(false);
     }
@@ -122,7 +132,7 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
   const handleExecuteSync = async () => {
     setIsExecuting(true);
     setSyncProgress(10);
-    setSyncStageText('جاري تجهيز الاتصال...');
+    setSyncStageText("جاري تجهيز الاتصال...");
 
     try {
       await syncEngine.resetFailedMutations();
@@ -132,14 +142,16 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
       });
       setIsComplete(true);
       setSyncProgress(100);
-      setSyncStageText('تمت المزامنة بنجاح!');
+      setSyncStageText("تمت المزامنة بنجاح!");
       await loadData();
       setTimeout(() => {
         onSuccess?.();
         onClose();
       }, 700);
     } catch (err: any) {
-      setSyncStageText(`حدث خطأ أثناء المزامنة: ${err?.message || 'يرجى المحاولة لاحقاً'}`);
+      setSyncStageText(
+        `حدث خطأ أثناء المزامنة: ${err?.message || "يرجى المحاولة لاحقاً"}`,
+      );
     } finally {
       setIsExecuting(false);
     }
@@ -169,10 +181,17 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
         <div className="p-5 sm:p-6 bg-gradient-to-r from-primary-900 via-primary-800 to-primary-900 text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-primary-200 shadow-inner">
-              <RefreshCw className={`w-5 h-5 ${isExecuting ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`w-5 h-5 ${isExecuting ? "animate-spin" : ""}`}
+              />
             </div>
             <div>
-              <h3 id="sync-review-modal-title" className="text-lg font-black tracking-tight">مراجعة المزامنة السحابية</h3>
+              <h3
+                id="sync-review-modal-title"
+                className="text-lg font-black tracking-tight"
+              >
+                مراجعة المزامنة السحابية
+              </h3>
               <p className="text-xs text-primary-200 font-medium">
                 مطابقة البيانات ثنائية الاتجاه بين جهازك والخادم السحابي
               </p>
@@ -207,18 +226,20 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
         {isComplete && (
           <div className="bg-emerald-50 border-b border-emerald-200 p-4 flex items-center gap-3 text-emerald-800 text-sm font-bold">
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-            <span>اكتملت المزامنة بنجاح! تم تحديث جميع السجلات والتخزين المحلي.</span>
+            <span>
+              اكتملت المزامنة بنجاح! تم تحديث جميع السجلات والتخزين المحلي.
+            </span>
           </div>
         )}
 
         {/* Navigation Tabs */}
         <div className="flex border-b border-slate-200 bg-slate-50/75 px-6 pt-3">
           <button
-            onClick={() => setActiveTab('outgoing')}
+            onClick={() => setActiveTab("outgoing")}
             className={`flex items-center gap-2 pb-3 px-4 text-xs sm:text-sm font-bold border-b-2 transition-colors cursor-pointer ${
-              activeTab === 'outgoing'
-                ? 'border-primary-600 text-primary-700'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
+              activeTab === "outgoing"
+                ? "border-primary-600 text-primary-700"
+                : "border-transparent text-slate-500 hover:text-slate-800"
             }`}
           >
             <UploadCloud className="w-4 h-4" />
@@ -231,22 +252,24 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
           </button>
 
           <button
-            onClick={() => setActiveTab('incoming')}
+            onClick={() => setActiveTab("incoming")}
             className={`flex items-center gap-2 pb-3 px-4 text-xs sm:text-sm font-bold border-b-2 transition-colors cursor-pointer ${
-              activeTab === 'incoming'
-                ? 'border-primary-600 text-primary-700'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
+              activeTab === "incoming"
+                ? "border-primary-600 text-primary-700"
+                : "border-transparent text-slate-500 hover:text-slate-800"
             }`}
           >
             <DownloadCloud className="w-4 h-4" />
             <span>بيانات للتحميل ({totalIncomingCount})</span>
-            {isLoadingDiff && <RefreshCw className="w-3 h-3 animate-spin text-slate-400" />}
+            {isLoadingDiff && (
+              <RefreshCw className="w-3 h-3 animate-spin text-slate-400" />
+            )}
           </button>
         </div>
 
         {/* Tab Content Body */}
         <div className="p-6 overflow-y-auto flex-1 space-y-4 text-sm">
-          {activeTab === 'outgoing' ? (
+          {activeTab === "outgoing" ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-slate-700 text-xs">
@@ -260,7 +283,9 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
               {outboxSummary.totalCount === 0 ? (
                 <div className="text-center py-10 bg-slate-50 rounded-2xl border border-slate-150 text-slate-500 space-y-2">
                   <ShieldCheck className="w-10 h-10 text-emerald-500 mx-auto" />
-                  <p className="font-bold text-slate-700">لا توجد عمليات محلية معلقة</p>
+                  <p className="font-bold text-slate-700">
+                    لا توجد عمليات محلية معلقة
+                  </p>
                   <p className="text-xs text-slate-400">
                     تم رفع ومزامنة جميع تسجيلاتك المحلية السابقة بنجاح.
                   </p>
@@ -272,17 +297,26 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
                     <div className="bg-slate-50 rounded-2xl p-4 border border-slate-150 space-y-2">
                       <div className="flex items-center gap-2 text-primary-700 font-bold text-xs">
                         <GraduationCap className="w-4 h-4" />
-                        <span>طلاب جدد تم تسجيلهم ({outboxSummary.students.length}):</span>
+                        <span>
+                          طلاب جدد تم تسجيلهم ({outboxSummary.students.length}):
+                        </span>
                       </div>
                       <div className="divide-y divide-slate-200">
                         {outboxSummary.students.map((s) => (
-                          <div key={s.id} className="py-2 flex justify-between items-center text-xs">
+                          <div
+                            key={s.id}
+                            className="py-2 flex justify-between items-center text-xs"
+                          >
                             <div>
-                              <span className="font-bold text-slate-800">{s.fullName}</span>
-                              <span className="text-slate-400 ms-2">{s.phone}</span>
+                              <span className="font-bold text-slate-800">
+                                {s.fullName}
+                              </span>
+                              <span className="text-slate-400 ms-2">
+                                {s.phone}
+                              </span>
                             </div>
                             <Badge variant="outline" className="text-[10px]">
-                              {s.groupName || 'بدون مجموعة'}
+                              {s.groupName || "بدون مجموعة"}
                             </Badge>
                           </div>
                         ))}
@@ -295,12 +329,20 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
                     <div className="bg-slate-50 rounded-2xl p-4 border border-slate-150 space-y-2">
                       <div className="flex items-center gap-2 text-emerald-700 font-bold text-xs">
                         <Users className="w-4 h-4" />
-                        <span>مجموعات جديدة تم إنشاؤها ({outboxSummary.groups.length}):</span>
+                        <span>
+                          مجموعات جديدة تم إنشاؤها (
+                          {outboxSummary.groups.length}):
+                        </span>
                       </div>
                       <div className="divide-y divide-slate-200">
                         {outboxSummary.groups.map((g) => (
-                          <div key={g.id} className="py-2 flex justify-between items-center text-xs">
-                            <span className="font-bold text-slate-800">{g.name}</span>
+                          <div
+                            key={g.id}
+                            className="py-2 flex justify-between items-center text-xs"
+                          >
+                            <span className="font-bold text-slate-800">
+                              {g.name}
+                            </span>
                             <span className="text-slate-500 font-mono">
                               {g.monthlyFee} ج.م / شهر
                             </span>
@@ -315,7 +357,9 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
                     <div className="p-3 bg-slate-50 border border-slate-150 rounded-xl flex items-center gap-2.5">
                       <QrCode className="w-4 h-4 text-purple-600" />
                       <div>
-                        <span className="text-xs text-slate-500 block">حضور QR مسجل:</span>
+                        <span className="text-xs text-slate-500 block">
+                          حضور QR مسجل:
+                        </span>
                         <span className="font-bold text-slate-800 text-sm">
                           {outboxSummary.attendanceCount} تسجيل
                         </span>
@@ -325,7 +369,9 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
                     <div className="p-3 bg-slate-50 border border-slate-150 rounded-xl flex items-center gap-2.5">
                       <DollarSign className="w-4 h-4 text-emerald-600" />
                       <div>
-                        <span className="text-xs text-slate-500 block">مدفوعات واشتراكات:</span>
+                        <span className="text-xs text-slate-500 block">
+                          مدفوعات واشتراكات:
+                        </span>
                         <span className="font-bold text-slate-800 text-sm">
                           {outboxSummary.paymentsCount} عملية
                         </span>
@@ -349,9 +395,12 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
               {totalIncomingCount === 0 ? (
                 <div className="text-center py-10 bg-slate-50 rounded-2xl border border-slate-150 text-slate-500 space-y-2">
                   <CheckCircle2 className="w-10 h-10 text-primary-500 mx-auto" />
-                  <p className="font-bold text-slate-700">بياناتك السحابية مطابقة تماماً</p>
+                  <p className="font-bold text-slate-700">
+                    بياناتك السحابية مطابقة تماماً
+                  </p>
                   <p className="text-xs text-slate-400">
-                    لم يتم تسجيل أي تعديلات خارجية جديدة على الخادم منذ آخر مزامنة.
+                    لم يتم تسجيل أي تعديلات خارجية جديدة على الخادم منذ آخر
+                    مزامنة.
                   </p>
                 </div>
               ) : (
@@ -363,8 +412,13 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
                       </span>
                       <div className="space-y-1">
                         {incomingDiff.groups.items.map((g: any) => (
-                          <div key={g.id} className="text-xs flex justify-between text-slate-600">
-                            <span className="font-semibold text-slate-800">{g.name}</span>
+                          <div
+                            key={g.id}
+                            className="text-xs flex justify-between text-slate-600"
+                          >
+                            <span className="font-semibold text-slate-800">
+                              {g.name}
+                            </span>
                             <span>{g.gradeLevel}</span>
                           </div>
                         ))}
@@ -379,8 +433,13 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
                       </span>
                       <div className="space-y-1">
                         {incomingDiff.students.items.map((s: any) => (
-                          <div key={s.id} className="text-xs flex justify-between text-slate-600">
-                            <span className="font-semibold text-slate-800">{s.fullName}</span>
+                          <div
+                            key={s.id}
+                            className="text-xs flex justify-between text-slate-600"
+                          >
+                            <span className="font-semibold text-slate-800">
+                              {s.fullName}
+                            </span>
                             <span>{s.groupName || s.studentCode}</span>
                           </div>
                         ))}
@@ -417,7 +476,9 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
                 title="مسح وتفريغ العمليات العالقة محلياً"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>{isDiscarding ? 'جاري المسح...' : 'مسح العمليات العالقة'}</span>
+                <span>
+                  {isDiscarding ? "جاري المسح..." : "مسح العمليات العالقة"}
+                </span>
               </Button>
             )}
 
@@ -427,7 +488,7 @@ export function SyncReviewModal({ isOpen, onClose, onSuccess }: SyncReviewModalP
               onClick={onClose}
               className="flex-1 sm:flex-none rounded-xl text-xs font-bold"
             >
-              {isComplete ? 'إغلاق' : 'تأجيل'}
+              {isComplete ? "إغلاق" : "تأجيل"}
             </Button>
 
             <Button

@@ -57,6 +57,26 @@ export function ManualAttendanceRoster({ sessionId, records, isCompact = false }
     status: AttendanceStatus,
     student?: { fullName: string; studentCode?: string }
   ) => {
+    const currentStatus = localRecords[studentId];
+
+    // If clicking currently active status, toggle it off (undo selection)
+    if (currentStatus === status) {
+      setLocalRecords((prev) => {
+        const next = { ...prev };
+        delete next[studentId];
+        return next;
+      });
+      setLocalNotes((prev) => {
+        const next = { ...prev };
+        delete next[studentId];
+        return next;
+      });
+      setHasChanges(true);
+      // Remove homework when undoing absence or attendance
+      offlineDb.deleteHomeworkForSessionStudent(sessionId, studentId).catch(() => {});
+      return;
+    }
+
     if (status === 'EXCUSED') {
       // Open modal to prompt for excuse note
       setExcuseModalStudent({
@@ -69,6 +89,11 @@ export function ManualAttendanceRoster({ sessionId, records, isCompact = false }
     }
 
     // Direct status change for PRESENT and ABSENT
+    // When marking ABSENT, also delete homework for this student
+    if (status === 'ABSENT') {
+      offlineDb.deleteHomeworkForSessionStudent(sessionId, studentId).catch(() => {});
+    }
+
     setLocalRecords((prev) => ({ ...prev, [studentId]: status }));
     setHasChanges(true);
   };
