@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { UserMinus, AlertCircle, Search, Users } from 'lucide-react';
+import { UserMinus, AlertCircle, Search, Users, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
@@ -115,15 +115,21 @@ export function StudentList({ groupId }: StudentListProps) {
                   return (
                     <tr 
                       key={enrollment.id || enrollment.student?.id} 
-                      className="hover:bg-slate-50/50 transition-colors cursor-pointer"
+                      className="group hover:bg-primary-50/40 transition-colors cursor-pointer"
                       onClick={() => router.push(`/teacher/students/${enrollment.student?.id}`)}
+                      title="اضغط لعرض تفاصيل الطالب"
                     >
                       <td className="py-3 px-4">
-                        <div className="font-semibold text-slate-800">{studentName}</div>
+                        <div className="flex items-center gap-1.5 font-semibold text-slate-800 group-hover:text-primary-600 transition-colors">
+                          <span>{studentName}</span>
+                          <span className="inline-flex items-center text-[10px] text-primary-600 font-medium opacity-0 group-hover:opacity-100 transition-all">
+                            <Eye className="w-3.5 h-3.5" />
+                          </span>
+                        </div>
                         {studentPhone && <div className="text-xs text-slate-500 md:hidden">{studentPhone}</div>}
                       </td>
                       <td className="py-3 px-4">
-                        <code className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded">
+                        <code className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded group-hover:bg-white transition-colors">
                           {studentCode}
                         </code>
                       </td>
@@ -135,22 +141,36 @@ export function StudentList({ groupId }: StudentListProps) {
                           {Math.round(attendanceRate)}%
                         </Badge>
                       </td>
-                      <td className="py-3 px-4 text-left">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setStudentToRemove({ 
-                              id: enrollment.student?.id, 
-                              name: studentName,
-                            });
-                          }}
-                        >
-                          <UserMinus className="w-4 h-4 ml-1 md:ml-0 md:mr-1" />
-                          <span className="hidden md:inline">إزالة</span>
-                        </Button>
+                      <td className="py-3 px-4 text-left whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            className="text-primary-600 hover:text-primary-700 hover:bg-primary-50 text-xs px-2.5 py-1 h-8"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/teacher/students/${enrollment.student?.id}`);
+                            }}
+                          >
+                            <Eye className="w-3.5 h-3.5 ml-1" />
+                            <span>التفاصيل</span>
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 h-8 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setStudentToRemove({ 
+                                id: enrollment.student?.id, 
+                                name: studentName,
+                              });
+                            }}
+                          >
+                            <UserMinus className="w-4 h-4 ml-1 md:ml-0 md:mr-1" />
+                            <span className="hidden md:inline">إزالة</span>
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
