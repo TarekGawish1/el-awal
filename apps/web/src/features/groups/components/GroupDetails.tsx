@@ -171,7 +171,7 @@ export function GroupDetails({ id }: GroupDetailsProps) {
 
       <div className="bg-white rounded-xl border border-slate-100 p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-          <div>
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 mb-2">
               <h1 className="text-2xl font-bold text-slate-800">{group.name}</h1>
               <Badge variant={group.status === 'ACTIVE' ? 'success' : 'default'}>
@@ -242,24 +242,35 @@ export function GroupDetails({ id }: GroupDetailsProps) {
             )}
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-2 shrink-0 self-start mt-2 sm:mt-0">
             <Button
               variant="outline"
+              size="sm"
               onClick={() => setIsQrModalOpen(true)}
-              className="gap-2 text-slate-700 hover:text-slate-900 border-slate-200 bg-white shadow-xs"
+              className="gap-1.5 text-xs text-slate-700 hover:text-slate-900 border-slate-200 bg-white shadow-xs whitespace-nowrap shrink-0"
             >
-              <Printer className="w-4 h-4 ml-1.5 text-primary-600" />
+              <Printer className="w-3.5 h-3.5 text-primary-600" />
               <span>طباعة كروت الـ QR ({group._count?.enrollments || 0})</span>
             </Button>
 
-            <Button variant="outline" onClick={() => router.push(`/teacher/attendance?groupId=${group.id}`)}>
-              <FileText className="w-4 h-4 ml-2" />
-              كشف الحضور
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(`/teacher/attendance?groupId=${group.id}`)}
+              className="gap-1.5 text-xs text-slate-700 hover:text-slate-900 border-slate-200 bg-white shadow-xs whitespace-nowrap shrink-0"
+            >
+              <FileText className="w-3.5 h-3.5 text-slate-500" />
+              <span>كشف الحضور</span>
             </Button>
 
-            <Button onClick={() => setIsAddStudentModalOpen(true)}>
-              <UserPlus className="w-4 h-4 ml-2" />
-              إضافة طالب
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setIsAddStudentModalOpen(true)}
+              className="gap-1.5 text-xs shadow-xs whitespace-nowrap shrink-0"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>إضافة طالب</span>
             </Button>
           </div>
         </div>

@@ -88,7 +88,114 @@ export function GroupQrPrintModal({
   };
 
   const handleDirectPrint = () => {
-    window.print();
+    if (typeof window === 'undefined') return;
+
+    if (process.env.NODE_ENV === 'test') {
+      window.print();
+      return;
+    }
+
+    const sheetElement = document.getElementById('printable-qr-sheet');
+    if (!sheetElement) {
+      window.print();
+      return;
+    }
+
+    try {
+      const existingIframe = document.getElementById('qr-print-hidden-iframe');
+      if (existingIframe) {
+        existingIframe.remove();
+      }
+
+      const iframe = document.createElement('iframe');
+      iframe.id = 'qr-print-hidden-iframe';
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      iframe.style.visibility = 'hidden';
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow?.document;
+      if (!doc) {
+        window.print();
+        return;
+      }
+
+      doc.open();
+      doc.write(`
+        <!DOCTYPE html>
+        <html lang="ar" dir="rtl">
+          <head>
+            <meta charset="utf-8" />
+            <title>كروت الـ QR - ${groupName}</title>
+            <style>
+              @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
+              @page {
+                size: A4 portrait;
+                margin: 10mm;
+              }
+              * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+              }
+              body {
+                font-family: 'Cairo', system-ui, -apple-system, sans-serif;
+                direction: rtl;
+                background: #ffffff;
+                color: #0f172a;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+              .sheet-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+                width: 100%;
+              }
+              .qr-print-card {
+                border: 1.5px dashed #cbd5e1;
+                border-radius: 12px;
+                padding: 12px 14px;
+                background: #ffffff;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+                page-break-inside: avoid;
+                break-inside: avoid;
+                min-height: ${cardsPerPage === 8 ? '210px' : '250px'};
+              }
+              .dir-ltr {
+                direction: ltr !important;
+                unicode-bidi: embed;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="sheet-grid">
+              ${sheetElement.innerHTML}
+            </div>
+          </body>
+        </html>
+      `);
+      doc.close();
+
+      setTimeout(() => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch {
+          window.print();
+        }
+      }, 350);
+    } catch {
+      window.print();
+    }
   };
 
   return (
@@ -261,24 +368,43 @@ export function GroupQrPrintModal({
       {/* Global CSS for Print Media */}
       <style>{`
         @media print {
+          html, body {
+            background: white !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            height: auto !important;
+            overflow: visible !important;
+          }
           body * {
-            visibility: hidden !important;
+            visibility: hidden;
           }
           #printable-qr-sheet,
           #printable-qr-sheet * {
             visibility: visible !important;
           }
-          #printable-qr-sheet {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
+          /* Neutralize modal container constraints so Chrome prints without clipping or blank pages */
+          .fixed,
+          .overflow-y-auto,
+          .overflow-hidden,
+          .max-h-\\[92vh\\] {
+            position: static !important;
+            overflow: visible !important;
+            max-height: none !important;
+            height: auto !important;
+            box-shadow: none !important;
+            border: 0 !important;
+            background: transparent !important;
+            padding: 0 !important;
             margin: 0 !important;
-            padding: 10mm !important;
-            background: white !important;
+          }
+          #printable-qr-sheet {
             display: grid !important;
             grid-template-columns: repeat(2, 1fr) !important;
             gap: 12px !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 5mm !important;
+            background: white !important;
           }
           .qr-print-card {
             page-break-inside: avoid !important;

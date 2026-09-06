@@ -33,6 +33,7 @@ export class GroupPdfService {
       path.join(process.cwd(), 'apps/backend/src/assets/fonts/Cairo.ttf'),
       path.join(process.cwd(), 'src/assets/fonts/Cairo.ttf'),
       path.join(process.cwd(), 'dist/assets/fonts/Cairo.ttf'),
+      path.join(process.cwd(), 'assets/fonts/Cairo.ttf'),
     ];
 
     for (const p of candidatePaths) {
@@ -44,16 +45,53 @@ export class GroupPdfService {
   }
 
   /**
+   * Remap unmapped presentation forms to base Unicode characters
+   * so modern fonts (like Cairo) never render missing glyph rectangles.
+   */
+  private fixMissingPresentationForms(str: string): string {
+    const replacements: Record<number, number> = {
+      0xfe8d: 0x0627, // Alif isolated -> base Alif
+      0xfedd: 0x0644, // Lam isolated -> base Lam
+      0xfe81: 0x0622, // Alif with Madda -> base
+      0xfe83: 0x0623, // Alif with Hamza above -> base
+      0xfe87: 0x0625, // Alif with Hamza below -> base
+      0xfe8b: 0x0626, // Yaa with Hamza -> base
+      0xfe93: 0x0629, // Ta Marbuta isolated -> base
+    };
+
+    let result = '';
+    for (let i = 0; i < str.length; i++) {
+      const code = str.charCodeAt(i);
+      result += replacements[code] ? String.fromCharCode(replacements[code]) : str[i];
+    }
+    return result;
+  }
+
+  /**
    * Reshape and reverse Arabic text tokens for correct Right-To-Left presentation in PDFKit.
    */
   public formatArabicRTL(text: string): string {
     if (!text) return '';
     try {
-      const reshaped = ArabicShaper.convertArabic(text);
+      // If the text has no Arabic characters, preserve it as-is (e.g. STU codes, purely numeric phones)
+      if (!/[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(text)) {
+        return text;
+      }
+
+      // Swap paired punctuation for proper RTL mirroring
+      const mirroredText = text
+        .replace(/\(/g, '\x00')
+        .replace(/\)/g, '(')
+        .replace(/\x00/g, ')')
+        .replace(/\[/g, '\x00')
+        .replace(/\]/g, '[')
+        .replace(/\x00/g, ']');
+
+      const reshaped = this.fixMissingPresentationForms(ArabicShaper.convertArabic(mirroredText));
       const words = reshaped.split(' ');
       const processed = words.map((w: string) => {
         if (/[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(w)) {
-          return w.split('').reverse().join('');
+          return Array.from(w).reverse().join('');
         }
         return w;
       });
