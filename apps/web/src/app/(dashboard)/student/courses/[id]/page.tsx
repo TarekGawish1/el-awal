@@ -21,6 +21,7 @@ import {
   FileText,
   AlertCircle,
   RotateCcw,
+  ChevronDown,
 } from 'lucide-react';
 import { useStudentCourses } from '@/features/student-portal/hooks/useStudentPortal';
 import { useEnrollInCourse } from '@/features/student-portal/hooks/useStudentPortal';
@@ -46,6 +47,7 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
   const [isLoading, setIsLoading] = useState(true);
   const [activePreviewLesson, setActivePreviewLesson] = useState<any | null>(null);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
 
   // Check enrollment and subscription status
   const enrollment = myCourses.find((c: any) => c.courseId === courseId || c.id === courseId);
@@ -65,6 +67,7 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
           const data = await res.json();
           const courseData = data.data || data;
           setCourse(courseData);
+          setExpandedModules(new Set((courseData.modules || []).slice(0, 1).map((module: any) => module.id)));
 
           // Find course preview video or first preview lesson if available
           if (courseData.previewVideoUrl) {
@@ -400,16 +403,30 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
               {allModules.map((module: any, mIdx: number) => (
                 <div key={module.id || mIdx} className="border border-slate-100 rounded-2xl overflow-hidden bg-slate-50/50">
                   <div className="p-4 bg-slate-100/70 flex items-center justify-between font-bold text-slate-800 text-sm">
-                    <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedModules((previous) => {
+                        const key = module.id || String(mIdx);
+                        const next = new Set(previous);
+                        if (next.has(key)) next.delete(key);
+                        else next.add(key);
+                        return next;
+                      })}
+                      aria-expanded={expandedModules.has(module.id || String(mIdx))}
+                      className="flex flex-1 items-center gap-2 text-right"
+                    >
                       <span className="w-6 h-6 rounded-lg bg-primary-100 text-primary-700 text-xs flex items-center justify-center font-mono">
                         {mIdx + 1}
                       </span>
                       <span>{module.title}</span>
-                    </div>
-                    <span className="text-xs text-slate-500 font-normal">{module.lessons?.length || 0} دروس</span>
+                    </button>
+                    <span className="flex items-center gap-2 text-xs text-slate-500 font-normal">
+                      <span>{module.lessons?.length || 0} دروس</span>
+                      <ChevronDown className={`w-4 h-4 transition-transform ${expandedModules.has(module.id || String(mIdx)) ? 'rotate-180' : ''}`} />
+                    </span>
                   </div>
 
-                  <div className="divide-y divide-slate-100 bg-white">
+                  {expandedModules.has(module.id || String(mIdx)) && <div className="divide-y divide-slate-100 bg-white">
                     {(module.lessons || []).map((lesson: any, lIdx: number) => {
                       const isPreview = lesson.isPreview && lesson.freeVideoUrl;
                       const isActive = activePreviewLesson?.id === lesson.id;
@@ -459,7 +476,7 @@ export default function StudentCourseDetailsPage({ params }: StudentCoursePagePr
                         </div>
                       );
                     })}
-                  </div>
+                  </div>}
                 </div>
               ))}
             </div>

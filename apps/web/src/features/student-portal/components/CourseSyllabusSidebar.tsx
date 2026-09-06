@@ -46,6 +46,18 @@ export function CourseSyllabusSidebar({
   const totalUnitQuizzes = modules.filter((m) => Boolean(m.unitQuiz)).length;
   const completedCount = completedLessonIds.length;
   const progressPercent = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
+  const [expandedModules, setExpandedModules] = React.useState<Set<string>>(
+    () => new Set(modules.slice(0, 1).map((module) => module.id))
+  );
+
+  React.useEffect(() => {
+    setExpandedModules((previous) => {
+      const availableModuleIds = new Set(modules.map((module) => module.id));
+      const next = new Set([...previous].filter((id) => availableModuleIds.has(id)));
+      if (next.size === 0 && modules[0]) next.add(modules[0].id);
+      return next;
+    });
+  }, [modules]);
 
   /**
    * Helper to determine if a quiz (lesson quiz or unit quiz) is satisfied.
@@ -343,17 +355,28 @@ export function CourseSyllabusSidebar({
         {modules.map((mod: CourseModule, modIndex: number) => {
           return (
             <div key={mod.id} className="p-3.5 space-y-2">
-              <div className="flex items-center justify-between px-1">
+              <button
+                type="button"
+                onClick={() => setExpandedModules((previous) => {
+                  const next = new Set(previous);
+                  if (next.has(mod.id)) next.delete(mod.id);
+                  else next.add(mod.id);
+                  return next;
+                })}
+                aria-expanded={expandedModules.has(mod.id)}
+                className="w-full flex items-center justify-between px-1 text-right"
+              >
                 <span className="text-[11px] font-bold text-primary-600">
                   الوحدة {modIndex + 1}: {mod.title}
                 </span>
-                <span className="text-[10px] text-slate-400">
-                  {mod.lessons?.length || 0} دروس {mod.unitQuiz ? '• 📝 امتحان وحدة' : ''}
+                <span className="flex items-center gap-2 text-[10px] text-slate-400">
+                  <span>{mod.lessons?.length || 0} دروس {mod.unitQuiz ? '• 📝 امتحان وحدة' : ''}</span>
+                  {expandedModules.has(mod.id) ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 </span>
-              </div>
+              </button>
 
               {/* Lessons in Unit */}
-              <div className="space-y-1">
+              {expandedModules.has(mod.id) && <div className="space-y-1">
                 {mod.lessons?.map((les: CourseLesson) => {
                   const isActive = les.id === activeLessonId;
                   const isCompleted = completedLessonIds.includes(les.id);
@@ -430,10 +453,10 @@ export function CourseSyllabusSidebar({
                     </button>
                   );
                 })}
-              </div>
+              </div>}
 
               {/* Unit Exam Card if present */}
-              {mod.unitQuiz && (() => {
+              {expandedModules.has(mod.id) && mod.unitQuiz && (() => {
                 const quiz = mod.unitQuiz;
                 const isUnitUnlocked = isUnitQuizUnlocked(mod, modIndex);
                 const isUnitPassed =
