@@ -59,6 +59,8 @@ export interface Defaulter {
   paymentRecordId?: string | null;
   parentName: string | null;
   parentPhone: string | null;
+  calculationReason?: string | null;
+  rateMultiplier?: number;
 }
 
 export interface DefaultersResponse {

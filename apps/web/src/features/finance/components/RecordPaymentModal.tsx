@@ -752,6 +752,11 @@ export function RecordPaymentModal({
                     </p>
                   </div>
                 </div>
+              {paymentType === 'BOOKLET' && isBookletAlreadyPaid && (
+                <div className="mt-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs font-bold text-emerald-800 animate-in fade-in">
+                  <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>هذا الطالب قام بسداد واستلام هذه المذكرة مسبقاً بالكامل! (تم منع تكرار الدفع).</span>
+                </div>
               )}
             </div>
 
