@@ -15,7 +15,8 @@ import { SearchableSessionCombobox } from '@/features/attendance/components/Sear
 import { SessionLogbook } from '@/features/attendance/components/SessionLogbook';
 
 import { useTeacherSessions } from '@/features/schedules/hooks/useSchedules';
-import { RotateCcw, MapPin, Calendar, Users, QrCode, ClipboardList, BookOpen, Sparkles, ClipboardCheck, SlidersHorizontal, X, Clock, AlertTriangle } from 'lucide-react';
+import { CreateSessionModal } from '@/features/schedules/components/CreateSessionModal';
+import { RotateCcw, MapPin, Calendar, Users, QrCode, ClipboardList, BookOpen, Sparkles, ClipboardCheck, SlidersHorizontal, X, Clock, AlertTriangle, Plus } from 'lucide-react';
 
 const STAGE_GRADES_MAP: Record<string, string[]> = {
   'المرحلة الابتدائية': [
@@ -68,6 +69,7 @@ function TeacherAttendanceContent() {
   const paramTab = searchParams.get('tab') as 'QR' | 'QR_HOMEWORK' | 'LOGBOOK' | null;
   const [activeTab, setActiveTab] = useState<'QR' | 'QR_HOMEWORK' | 'LOGBOOK'>(paramTab || 'QR');
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const { data: groups } = useGroups();
   const { selectedYears, selectedTerms } = useStoredAcademicPeriod(groups);
@@ -417,7 +419,14 @@ function TeacherAttendanceContent() {
           )}
         </div>
         
-        <div className="md:pt-6 flex-shrink-0">
+        <div className="md:pt-6 flex-shrink-0 flex items-center gap-2">
+          <Button 
+            onClick={() => setIsCreateModalOpen(true)}
+            className="w-full md:w-auto h-11 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-sm"
+          >
+            <Plus className="w-4 h-4 ml-1.5" />
+            إضافة حصة اليوم
+          </Button>
           <Button 
             variant="outline" 
             onClick={() => setIsFilterDrawerOpen(true)}
@@ -681,13 +690,30 @@ function TeacherAttendanceContent() {
               ? 'لا توجد حصص مطابقة للفلاتر المحددة. جرب إعادة ضبط الفلاتر.' 
               : 'اختر حصة من القائمة للبدء في رصد الحضور.'}
           </p>
-          {activeFiltersCount > 0 && (
-            <Button variant="outline" onClick={resetFilters} className="mt-4 rounded-xl">
-              إعادة ضبط الفلاتر
+          <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
+            <Button 
+              onClick={() => setIsCreateModalOpen(true)}
+              className="rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-sm"
+            >
+              <Plus className="w-4 h-4 ml-1.5" />
+              إضافة حصة جديدة اليوم
             </Button>
-          )}
+            {activeFiltersCount > 0 && (
+              <Button variant="outline" onClick={resetFilters} className="rounded-xl">
+                إعادة ضبط الفلاتر
+              </Button>
+            )}
+          </div>
         </div>
       )}
+
+      {/* 5. Create Session Modal */}
+      <CreateSessionModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        initialDate={new Date().toISOString().split('T')[0]}
+        initialTime={`${new Date().getHours().toString().padStart(2, '0')}:${new Date().getMinutes().toString().padStart(2, '0')}`}
+      />
     </div>
   );
 }
