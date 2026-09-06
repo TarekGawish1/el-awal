@@ -1740,8 +1740,8 @@ export default function RootPage() {
           transition={{ duration: 1, delay: 0.2 }}
         >
           <HeroSection />
-          <CoursesSection />
           <CenterScheduleSection />
+          <CoursesSection />
           <TestimonialsSection />
           <CertificatesSection />
           <AboutUsSection />
