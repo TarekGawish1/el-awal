@@ -770,8 +770,21 @@ function CoursesSection() {
                 transition={{ duration: 0.5, delay: index * 0.1 }}
                 className="group relative bg-white rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_rgb(0,0,0,0.08)] transition-all overflow-hidden flex flex-col"
               >
-                {/* Image/Gradient Area */}
+                {/* Course thumbnail with a gradient fallback */}
                 <div className={`h-48 w-full bg-gradient-to-br ${course.color || 'from-blue-600 to-cyan-600'} relative overflow-hidden flex items-start justify-start p-6`}>
+                  {course.coverImageUrl && (
+                    <img
+                      src={course.coverImageUrl}
+                      alt={course.title}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      onError={(event) => {
+                        event.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  )}
+                  {course.coverImageUrl && (
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-black/20" />
+                  )}
                   <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
                   
                   {course.hasFreeVideo && course.freeVideoUrl ? (
