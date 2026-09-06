@@ -33,4 +33,11 @@ export class BatchAttendanceDto {
   @ValidateNested({ each: true })
   @Type(() => AttendanceItemDto)
   records: AttendanceItemDto[];
+
+  @ApiPropertyOptional({ description: 'Optional list of student IDs to reset/remove attendance and homework records', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  removedStudentIds?: string[];
 }
+

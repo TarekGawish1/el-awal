@@ -312,6 +312,66 @@ describe('AttendanceService', () => {
       );
     });
 
+    it('should delete attendance and homework records for removedStudentIds', async () => {
+      const sessionId = 'session-1';
+      const studentId = 'stu-1';
+      const removedId = 'stu-removed-2';
+      const mockTeacherUser: any = { id: 'teacher-1', role: UserRole.TEACHER, teacherProfileId: 'teacher-1' };
+
+      mockPrismaService.lessonSession.findUnique.mockResolvedValue({
+        id: sessionId,
+        groupId: 'group-1',
+        group: {
+          id: 'group-1',
+          teacherId: mockTeacherUser.teacherProfileId,
+          name: 'مجموعة أ',
+          _count: { enrollments: 30 },
+        },
+      });
+
+      mockPrismaService.groupEnrollment.findMany.mockResolvedValue([
+        { studentId },
+      ]);
+
+      const mockTx = {
+        attendanceRecord: {
+          upsert: jest.fn().mockResolvedValue({ id: 'rec-1', status: AttendanceStatus.PRESENT }),
+          deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        homeworkRecord: {
+          deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+      };
+
+      mockPrismaService.$transaction.mockImplementation(async (callback: any) => {
+        return callback(mockTx);
+      });
+
+      mockPrismaService.attendanceRecord.count.mockResolvedValue(1);
+
+      await service.recordManualBatch(
+        sessionId,
+        {
+          records: [{ studentId, status: AttendanceStatus.PRESENT }],
+          removedStudentIds: [removedId],
+        },
+        mockTeacherUser,
+      );
+
+      expect(mockTx.attendanceRecord.deleteMany).toHaveBeenCalledWith({
+        where: {
+          sessionId,
+          studentId: { in: [removedId] },
+        },
+      });
+      expect(mockTx.homeworkRecord.deleteMany).toHaveBeenCalledWith({
+        where: {
+          sessionId,
+          studentId: { in: [removedId] },
+        },
+      });
+    });
+
     it('should remove attendance record when removeAttendanceRecord is called', async () => {
       const sessionId = 'session-1';
       const studentId = 'stu-1';
@@ -328,6 +388,9 @@ describe('AttendanceService', () => {
 
       expect(res.success).toBe(true);
       expect(mockPrismaService.attendanceRecord.deleteMany).toHaveBeenCalledWith({
+        where: { sessionId, studentId },
+      });
+      expect(mockPrismaService.homeworkRecord.deleteMany).toHaveBeenCalledWith({
         where: { sessionId, studentId },
       });
     });

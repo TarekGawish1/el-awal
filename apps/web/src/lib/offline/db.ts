@@ -2573,17 +2573,27 @@ class OfflineDatabase {
    */
   public async revertAttendanceRecordOffline(sessionId: string, studentId: string): Promise<void> {
     const cleanSessionId = String(sessionId).trim().toLowerCase();
+    const cleanStudentId = String(studentId).trim();
+
+    // Also delete any homework record for this student since attendance is undone/reset
+    await this.deleteHomeworkForSessionStudent(cleanSessionId, cleanStudentId);
+
     const currentReport = await this.getSessionReport(cleanSessionId);
     if (!currentReport) return;
 
     const records = Array.isArray(currentReport.records) ? [...currentReport.records] : [];
-    const idx = records.findIndex((r: any) => String(r.studentId).trim() === String(studentId).trim());
+    const idx = records.findIndex((r: any) => String(r.studentId).trim() === cleanStudentId);
     if (idx >= 0) {
       records[idx] = {
         ...records[idx],
         status: null,
         recordingMethod: null,
         recordedAt: null,
+        homeworkStatus: 'NOT_SUBMITTED',
+        isHomeworkSubmitted: false,
+        homeworkScore: null,
+        homeworkFeedback: null,
+        homeworkCheckedAt: null,
       };
     }
 

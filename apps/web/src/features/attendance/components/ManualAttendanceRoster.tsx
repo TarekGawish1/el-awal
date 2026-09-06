@@ -16,7 +16,7 @@ interface ManualAttendanceRosterProps {
 }
 
 export function ManualAttendanceRoster({ sessionId, records, isCompact = false }: ManualAttendanceRosterProps) {
-  const [localRecords, setLocalRecords] = useState<Record<string, AttendanceStatus>>({});
+  const [localRecords, setLocalRecords] = useState<Record<string, AttendanceStatus | null>>({});
   const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
   const [hasChanges, setHasChanges] = useState(false);
   const [excuseModalStudent, setExcuseModalStudent] = useState<{
@@ -35,13 +35,11 @@ export function ManualAttendanceRoster({ sessionId, records, isCompact = false }
   }, [records]);
 
   useEffect(() => {
-    const initialStatusState: Record<string, AttendanceStatus> = {};
+    const initialStatusState: Record<string, AttendanceStatus | null> = {};
     const initialNotesState: Record<string, string> = {};
 
     filteredRecords.forEach((r) => {
-      if (r.status) {
-        initialStatusState[r.studentId] = r.status;
-      }
+      initialStatusState[r.studentId] = r.status || null;
       if (r.notes) {
         initialNotesState[r.studentId] = r.notes;
       }
@@ -57,20 +55,18 @@ export function ManualAttendanceRoster({ sessionId, records, isCompact = false }
     status: AttendanceStatus,
     student?: { fullName: string; studentCode?: string }
   ) => {
-    const currentStatus = localRecords[studentId];
+    const currentStatus = studentId in localRecords ? localRecords[studentId] : null;
 
     // If clicking currently active status, toggle it off (undo selection)
     if (currentStatus === status) {
-      setLocalRecords((prev) => {
-        const next = { ...prev };
-        delete next[studentId];
-        return next;
-      });
-      setLocalNotes((prev) => {
-        const next = { ...prev };
-        delete next[studentId];
-        return next;
-      });
+      setLocalRecords((prev) => ({
+        ...prev,
+        [studentId]: null,
+      }));
+      setLocalNotes((prev) => ({
+        ...prev,
+        [studentId]: '',
+      }));
       setHasChanges(true);
       // Remove homework when undoing absence or attendance
       offlineDb.deleteHomeworkForSessionStudent(sessionId, studentId).catch(() => {});
@@ -109,22 +105,48 @@ export function ManualAttendanceRoster({ sessionId, records, isCompact = false }
   };
 
   const handleSave = () => {
-    const payload: BatchAttendanceDto = {
-      records: Object.entries(localRecords)
-        .filter(([_, status]) => status !== null)
-        .map(([studentId, status]) => ({
-          studentId,
-          status,
-          notes: localNotes[studentId] || undefined,
-        })),
-    };
+    const activeRecords: BatchAttendanceDto['records'] = [];
+    const removedStudentIds: string[] = [];
 
-    // For any student marked ABSENT, delete their homework record offline as well
+    // Map enrolled students
+    filteredRecords.forEach((r) => {
+      const current = r.studentId in localRecords ? localRecords[r.studentId] : r.status;
+      if (current) {
+        activeRecords.push({
+          studentId: r.studentId,
+          status: current,
+          notes: localNotes[r.studentId] || undefined,
+        });
+      } else if (r.status) {
+        // Was previously recorded, now unchecked to null
+        removedStudentIds.push(r.studentId);
+      }
+    });
+
+    // Also include any guest or extra students in localRecords
+    Object.entries(localRecords).forEach(([studentId, status]) => {
+      if (!filteredRecords.some((r) => r.studentId === studentId)) {
+        if (status) {
+          activeRecords.push({
+            studentId,
+            status,
+            notes: localNotes[studentId] || undefined,
+          });
+        }
+      }
+    });
+
+    // Delete offline homework for any ABSENT student or removed student
     for (const [studentId, status] of Object.entries(localRecords)) {
-      if (status === 'ABSENT') {
+      if (status === 'ABSENT' || status === null) {
         offlineDb.deleteHomeworkForSessionStudent(sessionId, studentId).catch(() => {});
       }
     }
+
+    const payload: BatchAttendanceDto = {
+      records: activeRecords,
+      removedStudentIds: removedStudentIds.length > 0 ? removedStudentIds : undefined,
+    };
 
     mutate({ sessionId, payload }, {
       onSuccess: () => setHasChanges(false),
@@ -178,7 +200,7 @@ export function ManualAttendanceRoster({ sessionId, records, isCompact = false }
               </tr>
             ) : (
               filteredRecords.map((record) => {
-                const currentStatus = localRecords[record.studentId] || record.status;
+                const currentStatus = record.studentId in localRecords ? localRecords[record.studentId] : (record.status || null);
                 const currentNote = localNotes[record.studentId];
 
                 return (
@@ -266,7 +288,7 @@ export function ManualAttendanceRoster({ sessionId, records, isCompact = false }
           </div>
         ) : (
           filteredRecords.map((record) => {
-            const currentStatus = localRecords[record.studentId] || record.status;
+            const currentStatus = record.studentId in localRecords ? localRecords[record.studentId] : (record.status || null);
             const currentNote = localNotes[record.studentId];
 
             return (

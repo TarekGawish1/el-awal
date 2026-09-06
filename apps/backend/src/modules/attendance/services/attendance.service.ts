@@ -321,6 +321,25 @@ export class AttendanceService {
           });
         }
       }
+
+      // If removedStudentIds are provided, delete attendance and homework records for those students
+      if (dto.removedStudentIds && dto.removedStudentIds.length > 0) {
+        await tx.attendanceRecord.deleteMany({
+          where: {
+            sessionId,
+            studentId: { in: dto.removedStudentIds },
+          },
+        });
+
+        if (typeof tx.homeworkRecord?.deleteMany === 'function') {
+          await tx.homeworkRecord.deleteMany({
+            where: {
+              sessionId,
+              studentId: { in: dto.removedStudentIds },
+            },
+          });
+        }
+      }
     });
 
     const [presentCount, absentCount, excusedCount, totalEnrolled] = await Promise.all([
@@ -576,6 +595,15 @@ export class AttendanceService {
         studentId,
       },
     });
+
+    if (typeof this.prisma.homeworkRecord?.deleteMany === 'function') {
+      await this.prisma.homeworkRecord.deleteMany({
+        where: {
+          sessionId,
+          studentId,
+        },
+      });
+    }
 
     this.realtimeGateway?.notifyAttendanceChanged([user.id, session.group?.teacherId]);
 
