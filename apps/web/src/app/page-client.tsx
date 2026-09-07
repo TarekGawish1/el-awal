@@ -1146,6 +1146,7 @@ function TestimonialsSection() {
 
                 <div className="mb-6 relative z-10">
                   <h4 className="font-bold text-slate-900 text-lg">{testimonial.firstName}</h4>
+                  {testimonial.gradeLevel && <p className="text-sm text-slate-500 font-medium mt-1">{testimonial.gradeLevel}</p>}
                 </div>
 
                 <div className="flex gap-1 mb-4 relative z-10">
@@ -1183,6 +1184,7 @@ function TestimonialsSection() {
 
               <div className="mb-6 relative z-10">
                 <h4 className="font-bold text-slate-900 text-lg">{testimonial.firstName}</h4>
+                {testimonial.gradeLevel && <p className="text-sm text-slate-500 font-medium mt-1">{testimonial.gradeLevel}</p>}
               </div>
 
               <div className="flex gap-1 mb-4 relative z-10">
