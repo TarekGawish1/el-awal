@@ -831,15 +831,7 @@ export function QrHomeworkScanner({
 
                   <Button
                     variant="outline"
-                    className="h-12 text-base font-bold text-amber-600 border-amber-200 bg-amber-50 hover:bg-amber-100 hover:text-amber-700 rounded-2xl"
-                    onClick={() => handleRecordHomework('INCOMPLETE')}
-                  >
-                    ناقص
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    className="col-span-2 h-12 text-sm font-bold text-slate-600 border-slate-200 bg-slate-50 hover:bg-slate-100 rounded-2xl"
+                    className="h-12 text-base font-bold text-slate-600 border-slate-200 bg-slate-50 hover:bg-slate-100 rounded-2xl"
                     onClick={() => handleRecordHomework('EXCUSED')}
                   >
                     بعذر

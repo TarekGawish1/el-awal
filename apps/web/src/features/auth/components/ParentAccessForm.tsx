@@ -134,7 +134,7 @@ export function ParentAccessForm() {
         name="phone"
         type="text"
         label="رقم الهاتف أو كود الطالب"
-        placeholder="01012345678 أو STU202600057"
+        placeholder="أدخل رقم الهاتف أو كود الطالب"
         value={identifier}
         onChange={(event) => {
           setIdentifier(event.target.value);
