@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import NextImage from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, PlayCircle, Lock, ChevronDown, X, BookOpen, Clock, Users, FileText, ClipboardList } from 'lucide-react';
 import Link from 'next/link';
@@ -32,11 +33,12 @@ function IntroSequence({ onComplete }: { onComplete: () => void }) {
 
       {/* Subtle Grid or Stars effect */}
       <motion.div
-        className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"
+        className="absolute inset-0 bg-[url('/noise.svg')] opacity-20 mix-blend-overlay"
         initial={{ opacity: 0 }}
         animate={{ opacity: 0.15 }}
         transition={{ duration: 1 }}
       />
+      {/* Intro — above-the-fold LCP companion, kept local to avoid extra requests */}
 
       <div className="z-10 text-center px-4 flex flex-col items-center">
         {/* Logo/Icon */}
@@ -184,32 +186,48 @@ let heroFramesLoadPromise: Promise<HTMLImageElement[]> | null = null;
 let loadedHeroFrameCount = 0;
 const heroLoadProgressListeners = new Set<(loadedCount: number) => void>();
 
+function loadSingleHeroFrame(index: number): Promise<HTMLImageElement | null> {
+  return new Promise<HTMLImageElement | null>((resolve) => {
+    const image = new Image();
+    image.decoding = 'async';
+    // Decorative frames must never out-prioritize LCP
+    (image as any).fetchPriority = 'low';
+    image.onload = () => {
+      loadedHeroFrameCount += 1;
+      heroLoadProgressListeners.forEach((listener) => listener(loadedHeroFrameCount));
+      resolve(image);
+    };
+    image.onerror = () => {
+      loadedHeroFrameCount += 1;
+      heroLoadProgressListeners.forEach((listener) => listener(loadedHeroFrameCount));
+      resolve(null);
+    };
+    image.src = `/hero-animation/frame_${String(index).padStart(6, '0')}.webp`;
+  });
+}
+
 function loadHeroFramesOnce(): Promise<HTMLImageElement[]> {
   if (cachedHeroFrames) return Promise.resolve(cachedHeroFrames);
   if (heroFramesLoadPromise) return heroFramesLoadPromise;
 
-  heroFramesLoadPromise = Promise.all(
-    Array.from({ length: HERO_FRAME_COUNT }, (_, index) =>
-      new Promise<HTMLImageElement | null>((resolve) => {
-        const image = new Image();
-        image.decoding = 'async';
-        image.onload = () => {
-          loadedHeroFrameCount += 1;
-          heroLoadProgressListeners.forEach((listener) => listener(loadedHeroFrameCount));
-          resolve(image);
-        };
-        image.onerror = () => {
-          loadedHeroFrameCount += 1;
-          heroLoadProgressListeners.forEach((listener) => listener(loadedHeroFrameCount));
-          resolve(null);
-        };
-        image.src = `/hero-animation/frame_${String(index).padStart(6, '0')}.webp`;
-      }),
-    ),
-  ).then((frames) => {
-    cachedHeroFrames = frames.filter((frame): frame is HTMLImageElement => frame !== null);
+  // Load in small batches (concurrency 3) instead of 22 parallel requests,
+  // so the animation never saturates bandwidth needed by critical resources.
+  const CONCURRENCY = 3;
+  heroFramesLoadPromise = (async () => {
+    const results: (HTMLImageElement | null)[] = new Array(HERO_FRAME_COUNT).fill(null);
+    for (let start = 0; start < HERO_FRAME_COUNT; start += CONCURRENCY) {
+      const batch = Array.from(
+        { length: Math.min(CONCURRENCY, HERO_FRAME_COUNT - start) },
+        (_, offset) => start + offset,
+      );
+      const loaded = await Promise.all(batch.map((index) => loadSingleHeroFrame(index)));
+      loaded.forEach((image, offset) => {
+        results[start + offset] = image;
+      });
+    }
+    cachedHeroFrames = results.filter((frame): frame is HTMLImageElement => frame !== null);
     return cachedHeroFrames;
-  });
+  })();
 
   return heroFramesLoadPromise;
 }
@@ -271,8 +289,9 @@ function HeroImageSequence() {
       animationFrameId = window.requestAnimationFrame(animate);
     };
 
-    // Defer decorative hero frames until the browser is idle so they don't
-    // compete with critical resources (teacher photo, JS, CSS) on first paint.
+    // Defer decorative hero frames until AFTER the page is fully loaded
+    // (window 'load' = LCP/TTI done) + browser idle, so the 22 WebP frames
+    // never compete with the LCP image, JS or CSS on first paint.
     const startLoading = () => {
       const run = () => {
         if (!isActive) return;
@@ -291,10 +310,35 @@ function HeroImageSequence() {
           animationFrameId = window.requestAnimationFrame(animate);
         });
       };
-      if (typeof window !== 'undefined' && 'requestIdleCallback' in (window as any)) {
-        (window as any).requestIdleCallback(run, { timeout: 4000 });
+      const scheduleIdle = () => {
+        if (!isActive) return;
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in (window as any)) {
+          (window as any).requestIdleCallback(run, { timeout: 5000 });
+        } else {
+          setTimeout(run, 2500);
+        }
+      };
+      // If the page already finished loading, just wait for idle.
+      // Otherwise wait for window.onload first, then idle.
+      if (typeof document !== 'undefined' && document.readyState === 'complete') {
+        scheduleIdle();
+      } else if (typeof window !== 'undefined') {
+        let loadFired = false;
+        const onLoad = () => {
+          loadFired = true;
+          window.removeEventListener('load', onLoad);
+          scheduleIdle();
+        };
+        window.addEventListener('load', onLoad, { once: true });
+        // Safety fallback: if 'load' is delayed (slow third-party), start anyway after 6s
+        setTimeout(() => {
+          if (!loadFired && isActive) {
+            window.removeEventListener('load', onLoad);
+            scheduleIdle();
+          }
+        }, 6000);
       } else {
-        setTimeout(run, 2000);
+        setTimeout(run, 2500);
       }
     };
 
@@ -346,7 +390,9 @@ function HeroSection() {
         >
           <div className="relative w-full max-w-[350px] lg:max-w-[500px] h-[350px] lg:h-[500px] flex items-end justify-center mt-10 lg:mt-0">
 
-            {/* The Cutout Image with Bottom Fade */}
+            {/* The Cutout Image with Bottom Fade — LCP element:
+                next/image generates responsive sizes (no more 1536px download)
+                and `priority` injects a <link rel="preload"> in <head>. */}
             <div
               className="relative w-full h-full z-10 flex items-end justify-center"
               style={{
@@ -354,11 +400,14 @@ function HeroSection() {
                 maskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 60%, rgba(0,0,0,0) 100%)'
               }}
             >
-              <img
+              <NextImage
                 src="/teacher-photo.webp"
-                alt="صورة الأستاذ"
+                alt="صورة الأستاذ أحمد غريب"
+                width={450}
+                height={450}
+                priority
                 fetchPriority="high"
-                decoding="async"
+                sizes="(max-width: 768px) 100vw, 450px"
                 className="w-full h-full object-cover object-top drop-shadow-2xl rounded-t-[3rem]"
               />
             </div>
@@ -920,7 +969,7 @@ function CoursesSection() {
                   {course.coverImageUrl && (
                     <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-black/20" />
                   )}
-                  <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
+                  <div className="absolute inset-0 bg-[url('/noise.svg')] opacity-20 mix-blend-overlay"></div>
                   
                   {course.hasFreeVideo && course.freeVideoUrl ? (
                      <div 
@@ -1085,7 +1134,10 @@ function CenterScheduleSection() {
           <div className="border-b border-slate-100 bg-slate-100/50 p-4">
             {/* Mobile Dropdown */}
             <div className="sm:hidden block w-full relative">
+              <label htmlFor="stage-select" className="sr-only">اختر المرحلة الدراسية</label>
               <select
+                id="stage-select"
+                aria-label="اختر المرحلة الدراسية"
                 value={selectedStage}
                 onChange={(e) => handleStageChange(e.target.value)}
                 className="w-full appearance-none bg-white border border-slate-200 text-slate-900 font-bold py-3 pr-4 pl-10 rounded-xl outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all shadow-sm"
@@ -1170,7 +1222,7 @@ function CenterScheduleSection() {
                           </svg>
                         </div>
                         <div className="flex-1">
-                          <h4 className="text-xl font-bold text-slate-900 mb-4">{item.center}</h4>
+                          <h3 className="text-xl font-bold text-slate-900 mb-4">{item.center}</h3>
                           <div className="space-y-3">
                             <div className="flex items-center gap-3 text-slate-600 font-medium">
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1264,7 +1316,7 @@ function TestimonialsSection() {
                 </div>
 
                 <div className="mb-6 relative z-10">
-                  <h4 className="font-bold text-slate-900 text-lg">{testimonial.firstName}</h4>
+                  <h3 className="font-bold text-slate-900 text-lg">{testimonial.firstName}</h3>
                   {testimonial.gradeLevel && <p className="text-sm text-slate-500 font-medium mt-1">{testimonial.gradeLevel}</p>}
                 </div>
 
@@ -1302,7 +1354,7 @@ function TestimonialsSection() {
               </div>
 
               <div className="mb-6 relative z-10">
-                <h4 className="font-bold text-slate-900 text-lg">{testimonial.firstName}</h4>
+                <h3 className="font-bold text-slate-900 text-lg">{testimonial.firstName}</h3>
                 {testimonial.gradeLevel && <p className="text-sm text-slate-500 font-medium mt-1">{testimonial.gradeLevel}</p>}
               </div>
 
@@ -1914,7 +1966,7 @@ function ContactUsSection() {
                 </svg>
               </div>
               <div>
-                <h4 className="font-bold text-slate-900 text-lg mb-1">رقم الهاتف</h4>
+                <h3 className="font-bold text-slate-900 text-lg mb-1">رقم الهاتف</h3>
                 <p className="text-slate-600" dir="ltr">012 2130 1224</p>
               </div>
             </div>
@@ -1927,7 +1979,7 @@ function ContactUsSection() {
                 </svg>
               </div>
               <div>
-                <h4 className="font-bold text-slate-900 text-lg mb-1">واتساب</h4>
+                <h3 className="font-bold text-slate-900 text-lg mb-1">واتساب</h3>
                 <p className="text-slate-600" dir="ltr">010 2190 2000</p>
               </div>
             </div>
@@ -1941,7 +1993,7 @@ function ContactUsSection() {
                 </svg>
               </div>
               <div>
-                <h4 className="font-bold text-slate-900 text-lg mb-1">العنوان</h4>
+                <h3 className="font-bold text-slate-900 text-lg mb-1">العنوان</h3>
                 <p className="text-slate-600">سنتر العدليه - دمياط</p>
                 <p className="text-slate-600 mt-1">سنتر البستان - دمياط</p>
               </div>

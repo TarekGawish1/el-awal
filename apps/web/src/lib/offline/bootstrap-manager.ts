@@ -6,6 +6,7 @@
 import { offlineDb } from './db';
 import { API_ENDPOINTS } from '../api/endpoints';
 import { apiClient } from '../api/client';
+import { getStoredAccessToken, getStoredRefreshToken } from '@/features/auth/utils/auth-tokens';
 import { QueryClient } from '@tanstack/react-query';
 
 export type BootstrapEventType = 'START' | 'PROGRESS' | 'SUCCESS' | 'ERROR' | 'OFFLINE_FALLBACK';
@@ -69,6 +70,16 @@ class BootstrapManager {
     skipCooldown?: boolean;
     queryClient?: QueryClient;
   }): Promise<{ success: boolean; isDelta: boolean; counts?: Record<string, number> }> {
+    // Guard: never hit the authenticated bootstrap endpoint from public pages
+    // (e.g. landing page) where there is no session — prevents useless 401s
+    // that hurt Lighthouse scores and spam the backend + console.
+    if (typeof window !== 'undefined') {
+      const hasSession = Boolean(getStoredAccessToken() || getStoredRefreshToken());
+      if (!hasSession) {
+        return { success: false, isDelta: false };
+      }
+    }
+
     if (this.isBootstrappingState) {
       return { success: false, isDelta: false };
     }

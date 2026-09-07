@@ -21,8 +21,7 @@ const inter = Inter({
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // Allow pinch-zoom for accessibility (do not set maximumScale / userScalable:false)
   viewportFit: 'cover', // Handles notch / safe area insets on iOS & Android
   themeColor: '#1e40af',
 };
