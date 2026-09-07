@@ -17,9 +17,9 @@ export interface Testimonial {
 
 export const testimonialsApi = {
   getMine: () => apiClient<Testimonial | null>('/testimonials/mine'),
-  create: (payload: { content: string; rating: number }) =>
-    apiClient<Testimonial>('/testimonials', {
-      method: 'POST',
+  saveMine: (payload: { content: string; rating: number }) =>
+    apiClient<Testimonial>('/testimonials/mine', {
+      method: 'PATCH',
       body: JSON.stringify(payload),
     }),
   getAll: () => apiClient<Testimonial[]>('/testimonials'),

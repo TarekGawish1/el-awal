@@ -21,7 +21,7 @@ export class TestimonialsController {
   @Roles(UserRole.STUDENT)
   @ApiOperation({ summary: 'Submit a testimonial for moderation' })
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateTestimonialDto) {
-    return this.testimonialsService.createForStudent(user, dto);
+    return this.testimonialsService.saveForStudent(user, dto);
   }
 
   @Get('mine')
@@ -30,6 +30,14 @@ export class TestimonialsController {
   @ApiOperation({ summary: 'Get the current student’s latest testimonial submission' })
   findMine(@CurrentUser() user: AuthenticatedUser) {
     return this.testimonialsService.findMine(user);
+  }
+
+  @Patch('mine')
+  @ApiBearerAuth()
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Create or update the current student’s testimonial' })
+  updateMine(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateTestimonialDto) {
+    return this.testimonialsService.saveForStudent(user, dto);
   }
 
   @Get('public')

@@ -9,15 +9,22 @@ import { UpdateTestimonialDto } from '../dto/update-testimonial.dto';
 export class TestimonialsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createForStudent(user: AuthenticatedUser, dto: CreateTestimonialDto) {
+  async saveForStudent(user: AuthenticatedUser, dto: CreateTestimonialDto) {
     const studentId = this.getStudentProfileId(user);
 
-    return this.prisma.testimonial.create({
-      data: {
+    return this.prisma.testimonial.upsert({
+      where: { studentId },
+      create: {
         studentId,
-        content: dto.content,
+        content: dto.content.trim(),
         rating: dto.rating,
         status: TestimonialStatus.PENDING,
+      },
+      update: {
+        content: dto.content.trim(),
+        rating: dto.rating,
+        status: TestimonialStatus.PENDING,
+        moderatedAt: null,
       },
     });
   }
@@ -25,9 +32,8 @@ export class TestimonialsService {
   async findMine(user: AuthenticatedUser) {
     const studentId = this.getStudentProfileId(user);
 
-    return this.prisma.testimonial.findFirst({
+    return this.prisma.testimonial.findUnique({
       where: { studentId },
-      orderBy: { createdAt: 'desc' },
     });
   }
 

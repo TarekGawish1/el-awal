@@ -11,13 +11,13 @@ CREATE TABLE "testimonials" (
   "updated_at" TIMESTAMPTZ(6) NOT NULL,
 
   CONSTRAINT "testimonials_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "uq_testimonials_student" UNIQUE ("student_id"),
   CONSTRAINT "testimonials_student_id_fkey"
     FOREIGN KEY ("student_id") REFERENCES "student_profiles"("id")
     ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT "testimonials_rating_check" CHECK ("rating" >= 1 AND "rating" <= 5)
 );
 
-CREATE INDEX "idx_testimonials_student_created"
-  ON "testimonials"("student_id", "created_at");
+
 CREATE INDEX "idx_testimonials_status_created"
   ON "testimonials"("status", "created_at");

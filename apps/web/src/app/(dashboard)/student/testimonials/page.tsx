@@ -30,10 +30,10 @@ export default function StudentTestimonialsPage() {
     }
   }, [testimonial]);
 
-  const createMutation = useMutation({
-    mutationFn: testimonialsApi.create,
+  const saveMutation = useMutation({
+    mutationFn: testimonialsApi.saveMine,
     onSuccess: () => {
-      toast.success('شكراً لرأيك! سيتم مراجعته قبل عرضه على الصفحة الرئيسية.');
+      toast.success(testimonial ? 'تم تحديث رأيك وإرساله للمراجعة مرة أخرى.' : 'شكراً لرأيك! سيتم مراجعته قبل عرضه على الصفحة الرئيسية.');
       queryClient.invalidateQueries({ queryKey: ['my-testimonial'] });
     },
     onError: (error: Error) => toast.error(error.message || 'تعذر إرسال رأيك، حاول مرة أخرى.'),
@@ -45,7 +45,7 @@ export default function StudentTestimonialsPage() {
       toast.error('اكتب رأياً لا يقل عن 10 أحرف.');
       return;
     }
-    createMutation.mutate({ content: content.trim(), rating });
+    saveMutation.mutate({ content: content.trim(), rating });
   };
 
   const status = testimonial ? STATUS_DETAILS[testimonial.status] : null;
@@ -109,8 +109,8 @@ export default function StudentTestimonialsPage() {
             />
           </div>
 
-          <Button type="submit" size="lg" isLoading={createMutation.isPending} className="w-full sm:w-auto">
-            {testimonial ? 'إرسال رأي جديد للمراجعة' : 'إرسال رأيي للمراجعة'}
+          <Button type="submit" size="lg" isLoading={saveMutation.isPending} className="w-full sm:w-auto">
+            {testimonial ? 'تحديث رأيي وإرساله للمراجعة' : 'إرسال رأيي للمراجعة'}
           </Button>
         </form>
       )}

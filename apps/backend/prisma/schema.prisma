@@ -396,7 +396,7 @@ model Testimonial {
 
   student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
-  @@index([studentId, createdAt], map: "idx_testimonials_student_created")
+  @@unique([studentId], map: "uq_testimonials_student")
   @@index([status, createdAt], map: "idx_testimonials_status_created")
   @@map("testimonials")
 }
