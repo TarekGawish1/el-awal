@@ -1557,36 +1557,136 @@ function CertificatesSection() {
   );
 }
 
-function AboutUsSection() {
-  const [currentBg, setCurrentBg] = useState(1);
-  const totalImages = 30;
+const ABOUT_IMAGE_COUNT = 30;
+const ABOUT_IMAGE_DURATION_MS = 3500;
+const ABOUT_IMAGE_BASE_URL = 'https://pub-e729d46cf5fd4798932ccae48f7361ef.r2.dev/about_us';
+let cachedAboutImages: HTMLImageElement[] | null = null;
+let aboutImagesLoadPromise: Promise<HTMLImageElement[]> | null = null;
+let loadedAboutImageCount = 0;
+const aboutLoadProgressListeners = new Set<(loadedCount: number) => void>();
+
+function loadAboutImagesOnce(): Promise<HTMLImageElement[]> {
+  if (cachedAboutImages) return Promise.resolve(cachedAboutImages);
+  if (aboutImagesLoadPromise) return aboutImagesLoadPromise;
+
+  aboutImagesLoadPromise = Promise.all(
+    Array.from({ length: ABOUT_IMAGE_COUNT }, (_, index) =>
+      new Promise<HTMLImageElement | null>((resolve) => {
+        const image = new Image();
+        image.decoding = 'async';
+        image.onload = () => {
+          loadedAboutImageCount += 1;
+          aboutLoadProgressListeners.forEach((listener) => listener(loadedAboutImageCount));
+          resolve(image);
+        };
+        image.onerror = () => {
+          loadedAboutImageCount += 1;
+          aboutLoadProgressListeners.forEach((listener) => listener(loadedAboutImageCount));
+          resolve(null);
+        };
+        image.src = `${ABOUT_IMAGE_BASE_URL}/${index + 1}.webp`;
+      }),
+    ),
+  ).then((images) => {
+    cachedAboutImages = images.filter((image): image is HTMLImageElement => image !== null);
+    return cachedAboutImages;
+  });
+
+  return aboutImagesLoadPromise;
+}
+
+function AboutBackgroundSequence() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [loadingProgress, setLoadingProgress] = useState(() =>
+    Math.round((loadedAboutImageCount / ABOUT_IMAGE_COUNT) * 100),
+  );
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentBg((prev) => (prev % totalImages) + 1);
-    }, 3500);
-    return () => clearInterval(interval);
+    let isActive = true;
+    let intervalId: number | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+    let images: HTMLImageElement[] = [];
+    let currentImageIndex = 0;
+
+    const updateProgress = (loadedCount: number) => {
+      if (isActive) setLoadingProgress(Math.round((loadedCount / ABOUT_IMAGE_COUNT) * 100));
+    };
+    aboutLoadProgressListeners.add(updateProgress);
+
+    const drawCurrentImage = () => {
+      const canvas = canvasRef.current;
+      const image = images[currentImageIndex];
+      if (!canvas || !image) return;
+
+      const context = canvas.getContext('2d');
+      if (!context) return;
+
+      const bounds = canvas.getBoundingClientRect();
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      const targetWidth = Math.max(1, Math.round(bounds.width * pixelRatio));
+      const targetHeight = Math.max(1, Math.round(bounds.height * pixelRatio));
+      if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+      }
+
+      const scale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
+      const drawWidth = image.naturalWidth * scale;
+      const drawHeight = image.naturalHeight * scale;
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(
+        image,
+        (canvas.width - drawWidth) / 2,
+        (canvas.height - drawHeight) / 2,
+        drawWidth,
+        drawHeight,
+      );
+    };
+
+    loadAboutImagesOnce().then((loadedImages) => {
+      if (!isActive) return;
+      images = loadedImages;
+      setLoadingProgress(100);
+      if (images.length === 0) return;
+
+      drawCurrentImage();
+      if (canvasRef.current && typeof ResizeObserver !== 'undefined') {
+        resizeObserver = new ResizeObserver(drawCurrentImage);
+        resizeObserver.observe(canvasRef.current);
+      }
+      intervalId = window.setInterval(() => {
+        currentImageIndex = (currentImageIndex + 1) % images.length;
+        drawCurrentImage();
+      }, ABOUT_IMAGE_DURATION_MS);
+    });
+
+    return () => {
+      isActive = false;
+      aboutLoadProgressListeners.delete(updateProgress);
+      resizeObserver?.disconnect();
+      if (intervalId !== null) window.clearInterval(intervalId);
+    };
   }, []);
 
   return (
+    <div className="absolute inset-0 z-0 bg-slate-900">
+      <canvas ref={canvasRef} className="block w-full h-full" aria-hidden="true" />
+      {loadingProgress < 100 && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center" role="status" aria-live="polite">
+          <span className="rounded-full bg-slate-950/70 px-4 py-2 text-sm font-bold text-white backdrop-blur-sm">
+            جاري تحميل الصور {loadingProgress}%
+          </span>
+        </div>
+      )}
+      <div className="absolute inset-0 bg-slate-900/50" />
+    </div>
+  );
+}
+
+function AboutUsSection() {
+  return (
     <section className="pt-16 sm:pt-24 relative overflow-hidden flex flex-col min-h-[85vh] sm:min-h-[80vh]" id="about" dir="rtl">
-      {/* Background Slideshow */}
-      <div className="absolute inset-0 z-0 bg-slate-900">
-        <AnimatePresence mode="popLayout">
-          <motion.img
-            key={currentBg}
-            src={`https://pub-e729d46cf5fd4798932ccae48f7361ef.r2.dev/about_us/${currentBg}.webp`}
-            alt="About us background"
-            className="absolute inset-0 w-full h-full object-cover"
-            initial={{ opacity: 0, scale: 1.05 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1.5, ease: "easeInOut" }}
-          />
-        </AnimatePresence>
-        {/* Dark overlay for readability */}
-        <div className="absolute inset-0 bg-slate-900/50" />
-      </div>
+      <AboutBackgroundSequence />
 
       {/* Content */}
       <div className="container mx-auto px-4 sm:px-6 relative z-10 w-full flex flex-col flex-1 justify-between h-full">
