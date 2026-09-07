@@ -16,6 +16,17 @@ const nextConfig = {
 
   images: {
     formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 31536000,
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '*.r2.dev',
+      },
+      {
+        protocol: 'https',
+        hostname: 'pub-e729d46cf5fd4798932ccae48f7361ef.r2.dev',
+      },
+    ],
   },
 };
 

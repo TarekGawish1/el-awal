@@ -271,20 +271,34 @@ function HeroImageSequence() {
       animationFrameId = window.requestAnimationFrame(animate);
     };
 
-    loadHeroFramesOnce().then((loadedFrames) => {
-      if (!isActive) return;
-      frames = loadedFrames;
-      setLoadingProgress(100);
-      if (frames.length === 0) return;
+    // Defer decorative hero frames until the browser is idle so they don't
+    // compete with critical resources (teacher photo, JS, CSS) on first paint.
+    const startLoading = () => {
+      const run = () => {
+        if (!isActive) return;
+        loadHeroFramesOnce().then((loadedFrames) => {
+          if (!isActive) return;
+          frames = loadedFrames;
+          setLoadingProgress(100);
+          if (frames.length === 0) return;
 
-      drawFrame();
-      lastFrameTime = performance.now();
-      if (canvasRef.current && typeof ResizeObserver !== 'undefined') {
-        resizeObserver = new ResizeObserver(drawFrame);
-        resizeObserver.observe(canvasRef.current);
+          drawFrame();
+          lastFrameTime = performance.now();
+          if (canvasRef.current && typeof ResizeObserver !== 'undefined') {
+            resizeObserver = new ResizeObserver(drawFrame);
+            resizeObserver.observe(canvasRef.current);
+          }
+          animationFrameId = window.requestAnimationFrame(animate);
+        });
+      };
+      if (typeof window !== 'undefined' && 'requestIdleCallback' in (window as any)) {
+        (window as any).requestIdleCallback(run, { timeout: 4000 });
+      } else {
+        setTimeout(run, 2000);
       }
-      animationFrameId = window.requestAnimationFrame(animate);
-    });
+    };
+
+    startLoading();
 
     return () => {
       isActive = false;
@@ -343,6 +357,8 @@ function HeroSection() {
               <img
                 src="/teacher-photo.webp"
                 alt="صورة الأستاذ"
+                fetchPriority="high"
+                decoding="async"
                 className="w-full h-full object-cover object-top drop-shadow-2xl rounded-t-[3rem]"
               />
             </div>
@@ -893,6 +909,8 @@ function CoursesSection() {
                     <img
                       src={course.coverImageUrl}
                       alt={course.title}
+                      loading="lazy"
+                      decoding="async"
                       className="absolute inset-0 w-full h-full object-cover"
                       onError={(event) => {
                         event.currentTarget.style.display = 'none';
@@ -1531,6 +1549,8 @@ function CertificatesSection() {
                         <img
                           src={cert.image}
                           alt={cert.title}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
@@ -1565,30 +1585,57 @@ let aboutImagesLoadPromise: Promise<HTMLImageElement[]> | null = null;
 let loadedAboutImageCount = 0;
 const aboutLoadProgressListeners = new Set<(loadedCount: number) => void>();
 
+function loadSingleAboutImage(index: number): Promise<HTMLImageElement | null> {
+  return new Promise<HTMLImageElement | null>((resolve) => {
+    const image = new Image();
+    image.decoding = 'async';
+    // Hint: only the first image is critical, the rest are background slideshow frames
+    if (index > 2) (image as any).fetchPriority = 'low';
+    image.onload = () => {
+      loadedAboutImageCount += 1;
+      aboutLoadProgressListeners.forEach((listener) => listener(loadedAboutImageCount));
+      resolve(image);
+    };
+    image.onerror = () => {
+      loadedAboutImageCount += 1;
+      aboutLoadProgressListeners.forEach((listener) => listener(loadedAboutImageCount));
+      resolve(null);
+    };
+    image.src = `${ABOUT_IMAGE_BASE_URL}/${index + 1}.webp`;
+  });
+}
+
 function loadAboutImagesOnce(): Promise<HTMLImageElement[]> {
   if (cachedAboutImages) return Promise.resolve(cachedAboutImages);
   if (aboutImagesLoadPromise) return aboutImagesLoadPromise;
 
-  aboutImagesLoadPromise = Promise.all(
-    Array.from({ length: ABOUT_IMAGE_COUNT }, (_, index) =>
-      new Promise<HTMLImageElement | null>((resolve) => {
-        const image = new Image();
-        image.decoding = 'async';
-        image.onload = () => {
-          loadedAboutImageCount += 1;
-          aboutLoadProgressListeners.forEach((listener) => listener(loadedAboutImageCount));
-          resolve(image);
-        };
-        image.onerror = () => {
-          loadedAboutImageCount += 1;
-          aboutLoadProgressListeners.forEach((listener) => listener(loadedAboutImageCount));
-          resolve(null);
-        };
-        image.src = `${ABOUT_IMAGE_BASE_URL}/${index + 1}.webp`;
-      }),
-    ),
-  ).then((images) => {
-    cachedAboutImages = images.filter((image): image is HTMLImageElement => image !== null);
+  // Load only the first 3 images upfront so the section paints fast,
+  // then stream the remaining 27 in the background one-by-one.
+  // This cuts ~90% off the initial image payload (~12MB -> ~1MB).
+  const loadRestInBackground = (first: (HTMLImageElement | null)[]) => {
+    const rest = Array.from({ length: ABOUT_IMAGE_COUNT - 3 }, (_, i) => i + 3);
+    let chain = Promise.resolve();
+    rest.forEach((index) => {
+      chain = chain
+        .then(() => loadSingleAboutImage(index))
+        .then((img) => {
+          if (img && cachedAboutImages) cachedAboutImages.push(img);
+        });
+    });
+    return chain;
+  };
+
+  aboutImagesLoadPromise = Promise.all([0, 1, 2].map(loadSingleAboutImage)).then((first) => {
+    cachedAboutImages = first.filter((image): image is HTMLImageElement => image !== null);
+    // Don't block the caller on the remaining 27 — load them lazily
+    if (typeof window !== 'undefined') {
+      const kickOff = () => loadRestInBackground(first);
+      if ('requestIdleCallback' in (window as any)) {
+        (window as any).requestIdleCallback(kickOff, { timeout: 8000 });
+      } else {
+        setTimeout(kickOff, 3000);
+      }
+    }
     return cachedAboutImages;
   });
 
@@ -1643,27 +1690,51 @@ function AboutBackgroundSequence() {
       );
     };
 
-    loadAboutImagesOnce().then((loadedImages) => {
-      if (!isActive) return;
-      images = loadedImages;
-      setLoadingProgress(100);
-      if (images.length === 0) return;
+    // Only start loading the R2 slideshow when the About section is near
+    // the viewport — it's far below the fold and must not load on first paint.
+    let observer: IntersectionObserver | null = null;
+    const boot = () => {
+      loadAboutImagesOnce().then((loadedImages) => {
+        if (!isActive) return;
+        images = loadedImages;
+        // Progress reflects the 3 critical images; the rest stream in silently
+        setLoadingProgress(100);
+        if (images.length === 0) return;
 
-      drawCurrentImage();
-      if (canvasRef.current && typeof ResizeObserver !== 'undefined') {
-        resizeObserver = new ResizeObserver(drawCurrentImage);
-        resizeObserver.observe(canvasRef.current);
-      }
-      intervalId = window.setInterval(() => {
-        currentImageIndex = (currentImageIndex + 1) % images.length;
         drawCurrentImage();
-      }, ABOUT_IMAGE_DURATION_MS);
-    });
+        if (canvasRef.current && typeof ResizeObserver !== 'undefined') {
+          resizeObserver = new ResizeObserver(drawCurrentImage);
+          resizeObserver.observe(canvasRef.current);
+        }
+        intervalId = window.setInterval(() => {
+          if (images.length === 0) return;
+          currentImageIndex = (currentImageIndex + 1) % images.length;
+          drawCurrentImage();
+        }, ABOUT_IMAGE_DURATION_MS);
+      });
+    };
+
+    const canvasEl = canvasRef.current;
+    if (canvasEl && typeof IntersectionObserver !== 'undefined') {
+      observer = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((e) => e.isIntersecting)) {
+            boot();
+            observer?.disconnect();
+          }
+        },
+        { rootMargin: '800px' },
+      );
+      observer.observe(canvasEl);
+    } else {
+      boot();
+    }
 
     return () => {
       isActive = false;
       aboutLoadProgressListeners.delete(updateProgress);
       resizeObserver?.disconnect();
+      observer?.disconnect();
       if (intervalId !== null) window.clearInterval(intervalId);
     };
   }, []);
