@@ -114,6 +114,7 @@ export default function DashboardLayout({
       '/teacher/certificates': 'الشهادات التقديرية',
       '/teacher/assistants': 'إدارة المساعدين',
       '/teacher/activity-log': 'سجل النشاطات وتتبع العمليات',
+      '/teacher/settings': 'بيانات المدرس',
       '/student/dashboard': 'لوحة تحكم الطالب',
       '/student/homework': 'الواجبات المنزلية',
       '/student/assessments': 'الاختبارات',

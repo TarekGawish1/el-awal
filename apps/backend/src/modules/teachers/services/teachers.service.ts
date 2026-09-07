@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { DashboardOverviewQueryDto } from '../dto/dashboard-overview-query.dto';
 import { AttendanceStatus, GroupEnrollmentStatus, SubmissionStatus } from '@prisma/client';
+import { normalizeEgyptianPhone } from '../../../common/utils/phone.util';
 
 @Injectable()
 export class TeachersService {
@@ -454,5 +455,151 @@ export class TeachersService {
     });
 
     return updated.savedLocations;
+  }
+
+  async getTeacherProfile(teacherId: string) {
+    let profile = await this.prisma.user.findUnique({
+      where: { id: teacherId },
+      select: {
+        id: true,
+        fullName: true,
+        phone: true,
+        email: true,
+        role: true,
+        teacherProfile: {
+          select: {
+            id: true,
+            specialty: true,
+            bio: true,
+            activeAcademicYear: true,
+            activeAcademicTerm: true,
+          },
+        },
+      },
+    });
+
+    if (!profile) {
+      const primaryTeacher = await this.prisma.user.findFirst({
+        where: { role: 'TEACHER' },
+        select: {
+          id: true,
+          fullName: true,
+          phone: true,
+          email: true,
+          role: true,
+          teacherProfile: {
+            select: {
+              id: true,
+              specialty: true,
+              bio: true,
+              activeAcademicYear: true,
+              activeAcademicTerm: true,
+            },
+          },
+        },
+      });
+      if (!primaryTeacher) {
+        throw new NotFoundException('Teacher profile not found');
+      }
+      profile = primaryTeacher;
+    }
+
+    if (profile.role !== 'TEACHER') {
+      const primaryTeacher = await this.prisma.user.findFirst({
+        where: { role: 'TEACHER' },
+        select: {
+          id: true,
+          fullName: true,
+          phone: true,
+          email: true,
+          role: true,
+          teacherProfile: {
+            select: {
+              id: true,
+              specialty: true,
+              bio: true,
+              activeAcademicYear: true,
+              activeAcademicTerm: true,
+            },
+          },
+        },
+      });
+      if (!primaryTeacher) {
+        throw new NotFoundException('Teacher profile not found');
+      }
+      return primaryTeacher;
+    }
+
+    return profile;
+  }
+
+  async updateTeacherProfile(
+    teacherId: string,
+    dto: { fullName?: string; phone?: string },
+  ) {
+    if (!dto.fullName && !dto.phone) {
+      throw new BadRequestException('At least one of fullName or phone must be provided');
+    }
+
+    const existing = await this.prisma.user.findUnique({
+      where: { id: teacherId },
+      select: { id: true, role: true },
+    });
+
+    let targetId = teacherId;
+    if (!existing || existing.role !== 'TEACHER') {
+      const primaryTeacher = await this.prisma.user.findFirst({
+        where: { role: 'TEACHER' },
+        select: { id: true },
+      });
+      if (!primaryTeacher) {
+        throw new NotFoundException('Teacher profile not found');
+      }
+      targetId = primaryTeacher.id;
+    }
+
+    const data: { fullName?: string; phone?: string } = {};
+    if (dto.fullName !== undefined) {
+      const name = dto.fullName.trim();
+      if (name.length < 3) {
+        throw new BadRequestException('Name must be at least 3 characters');
+      }
+      data.fullName = name;
+    }
+    if (dto.phone !== undefined) {
+      const normalized = normalizeEgyptianPhone(dto.phone.trim());
+      const conflict = await this.prisma.user.findFirst({
+        where: { phone: normalized, id: { not: targetId } },
+        select: { id: true },
+      });
+      if (conflict) {
+        throw new ConflictException('This phone number is already registered to another account');
+      }
+      data.phone = normalized;
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: targetId },
+      data,
+      select: {
+        id: true,
+        fullName: true,
+        phone: true,
+        email: true,
+        role: true,
+        teacherProfile: {
+          select: {
+            id: true,
+            specialty: true,
+            bio: true,
+            activeAcademicYear: true,
+            activeAcademicTerm: true,
+          },
+        },
+      },
+    });
+
+    this.logger.log(`Teacher profile updated for user [${targetId}]`);
+    return updated;
   }
 }

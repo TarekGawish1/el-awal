@@ -8,6 +8,7 @@ import { Select } from '@/components/ui/Select';
 import { Download, Loader2, ZoomIn, ZoomOut, Maximize2, RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
+import { getStoredAccessToken } from '@/features/auth/utils/auth-tokens';
 import { CertificateTemplateA, CertificateData } from './CertificateTemplateA';
 
 const STAGE_GRADES = {
@@ -194,9 +195,11 @@ export function CertificateBuilder() {
 
         try {
           const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+          const token = getStoredAccessToken();
           const res = await fetch(`${baseUrl}/certificates`, { 
             method: 'POST', 
-            body: formData 
+            body: formData,
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
           });
           
           let savedCertId = Date.now().toString();

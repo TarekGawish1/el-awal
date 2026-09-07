@@ -15,6 +15,7 @@ import {
   Award,
   History,
   MessageSquareHeart,
+  Settings,
 } from 'lucide-react';
 
 export interface NavItemConfig {
@@ -80,6 +81,7 @@ export const TEACHER_NAVIGATION_SECTIONS: NavSectionConfig[] = [
       { label: 'الشهادات', href: '/teacher/certificates', icon: Award, onlineOnly: true },
       { label: 'إدارة المساعدين', href: '/teacher/assistants', icon: Users, onlineOnly: true, roleRequirement: 'TEACHER' },
       { label: 'سجل النشاطات', href: '/teacher/activity-log', icon: History, onlineOnly: true, roleRequirement: 'TEACHER' },
+      { label: 'بيانات المدرس', href: '/teacher/settings', icon: Settings, onlineOnly: true, roleRequirement: 'TEACHER' },
       {
         label: 'ربط وإدارة الواتساب',
         href: '#whatsapp-manager',

@@ -23,6 +23,7 @@ export const API_ENDPOINTS = {
   TEACHER: {
     DASHBOARD_OVERVIEW: '/teachers/dashboard/overview', // Recommended server aggregation contract
     ACADEMIC_PERIOD: '/teachers/academic-period',
+    PROFILE: '/teachers/profile',
     SAVED_LOCATIONS: '/teachers/saved-locations',
     ASSISTANTS: {
       LIST: '/teachers/assistants',

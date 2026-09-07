@@ -4,6 +4,7 @@ import { TeachersService } from '../services/teachers.service';
 import { StudentsService } from '../../students/services/students.service';
 import { DashboardOverviewQueryDto } from '../dto/dashboard-overview-query.dto';
 import { UpdateAcademicPeriodDto } from '../dto/update-academic-period.dto';
+import { UpdateTeacherProfileDto } from '../dto/update-teacher-profile.dto';
 import { ResetStudentPasswordDto } from '../../students/dto/reset-student-password.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
 import {
@@ -33,6 +34,27 @@ export class TeachersController {
   ) {
     const teacherId = user.teacherProfileId || user.id;
     return this.teachersService.getDashboardOverview(teacherId, query);
+  }
+
+  @Get('profile')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Get current teacher name and phone (editable profile)' })
+  @ApiResponse({ status: 200, description: 'Teacher profile data' })
+  async getTeacherProfile(@CurrentUser() user: AuthenticatedUser) {
+    const teacherId = user.teacherProfileId || user.id;
+    return this.teachersService.getTeacherProfile(teacherId);
+  }
+
+  @Put('profile')
+  @Roles(UserRole.TEACHER)
+  @ApiOperation({ summary: 'Update teacher display name and phone number' })
+  @ApiResponse({ status: 200, description: 'Updated teacher profile' })
+  async updateTeacherProfile(
+    @Body() dto: UpdateTeacherProfileDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const teacherId = user.teacherProfileId || user.id;
+    return this.teachersService.updateTeacherProfile(teacherId, dto);
   }
 
   @Get('academic-period')
