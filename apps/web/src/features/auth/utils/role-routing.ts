@@ -96,12 +96,12 @@ export function sanitizeRedirectUrl(
  */
 export function getAvailableRoles(user: AuthUser | null | undefined): UserRole[] {
   if (!user) return [];
-  const roles: UserRole[] = [];
-  if (user.teacherProfileId) roles.push('TEACHER');
-  if (user.secretariatProfileId) roles.push('SECRETARIAT');
-  if (user.studentProfileId) roles.push('STUDENT');
-  if (user.parentProfileId) roles.push('PARENT');
-  return roles;
+  const roles = new Set<UserRole>();
+  if (user.teacherProfileId || user.role === 'TEACHER') roles.add('TEACHER');
+  if (user.secretariatProfileId || user.role === 'SECRETARIAT') roles.add('SECRETARIAT');
+  if (user.studentProfileId || user.role === 'STUDENT') roles.add('STUDENT');
+  if (user.parentProfileId || user.role === 'PARENT') roles.add('PARENT');
+  return Array.from(roles);
 }
 
 /**

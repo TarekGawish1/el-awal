@@ -25,6 +25,7 @@ import {
   CloudOff,
   CheckCircle2,
   AlertCircle,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { useAuth } from '@/features/auth';
 import { DashboardBreadcrumbs } from '@/features/dashboard/components/DashboardBreadcrumbs';
@@ -255,8 +256,8 @@ export default function DashboardLayout({
 
       {/* Sidebar Navigation */}
       <aside
-        className={`fixed inset-y-0 start-0 z-40 w-64 bg-white border-e border-neutral-200/90 flex flex-col justify-between transition-transform duration-200 ease-in-out lg:static lg:translate-x-0 lg:h-full shrink-0 overflow-hidden ${
-          isMobileSidebarOpen ? 'translate-x-0 shadow-xl' : 'translate-x-full lg:translate-x-0'
+        className={`fixed inset-y-0 start-0 z-50 lg:z-auto w-64 max-w-[85vw] bg-white border-e border-neutral-200/90 flex flex-col justify-between transition-transform duration-200 ease-in-out lg:static lg:translate-x-0 lg:h-full shrink-0 overflow-hidden pt-[env(safe-area-inset-top,0px)] ${
+          isMobileSidebarOpen ? 'translate-x-0 shadow-2xl' : 'translate-x-full lg:translate-x-0'
         }`}
       >
         <div className="flex flex-col min-h-0 flex-1">
@@ -288,6 +289,35 @@ export default function DashboardLayout({
               <X className="w-5 h-5" />
             </button>
           </div>
+
+          {/* Quick Role Switcher Banner for Mobile Sidebar */}
+          {canSwitchRoles && (
+            <div className="mx-3 mt-3 p-2.5 bg-neutral-50 border border-neutral-200/80 rounded-xl flex items-center justify-between gap-2 shadow-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-primary-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <ArrowLeftRight className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-neutral-900 truncate">
+                    {user?.role === 'PARENT' ? 'حساب المساعد' : 'حساب ولي الأمر'}
+                  </p>
+                  <p className="text-[10px] text-neutral-500 truncate">تبديل الحساب الحالي</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const targetRole = availableRoles.find((r) => r !== user?.role) || (user?.role === 'PARENT' ? 'SECRETARIAT' : 'PARENT');
+                  setIsMobileSidebarOpen(false);
+                  handleSwitchRole(targetRole);
+                }}
+                disabled={isSwitchingRole}
+                className="px-2.5 py-1 text-xs font-bold text-primary-700 bg-white hover:bg-primary-50 border border-primary-200 rounded-lg shadow-xs transition-colors shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                {isSwitchingRole ? 'جاري...' : 'تبديل'}
+              </button>
+            </div>
+          )}
 
           {/* Categorized Navigation Links */}
           <nav className="px-3 py-4 overflow-y-auto flex-1 space-y-6" aria-label="القائمة الرئيسية">
@@ -393,7 +423,7 @@ export default function DashboardLayout({
       {isMobileSidebarOpen && (
         <div
           onClick={() => setIsMobileSidebarOpen(false)}
-          className="fixed inset-0 bg-neutral-900/40 z-30 lg:hidden backdrop-blur-xs"
+          className="fixed inset-0 bg-neutral-900/60 z-45 lg:hidden backdrop-blur-xs"
           aria-hidden="true"
         />
       )}
@@ -401,7 +431,7 @@ export default function DashboardLayout({
       {/* Main Page Workspace & Header Wrapper */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Global Navigation Header */}
-        <header className="pt-[env(safe-area-inset-top,0px)] bg-white/95 border-b border-neutral-200 sticky top-0 z-40 shadow-xs shrink-0 flex items-center justify-between px-2.5 sm:px-6 lg:px-8 min-h-[3.75rem] sm:min-h-[4rem] gap-1.5 sm:gap-4">
+        <header className="pt-[env(safe-area-inset-top,0px)] bg-white/95 border-b border-neutral-200 sticky top-0 z-30 lg:z-40 shadow-xs shrink-0 flex items-center justify-between px-2.5 sm:px-6 lg:px-8 min-h-[3.75rem] sm:min-h-[4rem] gap-1.5 sm:gap-4">
           <div className="flex items-center gap-1.5 sm:gap-4 shrink-0">
             <button
               onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
@@ -527,6 +557,29 @@ export default function DashboardLayout({
             <div className="shrink-0">
               <NotificationBell />
             </div>
+
+            {/* Quick Role Switch Button */}
+            {canSwitchRoles && (
+              <button
+                type="button"
+                onClick={() => {
+                  const targetRole = availableRoles.find((r) => r !== user?.role) || (user?.role === 'PARENT' ? 'SECRETARIAT' : 'PARENT');
+                  handleSwitchRole(targetRole);
+                }}
+                disabled={isSwitchingRole}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-primary-50 hover:bg-primary-100/90 text-primary-700 border border-primary-200/90 text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
+                title={`التبديل إلى ${user?.role === 'PARENT' ? 'حساب المساعد' : 'حساب ولي الأمر'}`}
+                aria-label={`التبديل إلى ${user?.role === 'PARENT' ? 'حساب المساعد' : 'حساب ولي الأمر'}`}
+              >
+                <ArrowLeftRight className={`w-3.5 h-3.5 shrink-0 ${isSwitchingRole ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">
+                  {user?.role === 'PARENT' ? 'التبديل لحساب المساعد' : 'التبديل لحساب ولي الأمر'}
+                </span>
+                <span className="sm:hidden text-[11px]">
+                  {user?.role === 'PARENT' ? 'المساعد' : 'ولي الأمر'}
+                </span>
+              </button>
+            )}
 
             <div className="h-6 w-px bg-neutral-200 mx-0.5 hidden sm:block shrink-0"></div>
 

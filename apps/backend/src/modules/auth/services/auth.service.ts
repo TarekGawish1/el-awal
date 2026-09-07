@@ -220,6 +220,9 @@ export class AuthService {
                     deletedAt: true,
                     passwordHash: true,
                     parentProfile: { select: { id: true } },
+                    secretariatProfile: { select: { id: true } },
+                    teacherProfile: { select: { id: true } },
+                    studentProfile: { select: { id: true } },
                   },
                 },
               },
@@ -254,6 +257,9 @@ export class AuthService {
           deletedAt: true,
           passwordHash: true,
           parentProfile: { select: { id: true } },
+          secretariatProfile: { select: { id: true } },
+          teacherProfile: { select: { id: true } },
+          studentProfile: { select: { id: true } },
         },
       });
 
@@ -385,6 +391,32 @@ export class AuthService {
       }
     }
 
+    let teacherProfileId = user.teacherProfile?.id;
+    let studentProfileId = user.studentProfile?.id;
+    let parentProfileId = user.parentProfile?.id;
+    let secretariatProfileId = user.secretariatProfile?.id;
+
+    if (!secretariatProfileId || !parentProfileId || !teacherProfileId || !studentProfileId) {
+      const fullUserProfiles = await this.prisma.user.findUnique({
+        where: { id: user.id },
+        select: {
+          teacherProfile: { select: { id: true } },
+          studentProfile: { select: { id: true } },
+          parentProfile: { select: { id: true } },
+          secretariatProfile: { select: { id: true } },
+          assistantToTeachers: { where: { status: 'ACTIVE' }, take: 1, select: { id: true } },
+        },
+      });
+      if (fullUserProfiles) {
+        if (!teacherProfileId) teacherProfileId = fullUserProfiles.teacherProfile?.id;
+        if (!studentProfileId) studentProfileId = fullUserProfiles.studentProfile?.id;
+        if (!parentProfileId) parentProfileId = fullUserProfiles.parentProfile?.id;
+        if (!secretariatProfileId) {
+          secretariatProfileId = fullUserProfiles.secretariatProfile?.id || (fullUserProfiles.assistantToTeachers && fullUserProfiles.assistantToTeachers.length > 0 ? user.id : undefined);
+        }
+      }
+    }
+
     return {
       accessToken,
       refreshToken,
@@ -396,10 +428,10 @@ export class AuthService {
         email: user.email || undefined,
         phone: user.phone || undefined,
         role: effectiveRole,
-        teacherProfileId: user.teacherProfile?.id,
-        studentProfileId: user.studentProfile?.id,
-        parentProfileId: user.parentProfile?.id,
-        secretariatProfileId: user.secretariatProfile?.id,
+        teacherProfileId,
+        studentProfileId,
+        parentProfileId,
+        secretariatProfileId,
         permissions,
       },
     };
@@ -418,6 +450,7 @@ export class AuthService {
         studentProfile: { select: { id: true } },
         parentProfile: { select: { id: true } },
         secretariatProfile: { select: { id: true } },
+        assistantToTeachers: { where: { status: 'ACTIVE' }, take: 1, select: { id: true } },
       },
     });
 
@@ -425,16 +458,40 @@ export class AuthService {
       throw new UnauthorizedException('الحساب غير موجود أو غير مفعل');
     }
 
+    const hasAssistantLink = Boolean(user.assistantToTeachers && user.assistantToTeachers.length > 0);
+    const hasParentLink = await this.prisma.parentStudentLink.findFirst({
+      where: { parentId: user.id },
+      select: { id: true },
+    });
+
     // Check if user has the required profile for the target role
     const roleProfileMap: Record<string, boolean> = {
-      [UserRole.TEACHER]: Boolean(user.teacherProfile),
-      [UserRole.STUDENT]: Boolean(user.studentProfile),
-      [UserRole.PARENT]: Boolean(user.parentProfile),
-      [UserRole.SECRETARIAT]: Boolean(user.secretariatProfile),
+      [UserRole.TEACHER]: Boolean(user.teacherProfile) || user.role === UserRole.TEACHER,
+      [UserRole.STUDENT]: Boolean(user.studentProfile) || user.role === UserRole.STUDENT,
+      [UserRole.PARENT]: Boolean(user.parentProfile) || Boolean(hasParentLink) || user.role === UserRole.PARENT,
+      [UserRole.SECRETARIAT]: Boolean(user.secretariatProfile) || hasAssistantLink || user.role === UserRole.SECRETARIAT,
     };
 
     if (!roleProfileMap[targetRole]) {
       throw new BadRequestException('ليس لديك صلاحية التبديل إلى هذا الدور');
+    }
+
+    if (targetRole === UserRole.SECRETARIAT && !user.secretariatProfile && (hasAssistantLink || user.role === UserRole.SECRETARIAT)) {
+      const sp = await this.prisma.secretariatProfile.upsert({
+        where: { id: user.id },
+        create: { id: user.id, staffTitle: 'مساعد معلم' },
+        update: {},
+      });
+      user.secretariatProfile = { id: sp.id };
+    }
+
+    if (targetRole === UserRole.PARENT && !user.parentProfile && (hasParentLink || user.role === UserRole.PARENT)) {
+      const pp = await this.prisma.parentProfile.upsert({
+        where: { id: user.id },
+        create: { id: user.id, relationshipType: 'ولي أمر' },
+        update: {},
+      });
+      user.parentProfile = { id: pp.id };
     }
 
     return this.issueTokens(user, targetRole);
