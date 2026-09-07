@@ -177,32 +177,133 @@ function Navbar() {
   );
 }
 
+const HERO_FRAME_COUNT = 22;
+const HERO_FRAME_DURATION_MS = 150;
+let cachedHeroFrames: HTMLImageElement[] | null = null;
+let heroFramesLoadPromise: Promise<HTMLImageElement[]> | null = null;
+let loadedHeroFrameCount = 0;
+const heroLoadProgressListeners = new Set<(loadedCount: number) => void>();
+
+function loadHeroFramesOnce(): Promise<HTMLImageElement[]> {
+  if (cachedHeroFrames) return Promise.resolve(cachedHeroFrames);
+  if (heroFramesLoadPromise) return heroFramesLoadPromise;
+
+  heroFramesLoadPromise = Promise.all(
+    Array.from({ length: HERO_FRAME_COUNT }, (_, index) =>
+      new Promise<HTMLImageElement | null>((resolve) => {
+        const image = new Image();
+        image.decoding = 'async';
+        image.onload = () => {
+          loadedHeroFrameCount += 1;
+          heroLoadProgressListeners.forEach((listener) => listener(loadedHeroFrameCount));
+          resolve(image);
+        };
+        image.onerror = () => {
+          loadedHeroFrameCount += 1;
+          heroLoadProgressListeners.forEach((listener) => listener(loadedHeroFrameCount));
+          resolve(null);
+        };
+        image.src = `/hero-animation/frame_${String(index).padStart(6, '0')}.webp`;
+      }),
+    ),
+  ).then((frames) => {
+    cachedHeroFrames = frames.filter((frame): frame is HTMLImageElement => frame !== null);
+    return cachedHeroFrames;
+  });
+
+  return heroFramesLoadPromise;
+}
+
 function HeroImageSequence() {
-  const [frameIndex, setFrameIndex] = useState(0);
-  const totalFrames = 22;
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [loadingProgress, setLoadingProgress] = useState(() =>
+    Math.round((loadedHeroFrameCount / HERO_FRAME_COUNT) * 100),
+  );
 
   useEffect(() => {
-    // Preload images to avoid flickering
-    for (let i = 0; i < totalFrames; i++) {
-      const img = new Image();
-      img.src = `/hero-animation/frame_${String(i).padStart(6, '0')}.webp`;
-    }
-  }, []);
+    let isActive = true;
+    let animationFrameId: number | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+    let currentFrameIndex = 0;
+    let lastFrameTime = 0;
+    let frames: HTMLImageElement[] = [];
 
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      setFrameIndex((prev) => (prev + 1) % totalFrames);
-    }, 150); // ~6.6 FPS for an even slower animation
-    return () => clearInterval(intervalId);
+    const updateProgress = (loadedCount: number) => {
+      if (isActive) setLoadingProgress(Math.round((loadedCount / HERO_FRAME_COUNT) * 100));
+    };
+    heroLoadProgressListeners.add(updateProgress);
+
+    const drawFrame = () => {
+      const canvas = canvasRef.current;
+      const image = frames[currentFrameIndex];
+      if (!canvas || !image) return;
+
+      const context = canvas.getContext('2d');
+      if (!context) return;
+
+      const bounds = canvas.getBoundingClientRect();
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      const targetWidth = Math.max(1, Math.round(bounds.width * pixelRatio));
+      const targetHeight = Math.max(1, Math.round(bounds.height * pixelRatio));
+
+      if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+      }
+
+      const scale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
+      const drawWidth = image.naturalWidth * scale;
+      const drawHeight = image.naturalHeight * scale;
+      const offsetX = (canvas.width - drawWidth) / 2;
+      const offsetY = (canvas.height - drawHeight) / 2;
+
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+    };
+
+    const animate = (timestamp: number) => {
+      if (!isActive) return;
+      if (timestamp - lastFrameTime >= HERO_FRAME_DURATION_MS) {
+        currentFrameIndex = (currentFrameIndex + 1) % frames.length;
+        lastFrameTime = timestamp;
+        drawFrame();
+      }
+      animationFrameId = window.requestAnimationFrame(animate);
+    };
+
+    loadHeroFramesOnce().then((loadedFrames) => {
+      if (!isActive) return;
+      frames = loadedFrames;
+      setLoadingProgress(100);
+      if (frames.length === 0) return;
+
+      drawFrame();
+      lastFrameTime = performance.now();
+      if (canvasRef.current && typeof ResizeObserver !== 'undefined') {
+        resizeObserver = new ResizeObserver(drawFrame);
+        resizeObserver.observe(canvasRef.current);
+      }
+      animationFrameId = window.requestAnimationFrame(animate);
+    });
+
+    return () => {
+      isActive = false;
+      heroLoadProgressListeners.delete(updateProgress);
+      resizeObserver?.disconnect();
+      if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId);
+    };
   }, []);
 
   return (
-    <div className="absolute inset-0 z-0 opacity-10">
-      <img
-        src={`/hero-animation/frame_${String(frameIndex).padStart(6, '0')}.webp`}
-        alt="خلفية متحركة"
-        className="w-full h-full object-cover"
-      />
+    <div className="absolute inset-0 z-0 pointer-events-none">
+      <canvas ref={canvasRef} className="block w-full h-full opacity-10" aria-hidden="true" />
+      {loadingProgress < 100 && (
+        <div className="absolute inset-0 flex items-center justify-center" role="status" aria-live="polite">
+          <span className="rounded-full bg-white/80 px-4 py-2 text-sm font-bold text-slate-600 shadow-sm backdrop-blur-sm">
+            جاري تحميل الخلفية {loadingProgress}%
+          </span>
+        </div>
+      )}
     </div>
   );
 }
