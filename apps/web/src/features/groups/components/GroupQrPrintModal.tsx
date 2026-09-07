@@ -9,8 +9,6 @@ import { useGroupStudents } from '../hooks/useGroups';
 import { API_BASE_URL, API_ENDPOINTS } from '@/lib/api/endpoints';
 import { getStoredAccessToken } from '@/features/auth/utils/auth-tokens';
 import toast from 'react-hot-toast';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
 
 interface GroupQrPrintModalProps {
   groupId: string | null;
@@ -120,6 +118,11 @@ export function GroupQrPrintModal({
       if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
         await document.fonts.ready;
       }
+
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
 
       const pdf = new jsPDF('p', 'mm', 'a4');
       const sanitizedName = groupName.replace(/[^\w\u0600-\u06FF\s-]/gi, '').trim() || 'group';

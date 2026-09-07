@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { StorageService } from '../../../integrations/storage/storage.service';
+import { CreateCertificateDto } from '../dto/create-certificate.dto';
 
 @Injectable()
 export class CertificatesService {
@@ -11,7 +12,7 @@ export class CertificatesService {
     private readonly storageService: StorageService,
   ) {}
 
-  async createCertificate(data: any, file?: Express.Multer.File) {
+  async createCertificate(data: CreateCertificateDto, file?: Express.Multer.File) {
     let fileUrl = data.fileUrl || null;
     
     if (file) {
@@ -50,13 +51,21 @@ export class CertificatesService {
   }
 
   async deleteCertificate(id: string) {
+    const existing = await this.prisma.certificate.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('الشهادة غير موجودة أو تم حذفها مسبقاً');
+    }
+
     try {
       return await this.prisma.certificate.delete({
-        where: { id }
+        where: { id },
       });
     } catch (error) {
       this.logger.error(`Failed to delete certificate ${id}`, error);
-      return null;
+      throw error;
     }
   }
 }

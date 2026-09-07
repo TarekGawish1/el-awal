@@ -121,10 +121,13 @@ export class StorageService {
       }
     }
 
-    // Local / Base64 fallback storage
+    // Local / Base64 fallback storage with directory containment check
     try {
-      const uploadDir = path.join(process.cwd(), 'uploads');
-      const targetPath = path.join(uploadDir, key);
+      const uploadDir = path.resolve(process.cwd(), 'uploads');
+      const targetPath = path.resolve(uploadDir, key);
+      if (!targetPath.startsWith(uploadDir)) {
+        throw new Error(`Path traversal attempt blocked for key: ${key}`);
+      }
       fs.mkdirSync(path.dirname(targetPath), { recursive: true });
       fs.writeFileSync(targetPath, buffer);
       return {
@@ -191,19 +194,18 @@ export class StorageService {
       }
     }
 
-    // Local / fallback file deletion
+    // Local / fallback file deletion with directory containment check
     try {
       const cleanKey = key.replace(/^\/+/, '');
-      const uploadDir = path.join(process.cwd(), 'uploads');
-      const targetPath1 = path.join(process.cwd(), cleanKey);
-      const targetPath2 = path.join(uploadDir, cleanKey.replace(/^uploads[\\/]/, ''));
-
-      if (fs.existsSync(targetPath1) && fs.statSync(targetPath1).isFile()) {
-        fs.unlinkSync(targetPath1);
-        this.logger.log(`Deleted local file [${targetPath1}]`);
-      } else if (fs.existsSync(targetPath2) && fs.statSync(targetPath2).isFile()) {
-        fs.unlinkSync(targetPath2);
-        this.logger.log(`Deleted local file [${targetPath2}]`);
+      const uploadDir = path.resolve(process.cwd(), 'uploads');
+      const targetPath = path.resolve(uploadDir, cleanKey.replace(/^uploads[\\/]/, ''));
+      if (!targetPath.startsWith(uploadDir)) {
+        this.logger.warn(`Path traversal attempt blocked in deleteObject for key: ${key}`);
+        return;
+      }
+      if (fs.existsSync(targetPath) && fs.statSync(targetPath).isFile()) {
+        fs.unlinkSync(targetPath);
+        this.logger.log(`Deleted local file [${targetPath}]`);
       }
     } catch (err) {
       this.logger.warn(`Failed to delete local fallback file for key [${key}]:`, err);

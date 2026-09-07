@@ -8,7 +8,12 @@ import { Input } from '@/components/ui/Input';
 import { CheckCircle2, XCircle, Clock, User, Phone, MapPin, QrCode, Banknote, CalendarClock, AlertCircle, X, Search } from 'lucide-react';
 import { usePendingReservations, useAcceptReservation, useRejectReservation, useGroups, useChangeReservationGroup } from '@/features/groups';
 import toast from 'react-hot-toast';
-import { Scanner } from '@yudiel/react-qr-scanner';
+import dynamic from 'next/dynamic';
+
+const Scanner = dynamic(
+  () => import('@yudiel/react-qr-scanner').then((mod) => mod.Scanner),
+  { ssr: false }
+);
 import { Select } from '@/components/ui/Select';
 import { StudentDetailsModal } from '@/features/students/components/StudentDetailsModal';
 import { PaymentConfirmationModal } from './PaymentConfirmationModal';

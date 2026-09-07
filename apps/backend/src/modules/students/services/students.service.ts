@@ -24,7 +24,7 @@ import { computeEffectiveDueDate, SessionForDeadline } from '../../assessments/u
 import { NotificationsService } from '../../notifications/services/notifications.service';
 import { RealtimeGateway } from '../../../realtime/realtime.gateway';
 import { ResetStudentPasswordDto } from '../dto/reset-student-password.dto';
-import { generateSecurePassword } from '../../../common/utils/password.util';
+import { generateSecurePassword, getTemporaryPinExpiration } from '../../../common/utils/password.util';
 
 @Injectable()
 export class StudentsService {
@@ -120,7 +120,7 @@ export class StudentsService {
           dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
           emergencyPhone: dto.emergencyPhone,
           tempAccessPin: dto.password,
-          pinExpiresAt: null,
+          pinExpiresAt: getTemporaryPinExpiration(48),
           createdById: creatorId,
           createdByName: creatorName,
           updatedById: creatorId,
@@ -1036,6 +1036,8 @@ export class StudentsService {
    * Updates student academic status (e.g. ACTIVE, LEFT, DROPPED_OUT, SUSPENDED, GRADUATED, ARCHIVED)
    */
   async updateStudentStatus(id: string, status: StudentAcademicStatus, user: AuthenticatedUser) {
+    await this.assertStudentAccess(id, user);
+
     const student = await this.prisma.studentProfile.findUnique({
       where: { id },
       include: { user: true },
@@ -1066,6 +1068,8 @@ export class StudentsService {
    * Removes / deletes a student completely from the system with all child records.
    */
   async deleteStudent(id: string, user: AuthenticatedUser) {
+    await this.assertStudentAccess(id, user);
+
     const student = await this.prisma.studentProfile.findUnique({
       where: { id },
       include: { user: true, parentLinks: true },
@@ -1149,9 +1153,10 @@ export class StudentsService {
 
     const newPassword = dto.newPassword?.trim() || generateSecurePassword(6);
     const passwordHash = await bcrypt.hash(newPassword, 10);
-    const pinExpiresAt = null;
+    // Enforce 48-hour temporary PIN lifetime
+    const pinExpiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
-    // 1. Update user password and profile tempAccessPin
+    // 1. Update user password, profile tempAccessPin, and revoke existing sessions
     await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id: studentProfile.user.id },
@@ -1164,6 +1169,14 @@ export class StudentsService {
           pinExpiresAt,
         },
       }),
+      ...(this.prisma.refreshTokenSession?.updateMany
+        ? [
+            this.prisma.refreshTokenSession.updateMany({
+              where: { userId: studentProfile.user.id, revokedAt: null },
+              data: { revokedAt: new Date() },
+            }),
+          ]
+        : []),
     ]);
 
     const studentName = studentProfile.user.fullName;

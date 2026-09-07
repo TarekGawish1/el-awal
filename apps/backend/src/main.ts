@@ -24,12 +24,13 @@ async function bootstrap() {
     }),
   );
 
-  // Serve uploads directory statically with auto-creation
+  // Ensure local uploads directory exists for internal storage handlers
   const uploadsPath = path.join(process.cwd(), 'uploads');
   if (!fs.existsSync(uploadsPath)) {
     fs.mkdirSync(uploadsPath, { recursive: true });
   }
-  app.use('/uploads', express.static(uploadsPath));
+  // Public raw express static serving on '/uploads' disabled for security hardening:
+  // prevents unauthenticated access to private student documents and receipts.
 
   // Trust upstream reverse proxy (e.g. Nginx, Cloudflare) if configured
   if (configService.get<boolean>('TRUST_PROXY', false)) {

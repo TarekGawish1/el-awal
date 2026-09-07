@@ -1,7 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Scanner } from '@yudiel/react-qr-scanner';
+import dynamic from 'next/dynamic';
+
+const Scanner = dynamic(
+  () => import('@yudiel/react-qr-scanner').then((mod) => mod.Scanner),
+  { ssr: false }
+);
 import { offlineDb, HomeworkRecordEntity } from '@/lib/offline/db';
 import { parseStudentQr } from '@/lib/qr/qr-parser';
 import { Alert } from '@/components/ui/Alert';

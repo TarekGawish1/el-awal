@@ -107,28 +107,9 @@ export function validateEnv(config: Record<string, unknown>): EnvConfig {
   }
 
   if (!normalizedConfig.JWT_ACCESS_SECRET || !normalizedConfig.JWT_REFRESH_SECRET) {
-    const derivationBase =
-      typeof normalizedConfig.DATABASE_URL === 'string' ? normalizedConfig.DATABASE_URL : undefined;
-
-    if (derivationBase) {
-      if (!normalizedConfig.JWT_ACCESS_SECRET) {
-        normalizedConfig.JWT_ACCESS_SECRET = createHash('sha256')
-          .update(`el-awal:jwt:access:${derivationBase}`)
-          .digest('hex');
-      }
-      if (!normalizedConfig.JWT_REFRESH_SECRET) {
-        normalizedConfig.JWT_REFRESH_SECRET = createHash('sha256')
-          .update(`el-awal:jwt:refresh:${derivationBase}`)
-          .digest('hex');
-      }
-    }
-  }
-
-  if (!normalizedConfig.JWT_ACCESS_SECRET || !normalizedConfig.JWT_REFRESH_SECRET) {
     throw new Error(
-      'Unable to resolve JWT signing secrets. Set JWT_ACCESS_SECRET and JWT_REFRESH_SECRET ' +
-        '(each at least 32 characters and different from each other), or a single JWT_SECRET, ' +
-        'or ensure DATABASE_URL is set so stable keys can be derived. Generate a secret with: ' +
+      'Explicit JWT_ACCESS_SECRET and JWT_REFRESH_SECRET are required (each at least 32 characters and distinct from each other). ' +
+        'Deterministic derivation from DATABASE_URL is disabled for security hardening. Generate secrets with: ' +
         'node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'base64url\'))"',
     );
   }

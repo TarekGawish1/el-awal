@@ -1,8 +1,13 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Scanner } from '@yudiel/react-qr-scanner';
+import dynamic from 'next/dynamic';
 import { useScanPaymentQr } from '../hooks/useFinance';
+
+const Scanner = dynamic(
+  () => import('@yudiel/react-qr-scanner').then((mod) => mod.Scanner),
+  { ssr: false }
+);
 import { useGroups } from '@/features/groups/hooks/useGroups';
 import { useBooklets } from '@/features/booklets/hooks/useBooklets';
 import { Button } from '@/components/ui/Button';

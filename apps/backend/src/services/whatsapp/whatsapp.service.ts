@@ -238,6 +238,7 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   // ─── Internal Helpers ───────────────────────────────────────────────────────
 
   private async initSocket() {
+    this.closeSocket();
     try {
       // Lazy-load the ESM Baileys package
       if (!this.baileys) {
@@ -338,6 +339,8 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
             this.logger.warn(`🔄 WhatsApp disconnected (code=${statusCode}). Reconnecting in 5s...`);
           }
 
+          this.closeSocket();
+
           if (!this.isDestroyed) {
             this.reconnectTimeout = setTimeout(() => this.initSocket(), 5_000);
           }
@@ -345,6 +348,7 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
       });
     } catch (error) {
       this.logger.error('Failed to initialize WhatsApp socket', error);
+      this.closeSocket();
       if (!this.isDestroyed) {
         this.reconnectTimeout = setTimeout(() => this.initSocket(), 10_000);
       }
@@ -354,13 +358,16 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   private closeSocket() {
     try {
       const sock = this.socket as {
-        ev?: { removeAllListeners: () => void };
+        ev?: { removeAllListeners: (event?: string) => void };
         end?: (err: unknown) => void;
-        ws?: { close: () => void };
+        ws?: { close: () => void; removeAllListeners?: () => void };
       } | null;
 
       if (sock?.ev) {
         sock.ev.removeAllListeners();
+      }
+      if (sock?.ws && typeof sock.ws.removeAllListeners === 'function') {
+        sock.ws.removeAllListeners();
       }
       if (typeof sock?.end === 'function') {
         sock.end(undefined);

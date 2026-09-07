@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Download, Loader2, ZoomIn, ZoomOut, Maximize2, RefreshCw } from 'lucide-react';
-import html2canvas from 'html2canvas';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import { CertificateTemplateA, CertificateData } from './CertificateTemplateA';
@@ -142,6 +141,7 @@ export function CertificateBuilder() {
       // Ensure fonts are fully loaded before rendering
       await document.fonts.ready;
 
+      const { default: html2canvas } = await import('html2canvas');
       const canvas = await html2canvas(clone, {
         scale: 2, // Better resolution
         useCORS: true,

@@ -11,7 +11,7 @@ import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { AuthTokensResponseDto } from '../dto/auth-response.dto';
 import { RegisterByGroupDto } from '../dto/register-by-group.dto';
 import { normalizeEgyptianPhone } from '../../../common/utils/phone.util';
-import { generateSecurePassword } from '../../../common/utils/password.util';
+import { generateSecurePassword, getTemporaryPinExpiration } from '../../../common/utils/password.util';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
 import { NotificationsService } from '../../notifications/services/notifications.service';
 import { NotificationChannel, NotificationType } from '@prisma/client';
@@ -135,14 +135,16 @@ export class AuthService {
     let isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
 
     // If password doesn't match own passwordHash:
-    // A) Check student temporary access PIN if user is a student (permanent direct access)
+    // A) Check student temporary access PIN if user is a student (enforce 48h expiration)
     if (!isPasswordValid && user.studentProfile?.tempAccessPin) {
-      if (user.studentProfile.tempAccessPin === dto.password) {
+      const isPinExpired =
+        user.studentProfile.pinExpiresAt && new Date(user.studentProfile.pinExpiresAt) < new Date();
+      if (!isPinExpired && user.studentProfile.tempAccessPin === dto.password) {
         isPasswordValid = true;
       }
     }
 
-    // B) Check linked student's password or tempAccessPin if user has a parentProfile (permanent direct access)
+    // B) Check linked student's password or tempAccessPin if user has a parentProfile
     let authenticatedAsParentViaStudentPin = false;
     if (!isPasswordValid && user.parentProfile?.studentLinks?.length) {
       for (const link of user.parentProfile.studentLinks) {
@@ -154,7 +156,10 @@ export class AuthService {
             break;
           }
         }
+        const isPinExpired =
+          link.student?.pinExpiresAt && new Date(link.student.pinExpiresAt) < new Date();
         if (
+          !isPinExpired &&
           link.student?.tempAccessPin &&
           link.student.tempAccessPin === dto.password
         ) {
@@ -168,6 +173,28 @@ export class AuthService {
     if (!isPasswordValid) {
       this.logger.warn(`Authentication failed: Invalid password for user [${dto.identifier}]`);
       throw new UnauthorizedException('بيانات الدخول غير صحيحة أو الحساب غير مفعل');
+    }
+
+    // Clear tempAccessPin and pendingCredentials upon verified login with real password
+    if (
+      user.studentProfile &&
+      (user.studentProfile.tempAccessPin || (user.studentProfile as any).pendingCredentials)
+    ) {
+      const usedTempPin = user.studentProfile.tempAccessPin === dto.password;
+      if (!usedTempPin) {
+        await this.prisma.studentProfile
+          .update({
+            where: { id: user.studentProfile.id },
+            data: {
+              tempAccessPin: null,
+              pinExpiresAt: null,
+              pendingCredentials: null,
+            },
+          })
+          .catch((err) =>
+            this.logger.warn('Failed to clear tempAccessPin upon verified password login:', err),
+          );
+      }
     }
 
     const overrideRole = authenticatedAsParentViaStudentPin ? UserRole.PARENT : undefined;
@@ -397,16 +424,18 @@ export class AuthService {
     let secretariatProfileId = user.secretariatProfile?.id;
 
     if (!secretariatProfileId || !parentProfileId || !teacherProfileId || !studentProfileId) {
-      const fullUserProfiles = await this.prisma.user.findUnique({
-        where: { id: user.id },
-        select: {
-          teacherProfile: { select: { id: true } },
-          studentProfile: { select: { id: true } },
-          parentProfile: { select: { id: true } },
-          secretariatProfile: { select: { id: true } },
-          assistantToTeachers: { where: { status: 'ACTIVE' }, take: 1, select: { id: true } },
-        },
-      });
+      const fullUserProfiles = typeof this.prisma.user?.findUnique === 'function'
+        ? await this.prisma.user.findUnique({
+            where: { id: user.id },
+            select: {
+              teacherProfile: { select: { id: true } },
+              studentProfile: { select: { id: true } },
+              parentProfile: { select: { id: true } },
+              secretariatProfile: { select: { id: true } },
+              assistantToTeachers: { where: { status: 'ACTIVE' }, take: 1, select: { id: true } },
+            },
+          })
+        : null;
       if (fullUserProfiles) {
         if (!teacherProfileId) teacherProfileId = fullUserProfiles.teacherProfile?.id;
         if (!studentProfileId) studentProfileId = fullUserProfiles.studentProfile?.id;
@@ -857,7 +886,7 @@ export class AuthService {
                 attendanceMode: 'CENTER',
                 emergencyPhone: parentPhone,
                 tempAccessPin: dto.password,
-                pinExpiresAt: null,
+                pinExpiresAt: getTemporaryPinExpiration(48),
               },
             },
           },

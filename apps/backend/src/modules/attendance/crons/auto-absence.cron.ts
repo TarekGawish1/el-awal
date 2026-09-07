@@ -16,11 +16,11 @@ export class AutoAbsenceCron implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
-    // Run every 15 minutes
-    this.task = cron.schedule('*/15 * * * *', () => void this.run(), {
+    // Run every 15 minutes during active center operating hours (07:00 to 23:00 Cairo time)
+    this.task = cron.schedule('*/15 7-23 * * *', () => void this.run(), {
       timezone: 'Africa/Cairo',
     });
-    this.logger.log('Auto absence cron initialized');
+    this.logger.log('Auto absence cron initialized (07:00-23:00 Cairo)');
   }
 
   onModuleDestroy() {
@@ -28,6 +28,17 @@ export class AutoAbsenceCron implements OnModuleInit, OnModuleDestroy {
   }
 
   async run(now = new Date()): Promise<void> {
+    const hour = Number(
+      new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Africa/Cairo',
+        hour: '2-digit',
+        hourCycle: 'h23',
+      }).format(now),
+    );
+    if (hour < 7 || hour >= 23) {
+      return;
+    }
+
     try {
       this.logger.log('Running AutoAbsenceCron to mark absentees...');
       
