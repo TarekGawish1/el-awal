@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { AlertCircle, ArrowRight, KeyRound, Loader2, Phone, ShieldCheck, UserRound } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle, Button, Input } from '@/components/ui';
 import { useParentAccess } from '../hooks/useParentAccess';
+import { useAuthStore } from '../store/auth.store';
 
 const EGYPTIAN_PHONE_REGEX = /^(?:\+20|0020|0)?1[0125]\d{8}$/;
 
@@ -14,12 +15,27 @@ function normalizePhone(value: string): string {
 }
 
 export function ParentAccessForm() {
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, isAuthenticated, isInitialized } = useAuthStore();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{ identifier?: string; password?: string }>({});
   const { accessParent, isLoading, isError, error, resetError } = useParentAccess();
   const autoLoginAttempted = useRef(false);
+
+  // If already authenticated as PARENT and no new credentials in query, redirect to dashboard
+  useEffect(() => {
+    const hasExplicitCredentials =
+      searchParams?.get('phone') ||
+      searchParams?.get('studentPhone') ||
+      searchParams?.get('code') ||
+      searchParams?.get('studentCode');
+
+    if (!hasExplicitCredentials && isInitialized && isAuthenticated && user?.role === 'PARENT') {
+      router.replace('/parent/dashboard');
+    }
+  }, [isInitialized, isAuthenticated, user, router, searchParams]);
 
   // Auto-login if phone AND password are both present in URL search params (from secure WhatsApp direct link)
   useEffect(() => {

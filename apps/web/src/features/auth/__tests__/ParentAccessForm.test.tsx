@@ -4,6 +4,14 @@ import React from 'react';
 import { ParentAccessForm } from '../components/ParentAccessForm';
 import * as parentAccessHook from '../hooks/useParentAccess';
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    replace: vi.fn(),
+    push: vi.fn(),
+  }),
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 vi.mock('../hooks/useParentAccess', () => ({
   useParentAccess: vi.fn(),
 }));

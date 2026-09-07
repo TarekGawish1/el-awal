@@ -49,6 +49,11 @@ async function executeRefreshToken(): Promise<string | null> {
 
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) {
+        // Check if another tab or request already refreshed tokens in localStorage
+        const latestRefreshToken = getStoredRefreshToken();
+        if (latestRefreshToken && latestRefreshToken !== currentRefreshToken) {
+          return getStoredAccessToken();
+        }
         // Genuine refresh token invalidation from server
         handleAuthFailure(true);
       }
@@ -180,7 +185,23 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
 
   // Attach Bearer Token ONLY if request is destined for internal API base
   if (isInternalApi) {
-    const authToken = token || getStoredAccessToken();
+    let authToken = token || getStoredAccessToken();
+
+    // Proactive silent refresh: If access token is expired or expiring within 60s and we have a stored refresh token
+    if (!isAuthEndpoint && (!authToken || isAccessTokenExpiredOrExpiring(60))) {
+      const hasRefreshToken = getStoredRefreshToken();
+      if (hasRefreshToken) {
+        try {
+          const refreshed = await getRefreshedAccessToken();
+          if (refreshed) {
+            authToken = refreshed;
+          }
+        } catch {
+          // If refresh fails, fall back to existing token or 401 handling
+        }
+      }
+    }
+
     if (authToken) {
       defaultHeaders['Authorization'] = `Bearer ${authToken}`;
     }

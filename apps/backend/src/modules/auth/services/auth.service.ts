@@ -339,7 +339,7 @@ export class AuthService {
     const accessSecret = this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
     const refreshSecret = this.configService.getOrThrow<string>('JWT_REFRESH_SECRET');
     const accessExpiry = this.configService.get<string>('JWT_ACCESS_EXPIRES_IN', '15m');
-    const refreshExpiry = this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '7d');
+    const refreshExpiry = this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '30d');
 
     const accessPayload: JwtTokenPayload = {
       sub: user.id,
@@ -504,7 +504,7 @@ export class AuthService {
     const refreshSecret = this.configService.getOrThrow<string>('JWT_REFRESH_SECRET');
     const accessSecret = this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
     const accessExpiry = this.configService.get<string>('JWT_ACCESS_EXPIRES_IN', '15m');
-    const refreshExpiry = this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '7d');
+    const refreshExpiry = this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '30d');
 
     let decoded: JwtTokenPayload;
     try {
@@ -530,9 +530,57 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh session');
     }
 
-    // Reuse detection: If token was already revoked, revoke all active sessions for this user!
+    // Grace period for rotated refresh tokens (60 seconds)
+    // Prevents concurrent requests or retries from falsely triggering reuse detection panic
+    const GRACE_PERIOD_MS = 60 * 1000;
+    const isWithinGracePeriod =
+      existingSession.revokedAt &&
+      Date.now() - existingSession.revokedAt.getTime() < GRACE_PERIOD_MS;
+
     if (existingSession.revokedAt) {
-      this.logger.error(`Suspicious refresh token reuse detected for user ${existingSession.userId}. Revoking all sessions.`);
+      if (isWithinGracePeriod && existingSession.replacedById) {
+        this.logger.log(
+          `Concurrent refresh token request received within grace period for user ${existingSession.userId}. Issuing refreshed tokens without revoking session family.`,
+        );
+
+        const replacement = await this.prisma.refreshTokenSession.findUnique({
+          where: { id: existingSession.replacedById },
+        });
+
+        if (replacement && !replacement.revokedAt && replacement.expiresAt > new Date()) {
+          const user = await this.prisma.user.findUnique({
+            where: { id: decoded.sub },
+          });
+
+          if (user && user.isActive && !user.deletedAt) {
+            let effectiveRole = user.role;
+            if (decoded.role && decoded.role !== user.role) {
+              effectiveRole = decoded.role as UserRole;
+            }
+            const accessPayload: JwtTokenPayload = {
+              sub: user.id,
+              email: user.email || undefined,
+              phone: user.phone || undefined,
+              role: effectiveRole,
+              typ: 'access',
+            };
+            const accessToken = await this.jwtService.signAsync(accessPayload, {
+              secret: accessSecret,
+              expiresIn: accessExpiry,
+            });
+
+            return {
+              accessToken,
+              refreshToken: dto.refreshToken,
+            };
+          }
+        }
+      }
+
+      // True reuse attack detected outside grace period: Revoke all active sessions for this user!
+      this.logger.error(
+        `Suspicious refresh token reuse detected for user ${existingSession.userId} outside grace period. Revoking all sessions.`,
+      );
       await this.prisma.refreshTokenSession.updateMany({
         where: { userId: existingSession.userId, revokedAt: null },
         data: { revokedAt: new Date() },

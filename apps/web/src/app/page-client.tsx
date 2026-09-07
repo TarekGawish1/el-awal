@@ -4,7 +4,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, PlayCircle, Lock, ChevronDown, X, BookOpen, Clock, Users, FileText, ClipboardList } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
+import { useAuthStore } from '@/features/auth/store/auth.store';
+import { getRoleLandingRoute } from '@/features/auth/utils/role-routing';
 import { submitContactMessage } from './actions';
 
 function IntroSequence({ onComplete }: { onComplete: () => void }) {
@@ -73,6 +76,7 @@ function IntroSequence({ onComplete }: { onComplete: () => void }) {
 function Navbar() {
   const [isLoginDropdownOpen, setIsLoginDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { user, isAuthenticated, isInitialized } = useAuthStore();
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -120,41 +124,51 @@ function Navbar() {
 
         {/* CTA Buttons */}
         <div className="flex items-center gap-2 sm:gap-3">
-          <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={() => setIsLoginDropdownOpen(!isLoginDropdownOpen)}
-              className="text-slate-600 font-bold hover:text-slate-900 transition-colors px-2 sm:px-4 py-2 flex items-center gap-1 text-sm sm:text-base"
+          {isInitialized && isAuthenticated && user ? (
+            <Link
+              href={getRoleLandingRoute(user.role)}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-sm sm:text-base transition-all shadow-md shadow-blue-500/20 flex items-center gap-2 active:scale-95"
             >
-              تسجيل الدخول
-              <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform duration-200 ${isLoginDropdownOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-            </button>
+              <span>لوحة التحكم ({user.fullName ? user.fullName.split(' ')[0] : 'حسابي'})</span>
+              <ArrowRight className="w-4 h-4 rotate-180" />
+            </Link>
+          ) : (
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => setIsLoginDropdownOpen(!isLoginDropdownOpen)}
+                className="text-slate-600 font-bold hover:text-slate-900 transition-colors px-2 sm:px-4 py-2 flex items-center gap-1 text-sm sm:text-base"
+              >
+                تسجيل الدخول
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform duration-200 ${isLoginDropdownOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
 
-            <AnimatePresence>
-              {isLoginDropdownOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  transition={{ duration: 0.15, ease: "easeOut" }}
-                  className="absolute left-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden"
-                >
-                  <div className="py-1">
-                    <a href="/login" className="block px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors">
-                      دخول كطالب
-                    </a>
-                    <a href="/login" className="block px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors">
-                      دخول كمدرس
-                    </a>
-                    <a href="/parent-access" className="block px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors border-t border-slate-100">
-                      دخول كولي أمر
-                    </a>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+              <AnimatePresence>
+                {isLoginDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    className="absolute left-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden"
+                  >
+                    <div className="py-1">
+                      <Link href="/login" className="block px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors">
+                        دخول كطالب
+                      </Link>
+                      <Link href="/login" className="block px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors">
+                        دخول كمدرس / مساعد
+                      </Link>
+                      <Link href="/parent-access" className="block px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors border-t border-slate-100">
+                        دخول كولي أمر
+                      </Link>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
         </div>
       </div>
     </motion.nav>
@@ -1716,6 +1730,8 @@ function FooterSection() {
 }
 
 export default function RootPage() {
+  const router = useRouter();
+  const { user, isAuthenticated, isInitialized } = useAuthStore();
   const [showIntro, setShowIntro] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -1723,7 +1739,21 @@ export default function RootPage() {
     setIsMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (isMounted && isInitialized && isAuthenticated && user) {
+      router.replace(getRoleLandingRoute(user.role));
+    }
+  }, [isMounted, isInitialized, isAuthenticated, user, router]);
+
   if (!isMounted) return <div className="min-h-screen bg-[#0a0f1c]" />;
+
+  if (isInitialized && isAuthenticated && user) {
+    return (
+      <div className="min-h-screen bg-[#0a0f1c] flex items-center justify-center text-slate-300 text-sm" dir="rtl">
+        جاري توجيهك إلى لوحة التحكم...
+      </div>
+    );
+  }
 
   return (
     <main>
