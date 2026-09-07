@@ -114,8 +114,8 @@ export function validateEnv(config: Record<string, unknown>): EnvConfig {
     );
   }
 
-  if (!normalizedConfig.CORS_ORIGINS) {
-    normalizedConfig.CORS_ORIGINS = '*';
+  if (!normalizedConfig.CORS_ORIGINS || normalizedConfig.CORS_ORIGINS === '*') {
+    normalizedConfig.CORS_ORIGINS = 'https://al-awal.online,https://al-awal-cbe2188d9efa.herokuapp.com';
   }
 
   const parsed = envSchema.safeParse(normalizedConfig);
