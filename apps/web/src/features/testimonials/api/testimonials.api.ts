@@ -13,6 +13,7 @@ export interface Testimonial {
   createdAt: string;
   updatedAt?: string;
   moderatedAt?: string | null;
+  displayName?: string | null;
 }
 
 export const testimonialsApi = {
@@ -23,6 +24,11 @@ export const testimonialsApi = {
       body: JSON.stringify(payload),
     }),
   getAll: () => apiClient<Testimonial[]>('/testimonials'),
+  createManual: (payload: { displayName: string; gradeLevel?: string; content: string; rating: number; status?: TestimonialStatus }) =>
+    apiClient<Testimonial>('/testimonials/manual', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
   update: (id: string, payload: Partial<Pick<Testimonial, 'content' | 'rating' | 'status'>>) =>
     apiClient<Testimonial>(`/testimonials/${id}`, {
       method: 'PATCH',

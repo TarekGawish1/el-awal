@@ -386,7 +386,9 @@ model StudentProfile {
 
 model Testimonial {
   id          String            @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
-  studentId   String            @map("student_id") @db.Uuid
+  studentId   String?           @unique(map: "uq_testimonials_student") @map("student_id") @db.Uuid
+  displayName String?           @map("display_name") @db.VarChar(100)
+  gradeLevel  String?           @map("grade_level") @db.VarChar(50)
   content     String            @map("content") @db.Text
   rating      Int               @map("rating")
   status      TestimonialStatus @default(PENDING) @map("status")
@@ -394,9 +396,8 @@ model Testimonial {
   createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student StudentProfile? @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
-  @@unique([studentId], map: "uq_testimonials_student")
   @@index([status, createdAt], map: "idx_testimonials_status_created")
   @@map("testimonials")
 }

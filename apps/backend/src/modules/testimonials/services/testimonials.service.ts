@@ -3,6 +3,7 @@ import { TestimonialStatus } from '@prisma/client';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { CreateTestimonialDto } from '../dto/create-testimonial.dto';
+import { CreateManualTestimonialDto } from '../dto/create-manual-testimonial.dto';
 import { UpdateTestimonialDto } from '../dto/update-testimonial.dto';
 
 @Injectable()
@@ -29,6 +30,19 @@ export class TestimonialsService {
     });
   }
 
+  async createManual(dto: CreateManualTestimonialDto) {
+    return this.prisma.testimonial.create({
+      data: {
+        displayName: dto.displayName.trim(),
+        gradeLevel: dto.gradeLevel?.trim() || null,
+        content: dto.content.trim(),
+        rating: dto.rating,
+        status: dto.status || TestimonialStatus.APPROVED,
+        moderatedAt: dto.status === TestimonialStatus.PENDING ? null : new Date(),
+      },
+    });
+  }
+
   async findMine(user: AuthenticatedUser) {
     const studentId = this.getStudentProfileId(user);
 
@@ -45,6 +59,8 @@ export class TestimonialsService {
         id: true,
         content: true,
         rating: true,
+        displayName: true,
+        gradeLevel: true,
         student: {
           select: {
             gradeLevel: true,
@@ -56,8 +72,8 @@ export class TestimonialsService {
 
     return testimonials.map(({ student, ...testimonial }) => ({
       ...testimonial,
-      firstName: this.getFirstName(student.user.fullName),
-      gradeLevel: student.gradeLevel,
+      firstName: testimonial.displayName || this.getFirstName(student?.user.fullName || ''),
+      gradeLevel: testimonial.gradeLevel || student?.gradeLevel || null,
     }));
   }
 
@@ -76,9 +92,9 @@ export class TestimonialsService {
 
     return testimonials.map(({ student, ...testimonial }) => ({
       ...testimonial,
-      fullName: student.user.fullName,
-      firstName: this.getFirstName(student.user.fullName),
-      gradeLevel: student.gradeLevel,
+      fullName: testimonial.displayName || student?.user.fullName || 'رأي مضاف يدوياً',
+      firstName: testimonial.displayName || this.getFirstName(student?.user.fullName || ''),
+      gradeLevel: testimonial.gradeLevel || student?.gradeLevel || null,
     }));
   }
 

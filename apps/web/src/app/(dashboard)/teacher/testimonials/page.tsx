@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Edit3, MessageSquareHeart, RefreshCw, Star, X } from 'lucide-react';
+import { Check, Edit3, MessageSquareHeart, Plus, RefreshCw, Star, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/Button';
 import { Textarea } from '@/components/ui/Textarea';
@@ -18,6 +18,8 @@ export default function TeacherTestimonialsPage() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'ALL' | TestimonialStatus>('PENDING');
   const [editing, setEditing] = useState<Testimonial | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [manualForm, setManualForm] = useState({ displayName: '', gradeLevel: '', content: '', rating: 5, status: 'APPROVED' as TestimonialStatus });
   const { data: testimonials = [], isLoading, isFetching, refetch } = useQuery({
     queryKey: ['testimonials'],
     queryFn: testimonialsApi.getAll,
@@ -31,6 +33,17 @@ export default function TeacherTestimonialsPage() {
       queryClient.invalidateQueries({ queryKey: ['public-testimonials'] });
     },
     onError: (error: Error) => toast.error(error.message || 'تعذر حفظ التعديلات.'),
+  });
+  const createMutation = useMutation({
+    mutationFn: testimonialsApi.createManual,
+    onSuccess: () => {
+      toast.success('تمت إضافة الرأي بنجاح.');
+      setIsCreating(false);
+      setManualForm({ displayName: '', gradeLevel: '', content: '', rating: 5, status: 'APPROVED' });
+      queryClient.invalidateQueries({ queryKey: ['testimonials'] });
+      queryClient.invalidateQueries({ queryKey: ['public-testimonials'] });
+    },
+    onError: (error: Error) => toast.error(error.message || 'تعذر إضافة الرأي.'),
   });
   const filtered = useMemo(() => filter === 'ALL' ? testimonials : testimonials.filter((item) => item.status === filter), [filter, testimonials]);
   const pendingCount = testimonials.filter((item) => item.status === 'PENDING').length;
@@ -50,7 +63,10 @@ export default function TeacherTestimonialsPage() {
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 flex items-center gap-3"><MessageSquareHeart className="text-primary-600" /> آراء الطلاب</h1>
           <p className="text-slate-500 mt-2">راجع آراء الطلاب وعدّلها أو وافق على عرضها في الصفحة الرئيسية.</p>
         </div>
-        <Button variant="outline" onClick={() => refetch()} isLoading={isFetching} className="gap-2"><RefreshCw className="w-4 h-4" />تحديث</Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setIsCreating(true)} className="gap-2"><Plus className="w-4 h-4" />إضافة رأي</Button>
+          <Button variant="outline" onClick={() => refetch()} isLoading={isFetching} className="gap-2"><RefreshCw className="w-4 h-4" />تحديث</Button>
+        </div>
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
@@ -83,6 +99,20 @@ export default function TeacherTestimonialsPage() {
               </div>
             </article>
           ))}
+        </div>
+      )}
+
+      {isCreating && (
+        <div className="fixed inset-0 z-50 bg-slate-950/40 p-4 flex items-center justify-center" role="dialog" aria-modal="true" aria-label="إضافة رأي جديد">
+          <form onSubmit={(event) => { event.preventDefault(); if (manualForm.displayName.trim().length < 1 || manualForm.content.trim().length < 10) { toast.error('أدخل الاسم ورأياً لا يقل عن 10 أحرف.'); return; } createMutation.mutate({ ...manualForm, displayName: manualForm.displayName.trim(), gradeLevel: manualForm.gradeLevel.trim() || undefined, content: manualForm.content.trim() }); }} className="bg-white rounded-2xl shadow-xl max-w-xl w-full p-6 space-y-4">
+            <div className="flex justify-between items-center"><h2 className="font-extrabold text-lg">إضافة رأي يدوي</h2><button type="button" onClick={() => setIsCreating(false)} aria-label="إغلاق"><X className="w-5 h-5" /></button></div>
+            <p className="text-sm text-slate-500">يمكن للمدرس أو المساعد إضافة رأي باسم الطالب الذي سيظهر في الصفحة الرئيسية.</p>
+            <div className="grid sm:grid-cols-2 gap-3"><input required value={manualForm.displayName} onChange={(event) => setManualForm({ ...manualForm, displayName: event.target.value.slice(0, 100) })} placeholder="اسم الطالب الأول" className="h-10 rounded-lg border border-slate-200 px-3 text-sm" /><input value={manualForm.gradeLevel} onChange={(event) => setManualForm({ ...manualForm, gradeLevel: event.target.value.slice(0, 50) })} placeholder="الصف الدراسي (اختياري)" className="h-10 rounded-lg border border-slate-200 px-3 text-sm" /></div>
+            <div><label className="font-bold text-sm block mb-2">التقييم</label><div className="flex gap-1">{[1, 2, 3, 4, 5].map((rating) => <button key={rating} type="button" onClick={() => setManualForm({ ...manualForm, rating })}><Star className={`w-7 h-7 ${rating <= manualForm.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200'}`} /></button>)}</div></div>
+            <Textarea required value={manualForm.content} onChange={(event) => setManualForm({ ...manualForm, content: event.target.value.slice(0, 1000) })} placeholder="اكتب رأي الطالب هنا..." rows={6} minLength={10} maxLength={1000} />
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700"><input type="checkbox" checked={manualForm.status === 'APPROVED'} onChange={(event) => setManualForm({ ...manualForm, status: event.target.checked ? 'APPROVED' : 'PENDING' })} />نشر الرأي مباشرة على الصفحة الرئيسية</label>
+            <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setIsCreating(false)}>إلغاء</Button><Button type="submit" isLoading={createMutation.isPending}>إضافة الرأي</Button></div>
+          </form>
         </div>
       )}
 

@@ -2,7 +2,9 @@ CREATE TYPE "testimonial_status" AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
 
 CREATE TABLE "testimonials" (
   "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-  "student_id" UUID NOT NULL,
+  "student_id" UUID,
+  "display_name" VARCHAR(100),
+  "grade_level" VARCHAR(50),
   "content" TEXT NOT NULL,
   "rating" INTEGER NOT NULL,
   "status" "testimonial_status" NOT NULL DEFAULT 'PENDING',

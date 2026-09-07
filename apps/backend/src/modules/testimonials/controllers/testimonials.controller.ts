@@ -7,6 +7,7 @@ import { Roles } from '../../../core/security/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../../core/security/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../core/security/guards/roles.guard';
 import { CreateTestimonialDto } from '../dto/create-testimonial.dto';
+import { CreateManualTestimonialDto } from '../dto/create-manual-testimonial.dto';
 import { UpdateTestimonialDto } from '../dto/update-testimonial.dto';
 import { TestimonialsService } from '../services/testimonials.service';
 
@@ -22,6 +23,14 @@ export class TestimonialsController {
   @ApiOperation({ summary: 'Submit a testimonial for moderation' })
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateTestimonialDto) {
     return this.testimonialsService.saveForStudent(user, dto);
+  }
+
+  @Post('manual')
+  @ApiBearerAuth()
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Create a manual testimonial for public display' })
+  createManual(@Body() dto: CreateManualTestimonialDto) {
+    return this.testimonialsService.createManual(dto);
   }
 
   @Get('mine')
