@@ -9,6 +9,8 @@ import { toast } from 'react-hot-toast';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 import { getRoleLandingRoute } from '@/features/auth/utils/role-routing';
 import { submitContactMessage } from './actions';
+import { useQuery } from '@tanstack/react-query';
+import { testimonialsApi } from '@/features/testimonials/api/testimonials.api';
 
 function IntroSequence({ onComplete }: { onComplete: () => void }) {
   useEffect(() => {
@@ -1087,31 +1089,15 @@ function CenterScheduleSection() {
   );
 }
 
-const TESTIMONIALS = [
-  {
-    id: 1,
-    name: 'أحمد محمود',
-    role: 'طالب - الصف الثالث الثانوي',
-    content: 'بصراحة منصة الأول غيرت مفهومي عن الرياضيات، الشرح مبسط جداً والأسئلة والامتحانات بتغطي كل أفكار المنهج والنظام الجديد.',
-    rating: 5
-  },
-  {
-    id: 2,
-    name: 'سارة خالد',
-    role: 'طالبة - الصف الثاني الثانوي',
-    content: 'المتابعة هنا ممتازة، وأكثر شيء يعجبني هو سرعة الرد على الأسئلة وتوافر مذكرات وملخصات بتسهل علينا المراجعة قبل الامتحان.',
-    rating: 5
-  },
-  {
-    id: 3,
-    name: 'عمر طارق',
-    role: 'طالب - الصف الأول الثانوي',
-    content: 'شرح الأستاذ أحمد غريب ممتاز، بيعرف يبسط المعلومة الصعبة، ومنصة الأول فيها فيديوهات بجودة عالية وبنك أسئلة رائع.',
-    rating: 5
-  }
-];
-
 function TestimonialsSection() {
+  const { data: testimonials = [] } = useQuery({
+    queryKey: ['public-testimonials'],
+    queryFn: testimonialsApi.getPublic,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  if (testimonials.length === 0) return null;
+
   return (
     <section className="py-24 bg-white relative overflow-hidden" id="testimonials" dir="rtl">
       <div className="absolute top-0 right-0 w-full h-full overflow-hidden pointer-events-none z-0 opacity-40">
@@ -1147,7 +1133,7 @@ function TestimonialsSection() {
               duration: 15,
             }}
           >
-            {[...TESTIMONIALS, ...TESTIMONIALS].map((testimonial, index) => (
+            {[...testimonials, ...testimonials].map((testimonial, index) => (
               <div
                 key={`${testimonial.id}-${index}`}
                 className="bg-slate-50 rounded-3xl p-8 border border-slate-100 relative shrink-0 w-[85vw] sm:w-[350px]"
@@ -1159,8 +1145,7 @@ function TestimonialsSection() {
                 </div>
 
                 <div className="mb-6 relative z-10">
-                  <h4 className="font-bold text-slate-900 text-lg">{testimonial.name}</h4>
-                  <p className="text-sm text-slate-500 font-medium">{testimonial.role}</p>
+                  <h4 className="font-bold text-slate-900 text-lg">{testimonial.firstName}</h4>
                 </div>
 
                 <div className="flex gap-1 mb-4 relative z-10">
@@ -1181,7 +1166,7 @@ function TestimonialsSection() {
 
         {/* Desktop View: Grid */}
         <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {TESTIMONIALS.map((testimonial, index) => (
+          {testimonials.map((testimonial, index) => (
             <motion.div
               key={testimonial.id}
               initial={{ opacity: 0, y: 30 }}
@@ -1197,8 +1182,7 @@ function TestimonialsSection() {
               </div>
 
               <div className="mb-6 relative z-10">
-                <h4 className="font-bold text-slate-900 text-lg">{testimonial.name}</h4>
-                <p className="text-sm text-slate-500 font-medium">{testimonial.role}</p>
+                <h4 className="font-bold text-slate-900 text-lg">{testimonial.firstName}</h4>
               </div>
 
               <div className="flex gap-1 mb-4 relative z-10">

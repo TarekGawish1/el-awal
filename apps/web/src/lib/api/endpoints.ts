@@ -136,4 +136,10 @@ export const API_ENDPOINTS = {
     MARK_READ: (id: string) => `/contact-messages/${id}/read`,
     DELETE: (id: string) => `/contact-messages/${id}`,
   },
+  TESTIMONIALS: {
+    PUBLIC: '/testimonials/public',
+    MINE: '/testimonials/mine',
+    LIST: '/testimonials',
+    UPDATE: (id: string) => `/testimonials/${id}`,
+  },
 } as const;

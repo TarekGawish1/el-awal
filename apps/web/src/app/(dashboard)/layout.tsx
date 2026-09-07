@@ -109,6 +109,7 @@ export default function DashboardLayout({
       '/teacher/reservations': 'طلبات الانضمام والقبول',
       '/teacher/notifications': 'مركز الإشعارات',
       '/teacher/inquiries': 'رسائل الموقع والاستفسارات',
+      '/teacher/testimonials': 'آراء الطلاب',
       '/teacher/finance': 'الماليات والمصروفات',
       '/teacher/certificates': 'الشهادات التقديرية',
       '/teacher/assistants': 'إدارة المساعدين',
@@ -119,6 +120,7 @@ export default function DashboardLayout({
       '/student/courses': 'الكورسات التعليمية',
       '/student/content': 'المحتوى والدروس',
       '/student/notifications': 'مركز الإشعارات',
+      '/student/testimonials': 'شاركنا رأيك',
       '/parent/dashboard': 'لوحة متابعة ولي الأمر',
     };
 

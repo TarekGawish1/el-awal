@@ -55,6 +55,14 @@ enum StudentAcademicStatus {
   @@map("student_academic_status")
 }
 
+enum TestimonialStatus {
+  PENDING
+  APPROVED
+  REJECTED
+
+  @@map("testimonial_status")
+}
+
 enum GroupEnrollmentStatus {
   PENDING
   ACTIVE
@@ -369,10 +377,28 @@ model StudentProfile {
   paymentRecords        StudentPaymentRecord[]
   lessonQuestions       LessonQuestion[]
   homeworkRecords       HomeworkRecord[]
+  testimonials          Testimonial[]
 
   @@index([qrCodeToken], map: "idx_students_qr_code")
   @@index([gradeLevel], map: "idx_students_grade_level")
   @@map("student_profiles")
+}
+
+model Testimonial {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  studentId   String            @map("student_id") @db.Uuid
+  content     String            @map("content") @db.Text
+  rating      Int               @map("rating")
+  status      TestimonialStatus @default(PENDING) @map("status")
+  moderatedAt DateTime?         @map("moderated_at") @db.Timestamptz(6)
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, createdAt], map: "idx_testimonials_student_created")
+  @@index([status, createdAt], map: "idx_testimonials_status_created")
+  @@map("testimonials")
 }
 
 model ParentProfile {
