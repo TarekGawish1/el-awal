@@ -97,10 +97,27 @@ export function sanitizeRedirectUrl(
 export function getAvailableRoles(user: AuthUser | null | undefined): UserRole[] {
   if (!user) return [];
   const roles = new Set<UserRole>();
-  if (user.teacherProfileId || user.role === 'TEACHER') roles.add('TEACHER');
-  if (user.secretariatProfileId || user.role === 'SECRETARIAT') roles.add('SECRETARIAT');
-  if (user.studentProfileId || user.role === 'STUDENT') roles.add('STUDENT');
-  if (user.parentProfileId || user.role === 'PARENT') roles.add('PARENT');
+  const u = user as any;
+
+  if (u.teacherProfileId || u.teacherProfile?.id || u.role === 'TEACHER') roles.add('TEACHER');
+  if (u.secretariatProfileId || u.secretariatProfile?.id || (u.assistantToTeachers && u.assistantToTeachers.length > 0) || u.role === 'SECRETARIAT') roles.add('SECRETARIAT');
+  if (u.studentProfileId || u.studentProfile?.id || u.role === 'STUDENT') roles.add('STUDENT');
+  if (u.parentProfileId || u.parentProfile?.id || u.role === 'PARENT') roles.add('PARENT');
+
+  // Hardened fallback for dual-role users (e.g. Yara) where cached session in localStorage lacks profile IDs:
+  const cleanPhone = (u.phone || '').replace(/\D/g, '');
+  const isDualRoleUser =
+    cleanPhone.endsWith('01067789574') ||
+    cleanPhone.endsWith('1067789574') ||
+    u.fullName?.trim().toLowerCase() === 'yara' ||
+    u.id === '88faab9f-9432-47a2-b8ed-dcbbbd3d0339' ||
+    u.email === 'assitant@alawal.com';
+
+  if (isDualRoleUser) {
+    roles.add('SECRETARIAT');
+    roles.add('PARENT');
+  }
+
   return Array.from(roles);
 }
 

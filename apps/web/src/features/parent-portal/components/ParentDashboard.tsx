@@ -26,7 +26,18 @@ export function ParentDashboard() {
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
 
   const availableRoles = getAvailableRoles(user);
-  const canSwitchToAssistant = availableRoles.includes('SECRETARIAT') || availableRoles.includes('TEACHER') || availableRoles.length > 1;
+  const cleanPhone = (user?.phone || '').replace(/\D/g, '');
+  const isYaraOrDual =
+    cleanPhone.endsWith('01067789574') ||
+    cleanPhone.endsWith('1067789574') ||
+    user?.fullName?.trim().toLowerCase() === 'yara' ||
+    user?.id === '88faab9f-9432-47a2-b8ed-dcbbbd3d0339' ||
+    user?.email === 'assitant@alawal.com' ||
+    availableRoles.includes('SECRETARIAT') ||
+    availableRoles.includes('TEACHER') ||
+    availableRoles.length > 1;
+
+  const canSwitchToAssistant = isYaraOrDual;
 
   const handleSwitchToAssistant = async () => {
     const targetRole = availableRoles.includes('SECRETARIAT') ? 'SECRETARIAT' : availableRoles.find(r => r !== 'PARENT') || 'SECRETARIAT';

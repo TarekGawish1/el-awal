@@ -79,6 +79,19 @@ export function getStoredUser(): AuthUser | null {
 }
 
 /**
+ * Persists an updated user profile into localStorage
+ */
+export function setStoredUser(user: AuthUser): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(user));
+    localStorage.setItem(STORAGE_KEYS.USER_SESSION, JSON.stringify(user));
+  } catch (error) {
+    console.error('Failed to persist updated user profile to storage:', error);
+  }
+}
+
+/**
  * Clears all authentication tokens and cached profiles from localStorage
  */
 export function clearStoredTokens(): void {
