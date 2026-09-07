@@ -35,7 +35,7 @@ export const CertificateTemplateA = forwardRef<HTMLDivElement, Props>(
         style={{
           width: "1146px", // from SVG viewBox
           height: "810px",
-          backgroundImage: "url('/certification-bg.svg')",
+          backgroundImage: "url('/certification-bg.webp')",
           backgroundSize: "100% 100%",
           fontFamily: "'Amiri', 'Tajawal', system-ui, serif",
         }}

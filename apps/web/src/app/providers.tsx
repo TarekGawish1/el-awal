@@ -4,15 +4,11 @@ import React, { useState, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import { syncEngine } from '@/lib/offline/sync-engine';
-import { initQrDetector } from '@/lib/qr/qr-detector-init';
 
 import { VideoUploadManagerProvider } from '@/features/courses/context/video-upload-manager.context';
 import { BackgroundVideoUploadMonitor } from '@/features/courses/components/BackgroundVideoUploadMonitor';
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  useEffect(() => {
-    initQrDetector();
-  }, []);
   const [queryClient] = useState(
     () =>
       new QueryClient({
