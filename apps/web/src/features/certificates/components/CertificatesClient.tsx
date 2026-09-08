@@ -558,14 +558,23 @@ export function CertificatesClient() {
                     >
                       <div className="absolute inset-x-0 top-[28.4%] flex flex-col items-center text-center px-[5%] leading-tight text-[#4A4A4A]">
                         <p className="text-[clamp(6px,1.9vw,15px)] font-bold">
-                          يسر الأستاذ {teacherName} أن يمنح هذه الشهادة إلى {isFemale ? "الطالبة" : "الطالب"}
+                          يسر الأستاذ {teacherName} أن يمنح هذه الشهادة إلى{" "}
+                          {isFemale ? "الطالبة" : "الطالب"}
                         </p>
                         <h2 className="mt-[2%] max-w-[80%] text-[clamp(12px,3.5vw,32px)] font-bold text-[#1D4ED8]">
                           {cert.studentName}
                         </h2>
                         <p className="mt-[2%] max-w-[76%] text-[clamp(6px,1.55vw,13px)] font-bold leading-[1.8]">
-                          وذلك تقديرًا {isFemale ? "لأدائها المتميز وتفوقها" : "لأدائه المتميز وتفوقه"} العلمي الملحوظ في مادة
-                          <span className="mx-1 text-[#1D4ED8]">{cert.subject}</span>، متمنيًا له مستقبلًا واعدًا ومزيدًا من النجاح والتألق.
+                          وذلك تقديرًا{" "}
+                          {isFemale
+                            ? "لأدائها المتميز وتفوقها"
+                            : "لأدائه المتميز وتفوقه"}{" "}
+                          العلمي الملحوظ في مادة
+                          <span className="mx-1 text-[#1D4ED8]">
+                            {cert.subject}
+                          </span>
+                          ، متمنيًا له مستقبلًا واعدًا ومزيدًا من النجاح
+                          والتألق.
                         </p>
                       </div>
                       <span className="absolute left-[50.2%] top-[78.5%] -translate-x-1/2 -translate-y-1/2 text-[clamp(9px,2.4vw,22px)] font-bold text-[#0A192F]">
@@ -574,7 +583,10 @@ export function CertificatesClient() {
                       <span className="absolute left-[17.5%] top-[66.7%] -translate-x-1/2 -translate-y-1/2 text-[clamp(5px,1.25vw,12px)] font-bold text-[#0A192F]">
                         {cert.year}
                       </span>
-                      <span className="absolute left-[33.9%] top-[76.5%] -translate-x-1/2 -translate-y-1/2 text-[clamp(5px,1vw,10px)] font-bold text-[#4A4A4A]" dir="ltr">
+                      <span
+                        className="absolute left-[33.9%] top-[76.5%] -translate-x-1/2 -translate-y-1/2 text-[clamp(5px,1vw,10px)] font-bold text-[#4A4A4A]"
+                        dir="ltr"
+                      >
                         {cert.issueDate}
                       </span>
                     </div>
