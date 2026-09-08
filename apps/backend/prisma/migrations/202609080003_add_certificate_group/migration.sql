@@ -1,1 +1,2 @@
-ALTER TABLE "certificates" ADD COLUMN "group_name" VARCHAR(150);
+ALTER TABLE "certificates"
+ADD COLUMN "group_name" VARCHAR(150);

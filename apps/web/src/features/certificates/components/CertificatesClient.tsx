@@ -39,11 +39,17 @@ export function CertificatesClient() {
   );
   const [savingYears, setSavingYears] = useState(false);
   const [allowedStages, setAllowedStages] = useState<string[] | null>(null);
-  const [savedAllowedStages, setSavedAllowedStages] = useState<string[] | null>(null);
+  const [savedAllowedStages, setSavedAllowedStages] = useState<string[] | null>(
+    null,
+  );
   const [allowedGrades, setAllowedGrades] = useState<string[] | null>(null);
-  const [savedAllowedGrades, setSavedAllowedGrades] = useState<string[] | null>(null);
+  const [savedAllowedGrades, setSavedAllowedGrades] = useState<string[] | null>(
+    null,
+  );
   const [allowedGroups, setAllowedGroups] = useState<string[] | null>(null);
-  const [savedAllowedGroups, setSavedAllowedGroups] = useState<string[] | null>(null);
+  const [savedAllowedGroups, setSavedAllowedGroups] = useState<string[] | null>(
+    null,
+  );
 
   const normalizeCertificateGrade = (grade: unknown, stage: unknown) => {
     const value = String(grade || "").trim();
@@ -219,13 +225,6 @@ export function CertificatesClient() {
     );
   }, [certificates]);
 
-  const toggleAllowedYear = (year: string) => {
-    const base = allowedYears ?? yearOptions;
-    setAllowedYears(
-      base.includes(year) ? base.filter((y) => y !== year) : [...base, year],
-    );
-  };
-
   const toggleAllowed = (
     value: string,
     current: string[] | null,
@@ -233,7 +232,11 @@ export function CertificatesClient() {
     setter: React.Dispatch<React.SetStateAction<string[] | null>>,
   ) => {
     const base = current ?? options;
-    setter(base.includes(value) ? base.filter((item) => item !== value) : [...base, value]);
+    setter(
+      base.includes(value)
+        ? base.filter((item) => item !== value)
+        : [...base, value],
+    );
   };
 
   const yearsDirty =
@@ -242,13 +245,23 @@ export function CertificatesClient() {
 
   const visibilityDirty =
     yearsDirty ||
-    JSON.stringify([...(allowedStages ?? [])].sort()) !== JSON.stringify([...(savedAllowedStages ?? [])].sort()) ||
-    JSON.stringify([...(allowedGrades ?? [])].sort()) !== JSON.stringify([...(savedAllowedGrades ?? [])].sort()) ||
-    JSON.stringify([...(allowedGroups ?? [])].sort()) !== JSON.stringify([...(savedAllowedGroups ?? [])].sort());
+    JSON.stringify([...(allowedStages ?? [])].sort()) !==
+      JSON.stringify([...(savedAllowedStages ?? [])].sort()) ||
+    JSON.stringify([...(allowedGrades ?? [])].sort()) !==
+      JSON.stringify([...(savedAllowedGrades ?? [])].sort()) ||
+    JSON.stringify([...(allowedGroups ?? [])].sort()) !==
+      JSON.stringify([...(savedAllowedGroups ?? [])].sort());
 
   const stageOptions = ["الثانوية", "الإعدادية", "الابتدائية"];
   const groupOptions = React.useMemo(
-    () => Array.from(new Set(certificates.map((certificate) => certificate.groupName?.trim()).filter(Boolean) as string[])).sort(),
+    () =>
+      Array.from(
+        new Set(
+          certificates
+            .map((certificate) => certificate.groupName?.trim())
+            .filter(Boolean) as string[],
+        ),
+      ).sort(),
     [certificates],
   );
 
@@ -261,10 +274,14 @@ export function CertificatesClient() {
         ["certificates.visibleGrades", allowedGrades ?? allGrades],
         ["certificates.visibleGroups", allowedGroups ?? groupOptions],
       ];
-      await Promise.all(values.map(([key, value]) => apiClient("/site-settings", {
-        method: "PATCH",
-        body: JSON.stringify({ key, value }),
-      })));
+      await Promise.all(
+        values.map(([key, value]) =>
+          apiClient("/site-settings", {
+            method: "PATCH",
+            body: JSON.stringify({ key, value }),
+          }),
+        ),
+      );
       setSavedAllowedYears(allowedYears ?? yearOptions);
       setSavedAllowedStages(allowedStages ?? stageOptions);
       setSavedAllowedGrades(allowedGrades ?? allGrades);
@@ -499,61 +516,69 @@ export function CertificatesClient() {
             {savingYears ? "جاري الحفظ..." : "حفظ الإعداد"}
           </Button>
         </div>
-        <div className="flex gap-2 overflow-x-auto mt-3 pb-1 hide-scrollbar">
-          <button
-            onClick={() => setAllowedYears(null)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-              allowedYears === null
-                ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
-                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-            }`}
-          >
-            الكل
-          </button>
-            {yearOptions.map((year) => {
-            const active = (allowedYears ?? yearOptions).includes(year);
-            return (
-              <button
-                key={year}
-                onClick={() => toggleAllowedYear(year)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                  active
-                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                    : "bg-white text-slate-400 border border-slate-200 hover:bg-slate-50 line-through"
-                }`}
-              >
-                {year}
-              </button>
-            );
-          })}
-        </div>
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: "المراحل", options: stageOptions, value: allowedStages, setter: setAllowedStages },
-          { label: "الصفوف", options: allGrades, value: allowedGrades, setter: setAllowedGrades },
-          { label: "المجموعات", options: groupOptions, value: allowedGroups, setter: setAllowedGroups },
+          {
+            label: "السنوات",
+            options: yearOptions,
+            value: allowedYears,
+            setter: setAllowedYears,
+          },
+          {
+            label: "المراحل",
+            options: stageOptions,
+            value: allowedStages,
+            setter: setAllowedStages,
+          },
+          {
+            label: "الصفوف",
+            options: allGrades,
+            value: allowedGrades,
+            setter: setAllowedGrades,
+          },
+          {
+            label: "المجموعات",
+            options: groupOptions,
+            value: allowedGroups,
+            setter: setAllowedGroups,
+          },
         ].map(({ label, options, value, setter }) => (
-          <div key={label} className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="w-20 text-xs font-bold text-slate-400">{label}:</span>
-            <button
-              onClick={() => setter(null)}
-              className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${value === null ? "border-indigo-200 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-600"}`}
-            >
-              الكل
-            </button>
-            {options.map((option) => {
-              const active = (value ?? options).includes(option);
-              return (
-                <button
-                  key={option}
-                  onClick={() => toggleAllowed(option, value, options, setter)}
-                  className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${active ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-400 line-through"}`}
-                >
-                  {option}
-                </button>
-              );
-            })}
-          </div>
+          <details key={label} className="relative group">
+            <summary className="flex cursor-pointer list-none items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:border-indigo-300">
+              <span>{label}</span>
+              <span className="text-xs text-slate-400">
+                {value === null ? "الكل" : `${value.length} محدد`}
+              </span>
+            </summary>
+            <div className="absolute right-0 z-20 mt-1 max-h-64 w-full min-w-52 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
+              <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  checked={value === null}
+                  onChange={() => setter(null)}
+                  className="h-4 w-4 accent-indigo-600"
+                />
+                الكل
+              </label>
+              {options.length === 0 ? (
+                <p className="px-2 py-2 text-xs text-slate-400">لا توجد خيارات بعد</p>
+              ) : (
+                options.map((option) => (
+                  <label key={option} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm text-slate-600 hover:bg-slate-50">
+                    <input
+                      type="checkbox"
+                      checked={(value ?? options).includes(option)}
+                      onChange={() => toggleAllowed(option, value, options, setter)}
+                      className="h-4 w-4 accent-emerald-600"
+                    />
+                    <span>{option}</span>
+                  </label>
+                ))
+              )}
+            </div>
+          </details>
         ))}
+        </div>
       </div>
 
       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col gap-3">

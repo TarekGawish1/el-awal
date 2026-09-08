@@ -2258,7 +2258,9 @@ function CertificatesSection() {
             allowedStages.includes(String(c.stage || "").trim()) ||
             !String(c.stage || "").trim()) &&
           (!allowedGrades ||
-            allowedGrades.includes(normalizeCertificateGrade(c.classGrade, c.stage)) ||
+            allowedGrades.includes(
+              normalizeCertificateGrade(c.classGrade, c.stage),
+            ) ||
             !String(c.classGrade || "").trim()) &&
           (!allowedGroups ||
             allowedGroups.includes(String(c.groupName || "").trim()) ||

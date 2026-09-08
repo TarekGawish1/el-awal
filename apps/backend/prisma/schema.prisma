@@ -270,16 +270,16 @@ model User {
   secretariatProfile SecretariatProfile?
 
   // Recorded Operations & Audits
-  recordedAttendances      AttendanceRecord[]     @relation("RecordedAttendances")
-  grantedCourseAccesses    CourseAccess[]         @relation("GrantedCourseAccesses")
+  recordedAttendances       AttendanceRecord[]     @relation("RecordedAttendances")
+  grantedCourseAccesses     CourseAccess[]         @relation("GrantedCourseAccesses")
   reviewedCourseEnrollments CourseEnrollment[]     @relation("ReviewedCourseEnrollments")
-  recordedPayments         StudentPaymentRecord[] @relation("RecordedPayments")
-  notifications         Notification[]         @relation("UserNotifications")
-  pushSubscriptions     PushSubscription[]     @relation("UserPushSubscriptions")
-  refreshTokenSessions  RefreshTokenSession[]
-  teacherAssistants     TeacherAssistant[]     @relation("TeacherAssistants")
-  assistantToTeachers   TeacherAssistant[]     @relation("AssistantToTeachers")
-  auditLogs             AuditLog[]             @relation("UserAuditLogs")
+  recordedPayments          StudentPaymentRecord[] @relation("RecordedPayments")
+  notifications             Notification[]         @relation("UserNotifications")
+  pushSubscriptions         PushSubscription[]     @relation("UserPushSubscriptions")
+  refreshTokenSessions      RefreshTokenSession[]
+  teacherAssistants         TeacherAssistant[]     @relation("TeacherAssistants")
+  assistantToTeachers       TeacherAssistant[]     @relation("AssistantToTeachers")
+  auditLogs                 AuditLog[]             @relation("UserAuditLogs")
 
   @@index([role], map: "idx_users_role")
   @@index([phone], map: "idx_users_phone")
@@ -316,25 +316,25 @@ model TeacherProfile {
   user User @relation(fields: [id], references: [id], onDelete: Cascade)
 
   // Authored Domain Entities
-  academicGroups      AcademicGroup[]
-  courses             Course[]
-  educationalContents EducationalContent[]
-  assessments         Assessment[]
-  studentEvaluations  StudentEvaluation[]
-  booklets            Booklet[]
+  academicGroups        AcademicGroup[]
+  courses               Course[]
+  educationalContents   EducationalContent[]
+  assessments           Assessment[]
+  studentEvaluations    StudentEvaluation[]
+  booklets              Booklet[]
   billingConfigurations TeacherBillingConfiguration[]
 
   @@map("teacher_profiles")
 }
 
 model TeacherBillingConfiguration {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
-  teacherId     String   @map("teacher_id") @db.Uuid
-  academicYear  String   @map("academic_year") @db.VarChar(30)
-  academicTerm  String   @map("academic_term") @db.VarChar(30)
-  excludedMonths Json    @default("[]") @map("excluded_months")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  teacherId      String   @map("teacher_id") @db.Uuid
+  academicYear   String   @map("academic_year") @db.VarChar(30)
+  academicTerm   String   @map("academic_term") @db.VarChar(30)
+  excludedMonths Json     @default("[]") @map("excluded_months")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   teacher TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
 
@@ -344,24 +344,24 @@ model TeacherBillingConfiguration {
 }
 
 model StudentProfile {
-  id             String                @id @map("id") @db.Uuid
-  studentCode    String?               @unique(map: "uq_students_code") @map("student_code") @db.VarChar(50)
-  qrCodeToken    String                @unique(map: "uq_student_qr_code") @map("qr_code_token") @db.VarChar(255)
-  gradeLevel     String                @map("grade_level") @db.VarChar(50)
-  academicStage  String?               @map("academic_stage") @db.VarChar(50)
-  academicStatus StudentAcademicStatus @default(ACTIVE) @map("academic_status")
-  attendanceMode AttendanceMode        @default(CENTER) @map("attendance_mode")
-  dateOfBirth    DateTime?             @map("date_of_birth") @db.Date
-  emergencyPhone String?               @map("emergency_phone") @db.VarChar(30)
-  pendingCredentials Json?            @map("pending_credentials")
-  tempAccessPin  String?                @map("temp_access_pin") @db.VarChar(50)
-  pinExpiresAt   DateTime?              @map("pin_expires_at") @db.Timestamptz(6)
-  createdById    String?                @map("created_by_id") @db.Uuid
-  createdByName  String?                @map("created_by_name") @db.VarChar(200)
-  updatedById    String?                @map("updated_by_id") @db.Uuid
-  updatedByName  String?                @map("updated_by_name") @db.VarChar(200)
-  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                 String                @id @map("id") @db.Uuid
+  studentCode        String?               @unique(map: "uq_students_code") @map("student_code") @db.VarChar(50)
+  qrCodeToken        String                @unique(map: "uq_student_qr_code") @map("qr_code_token") @db.VarChar(255)
+  gradeLevel         String                @map("grade_level") @db.VarChar(50)
+  academicStage      String?               @map("academic_stage") @db.VarChar(50)
+  academicStatus     StudentAcademicStatus @default(ACTIVE) @map("academic_status")
+  attendanceMode     AttendanceMode        @default(CENTER) @map("attendance_mode")
+  dateOfBirth        DateTime?             @map("date_of_birth") @db.Date
+  emergencyPhone     String?               @map("emergency_phone") @db.VarChar(30)
+  pendingCredentials Json?                 @map("pending_credentials")
+  tempAccessPin      String?               @map("temp_access_pin") @db.VarChar(50)
+  pinExpiresAt       DateTime?             @map("pin_expires_at") @db.Timestamptz(6)
+  createdById        String?               @map("created_by_id") @db.Uuid
+  createdByName      String?               @map("created_by_name") @db.VarChar(200)
+  updatedById        String?               @map("updated_by_id") @db.Uuid
+  updatedByName      String?               @map("updated_by_name") @db.VarChar(200)
+  createdAt          DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user User @relation(fields: [id], references: [id], onDelete: Cascade)
 
@@ -463,25 +463,25 @@ model ParentStudentLink {
 // ==========================================
 
 model AcademicGroup {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
-  name         String   @map("name") @db.VarChar(150)
-  academicYear String   @default("2026-2027") @map("academic_year") @db.VarChar(20)
-  academicTerm String   @default("FIRST_TERM") @map("academic_term") @db.VarChar(30)
-  gradeLevel   String   @map("grade_level") @db.VarChar(50)
-  description  String?  @map("description") @db.Text
-  maxCapacity  Int      @default(50) @map("max_capacity")
-  monthlyFee   Decimal  @default(0.00) @map("monthly_fee") @db.Decimal(10, 2)
-  teacherId    String   @map("teacher_id") @db.Uuid
-  isActive     Boolean  @default(true) @map("is_active")
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  name                   String    @map("name") @db.VarChar(150)
+  academicYear           String    @default("2026-2027") @map("academic_year") @db.VarChar(20)
+  academicTerm           String    @default("FIRST_TERM") @map("academic_term") @db.VarChar(30)
+  gradeLevel             String    @map("grade_level") @db.VarChar(50)
+  description            String?   @map("description") @db.Text
+  maxCapacity            Int       @default(50) @map("max_capacity")
+  monthlyFee             Decimal   @default(0.00) @map("monthly_fee") @db.Decimal(10, 2)
+  teacherId              String    @map("teacher_id") @db.Uuid
+  isActive               Boolean   @default(true) @map("is_active")
   registrationToken      String?   @unique(map: "uq_groups_registration_token") @default(cuid()) @map("registration_token") @db.VarChar(64)
   isRegistrationOpen     Boolean   @default(true) @map("is_registration_open")
   registrationLinkExpiry DateTime? @map("registration_link_expiry") @db.Timestamptz(6)
-  createdById    String?   @map("created_by_id") @db.Uuid
-  createdByName  String?   @map("created_by_name") @db.VarChar(200)
-  updatedById    String?   @map("updated_by_id") @db.Uuid
-  updatedByName  String?   @map("updated_by_name") @db.VarChar(200)
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById            String?   @map("created_by_id") @db.Uuid
+  createdByName          String?   @map("created_by_name") @db.VarChar(200)
+  updatedById            String?   @map("updated_by_id") @db.Uuid
+  updatedByName          String?   @map("updated_by_name") @db.VarChar(200)
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   teacher TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Restrict)
 
@@ -490,7 +490,7 @@ model AcademicGroup {
   sessions            LessonSession[]
   educationalContents EducationalContent[]
   assessments         Assessment[]
-  targetAssessments   Assessment[] @relation("AssessmentTargetGroups")
+  targetAssessments   Assessment[]           @relation("AssessmentTargetGroups")
   studentEvaluations  StudentEvaluation[]
   paymentRecords      StudentPaymentRecord[]
   booklets            Booklet[]
@@ -534,12 +534,12 @@ model LessonSchedule {
 }
 
 model LessonSession {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
-  groupId     String   @map("group_id") @db.Uuid
-  scheduleId  String?  @map("schedule_id") @db.Uuid
-  sessionDate DateTime @map("session_date") @db.Date
-  startTime   String?  @map("start_time") @db.VarChar(10)
-  endTime     String?  @map("end_time") @db.VarChar(10)
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  groupId            String   @map("group_id") @db.Uuid
+  scheduleId         String?  @map("schedule_id") @db.Uuid
+  sessionDate        DateTime @map("session_date") @db.Date
+  startTime          String?  @map("start_time") @db.VarChar(10)
+  endTime            String?  @map("end_time") @db.VarChar(10)
   topic              String?  @map("topic") @db.VarChar(255)
   isCancelled        Boolean  @default(false) @map("is_cancelled")
   cancellationReason String?  @map("cancellation_reason") @db.Text
@@ -548,10 +548,10 @@ model LessonSession {
   group    AcademicGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
   schedule LessonSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
 
-  attendanceRecords   AttendanceRecord[]
-  educationalContents EducationalContent[]
+  attendanceRecords     AttendanceRecord[]
+  educationalContents   EducationalContent[]
   assessmentSubmissions AssessmentSubmission[]
-  homeworkRecords     HomeworkRecord[]
+  homeworkRecords       HomeworkRecord[]
 
   @@index([groupId, sessionDate, startTime], map: "idx_group_session_datetime")
   @@index([groupId, sessionDate], map: "idx_sessions_group_date")
@@ -586,29 +586,29 @@ model AttendanceRecord {
 // ==========================================
 
 model Course {
-  id            String       @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
-  teacherId     String       @map("teacher_id") @db.Uuid
-  title         String       @map("title") @db.VarChar(255)
-  description   String?      @map("description") @db.Text
-  subject       String       @map("subject") @db.VarChar(100)
-  gradeLevel    String       @map("grade_level") @db.VarChar(50)
-  academicStage String?      @map("academic_stage") @db.VarChar(50)
-  academicYear  String?      @default("2026-2027") @map("academic_year") @db.VarChar(30)
-  academicTerm  String?      @default("FIRST_TERM") @map("academic_term") @db.VarChar(30)
-  price         Decimal      @default(0.00) @map("price") @db.Decimal(10, 2)
-  coverImageUrl String?      @map("cover_image_url") @db.Text
-  previewVideoUrl String?    @map("preview_video_url") @db.Text
-  status        CourseStatus @default(DRAFT) @map("status")
-  orderIndex                  Int          @default(0) @map("order_index")
-  enforceSequentialLessons    Boolean      @default(false) @map("enforce_sequential_lessons")
-  requireExamPassingToUnlock  Boolean      @default(false) @map("require_exam_passing_to_unlock")
-  hasCertificate               Boolean      @default(true) @map("has_certificate")
-  courseQuizId  String?      @unique(map: "uq_course_quiz") @map("course_quiz_id") @db.Uuid
-  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                         String       @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  teacherId                  String       @map("teacher_id") @db.Uuid
+  title                      String       @map("title") @db.VarChar(255)
+  description                String?      @map("description") @db.Text
+  subject                    String       @map("subject") @db.VarChar(100)
+  gradeLevel                 String       @map("grade_level") @db.VarChar(50)
+  academicStage              String?      @map("academic_stage") @db.VarChar(50)
+  academicYear               String?      @default("2026-2027") @map("academic_year") @db.VarChar(30)
+  academicTerm               String?      @default("FIRST_TERM") @map("academic_term") @db.VarChar(30)
+  price                      Decimal      @default(0.00) @map("price") @db.Decimal(10, 2)
+  coverImageUrl              String?      @map("cover_image_url") @db.Text
+  previewVideoUrl            String?      @map("preview_video_url") @db.Text
+  status                     CourseStatus @default(DRAFT) @map("status")
+  orderIndex                 Int          @default(0) @map("order_index")
+  enforceSequentialLessons   Boolean      @default(false) @map("enforce_sequential_lessons")
+  requireExamPassingToUnlock Boolean      @default(false) @map("require_exam_passing_to_unlock")
+  hasCertificate             Boolean      @default(true) @map("has_certificate")
+  courseQuizId               String?      @unique(map: "uq_course_quiz") @map("course_quiz_id") @db.Uuid
+  createdAt                  DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                  DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  teacher    TeacherProfile      @relation(fields: [teacherId], references: [id], onDelete: Restrict)
-  courseQuiz Assessment?         @relation("CourseFinalQuiz", fields: [courseQuizId], references: [id], onDelete: SetNull)
+  teacher    TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  courseQuiz Assessment?    @relation("CourseFinalQuiz", fields: [courseQuizId], references: [id], onDelete: SetNull)
 
   modules     CourseModule[]
   enrollments CourseEnrollment[]
@@ -804,10 +804,10 @@ model CourseProgress {
 // ==========================================
 
 model EducationalContent {
-  id          String      @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
-  teacherId   String      @map("teacher_id") @db.Uuid
-  groupId     String?     @map("group_id") @db.Uuid
-  lessonId    String?     @map("lesson_id") @db.Uuid
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  teacherId    String      @map("teacher_id") @db.Uuid
+  groupId      String?     @map("group_id") @db.Uuid
+  lessonId     String?     @map("lesson_id") @db.Uuid
   title        String      @map("title") @db.VarChar(255)
   description  String?     @map("description") @db.Text
   contentType  ContentType @map("content_type")
@@ -861,40 +861,40 @@ model ContentProgress {
 // ==========================================
 
 model Assessment {
-  id              String         @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
-  teacherId       String         @map("teacher_id") @db.Uuid
-  groupId         String?        @map("group_id") @db.Uuid
-  courseId        String?        @map("course_id") @db.Uuid
-  lessonId        String?        @map("lesson_id") @db.Uuid
-  academicStage   String?        @map("academic_stage") @db.VarChar(50)
-  gradeLevel      String?        @map("grade_level") @db.VarChar(50)
-  title           String         @map("title") @db.VarChar(255)
-  description     String?        @map("description") @db.Text
-  type            AssessmentType @map("type")
-  assessmentType  AssessmentType @default(ASSIGNMENT) @map("assessment_type")
-  totalScore      Decimal        @default(100.00) @map("total_score") @db.Decimal(6, 2)
-  passingScore    Decimal?       @map("passing_score") @db.Decimal(6, 2)
-  durationMinutes Int?           @map("duration_minutes")
-  isAutoGraded    Boolean        @default(false) @map("is_auto_graded")
-  isPublished     Boolean        @default(true) @map("is_published")
-  allowMultipleAttempts Boolean  @default(false) @map("allow_multiple_attempts")
-  isOptional            Boolean  @default(false) @map("is_optional")
-  requirePassingScore   Boolean  @default(false) @map("require_passing_score")
-  homeworkDeliveryType HomeworkDeliveryType @default(ONSITE) @map("homework_delivery_type")
-  timingType      ExamTimingType? @default(FIXED_SESSION) @map("timing_type")
-  startTime       DateTime?      @map("start_time") @db.Timestamptz(6)
-  endTime         DateTime?      @map("end_time") @db.Timestamptz(6)
-  startDate       DateTime?      @map("start_date") @db.Timestamptz(6)
-  dueDate         DateTime?      @map("due_date") @db.Timestamptz(6)
-  deadline        DateTime?      @map("deadline") @db.Timestamptz(6)
-  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                    String               @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  teacherId             String               @map("teacher_id") @db.Uuid
+  groupId               String?              @map("group_id") @db.Uuid
+  courseId              String?              @map("course_id") @db.Uuid
+  lessonId              String?              @map("lesson_id") @db.Uuid
+  academicStage         String?              @map("academic_stage") @db.VarChar(50)
+  gradeLevel            String?              @map("grade_level") @db.VarChar(50)
+  title                 String               @map("title") @db.VarChar(255)
+  description           String?              @map("description") @db.Text
+  type                  AssessmentType       @map("type")
+  assessmentType        AssessmentType       @default(ASSIGNMENT) @map("assessment_type")
+  totalScore            Decimal              @default(100.00) @map("total_score") @db.Decimal(6, 2)
+  passingScore          Decimal?             @map("passing_score") @db.Decimal(6, 2)
+  durationMinutes       Int?                 @map("duration_minutes")
+  isAutoGraded          Boolean              @default(false) @map("is_auto_graded")
+  isPublished           Boolean              @default(true) @map("is_published")
+  allowMultipleAttempts Boolean              @default(false) @map("allow_multiple_attempts")
+  isOptional            Boolean              @default(false) @map("is_optional")
+  requirePassingScore   Boolean              @default(false) @map("require_passing_score")
+  homeworkDeliveryType  HomeworkDeliveryType @default(ONSITE) @map("homework_delivery_type")
+  timingType            ExamTimingType?      @default(FIXED_SESSION) @map("timing_type")
+  startTime             DateTime?            @map("start_time") @db.Timestamptz(6)
+  endTime               DateTime?            @map("end_time") @db.Timestamptz(6)
+  startDate             DateTime?            @map("start_date") @db.Timestamptz(6)
+  dueDate               DateTime?            @map("due_date") @db.Timestamptz(6)
+  deadline              DateTime?            @map("deadline") @db.Timestamptz(6)
+  createdAt             DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  teacher TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Restrict)
-  group   AcademicGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  teacher      TeacherProfile  @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  group        AcademicGroup?  @relation(fields: [groupId], references: [id], onDelete: Cascade)
   targetGroups AcademicGroup[] @relation("AssessmentTargetGroups")
-  course  Course?        @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  lesson  CourseLesson?  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  course       Course?         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lesson       CourseLesson?   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
   courseFinalQuizOf Course?       @relation("CourseFinalQuiz")
   unitQuizOf        CourseModule? @relation("UnitQuiz")
@@ -986,20 +986,20 @@ model StudentAnswer {
 }
 
 model HomeworkRecord {
-  id               String                    @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
-  assessmentId     String                    @map("assessment_id") @db.Uuid
-  studentId        String                    @map("student_id") @db.Uuid
-  sessionId        String                    @map("session_id") @db.Uuid
-  status           HomeworkSubmissionStatus  @default(NOT_SUBMITTED) @map("status")
-  checkedByRole    UserRole                  @default(TEACHER) @map("checked_by_role")
-  recordedMethod   RecordingMethod           @default(QR_SCAN) @map("recorded_method")
-  score            Decimal?                  @map("score") @db.Decimal(6, 2)
-  feedback         String?                   @map("feedback") @db.Text
-  recordedById     String?                   @map("recorded_by_id") @db.Uuid
-  recordedByName   String?                   @map("recorded_by_name") @db.VarChar(200)
-  clientTimestamp  DateTime                  @default(now()) @map("client_timestamp") @db.Timestamptz(6)
-  createdAt        DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id              String                   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  assessmentId    String                   @map("assessment_id") @db.Uuid
+  studentId       String                   @map("student_id") @db.Uuid
+  sessionId       String                   @map("session_id") @db.Uuid
+  status          HomeworkSubmissionStatus @default(NOT_SUBMITTED) @map("status")
+  checkedByRole   UserRole                 @default(TEACHER) @map("checked_by_role")
+  recordedMethod  RecordingMethod          @default(QR_SCAN) @map("recorded_method")
+  score           Decimal?                 @map("score") @db.Decimal(6, 2)
+  feedback        String?                  @map("feedback") @db.Text
+  recordedById    String?                  @map("recorded_by_id") @db.Uuid
+  recordedByName  String?                  @map("recorded_by_name") @db.VarChar(200)
+  clientTimestamp DateTime                 @default(now()) @map("client_timestamp") @db.Timestamptz(6)
+  createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   assessment Assessment     @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
   student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -1116,26 +1116,26 @@ model WhatsAppAuthSession {
 }
 
 model Booklet {
-  id               String          @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
-  title            String          @map("title") @db.VarChar(255)
-  price            Decimal         @map("price") @db.Decimal(10, 2)
-  gradeLevel       String          @map("grade_level") @db.VarChar(50)
-  groupId          String?         @map("group_id") @db.Uuid
-  group            AcademicGroup?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
-  teacherProfileId String          @map("teacher_profile_id") @db.Uuid
-  teacherProfile   TeacherProfile  @relation(fields: [teacherProfileId], references: [id], onDelete: Cascade)
-  academicYear     String?         @default("2026-2027") @map("academic_year") @db.VarChar(30)
-  academicTerm     String?         @default("FIRST_TERM") @map("academic_term") @db.VarChar(30)
-  stockCount       Int?            @map("stock_count")
-  isActive         Boolean         @default(true) @map("is_active")
-  createdById      String?         @map("created_by_id") @db.Uuid
-  createdByName    String?         @map("created_by_name") @db.VarChar(200)
-  updatedById      String?         @map("updated_by_id") @db.Uuid
-  updatedByName    String?         @map("updated_by_name") @db.VarChar(200)
-  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  title            String         @map("title") @db.VarChar(255)
+  price            Decimal        @map("price") @db.Decimal(10, 2)
+  gradeLevel       String         @map("grade_level") @db.VarChar(50)
+  groupId          String?        @map("group_id") @db.Uuid
+  group            AcademicGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  teacherProfileId String         @map("teacher_profile_id") @db.Uuid
+  teacherProfile   TeacherProfile @relation(fields: [teacherProfileId], references: [id], onDelete: Cascade)
+  academicYear     String?        @default("2026-2027") @map("academic_year") @db.VarChar(30)
+  academicTerm     String?        @default("FIRST_TERM") @map("academic_term") @db.VarChar(30)
+  stockCount       Int?           @map("stock_count")
+  isActive         Boolean        @default(true) @map("is_active")
+  createdById      String?        @map("created_by_id") @db.Uuid
+  createdByName    String?        @map("created_by_name") @db.VarChar(200)
+  updatedById      String?        @map("updated_by_id") @db.Uuid
+  updatedByName    String?        @map("updated_by_name") @db.VarChar(200)
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  payments         StudentPaymentRecord[]
+  payments StudentPaymentRecord[]
 
   @@index([teacherProfileId, gradeLevel], map: "idx_booklets_teacher_grade")
   @@index([groupId], map: "idx_booklets_group")
@@ -1198,23 +1198,23 @@ model ContactMessage {
 }
 
 model Certificate {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
-  studentId     String?   @map("student_id") @db.Uuid
-  studentName   String    @map("student_name") @db.VarChar(255)
-  gender        String    @map("gender") @db.VarChar(10)
-  subject       String    @map("subject") @db.VarChar(255)
-  score         String    @map("score") @db.VarChar(50)
-  issueDate     String    @map("issue_date") @db.VarChar(50)
-  year          String    @map("year") @db.VarChar(10)
-  stage         String?   @map("stage") @db.VarChar(100)
-  grade         String?   @map("grade") @db.VarChar(100)
-  teacherId     String?   @map("teacher_id") @db.Uuid
-  teacherName   String    @map("teacher_name") @db.VarChar(255)
-  groupName     String?   @map("group_name") @db.VarChar(150)
-  fileUrl       String?   @map("file_url") @db.Text
-  isPublic      Boolean   @default(true) @map("is_public")
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  studentId   String?  @map("student_id") @db.Uuid
+  studentName String   @map("student_name") @db.VarChar(255)
+  gender      String   @map("gender") @db.VarChar(10)
+  subject     String   @map("subject") @db.VarChar(255)
+  score       String   @map("score") @db.VarChar(50)
+  issueDate   String   @map("issue_date") @db.VarChar(50)
+  year        String   @map("year") @db.VarChar(10)
+  stage       String?  @map("stage") @db.VarChar(100)
+  grade       String?  @map("grade") @db.VarChar(100)
+  teacherId   String?  @map("teacher_id") @db.Uuid
+  teacherName String   @map("teacher_name") @db.VarChar(255)
+  groupName   String?  @map("group_name") @db.VarChar(150)
+  fileUrl     String?  @map("file_url") @db.Text
+  isPublic    Boolean  @default(true) @map("is_public")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("certificates")
 }
@@ -1250,26 +1250,26 @@ enum AuditAction {
 }
 
 model AuditLog {
-  id           String       @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
-  userId       String       @map("user_id") @db.Uuid
-  user         User         @relation("UserAuditLogs", fields: [userId], references: [id], onDelete: Cascade)
-  userRole     UserRole     @map("user_role")
-  userName     String       @map("user_name") @db.VarChar(200)
+  id       String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  userId   String   @map("user_id") @db.Uuid
+  user     User     @relation("UserAuditLogs", fields: [userId], references: [id], onDelete: Cascade)
+  userRole UserRole @map("user_role")
+  userName String   @map("user_name") @db.VarChar(200)
 
-  teacherId    String?      @map("teacher_id") @db.Uuid
+  teacherId String? @map("teacher_id") @db.Uuid
 
-  action       AuditAction  @map("action")
-  entityType   String       @map("entity_type") @db.VarChar(100)
-  entityId     String?      @map("entity_id") @db.VarChar(255)
-  entityName   String?      @map("entity_name") @db.VarChar(255)
+  action     AuditAction @map("action")
+  entityType String      @map("entity_type") @db.VarChar(100)
+  entityId   String?     @map("entity_id") @db.VarChar(255)
+  entityName String?     @map("entity_name") @db.VarChar(255)
 
-  description  String       @map("description") @db.Text
-  details      Json?        @map("details")
+  description String @map("description") @db.Text
+  details     Json?  @map("details")
 
-  ipAddress    String?      @map("ip_address") @db.VarChar(100)
-  userAgent    String?      @map("user_agent") @db.VarChar(500)
+  ipAddress String? @map("ip_address") @db.VarChar(100)
+  userAgent String? @map("user_agent") @db.VarChar(500)
 
-  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([teacherId, createdAt(sort: Desc)], map: "idx_audit_logs_teacher_date")
   @@index([userId, createdAt(sort: Desc)], map: "idx_audit_logs_user_date")
@@ -1277,4 +1277,3 @@ model AuditLog {
   @@index([action], map: "idx_audit_logs_action")
   @@map("audit_logs")
 }
-
