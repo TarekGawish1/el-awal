@@ -1399,9 +1399,137 @@ const CERTIFICATES_BY_STAGE = [
   }
 ];
 
+function CertificateCard({ cert, index }: { cert: any; index: number }) {
+  return (
+    <div
+      key={`${cert.id}-${index}`}
+      className="shrink-0 w-[280px] sm:w-[320px] bg-white rounded-2xl p-3 border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all group"
+    >
+      <div className="relative overflow-hidden rounded-xl bg-slate-100 aspect-[4/3] mb-4">
+        <img
+          src={cert.image}
+          alt={cert.title}
+          loading="lazy"
+          decoding="async"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        />
+        {/* Printed certificate content — always visible so the card never looks blank */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
+          <div className="font-black text-slate-800 text-lg sm:text-xl leading-snug drop-shadow-sm">
+            {cert.student}
+          </div>
+          <div className="text-xs sm:text-sm font-bold text-amber-700 mt-1.5">
+            {cert.subject ? `التفوق في مادة ${cert.subject}` : cert.title}
+          </div>
+          {cert.grade && (
+            <div className="mt-1.5 text-sm font-black text-slate-700 bg-white/70 border border-amber-200 px-3 py-0.5 rounded-full shadow-sm">
+              الدرجة: {cert.grade}
+            </div>
+          )}
+        </div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+          <div className="text-white">
+            <div className="font-bold text-lg">{cert.student}</div>
+            <div className="text-sm text-slate-200">{cert.title}</div>
+          </div>
+        </div>
+      </div>
+      <div className="text-center px-2 pb-2">
+        <h4 className="font-bold text-slate-900 truncate">{cert.student}</h4>
+        <p className="text-sm text-slate-500 truncate">{cert.title}</p>
+        {(cert.grade || cert.year) && (
+          <div className="flex items-center justify-center gap-2 mt-2">
+            {cert.grade && (
+              <span className="text-xs font-black text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">
+                الدرجة: {cert.grade}
+              </span>
+            )}
+            {cert.year && (
+              <span className="text-xs font-semibold text-slate-500">
+                {cert.year}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Row stays fixed when all cards fit on screen; auto-scroll marquee only kicks in
+// when the cards overflow (measured, screen-size aware — no fake duplication).
+function StageCertificateRow({ certificates }: { certificates: any[] }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [marquee, setMarquee] = useState(false);
+
+  // Reset to the static layout whenever the certificate set changes, then re-measure
+  useEffect(() => {
+    setMarquee(false);
+  }, [certificates]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    const track = trackRef.current;
+    if (!container || !track) return;
+    const copies = marquee ? 4 : 1;
+    const check = () => {
+      const singleSetWidth = track.scrollWidth / copies;
+      setMarquee(singleSetWidth > container.clientWidth + 8);
+    };
+    check();
+    const raf = requestAnimationFrame(check);
+    const settleTimer = setTimeout(check, 1500); // re-check after images settle
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(check) : null;
+    ro?.observe(container);
+    window.addEventListener('resize', check);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(settleTimer);
+      ro?.disconnect();
+      window.removeEventListener('resize', check);
+    };
+  }, [certificates, marquee]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="overflow-hidden -mx-6 md:-mx-4 pb-6 px-6 md:px-4"
+      style={{
+        WebkitMaskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)',
+        maskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)'
+      }}
+    >
+      {marquee ? (
+        <motion.div
+          ref={trackRef as any}
+          className="flex gap-6 w-max"
+          animate={{ x: ["0%", "25%"] }}
+          transition={{
+            repeat: Infinity,
+            ease: "linear",
+            duration: 20,
+          }}
+        >
+          {[...certificates, ...certificates, ...certificates, ...certificates].map((cert, index) => (
+            <CertificateCard key={`${cert.id}-${index}`} cert={cert} index={index} />
+          ))}
+        </motion.div>
+      ) : (
+        <div ref={trackRef} className="flex gap-6 justify-center flex-wrap">
+          {certificates.map((cert, index) => (
+            <CertificateCard key={cert.id} cert={cert} index={index} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CertificatesSection() {
   const [stagesData, setStagesData] = useState(CERTIFICATES_BY_STAGE);
   const [selectedYear, setSelectedYear] = useState<string>('ALL');
+  const autoYearApplied = useRef(false);
 
   // Academic-year organization: derive available years from loaded certificates
   const availableYears = Array.from(
@@ -1409,6 +1537,17 @@ function CertificatesSection() {
       stagesData.flatMap((s) => (s.certificates || []).map((c: any) => String(c.year || '').trim()).filter(Boolean)),
     ),
   ).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+
+  // Site control: spotlight one academic year by default (current year if present,
+  // otherwise the latest). Visitors can still switch to any year or "all years".
+  // Runs once so a manual "كل السنوات" choice is never overridden.
+  useEffect(() => {
+    if (!autoYearApplied.current && availableYears.length > 0) {
+      autoYearApplied.current = true;
+      const currentYear = new Date().getFullYear().toString();
+      setSelectedYear(availableYears.includes(currentYear) ? currentYear : availableYears[0]);
+    }
+  }, [availableYears]);
 
   const visibleStages = stagesData
     .map((stage) => ({
@@ -1629,79 +1768,8 @@ function CertificatesSection() {
                 </h3>
               </div>
 
-              {/* Continuous Marquee with Fade Edges */}
-              <div 
-                className="flex overflow-hidden -mx-6 md:-mx-4 pb-6 px-6 md:px-4"
-                style={{
-                  WebkitMaskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)',
-                  maskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)'
-                }}
-              >
-                <motion.div
-                  className="flex gap-6 w-max"
-                  animate={{ x: ["0%", "25%"] }}
-                  transition={{
-                    repeat: Infinity,
-                    ease: "linear",
-                    duration: 20,
-                  }}
-                >
-                  {[...stage.certificates, ...stage.certificates, ...stage.certificates, ...stage.certificates].map((cert, index) => (
-                    <div
-                      key={`${cert.id}-${index}`}
-                      className="shrink-0 w-[280px] sm:w-[320px] bg-white rounded-2xl p-3 border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all group"
-                    >
-                      <div className="relative overflow-hidden rounded-xl bg-slate-100 aspect-[4/3] mb-4">
-                        <img
-                          src={cert.image}
-                          alt={cert.title}
-                          loading="lazy"
-                          decoding="async"
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                        {/* Printed certificate content — always visible so the card never looks blank */}
-                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
-                          <div className="font-black text-slate-800 text-lg sm:text-xl leading-snug drop-shadow-sm">
-                            {cert.student}
-                          </div>
-                          <div className="text-xs sm:text-sm font-bold text-amber-700 mt-1.5">
-                            {cert.subject ? `التفوق في مادة ${cert.subject}` : cert.title}
-                          </div>
-                          {cert.grade && (
-                            <div className="mt-1.5 text-sm font-black text-slate-700 bg-white/70 border border-amber-200 px-3 py-0.5 rounded-full shadow-sm">
-                              الدرجة: {cert.grade}
-                            </div>
-                          )}
-                        </div>
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
-                          <div className="text-white">
-                            <div className="font-bold text-lg">{cert.student}</div>
-                            <div className="text-sm text-slate-200">{cert.title}</div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-center px-2 pb-2">
-                        <h4 className="font-bold text-slate-900 truncate">{cert.student}</h4>
-                        <p className="text-sm text-slate-500 truncate">{cert.title}</p>
-                        {(cert.grade || cert.year) && (
-                          <div className="flex items-center justify-center gap-2 mt-2">
-                            {cert.grade && (
-                              <span className="text-xs font-black text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">
-                                الدرجة: {cert.grade}
-                              </span>
-                            )}
-                            {cert.year && (
-                              <span className="text-xs font-semibold text-slate-500">
-                                {cert.year}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </motion.div>
-              </div>
+              {/* Fixed row when cards fit — auto marquee only when overflowing */}
+              <StageCertificateRow certificates={stage.certificates} />
             </motion.div>
           ))
           )}
