@@ -125,7 +125,8 @@ export function CertificatesClient() {
         const localMatch = localCerts.find(
           (local: any) =>
             local.id === c.id ||
-            (!local.id && getCertificateIdentity(local) === getCertificateIdentity(c)),
+            (!local.id &&
+              getCertificateIdentity(local) === getCertificateIdentity(c)),
         );
         const localImage = localMatch?.image || localMatch?.data?.image;
 
