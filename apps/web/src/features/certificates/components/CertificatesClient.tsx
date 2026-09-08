@@ -764,6 +764,10 @@ export function CertificatesClient() {
             const certificateData = cert.data || cert;
             const isFemale = certificateData.gender === "FEMALE";
             const teacherName = certificateData.teacherName || "أحمد غريب";
+            const certificateYear = String(
+              cert.year || cert.issueDate || new Date().getFullYear(),
+            );
+            const certificateDate = String(cert.issueDate || certificateYear);
 
             return (
               <Card
@@ -808,7 +812,7 @@ export function CertificatesClient() {
                           <span className="mx-1 text-[#1D4ED8]">
                             {cert.subject}
                           </span>
-                          ، متمنيًا له مستقبلًا واعدًا ومزيدًا من النجاح
+                          ، {isFemale ? "متمنيةً لها" : "متمنيًا له"} مستقبلًا واعدًا ومزيدًا من النجاح
                           والتألق.
                         </p>
                       </div>
@@ -816,13 +820,13 @@ export function CertificatesClient() {
                         {cert.score}
                       </span>
                       <span className="absolute left-[17.5%] top-[66.7%] -translate-x-1/2 -translate-y-1/2 text-[clamp(5px,1.25vw,12px)] font-bold text-[#0A192F]">
-                        {cert.year}
+                        {certificateYear}
                       </span>
                       <span
                         className="absolute left-[33.9%] top-[76.5%] -translate-x-1/2 -translate-y-1/2 text-[clamp(5px,1vw,10px)] font-bold text-[#4A4A4A]"
                         dir="ltr"
                       >
-                        {cert.issueDate}
+                        {certificateDate}
                       </span>
                     </div>
                   )}
@@ -836,7 +840,7 @@ export function CertificatesClient() {
                       <Award className="w-6 h-6" />
                     </div>
                     <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-md">
-                      {cert.year || cert.issueDate}
+                      {certificateYear}
                     </span>
                   </div>
                   <h3 className="text-lg font-bold text-slate-800 mb-1">

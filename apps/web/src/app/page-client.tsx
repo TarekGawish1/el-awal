@@ -2174,8 +2174,8 @@ function CertificatesSection() {
             !String(c.classGrade || "").trim()) &&
           (!allowedGroups ||
             allowedGroups.includes(String(c.groupName || "").trim()) ||
-            !String(c.groupName || "").trim()) &&
-      ),
+            !String(c.groupName || "").trim())
+          ),
     }))
     .filter((stage) => stage.certificates && stage.certificates.length > 0);
 
