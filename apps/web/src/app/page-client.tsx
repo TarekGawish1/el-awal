@@ -1354,11 +1354,30 @@ function TestimonialsSection() {
   );
 }
 
+// Static honor-roll seeds — always shown in the landing certificates section
+// (merged with backend + local certificates, never overwritten by them).
+const SEED_CERTIFICATES = [
+  { id: 'seed-1', student: 'حنين طه محمد', subject: 'الإحصاء', grade: '57', year: '2025' },
+  { id: 'seed-2', student: 'نور احمد طه', subject: 'الإحصاء', grade: '58', year: '2025' },
+  { id: 'seed-3', student: 'ميرنا يحيى عبد المنعم', subject: 'الإحصاء', grade: '59', year: '2025' },
+  { id: 'seed-4', student: 'شهد وائل السعيد', subject: 'الإحصاء', grade: '56', year: '2025' },
+  { id: 'seed-5', student: 'جنى صلاح عبد الرازق', subject: 'الإحصاء', grade: '59.5', year: '2025' },
+  { id: 'seed-6', student: 'حنين محمد سندي', subject: 'الإحصاء', grade: '59.5', year: '2025' },
+].map((s) => ({
+  id: s.id,
+  title: `التفوق في ${s.subject}`,
+  student: s.student,
+  grade: s.grade,
+  year: s.year,
+  image: '/certification-bg.webp',
+  stage: 'الثانوية',
+}));
+
 const CERTIFICATES_BY_STAGE = [
   {
     stageId: 'secondary',
     stageName: 'أبطال المرحلة الثانوية',
-    certificates: [] as any[]
+    certificates: [...SEED_CERTIFICATES] as any[]
   },
   {
     stageId: 'preparatory',
@@ -1458,8 +1477,8 @@ function CertificatesSection() {
           stage: c.stage || (c.data && c.data.stage)
         }));
 
-        const combined = [...mappedApiCerts, ...mappedLocalCerts];
-        const uniqueSaved = Array.from(new Map(combined.map(item => [item.student, item])).values());
+        const combined = [...mappedApiCerts, ...mappedLocalCerts, ...SEED_CERTIFICATES];
+        const uniqueSaved = Array.from(new Map(combined.map(item => [`${item.student}__${item.title}`, item])).values());
 
         if (uniqueSaved.length > 0) {
           const newSecondary = uniqueSaved.filter((c: any) => c.stage === 'الثانوية');
@@ -1592,6 +1611,20 @@ function CertificatesSection() {
                       <div className="text-center px-2 pb-2">
                         <h4 className="font-bold text-slate-900 truncate">{cert.student}</h4>
                         <p className="text-sm text-slate-500 truncate">{cert.title}</p>
+                        {(cert.grade || cert.year) && (
+                          <div className="flex items-center justify-center gap-2 mt-2">
+                            {cert.grade && (
+                              <span className="text-xs font-black text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">
+                                الدرجة: {cert.grade}
+                              </span>
+                            )}
+                            {cert.year && (
+                              <span className="text-xs font-semibold text-slate-500">
+                                {cert.year}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
