@@ -812,8 +812,8 @@ export function CertificatesClient() {
                           <span className="mx-1 text-[#1D4ED8]">
                             {cert.subject}
                           </span>
-                          ، {isFemale ? "متمنيةً لها" : "متمنيًا له"} مستقبلًا واعدًا ومزيدًا من النجاح
-                          والتألق.
+                          ، {isFemale ? "متمنيةً لها" : "متمنيًا له"} مستقبلًا
+                          واعدًا ومزيدًا من النجاح والتألق.
                         </p>
                       </div>
                       <span className="absolute left-[50.2%] top-[78.5%] -translate-x-1/2 -translate-y-1/2 text-[clamp(9px,2.4vw,22px)] font-bold text-[#0A192F]">
