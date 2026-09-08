@@ -120,7 +120,10 @@ export function CertificateBuilder() {
   );
 
   useEffect(() => {
-    if (selectedGroupId && !filteredGroups.some((group) => group.id === selectedGroupId)) {
+    if (
+      selectedGroupId &&
+      !filteredGroups.some((group) => group.id === selectedGroupId)
+    ) {
       setSelectedGroupId("");
     }
   }, [filteredGroups, selectedGroupId]);
