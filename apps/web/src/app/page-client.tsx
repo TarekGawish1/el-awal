@@ -1606,9 +1606,9 @@ function CertificatesSection() {
   );
 }
 
-const ABOUT_IMAGE_COUNT = 30;
+const ABOUT_IMAGE_COUNT = 32;
 const ABOUT_IMAGE_DURATION_MS = 3500;
-const ABOUT_IMAGE_BASE_URL = 'https://pub-e729d46cf5fd4798932ccae48f7361ef.r2.dev/about_us';
+const ABOUT_IMAGE_BASE_URL = '/about-us';
 let cachedAboutImages: HTMLImageElement[] | null = null;
 let aboutImagesLoadPromise: Promise<HTMLImageElement[]> | null = null;
 
@@ -1633,8 +1633,7 @@ function loadAboutImagesOnce(): Promise<HTMLImageElement[]> {
   if (aboutImagesLoadPromise) return aboutImagesLoadPromise;
 
   // Load only the first 3 images upfront so the section paints fast,
-  // then stream the remaining 27 in the background one-by-one.
-  // This cuts ~90% off the initial image payload (~12MB -> ~1MB).
+  // then stream the rest in the background one-by-one.
   const loadRestInBackground = (first: (HTMLImageElement | null)[]) => {
     const rest = Array.from({ length: ABOUT_IMAGE_COUNT - 3 }, (_, i) => i + 3);
     let chain = Promise.resolve();
@@ -1650,7 +1649,7 @@ function loadAboutImagesOnce(): Promise<HTMLImageElement[]> {
 
   aboutImagesLoadPromise = Promise.all([0, 1, 2].map(loadSingleAboutImage)).then((first) => {
     cachedAboutImages = first.filter((image): image is HTMLImageElement => image !== null);
-    // Don't block the caller on the remaining 27 — load them lazily
+    // Don't block the caller on the rest — load them lazily
     if (typeof window !== 'undefined') {
       const kickOff = () => loadRestInBackground(first);
       if ('requestIdleCallback' in (window as any)) {
@@ -1706,7 +1705,7 @@ function AboutBackgroundSequence() {
       );
     };
 
-    // Only start loading the R2 slideshow when the About section is near
+    // Only start loading the local slideshow when the About section is near
     // the viewport — it's far below the fold and must not load on first paint.
     let observer: IntersectionObserver | null = null;
     const boot = () => {
@@ -1755,7 +1754,7 @@ function AboutBackgroundSequence() {
 
   return (
     <div className="absolute inset-0 z-0 bg-slate-900 overflow-hidden">
-      {/* Always-on premium gradient fallback — visible instantly, even if R2 images 404 or network is slow */}
+      {/* Always-on premium gradient fallback — visible instantly while local images load */}
       <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900" aria-hidden="true" />
       <div className="absolute -top-[20%] -right-[10%] w-[60%] h-[60%] rounded-full bg-blue-600/20 blur-[120px]" aria-hidden="true" />
       <div className="absolute bottom-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-600/15 blur-[120px]" aria-hidden="true" />
