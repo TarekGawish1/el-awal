@@ -1692,45 +1692,18 @@ function AboutBackgroundSequence() {
         canvas.height = targetHeight;
       }
 
+      // Full-screen cover — fills the entire frame, no bars.
+      // Face-aware anchor: faces sit ~30% down the photo, so pin that point
+      // near the top of the frame instead of center-cropping (which cut heads off).
       const scale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
       const drawWidth = image.naturalWidth * scale;
       const drawHeight = image.naturalHeight * scale;
+      const offsetX = (canvas.width - drawWidth) / 2;
+      let offsetY = canvas.height * 0.35 - drawHeight * 0.3;
+      // Clamp so the image always covers the canvas
+      offsetY = Math.min(0, Math.max(canvas.height - drawHeight, offsetY));
       context.clearRect(0, 0, canvas.width, canvas.height);
-      try {
-        // 1. Blurred cover fill — fills wide desktop frames with ambient color, no empty bars
-        context.save();
-        (context as any).filter = 'blur(60px)';
-        context.globalAlpha = 0.7;
-        const bleed = 80;
-        context.drawImage(
-          image,
-          (canvas.width - drawWidth) / 2 - bleed / 2,
-          (canvas.height - drawHeight) / 2 - bleed / 2,
-          drawWidth + bleed,
-          drawHeight + bleed,
-        );
-        context.restore();
-      } catch {
-        // context.filter unsupported — fall back to plain cover below
-        context.drawImage(
-          image,
-          (canvas.width - drawWidth) / 2,
-          (canvas.height - drawHeight) / 2,
-          drawWidth,
-          drawHeight,
-        );
-      }
-      // 2. Sharp contain — whole photo (faces) always fully visible, centered
-      const fitScale = Math.min(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
-      const fitWidth = image.naturalWidth * fitScale;
-      const fitHeight = image.naturalHeight * fitScale;
-      context.drawImage(
-        image,
-        (canvas.width - fitWidth) / 2,
-        (canvas.height - fitHeight) / 2,
-        fitWidth,
-        fitHeight,
-      );
+      context.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
     };
 
     // Only start loading the local slideshow when the About section is near
