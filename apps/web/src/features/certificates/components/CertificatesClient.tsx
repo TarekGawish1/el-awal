@@ -358,30 +358,36 @@ export function CertificatesClient() {
   }, [certificates]);
 
   const grades = React.useMemo(() => {
-    const stageGrades = selectedStage === "الكل"
-      ? allGrades
-      : allGrades.filter((grade) => {
-          const stageSuffix = {
-            الثانوية: "الثانوي",
-            الإعدادية: "الإعدادي",
-            الابتدائية: "الابتدائي",
-          }[selectedStage];
-          return stageSuffix ? grade.endsWith(stageSuffix) : true;
-        });
+    const stageGrades =
+      selectedStage === "الكل"
+        ? allGrades
+        : allGrades.filter((grade) => {
+            const stageSuffix = {
+              الثانوية: "الثانوي",
+              الإعدادية: "الإعدادي",
+              الابتدائية: "الابتدائي",
+            }[selectedStage];
+            return stageSuffix ? grade.endsWith(stageSuffix) : true;
+          });
     return ["الكل", ...stageGrades];
   }, [allGrades, selectedStage]);
 
   const years = React.useMemo(() => {
     const set = new Set<string>();
-    certificates.filter((certificate) => {
-      const matchesStage = selectedStage === "الكل" || certificate.stage === selectedStage;
-      const matchesGrade = selectedGrade === "الكل" ||
-        normalizeCertificateGrade(certificate.grade, certificate.stage) === selectedGrade;
-      return matchesStage && matchesGrade;
-    }).forEach((c) => {
-      const y = String(c.year || "").trim();
-      if (y) set.add(y);
-    });
+    certificates
+      .filter((certificate) => {
+        const matchesStage =
+          selectedStage === "الكل" || certificate.stage === selectedStage;
+        const matchesGrade =
+          selectedGrade === "الكل" ||
+          normalizeCertificateGrade(certificate.grade, certificate.stage) ===
+            selectedGrade;
+        return matchesStage && matchesGrade;
+      })
+      .forEach((c) => {
+        const y = String(c.year || "").trim();
+        if (y) set.add(y);
+      });
     return [
       "الكل",
       ...Array.from(set).sort((a, b) =>
