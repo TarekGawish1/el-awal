@@ -2044,7 +2044,10 @@ function StageCertificateRow({ certificates }: { certificates: any[] }) {
     };
 
     checkOverflow();
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(checkOverflow) : null;
+    const ro =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(checkOverflow)
+        : null;
     ro?.observe(container);
     ro?.observe(content);
     window.addEventListener("resize", checkOverflow);
@@ -2057,21 +2060,36 @@ function StageCertificateRow({ certificates }: { certificates: any[] }) {
 
   if (!certificates || certificates.length === 0) return null;
 
-  const baseMultiplier = certificates.length < 5 ? Math.ceil(6 / certificates.length) : 1;
-  const normalizedList = Array.from({ length: baseMultiplier }).flatMap(() => certificates);
+  const baseMultiplier =
+    certificates.length < 5 ? Math.ceil(6 / certificates.length) : 1;
+  const normalizedList = Array.from({ length: baseMultiplier }).flatMap(
+    () => certificates,
+  );
 
   return (
     <div ref={containerRef} className="w-full overflow-hidden pb-6">
-      <div ref={staticMeasureRef} className="absolute opacity-0 pointer-events-none flex gap-6 w-max" aria-hidden="true">
+      <div
+        ref={staticMeasureRef}
+        className="absolute opacity-0 pointer-events-none flex gap-6 w-max"
+        aria-hidden="true"
+      >
         {certificates.map((cert, index) => (
-          <CertificateCard cert={cert} index={index} key={`measure-${cert.id}-${index}`} />
+          <CertificateCard
+            cert={cert}
+            index={index}
+            key={`measure-${cert.id}-${index}`}
+          />
         ))}
       </div>
 
       {!shouldScroll ? (
         <div className="flex gap-6 justify-center flex-nowrap px-4">
           {certificates.map((cert, index) => (
-            <CertificateCard cert={cert} index={index} key={`static-${cert.id}-${index}`} />
+            <CertificateCard
+              cert={cert}
+              index={index}
+              key={`static-${cert.id}-${index}`}
+            />
           ))}
         </div>
       ) : (
@@ -2080,12 +2098,20 @@ function StageCertificateRow({ certificates }: { certificates: any[] }) {
           <div className="animate-continuous-ltr" dir="ltr">
             <div className="flex gap-6 pr-6 shrink-0" dir="rtl">
               {normalizedList.map((cert, index) => (
-                <CertificateCard cert={cert} index={index} key={`set1-${cert.id}-${index}`} />
+                <CertificateCard
+                  cert={cert}
+                  index={index}
+                  key={`set1-${cert.id}-${index}`}
+                />
               ))}
             </div>
             <div className="flex gap-6 pr-6 shrink-0" dir="rtl">
               {normalizedList.map((cert, index) => (
-                <CertificateCard cert={cert} index={index} key={`set2-${cert.id}-${index}`} />
+                <CertificateCard
+                  cert={cert}
+                  index={index}
+                  key={`set2-${cert.id}-${index}`}
+                />
               ))}
             </div>
           </div>
