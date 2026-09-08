@@ -418,7 +418,10 @@ export function CertificatesClient() {
       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col gap-3">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
-            <label htmlFor="certificate-stage" className="text-xs font-bold text-slate-400">
+            <label
+              htmlFor="certificate-stage"
+              className="text-xs font-bold text-slate-400"
+            >
               المرحلة الدراسية:
             </label>
             <select
@@ -435,7 +438,10 @@ export function CertificatesClient() {
             </select>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <label htmlFor="certificate-year" className="text-xs font-bold text-slate-400">
+            <label
+              htmlFor="certificate-year"
+              className="text-xs font-bold text-slate-400"
+            >
               السنة الدراسية:
             </label>
             <select
@@ -452,7 +458,10 @@ export function CertificatesClient() {
             </select>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <label htmlFor="certificate-grade" className="text-xs font-bold text-slate-400">
+            <label
+              htmlFor="certificate-grade"
+              className="text-xs font-bold text-slate-400"
+            >
               الصف الدراسي:
             </label>
             <select
