@@ -531,15 +531,17 @@ export function CertificatesClient() {
                   مخفية من الموقع
                 </div>
               )}
-              {cert.data?.image || (cert as any).image ? (
-                <div className="relative w-full aspect-[1.41] bg-slate-100 border-b border-slate-100">
-                  <img
-                    src={cert.data?.image || (cert as any).image}
-                    alt={`شهادة ${cert.studentName}`}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              ) : null}
+              <div className="relative w-full aspect-[1.41] bg-slate-100 border-b border-slate-100">
+                <img
+                  src={
+                    cert.data?.image ||
+                    (cert as any).image ||
+                    "/certification-bg.webp"
+                  }
+                  alt={`شهادة ${cert.studentName}`}
+                  className="w-full h-full object-cover"
+                />
+              </div>
               <div className="p-5 flex-1 flex flex-col">
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center">
