@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { toast } from "react-hot-toast";
 import { apiClient } from "@/lib/api/client";
+import { GRADE_LEVELS_BY_STAGE } from "@/lib/constants/grades";
 
 interface SavedCertificate {
   id: string;
@@ -36,6 +37,28 @@ export function CertificatesClient() {
     null,
   );
   const [savingYears, setSavingYears] = useState(false);
+
+  const normalizeCertificateGrade = (grade: unknown, stage: unknown) => {
+    const value = String(grade || "").trim();
+    if (!value) return "";
+    if (
+      Object.values(GRADE_LEVELS_BY_STAGE).some((gradeList) =>
+        gradeList.includes(value),
+      )
+    ) {
+      return value;
+    }
+
+    const suffixByStage: Record<string, string> = {
+      الثانوية: "الثانوي",
+      الإعدادية: "الإعدادي",
+      الابتدائية: "الابتدائي",
+    };
+    const suffix = suffixByStage[String(stage || "").trim()];
+    return suffix && /^الصف (الأول|الثاني|الثالث|الرابع|الخامس|السادس)$/.test(value)
+      ? `${value} ${suffix}`
+      : value;
+  };
 
   const isUuid = (id: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -317,19 +340,20 @@ export function CertificatesClient() {
       String(cert.year || "").trim() === selectedYear;
     const matchesGrade =
       selectedGrade === "الكل" ||
-      String(cert.grade || "").trim() === selectedGrade;
+      normalizeCertificateGrade(cert.grade, cert.stage) === selectedGrade;
     return matchesSearch && matchesStage && matchesYear && matchesGrade;
   });
 
   const stages = ["الكل", "الثانوية", "الإعدادية", "الابتدائية"];
 
   const grades = React.useMemo(() => {
-    const set = new Set<string>();
-    certificates.forEach((c) => {
-      const g = String(c.grade || "").trim();
-      if (g) set.add(g);
-    });
-    return ["الكل", ...Array.from(set)];
+    const allGrades = Object.values(GRADE_LEVELS_BY_STAGE).flat();
+    const existingGrades = certificates
+      .map((certificate) =>
+        normalizeCertificateGrade(certificate.grade, certificate.stage),
+      )
+      .filter(Boolean);
+    return ["الكل", ...Array.from(new Set([...allGrades, ...existingGrades]))];
   }, [certificates]);
 
   const years = React.useMemo(() => {
