@@ -1561,14 +1561,20 @@ function CertificatesSection() {
   const [stagesData, setStagesData] = useState(CERTIFICATES_BY_STAGE);
   const [selectedYear, setSelectedYear] = useState<string>('ALL');
   const [selectedGrade, setSelectedGrade] = useState<string>('ALL');
+  // Owner control: academic years allowed on the landing page (null = all).
+  // Managed from the teacher dashboard (سنوات الظهور على الموقع).
+  const [allowedYears, setAllowedYears] = useState<string[] | null>(null);
   const autoYearApplied = useRef(false);
 
-  // Academic-year organization: derive available years from loaded certificates
+  // Academic-year organization: derive available years from loaded certificates,
+  // restricted to the owner-allowed set.
   const availableYears = Array.from(
     new Set(
       stagesData.flatMap((s) => (s.certificates || []).map((c: any) => String(c.year || '').trim()).filter(Boolean)),
     ),
-  ).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+  )
+    .filter((year) => !allowedYears || allowedYears.includes(year))
+    .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
 
   // Class (صف دراسي) organization: derive available classes from the year-filtered certificates
   const availableGrades = Array.from(
@@ -1593,12 +1599,22 @@ function CertificatesSection() {
     }
   }, [availableYears]);
 
+  // If the current selection becomes disallowed (owner changed the setting),
+  // fall back to the spotlight default instead of showing an empty section.
+  useEffect(() => {
+    if (autoYearApplied.current && selectedYear !== 'ALL' && availableYears.length > 0 && !availableYears.includes(selectedYear)) {
+      const currentYear = new Date().getFullYear().toString();
+      setSelectedYear(availableYears.includes(currentYear) ? currentYear : availableYears[0]);
+    }
+  }, [availableYears, selectedYear]);
+
   const visibleStages = stagesData
     .map((stage) => ({
       ...stage,
       certificates: (stage.certificates || []).filter(
         (c: any) =>
           (selectedYear === 'ALL' || String(c.year || '').trim() === selectedYear) &&
+          (!allowedYears || allowedYears.includes(String(c.year || '').trim()) || !String(c.year || '').trim()) &&
           (selectedGrade === 'ALL' || String(c.classGrade || '').trim() === selectedGrade),
       ),
     }))
@@ -1734,8 +1750,24 @@ function CertificatesSection() {
       } catch (e) {
         console.error('Failed to sync/fetch certificates:', e);
       }
+
+      // Owner control: which academic years may appear on the landing page.
+      // Fail-open (all years) if the setting is missing or unreachable.
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.al-awal.online/api/v1';
+        const settingsRes = await fetch(`${baseUrl}/site-settings/public`);
+        if (settingsRes.ok) {
+          const settingsJson = await settingsRes.json();
+          const raw = settingsJson?.data?.certificatesVisibleYears ?? settingsJson?.certificatesVisibleYears;
+          if (Array.isArray(raw)) {
+            setAllowedYears(raw.map((v: any) => String(v).trim()).filter(Boolean));
+          }
+        }
+      } catch (settingsError) {
+        console.warn('Could not fetch site settings, showing all years', settingsError);
+      }
     };
-    
+
     syncAndFetchCertificates();
   }, []);
 

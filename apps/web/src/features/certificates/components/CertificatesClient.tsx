@@ -60,19 +60,28 @@ export function CertificatesClient() {
         console.error('Error fetching API certificates:', err);
       }
 
-      const mappedApiCerts = apiCerts.map((c: any) => ({
-        id: c.id,
-        studentName: c.studentName,
-        subject: c.subject,
-        score: c.score,
-        stage: c.stage,
-        grade: c.grade,
-        issueDate: c.issueDate,
-        year: c.year,
-        isPublic: c.isPublic !== false,
-        createdAt: c.createdAt,
-        image: c.fileUrl,
-      }));
+      const mappedApiCerts = apiCerts.map((c: any) => {
+        const localMatch = localCerts.find((local: any) =>
+          local.id === c.id ||
+          (local.studentName?.trim() === c.studentName?.trim() && local.subject?.trim() === c.subject?.trim())
+        );
+        const localImage = localMatch?.image || localMatch?.data?.image;
+
+        return {
+          id: c.id,
+          studentName: c.studentName,
+          subject: c.subject,
+          score: c.score,
+          stage: c.stage,
+          grade: c.grade,
+          issueDate: c.issueDate,
+          year: c.year,
+          isPublic: c.isPublic !== false,
+          createdAt: c.createdAt,
+          image: c.fileUrl || c.image || localImage,
+          data: localMatch?.data,
+        };
+      });
 
       // Filter out local certificates that are already present in the API
       const nonDuplicateLocalCerts = localCerts.filter((local: any) => {
@@ -117,6 +126,58 @@ export function CertificatesClient() {
 
     fetchAndMergeCertificates();
   }, []);
+
+  // Owner control: which academic years visitors see on the landing page
+  useEffect(() => {
+    (async () => {
+      try {
+        const json = await apiClient<any>('/site-settings');
+        const arr = json?.settings || json?.data?.settings || [];
+        const found = arr.find((s: any) => s.key === 'certificates.visibleYears');
+        const val = Array.isArray(found?.value) ? found.value.map((v: any) => String(v)) : null;
+        setAllowedYears(val);
+        setSavedAllowedYears(val);
+      } catch (err) {
+        console.warn('Could not load site settings:', err);
+      }
+    })();
+  }, []);
+
+  const yearOptions = React.useMemo(() => {
+    const set = new Set<string>();
+    certificates.forEach((c) => {
+      const y = String((c as any).year || '').trim();
+      if (y) set.add(y);
+    });
+    return Array.from(set).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+  }, [certificates]);
+
+  const toggleAllowedYear = (year: string) => {
+    const base = allowedYears ?? yearOptions;
+    setAllowedYears(
+      base.includes(year) ? base.filter((y) => y !== year) : [...base, year],
+    );
+  };
+
+  const yearsDirty = JSON.stringify([...(allowedYears ?? [])].sort()) !== JSON.stringify([...(savedAllowedYears ?? [])].sort());
+
+  const handleSaveYears = async () => {
+    setSavingYears(true);
+    try {
+      const value = allowedYears ?? yearOptions;
+      await apiClient('/site-settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ key: 'certificates.visibleYears', value }),
+      });
+      setSavedAllowedYears(value);
+      toast.success('تم حفظ سنوات العرض على الموقع');
+    } catch (err: any) {
+      console.error('Failed to save visible years:', err);
+      toast.error(err?.message || 'فشل حفظ الإعداد');
+    } finally {
+      setSavingYears(false);
+    }
+  };
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('هل أنت متأكد من حذف هذه الشهادة؟ سيتم حذفها من قاعدة البيانات والتخزين السحابي نهائياً.')) {
@@ -236,6 +297,53 @@ export function CertificatesClient() {
               إنشاء شهادة
             </Button>
           </Link>
+        </div>
+      </div>
+
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-bold text-slate-800">سنوات الظهور على الموقع</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              اختر السنوات الدراسية التي تظهر لزوار الموقع في لوحة الشرف. غير المحدد يختفي تماماً من الموقع.
+            </p>
+          </div>
+          <Button
+            variant="primary"
+            onClick={handleSaveYears}
+            disabled={!yearsDirty || savingYears || yearOptions.length === 0}
+            className="shrink-0"
+          >
+            {savingYears ? 'جاري الحفظ...' : 'حفظ الإعداد'}
+          </Button>
+        </div>
+        <div className="flex gap-2 overflow-x-auto mt-3 pb-1 hide-scrollbar">
+          <button
+            onClick={() => setAllowedYears(null)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+              allowedYears === null
+                ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            الكل
+          </button>
+          {yearOptions.map((year) => {
+            const active = (allowedYears ?? yearOptions).includes(year);
+            return (
+              <button
+                key={year}
+                onClick={() => toggleAllowedYear(year)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                  active
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : 'bg-white text-slate-400 border border-slate-200 hover:bg-slate-50 line-through'
+                }`}
+              >
+                {year}
+              </button>
+            );
+          })}
         </div>
       </div>
 
