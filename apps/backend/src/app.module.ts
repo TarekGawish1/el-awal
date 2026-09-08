@@ -28,6 +28,7 @@ import { CertificatesModule } from './modules/certificates/certificates.module';
 import { AssistantsModule } from './modules/assistants/assistants.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { TestimonialsModule } from './modules/testimonials/testimonials.module';
+import { SiteSettingsModule } from './modules/site-settings/site-settings.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { TestimonialsModule } from './modules/testimonials/testimonials.module';
     AssistantsModule,
     AuditModule,
     TestimonialsModule,
+    SiteSettingsModule,
   ],
 })
 export class AppModule {}

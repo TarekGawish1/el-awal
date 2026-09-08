@@ -31,6 +31,9 @@ export function CertificatesClient() {
   const [selectedGrade, setSelectedGrade] = useState('الكل');
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [allowedYears, setAllowedYears] = useState<string[] | null>(null);
+  const [savedAllowedYears, setSavedAllowedYears] = useState<string[] | null>(null);
+  const [savingYears, setSavingYears] = useState(false);
 
   const isUuid = (id: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);

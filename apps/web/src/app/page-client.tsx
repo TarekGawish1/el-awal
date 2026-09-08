@@ -1458,26 +1458,50 @@ function CertificateCard({ cert, index }: { cert: any; index: number }) {
   );
 }
 
-// Row stays fixed when all cards fit on screen; auto-scroll marquee only kicks in
-// when the cards overflow (measured, screen-size aware — no fake duplication).
+// Row stays fixed when all cards fit on screen; seamless circular auto-scroll
+// marquee (left → right) only kicks in when the cards overflow. The marquee
+// renders enough identical copies to cover 2x the viewport and loops by exactly
+// one copy width, so the screen is never empty — first and last stay connected.
 function StageCertificateRow({ certificates }: { certificates: any[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const [marquee, setMarquee] = useState(false);
+  const [copies, setCopies] = useState(4);
+  const [pitch, setPitch] = useState(0); // px width of one copy — the seamless loop step
 
   // Reset to the static layout whenever the certificate set changes, then re-measure
   useEffect(() => {
     setMarquee(false);
+    setCopies(4);
+    setPitch(0);
   }, [certificates]);
 
   useEffect(() => {
     const container = containerRef.current;
     const track = trackRef.current;
-    if (!container || !track) return;
-    const copies = marquee ? 4 : 1;
+    if (!container || !track || certificates.length === 0) return;
     const check = () => {
-      const singleSetWidth = track.scrollWidth / copies;
-      setMarquee(singleSetWidth > container.clientWidth + 8);
+      const containerWidth = container.clientWidth;
+      if (containerWidth === 0) return;
+      if (!marquee) {
+        const rowWidth = track.scrollWidth;
+        if (rowWidth > containerWidth + 8) {
+          // Enough copies so the track covers 2x the viewport (never empty)
+          setCopies(Math.min(12, Math.max(4, Math.ceil((containerWidth * 2) / rowWidth) + 1)));
+          setMarquee(true);
+        }
+      } else {
+        const single = track.scrollWidth / copies;
+        if (single > 0) setPitch((p) => (Math.abs(p - single) > 1 ? single : p));
+        if (single <= containerWidth + 8) {
+          // Everything fits — back to a fixed row
+          setMarquee(false);
+          setCopies(4);
+        } else {
+          const needed = Math.min(12, Math.max(4, Math.ceil((containerWidth * 2) / single) + 1));
+          setCopies((c) => (c === needed ? c : needed));
+        }
+      }
     };
     check();
     const raf = requestAnimationFrame(check);
@@ -1491,39 +1515,30 @@ function StageCertificateRow({ certificates }: { certificates: any[] }) {
       ro?.disconnect();
       window.removeEventListener('resize', check);
     };
-  }, [certificates, marquee]);
+  }, [certificates, marquee, copies]);
 
   return (
     <div
       ref={containerRef}
-      className="overflow-hidden -mx-6 md:-mx-4 pb-6 px-6 md:px-4"
-      style={
-        marquee
-          ? {
-              WebkitMaskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)',
-              maskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)',
-            }
-          : undefined
-      }
+      // Marquee runs edge-to-edge (no side padding, no fade mask) so cards stay
+      // connected to the screen on both sides; the fixed row keeps its padding.
+      className={marquee ? 'overflow-hidden -mx-6 md:-mx-4 pb-6' : 'overflow-hidden -mx-6 md:-mx-4 pb-6 px-6 md:px-4'}
     >
       {marquee ? (
-        // Auto-slide marquee (overflow only): cards travel left → right.
-        // Track is forced LTR so flex lays out left-to-right; animating x from
-        // -25% to 0% moves everything rightward and loops seamlessly because
-        // the track holds 4 identical copies (each copy ends with pr-6 so one
-        // copy pitch is exactly 25% of the track width).
+        // Track forced LTR; animating x from -pitch to 0 slides cards left → right
+        // and jumps back by exactly one identical copy = seamless circle.
         <motion.div
           ref={trackRef as any}
           className="flex w-max"
           dir="ltr"
-          animate={{ x: ["-25%", "0%"] }}
+          animate={{ x: pitch > 0 ? [-pitch, 0] : 0 }}
           transition={{
             repeat: Infinity,
-            ease: "linear",
-            duration: 20,
+            ease: 'linear',
+            duration: Math.max(6, pitch / 80),
           }}
         >
-          {[0, 1, 2, 3].map((copy) => (
+          {Array.from({ length: copies }).map((_, copy) => (
             <div key={copy} className="flex gap-6 pr-6" dir="rtl">
               {certificates.map((cert, index) => (
                 <CertificateCard key={`${cert.id}-${copy}-${index}`} cert={cert} index={index} />

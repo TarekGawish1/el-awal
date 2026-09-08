@@ -1218,6 +1218,17 @@ model Certificate {
   @@map("certificates")
 }
 
+// Site-wide display settings (key/value store for landing-page controls)
+model SiteSetting {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  key       String   @unique @map("key") @db.VarChar(100)
+  value     String   @map("value") @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("site_settings")
+}
+
 // ==========================================
 // 10. AUDIT & ACTIVITY LOGGING DOMAIN
 // ==========================================
