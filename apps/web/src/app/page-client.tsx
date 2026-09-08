@@ -1034,7 +1034,6 @@ function CenterScheduleSection() {
 
   const GRADES = {
     primary: [
-      { id: 'الصف الرابع الابتدائي', name: 'الصف الرابع الابتدائي' },
       { id: 'الصف الخامس الابتدائي', name: 'الصف الخامس الابتدائي' },
       { id: 'الصف السادس الابتدائي', name: 'الصف السادس الابتدائي' },
     ],
@@ -1357,20 +1356,20 @@ function TestimonialsSection() {
 // Static honor-roll seeds — always shown in the landing certificates section
 // (merged with backend + local certificates, never overwritten by them).
 const SEED_CERTIFICATES = [
-  { id: 'seed-1', student: 'حنين طه محمد', subject: 'الإحصاء', grade: '57', year: '2025', stage: 'الثانوية' },
-  { id: 'seed-2', student: 'نور احمد طه', subject: 'الإحصاء', grade: '58', year: '2025', stage: 'الثانوية' },
-  { id: 'seed-3', student: 'ميرنا يحيى عبد المنعم', subject: 'الإحصاء', grade: '59', year: '2025', stage: 'الثانوية' },
-  { id: 'seed-4', student: 'شهد وائل السعيد', subject: 'الإحصاء', grade: '56', year: '2025', stage: 'الثانوية' },
-  { id: 'seed-5', student: 'جنى صلاح عبد الرازق', subject: 'الإحصاء', grade: '59.5', year: '2025', stage: 'الثانوية' },
-  { id: 'seed-6', student: 'حنين محمد سندي', subject: 'الإحصاء', grade: '59.5', year: '2025', stage: 'الثانوية' },
-  { id: 'seed-p1', student: 'أمير رضا عبد الرؤوف', subject: 'الرياضيات', grade: '57', year: '2025', stage: 'الإعدادية' },
-  { id: 'seed-p2', student: 'محمد صالح جابر', subject: 'الرياضيات', grade: '57', year: '2025', stage: 'الإعدادية' },
-  { id: 'seed-p3', student: 'ملك فريدة العباسي', subject: 'الرياضيات', grade: '59', year: '2025', stage: 'الإعدادية' },
-  { id: 'seed-p4', student: 'عمر محمد عبد الهادي', subject: 'الرياضيات', grade: '57', year: '2025', stage: 'الإعدادية' },
-  { id: 'seed-p5', student: 'جودي أحمد مشعل', subject: 'الرياضيات', grade: '59', year: '2025', stage: 'الإعدادية' },
-  { id: 'seed-p6', student: 'شهد محمد السيد مراد', subject: 'الرياضيات', grade: '58.2', year: '2025', stage: 'الإعدادية' },
-  { id: 'seed-p7', student: 'شيرين محمد شحاتة', subject: 'الرياضيات', grade: '59.5', year: '2025', stage: 'الإعدادية' },
-  { id: 'seed-p8', student: 'أدهم أحمد عمرو وسليم', subject: 'الرياضيات', grade: '59.5', year: '2025', stage: 'الإعدادية' },
+  { id: 'seed-1', student: 'حنين طه محمد', subject: 'الإحصاء', grade: '57', year: '2026', stage: 'الثانوية' },
+  { id: 'seed-2', student: 'نور احمد طه', subject: 'الإحصاء', grade: '58', year: '2026', stage: 'الثانوية' },
+  { id: 'seed-3', student: 'ميرنا يحيى عبد المنعم', subject: 'الإحصاء', grade: '59', year: '2026', stage: 'الثانوية' },
+  { id: 'seed-4', student: 'شهد وائل السعيد', subject: 'الإحصاء', grade: '56', year: '2026', stage: 'الثانوية' },
+  { id: 'seed-5', student: 'جنى صلاح عبد الرازق', subject: 'الإحصاء', grade: '59.5', year: '2026', stage: 'الثانوية' },
+  { id: 'seed-6', student: 'حنين محمد سندي', subject: 'الإحصاء', grade: '59.5', year: '2026', stage: 'الثانوية' },
+  { id: 'seed-p1', student: 'أمير رضا عبد الرؤوف', subject: 'الرياضيات', grade: '57', year: '2026', stage: 'الإعدادية' },
+  { id: 'seed-p2', student: 'محمد صالح جابر', subject: 'الرياضيات', grade: '57', year: '2026', stage: 'الإعدادية' },
+  { id: 'seed-p3', student: 'ملك فريدة العباسي', subject: 'الرياضيات', grade: '59', year: '2026', stage: 'الإعدادية' },
+  { id: 'seed-p4', student: 'عمر محمد عبد الهادي', subject: 'الرياضيات', grade: '57', year: '2026', stage: 'الإعدادية' },
+  { id: 'seed-p5', student: 'جودي أحمد مشعل', subject: 'الرياضيات', grade: '59', year: '2026', stage: 'الإعدادية' },
+  { id: 'seed-p6', student: 'شهد محمد السيد مراد', subject: 'الرياضيات', grade: '58.2', year: '2026', stage: 'الإعدادية' },
+  { id: 'seed-p7', student: 'شيرين محمد شحاتة', subject: 'الرياضيات', grade: '59.5', year: '2026', stage: 'الإعدادية' },
+  { id: 'seed-p8', student: 'أدهم أحمد عمرو وسليم', subject: 'الرياضيات', grade: '59.5', year: '2026', stage: 'الإعدادية' },
 ].map((s) => ({
   id: s.id,
   title: `التفوق في ${s.subject}`,
@@ -1402,6 +1401,24 @@ const CERTIFICATES_BY_STAGE = [
 
 function CertificatesSection() {
   const [stagesData, setStagesData] = useState(CERTIFICATES_BY_STAGE);
+  const [selectedYear, setSelectedYear] = useState<string>('ALL');
+
+  // Academic-year organization: derive available years from loaded certificates
+  const availableYears = Array.from(
+    new Set(
+      stagesData.flatMap((s) => (s.certificates || []).map((c: any) => String(c.year || '').trim()).filter(Boolean)),
+    ),
+  ).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+
+  const visibleStages = stagesData
+    .map((stage) => ({
+      ...stage,
+      certificates:
+        selectedYear === 'ALL'
+          ? stage.certificates
+          : (stage.certificates || []).filter((c: any) => String(c.year || '').trim() === selectedYear),
+    }))
+    .filter((stage) => stage.certificates && stage.certificates.length > 0);
 
   useEffect(() => {
     const syncAndFetchCertificates = async () => {
@@ -1556,8 +1573,37 @@ function CertificatesSection() {
           </motion.div>
         </div>
 
+        {/* Academic year filter */}
+        {availableYears.length > 0 && (
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-12">
+            <button
+              onClick={() => setSelectedYear('ALL')}
+              className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${
+                selectedYear === 'ALL'
+                  ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:border-amber-300'
+              }`}
+            >
+              كل السنوات
+            </button>
+            {availableYears.map((year) => (
+              <button
+                key={year}
+                onClick={() => setSelectedYear(year)}
+                className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${
+                  selectedYear === year
+                    ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:border-amber-300'
+                }`}
+              >
+                العام الدراسي {year}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="space-y-16">
-          {stagesData.every(s => !s.certificates || s.certificates.length === 0) ? (
+          {visibleStages.length === 0 ? (
             <div className="text-center py-12 bg-white/50 backdrop-blur-sm rounded-2xl border border-slate-200 shadow-sm max-w-3xl mx-auto">
               <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg className="w-10 h-10 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1568,7 +1614,7 @@ function CertificatesSection() {
               <p className="text-slate-500">لم يتم إصدار أو مزامنة أي شهادات بعد. كن أول المتفوقين!</p>
             </div>
           ) : (
-            stagesData.filter(stage => stage.certificates && stage.certificates.length > 0).map((stage, stageIndex) => (
+            visibleStages.map((stage, stageIndex) => (
               <motion.div
                 key={stage.stageId}
               className="relative"

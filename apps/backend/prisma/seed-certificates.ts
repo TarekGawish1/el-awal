@@ -30,21 +30,21 @@ interface SeedRow {
 
 const CERTIFICATES: SeedRow[] = [
   // الثانوية — الإحصاء — 2025
-  { studentName: 'حنين طه محمد', gender: 'FEMALE', subject: 'الإحصاء', score: '57', stage: 'الثانوية', year: '2025' },
-  { studentName: 'نور احمد طه', gender: 'FEMALE', subject: 'الإحصاء', score: '58', stage: 'الثانوية', year: '2025' },
-  { studentName: 'ميرنا يحيى عبد المنعم', gender: 'FEMALE', subject: 'الإحصاء', score: '59', stage: 'الثانوية', year: '2025' },
-  { studentName: 'شهد وائل السعيد', gender: 'FEMALE', subject: 'الإحصاء', score: '56', stage: 'الثانوية', year: '2025' },
-  { studentName: 'جنى صلاح عبد الرازق', gender: 'FEMALE', subject: 'الإحصاء', score: '59.5', stage: 'الثانوية', year: '2025' },
-  { studentName: 'حنين محمد سندي', gender: 'FEMALE', subject: 'الإحصاء', score: '59.5', stage: 'الثانوية', year: '2025' },
+  { studentName: 'حنين طه محمد', gender: 'FEMALE', subject: 'الإحصاء', score: '57', stage: 'الثانوية', year: '2026' },
+  { studentName: 'نور احمد طه', gender: 'FEMALE', subject: 'الإحصاء', score: '58', stage: 'الثانوية', year: '2026' },
+  { studentName: 'ميرنا يحيى عبد المنعم', gender: 'FEMALE', subject: 'الإحصاء', score: '59', stage: 'الثانوية', year: '2026' },
+  { studentName: 'شهد وائل السعيد', gender: 'FEMALE', subject: 'الإحصاء', score: '56', stage: 'الثانوية', year: '2026' },
+  { studentName: 'جنى صلاح عبد الرازق', gender: 'FEMALE', subject: 'الإحصاء', score: '59.5', stage: 'الثانوية', year: '2026' },
+  { studentName: 'حنين محمد سندي', gender: 'FEMALE', subject: 'الإحصاء', score: '59.5', stage: 'الثانوية', year: '2026' },
   // الإعدادية — الرياضيات — 2025
-  { studentName: 'أمير رضا عبد الرؤوف', gender: 'MALE', subject: 'الرياضيات', score: '57', stage: 'الإعدادية', year: '2025' },
-  { studentName: 'محمد صالح جابر', gender: 'MALE', subject: 'الرياضيات', score: '57', stage: 'الإعدادية', year: '2025' },
-  { studentName: 'ملك فريدة العباسي', gender: 'FEMALE', subject: 'الرياضيات', score: '59', stage: 'الإعدادية', year: '2025' },
-  { studentName: 'عمر محمد عبد الهادي', gender: 'MALE', subject: 'الرياضيات', score: '57', stage: 'الإعدادية', year: '2025' },
-  { studentName: 'جودي أحمد مشعل', gender: 'FEMALE', subject: 'الرياضيات', score: '59', stage: 'الإعدادية', year: '2025' },
-  { studentName: 'شهد محمد السيد مراد', gender: 'FEMALE', subject: 'الرياضيات', score: '58.2', stage: 'الإعدادية', year: '2025' },
-  { studentName: 'شيرين محمد شحاتة', gender: 'FEMALE', subject: 'الرياضيات', score: '59.5', stage: 'الإعدادية', year: '2025' },
-  { studentName: 'أدهم أحمد عمرو وسليم', gender: 'MALE', subject: 'الرياضيات', score: '59.5', stage: 'الإعدادية', year: '2025' },
+  { studentName: 'أمير رضا عبد الرؤوف', gender: 'MALE', subject: 'الرياضيات', score: '57', stage: 'الإعدادية', year: '2026' },
+  { studentName: 'محمد صالح جابر', gender: 'MALE', subject: 'الرياضيات', score: '57', stage: 'الإعدادية', year: '2026' },
+  { studentName: 'ملك فريدة العباسي', gender: 'FEMALE', subject: 'الرياضيات', score: '59', stage: 'الإعدادية', year: '2026' },
+  { studentName: 'عمر محمد عبد الهادي', gender: 'MALE', subject: 'الرياضيات', score: '57', stage: 'الإعدادية', year: '2026' },
+  { studentName: 'جودي أحمد مشعل', gender: 'FEMALE', subject: 'الرياضيات', score: '59', stage: 'الإعدادية', year: '2026' },
+  { studentName: 'شهد محمد السيد مراد', gender: 'FEMALE', subject: 'الرياضيات', score: '58.2', stage: 'الإعدادية', year: '2026' },
+  { studentName: 'شيرين محمد شحاتة', gender: 'FEMALE', subject: 'الرياضيات', score: '59.5', stage: 'الإعدادية', year: '2026' },
+  { studentName: 'أدهم أحمد عمرو وسليم', gender: 'MALE', subject: 'الرياضيات', score: '59.5', stage: 'الإعدادية', year: '2026' },
 ];
 
 async function main() {
