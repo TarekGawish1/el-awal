@@ -1735,7 +1735,7 @@ function AboutBackgroundSequence() {
       context.drawImage(
         image,
         (canvas.width - drawWidth) / 2,
-        (canvas.height - drawHeight) / 2,
+        0,
         drawWidth,
         drawHeight,
       );
