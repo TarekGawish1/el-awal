@@ -108,6 +108,23 @@ export function CertificateBuilder() {
   const [selectedGroupId, setSelectedGroupId] = useState("");
   const [isLoadingGroups, setIsLoadingGroups] = useState(false);
 
+  const filteredGroups = React.useMemo(
+    () =>
+      groups.filter((group) => {
+        const parsed = parseGradeLevel(group.gradeLevel);
+        if (data.stage && parsed.stage !== data.stage) return false;
+        if (data.grade && parsed.grade !== data.grade) return false;
+        return true;
+      }),
+    [groups, data.stage, data.grade],
+  );
+
+  useEffect(() => {
+    if (selectedGroupId && !filteredGroups.some((group) => group.id === selectedGroupId)) {
+      setSelectedGroupId("");
+    }
+  }, [filteredGroups, selectedGroupId]);
+
   // Load teacher groups once for the group-first student picker.
   useEffect(() => {
     let cancelled = false;
@@ -448,31 +465,6 @@ export function CertificateBuilder() {
             </div>
 
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  المجموعة
-                </label>
-                <Select
-                  value={selectedGroupId}
-                  onChange={(e) => handleGroupChange(e.target.value)}
-                  options={[
-                    {
-                      label: isLoadingGroups
-                        ? "جاري تحميل المجموعات..."
-                        : "اختر المجموعة...",
-                      value: "",
-                    },
-                    ...groups.map((g) => ({
-                      label: g.gradeLevel
-                        ? `${g.name} - ${g.gradeLevel}`
-                        : g.name,
-                      value: g.id,
-                    })),
-                  ]}
-                  disabled={isLoadingGroups}
-                />
-              </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -481,6 +473,7 @@ export function CertificateBuilder() {
                   <Select
                     value={data.stage}
                     onChange={(e) => {
+                      setSelectedGroupId("");
                       handleChange("stage", e.target.value);
                       handleChange("grade", ""); // Reset grade when stage changes
                     }}
@@ -498,7 +491,10 @@ export function CertificateBuilder() {
                   </label>
                   <Select
                     value={data.grade}
-                    onChange={(e) => handleChange("grade", e.target.value)}
+                    onChange={(e) => {
+                      setSelectedGroupId("");
+                      handleChange("grade", e.target.value);
+                    }}
                     options={[
                       { label: "اختر الصف...", value: "" },
                       ...(data.stage &&
@@ -509,6 +505,35 @@ export function CertificateBuilder() {
                     disabled={!data.stage}
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  المجموعة
+                </label>
+                <Select
+                  value={selectedGroupId}
+                  onChange={(e) => handleGroupChange(e.target.value)}
+                  options={[
+                    {
+                      label: isLoadingGroups
+                        ? "جاري تحميل المجموعات..."
+                        : !data.stage || !data.grade
+                          ? "اختر المرحلة والصف أولاً"
+                          : filteredGroups.length === 0
+                            ? "لا توجد مجموعات لهذا الصف"
+                            : "اختر المجموعة...",
+                      value: "",
+                    },
+                    ...filteredGroups.map((g) => ({
+                      label: g.gradeLevel
+                        ? `${g.name} - ${g.gradeLevel}`
+                        : g.name,
+                      value: g.id,
+                    })),
+                  ]}
+                  disabled={isLoadingGroups || !data.stage || !data.grade}
+                />
               </div>
 
               {(() => {
