@@ -521,11 +521,19 @@ export function CertificatesClient() {
             </Card>
           </Link>
 
-          {filteredCertificates.map((cert) => (
-            <Card
-              key={cert.id}
-              className={`overflow-hidden hover:shadow-md transition-shadow flex flex-col ${cert.isPublic === false ? "opacity-70" : ""}`}
-            >
+          {filteredCertificates.map((cert) => {
+            const certificateImage =
+              cert.data?.image ||
+              (cert as any).image ||
+              "/certification-bg.webp";
+            const usesTemplateFallback =
+              !cert.data?.image && !(cert as any).image;
+
+            return (
+              <Card
+                key={cert.id}
+                className={`overflow-hidden hover:shadow-md transition-shadow flex flex-col ${cert.isPublic === false ? "opacity-70" : ""}`}
+              >
               {cert.isPublic === false && (
                 <div className="bg-slate-800 text-white text-xs font-bold text-center py-1.5">
                   مخفية من الموقع
@@ -533,14 +541,20 @@ export function CertificatesClient() {
               )}
               <div className="relative w-full aspect-[1.41] bg-slate-100 border-b border-slate-100">
                 <img
-                  src={
-                    cert.data?.image ||
-                    (cert as any).image ||
-                    "/certification-bg.webp"
-                  }
+                  src={certificateImage}
                   alt={`شهادة ${cert.studentName}`}
                   className="w-full h-full object-cover"
                 />
+                {usesTemplateFallback && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8 pt-2">
+                    <span className="text-xl sm:text-2xl font-bold text-slate-800 drop-shadow-sm">
+                      {cert.studentName}
+                    </span>
+                    <span className="mt-1 text-xs sm:text-sm font-semibold text-amber-700">
+                      {cert.subject}
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="p-5 flex-1 flex flex-col">
                 <div className="flex items-start justify-between mb-4">
@@ -612,8 +626,9 @@ export function CertificatesClient() {
                   </div>
                 </div>
               </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
