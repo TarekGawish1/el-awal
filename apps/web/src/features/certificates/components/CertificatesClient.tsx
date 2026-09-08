@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { Plus, Award, Search, FileText, Eye, EyeOff } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Card } from '@/components/ui/Card';
-import { toast } from 'react-hot-toast';
-import { apiClient } from '@/lib/api/client';
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
+import { Plus, Award, Search, FileText, Eye, EyeOff } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Card } from "@/components/ui/Card";
+import { toast } from "react-hot-toast";
+import { apiClient } from "@/lib/api/client";
 
 interface SavedCertificate {
   id: string;
@@ -25,14 +25,16 @@ interface SavedCertificate {
 
 export function CertificatesClient() {
   const [certificates, setCertificates] = useState<SavedCertificate[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedStage, setSelectedStage] = useState('الكل');
-  const [selectedYear, setSelectedYear] = useState('الكل');
-  const [selectedGrade, setSelectedGrade] = useState('الكل');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedStage, setSelectedStage] = useState("الكل");
+  const [selectedYear, setSelectedYear] = useState("الكل");
+  const [selectedGrade, setSelectedGrade] = useState("الكل");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [allowedYears, setAllowedYears] = useState<string[] | null>(null);
-  const [savedAllowedYears, setSavedAllowedYears] = useState<string[] | null>(null);
+  const [savedAllowedYears, setSavedAllowedYears] = useState<string[] | null>(
+    null,
+  );
   const [savingYears, setSavingYears] = useState(false);
 
   const isUuid = (id: string) =>
@@ -42,28 +44,36 @@ export function CertificatesClient() {
     const fetchAndMergeCertificates = async () => {
       let localCerts: any[] = [];
       try {
-        const raw = JSON.parse(localStorage.getItem('saved_certificates') || '[]');
-        localCerts = (Array.isArray(raw) ? raw : []).map((c: any) => ({ isPublic: true, ...c }));
+        const raw = JSON.parse(
+          localStorage.getItem("saved_certificates") || "[]",
+        );
+        localCerts = (Array.isArray(raw) ? raw : []).map((c: any) => ({
+          isPublic: true,
+          ...c,
+        }));
       } catch (err) {
-        console.error('Error parsing certificates from localStorage:', err);
+        console.error("Error parsing certificates from localStorage:", err);
       }
 
       let apiCerts: any[] = [];
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+        const baseUrl =
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
         const res = await fetch(`${baseUrl}/certificates/public`);
         if (res.ok) {
           const json = await res.json();
           apiCerts = json?.data || json || [];
         }
       } catch (err) {
-        console.error('Error fetching API certificates:', err);
+        console.error("Error fetching API certificates:", err);
       }
 
       const mappedApiCerts = apiCerts.map((c: any) => {
-        const localMatch = localCerts.find((local: any) =>
-          local.id === c.id ||
-          (local.studentName?.trim() === c.studentName?.trim() && local.subject?.trim() === c.subject?.trim())
+        const localMatch = localCerts.find(
+          (local: any) =>
+            local.id === c.id ||
+            (local.studentName?.trim() === c.studentName?.trim() &&
+              local.subject?.trim() === c.subject?.trim()),
         );
         const localImage = localMatch?.image || localMatch?.data?.image;
 
@@ -85,23 +95,28 @@ export function CertificatesClient() {
 
       // Filter out local certificates that are already present in the API
       const nonDuplicateLocalCerts = localCerts.filter((local: any) => {
-        return !mappedApiCerts.some((api: any) =>
-          api.id === local.id ||
-          (api.studentName?.trim() === local.studentName?.trim() && api.subject?.trim() === local.subject?.trim())
+        return !mappedApiCerts.some(
+          (api: any) =>
+            api.id === local.id ||
+            (api.studentName?.trim() === local.studentName?.trim() &&
+              api.subject?.trim() === local.subject?.trim()),
         );
       });
 
       // Keep localStorage clean of redundant duplicates
       if (nonDuplicateLocalCerts.length !== localCerts.length) {
         try {
-          localStorage.setItem('saved_certificates', JSON.stringify(nonDuplicateLocalCerts));
+          localStorage.setItem(
+            "saved_certificates",
+            JSON.stringify(nonDuplicateLocalCerts),
+          );
         } catch (e) {
-          console.warn('Could not update localStorage', e);
+          console.warn("Could not update localStorage", e);
         }
       }
 
       const combined = [...mappedApiCerts, ...nonDuplicateLocalCerts];
-      
+
       // Deduplicate by studentName + subject + stage to guarantee single appearance
       const seen = new Set<string>();
       const uniqueSaved: any[] = [];
@@ -113,7 +128,7 @@ export function CertificatesClient() {
           uniqueSaved.push(item);
         }
       }
-      
+
       // Sort by creation date (newest first)
       uniqueSaved.sort((a: any, b: any) => {
         const dateA = new Date(a.createdAt || 0).getTime();
@@ -131,14 +146,18 @@ export function CertificatesClient() {
   useEffect(() => {
     (async () => {
       try {
-        const json = await apiClient<any>('/site-settings');
+        const json = await apiClient<any>("/site-settings");
         const arr = json?.settings || json?.data?.settings || [];
-        const found = arr.find((s: any) => s.key === 'certificates.visibleYears');
-        const val = Array.isArray(found?.value) ? found.value.map((v: any) => String(v)) : null;
+        const found = arr.find(
+          (s: any) => s.key === "certificates.visibleYears",
+        );
+        const val = Array.isArray(found?.value)
+          ? found.value.map((v: any) => String(v))
+          : null;
         setAllowedYears(val);
         setSavedAllowedYears(val);
       } catch (err) {
-        console.warn('Could not load site settings:', err);
+        console.warn("Could not load site settings:", err);
       }
     })();
   }, []);
@@ -146,10 +165,12 @@ export function CertificatesClient() {
   const yearOptions = React.useMemo(() => {
     const set = new Set<string>();
     certificates.forEach((c) => {
-      const y = String((c as any).year || '').trim();
+      const y = String((c as any).year || "").trim();
       if (y) set.add(y);
     });
-    return Array.from(set).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+    return Array.from(set).sort((a, b) =>
+      b.localeCompare(a, undefined, { numeric: true }),
+    );
   }, [certificates]);
 
   const toggleAllowedYear = (year: string) => {
@@ -159,28 +180,34 @@ export function CertificatesClient() {
     );
   };
 
-  const yearsDirty = JSON.stringify([...(allowedYears ?? [])].sort()) !== JSON.stringify([...(savedAllowedYears ?? [])].sort());
+  const yearsDirty =
+    JSON.stringify([...(allowedYears ?? [])].sort()) !==
+    JSON.stringify([...(savedAllowedYears ?? [])].sort());
 
   const handleSaveYears = async () => {
     setSavingYears(true);
     try {
       const value = allowedYears ?? yearOptions;
-      await apiClient('/site-settings', {
-        method: 'PATCH',
-        body: JSON.stringify({ key: 'certificates.visibleYears', value }),
+      await apiClient("/site-settings", {
+        method: "PATCH",
+        body: JSON.stringify({ key: "certificates.visibleYears", value }),
       });
       setSavedAllowedYears(value);
-      toast.success('تم حفظ سنوات العرض على الموقع');
+      toast.success("تم حفظ سنوات العرض على الموقع");
     } catch (err: any) {
-      console.error('Failed to save visible years:', err);
-      toast.error(err?.message || 'فشل حفظ الإعداد');
+      console.error("Failed to save visible years:", err);
+      toast.error(err?.message || "فشل حفظ الإعداد");
     } finally {
       setSavingYears(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('هل أنت متأكد من حذف هذه الشهادة؟ سيتم حذفها من قاعدة البيانات والتخزين السحابي نهائياً.')) {
+    if (
+      !window.confirm(
+        "هل أنت متأكد من حذف هذه الشهادة؟ سيتم حذفها من قاعدة البيانات والتخزين السحابي نهائياً.",
+      )
+    ) {
       return;
     }
 
@@ -190,12 +217,16 @@ export function CertificatesClient() {
       // Local-only certs (non-UUID ids) were never persisted, so skip the API call for them.
       if (isUuid(id)) {
         try {
-          await apiClient(`/certificates/${id}`, { method: 'DELETE' });
+          await apiClient(`/certificates/${id}`, { method: "DELETE" });
         } catch (err: any) {
           // 404 = already deleted in DB → treat as success and continue cleaning local state
-          const msg = err?.message || '';
+          const msg = err?.message || "";
           const status = err?.statusCode;
-          if (status !== 404 && !msg.includes('غير موجودة') && !msg.includes('404')) {
+          if (
+            status !== 404 &&
+            !msg.includes("غير موجودة") &&
+            !msg.includes("404")
+          ) {
             throw err;
           }
         }
@@ -203,21 +234,26 @@ export function CertificatesClient() {
 
       // 2. Remove ONLY the localStorage copy (never write combined API certs back to localStorage)
       try {
-        const localCerts = JSON.parse(localStorage.getItem('saved_certificates') || '[]');
+        const localCerts = JSON.parse(
+          localStorage.getItem("saved_certificates") || "[]",
+        );
         const filteredLocal = Array.isArray(localCerts)
           ? localCerts.filter((c: any) => c.id !== id)
           : [];
-        localStorage.setItem('saved_certificates', JSON.stringify(filteredLocal));
+        localStorage.setItem(
+          "saved_certificates",
+          JSON.stringify(filteredLocal),
+        );
       } catch (e) {
-        console.warn('Could not update localStorage', e);
+        console.warn("Could not update localStorage", e);
       }
 
       // 3. Update UI state
       setCertificates((prev) => prev.filter((cert) => cert.id !== id));
-      toast.success('تم حذف الشهادة بنجاح');
+      toast.success("تم حذف الشهادة بنجاح");
     } catch (err: any) {
-      console.error('Failed to delete certificate from backend:', err);
-      toast.error(err?.message || 'فشل حذف الشهادة، يرجى المحاولة مرة أخرى');
+      console.error("Failed to delete certificate from backend:", err);
+      toast.error(err?.message || "فشل حذف الشهادة، يرجى المحاولة مرة أخرى");
     } finally {
       setDeletingId(null);
     }
@@ -229,58 +265,83 @@ export function CertificatesClient() {
     try {
       if (isUuid(cert.id)) {
         await apiClient(`/certificates/${cert.id}/visibility`, {
-          method: 'PATCH',
+          method: "PATCH",
           body: JSON.stringify({ isPublic: next }),
         });
       }
       // Local-only certs (or as a mirror): persist the flag in localStorage
       try {
-        const localCerts = JSON.parse(localStorage.getItem('saved_certificates') || '[]');
-        if (Array.isArray(localCerts) && localCerts.some((c: any) => c.id === cert.id)) {
+        const localCerts = JSON.parse(
+          localStorage.getItem("saved_certificates") || "[]",
+        );
+        if (
+          Array.isArray(localCerts) &&
+          localCerts.some((c: any) => c.id === cert.id)
+        ) {
           localStorage.setItem(
-            'saved_certificates',
-            JSON.stringify(localCerts.map((c: any) => (c.id === cert.id ? { ...c, isPublic: next } : c))),
+            "saved_certificates",
+            JSON.stringify(
+              localCerts.map((c: any) =>
+                c.id === cert.id ? { ...c, isPublic: next } : c,
+              ),
+            ),
           );
         }
       } catch (e) {
-        console.warn('Could not update localStorage', e);
+        console.warn("Could not update localStorage", e);
       }
-      setCertificates((prev) => prev.map((c) => (c.id === cert.id ? { ...c, isPublic: next } : c)));
-      toast.success(next ? 'تم إظهار الشهادة على الموقع' : 'تم إخفاء الشهادة من الموقع');
+      setCertificates((prev) =>
+        prev.map((c) => (c.id === cert.id ? { ...c, isPublic: next } : c)),
+      );
+      toast.success(
+        next ? "تم إظهار الشهادة على الموقع" : "تم إخفاء الشهادة من الموقع",
+      );
     } catch (err: any) {
-      console.error('Failed to toggle certificate visibility:', err);
-      toast.error(err?.message || 'فشل تغيير حالة الظهور');
+      console.error("Failed to toggle certificate visibility:", err);
+      toast.error(err?.message || "فشل تغيير حالة الظهور");
     } finally {
       setTogglingId(null);
     }
   };
 
-  const filteredCertificates = certificates.filter(cert => {
-    const matchesSearch = cert.studentName?.includes(searchTerm) || cert.subject?.includes(searchTerm);
-    const matchesStage = selectedStage === 'الكل' || cert.stage === selectedStage;
-    const matchesYear = selectedYear === 'الكل' || String(cert.year || '').trim() === selectedYear;
-    const matchesGrade = selectedGrade === 'الكل' || String(cert.grade || '').trim() === selectedGrade;
+  const filteredCertificates = certificates.filter((cert) => {
+    const matchesSearch =
+      cert.studentName?.includes(searchTerm) ||
+      cert.subject?.includes(searchTerm);
+    const matchesStage =
+      selectedStage === "الكل" || cert.stage === selectedStage;
+    const matchesYear =
+      selectedYear === "الكل" ||
+      String(cert.year || "").trim() === selectedYear;
+    const matchesGrade =
+      selectedGrade === "الكل" ||
+      String(cert.grade || "").trim() === selectedGrade;
     return matchesSearch && matchesStage && matchesYear && matchesGrade;
   });
 
-  const stages = ['الكل', 'الثانوية', 'الإعدادية', 'الابتدائية'];
+  const stages = ["الكل", "الثانوية", "الإعدادية", "الابتدائية"];
 
   const grades = React.useMemo(() => {
     const set = new Set<string>();
     certificates.forEach((c) => {
-      const g = String(c.grade || '').trim();
+      const g = String(c.grade || "").trim();
       if (g) set.add(g);
     });
-    return ['الكل', ...Array.from(set)];
+    return ["الكل", ...Array.from(set)];
   }, [certificates]);
 
   const years = React.useMemo(() => {
     const set = new Set<string>();
     certificates.forEach((c) => {
-      const y = String(c.year || '').trim();
+      const y = String(c.year || "").trim();
       if (y) set.add(y);
     });
-    return ['الكل', ...Array.from(set).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))];
+    return [
+      "الكل",
+      ...Array.from(set).sort((a, b) =>
+        b.localeCompare(a, undefined, { numeric: true }),
+      ),
+    ];
   }, [certificates]);
 
   return (
@@ -288,7 +349,9 @@ export function CertificatesClient() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">الشهادات</h1>
-          <p className="text-slate-500 mt-1">قم بإنشاء وإدارة شهادات التقدير لطلابك</p>
+          <p className="text-slate-500 mt-1">
+            قم بإنشاء وإدارة شهادات التقدير لطلابك
+          </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
           <Link href="/teacher/certificates/new" className="w-full sm:w-auto">
@@ -303,9 +366,12 @@ export function CertificatesClient() {
       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h3 className="text-base font-bold text-slate-800">سنوات الظهور على الموقع</h3>
+            <h3 className="text-base font-bold text-slate-800">
+              سنوات الظهور على الموقع
+            </h3>
             <p className="text-xs text-slate-500 mt-1">
-              اختر السنوات الدراسية التي تظهر لزوار الموقع في لوحة الشرف. غير المحدد يختفي تماماً من الموقع.
+              اختر السنوات الدراسية التي تظهر لزوار الموقع في لوحة الشرف. غير
+              المحدد يختفي تماماً من الموقع.
             </p>
           </div>
           <Button
@@ -314,7 +380,7 @@ export function CertificatesClient() {
             disabled={!yearsDirty || savingYears || yearOptions.length === 0}
             className="shrink-0"
           >
-            {savingYears ? 'جاري الحفظ...' : 'حفظ الإعداد'}
+            {savingYears ? "جاري الحفظ..." : "حفظ الإعداد"}
           </Button>
         </div>
         <div className="flex gap-2 overflow-x-auto mt-3 pb-1 hide-scrollbar">
@@ -322,8 +388,8 @@ export function CertificatesClient() {
             onClick={() => setAllowedYears(null)}
             className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
               allowedYears === null
-                ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
+                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
             }`}
           >
             الكل
@@ -336,8 +402,8 @@ export function CertificatesClient() {
                 onClick={() => toggleAllowedYear(year)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                   active
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    : 'bg-white text-slate-400 border border-slate-200 hover:bg-slate-50 line-through'
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : "bg-white text-slate-400 border border-slate-200 hover:bg-slate-50 line-through"
                 }`}
               >
                 {year}
@@ -349,14 +415,14 @@ export function CertificatesClient() {
 
       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col gap-3">
         <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
-          {stages.map(stage => (
+          {stages.map((stage) => (
             <button
               key={stage}
               onClick={() => setSelectedStage(stage)}
               className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                selectedStage === stage 
-                  ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' 
-                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                selectedStage === stage
+                  ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
+                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
               }`}
             >
               {stage}
@@ -365,34 +431,38 @@ export function CertificatesClient() {
         </div>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
-            <span className="text-xs font-bold text-slate-400 whitespace-nowrap self-center ml-1">السنة الدراسية:</span>
-            {years.map(year => (
+            <span className="text-xs font-bold text-slate-400 whitespace-nowrap self-center ml-1">
+              السنة الدراسية:
+            </span>
+            {years.map((year) => (
               <button
                 key={year}
                 onClick={() => setSelectedYear(year)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                   selectedYear === year
-                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                    ? "bg-amber-50 text-amber-700 border border-amber-200"
+                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
                 }`}
               >
-                {year === 'الكل' ? 'كل السنوات' : year}
+                {year === "الكل" ? "كل السنوات" : year}
               </button>
             ))}
           </div>
           <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
-            <span className="text-xs font-bold text-slate-400 whitespace-nowrap self-center ml-1">الصف الدراسي:</span>
-            {grades.map(grade => (
+            <span className="text-xs font-bold text-slate-400 whitespace-nowrap self-center ml-1">
+              الصف الدراسي:
+            </span>
+            {grades.map((grade) => (
               <button
                 key={grade}
                 onClick={() => setSelectedGrade(grade)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                   selectedGrade === grade
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
                 }`}
               >
-                {grade === 'الكل' ? 'كل الصفوف' : grade}
+                {grade === "الكل" ? "كل الصفوف" : grade}
               </button>
             ))}
           </div>
@@ -415,7 +485,9 @@ export function CertificatesClient() {
           <div className="mx-auto w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
             <Award className="w-8 h-8 text-slate-400" />
           </div>
-          <h3 className="text-lg font-bold text-slate-800 mb-2">لا توجد شهادات بعد</h3>
+          <h3 className="text-lg font-bold text-slate-800 mb-2">
+            لا توجد شهادات بعد
+          </h3>
           <p className="text-slate-500 max-w-md mx-auto mb-6">
             قم بإنشاء شهادتك الأولى لتبدأ في تقدير طلابك المتميزين وتشجيعهم.
           </p>
@@ -430,7 +502,9 @@ export function CertificatesClient() {
         </div>
       ) : filteredCertificates.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border border-dashed border-slate-300">
-          <h3 className="text-lg font-bold text-slate-800 mb-2">لا توجد نتائج مطابقة</h3>
+          <h3 className="text-lg font-bold text-slate-800 mb-2">
+            لا توجد نتائج مطابقة
+          </h3>
           <p className="text-slate-500">جرب البحث بكلمات مختلفة.</p>
         </div>
       ) : (
@@ -446,9 +520,12 @@ export function CertificatesClient() {
               </p>
             </Card>
           </Link>
-          
-          {filteredCertificates.map(cert => (
-            <Card key={cert.id} className={`overflow-hidden hover:shadow-md transition-shadow flex flex-col ${cert.isPublic === false ? 'opacity-70' : ''}`}>
+
+          {filteredCertificates.map((cert) => (
+            <Card
+              key={cert.id}
+              className={`overflow-hidden hover:shadow-md transition-shadow flex flex-col ${cert.isPublic === false ? "opacity-70" : ""}`}
+            >
               {cert.isPublic === false && (
                 <div className="bg-slate-800 text-white text-xs font-bold text-center py-1.5">
                   مخفية من الموقع
@@ -456,8 +533,8 @@ export function CertificatesClient() {
               )}
               {cert.data?.image || (cert as any).image ? (
                 <div className="relative w-full aspect-[1.41] bg-slate-100 border-b border-slate-100">
-                  <img 
-                    src={cert.data?.image || (cert as any).image} 
+                  <img
+                    src={cert.data?.image || (cert as any).image}
                     alt={`شهادة ${cert.studentName}`}
                     className="w-full h-full object-cover"
                   />
@@ -472,35 +549,58 @@ export function CertificatesClient() {
                     {cert.year || cert.issueDate}
                   </span>
                 </div>
-                <h3 className="text-lg font-bold text-slate-800 mb-1">{cert.studentName}</h3>
+                <h3 className="text-lg font-bold text-slate-800 mb-1">
+                  {cert.studentName}
+                </h3>
                 <div className="flex items-center gap-2 text-sm text-slate-600 mb-4 flex-wrap">
-                  <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs">{cert.subject}</span>
-                  <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded text-xs">{cert.score} درجة</span>
+                  <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs">
+                    {cert.subject}
+                  </span>
+                  <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded text-xs">
+                    {cert.score} درجة
+                  </span>
                 </div>
                 <div className="mt-auto flex items-center justify-between text-sm text-slate-500 border-t border-slate-100 pt-4">
-                  <span>{cert.stage}{cert.grade ? ` - ${cert.grade}` : ''}</span>
+                  <span>
+                    {cert.stage}
+                    {cert.grade ? ` - ${cert.grade}` : ""}
+                  </span>
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => handleToggleVisibility(cert)}
                       disabled={togglingId === cert.id}
-                      title={cert.isPublic === false ? 'إظهار على الموقع' : 'إخفاء من الموقع'}
+                      title={
+                        cert.isPublic === false
+                          ? "إظهار على الموقع"
+                          : "إخفاء من الموقع"
+                      }
                       className={`font-medium hover:underline text-xs disabled:opacity-50 disabled:cursor-wait flex items-center gap-1 ${
-                        cert.isPublic === false ? 'text-emerald-600 hover:text-emerald-700' : 'text-slate-500 hover:text-slate-700'
+                        cert.isPublic === false
+                          ? "text-emerald-600 hover:text-emerald-700"
+                          : "text-slate-500 hover:text-slate-700"
                       }`}
                     >
-                      {cert.isPublic === false ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                      {togglingId === cert.id ? 'جاري...' : cert.isPublic === false ? 'إظهار' : 'إخفاء'}
+                      {cert.isPublic === false ? (
+                        <Eye className="w-3.5 h-3.5" />
+                      ) : (
+                        <EyeOff className="w-3.5 h-3.5" />
+                      )}
+                      {togglingId === cert.id
+                        ? "جاري..."
+                        : cert.isPublic === false
+                          ? "إظهار"
+                          : "إخفاء"}
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleDelete(cert.id)}
                       disabled={deletingId === cert.id}
                       className="text-red-500 hover:text-red-700 font-medium hover:underline text-xs disabled:opacity-50 disabled:cursor-wait"
                     >
-                      {deletingId === cert.id ? 'جاري الحذف...' : 'حذف'}
+                      {deletingId === cert.id ? "جاري الحذف..." : "حذف"}
                     </button>
-                    {(cert.data?.image || (cert as any).image) ? (
-                      <a 
-                        href={cert.data?.image || (cert as any).image} 
+                    {cert.data?.image || (cert as any).image ? (
+                      <a
+                        href={cert.data?.image || (cert as any).image}
                         download={`شهادة-${cert.studentName}.png`}
                         className="text-blue-600 hover:text-blue-700 font-medium hover:underline text-xs"
                       >
