@@ -16,7 +16,7 @@ const baseEnvSchema = z.object({
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters').optional(),
   JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 characters').optional(),
   JWT_ACCESS_EXPIRES_IN: z.string().regex(expiryPattern, 'Use a duration such as 15m, 2h, or 7d').default('15m'),
-  JWT_REFRESH_EXPIRES_IN: z.string().regex(expiryPattern, 'Use a duration such as 15m, 2h, or 7d').default('7d'),
+  JWT_REFRESH_EXPIRES_IN: z.string().regex(expiryPattern, 'Use a duration such as 15m, 2h, or 7d').default('30d'),
 
   // Cloudflare R2 Storage
   R2_ACCOUNT_ID: z.string().optional(),
@@ -107,34 +107,15 @@ export function validateEnv(config: Record<string, unknown>): EnvConfig {
   }
 
   if (!normalizedConfig.JWT_ACCESS_SECRET || !normalizedConfig.JWT_REFRESH_SECRET) {
-    const derivationBase =
-      typeof normalizedConfig.DATABASE_URL === 'string' ? normalizedConfig.DATABASE_URL : undefined;
-
-    if (derivationBase) {
-      if (!normalizedConfig.JWT_ACCESS_SECRET) {
-        normalizedConfig.JWT_ACCESS_SECRET = createHash('sha256')
-          .update(`el-awal:jwt:access:${derivationBase}`)
-          .digest('hex');
-      }
-      if (!normalizedConfig.JWT_REFRESH_SECRET) {
-        normalizedConfig.JWT_REFRESH_SECRET = createHash('sha256')
-          .update(`el-awal:jwt:refresh:${derivationBase}`)
-          .digest('hex');
-      }
-    }
-  }
-
-  if (!normalizedConfig.JWT_ACCESS_SECRET || !normalizedConfig.JWT_REFRESH_SECRET) {
     throw new Error(
-      'Unable to resolve JWT signing secrets. Set JWT_ACCESS_SECRET and JWT_REFRESH_SECRET ' +
-        '(each at least 32 characters and different from each other), or a single JWT_SECRET, ' +
-        'or ensure DATABASE_URL is set so stable keys can be derived. Generate a secret with: ' +
+      'Explicit JWT_ACCESS_SECRET and JWT_REFRESH_SECRET are required (each at least 32 characters and distinct from each other). ' +
+        'Deterministic derivation from DATABASE_URL is disabled for security hardening. Generate secrets with: ' +
         'node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'base64url\'))"',
     );
   }
 
-  if (!normalizedConfig.CORS_ORIGINS) {
-    normalizedConfig.CORS_ORIGINS = '*';
+  if (!normalizedConfig.CORS_ORIGINS || normalizedConfig.CORS_ORIGINS === '*') {
+    normalizedConfig.CORS_ORIGINS = 'https://al-awal.online,https://al-awal-cbe2188d9efa.herokuapp.com';
   }
 
   const parsed = envSchema.safeParse(normalizedConfig);

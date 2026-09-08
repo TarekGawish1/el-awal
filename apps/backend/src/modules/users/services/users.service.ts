@@ -33,9 +33,17 @@ export class UsersService {
     }
 
     const permissions = user.assistantToTeachers?.[0]?.permissions || [];
+    const secretariatProfileId = user.secretariatProfile?.id || (user.assistantToTeachers?.length ? user.id : undefined);
+    const teacherProfileId = user.teacherProfile?.id;
+    const parentProfileId = user.parentProfile?.id;
+    const studentProfileId = user.studentProfile?.id;
 
     return {
       ...user,
+      secretariatProfileId,
+      teacherProfileId,
+      parentProfileId,
+      studentProfileId,
       permissions,
     };
   }

@@ -1,5 +1,6 @@
 export { LoginForm } from './components/LoginForm';
 export { LoginContainer } from './components/LoginContainer';
+export { RoleSelectionContainer } from './components/RoleSelectionContainer';
 export { ParentAccessForm } from './components/ParentAccessForm';
 export { StudentRegistrationForm } from './components/StudentRegistrationForm';
 export { GroupRegistrationForm } from './components/GroupRegistrationForm';
@@ -9,7 +10,7 @@ export { useParentAccess, normalizeParentAccessError } from './hooks/useParentAc
 export { useStudentRegistration, normalizeStudentRegistrationError } from './hooks/useStudentRegistration';
 export { useGroupInvite, useGroupRegistration, normalizeGroupRegistrationError } from './hooks/useGroupRegistration';
 export { useAuthStore } from './store/auth.store';
-export { loginUser, parentAccessUser, logoutUser, fetchCurrentUser, registerStudent, fetchGroupInvite, registerByGroup } from './api/auth.api';
+export { loginUser, parentAccessUser, logoutUser, fetchCurrentUser, registerStudent, fetchGroupInvite, registerByGroup, switchRoleRequest } from './api/auth.api';
 export {
   setStoredTokens,
   getStoredAccessToken,
@@ -17,7 +18,7 @@ export {
   getStoredUser,
   clearStoredTokens,
 } from './utils/auth-tokens';
-export { getRoleLandingRoute, sanitizeRedirectUrl } from './utils/role-routing';
+export { getRoleLandingRoute, sanitizeRedirectUrl, getAvailableRoles, hasMultipleRoles, getRoleLabel, getRoleIcon } from './utils/role-routing';
 export type {
   UserRole,
   AuthUser,

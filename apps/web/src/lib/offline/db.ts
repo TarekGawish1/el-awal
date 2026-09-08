@@ -601,12 +601,24 @@ class OfflineDatabase {
   }
 
   public async putStudent(student: StudentEntity): Promise<void> {
-    const existing = this.memoryStudents.get(student.id) || {};
-    this.memoryStudents.set(student.id, { ...existing, ...student, updatedAt: Date.now() });
+    const existingMem = this.memoryStudents.get(student.id);
+    const mergedMem = {
+      ...(existingMem || {}),
+      ...student,
+      qrCodeToken: student.qrCodeToken || existingMem?.qrCodeToken || '',
+      updatedAt: Date.now(),
+    };
+    this.memoryStudents.set(student.id, mergedMem);
     if (!this.isSupported()) return;
     try {
+      const existing = await this.getStudentByIdOffline(student.id);
+      const toSave = {
+        ...(existing || {}),
+        ...student,
+        qrCodeToken: student.qrCodeToken || existing?.qrCodeToken || '',
+      };
       const { store } = await this.getStore('students', 'readwrite');
-      store.put(student);
+      store.put(toSave);
     } catch {}
   }
 
@@ -708,6 +720,79 @@ class OfflineDatabase {
         if (!pendingIds.has(s.id)) store.put(s);
       }
     } catch {}
+  }
+
+  public async syncSessionsSnapshot(
+    serverSessions: SessionEntity[],
+    scope?: { academicYear?: string; academicTerm?: string; groupId?: string },
+  ): Promise<void> {
+    const pendingIds = await this.getPendingEntityIds();
+    const serverSessionIds = new Set(serverSessions.map((s) => s.id));
+
+    // Get group mapping if scoped by academic period
+    const groupMap = new Map<string, GroupEntity>();
+    if (scope?.academicYear || scope?.academicTerm) {
+      const allGroups = await this.getGroupsOffline();
+      allGroups.forEach((g) => groupMap.set(g.id, g));
+    }
+
+    const isSessionInScope = (s: SessionEntity): boolean => {
+      if (!scope) return true;
+      if (scope.groupId && scope.groupId !== 'ALL' && s.groupId !== scope.groupId) return false;
+      if (scope.academicYear || scope.academicTerm) {
+        const g = (s.group as any) || groupMap.get(s.groupId);
+        if (scope.academicYear && scope.academicYear !== 'ALL' && g?.academicYear && g.academicYear !== scope.academicYear) {
+          return false;
+        }
+        if (scope.academicTerm && scope.academicTerm !== 'ALL' && g?.academicTerm && g.academicTerm !== scope.academicTerm) {
+          return false;
+        }
+      }
+      return true;
+    };
+
+    // 1. Memory reconciliation
+    for (const [memId, memSession] of Array.from(this.memorySessions.entries())) {
+      if (isSessionInScope(memSession) && !serverSessionIds.has(memId) && !pendingIds.has(memId)) {
+        this.memorySessions.delete(memId);
+      }
+    }
+    for (const s of serverSessions) {
+      if (!pendingIds.has(s.id)) {
+        const existing = this.memorySessions.get(s.id) || {};
+        this.memorySessions.set(s.id, { ...existing, ...s });
+      }
+    }
+
+    if (!this.isSupported()) return;
+
+    // 2. IndexedDB store reconciliation
+    try {
+      const { store } = await this.getStore('sessions', 'readwrite');
+      const allLocalSessions: SessionEntity[] = await new Promise((resolve) => {
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => resolve([]);
+      });
+
+      for (const localSession of allLocalSessions) {
+        if (
+          isSessionInScope(localSession) &&
+          !serverSessionIds.has(localSession.id) &&
+          !pendingIds.has(localSession.id)
+        ) {
+          store.delete(localSession.id);
+        }
+      }
+
+      for (const s of serverSessions) {
+        if (!pendingIds.has(s.id)) {
+          store.put(s);
+        }
+      }
+    } catch (e) {
+      console.warn('Error during syncSessionsSnapshot:', e);
+    }
   }
 
   public async removeSession(id: string): Promise<void> {
@@ -1197,7 +1282,31 @@ class OfflineDatabase {
     return list;
   }
 
-  public async getSessionsOffline(groupId?: string, dateStr?: string): Promise<SessionEntity[]> {
+  public async getSessionsOffline(
+    filterOrGroupId?:
+      | string
+      | {
+          groupId?: string;
+          dateStr?: string;
+          academicYear?: string;
+          academicTerm?: string;
+        },
+    dateStr?: string,
+  ): Promise<SessionEntity[]> {
+    let groupId: string | undefined;
+    let effectiveDateStr: string | undefined = dateStr;
+    let academicYear: string | undefined;
+    let academicTerm: string | undefined;
+
+    if (typeof filterOrGroupId === 'object' && filterOrGroupId !== null) {
+      groupId = filterOrGroupId.groupId;
+      effectiveDateStr = filterOrGroupId.dateStr || dateStr;
+      academicYear = filterOrGroupId.academicYear;
+      academicTerm = filterOrGroupId.academicTerm;
+    } else {
+      groupId = filterOrGroupId;
+    }
+
     let list: SessionEntity[] = [];
     if (!this.isSupported()) {
       list = Array.from(this.memorySessions.values());
@@ -1214,10 +1323,36 @@ class OfflineDatabase {
       }
     }
 
-    return list.filter((s) => {
+    // Build group lookup if academicYear or academicTerm filter is specified
+    const groupMap = new Map<string, GroupEntity>();
+    if (academicYear || academicTerm) {
+      const allGroups = await this.getGroupsOffline();
+      allGroups.forEach((g) => groupMap.set(g.id, g));
+    }
+
+    const filtered = list.filter((s) => {
       if (groupId && groupId !== 'ALL' && s.groupId !== groupId) return false;
-      if (dateStr && !s.sessionDate.startsWith(dateStr)) return false;
+      if (effectiveDateStr && !s.sessionDate.startsWith(effectiveDateStr)) return false;
+
+      if (academicYear || academicTerm) {
+        const g = (s.group as any) || groupMap.get(s.groupId);
+        if (academicYear && academicYear !== 'ALL' && g?.academicYear && g.academicYear !== academicYear) {
+          return false;
+        }
+        if (academicTerm && academicTerm !== 'ALL' && g?.academicTerm && g.academicTerm !== academicTerm) {
+          return false;
+        }
+      }
+
       return true;
+    });
+
+    // Chronological sorting: earliest session date and start time first
+    return filtered.sort((a, b) => {
+      const dateA = a.sessionDate.includes('T') ? a.sessionDate.split('T')[0] : a.sessionDate;
+      const dateB = b.sessionDate.includes('T') ? b.sessionDate.split('T')[0] : b.sessionDate;
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      return (a.startTime || '').localeCompare(b.startTime || '');
     });
   }
 
@@ -1656,6 +1791,41 @@ class OfflineDatabase {
     }
   }
 
+  public async claimUnassociatedMutations(userId: string): Promise<number> {
+    if (!userId) return 0;
+    let claimedCount = 0;
+
+    for (const [, mem] of this.memoryOutbox.entries()) {
+      if (!mem.userId) {
+        mem.userId = userId;
+        claimedCount++;
+      }
+    }
+
+    if (!this.isSupported()) return claimedCount;
+
+    try {
+      const { store } = await this.getStore('outbox_mutations', 'readwrite');
+      const all: OutboxMutationRecord[] = await new Promise((resolve, reject) => {
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+
+      for (const m of all) {
+        if (!m.userId) {
+          m.userId = userId;
+          store.put(m);
+          claimedCount++;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to claim unassociated mutations in IndexedDB:', e);
+    }
+
+    return claimedCount;
+  }
+
   public async updateMutationStatus(
     id: string,
     status: MutationStatus,
@@ -1982,6 +2152,46 @@ class OfflineDatabase {
       }
     }
 
+    if (this.isSupported()) {
+      try {
+        const { store } = await this.getStore('students', 'readonly');
+        for (const candidate of candidateList) {
+          let matchedStudent: any = null;
+          if (store.indexNames.contains('idx_qrCodeToken')) {
+            matchedStudent = await new Promise<any>((resolve) => {
+              const req = store.index('idx_qrCodeToken').get(candidate);
+              req.onsuccess = () => resolve(req.result || null);
+              req.onerror = () => resolve(null);
+            });
+          }
+          if (!matchedStudent && store.indexNames.contains('idx_studentCode')) {
+            matchedStudent = await new Promise<any>((resolve) => {
+              const req = store.index('idx_studentCode').get(candidate);
+              req.onsuccess = () => resolve(req.result || null);
+              req.onerror = () => resolve(null);
+            });
+          }
+          if (matchedStudent) {
+            const studentGroupIds: string[] = Array.isArray(matchedStudent.groupIds)
+              ? matchedStudent.groupIds
+              : [matchedStudent.groupId].filter((id): id is string => Boolean(id));
+
+            const effectiveGroupId =
+              preferredGroupId && (studentGroupIds.includes(preferredGroupId) || matchedStudent.groupId === preferredGroupId)
+                ? preferredGroupId
+                : matchedStudent.groupId || '';
+
+            const group = effectiveGroupId ? await this.getGroupByIdOffline(effectiveGroupId) : null;
+            return {
+              student: matchedStudent,
+              groupId: effectiveGroupId,
+              groupName: group?.name || 'المجموعة الدراسية',
+            };
+          }
+        }
+      } catch {}
+    }
+
     // 2. Search all students by qrCodeToken, studentCode, id, or phone - AUTHORITATIVE
     const allStudents = await this.getStudentsOffline();
     const foundDirect = allStudents.find(matchesStudent);
@@ -2285,19 +2495,29 @@ class OfflineDatabase {
 
   public async getSessionReport(sessionId: string): Promise<any | null> {
     const cleanId = String(sessionId).trim().toLowerCase();
+    let report: any = null;
     if (!this.isSupported()) {
-      return this.memoryReports.get(cleanId) || null;
+      report = this.memoryReports.get(cleanId) || null;
+    } else {
+      try {
+        const { store } = await this.getStore('cached_queries', 'readonly');
+        report = await new Promise((resolve) => {
+          const req = store.get(`session_report_${cleanId}`);
+          req.onsuccess = () => resolve(req.result?.data || this.memoryReports.get(cleanId) || null);
+          req.onerror = () => resolve(this.memoryReports.get(cleanId) || null);
+        });
+      } catch {
+        report = this.memoryReports.get(cleanId) || null;
+      }
     }
-    try {
-      const { store } = await this.getStore('cached_queries', 'readonly');
-      return new Promise((resolve) => {
-        const req = store.get(`session_report_${cleanId}`);
-        req.onsuccess = () => resolve(req.result?.data || this.memoryReports.get(cleanId) || null);
-        req.onerror = () => resolve(this.memoryReports.get(cleanId) || null);
-      });
-    } catch {
-      return this.memoryReports.get(cleanId) || null;
+
+    if (report?.records && Array.isArray(report.records)) {
+      report.records = report.records.filter(
+        (r: any) => r.fullName !== 'طالب غير متزامن' && !String(r.studentId).startsWith('qr_tok_')
+      );
     }
+
+    return report;
   }
 
   public async recordAttendanceOffline(
@@ -2359,24 +2579,79 @@ class OfflineDatabase {
       };
     }
 
-    const records = Array.isArray(currentReport.records) ? [...currentReport.records] : [];
-    const studentIdx = records.findIndex((r: any) => String(r.studentId).trim() === String(record.studentId).trim());
+    let records = Array.isArray(currentReport.records) ? [...currentReport.records] : [];
 
-    const updatedRecord = {
-      id: `offline-${Date.now()}-${record.studentId}`,
-      studentId: record.studentId,
-      studentCode: record.studentCode || records[studentIdx]?.studentCode || '',
-      fullName: record.studentName || records[studentIdx]?.fullName || 'طالب',
-      status: record.status,
-      recordingMethod: record.recordingMethod || 'QR_SCAN',
-      recordedAt: record.recordedAt || new Date().toISOString(),
-      notes: record.notes || records[studentIdx]?.notes || null,
-    };
+    // Filter out historical ghost records
+    records = records.filter(
+      (r: any) => r.fullName !== 'طالب غير متزامن' && !String(r.studentId).startsWith('qr_tok_')
+    );
+
+    const cleanInputStudentId = String(record.studentId).trim();
+    let studentIdx = records.findIndex((r: any) => String(r.studentId).trim() === cleanInputStudentId);
+
+    if (studentIdx === -1) {
+      // Try resolving by studentCode, qrCodeToken, or candidate
+      studentIdx = records.findIndex(
+        (r: any) =>
+          (record.studentCode && r.studentCode && String(r.studentCode).trim().toLowerCase() === String(record.studentCode).trim().toLowerCase()) ||
+          (r.studentCode && String(r.studentCode).trim().toLowerCase() === cleanInputStudentId.toLowerCase()) ||
+          (r.qrCodeToken && String(r.qrCodeToken).trim() === cleanInputStudentId)
+      );
+    }
+
+    if (studentIdx === -1) {
+      // Check offlineDb by QR token
+      const match = await this.findStudentByQrToken(cleanInputStudentId);
+      if (match?.student?.id) {
+        studentIdx = records.findIndex((r: any) => String(r.studentId).trim() === String(match.student.id).trim());
+      }
+    }
 
     if (studentIdx >= 0) {
-      records[studentIdx] = { ...records[studentIdx], ...updatedRecord };
-    } else {
+      records[studentIdx] = {
+        ...records[studentIdx],
+        status: record.status,
+        recordingMethod: record.recordingMethod || 'QR_SCAN',
+        recordedAt: record.recordedAt || new Date().toISOString(),
+        notes: record.notes || records[studentIdx]?.notes || null,
+      };
+    } else if (record.studentName !== 'طالب غير متزامن' && !cleanInputStudentId.startsWith('qr_tok_')) {
+      const updatedRecord = {
+        id: `offline-${Date.now()}-${cleanInputStudentId}`,
+        studentId: cleanInputStudentId,
+        studentCode: record.studentCode || '',
+        fullName: record.studentName || 'طالب',
+        status: record.status,
+        recordingMethod: record.recordingMethod || 'QR_SCAN',
+        recordedAt: record.recordedAt || new Date().toISOString(),
+        notes: record.notes || null,
+      };
       records.push(updatedRecord);
+    }
+
+    // If student is marked ABSENT, automatically remove any homework record for this session
+    if (record.status === 'ABSENT') {
+      const targetId = cleanInputStudentId;
+      const resolvedId =
+        studentIdx >= 0 && records[studentIdx]?.studentId
+          ? String(records[studentIdx].studentId).trim()
+          : targetId;
+
+      await this.deleteHomeworkForSessionStudent(cleanSessionId, targetId);
+      if (resolvedId && resolvedId !== targetId) {
+        await this.deleteHomeworkForSessionStudent(cleanSessionId, resolvedId);
+      }
+
+      if (studentIdx >= 0) {
+        records[studentIdx] = {
+          ...records[studentIdx],
+          homeworkStatus: 'NOT_SUBMITTED',
+          isHomeworkSubmitted: false,
+          homeworkScore: null,
+          homeworkFeedback: null,
+          homeworkCheckedAt: null,
+        };
+      }
     }
 
     const sessionDateStr = currentReport.sessionDate || currentReport.session?.sessionDate;
@@ -2421,17 +2696,27 @@ class OfflineDatabase {
    */
   public async revertAttendanceRecordOffline(sessionId: string, studentId: string): Promise<void> {
     const cleanSessionId = String(sessionId).trim().toLowerCase();
+    const cleanStudentId = String(studentId).trim();
+
+    // Also delete any homework record for this student since attendance is undone/reset
+    await this.deleteHomeworkForSessionStudent(cleanSessionId, cleanStudentId);
+
     const currentReport = await this.getSessionReport(cleanSessionId);
     if (!currentReport) return;
 
     const records = Array.isArray(currentReport.records) ? [...currentReport.records] : [];
-    const idx = records.findIndex((r: any) => String(r.studentId).trim() === String(studentId).trim());
+    const idx = records.findIndex((r: any) => String(r.studentId).trim() === cleanStudentId);
     if (idx >= 0) {
       records[idx] = {
         ...records[idx],
         status: null,
         recordingMethod: null,
         recordedAt: null,
+        homeworkStatus: 'NOT_SUBMITTED',
+        isHomeworkSubmitted: false,
+        homeworkScore: null,
+        homeworkFeedback: null,
+        homeworkCheckedAt: null,
       };
     }
 
@@ -2468,6 +2753,22 @@ class OfflineDatabase {
     };
 
     await this.cacheSessionReport(cleanSessionId, updatedReport);
+
+    // Purge any pending un-synced attendance mutations from sync_outbox for this student & session
+    const mutations = await this.getPendingMutations();
+    for (const m of mutations) {
+      const p = m.payload || {};
+      const matchSession = String(p.sessionId || '').trim().toLowerCase() === cleanSessionId;
+      const matchStudent = String(p.studentId || '').trim().toLowerCase() === String(studentId).trim().toLowerCase();
+      const isAttendanceMutation =
+        m.type === 'RECORD_ATTENDANCE' ||
+        p.type === 'RECORD_ATTENDANCE' ||
+        (m.domain === 'attendance' && m.method === 'POST');
+
+      if (matchSession && matchStudent && isAttendanceMutation) {
+        await this.removeMutation(m.id);
+      }
+    }
   }
 
   // ==========================================
@@ -2776,6 +3077,70 @@ class OfflineDatabase {
     } catch {}
   }
 
+  public async deleteHomeworkForSessionStudent(sessionId: string, studentId: string): Promise<void> {
+    const cleanSessionId = String(sessionId).trim().toLowerCase();
+    const cleanStudentId = String(studentId).trim();
+
+    // 1. Delete from memory and IndexedDB homework_records
+    const allHw = await this.getAllHomeworkRecords();
+    const toDelete = allHw.filter(
+      (h) =>
+        String(h.sessionId).trim().toLowerCase() === cleanSessionId &&
+        String(h.studentId).trim().toLowerCase() === cleanStudentId.toLowerCase(),
+    );
+    for (const hw of toDelete) {
+      await this.deleteHomeworkRecord(hw.id);
+    }
+
+    // 2. Clear from cached session report if present
+    const cachedReport = await this.getSessionReport(cleanSessionId);
+    if (cachedReport) {
+      let changed = false;
+      if (Array.isArray(cachedReport.homeworkRecords)) {
+        const origLen = cachedReport.homeworkRecords.length;
+        cachedReport.homeworkRecords = cachedReport.homeworkRecords.filter(
+          (hr: any) => String(hr.studentId).trim().toLowerCase() !== cleanStudentId.toLowerCase(),
+        );
+        if (cachedReport.homeworkRecords.length !== origLen) changed = true;
+      }
+      if (Array.isArray(cachedReport.records)) {
+        cachedReport.records = cachedReport.records.map((r: any) => {
+          if (String(r.studentId).trim().toLowerCase() === cleanStudentId.toLowerCase()) {
+            changed = true;
+            return {
+              ...r,
+              homeworkStatus: 'NOT_SUBMITTED',
+              isHomeworkSubmitted: false,
+              homeworkScore: null,
+              homeworkFeedback: null,
+              homeworkCheckedAt: null,
+            };
+          }
+          return r;
+        });
+      }
+      if (changed) {
+        await this.cacheSessionReport(cleanSessionId, cachedReport);
+      }
+    }
+
+    // 3. Purge any pending un-synced homework mutations from sync_outbox for this student & session
+    const mutations = await this.getPendingMutations();
+    for (const m of mutations) {
+      const p = m.payload || {};
+      const matchSession = String(p.sessionId || '').trim().toLowerCase() === cleanSessionId;
+      const matchStudent = String(p.studentId || '').trim().toLowerCase() === cleanStudentId.toLowerCase();
+      const isHomeworkMutation =
+        m.type === 'RECORD_HOMEWORK_ONSITE' ||
+        m.endpoint?.includes('homework') ||
+        p.assessmentId !== undefined;
+
+      if (matchSession && matchStudent && isHomeworkMutation) {
+        await this.removeMutation(m.id);
+      }
+    }
+  }
+
   public async getSessionAttendanceRecord(sessionId: string, studentId: string): Promise<any | null> {
     const report = await this.getSessionReport(sessionId);
     if (!report || !Array.isArray(report.records)) return null;
@@ -2811,7 +3176,27 @@ class OfflineDatabase {
     const recordedMethod = data.recordedMethod || 'QR_SCAN';
     const now = Date.now();
     const cleanSessionId = String(data.sessionId).trim();
-    const cleanStudentId = String(data.studentId).trim();
+    let cleanStudentId = String(data.studentId).trim();
+    let studentName = data.studentName;
+    let studentCode = data.studentCode;
+    let qrCodeToken = data.qrCodeToken;
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanStudentId);
+    if (!isUuid) {
+      const match = await this.findStudentByQrToken(qrCodeToken || cleanStudentId);
+      if (match?.student) {
+        cleanStudentId = match.student.id;
+        if (!studentName || studentName === 'طالب غير متزامن') {
+          studentName = match.student.fullName || match.student.user?.fullName || studentName;
+        }
+        if (!studentCode) {
+          studentCode = match.student.studentCode || studentCode;
+        }
+        if (!qrCodeToken) {
+          qrCodeToken = match.student.qrCodeToken || qrCodeToken;
+        }
+      }
+    }
 
     // 1. Check existing homework record for (assessmentId, studentId, sessionId)
     const allHw = await this.getAllHomeworkRecords();
@@ -2835,8 +3220,8 @@ class OfflineDatabase {
       feedback: data.feedback !== undefined ? data.feedback : existing?.feedback || null,
       clientTimestamp: now,
       syncStatus: 'PENDING',
-      studentName: data.studentName,
-      studentCode: data.studentCode,
+      studentName,
+      studentCode,
     };
 
     await this.homework_records.put(homeworkRecord);
@@ -2851,7 +3236,7 @@ class OfflineDatabase {
       payload: {
         assessmentId: data.assessmentId,
         studentId: cleanStudentId,
-        qrCodeToken: data.qrCodeToken,
+        qrCodeToken,
         sessionId: cleanSessionId,
         status,
         recordedMethod,
@@ -2875,8 +3260,8 @@ class OfflineDatabase {
         status: 'PRESENT',
         recordingMethod: recordedMethod,
         recordedAt: new Date(now).toISOString(),
-        studentName: data.studentName,
-        studentCode: data.studentCode,
+        studentName,
+        studentCode,
       });
 
       attendanceRecord = updatedReport?.records?.find(

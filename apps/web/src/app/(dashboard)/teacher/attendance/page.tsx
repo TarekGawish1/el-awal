@@ -672,7 +672,7 @@ function TeacherAttendanceContent() {
              ) : (
                <>
                  {activeTab === 'QR' && <QrScanner sessionId={selectedSessionId} />}
-                 {activeTab === 'QR_HOMEWORK' && <QrHomeworkScanner sessionId={selectedSessionId} />}
+                 {activeTab === 'QR_HOMEWORK' && <QrHomeworkScanner sessionId={selectedSessionId} groupId={activeGroup?.id} />}
                  {activeTab === 'LOGBOOK' && <SessionLogbook sessionId={selectedSessionId} />}
                </>
              )}

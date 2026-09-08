@@ -81,4 +81,5 @@ export interface AttendanceItemDto {
 
 export interface BatchAttendanceDto {
   records: AttendanceItemDto[];
+  removedStudentIds?: string[];
 }

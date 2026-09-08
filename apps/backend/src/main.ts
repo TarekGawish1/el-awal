@@ -24,12 +24,13 @@ async function bootstrap() {
     }),
   );
 
-  // Serve uploads directory statically with auto-creation
+  // Ensure local uploads directory exists for internal storage handlers
   const uploadsPath = path.join(process.cwd(), 'uploads');
   if (!fs.existsSync(uploadsPath)) {
     fs.mkdirSync(uploadsPath, { recursive: true });
   }
-  app.use('/uploads', express.static(uploadsPath));
+  // Public raw express static serving on '/uploads' disabled for security hardening:
+  // prevents unauthenticated access to private student documents and receipts.
 
   // Trust upstream reverse proxy (e.g. Nginx, Cloudflare) if configured
   if (configService.get<boolean>('TRUST_PROXY', false)) {
@@ -52,40 +53,52 @@ async function bootstrap() {
     }),
   );
 
-  // CORS Policy Configuration
-  const rawCors = configService.get<string>('CORS_ORIGINS', '*');
-  const allowedList =
-    rawCors === '*'
-      ? ['*']
-      : rawCors
-          .split(',')
-          .map((origin) => origin.trim())
-          .filter(Boolean);
+  // CORS Policy Configuration - Restricted strictly to essential domains (no wildcard *)
+  const rawCors = configService.get<string>('CORS_ORIGINS', '');
+  const explicitAllowedOrigins = rawCors
+    .split(',')
+    .map((origin) => origin.trim().toLowerCase())
+    .filter((origin) => origin && origin !== '*');
+
+  const isOriginPermitted = (origin: string): boolean => {
+    const normalized = origin.toLowerCase().trim();
+
+    // 1. Explicitly configured origins from CORS_ORIGINS
+    if (explicitAllowedOrigins.includes(normalized)) {
+      return true;
+    }
+
+    // 2. Production platform domain and subdomains (al-awal.online)
+    if (/^https:\/\/(.*\.)?al-awal\.online$/i.test(normalized)) {
+      return true;
+    }
+
+    // 3. Vercel deployment preview and production domains
+    if (/^https:\/\/(.*\.)?vercel\.app$/i.test(normalized)) {
+      return true;
+    }
+
+    // 4. Heroku deployment domain (for Swagger/OpenAPI interactive tests)
+    if (/^https:\/\/(.*\.)?herokuapp\.com$/i.test(normalized)) {
+      return true;
+    }
+
+    // 5. Localhost and 127.0.0.1 for development environments
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(normalized)) {
+      return true;
+    }
+
+    return false;
+  };
 
   app.enableCors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like curl, mobile apps, or server-to-server)
+      // Allow requests with no origin (like mobile apps, curl, server-to-server, PWA service workers)
       if (!origin) {
         return callback(null, true);
       }
 
-      // If wildcard is configured
-      if (allowedList.includes('*')) {
-        return callback(null, true);
-      }
-
-      // Check explicit allowlist
-      if (allowedList.includes(origin)) {
-        return callback(null, true);
-      }
-
-      // Automatically allow local development origins (localhost & 127.0.0.1 on any port)
-      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
-        return callback(null, true);
-      }
-
-      // Automatically allow Vercel and Heroku deployment origins
-      if (/^https:\/\/(.*\.)?(vercel\.app|herokuapp\.com)$/i.test(origin)) {
+      if (isOriginPermitted(origin)) {
         return callback(null, true);
       }
 

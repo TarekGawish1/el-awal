@@ -58,6 +58,25 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
   private isRunning = false;
   private isProcessing = false;
   private pollTimeout: ReturnType<typeof setTimeout> | null = null;
+  /** In-memory cache holding unredacted message text for immediate dispatch */
+  private readonly pendingOutboundBodies = new Map<string, string>();
+
+  /**
+   * Sanitizes sensitive credentials (passwords, PINs, auth query params) before
+   * persisting to database logs.
+   */
+  maskMessageCredentials(text: string): string {
+    if (!text) return text;
+    return text
+      // Redact Arabic password / PIN labels
+      .replace(/(كلمة المرور(?:\s*الجديدة)?:\s*\*?)([^\n\r*]+)(\*?)/gi, '$1[محمية]$3')
+      .replace(/(الرقم السري|رمز الدخول|رمز PIN|كود المرور|كود الدخول):\s*\*?([^\n\r*]+)\*?/gi, '$1: [محمي]')
+      // Redact English password / PIN labels
+      .replace(/(Password:\s*\*?)([^\n\r*]+)(\*?)/gi, '$1[PROTECTED]$3')
+      .replace(/(PIN:\s*\*?)([^\n\r*]+)(\*?)/gi, '$1[PROTECTED]$3')
+      // Strip credentials from URL query parameters (e.g. ?pass=... or &pass=...)
+      .replace(/([?&](?:pass|password|pin|pwd)=)([^&\s]+)/gi, '$1[REDACTED]');
+  }
 
   constructor(
     private readonly prisma: PrismaService,
@@ -127,6 +146,9 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
     }
 
     const data = notification.data as Record<string, unknown> | null;
+    const rawBody = this.buildMessageBody(notification);
+    const maskedBody = this.maskMessageCredentials(rawBody);
+
     const rawPhone = data?.phone;
     if (typeof rawPhone !== 'string' || !rawPhone.trim()) {
       this.logger.warn(`Recording permanent WhatsApp failure for ${notification.type}: recipient phone is missing`);
@@ -136,7 +158,7 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
           recipientName: notification.recipient.fullName,
           recipientRole: notification.recipient.role,
           templateType: notification.notificationType ?? notification.type,
-          messageBody: this.buildMessageBody(notification),
+          messageBody: maskedBody,
           status: WhatsAppStatus.PERMANENT_FAIL,
           failureReason: 'Recipient phone is missing',
           scheduledFor: notification.scheduledFor,
@@ -154,7 +176,7 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
           recipientName: notification.recipient.fullName,
           recipientRole: notification.recipient.role,
           templateType: notification.notificationType ?? notification.type,
-          messageBody: this.buildMessageBody(notification),
+          messageBody: maskedBody,
           status: WhatsAppStatus.PERMANENT_FAIL,
           failureReason: this.errorMessage(error),
           scheduledFor: notification.scheduledFor,
@@ -162,17 +184,23 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
       });
     }
 
-    return this.prisma.whatsAppMessageLog.create({
+    const createdRecord = await this.prisma.whatsAppMessageLog.create({
       data: {
         recipientPhone,
         recipientName: notification.recipient.fullName,
         recipientRole: notification.recipient.role,
         templateType: notification.notificationType ?? notification.type,
-        messageBody: this.buildMessageBody(notification),
+        messageBody: maskedBody,
         status: WhatsAppStatus.QUEUED,
         scheduledFor: notification.scheduledFor,
       },
     });
+
+    if (createdRecord && (createdRecord as any).id) {
+      this.pendingOutboundBodies.set((createdRecord as any).id, rawBody);
+    }
+
+    return createdRecord;
   }
 
   /** Receipts can call this method when a provider delivery acknowledgement arrives. */
@@ -212,9 +240,12 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
       if (claim.count !== 1) return false;
 
       try {
+        const outboundBody = this.pendingOutboundBodies.get(candidate.id) || candidate.messageBody;
+        this.pendingOutboundBodies.delete(candidate.id);
+
         const result = await this.whatsapp.sendTrackedProtectedMessage(
           candidate.recipientPhone,
-          candidate.messageBody,
+          outboundBody,
         );
 
         if (result.outcome === 'sent') {

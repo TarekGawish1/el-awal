@@ -6,6 +6,7 @@
 import { offlineDb } from './db';
 import { API_ENDPOINTS } from '../api/endpoints';
 import { apiClient } from '../api/client';
+import { getStoredAccessToken, getStoredRefreshToken } from '@/features/auth/utils/auth-tokens';
 import { QueryClient } from '@tanstack/react-query';
 
 export type BootstrapEventType = 'START' | 'PROGRESS' | 'SUCCESS' | 'ERROR' | 'OFFLINE_FALLBACK';
@@ -69,6 +70,16 @@ class BootstrapManager {
     skipCooldown?: boolean;
     queryClient?: QueryClient;
   }): Promise<{ success: boolean; isDelta: boolean; counts?: Record<string, number> }> {
+    // Guard: never hit the authenticated bootstrap endpoint from public pages
+    // (e.g. landing page) where there is no session — prevents useless 401s
+    // that hurt Lighthouse scores and spam the backend + console.
+    if (typeof window !== 'undefined') {
+      const hasSession = Boolean(getStoredAccessToken() || getStoredRefreshToken());
+      if (!hasSession) {
+        return { success: false, isDelta: false };
+      }
+    }
+
     if (this.isBootstrappingState) {
       return { success: false, isDelta: false };
     }
@@ -90,7 +101,11 @@ class BootstrapManager {
 
     this.isBootstrappingState = true;
     this.lastError = null;
-    this.notify('START', 0, 'بدء تنزيل مساحة العمل للعمل بدون إنترنت...');
+    const isExplicitForceFull = Boolean(options?.forceFull);
+    this.notify('START', 0, 'بدء تنزيل مساحة العمل للعمل بدون إنترنت...', {
+      isDelta: !isExplicitForceFull,
+      forceFull: isExplicitForceFull,
+    });
 
     try {
       const doBootstrap = async () => {
@@ -102,7 +117,10 @@ class BootstrapManager {
         ? `${API_ENDPOINTS.SYNC.BOOTSTRAP}?since=${lastSyncTime}`
         : API_ENDPOINTS.SYNC.BOOTSTRAP;
 
-      this.notify('PROGRESS', 25, 'جاري استقبال وتجهيز بيانات المجموعات والطلاب...');
+      this.notify('PROGRESS', 25, 'جاري استقبال وتجهيز بيانات المجموعات والطلاب...', {
+        isDelta: !isExplicitForceFull,
+        forceFull: isExplicitForceFull,
+      });
 
       // Abort after 12s to prevent indefinite hanging on flaky networks
       const timeoutPromise = new Promise((_, reject) =>
@@ -146,7 +164,10 @@ class BootstrapManager {
 
       const qc = options?.queryClient;
 
-      this.notify('PROGRESS', 50, 'حفظ سجلات الطلاب والمجموعات والحصص محلياً...');
+      this.notify('PROGRESS', 50, 'حفظ سجلات الطلاب والمجموعات والحصص محلياً...', {
+        isDelta: !isExplicitForceFull,
+        forceFull: isExplicitForceFull,
+      });
 
       // 1. Ingest Students
       // If it's a delta, only upsert. If it's full, sync snapshot (pruning missing).
@@ -178,7 +199,11 @@ class BootstrapManager {
 
       // 3. Ingest Pre-generated Sessions
       if (payload.sessions.length > 0) {
-        await offlineDb.bulkPutSessions(payload.sessions);
+        if (isDeltaResponse) {
+          await offlineDb.bulkPutSessions(payload.sessions);
+        } else {
+          await offlineDb.syncSessionsSnapshot(payload.sessions);
+        }
       }
 
       this.notify('PROGRESS', 75, 'حفظ السجلات المالية والمذكرات والاختبارات محلياً...');
@@ -269,9 +294,22 @@ class BootstrapManager {
           qc.invalidateQueries({ queryKey: ['today-sessions'] });
           qc.invalidateQueries({ queryKey: ['sessions'] });
         }
+        if (payload.attendance.length > 0) {
+          qc.invalidateQueries({ queryKey: ['attendance'] });
+          qc.invalidateQueries({ queryKey: ['sessions'] });
+          qc.invalidateQueries({ queryKey: ['today-sessions'] });
+        }
+        if (payload.homework.length > 0) {
+          qc.invalidateQueries({ queryKey: ['homework-records'] });
+          qc.invalidateQueries({ queryKey: ['sessions'] });
+        }
         if (payload.payments.length > 0) qc.invalidateQueries({ queryKey: ['payments'] });
         if (payload.booklets.length > 0) qc.invalidateQueries({ queryKey: ['booklets'] });
         if (payload.assessments.length > 0) qc.invalidateQueries({ queryKey: ['assessments'] });
+
+        if (typeof qc.refetchQueries === 'function') {
+          qc.refetchQueries({ type: 'active' });
+        }
       }
 
       const syncTimestamp = response.timestamp || rootData.timestamp || Date.now();
@@ -295,6 +333,7 @@ class BootstrapManager {
       this.notify('SUCCESS', 100, 'تم تجهيز مساحة العمل بنجاح والجاهزية للعمل بدون إنترنت 🚀', {
         counts,
         isDelta: isDeltaResponse,
+        forceFull: isExplicitForceFull,
       });
 
       return {

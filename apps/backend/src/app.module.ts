@@ -27,6 +27,7 @@ import { ContactMessagesModule } from './modules/contact-messages/contact-messag
 import { CertificatesModule } from './modules/certificates/certificates.module';
 import { AssistantsModule } from './modules/assistants/assistants.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { TestimonialsModule } from './modules/testimonials/testimonials.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { AuditModule } from './modules/audit/audit.module';
     CertificatesModule,
     AssistantsModule,
     AuditModule,
+    TestimonialsModule,
   ],
 })
 export class AppModule {}

@@ -80,7 +80,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
         name="identifier"
         type="text"
         label="كود الطالب أو رقم الهاتف"
-        placeholder="STU-2026-00048 أو 01012345678"
+        placeholder="أدخل كود الطالب أو رقم الهاتف المسجل"
         value={identifier}
         onChange={(e) => {
           setIdentifier(e.target.value);

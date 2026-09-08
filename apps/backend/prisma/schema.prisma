@@ -55,6 +55,14 @@ enum StudentAcademicStatus {
   @@map("student_academic_status")
 }
 
+enum TestimonialStatus {
+  PENDING
+  APPROVED
+  REJECTED
+
+  @@map("testimonial_status")
+}
+
 enum GroupEnrollmentStatus {
   PENDING
   ACTIVE
@@ -369,10 +377,29 @@ model StudentProfile {
   paymentRecords        StudentPaymentRecord[]
   lessonQuestions       LessonQuestion[]
   homeworkRecords       HomeworkRecord[]
+  testimonials          Testimonial[]
 
   @@index([qrCodeToken], map: "idx_students_qr_code")
   @@index([gradeLevel], map: "idx_students_grade_level")
   @@map("student_profiles")
+}
+
+model Testimonial {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  studentId   String?           @unique(map: "uq_testimonials_student") @map("student_id") @db.Uuid
+  displayName String?           @map("display_name") @db.VarChar(100)
+  gradeLevel  String?           @map("grade_level") @db.VarChar(50)
+  content     String            @map("content") @db.Text
+  rating      Int               @map("rating")
+  status      TestimonialStatus @default(PENDING) @map("status")
+  moderatedAt DateTime?         @map("moderated_at") @db.Timestamptz(6)
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  student StudentProfile? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt], map: "idx_testimonials_status_created")
+  @@map("testimonials")
 }
 
 model ParentProfile {
@@ -549,6 +576,7 @@ model AttendanceRecord {
   @@unique([sessionId, studentId], map: "uq_session_student")
   @@index([studentId, status], map: "idx_attendance_student_status")
   @@index([sessionId], map: "idx_attendance_session")
+  @@index([sessionId, status], map: "idx_attendance_session_status")
   @@index([recordedById], map: "idx_attendance_recorder")
   @@map("attendance_records")
 }
@@ -1055,6 +1083,7 @@ model WhatsAppMessageLog {
   updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([status, scheduledFor], map: "idx_whatsapp_message_logs_queue")
+  @@index([status, retryCount], map: "idx_whatsapp_message_logs_status_retry")
   @@index([recipientPhone], map: "idx_whatsapp_message_logs_recipient_phone")
   @@index([createdAt], map: "idx_whatsapp_message_logs_created_at")
   @@map("whatsapp_message_logs")
@@ -1140,6 +1169,7 @@ model StudentPaymentRecord {
 
   @@index([studentId, groupId, periodYear, periodMonth], map: "idx_student_group_billing_period")
   @@index([studentId], map: "idx_payments_student")
+  @@index([studentId, paymentType, paymentStatus], map: "idx_payments_student_type_status")
   @@index([bookletId], map: "idx_payments_booklet")
   @@index([recordedById, groupId], map: "idx_payments_recorder_group")
   @@map("student_payment_records")

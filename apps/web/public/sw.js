@@ -9,9 +9,42 @@
  * - Zero-redirect offline subpage navigation
  */
 
-const CACHE_NAME = 'el-awal-core-v7';
-const RUNTIME_CACHE = 'el-awal-runtime-v7';
-const RSC_CACHE = 'el-awal-rsc-v7';
+const CACHE_NAME = 'el-awal-core-v8';
+const RUNTIME_CACHE = 'el-awal-runtime-v8';
+const RSC_CACHE = 'el-awal-rsc-v8';
+
+// Maximum entries allowed in dynamic caches to prevent device storage bloating
+const MAX_RUNTIME_ITEMS = 60;
+const MAX_RSC_ITEMS = 30;
+const MAX_CACHABLE_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB guard
+
+/**
+ * Trim cache to maxItems using FIFO eviction
+ */
+async function trimCache(cacheName, maxItems) {
+  try {
+    const cache = await caches.open(cacheName);
+    const keys = await cache.keys();
+    if (keys.length > maxItems) {
+      const itemsToDelete = keys.slice(0, keys.length - maxItems);
+      await Promise.all(itemsToDelete.map((key) => cache.delete(key)));
+    }
+  } catch (err) {
+    console.debug('[SW] Cache trim notice:', err);
+  }
+}
+
+/**
+ * Validates if response is safe and within size bounds to cache
+ */
+function isCachableResponse(response) {
+  if (!response || response.status !== 200) return false;
+  const len = response.headers.get('content-length');
+  if (len && parseInt(len, 10) > MAX_CACHABLE_SIZE_BYTES) {
+    return false;
+  }
+  return true;
+}
 
 // Critical App Shell assets and core dashboard routes to pre-cache on install
 const PRECACHE_URLS = [
@@ -45,7 +78,6 @@ const PRECACHE_URLS = [
   '/favicon.ico',
   '/favicon.svg',
   '/wasm/zxing_reader.wasm',
-  '/zxing_reader.wasm',
 ];
 
 // Core routes whose RSC payloads should also be pre-cached for instant client-side routing
@@ -170,11 +202,12 @@ self.addEventListener('fetch', (event) => {
             if (networkResponse && networkResponse.status === 200) {
               const contentType = networkResponse.headers.get('content-type') || '';
               // Only cache actual RSC flight payloads, not unexpected HTML redirects
-              if (!contentType.includes('text/html')) {
-                rscCache.put(request, networkResponse.clone());
+              if (!contentType.includes('text/html') && isCachableResponse(networkResponse)) {
+                await rscCache.put(request, networkResponse.clone());
                 // Also cache by normalized pathname without query params
                 const normalizedReq = new Request(url.pathname, { headers: { RSC: '1' } });
-                rscCache.put(normalizedReq, networkResponse.clone());
+                await rscCache.put(normalizedReq, networkResponse.clone());
+                trimCache(RSC_CACHE, MAX_RSC_ITEMS);
               }
             }
             return networkResponse;
@@ -255,8 +288,9 @@ self.addEventListener('fetch', (event) => {
         if (navigator.onLine) {
           try {
             const networkResponse = await fetch(request);
-            if (networkResponse && networkResponse.status === 200) {
-              runtimeCache.put(request, networkResponse.clone());
+            if (isCachableResponse(networkResponse)) {
+              await runtimeCache.put(request, networkResponse.clone());
+              trimCache(RUNTIME_CACHE, MAX_RUNTIME_ITEMS);
             }
             return networkResponse;
           } catch (err) {
@@ -341,17 +375,23 @@ self.addEventListener('fetch', (event) => {
     request.destination === 'manifest';
 
   if (isStaticAsset) {
+    // The hero animation reuses the same finite image sequence. Cache frames
+    // without background revalidation so each animation loop stays offline.
+    const isHeroAnimationFrame = url.pathname.startsWith('/hero-animation/');
+
     event.respondWith(
       (async () => {
         const cachedResponse = await caches.match(request);
         if (cachedResponse) {
-          // Revalidate in background if online
-          if (navigator.onLine) {
+          // Hero frames are intentionally cache-first; revalidating here would
+          // download the entire sequence again on every animation loop.
+          if (navigator.onLine && !isHeroAnimationFrame) {
             fetch(request)
               .then(async (networkResponse) => {
-                if (networkResponse && networkResponse.status === 200) {
+                if (isCachableResponse(networkResponse)) {
                   const runtimeCache = await caches.open(RUNTIME_CACHE);
-                  runtimeCache.put(request, networkResponse);
+                  await runtimeCache.put(request, networkResponse);
+                  trimCache(RUNTIME_CACHE, MAX_RUNTIME_ITEMS);
                 }
               })
               .catch(() => {});
@@ -361,9 +401,10 @@ self.addEventListener('fetch', (event) => {
 
         try {
           const networkResponse = await fetch(request);
-          if (networkResponse && networkResponse.status === 200) {
+          if (isCachableResponse(networkResponse)) {
             const runtimeCache = await caches.open(RUNTIME_CACHE);
-            runtimeCache.put(request, networkResponse.clone());
+            await runtimeCache.put(request, networkResponse.clone());
+            trimCache(RUNTIME_CACHE, MAX_RUNTIME_ITEMS);
           }
           return networkResponse;
         } catch {
@@ -408,9 +449,10 @@ self.addEventListener('fetch', (event) => {
     (async () => {
       try {
         const response = await fetch(request);
-        if (response && response.status === 200) {
+        if (isCachableResponse(response)) {
           const runtimeCache = await caches.open(RUNTIME_CACHE);
-          runtimeCache.put(request, response.clone());
+          await runtimeCache.put(request, response.clone());
+          trimCache(RUNTIME_CACHE, MAX_RUNTIME_ITEMS);
         }
         return response;
       } catch {
@@ -431,10 +473,17 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Listen for message to skip waiting when updated
+// Listen for message from clients (skip waiting, clear caches)
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
+  }
+  if (event.data && event.data.type === 'CLEAR_CACHE') {
+    event.waitUntil(
+      caches.keys().then((cacheNames) => {
+        return Promise.all(cacheNames.map((name) => caches.delete(name)));
+      })
+    );
   }
 });
 

@@ -14,6 +14,7 @@ export const API_ENDPOINTS = {
     REGISTER_BY_GROUP: '/auth/register-by-group',
     LOGOUT: '/auth/logout',
     REFRESH: '/auth/refresh',
+    SWITCH_ROLE: '/auth/switch-role',
     ME: '/users/me',
   },
   USERS: {
@@ -22,6 +23,7 @@ export const API_ENDPOINTS = {
   TEACHER: {
     DASHBOARD_OVERVIEW: '/teachers/dashboard/overview', // Recommended server aggregation contract
     ACADEMIC_PERIOD: '/teachers/academic-period',
+    PROFILE: '/teachers/profile',
     SAVED_LOCATIONS: '/teachers/saved-locations',
     ASSISTANTS: {
       LIST: '/teachers/assistants',
@@ -134,5 +136,11 @@ export const API_ENDPOINTS = {
     LIST: '/contact-messages',
     MARK_READ: (id: string) => `/contact-messages/${id}/read`,
     DELETE: (id: string) => `/contact-messages/${id}`,
+  },
+  TESTIMONIALS: {
+    PUBLIC: '/testimonials/public',
+    MINE: '/testimonials/mine',
+    LIST: '/testimonials',
+    UPDATE: (id: string) => `/testimonials/${id}`,
   },
 } as const;

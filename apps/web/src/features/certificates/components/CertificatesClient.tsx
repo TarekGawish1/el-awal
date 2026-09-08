@@ -6,6 +6,8 @@ import { Plus, Award, Search, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
+import { toast } from 'react-hot-toast';
+import { apiClient } from '@/lib/api/client';
 
 interface SavedCertificate {
   id: string;
@@ -23,6 +25,10 @@ export function CertificatesClient() {
   const [certificates, setCertificates] = useState<SavedCertificate[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStage, setSelectedStage] = useState('الكل');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const isUuid = (id: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
   useEffect(() => {
     const fetchAndMergeCertificates = async () => {
@@ -102,19 +108,46 @@ export function CertificatesClient() {
   }, []);
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('هل أنت متأكد من حذف هذه الشهادة؟')) {
-      const updated = certificates.filter(cert => cert.id !== id);
-      setCertificates(updated);
-      localStorage.setItem('saved_certificates', JSON.stringify(updated));
-      
-      try {
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
-        await fetch(`${baseUrl}/certificates/${id}`, {
-          method: 'DELETE',
-        });
-      } catch (err) {
-        console.error('Failed to delete certificate from backend:', err);
+    if (!window.confirm('هل أنت متأكد من حذف هذه الشهادة؟ سيتم حذفها من قاعدة البيانات والتخزين السحابي نهائياً.')) {
+      return;
+    }
+
+    setDeletingId(id);
+    try {
+      // 1. Delete from backend DB + Cloudflare R2 (apiClient attaches the JWT automatically).
+      // Local-only certs (non-UUID ids) were never persisted, so skip the API call for them.
+      if (isUuid(id)) {
+        try {
+          await apiClient(`/certificates/${id}`, { method: 'DELETE' });
+        } catch (err: any) {
+          // 404 = already deleted in DB → treat as success and continue cleaning local state
+          const msg = err?.message || '';
+          const status = err?.statusCode;
+          if (status !== 404 && !msg.includes('غير موجودة') && !msg.includes('404')) {
+            throw err;
+          }
+        }
       }
+
+      // 2. Remove ONLY the localStorage copy (never write combined API certs back to localStorage)
+      try {
+        const localCerts = JSON.parse(localStorage.getItem('saved_certificates') || '[]');
+        const filteredLocal = Array.isArray(localCerts)
+          ? localCerts.filter((c: any) => c.id !== id)
+          : [];
+        localStorage.setItem('saved_certificates', JSON.stringify(filteredLocal));
+      } catch (e) {
+        console.warn('Could not update localStorage', e);
+      }
+
+      // 3. Update UI state
+      setCertificates((prev) => prev.filter((cert) => cert.id !== id));
+      toast.success('تم حذف الشهادة بنجاح');
+    } catch (err: any) {
+      console.error('Failed to delete certificate from backend:', err);
+      toast.error(err?.message || 'فشل حذف الشهادة، يرجى المحاولة مرة أخرى');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -239,9 +272,10 @@ export function CertificatesClient() {
                   <div className="flex items-center gap-3">
                     <button 
                       onClick={() => handleDelete(cert.id)}
-                      className="text-red-500 hover:text-red-700 font-medium hover:underline text-xs"
+                      disabled={deletingId === cert.id}
+                      className="text-red-500 hover:text-red-700 font-medium hover:underline text-xs disabled:opacity-50 disabled:cursor-wait"
                     >
-                      حذف
+                      {deletingId === cert.id ? 'جاري الحذف...' : 'حذف'}
                     </button>
                     {(cert.data?.image || (cert as any).image) ? (
                       <a 

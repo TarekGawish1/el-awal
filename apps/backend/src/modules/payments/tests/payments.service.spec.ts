@@ -147,5 +147,70 @@ describe('PaymentsService matrix ledger', () => {
     expect(s3Month8.rateMultiplier).toBe(0.0);
     expect(s3Month8.isPaid).toBe(true); // Exempt
   });
+
+  it('displays paid tuition for month prior to enrollment date instead of marking not applicable', async () => {
+    const student = {
+      id: 'student-oct',
+      studentCode: 'STU-OCT',
+      gradeLevel: 'الصف الأول الثانوي',
+      user: { fullName: 'عاصم أحمد', phone: '01000000000' },
+      groupEnrollments: [
+        {
+          groupId: 'group-1',
+          enrolledAt: new Date('2026-10-01T00:00:00Z'),
+          group: { id: 'group-1', name: 'مجموعة 1', monthlyFee: 100 },
+        },
+      ],
+    };
+
+    prisma.studentProfile.count.mockResolvedValue(1);
+    prisma.studentProfile.findMany.mockResolvedValue([student]);
+    prisma.booklet.findMany.mockResolvedValue([]);
+    // Student paid for month 9 even though enrollment was recorded in October
+    prisma.studentPaymentRecord.findMany.mockResolvedValue([
+      {
+        id: 'pay-sep',
+        studentId: 'student-oct',
+        groupId: null,
+        bookletId: null,
+        paymentType: 'TUITION',
+        periodYear: 2026,
+        periodMonth: 9,
+        amountExpected: 100,
+        amountPaid: 100,
+        paymentStatus: 'PAID',
+        createdAt: new Date('2026-09-15T00:00:00Z'),
+      },
+      {
+        id: 'pay-oct',
+        studentId: 'student-oct',
+        groupId: 'group-1',
+        bookletId: null,
+        paymentType: 'TUITION',
+        periodYear: 2026,
+        periodMonth: 10,
+        amountExpected: 100,
+        amountPaid: 100,
+        paymentStatus: 'PAID',
+        createdAt: new Date('2026-10-01T00:00:00Z'),
+      },
+    ]);
+
+    const result = await service.getMatrixLedger(
+      { id: 'teacher-user', teacherProfileId: 'teacher-1', role: UserRole.TEACHER },
+      { academicPeriodId: '2026-2027:FIRST_TERM' },
+    );
+
+    const month9Payment = result.students[0].monthlyPayments[9];
+    expect(month9Payment.isApplicable).toBe(true);
+    expect(month9Payment.isPaid).toBe(true);
+    expect(month9Payment.amountPaid).toBe(100);
+
+    const month10Payment = result.students[0].monthlyPayments[10];
+    expect(month10Payment.isApplicable).toBe(true);
+    expect(month10Payment.isPaid).toBe(true);
+    expect(month10Payment.amountPaid).toBe(100);
+  });
 });
+
 

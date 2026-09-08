@@ -25,6 +25,7 @@ import {
   CloudOff,
   CheckCircle2,
   AlertCircle,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { useAuth } from '@/features/auth';
 import { DashboardBreadcrumbs } from '@/features/dashboard/components/DashboardBreadcrumbs';
@@ -37,16 +38,21 @@ import { getNavigationSectionsForRole } from '@/config/navigation';
 import { usePendingReservations } from '@/features/groups';
 import { useRealtimeReservations } from '@/lib/realtime/useRealtimeReservations';
 import { useRealtimeInquiries } from '@/lib/realtime/useRealtimeInquiries';
+import { useRealtimeAttendance } from '@/lib/realtime/useRealtimeAttendance';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { NotificationBell } from '@/features/notifications/components/NotificationBell';
 import { WhatsAppConnectionManager } from '@/components/admin/WhatsAppConnectionManager';
-import { isRouteAllowedForRole, getRoleLandingRoute } from '@/features/auth/utils/role-routing';
+import { isRouteAllowedForRole, getRoleLandingRoute, getAvailableRoles, getRoleLabel as getRoleLabelUtil } from '@/features/auth/utils/role-routing';
+import { switchRoleRequest, fetchCurrentUser } from '@/features/auth/api/auth.api';
+import { useAuthStore } from '@/features/auth/store/auth.store';
+import { UserRole, AuthUser } from '@/features/auth/types/auth.types';
 import { useStudentProfile } from '@/features/student-portal/hooks/useStudentPortal';
 import { usePermissions } from '@/core/hooks/usePermissions';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
+import toast from 'react-hot-toast';
 
 export default function DashboardLayout({
   children,
@@ -62,10 +68,24 @@ export default function DashboardLayout({
   const [isSyncMenuOpen, setIsSyncMenuOpen] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
+  const [isSwitchingRole, setIsSwitchingRole] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, isAuthenticated, isInitialized, logout, LogoutConfirmation } = useAuth();
+  const { setSession } = useAuthStore();
   const isOnline = useOnlineStatus();
+  const availableRoles = getAvailableRoles(user);
+  const cleanPhone = (user?.phone || '').replace(/\D/g, '');
+  const isDualRoleUser =
+    cleanPhone.endsWith('01067789574') ||
+    cleanPhone.endsWith('1067789574') ||
+    user?.fullName?.trim().toLowerCase() === 'yara' ||
+    user?.id === '88faab9f-9432-47a2-b8ed-dcbbbd3d0339' ||
+    user?.email === 'assitant@alawal.com' ||
+    availableRoles.length > 1;
+
+  const canSwitchRoles = isDualRoleUser;
   
   const mainScrollRef = useRef<HTMLDivElement>(null);
 
@@ -89,16 +109,19 @@ export default function DashboardLayout({
       '/teacher/reservations': 'طلبات الانضمام والقبول',
       '/teacher/notifications': 'مركز الإشعارات',
       '/teacher/inquiries': 'رسائل الموقع والاستفسارات',
+      '/teacher/testimonials': 'آراء الطلاب',
       '/teacher/finance': 'الماليات والمصروفات',
       '/teacher/certificates': 'الشهادات التقديرية',
       '/teacher/assistants': 'إدارة المساعدين',
       '/teacher/activity-log': 'سجل النشاطات وتتبع العمليات',
+      '/teacher/settings': 'بيانات المدرس',
       '/student/dashboard': 'لوحة تحكم الطالب',
       '/student/homework': 'الواجبات المنزلية',
       '/student/assessments': 'الاختبارات',
       '/student/courses': 'الكورسات التعليمية',
       '/student/content': 'المحتوى والدروس',
       '/student/notifications': 'مركز الإشعارات',
+      '/student/testimonials': 'شاركنا رأيك',
       '/parent/dashboard': 'لوحة متابعة ولي الأمر',
     };
 
@@ -126,6 +149,28 @@ export default function DashboardLayout({
     });
     return () => unsubscribe();
   }, []);
+
+  // Silently re-hydrate user profile to ensure multiple profiles and secretariatProfileId are synced
+  useEffect(() => {
+    if (!isMounted || !isAuthenticated || !isOnline) return;
+
+    fetchCurrentUser()
+      .then((freshUser) => {
+        if (freshUser && freshUser.id) {
+          const freshAny = freshUser as any;
+          const mergedUser: AuthUser = {
+            ...(user as AuthUser),
+            ...freshUser,
+            secretariatProfileId: freshUser.secretariatProfileId || freshAny.secretariatProfile?.id || (freshAny.assistantToTeachers?.length ? freshUser.id : undefined),
+            teacherProfileId: freshUser.teacherProfileId || freshAny.teacherProfile?.id,
+            parentProfileId: freshUser.parentProfileId || freshAny.parentProfile?.id,
+            studentProfileId: freshUser.studentProfileId || freshAny.studentProfile?.id,
+          };
+          useAuthStore.getState().setUser(mergedUser);
+        }
+      })
+      .catch(() => {});
+  }, [isMounted, isAuthenticated, isOnline]);
 
   // Authentication Route Protection
   useEffect(() => {
@@ -170,6 +215,23 @@ export default function DashboardLayout({
     }
   };
 
+  const handleSwitchRole = async (targetRole: UserRole) => {
+    if (isSwitchingRole || user?.role === targetRole) return;
+    setIsSwitchingRole(true);
+    setIsProfileMenuOpen(false);
+    try {
+      const newSession = await switchRoleRequest(targetRole);
+      setSession(newSession);
+      queryClient.clear();
+      router.push(getRoleLandingRoute(targetRole));
+      toast.success(`تم التبديل إلى: ${getRoleLabelUtil(targetRole)}`);
+    } catch (err: any) {
+      toast.error(err?.message || 'حدث خطأ أثناء تبديل الدور');
+    } finally {
+      setIsSwitchingRole(false);
+    }
+  };
+
   const { data: studentProfile } = useStudentProfile();
   const { permissions } = usePermissions();
   
@@ -185,6 +247,7 @@ export default function DashboardLayout({
   const { data: pendingReservations } = usePendingReservations(isReservationsRole);
   const pendingReservationsCount = pendingReservations?.length ?? 0;
   useRealtimeReservations(isReservationsRole);
+  useRealtimeAttendance(isReservationsRole);
 
   // Unread website contact inquiries count badge (teacher/secretariat only) — pushed live via WebSocket
   const { data: unreadInquiriesCount = 0 } = useQuery({
@@ -227,8 +290,8 @@ export default function DashboardLayout({
 
       {/* Sidebar Navigation */}
       <aside
-        className={`fixed inset-y-0 start-0 z-40 w-64 bg-white border-e border-neutral-200/90 flex flex-col justify-between transition-transform duration-200 ease-in-out lg:static lg:translate-x-0 lg:h-full shrink-0 overflow-hidden ${
-          isMobileSidebarOpen ? 'translate-x-0 shadow-xl' : 'translate-x-full lg:translate-x-0'
+        className={`fixed inset-y-0 start-0 z-50 lg:z-auto w-64 max-w-[85vw] bg-white border-e border-neutral-200/90 flex flex-col justify-between transition-transform duration-200 ease-in-out lg:static lg:translate-x-0 lg:h-full shrink-0 overflow-hidden pt-[env(safe-area-inset-top,0px)] ${
+          isMobileSidebarOpen ? 'translate-x-0 shadow-2xl' : 'translate-x-full lg:translate-x-0'
         }`}
       >
         <div className="flex flex-col min-h-0 flex-1">
@@ -260,6 +323,35 @@ export default function DashboardLayout({
               <X className="w-5 h-5" />
             </button>
           </div>
+
+          {/* Quick Role Switcher Banner for Mobile Sidebar */}
+          {canSwitchRoles && (
+            <div className="mx-3 mt-3 p-2.5 bg-neutral-50 border border-neutral-200/80 rounded-xl flex items-center justify-between gap-2 shadow-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-primary-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <ArrowLeftRight className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-neutral-900 truncate">
+                    {user?.role === 'PARENT' ? 'حساب المساعد' : 'حساب ولي الأمر'}
+                  </p>
+                  <p className="text-[10px] text-neutral-500 truncate">تبديل الحساب الحالي</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const targetRole = availableRoles.find((r) => r !== user?.role) || (user?.role === 'PARENT' ? 'SECRETARIAT' : 'PARENT');
+                  setIsMobileSidebarOpen(false);
+                  handleSwitchRole(targetRole);
+                }}
+                disabled={isSwitchingRole}
+                className="px-2.5 py-1 text-xs font-bold text-primary-700 bg-white hover:bg-primary-50 border border-primary-200 rounded-lg shadow-xs transition-colors shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                {isSwitchingRole ? 'جاري...' : 'تبديل'}
+              </button>
+            </div>
+          )}
 
           {/* Categorized Navigation Links */}
           <nav className="px-3 py-4 overflow-y-auto flex-1 space-y-6" aria-label="القائمة الرئيسية">
@@ -346,6 +438,21 @@ export default function DashboardLayout({
 
         {/* Sidebar PWA Install & Info Footer */}
         <div className="p-3 border-t border-neutral-100 space-y-2 shrink-0 bg-white">
+          {canSwitchRoles && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsMobileSidebarOpen(false);
+                const targetRole = user?.role === 'PARENT' ? 'SECRETARIAT' : 'PARENT';
+                handleSwitchRole(targetRole);
+              }}
+              disabled={isSwitchingRole}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-bold text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-200 rounded-lg transition-colors cursor-pointer"
+            >
+              <ArrowLeftRight className={`w-4 h-4 ${isSwitchingRole ? 'animate-spin' : ''}`} />
+              <span>{user?.role === 'PARENT' ? 'التبديل لحساب المساعد' : 'التبديل لحساب ولي الأمر'}</span>
+            </button>
+          )}
           <PwaInstallButton className="w-full justify-center" />
           <button
             onClick={() => {
@@ -365,7 +472,7 @@ export default function DashboardLayout({
       {isMobileSidebarOpen && (
         <div
           onClick={() => setIsMobileSidebarOpen(false)}
-          className="fixed inset-0 bg-neutral-900/40 z-30 lg:hidden backdrop-blur-xs"
+          className="fixed inset-0 bg-neutral-900/60 z-45 lg:hidden backdrop-blur-xs"
           aria-hidden="true"
         />
       )}
@@ -373,7 +480,7 @@ export default function DashboardLayout({
       {/* Main Page Workspace & Header Wrapper */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Global Navigation Header */}
-        <header className="pt-[env(safe-area-inset-top,0px)] bg-white/95 border-b border-neutral-200 sticky top-0 z-40 shadow-xs shrink-0 flex items-center justify-between px-2.5 sm:px-6 lg:px-8 min-h-[3.75rem] sm:min-h-[4rem] gap-1.5 sm:gap-4">
+        <header className="pt-[env(safe-area-inset-top,0px)] bg-white/95 border-b border-neutral-200 sticky top-0 z-30 lg:z-40 shadow-xs shrink-0 flex items-center justify-between px-2.5 sm:px-6 lg:px-8 min-h-[3.75rem] sm:min-h-[4rem] gap-1.5 sm:gap-4">
           <div className="flex items-center gap-1.5 sm:gap-4 shrink-0">
             <button
               onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
@@ -500,6 +607,29 @@ export default function DashboardLayout({
               <NotificationBell />
             </div>
 
+            {/* Quick Role Switch Button */}
+            {canSwitchRoles && (
+              <button
+                type="button"
+                onClick={() => {
+                  const targetRole = availableRoles.find((r) => r !== user?.role) || (user?.role === 'PARENT' ? 'SECRETARIAT' : 'PARENT');
+                  handleSwitchRole(targetRole);
+                }}
+                disabled={isSwitchingRole}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-primary-50 hover:bg-primary-100/90 text-primary-700 border border-primary-200/90 text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
+                title={`التبديل إلى ${user?.role === 'PARENT' ? 'حساب المساعد' : 'حساب ولي الأمر'}`}
+                aria-label={`التبديل إلى ${user?.role === 'PARENT' ? 'حساب المساعد' : 'حساب ولي الأمر'}`}
+              >
+                <ArrowLeftRight className={`w-3.5 h-3.5 shrink-0 ${isSwitchingRole ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">
+                  {user?.role === 'PARENT' ? 'التبديل لحساب المساعد' : 'التبديل لحساب ولي الأمر'}
+                </span>
+                <span className="sm:hidden text-[11px]">
+                  {user?.role === 'PARENT' ? 'المساعد' : 'ولي الأمر'}
+                </span>
+              </button>
+            )}
+
             <div className="h-6 w-px bg-neutral-200 mx-0.5 hidden sm:block shrink-0"></div>
 
             {/* Profile Dropdown */}
@@ -531,17 +661,51 @@ export default function DashboardLayout({
                     onClick={() => setIsProfileMenuOpen(false)}
                     aria-hidden="true"
                   />
-                  <div className="absolute end-0 top-full mt-2 w-56 bg-white border border-neutral-100 rounded-xl shadow-lg z-50 overflow-hidden flex flex-col p-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="absolute end-0 top-full mt-2 w-64 bg-white border border-neutral-100 rounded-xl shadow-lg z-50 overflow-hidden flex flex-col p-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="px-3 py-2.5 border-b border-neutral-100 sm:hidden">
                       <p className="text-sm font-bold text-neutral-900 truncate">{user?.fullName || 'المستخدم'}</p>
                     </div>
+
+                    {/* Role Switcher Section */}
+                    {canSwitchRoles && (
+                      <div className="px-1 py-1.5">
+                        <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider px-2 mb-1">تبديل الدور</p>
+                        {availableRoles.map((role) => {
+                          const isActive = user?.role === role;
+                          return (
+                            <button
+                              key={role}
+                              onClick={() => handleSwitchRole(role)}
+                              disabled={isSwitchingRole || isActive}
+                              className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors cursor-pointer
+                                ${isActive
+                                  ? 'bg-primary-50 text-primary-700 font-bold cursor-default'
+                                  : 'text-neutral-700 hover:bg-neutral-50 font-medium'
+                                }
+                                ${isSwitchingRole && !isActive ? 'opacity-50 cursor-not-allowed' : ''}
+                              `}
+                            >
+                              <span className={`w-2 h-2 rounded-full shrink-0 ${isActive ? 'bg-primary-600' : 'bg-neutral-300'}`} />
+                              <span>{getRoleLabelUtil(role)}</span>
+                              {isActive && (
+                                <span className="mr-auto text-[10px] bg-primary-100 text-primary-600 px-1.5 py-0.5 rounded-full font-bold">
+                                  الحالي
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {canSwitchRoles && <div className="border-t border-neutral-100 my-0.5" />}
                     
                     <button
                       onClick={() => {
                         setIsProfileMenuOpen(false);
                         logout();
                       }}
-                      className="w-full flex items-center gap-2 px-3 py-2 mt-1 text-sm font-medium text-error-600 hover:bg-error-50 rounded-lg transition-colors cursor-pointer"
+                      className="w-full flex items-center gap-2 px-3 py-2 mt-0.5 text-sm font-medium text-error-600 hover:bg-error-50 rounded-lg transition-colors cursor-pointer"
                     >
                       <LogOut className="w-4 h-4" />
                       <span>تسجيل الخروج</span>

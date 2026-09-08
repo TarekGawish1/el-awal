@@ -1,15 +1,17 @@
 import { Controller, Post, Get, Body, Param, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from '../services/auth.service';
 import { StudentRegistrationService } from '../services/student-registration.service';
 import { LoginDto } from '../dto/login.dto';
 import { ParentAccessDto } from '../dto/parent-access.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
+import { SwitchRoleDto } from '../dto/switch-role.dto';
 import { AuthTokensResponseDto } from '../dto/auth-response.dto';
 import { RegisterStudentDto } from '../dto/student-registration.dto';
 import { RegisterByGroupDto } from '../dto/register-by-group.dto';
 import { Public } from '../../../core/security/decorators/public.decorator';
+import { CurrentUser, AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -71,6 +73,21 @@ export class AuthController {
   @ApiResponse({ status: 409, description: 'Phone number already registered, or student/parent phones conflict' })
   async registerByGroup(@Body() dto: RegisterByGroupDto): Promise<AuthTokensResponseDto> {
     return this.authService.registerByGroup(dto);
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Post('switch-role')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Switch active role for a multi-profile user. Requires valid access token.' })
+  @ApiResponse({ status: 200, description: 'Role switched successfully, returns new tokens and user object', type: AuthTokensResponseDto })
+  @ApiResponse({ status: 400, description: 'User does not have the required profile for the target role' })
+  @ApiResponse({ status: 401, description: 'Not authenticated' })
+  async switchRole(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SwitchRoleDto,
+  ): Promise<AuthTokensResponseDto> {
+    return this.authService.switchRole(user.id, dto.targetRole);
   }
 
   @Public()

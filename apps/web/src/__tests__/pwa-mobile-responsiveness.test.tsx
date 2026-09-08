@@ -38,7 +38,9 @@ describe('PWA, Viewport & Mobile Responsiveness Audit', () => {
       expect(viewport).toBeDefined();
       expect(viewport.viewportFit).toBe('cover');
       expect(viewport.themeColor).toBe('#1e40af');
-      expect(viewport.userScalable).toBe(false);
+      // Accessibility: pinch-zoom must stay enabled (no maximum-scale / userScalable:false)
+      expect(viewport.userScalable).not.toBe(false);
+      expect((viewport as any).maximumScale).toBeUndefined();
       expect(viewport.width).toBe('device-width');
     });
   });

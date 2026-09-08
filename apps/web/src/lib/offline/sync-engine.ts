@@ -106,10 +106,14 @@ export class OfflineSyncEngine {
 
   public setQueryClient(client: any): void {
     this.queryClient = client;
-    // Perform initial downstream delta pull to populate local db on startup
+    // Perform initial downstream delta pull to populate local db on startup —
+    // but ONLY when a session exists. Public pages (landing, login) have no
+    // tokens, so skip entirely to avoid a useless 401 bootstrap on first paint.
     if (typeof navigator !== 'undefined' && navigator.onLine) {
+      const hasSession = Boolean(getStoredAccessToken() || getStoredRefreshToken());
+      if (!hasSession) return;
       setTimeout(() => {
-        this.checkAndSync();
+        this.checkAndSync({ skipCooldown: true });
       }, 1000);
     }
   }
@@ -129,12 +133,12 @@ export class OfflineSyncEngine {
       // Auto-sync on window focus or tab visibility (e.g. returning to app)
       window.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible' && navigator.onLine) {
-          this.checkAndSync();
+          this.checkAndSync({ skipCooldown: true });
         }
       });
       window.addEventListener('focus', () => {
         if (navigator.onLine) {
-          this.checkAndSync();
+          this.checkAndSync({ skipCooldown: true });
         }
       });
 
@@ -437,12 +441,11 @@ export class OfflineSyncEngine {
         this.notify('ONLINE');
         const pendingCount = await offlineDb.getPendingCount();
         if (pendingCount > 0) {
-          // Silent auto-syncing on reconnection is disabled: pause automatic
-          // dispatching and require explicit user confirmation via <SyncConfirmationModal />.
           this.syncConfirmationRequired = true;
           this.notify('SYNC_REVIEW_REQUIRED', { pendingCount });
         } else {
-          this.triggerSync();
+          this.syncConfirmationRequired = false;
+          this.checkAndSync({ skipCooldown: true });
         }
       } else {
         this.notify('OFFLINE');
@@ -537,10 +540,15 @@ export class OfflineSyncEngine {
     }, 300);
   }
 
-  private async checkAndSync() {
+  public async checkAndSync(options?: { skipCooldown?: boolean }) {
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : this.isOnlineState;
     if (!isOnline) return;
-    if (this.syncConfirmationRequired) return;
+
+    // Guard: public/unauthenticated visits must never trigger authenticated sync.
+    if (typeof window !== 'undefined') {
+      const hasSession = Boolean(getStoredAccessToken() || getStoredRefreshToken());
+      if (!hasSession) return;
+    }
 
     const verified = await this.verifyConnection();
     if (verified) {
@@ -551,7 +559,10 @@ export class OfflineSyncEngine {
       //    added by other devices into the local IndexedDB database
       if (this.isAutoSyncEnabled() && !bootstrapManager.isBootstrapping()) {
         try {
-          await bootstrapManager.performBootstrap({ queryClient: this.queryClient });
+          await bootstrapManager.performBootstrap({
+            queryClient: this.queryClient,
+            skipCooldown: options?.skipCooldown,
+          });
         } catch (err) {
           console.warn('Background auto-pull downstream sync error:', err);
         }
@@ -1362,6 +1373,7 @@ export class OfflineSyncEngine {
     const pending = await offlineDb.getPendingMutations(currentUserId);
     for (const m of pending) {
       await this.undoMutation(m.id);
+      await offlineDb.removeMutation(m.id);
     }
 
     this.syncConfirmationRequired = false;
@@ -1452,12 +1464,23 @@ export class OfflineSyncEngine {
       errorMessage?.includes('already registered') ||
       errorMessage?.includes('Collision') ||
       errorMessage?.includes('400') ||
+      errorMessage?.includes('404') ||
       errorMessage?.includes('409') ||
       errorMessage?.includes('422') ||
       errorMessage?.includes('تكرار') ||
-      errorMessage?.includes('مسجل مسبقاً');
+      errorMessage?.includes('مسجل مسبقاً') ||
+      errorMessage?.includes('INVALID_QR_CODE') ||
+      errorMessage?.includes('SESSION_NOT_FOUND') ||
+      errorMessage?.includes('STUDENT_NOT_ENROLLED') ||
+      errorMessage?.includes('STUDENT_INACTIVE_OR_NOT_FOUND') ||
+      errorMessage?.includes('NOT_FOUND') ||
+      errorMessage?.includes('Cannot record attendance for non-enrolled') ||
+      errorMessage?.includes('non-enrolled') ||
+      errorMessage?.includes('not found') ||
+      errorMessage?.includes('Not Found') ||
+      errorMessage?.includes('Missing required parameters');
 
-    if (isValidationError) {
+    if (isValidationError || (mutation.retryCount >= 5)) {
       await offlineDb.recordConflict({
         id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : generateClientOperationId(),
         operationId: mutation.id,

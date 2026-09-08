@@ -15,10 +15,11 @@ export class DeadlineReminderCron implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
-    this.task = cron.schedule('0 * * * *', () => void this.run(), {
+    // Run at minute 0 during active center operating hours (07:00 to 23:00 Cairo time)
+    this.task = cron.schedule('0 7-23 * * *', () => void this.run(), {
       timezone: 'Africa/Cairo',
     });
-    this.logger.log('Deadline reminder cron initialized');
+    this.logger.log('Deadline reminder cron initialized (07:00-23:00 Cairo)');
   }
 
   onModuleDestroy() {
@@ -26,6 +27,17 @@ export class DeadlineReminderCron implements OnModuleInit, OnModuleDestroy {
   }
 
   async run(now = new Date()): Promise<void> {
+    const hour = Number(
+      new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Africa/Cairo',
+        hour: '2-digit',
+        hourCycle: 'h23',
+      }).format(now),
+    );
+    if (hour < 7 || hour >= 23) {
+      return;
+    }
+
     const targetStart = new Date(now.getTime() + 23 * 60 * 60 * 1000);
     const targetEnd = new Date(now.getTime() + 25 * 60 * 60 * 1000);
 

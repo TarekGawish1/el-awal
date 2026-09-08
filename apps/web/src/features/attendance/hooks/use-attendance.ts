@@ -93,7 +93,8 @@ export function useTodaySessions(
       }
     },
     networkMode: 'always',
-    staleTime: 30 * 1000,
+    staleTime: 10 * 1000,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -319,7 +320,11 @@ export function useSessionReport(sessionId: string | null) {
     },
     enabled: !!sessionId,
     networkMode: 'always',
-    staleTime: 30 * 1000,
+    staleTime: 5 * 1000,
+    refetchOnWindowFocus: true,
+    refetchInterval: () => {
+      return typeof navigator !== 'undefined' && navigator.onLine ? 5000 : false;
+    },
   });
 }
 
@@ -690,6 +695,17 @@ export function useManualAttendance() {
             recordedAt: new Date().toISOString(),
           });
 
+          // When marked ABSENT offline, remove homework and enqueue deletion
+          if (item.status === 'ABSENT') {
+            await offlineDb.deleteHomeworkForSessionStudent(sessionId, item.studentId);
+            await syncEngine.enqueue(
+              'attendance',
+              `/attendance/sessions/${sessionId}/homework/${item.studentId}`,
+              'DELETE',
+              { sessionId, studentId: item.studentId },
+            );
+          }
+
           await syncEngine.enqueue(
             'attendance',
             API_ENDPOINTS.ATTENDANCE.MANUAL(sessionId),
@@ -704,9 +720,33 @@ export function useManualAttendance() {
           );
         }
 
+        // Handle unchecked / removed attendance students offline
+        if (payload.removedStudentIds && payload.removedStudentIds.length > 0) {
+          for (const studentId of payload.removedStudentIds) {
+            await offlineDb.revertAttendanceRecordOffline(sessionId, studentId);
+            await offlineDb.deleteHomeworkForSessionStudent(sessionId, studentId);
+            await syncEngine.enqueue(
+              'attendance',
+              `/attendance/sessions/${sessionId}/records/${studentId}`,
+              'DELETE',
+              { sessionId, studentId },
+            );
+            await syncEngine.enqueue(
+              'attendance',
+              `/attendance/sessions/${sessionId}/homework/${studentId}`,
+              'DELETE',
+              { sessionId, studentId },
+            );
+          }
+          updatedReport = await offlineDb.getSessionReport(sessionId);
+        }
+
         if (updatedReport) {
           queryClient.setQueryData(['sessions', sessionId, 'report'], updatedReport);
         }
+
+        queryClient.invalidateQueries({ queryKey: ['sessions', sessionId, 'report'] });
+        queryClient.invalidateQueries({ queryKey: ['homework-records', sessionId] });
 
         return {
           success: true,
@@ -715,10 +755,24 @@ export function useManualAttendance() {
         };
       }
 
+      // Online mode: keep local offline DB immediately in sync
+      if (payload.removedStudentIds && payload.removedStudentIds.length > 0) {
+        for (const studentId of payload.removedStudentIds) {
+          await offlineDb.revertAttendanceRecordOffline(sessionId, studentId).catch(() => {});
+          await offlineDb.deleteHomeworkForSessionStudent(sessionId, studentId).catch(() => {});
+        }
+      }
+      for (const item of payload.records) {
+        if (item.status === 'ABSENT') {
+          await offlineDb.deleteHomeworkForSessionStudent(sessionId, item.studentId).catch(() => {});
+        }
+      }
+
       return recordManualBatch(sessionId, payload);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['sessions', variables.sessionId, 'report'] });
+      queryClient.invalidateQueries({ queryKey: ['homework-records', variables.sessionId] });
       queryClient.invalidateQueries({ queryKey: ['groups'] });
     },
   });

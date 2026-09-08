@@ -28,7 +28,5 @@ export function initQrDetector() {
   }
 }
 
-// Auto-run in browser context on module load
-if (typeof window !== 'undefined') {
-  initQrDetector();
-}
+// QR detector is initialized on-demand by scanner components that call initQrDetector()
+// to avoid eagerly loading the 1MB+ ZXing WASM module on every page.

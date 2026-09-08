@@ -1,11 +1,17 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import NextImage from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, PlayCircle, Lock, ChevronDown, X, BookOpen, Clock, Users, FileText, ClipboardList } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
+import { useAuthStore } from '@/features/auth/store/auth.store';
+import { getRoleLandingRoute } from '@/features/auth/utils/role-routing';
 import { submitContactMessage } from './actions';
+import { useQuery } from '@tanstack/react-query';
+import { testimonialsApi } from '@/features/testimonials/api/testimonials.api';
 
 function IntroSequence({ onComplete }: { onComplete: () => void }) {
   useEffect(() => {
@@ -27,11 +33,12 @@ function IntroSequence({ onComplete }: { onComplete: () => void }) {
 
       {/* Subtle Grid or Stars effect */}
       <motion.div
-        className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"
+        className="absolute inset-0 bg-[url('/noise.svg')] opacity-20 mix-blend-overlay"
         initial={{ opacity: 0 }}
         animate={{ opacity: 0.15 }}
         transition={{ duration: 1 }}
       />
+      {/* Intro — above-the-fold LCP companion, kept local to avoid extra requests */}
 
       <div className="z-10 text-center px-4 flex flex-col items-center">
         {/* Logo/Icon */}
@@ -73,6 +80,7 @@ function IntroSequence({ onComplete }: { onComplete: () => void }) {
 function Navbar() {
   const [isLoginDropdownOpen, setIsLoginDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { user, isAuthenticated, isInitialized } = useAuthStore();
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -120,73 +128,217 @@ function Navbar() {
 
         {/* CTA Buttons */}
         <div className="flex items-center gap-2 sm:gap-3">
-          <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={() => setIsLoginDropdownOpen(!isLoginDropdownOpen)}
-              className="text-slate-600 font-bold hover:text-slate-900 transition-colors px-2 sm:px-4 py-2 flex items-center gap-1 text-sm sm:text-base"
+          {isInitialized && isAuthenticated && user ? (
+            <Link
+              href={getRoleLandingRoute(user.role)}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-sm sm:text-base transition-all shadow-md shadow-blue-500/20 flex items-center gap-2 active:scale-95"
             >
-              تسجيل الدخول
-              <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform duration-200 ${isLoginDropdownOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-            </button>
+              <span>لوحة التحكم ({user.fullName ? user.fullName.split(' ')[0] : 'حسابي'})</span>
+              <ArrowRight className="w-4 h-4 rotate-180" />
+            </Link>
+          ) : (
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => setIsLoginDropdownOpen(!isLoginDropdownOpen)}
+                className="text-slate-600 font-bold hover:text-slate-900 transition-colors px-2 sm:px-4 py-2 flex items-center gap-1 text-sm sm:text-base"
+              >
+                تسجيل الدخول
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform duration-200 ${isLoginDropdownOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
 
-            <AnimatePresence>
-              {isLoginDropdownOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  transition={{ duration: 0.15, ease: "easeOut" }}
-                  className="absolute left-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden"
-                >
-                  <div className="py-1">
-                    <a href="/login" className="block px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors">
-                      دخول كطالب
-                    </a>
-                    <a href="/login" className="block px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors">
-                      دخول كمدرس
-                    </a>
-                    <a href="/parent-access" className="block px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors border-t border-slate-100">
-                      دخول كولي أمر
-                    </a>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+              <AnimatePresence>
+                {isLoginDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    className="absolute left-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden"
+                  >
+                    <div className="py-1">
+                      <Link href="/login" className="block px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors">
+                        دخول كطالب
+                      </Link>
+                      <Link href="/login" className="block px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors">
+                        دخول كمدرس / مساعد
+                      </Link>
+                      <Link href="/parent-access" className="block px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors border-t border-slate-100">
+                        دخول كولي أمر
+                      </Link>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
         </div>
       </div>
     </motion.nav>
   );
 }
 
-function HeroImageSequence() {
-  const [frameIndex, setFrameIndex] = useState(0);
-  const totalFrames = 22;
+const HERO_FRAME_COUNT = 22;
+const HERO_FRAME_DURATION_MS = 150;
+let cachedHeroFrames: HTMLImageElement[] | null = null;
+let heroFramesLoadPromise: Promise<HTMLImageElement[]> | null = null;
 
-  useEffect(() => {
-    // Preload images to avoid flickering
-    for (let i = 0; i < totalFrames; i++) {
-      const img = new Image();
-      img.src = `/hero-animation/frame_${String(i).padStart(6, '0')}.webp`;
+function loadSingleHeroFrame(index: number): Promise<HTMLImageElement | null> {
+  return new Promise<HTMLImageElement | null>((resolve) => {
+    const image = new Image();
+    image.decoding = 'async';
+    // Decorative frames must never out-prioritize LCP
+    (image as any).fetchPriority = 'low';
+    image.onload = () => {
+      resolve(image);
+    };
+    image.onerror = () => {
+      resolve(null);
+    };
+    image.src = `/hero-animation/frame_${String(index).padStart(6, '0')}.webp`;
+  });
+}
+
+function loadHeroFramesOnce(): Promise<HTMLImageElement[]> {
+  if (cachedHeroFrames) return Promise.resolve(cachedHeroFrames);
+  if (heroFramesLoadPromise) return heroFramesLoadPromise;
+
+  // Load in small batches (concurrency 3) instead of 22 parallel requests,
+  // so the animation never saturates bandwidth needed by critical resources.
+  const CONCURRENCY = 3;
+  heroFramesLoadPromise = (async () => {
+    const results: (HTMLImageElement | null)[] = new Array(HERO_FRAME_COUNT).fill(null);
+    for (let start = 0; start < HERO_FRAME_COUNT; start += CONCURRENCY) {
+      const batch = Array.from(
+        { length: Math.min(CONCURRENCY, HERO_FRAME_COUNT - start) },
+        (_, offset) => start + offset,
+      );
+      const loaded = await Promise.all(batch.map((index) => loadSingleHeroFrame(index)));
+      loaded.forEach((image, offset) => {
+        results[start + offset] = image;
+      });
     }
-  }, []);
+    cachedHeroFrames = results.filter((frame): frame is HTMLImageElement => frame !== null);
+    return cachedHeroFrames;
+  })();
+
+  return heroFramesLoadPromise;
+}
+
+function HeroImageSequence() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    const intervalId = setInterval(() => {
-      setFrameIndex((prev) => (prev + 1) % totalFrames);
-    }, 150); // ~6.6 FPS for an even slower animation
-    return () => clearInterval(intervalId);
+    let isActive = true;
+    let animationFrameId: number | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+    let currentFrameIndex = 0;
+    let lastFrameTime = 0;
+    let frames: HTMLImageElement[] = [];
+
+    const drawFrame = () => {
+      const canvas = canvasRef.current;
+      const image = frames[currentFrameIndex];
+      if (!canvas || !image) return;
+
+      const context = canvas.getContext('2d');
+      if (!context) return;
+
+      const bounds = canvas.getBoundingClientRect();
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      const targetWidth = Math.max(1, Math.round(bounds.width * pixelRatio));
+      const targetHeight = Math.max(1, Math.round(bounds.height * pixelRatio));
+
+      if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+      }
+
+      const scale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
+      const drawWidth = image.naturalWidth * scale;
+      const drawHeight = image.naturalHeight * scale;
+      const offsetX = (canvas.width - drawWidth) / 2;
+      const offsetY = (canvas.height - drawHeight) / 2;
+
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+    };
+
+    const animate = (timestamp: number) => {
+      if (!isActive) return;
+      if (timestamp - lastFrameTime >= HERO_FRAME_DURATION_MS) {
+        currentFrameIndex = (currentFrameIndex + 1) % frames.length;
+        lastFrameTime = timestamp;
+        drawFrame();
+      }
+      animationFrameId = window.requestAnimationFrame(animate);
+    };
+
+    // Defer decorative hero frames until AFTER the page is fully loaded
+    // (window 'load' = LCP/TTI done) + browser idle, so the 22 WebP frames
+    // never compete with the LCP image, JS or CSS on first paint.
+    const startLoading = () => {
+      const run = () => {
+        if (!isActive) return;
+        loadHeroFramesOnce().then((loadedFrames) => {
+          if (!isActive) return;
+          frames = loadedFrames;
+          if (frames.length === 0) return;
+
+          drawFrame();
+          lastFrameTime = performance.now();
+          if (canvasRef.current && typeof ResizeObserver !== 'undefined') {
+            resizeObserver = new ResizeObserver(drawFrame);
+            resizeObserver.observe(canvasRef.current);
+          }
+          animationFrameId = window.requestAnimationFrame(animate);
+        });
+      };
+      const scheduleIdle = () => {
+        if (!isActive) return;
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in (window as any)) {
+          (window as any).requestIdleCallback(run, { timeout: 5000 });
+        } else {
+          setTimeout(run, 2500);
+        }
+      };
+      // If the page already finished loading, just wait for idle.
+      // Otherwise wait for window.onload first, then idle.
+      if (typeof document !== 'undefined' && document.readyState === 'complete') {
+        scheduleIdle();
+      } else if (typeof window !== 'undefined') {
+        let loadFired = false;
+        const onLoad = () => {
+          loadFired = true;
+          window.removeEventListener('load', onLoad);
+          scheduleIdle();
+        };
+        window.addEventListener('load', onLoad, { once: true });
+        // Safety fallback: if 'load' is delayed (slow third-party), start anyway after 6s
+        setTimeout(() => {
+          if (!loadFired && isActive) {
+            window.removeEventListener('load', onLoad);
+            scheduleIdle();
+          }
+        }, 6000);
+      } else {
+        setTimeout(run, 2500);
+      }
+    };
+
+    startLoading();
+
+    return () => {
+      isActive = false;
+      resizeObserver?.disconnect();
+      if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId);
+    };
   }, []);
 
   return (
-    <div className="absolute inset-0 z-0 opacity-10">
-      <img
-        src={`/hero-animation/frame_${String(frameIndex).padStart(6, '0')}.webp`}
-        alt="خلفية متحركة"
-        className="w-full h-full object-cover"
-      />
+    <div className="absolute inset-0 z-0 pointer-events-none">
+      <canvas ref={canvasRef} className="block w-full h-full opacity-10" aria-hidden="true" />
     </div>
   );
 }
@@ -215,7 +367,9 @@ function HeroSection() {
         >
           <div className="relative w-full max-w-[350px] lg:max-w-[500px] h-[350px] lg:h-[500px] flex items-end justify-center mt-10 lg:mt-0">
 
-            {/* The Cutout Image with Bottom Fade */}
+            {/* The Cutout Image with Bottom Fade — LCP element:
+                next/image generates responsive sizes (no more 1536px download)
+                and `priority` injects a <link rel="preload"> in <head>. */}
             <div
               className="relative w-full h-full z-10 flex items-end justify-center"
               style={{
@@ -223,9 +377,14 @@ function HeroSection() {
                 maskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 60%, rgba(0,0,0,0) 100%)'
               }}
             >
-              <img
+              <NextImage
                 src="/teacher-photo.webp"
-                alt="صورة الأستاذ"
+                alt="صورة الأستاذ أحمد غريب"
+                width={450}
+                height={450}
+                priority
+                fetchPriority="high"
+                sizes="(max-width: 768px) 100vw, 450px"
                 className="w-full h-full object-cover object-top drop-shadow-2xl rounded-t-[3rem]"
               />
             </div>
@@ -776,6 +935,8 @@ function CoursesSection() {
                     <img
                       src={course.coverImageUrl}
                       alt={course.title}
+                      loading="lazy"
+                      decoding="async"
                       className="absolute inset-0 w-full h-full object-cover"
                       onError={(event) => {
                         event.currentTarget.style.display = 'none';
@@ -785,7 +946,7 @@ function CoursesSection() {
                   {course.coverImageUrl && (
                     <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-black/20" />
                   )}
-                  <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
+                  <div className="absolute inset-0 bg-[url('/noise.svg')] opacity-20 mix-blend-overlay"></div>
                   
                   {course.hasFreeVideo && course.freeVideoUrl ? (
                      <div 
@@ -950,7 +1111,10 @@ function CenterScheduleSection() {
           <div className="border-b border-slate-100 bg-slate-100/50 p-4">
             {/* Mobile Dropdown */}
             <div className="sm:hidden block w-full relative">
+              <label htmlFor="stage-select" className="sr-only">اختر المرحلة الدراسية</label>
               <select
+                id="stage-select"
+                aria-label="اختر المرحلة الدراسية"
                 value={selectedStage}
                 onChange={(e) => handleStageChange(e.target.value)}
                 className="w-full appearance-none bg-white border border-slate-200 text-slate-900 font-bold py-3 pr-4 pl-10 rounded-xl outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all shadow-sm"
@@ -1035,7 +1199,7 @@ function CenterScheduleSection() {
                           </svg>
                         </div>
                         <div className="flex-1">
-                          <h4 className="text-xl font-bold text-slate-900 mb-4">{item.center}</h4>
+                          <h3 className="text-xl font-bold text-slate-900 mb-4">{item.center}</h3>
                           <div className="space-y-3">
                             <div className="flex items-center gap-3 text-slate-600 font-medium">
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1073,31 +1237,15 @@ function CenterScheduleSection() {
   );
 }
 
-const TESTIMONIALS = [
-  {
-    id: 1,
-    name: 'أحمد محمود',
-    role: 'طالب - الصف الثالث الثانوي',
-    content: 'بصراحة منصة الأول غيرت مفهومي عن الرياضيات، الشرح مبسط جداً والأسئلة والامتحانات بتغطي كل أفكار المنهج والنظام الجديد.',
-    rating: 5
-  },
-  {
-    id: 2,
-    name: 'سارة خالد',
-    role: 'طالبة - الصف الثاني الثانوي',
-    content: 'المتابعة هنا ممتازة، وأكثر شيء يعجبني هو سرعة الرد على الأسئلة وتوافر مذكرات وملخصات بتسهل علينا المراجعة قبل الامتحان.',
-    rating: 5
-  },
-  {
-    id: 3,
-    name: 'عمر طارق',
-    role: 'طالب - الصف الأول الثانوي',
-    content: 'شرح الأستاذ أحمد غريب ممتاز، بيعرف يبسط المعلومة الصعبة، ومنصة الأول فيها فيديوهات بجودة عالية وبنك أسئلة رائع.',
-    rating: 5
-  }
-];
-
 function TestimonialsSection() {
+  const { data: testimonials = [] } = useQuery({
+    queryKey: ['public-testimonials'],
+    queryFn: testimonialsApi.getPublic,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  if (testimonials.length === 0) return null;
+
   return (
     <section className="py-24 bg-white relative overflow-hidden" id="testimonials" dir="rtl">
       <div className="absolute top-0 right-0 w-full h-full overflow-hidden pointer-events-none z-0 opacity-40">
@@ -1133,7 +1281,7 @@ function TestimonialsSection() {
               duration: 15,
             }}
           >
-            {[...TESTIMONIALS, ...TESTIMONIALS].map((testimonial, index) => (
+            {[...testimonials, ...testimonials].map((testimonial, index) => (
               <div
                 key={`${testimonial.id}-${index}`}
                 className="bg-slate-50 rounded-3xl p-8 border border-slate-100 relative shrink-0 w-[85vw] sm:w-[350px]"
@@ -1145,8 +1293,8 @@ function TestimonialsSection() {
                 </div>
 
                 <div className="mb-6 relative z-10">
-                  <h4 className="font-bold text-slate-900 text-lg">{testimonial.name}</h4>
-                  <p className="text-sm text-slate-500 font-medium">{testimonial.role}</p>
+                  <h3 className="font-bold text-slate-900 text-lg">{testimonial.firstName}</h3>
+                  {testimonial.gradeLevel && <p className="text-sm text-slate-500 font-medium mt-1">{testimonial.gradeLevel}</p>}
                 </div>
 
                 <div className="flex gap-1 mb-4 relative z-10">
@@ -1167,7 +1315,7 @@ function TestimonialsSection() {
 
         {/* Desktop View: Grid */}
         <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {TESTIMONIALS.map((testimonial, index) => (
+          {testimonials.map((testimonial, index) => (
             <motion.div
               key={testimonial.id}
               initial={{ opacity: 0, y: 30 }}
@@ -1183,8 +1331,8 @@ function TestimonialsSection() {
               </div>
 
               <div className="mb-6 relative z-10">
-                <h4 className="font-bold text-slate-900 text-lg">{testimonial.name}</h4>
-                <p className="text-sm text-slate-500 font-medium">{testimonial.role}</p>
+                <h3 className="font-bold text-slate-900 text-lg">{testimonial.firstName}</h3>
+                {testimonial.gradeLevel && <p className="text-sm text-slate-500 font-medium mt-1">{testimonial.gradeLevel}</p>}
               </div>
 
               <div className="flex gap-1 mb-4 relative z-10">
@@ -1430,6 +1578,8 @@ function CertificatesSection() {
                         <img
                           src={cert.image}
                           alt={cert.title}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
@@ -1456,36 +1606,174 @@ function CertificatesSection() {
   );
 }
 
-function AboutUsSection() {
-  const [currentBg, setCurrentBg] = useState(1);
-  const totalImages = 30;
+const ABOUT_IMAGE_COUNT = 32;
+const ABOUT_IMAGE_DURATION_MS = 3500;
+const ABOUT_IMAGE_BASE_URL = '/about-us';
+let cachedAboutImages: HTMLImageElement[] | null = null;
+let aboutImagesLoadPromise: Promise<HTMLImageElement[]> | null = null;
+
+function loadSingleAboutImage(index: number): Promise<HTMLImageElement | null> {
+  return new Promise<HTMLImageElement | null>((resolve) => {
+    const image = new Image();
+    image.decoding = 'async';
+    // Hint: only the first image is critical, the rest are background slideshow frames
+    if (index > 2) (image as any).fetchPriority = 'low';
+    image.onload = () => {
+      resolve(image);
+    };
+    image.onerror = () => {
+      resolve(null);
+    };
+    image.src = `${ABOUT_IMAGE_BASE_URL}/${index + 1}.webp`;
+  });
+}
+
+function loadAboutImagesOnce(): Promise<HTMLImageElement[]> {
+  if (cachedAboutImages) return Promise.resolve(cachedAboutImages);
+  if (aboutImagesLoadPromise) return aboutImagesLoadPromise;
+
+  // Load only the first 3 images upfront so the section paints fast,
+  // then stream the rest in the background one-by-one.
+  const loadRestInBackground = (first: (HTMLImageElement | null)[]) => {
+    const rest = Array.from({ length: ABOUT_IMAGE_COUNT - 3 }, (_, i) => i + 3);
+    let chain = Promise.resolve();
+    rest.forEach((index) => {
+      chain = chain
+        .then(() => loadSingleAboutImage(index))
+        .then((img) => {
+          if (img && cachedAboutImages) cachedAboutImages.push(img);
+        });
+    });
+    return chain;
+  };
+
+  aboutImagesLoadPromise = Promise.all([0, 1, 2].map(loadSingleAboutImage)).then((first) => {
+    cachedAboutImages = first.filter((image): image is HTMLImageElement => image !== null);
+    // Don't block the caller on the rest — load them lazily
+    if (typeof window !== 'undefined') {
+      const kickOff = () => loadRestInBackground(first);
+      if ('requestIdleCallback' in (window as any)) {
+        (window as any).requestIdleCallback(kickOff, { timeout: 8000 });
+      } else {
+        setTimeout(kickOff, 3000);
+      }
+    }
+    return cachedAboutImages;
+  });
+
+  return aboutImagesLoadPromise;
+}
+
+function AboutBackgroundSequence() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [hasImages, setHasImages] = useState(false);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentBg((prev) => (prev % totalImages) + 1);
-    }, 3500);
-    return () => clearInterval(interval);
+    let isActive = true;
+    let intervalId: number | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+    let images: HTMLImageElement[] = [];
+    let currentImageIndex = 0;
+
+    const drawCurrentImage = () => {
+      const canvas = canvasRef.current;
+      const image = images[currentImageIndex];
+      if (!canvas || !image) return;
+
+      const context = canvas.getContext('2d');
+      if (!context) return;
+
+      const bounds = canvas.getBoundingClientRect();
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      const targetWidth = Math.max(1, Math.round(bounds.width * pixelRatio));
+      const targetHeight = Math.max(1, Math.round(bounds.height * pixelRatio));
+      if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+      }
+
+      // Full-screen cover — fills the entire frame, no bars.
+      // Face-aware anchor: faces sit ~30% down the photo, so pin that point
+      // near the top of the frame instead of center-cropping (which cut heads off).
+      const scale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
+      const drawWidth = image.naturalWidth * scale;
+      const drawHeight = image.naturalHeight * scale;
+      const offsetX = (canvas.width - drawWidth) / 2;
+      let offsetY = canvas.height * 0.35 - drawHeight * 0.3;
+      // Clamp so the image always covers the canvas
+      offsetY = Math.min(0, Math.max(canvas.height - drawHeight, offsetY));
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+    };
+
+    // Only start loading the local slideshow when the About section is near
+    // the viewport — it's far below the fold and must not load on first paint.
+    let observer: IntersectionObserver | null = null;
+    const boot = () => {
+      loadAboutImagesOnce().then((loadedImages) => {
+        if (!isActive) return;
+        images = loadedImages;
+        if (images.length === 0) return;
+        setHasImages(true);
+
+        drawCurrentImage();
+        if (canvasRef.current && typeof ResizeObserver !== 'undefined') {
+          resizeObserver = new ResizeObserver(drawCurrentImage);
+          resizeObserver.observe(canvasRef.current);
+        }
+        intervalId = window.setInterval(() => {
+          if (images.length === 0) return;
+          currentImageIndex = (currentImageIndex + 1) % images.length;
+          drawCurrentImage();
+        }, ABOUT_IMAGE_DURATION_MS);
+      });
+    };
+
+    const canvasEl = canvasRef.current;
+    if (canvasEl && typeof IntersectionObserver !== 'undefined') {
+      observer = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((e) => e.isIntersecting)) {
+            boot();
+            observer?.disconnect();
+          }
+        },
+        { rootMargin: '800px' },
+      );
+      observer.observe(canvasEl);
+    } else {
+      boot();
+    }
+
+    return () => {
+      isActive = false;
+      resizeObserver?.disconnect();
+      observer?.disconnect();
+      if (intervalId !== null) window.clearInterval(intervalId);
+    };
   }, []);
 
   return (
+    <div className="absolute inset-0 z-0 bg-slate-900 overflow-hidden">
+      {/* Always-on premium gradient fallback — visible instantly while local images load */}
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900" aria-hidden="true" />
+      <div className="absolute -top-[20%] -right-[10%] w-[60%] h-[60%] rounded-full bg-blue-600/20 blur-[120px]" aria-hidden="true" />
+      <div className="absolute bottom-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-600/15 blur-[120px]" aria-hidden="true" />
+      <div className="absolute inset-0 bg-[url('/noise.svg')] opacity-20 mix-blend-overlay" aria-hidden="true" />
+      <canvas
+        ref={canvasRef}
+        className={`block w-full h-full absolute inset-0 transition-opacity duration-1000 ${hasImages ? 'opacity-100' : 'opacity-0'}`}
+        aria-hidden="true"
+      />
+      <div className="absolute inset-0 bg-slate-900/50" />
+    </div>
+  );
+}
+
+function AboutUsSection() {
+  return (
     <section className="pt-16 sm:pt-24 relative overflow-hidden flex flex-col min-h-[85vh] sm:min-h-[80vh]" id="about" dir="rtl">
-      {/* Background Slideshow */}
-      <div className="absolute inset-0 z-0 bg-slate-900">
-        <AnimatePresence mode="popLayout">
-          <motion.img
-            key={currentBg}
-            src={`https://pub-e729d46cf5fd4798932ccae48f7361ef.r2.dev/about_us/${currentBg}.webp`}
-            alt="About us background"
-            className="absolute inset-0 w-full h-full object-cover"
-            initial={{ opacity: 0, scale: 1.05 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1.5, ease: "easeInOut" }}
-          />
-        </AnimatePresence>
-        {/* Dark overlay for readability */}
-        <div className="absolute inset-0 bg-slate-900/50" />
-      </div>
+      <AboutBackgroundSequence />
 
       {/* Content */}
       <div className="container mx-auto px-4 sm:px-6 relative z-10 w-full flex flex-col flex-1 justify-between h-full">
@@ -1642,7 +1930,7 @@ function ContactUsSection() {
                 </svg>
               </div>
               <div>
-                <h4 className="font-bold text-slate-900 text-lg mb-1">رقم الهاتف</h4>
+                <h3 className="font-bold text-slate-900 text-lg mb-1">رقم الهاتف</h3>
                 <p className="text-slate-600" dir="ltr">012 2130 1224</p>
               </div>
             </div>
@@ -1655,7 +1943,7 @@ function ContactUsSection() {
                 </svg>
               </div>
               <div>
-                <h4 className="font-bold text-slate-900 text-lg mb-1">واتساب</h4>
+                <h3 className="font-bold text-slate-900 text-lg mb-1">واتساب</h3>
                 <p className="text-slate-600" dir="ltr">010 2190 2000</p>
               </div>
             </div>
@@ -1669,7 +1957,7 @@ function ContactUsSection() {
                 </svg>
               </div>
               <div>
-                <h4 className="font-bold text-slate-900 text-lg mb-1">العنوان</h4>
+                <h3 className="font-bold text-slate-900 text-lg mb-1">العنوان</h3>
                 <p className="text-slate-600">سنتر العدليه - دمياط</p>
                 <p className="text-slate-600 mt-1">سنتر البستان - دمياط</p>
               </div>
@@ -1716,6 +2004,8 @@ function FooterSection() {
 }
 
 export default function RootPage() {
+  const router = useRouter();
+  const { user, isAuthenticated, isInitialized } = useAuthStore();
   const [showIntro, setShowIntro] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -1723,7 +2013,21 @@ export default function RootPage() {
     setIsMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (isMounted && isInitialized && isAuthenticated && user) {
+      router.replace(getRoleLandingRoute(user.role));
+    }
+  }, [isMounted, isInitialized, isAuthenticated, user, router]);
+
   if (!isMounted) return <div className="min-h-screen bg-[#0a0f1c]" />;
+
+  if (isInitialized && isAuthenticated && user) {
+    return (
+      <div className="min-h-screen bg-[#0a0f1c] flex items-center justify-center text-slate-300 text-sm" dir="rtl">
+        جاري توجيهك إلى لوحة التحكم...
+      </div>
+    );
+  }
 
   return (
     <main>
@@ -1740,8 +2044,8 @@ export default function RootPage() {
           transition={{ duration: 1, delay: 0.2 }}
         >
           <HeroSection />
-          <CoursesSection />
           <CenterScheduleSection />
+          <CoursesSection />
           <TestimonialsSection />
           <CertificatesSection />
           <AboutUsSection />

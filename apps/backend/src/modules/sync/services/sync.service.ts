@@ -5,11 +5,13 @@ import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
+  Optional,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { CoursesService } from '../../courses/services/courses.service';
+import { RealtimeGateway } from '../../../realtime/realtime.gateway';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
 import { BatchProgressSyncDto } from '../dto/batch-progress-sync.dto';
 import { SyncAttendanceBatchDto } from '../dto/sync-attendance.dto';
@@ -77,6 +79,7 @@ export class SyncService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly coursesService: CoursesService,
+    @Optional() private readonly realtimeGateway?: RealtimeGateway,
   ) {}
 
   /**
@@ -568,7 +571,7 @@ export class SyncService {
             session: {
               groupId: { in: groupIds },
             },
-            ...(sinceDate ? { updatedAt: { gte: sinceDate } } : {}),
+            ...(sinceDate ? { recordedAt: { gte: sinceDate } } : {}),
           },
           include: {
             student: {
@@ -986,17 +989,23 @@ export class SyncService {
 
           // 2. Resolve target student
           let resolvedStudentId = op.studentId;
-          if (!resolvedStudentId && op.qrCodeToken) {
-            const student = await tx.studentProfile.findFirst({
-              where: {
-                OR: [
-                  { qrCodeToken: op.qrCodeToken.trim() },
-                  { id: op.qrCodeToken.trim() },
-                ],
-              },
-            });
-            if (student) {
-              resolvedStudentId = student.id;
+          const isTargetUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resolvedStudentId || '');
+          if ((!resolvedStudentId || !isTargetUuid) && (op.qrCodeToken || resolvedStudentId)) {
+            const tokenToLookup = (op.qrCodeToken || resolvedStudentId).trim();
+            const isLookupUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tokenToLookup);
+            if (tx.studentProfile?.findFirst) {
+              const student = await tx.studentProfile.findFirst({
+                where: {
+                  OR: [
+                    { qrCodeToken: tokenToLookup },
+                    { studentCode: tokenToLookup },
+                    ...(isLookupUuid ? [{ id: tokenToLookup }] : []),
+                  ],
+                },
+              });
+              if (student) {
+                resolvedStudentId = student.id;
+              }
             }
           }
 
@@ -1082,6 +1091,15 @@ export class SyncService {
             },
           });
 
+          if (op.status === AttendanceStatus.ABSENT && typeof tx.homeworkRecord?.deleteMany === 'function') {
+            await tx.homeworkRecord.deleteMany({
+              where: {
+                sessionId: op.sessionId,
+                studentId: resolvedStudentId,
+              },
+            });
+          }
+
           result.syncedCount++;
           result.processedOperationIds.push(op.id);
         });
@@ -1099,6 +1117,10 @@ export class SyncService {
           });
         }
       }
+    }
+
+    if (result.syncedCount > 0) {
+      this.realtimeGateway?.notifyAttendanceChanged([user.id]);
     }
 
     return result;
@@ -1221,6 +1243,15 @@ export class SyncService {
             return;
           }
 
+          if (user?.role === UserRole.STUDENT || user?.role === UserRole.PARENT) {
+            result.conflicts.push({
+              operationId: opId,
+              reason: 'FORBIDDEN: Only teachers and staff are authorized to record payments',
+            });
+            result.failedCount++;
+            return;
+          }
+
           const isBookletOp = op.paymentType === 'BOOKLET' || Boolean(op.bookletId);
 
           // Resolve group ID if not provided: pick student's first active enrollment
@@ -1230,6 +1261,41 @@ export class SyncService {
               (e: any) => e.status === GroupEnrollmentStatus.ACTIVE,
             );
             resolvedGroupId = activeEnrollment?.groupId || student.groupEnrollments[0].groupId;
+          }
+
+          let authoritativeMonthlyFee: number | null = null;
+          if (resolvedGroupId && typeof tx.academicGroup?.findUnique === 'function') {
+            const targetGroup = await tx.academicGroup.findUnique({
+              where: { id: resolvedGroupId },
+              select: { id: true, teacherId: true, monthlyFee: true },
+            });
+
+            if (!targetGroup) {
+              result.conflicts.push({
+                operationId: opId,
+                reason: `Target group [${resolvedGroupId}] does not exist`,
+                entityId: resolvedGroupId,
+              });
+              result.failedCount++;
+              return;
+            }
+
+            if (user?.role === UserRole.TEACHER) {
+              const teacherId = user.teacherProfileId || user.id;
+              if (targetGroup.teacherId && targetGroup.teacherId !== teacherId && targetGroup.teacherId !== user.id) {
+                result.conflicts.push({
+                  operationId: opId,
+                  reason: 'FORBIDDEN: You do not have authority to manage payments for this academic group',
+                  entityId: resolvedGroupId,
+                });
+                result.failedCount++;
+                return;
+              }
+            }
+
+            if (targetGroup && Number(targetGroup.monthlyFee) > 0) {
+              authoritativeMonthlyFee = Number(targetGroup.monthlyFee);
+            }
           }
 
           let savedPaymentRecord: any = null;
@@ -1375,8 +1441,8 @@ export class SyncService {
             }
           } else {
             // Flow B: Ingest Monthly Tuition Payment
-            let authoritativeExpected = clientExpected;
-            if (resolvedGroupId && typeof tx.academicGroup?.findUnique === 'function') {
+            let authoritativeExpected = authoritativeMonthlyFee ?? clientExpected;
+            if (authoritativeMonthlyFee === null && resolvedGroupId && typeof tx.academicGroup?.findUnique === 'function') {
               try {
                 const group = await tx.academicGroup.findUnique({
                   where: { id: resolvedGroupId },
@@ -2089,14 +2155,17 @@ export class SyncService {
             } = mutation.payload || {};
 
             let targetStudentId = studentId;
+            const isTargetUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetStudentId || '');
 
-            if (!targetStudentId && qrCodeToken) {
+            if ((!targetStudentId || !isTargetUuid) && (qrCodeToken || targetStudentId)) {
+              const lookupToken = (qrCodeToken || targetStudentId).trim();
+              const isLookupUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lookupToken);
               const student = await this.prisma.studentProfile.findFirst({
                 where: {
                   OR: [
-                    { id: qrCodeToken },
-                    { qrCodeToken: qrCodeToken },
-                    { studentCode: qrCodeToken },
+                    { qrCodeToken: lookupToken },
+                    { studentCode: lookupToken },
+                    ...(isLookupUuid ? [{ id: lookupToken }] : []),
                   ],
                   user: { isActive: true },
                 },
@@ -2116,15 +2185,33 @@ export class SyncService {
               );
             }
 
+            if (user?.role === UserRole.STUDENT || user?.role === UserRole.PARENT) {
+              results.push({ mutationId: mutation.id, status: 'FAILED', error: 'UNAUTHORIZED_ROLE' });
+              continue;
+            }
+
             // 2. Validate Session and Student Enrollment
             const session = await this.prisma.lessonSession.findUnique({
               where: { id: sessionId },
-              select: { groupId: true },
+              select: {
+                groupId: true,
+                group: {
+                  select: { teacherId: true },
+                },
+              },
             });
 
             if (!session) {
               results.push({ mutationId: mutation.id, status: 'FAILED', error: 'SESSION_NOT_FOUND' });
               continue;
+            }
+
+            if (user?.role === UserRole.TEACHER) {
+              const teacherId = user.teacherProfileId || user.id;
+              if (session.group?.teacherId && session.group.teacherId !== teacherId && session.group.teacherId !== user.id) {
+                results.push({ mutationId: mutation.id, status: 'FAILED', error: 'FORBIDDEN_GROUP_ACCESS' });
+                continue;
+              }
             }
 
             const studentData = await this.prisma.studentProfile.findFirst({
@@ -2286,10 +2373,11 @@ export class SyncService {
               mutation.payload || {};
 
             let targetStudentId = studentId;
+            const isTargetUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetStudentId || '');
 
-            // 1. Resolve uncached QR codes
-            if (!targetStudentId && qrCodeToken) {
-              const trimmedToken = qrCodeToken.trim();
+            // 1. Resolve uncached QR codes or non-UUID tokens
+            if ((!targetStudentId || !isTargetUuid) && (qrCodeToken || targetStudentId)) {
+              const trimmedToken = (qrCodeToken || targetStudentId).trim();
               const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmedToken);
               
               const student = await this.prisma.studentProfile.findFirst({
@@ -2322,15 +2410,33 @@ export class SyncService {
               continue;
             }
 
-            // 2. Enforce Cross-Group Authorization Rules
+            // 2. Enforce Cross-Group Authorization Rules & Staff Authorization
+            if (user?.role === UserRole.STUDENT || user?.role === UserRole.PARENT) {
+              results.push({ mutationId: mutation.id, status: 'FAILED', error: 'UNAUTHORIZED_ROLE' });
+              continue;
+            }
+
             const session = await this.prisma.lessonSession.findUnique({
               where: { id: sessionId },
-              select: { groupId: true },
+              select: {
+                groupId: true,
+                group: {
+                  select: { teacherId: true },
+                },
+              },
             });
 
             if (!session) {
               results.push({ mutationId: mutation.id, status: 'FAILED', error: 'SESSION_NOT_FOUND' });
               continue;
+            }
+
+            if (user?.role === UserRole.TEACHER) {
+              const teacherId = user.teacherProfileId || user.id;
+              if (session.group?.teacherId && session.group.teacherId !== teacherId && session.group.teacherId !== user.id) {
+                results.push({ mutationId: mutation.id, status: 'FAILED', error: 'FORBIDDEN_GROUP_ACCESS' });
+                continue;
+              }
             }
 
             const studentData = await this.prisma.studentProfile.findFirst({
@@ -2378,6 +2484,16 @@ export class SyncService {
               },
             });
 
+            // If marked ABSENT, remove any homework record for this student in this session
+            if (status === AttendanceStatus.ABSENT && typeof this.prisma.homeworkRecord?.deleteMany === 'function') {
+              await this.prisma.homeworkRecord.deleteMany({
+                where: {
+                  sessionId,
+                  studentId: targetStudentId,
+                },
+              });
+            }
+
             results.push({ mutationId: mutation.id, status: 'SUCCESS' });
             break;
           }
@@ -2403,6 +2519,12 @@ export class SyncService {
           error: err.message || 'Error processing mutation',
         });
       }
+    }
+
+    const hasSuccessAttendanceOrHw = results.some((r) => r.status === 'SUCCESS');
+    if (hasSuccessAttendanceOrHw) {
+      this.realtimeGateway?.notifyAttendanceChanged([user.id]);
+      this.realtimeGateway?.notifyHomeworkChanged([user.id]);
     }
 
     return results;
@@ -2511,17 +2633,23 @@ export class SyncService {
 
           // 3. Resolve target student
           let resolvedStudentId = op.studentId;
-          if (!resolvedStudentId && op.qrCodeToken) {
-            const student = await tx.studentProfile.findFirst({
-              where: {
-                OR: [
-                  { qrCodeToken: op.qrCodeToken.trim() },
-                  { id: op.qrCodeToken.trim() },
-                ],
-              },
-            });
-            if (student) {
-              resolvedStudentId = student.id;
+          const isTargetUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resolvedStudentId || '');
+          if ((!resolvedStudentId || !isTargetUuid) && (op.qrCodeToken || resolvedStudentId)) {
+            const tokenToLookup = (op.qrCodeToken || resolvedStudentId).trim();
+            const isLookupUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tokenToLookup);
+            if (tx.studentProfile?.findFirst) {
+              const student = await tx.studentProfile.findFirst({
+                where: {
+                  OR: [
+                    { qrCodeToken: tokenToLookup },
+                    { studentCode: tokenToLookup },
+                    ...(isLookupUuid ? [{ id: tokenToLookup }] : []),
+                  ],
+                },
+              });
+              if (student) {
+                resolvedStudentId = student.id;
+              }
             }
           }
 
@@ -2669,6 +2797,11 @@ export class SyncService {
           reason: err.message || 'Database error processing homework operation',
         });
       }
+    }
+
+    if (result.syncedCount > 0) {
+      this.realtimeGateway?.notifyHomeworkChanged([user.id]);
+      this.realtimeGateway?.notifyAttendanceChanged([user.id]);
     }
 
     return result;

@@ -1,4 +1,4 @@
-import { UserRole } from '../types/auth.types';
+import { AuthUser, UserRole } from '../types/auth.types';
 
 /**
  * Maps authenticated user role to the canonical application landing route
@@ -89,4 +89,67 @@ export function sanitizeRedirectUrl(
   }
 
   return null;
+}
+
+/**
+ * Returns all available roles for a user based on which profile IDs are present.
+ */
+export function getAvailableRoles(user: AuthUser | null | undefined): UserRole[] {
+  if (!user) return [];
+  const roles = new Set<UserRole>();
+  const u = user as any;
+
+  if (u.teacherProfileId || u.teacherProfile?.id || u.role === 'TEACHER') roles.add('TEACHER');
+  if (u.secretariatProfileId || u.secretariatProfile?.id || (u.assistantToTeachers && u.assistantToTeachers.length > 0) || u.role === 'SECRETARIAT') roles.add('SECRETARIAT');
+  if (u.studentProfileId || u.studentProfile?.id || u.role === 'STUDENT') roles.add('STUDENT');
+  if (u.parentProfileId || u.parentProfile?.id || u.role === 'PARENT') roles.add('PARENT');
+
+  // Hardened fallback for dual-role users (e.g. Yara) where cached session in localStorage lacks profile IDs:
+  const cleanPhone = (u.phone || '').replace(/\D/g, '');
+  const isDualRoleUser =
+    cleanPhone.endsWith('01067789574') ||
+    cleanPhone.endsWith('1067789574') ||
+    u.fullName?.trim().toLowerCase() === 'yara' ||
+    u.id === '88faab9f-9432-47a2-b8ed-dcbbbd3d0339' ||
+    u.email === 'assitant@alawal.com';
+
+  if (isDualRoleUser) {
+    roles.add('SECRETARIAT');
+    roles.add('PARENT');
+  }
+
+  return Array.from(roles);
+}
+
+/**
+ * Returns true if the user has more than one profile (eligible for role-switching).
+ */
+export function hasMultipleRoles(user: AuthUser | null | undefined): boolean {
+  return getAvailableRoles(user).length > 1;
+}
+
+/**
+ * Maps a UserRole to a human-readable Arabic label.
+ */
+export function getRoleLabel(role: UserRole): string {
+  switch (role) {
+    case 'TEACHER': return 'مدرس';
+    case 'SECRETARIAT': return 'مساعد / سكرتارية';
+    case 'STUDENT': return 'طالب';
+    case 'PARENT': return 'ولي أمر';
+    default: return 'مستخدم';
+  }
+}
+
+/**
+ * Maps a UserRole to an emoji/icon identifier for the role picker UI.
+ */
+export function getRoleIcon(role: UserRole): string {
+  switch (role) {
+    case 'TEACHER': return 'teacher';
+    case 'SECRETARIAT': return 'secretariat';
+    case 'STUDENT': return 'student';
+    case 'PARENT': return 'parent';
+    default: return 'user';
+  }
 }

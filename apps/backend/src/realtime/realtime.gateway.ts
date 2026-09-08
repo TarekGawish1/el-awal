@@ -130,4 +130,43 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       this.logger.debug(`Emitted 'course-subscriptions:changed' to user [${userId}]`);
     }
   }
+
+  /**
+   * Broadcasts a lightweight "changed" signal to the given users' private rooms.
+   * Clients listening on `attendance:changed` will invalidate session reports
+   * and trigger an immediate delta pull into IndexedDB.
+   */
+  notifyAttendanceChanged(userIds: (string | undefined)[]) {
+    if (!this.server) return;
+
+    const payload = { updatedAt: new Date().toISOString() };
+    const seen = new Set<string>();
+
+    for (const userId of userIds) {
+      if (!userId || seen.has(userId)) continue;
+      seen.add(userId);
+      this.server.to(`user:${userId}`).emit('attendance:changed', payload);
+      this.logger.debug(`Emitted 'attendance:changed' to user [${userId}]`);
+    }
+  }
+
+  /**
+   * Broadcasts a lightweight "changed" signal to the given users' private rooms.
+   * Clients listening on `homework:changed` will invalidate homework records
+   * and trigger an immediate delta pull into IndexedDB.
+   */
+  notifyHomeworkChanged(userIds: (string | undefined)[]) {
+    if (!this.server) return;
+
+    const payload = { updatedAt: new Date().toISOString() };
+    const seen = new Set<string>();
+
+    for (const userId of userIds) {
+      if (!userId || seen.has(userId)) continue;
+      seen.add(userId);
+      this.server.to(`user:${userId}`).emit('homework:changed', payload);
+      this.logger.debug(`Emitted 'homework:changed' to user [${userId}]`);
+    }
+  }
 }
+

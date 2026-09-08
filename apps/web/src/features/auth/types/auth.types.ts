@@ -63,6 +63,7 @@ export interface AuthUser {
   studentProfileId?: string;
   parentProfileId?: string;
   secretariatProfileId?: string;
+  permissions?: string[];
 }
 
 export interface AuthTokensResponse {

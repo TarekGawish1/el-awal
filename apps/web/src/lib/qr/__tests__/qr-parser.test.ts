@@ -102,6 +102,12 @@ describe('parseStudentQr', () => {
       expect(result.isValid).toBe(true);
       expect(result.studentCode).toBe('STU-2026-1002');
     });
+
+    it('recognizes STU prefixed student codes without hyphens', () => {
+      const result = parseStudentQr('STU202600001');
+      expect(result.isValid).toBe(true);
+      expect(result.studentCode).toBe('STU202600001');
+    });
   });
 
   describe('Arbitrary & Non-System Input Rejection', () => {

@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ForbiddenException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../../core/database/prisma.service';
@@ -13,6 +14,7 @@ import { CursorPaginationDto } from '../../../common/dto/cursor-pagination.dto';
 import { AttendanceStatus, RecordingMethod, GroupEnrollmentStatus, UserRole } from '@prisma/client';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { isSessionEndedPlusOneHour } from '../utils/attendance.util';
+import { RealtimeGateway } from '../../../realtime/realtime.gateway';
 
 @Injectable()
 export class AttendanceService {
@@ -22,6 +24,7 @@ export class AttendanceService {
     private readonly prisma: PrismaService,
     private readonly attendanceRepository: AttendanceRepository,
     private readonly eventEmitter: EventEmitter2,
+    @Optional() private readonly realtimeGateway?: RealtimeGateway,
   ) {}
 
   /**
@@ -194,6 +197,8 @@ export class AttendanceService {
         })
       : '';
 
+    this.realtimeGateway?.notifyAttendanceChanged([user.id, session.group?.teacherId]);
+
     return {
       isDuplicate: result.isDuplicate,
       isCrossGroupSuccess: !directEnrollment,
@@ -298,12 +303,40 @@ export class AttendanceService {
 
         updatedRecords.push(record);
 
-        // If marked absent, emit event for guardian notification
+        // If marked absent, remove any homework record for this session and emit event for guardian notification
         if (item.status === AttendanceStatus.ABSENT) {
+          if (typeof tx.homeworkRecord?.deleteMany === 'function') {
+            await tx.homeworkRecord.deleteMany({
+              where: {
+                sessionId,
+                studentId: item.studentId,
+              },
+            });
+          }
+
           this.eventEmitter.emit('student.absence.recorded', {
             studentId: item.studentId,
             groupName: session.group.name,
             date: session.sessionDate,
+          });
+        }
+      }
+
+      // If removedStudentIds are provided, delete attendance and homework records for those students
+      if (dto.removedStudentIds && dto.removedStudentIds.length > 0) {
+        await tx.attendanceRecord.deleteMany({
+          where: {
+            sessionId,
+            studentId: { in: dto.removedStudentIds },
+          },
+        });
+
+        if (typeof tx.homeworkRecord?.deleteMany === 'function') {
+          await tx.homeworkRecord.deleteMany({
+            where: {
+              sessionId,
+              studentId: { in: dto.removedStudentIds },
+            },
           });
         }
       }
@@ -317,6 +350,8 @@ export class AttendanceService {
         where: { groupId: session.groupId, status: GroupEnrollmentStatus.ACTIVE },
       }),
     ]);
+
+    this.realtimeGateway?.notifyAttendanceChanged([user.id, session.group?.teacherId]);
 
     return {
       sessionId,
@@ -397,9 +432,16 @@ export class AttendanceService {
       session.endTime,
     );
 
+    const sessionDateEnd = new Date(session.sessionDate);
+    sessionDateEnd.setHours(23, 59, 59, 999);
+
+    const eligibleEnrollments = session.group.enrollments.filter(
+      (e) => !e.enrolledAt || new Date(e.enrolledAt).getTime() <= sessionDateEnd.getTime(),
+    );
+
     if (hasEndedPlusOneHour) {
       const existingStudentIds = new Set(session.attendanceRecords.map((r) => r.studentId));
-      const missingEnrollments = session.group.enrollments.filter(
+      const missingEnrollments = eligibleEnrollments.filter(
         (e) => !existingStudentIds.has(e.studentId),
       );
 
@@ -434,7 +476,7 @@ export class AttendanceService {
       }
     }
 
-    const totalEnrolled = session.group.enrollments.length;
+    const totalEnrolled = eligibleEnrollments.length;
     const presentCount = session.attendanceRecords.filter((r) => r.status === AttendanceStatus.PRESENT).length;
     const absentCount = session.attendanceRecords.filter((r) => r.status === AttendanceStatus.ABSENT).length;
     const excusedCount = session.attendanceRecords.filter((r) => r.status === AttendanceStatus.EXCUSED).length;
@@ -456,13 +498,14 @@ export class AttendanceService {
         homeworkCheckedCount,
       },
       homeworkRecords: session.homeworkRecords || [],
-      records: session.group.enrollments.map((e) => {
+      records: eligibleEnrollments.map((e) => {
         const r = session.attendanceRecords.find((ar) => ar.studentId === e.studentId);
         const hw = session.homeworkRecords?.find((hr) => hr.studentId === e.studentId);
         return {
           id: r?.id || `unrecorded-${e.studentId}`,
           studentId: e.studentId,
           studentCode: e.student.studentCode,
+          qrCodeToken: e.student.qrCodeToken || '',
           fullName: e.student.user.fullName,
           phone: e.student.user.phone,
           status: r?.status || null,
@@ -524,5 +567,88 @@ export class AttendanceService {
       },
       status,
     );
+  }
+
+  /**
+   * Removes an attendance record for a student in a lesson session (resets to unrecorded).
+   */
+  async removeAttendanceRecord(sessionId: string, studentId: string, user: AuthenticatedUser) {
+    const session = await this.prisma.lessonSession.findUnique({
+      where: { id: sessionId },
+      include: { group: true },
+    });
+
+    if (!session) {
+      throw new NotFoundException(`Lesson session [${sessionId}] not found`);
+    }
+
+    if (user.role === UserRole.TEACHER) {
+      const teacherId = user.teacherProfileId || user.id;
+      if (session.group.teacherId !== teacherId && session.group.teacherId !== user.id) {
+        throw new ForbiddenException('You do not own the academic group for this session');
+      }
+    }
+
+    await this.prisma.attendanceRecord.deleteMany({
+      where: {
+        sessionId,
+        studentId,
+      },
+    });
+
+    if (typeof this.prisma.homeworkRecord?.deleteMany === 'function') {
+      await this.prisma.homeworkRecord.deleteMany({
+        where: {
+          sessionId,
+          studentId,
+        },
+      });
+    }
+
+    this.realtimeGateway?.notifyAttendanceChanged([user.id, session.group?.teacherId]);
+
+    return {
+      success: true,
+      sessionId,
+      studentId,
+      message: 'Attendance record removed successfully',
+    };
+  }
+
+  /**
+   * Removes a homework record for a student in a lesson session (resets to unassessed).
+   */
+  async removeHomeworkRecord(sessionId: string, studentId: string, user: AuthenticatedUser) {
+    const session = await this.prisma.lessonSession.findUnique({
+      where: { id: sessionId },
+      include: { group: true },
+    });
+
+    if (!session) {
+      throw new NotFoundException(`Lesson session [${sessionId}] not found`);
+    }
+
+    if (user.role === UserRole.TEACHER) {
+      const teacherId = user.teacherProfileId || user.id;
+      if (session.group.teacherId !== teacherId && session.group.teacherId !== user.id) {
+        throw new ForbiddenException('You do not own the academic group for this session');
+      }
+    }
+
+    if (typeof this.prisma.homeworkRecord?.deleteMany === 'function') {
+      await this.prisma.homeworkRecord.deleteMany({
+        where: {
+          sessionId,
+          studentId,
+        },
+      });
+    }
+
+    return {
+      success: true,
+      sessionId,
+      studentId,
+      message: 'Homework record removed successfully',
+    };
   }
 }

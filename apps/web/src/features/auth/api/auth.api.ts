@@ -109,6 +109,17 @@ export async function registerByGroup(payload: GroupRegistrationPayload): Promis
 }
 
 /**
+ * Switches the active role for a multi-profile user via POST /api/v1/auth/switch-role.
+ * Returns a fresh set of tokens with the new effective role.
+ */
+export async function switchRoleRequest(targetRole: string): Promise<AuthTokensResponse> {
+  return apiClient<AuthTokensResponse>(API_ENDPOINTS.AUTH.SWITCH_ROLE, {
+    method: 'POST',
+    body: JSON.stringify({ targetRole }),
+  });
+}
+
+/**
  * Requests fresh access & refresh tokens using an existing valid refresh token
  */
 export async function refreshTokenRequest(refreshToken: string): Promise<RefreshTokenResponse> {

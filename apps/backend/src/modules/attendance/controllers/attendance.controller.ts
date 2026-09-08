@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Body,
   Param,
   Query,
@@ -75,5 +76,27 @@ export class AttendanceController {
     @Query('status') status?: AttendanceStatus,
   ) {
     return this.attendanceService.getStudentHistory(studentId, pagination, status, user);
+  }
+
+  @Delete('sessions/:sessionId/records/:studentId')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Remove student attendance record for a session (reset to unrecorded)' })
+  async removeAttendanceRecord(
+    @Param('sessionId') sessionId: string,
+    @Param('studentId') studentId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.attendanceService.removeAttendanceRecord(sessionId, studentId, user);
+  }
+
+  @Delete('sessions/:sessionId/homework/:studentId')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Remove student homework evaluation for a session (reset to unassessed)' })
+  async removeHomeworkRecord(
+    @Param('sessionId') sessionId: string,
+    @Param('studentId') studentId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.attendanceService.removeHomeworkRecord(sessionId, studentId, user);
   }
 }

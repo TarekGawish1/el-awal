@@ -179,6 +179,11 @@ describe('SyncService - Resilience & Error Fallback Engine', () => {
     });
 
     it('handles duplicate payment sync operations idempotently without double-charging', async () => {
+      mockPrismaService.academicGroup.findUnique.mockResolvedValue({
+        id: 'group-1',
+        teacherId: teacherUser.id,
+        monthlyFee: 350,
+      });
       mockPrismaService.studentProfile.findUnique.mockResolvedValue({ 
         id: 'student-1', 
         user: { isActive: true },

@@ -14,6 +14,12 @@ describe('Zero Cold-Start Bootstrap & Offline Repository Layer', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    // Simulate an authenticated session so the unauthenticated-request guard
+    // in performBootstrap() lets the mocked apiClient through.
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('el_awal_token', 'test-access-token');
+      localStorage.setItem('el_awal_refresh_token', 'test-refresh-token');
+    }
     // Reset the cooldown so each test starts fresh
     (bootstrapManager as any).lastBootstrapAt = 0;
   });
