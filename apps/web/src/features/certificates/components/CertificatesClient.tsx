@@ -231,7 +231,7 @@ export function CertificatesClient() {
     options: string[],
     setter: React.Dispatch<React.SetStateAction<string[] | null>>,
   ) => {
-    const base = current ?? [value];
+    const base = current ?? options;
     setter(
       base.includes(value)
         ? base.filter((item) => item !== value)
