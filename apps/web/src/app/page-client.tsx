@@ -1708,7 +1708,7 @@ function FooterSection() {
           </a>
         </div>
         <div className="text-sm font-medium text-slate-400">
-          تم تطوير المنصه بواسطة شركة <span className="font-bold text-white tracking-wider">TAD TECH</span>
+          تم تطوير المنصه بواسطة شركة <span className="font-bold text-white tracking-wider">TAD X</span>
         </div>
       </div>
     </footer>
