@@ -387,9 +387,9 @@ export function CertificatesClient() {
       : certificates;
     const set = new Set<string>();
     sourceCertificates.forEach((c) => {
-        const y = String(c.year || "").trim();
-        if (y) set.add(y);
-      });
+      const y = String(c.year || "").trim();
+      if (y) set.add(y);
+    });
     return [
       "الكل",
       ...Array.from(set).sort((a, b) =>
