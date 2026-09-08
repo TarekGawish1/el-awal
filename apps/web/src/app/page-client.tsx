@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import NextImage from "next/image";
-import { motion, AnimatePresence, useAnimation } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight,
   PlayCircle,
@@ -2028,135 +2028,67 @@ function CertificateCard({ cert, index }: { cert: any; index: number }) {
 
 function StageCertificateRow({ certificates }: { certificates: any[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const singleSetRef = useRef<HTMLDivElement>(null);
-  const animationControls = useAnimation();
+  const staticMeasureRef = useRef<HTMLDivElement>(null);
   const [shouldScroll, setShouldScroll] = useState(false);
-  const [baseWidth, setBaseWidth] = useState(0);
-  const [repeatCount, setRepeatCount] = useState(1);
-  const [isHovered, setIsHovered] = useState(false);
-
-  useEffect(() => {
-    setShouldScroll(false);
-    setBaseWidth(0);
-    setRepeatCount(1);
-    setIsHovered(false);
-  }, [certificates]);
 
   useEffect(() => {
     const container = containerRef.current;
-    const content = singleSetRef.current;
+    const content = staticMeasureRef.current;
     if (!container || !content || certificates.length === 0) return;
 
-    const measure = () => {
+    const checkOverflow = () => {
       const containerWidth = container.clientWidth;
       const contentWidth = content.scrollWidth;
       if (containerWidth === 0 || contentWidth === 0) return;
-
-      const overflows = contentWidth > containerWidth + 8;
-      setShouldScroll(overflows);
-      setBaseWidth(overflows ? contentWidth : 0);
-      setRepeatCount(
-        overflows ? Math.max(1, Math.ceil(containerWidth / contentWidth)) : 1,
-      );
+      setShouldScroll(contentWidth > containerWidth);
     };
 
-    measure();
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    checkOverflow();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(checkOverflow) : null;
     ro?.observe(container);
     ro?.observe(content);
-    window.addEventListener("resize", measure);
+    window.addEventListener("resize", checkOverflow);
 
     return () => {
       ro?.disconnect();
-      window.removeEventListener("resize", measure);
+      window.removeEventListener("resize", checkOverflow);
     };
-  }, [certificates, shouldScroll]);
-
-  useEffect(() => {
-    if (!shouldScroll || baseWidth === 0 || isHovered) {
-      animationControls.stop();
-      return;
-    }
-
-    animationControls.start({
-      x: [0, -baseWidth],
-      transition: {
-        repeat: Infinity,
-        ease: "linear",
-        duration: Math.max(12, baseWidth / 60),
-      },
-    });
-
-    return () => animationControls.stop();
-  }, [animationControls, baseWidth, isHovered, shouldScroll]);
+  }, [certificates]);
 
   if (!certificates || certificates.length === 0) return null;
 
-  const renderCards = (prefix: string) =>
-    certificates.map((cert, index) => (
-      <CertificateCard
-        key={`${prefix}-${cert.id}-${index}`}
-        cert={cert}
-        index={index}
-      />
-    ));
+  const baseMultiplier = certificates.length < 5 ? Math.ceil(6 / certificates.length) : 1;
+  const normalizedList = Array.from({ length: baseMultiplier }).flatMap(() => certificates);
 
   return (
-    <div
-      ref={containerRef}
-      className="overflow-hidden -mx-6 md:-mx-4 pb-6 px-6 md:px-4"
-    >
+    <div ref={containerRef} className="w-full overflow-hidden pb-6">
+      <div ref={staticMeasureRef} className="absolute opacity-0 pointer-events-none flex gap-6 w-max" aria-hidden="true">
+        {certificates.map((cert, index) => (
+          <CertificateCard cert={cert} index={index} key={`measure-${cert.id}-${index}`} />
+        ))}
+      </div>
+
       {!shouldScroll ? (
-        <div
-          ref={singleSetRef}
-          className="flex gap-6 justify-center flex-nowrap w-max mx-auto"
-        >
-          {renderCards("static")}
+        <div className="flex gap-6 justify-center flex-nowrap px-4">
+          {certificates.map((cert, index) => (
+            <CertificateCard cert={cert} index={index} key={`static-${cert.id}-${index}`} />
+          ))}
         </div>
       ) : (
-        <div
-          className="relative"
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-        >
-          <div
-            ref={singleSetRef}
-            className="absolute left-0 top-0 flex w-max gap-6 pr-6 opacity-0 pointer-events-none"
-            aria-hidden="true"
-          >
-            {renderCards("measure")}
+        <div className="relative w-full overflow-hidden pointer-events-auto">
+          <style>{`@keyframes infinite-scroll-ltr { 0% { transform: translateX(-50%); } 100% { transform: translateX(0%); } } .animate-continuous-ltr { display: flex; width: max-content; animation: infinite-scroll-ltr ${Math.max(18, normalizedList.length * 4)}s linear infinite; will-change: transform; }`}</style>
+          <div className="animate-continuous-ltr" dir="ltr">
+            <div className="flex gap-6 pr-6 shrink-0" dir="rtl">
+              {normalizedList.map((cert, index) => (
+                <CertificateCard cert={cert} index={index} key={`set1-${cert.id}-${index}`} />
+              ))}
+            </div>
+            <div className="flex gap-6 pr-6 shrink-0" dir="rtl">
+              {normalizedList.map((cert, index) => (
+                <CertificateCard cert={cert} index={index} key={`set2-${cert.id}-${index}`} />
+              ))}
+            </div>
           </div>
-          {(() => {
-            const filledSet = Array.from({ length: repeatCount }).flatMap(
-              () => certificates,
-            );
-            return (
-              <motion.div
-                className="flex w-max"
-                dir="ltr"
-                animate={animationControls}
-              >
-                <div className="flex shrink-0 gap-6 pr-6" dir="rtl">
-                  {filledSet.map((cert, index) => (
-                    <CertificateCard
-                      key={`track-1-${cert.id}-${index}`}
-                      cert={cert}
-                      index={index}
-                    />
-                  ))}
-                </div>
-                <div className="flex shrink-0 gap-6 pr-6" dir="rtl">
-                  {filledSet.map((cert, index) => (
-                    <CertificateCard
-                      key={`track-2-${cert.id}-${index}`}
-                      cert={cert}
-                      index={index}
-                    />
-                  ))}
-                </div>
-              </motion.div>
-            );
-          })()}
         </div>
       )}
     </div>
