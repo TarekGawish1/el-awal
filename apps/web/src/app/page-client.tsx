@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import NextImage from "next/image";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useAnimation } from "framer-motion";
 import {
   ArrowRight,
   PlayCircle,
@@ -2026,117 +2026,137 @@ function CertificateCard({ cert, index }: { cert: any; index: number }) {
   );
 }
 
-// Row stays fixed when all cards fit on screen; seamless circular auto-scroll
-// marquee (left → right) only kicks in when the cards overflow. The marquee
-// renders enough identical copies to cover 2x the viewport and loops by exactly
-// one copy width, so the screen is never empty — first and last stay connected.
 function StageCertificateRow({ certificates }: { certificates: any[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const trackRef = useRef<HTMLDivElement>(null);
-  const [marquee, setMarquee] = useState(false);
-  const [copies, setCopies] = useState(4);
-  const [pitch, setPitch] = useState(0); // px width of one copy — the seamless loop step
+  const singleSetRef = useRef<HTMLDivElement>(null);
+  const animationControls = useAnimation();
+  const [shouldScroll, setShouldScroll] = useState(false);
+  const [baseWidth, setBaseWidth] = useState(0);
+  const [repeatCount, setRepeatCount] = useState(1);
+  const [isHovered, setIsHovered] = useState(false);
 
-  // Reset to the static layout whenever the certificate set changes, then re-measure
   useEffect(() => {
-    setMarquee(false);
-    setCopies(4);
-    setPitch(0);
+    setShouldScroll(false);
+    setBaseWidth(0);
+    setRepeatCount(1);
+    setIsHovered(false);
   }, [certificates]);
 
   useEffect(() => {
     const container = containerRef.current;
-    const track = trackRef.current;
-    if (!container || !track || certificates.length === 0) return;
-    const check = () => {
+    const content = singleSetRef.current;
+    if (!container || !content || certificates.length === 0) return;
+
+    const measure = () => {
       const containerWidth = container.clientWidth;
-      if (containerWidth === 0) return;
-      if (!marquee) {
-        const rowWidth = track.scrollWidth;
-        if (rowWidth > containerWidth + 8) {
-          // Enough copies so the track covers 2x the viewport (never empty)
-          setCopies(
-            Math.min(
-              12,
-              Math.max(4, Math.ceil((containerWidth * 2) / rowWidth) + 1),
-            ),
-          );
-          setMarquee(true);
-        }
-      } else {
-        const single = track.scrollWidth / copies;
-        if (single > 0)
-          setPitch((p) => (Math.abs(p - single) > 1 ? single : p));
-        if (single <= containerWidth + 8) {
-          // Everything fits — back to a fixed row
-          setMarquee(false);
-          setCopies(4);
-        } else {
-          const needed = Math.min(
-            12,
-            Math.max(4, Math.ceil((containerWidth * 2) / single) + 1),
-          );
-          setCopies((c) => (c === needed ? c : needed));
-        }
-      }
+      const contentWidth = content.scrollWidth;
+      if (containerWidth === 0 || contentWidth === 0) return;
+
+      const overflows = contentWidth > containerWidth + 8;
+      setShouldScroll(overflows);
+      setBaseWidth(overflows ? contentWidth : 0);
+      setRepeatCount(
+        overflows ? Math.max(1, Math.ceil(containerWidth / contentWidth)) : 1,
+      );
     };
-    check();
-    const raf = requestAnimationFrame(check);
-    const settleTimer = setTimeout(check, 1500); // re-check after images settle
-    const ro =
-      typeof ResizeObserver !== "undefined" ? new ResizeObserver(check) : null;
+
+    measure();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
     ro?.observe(container);
-    window.addEventListener("resize", check);
+    ro?.observe(content);
+    window.addEventListener("resize", measure);
+
     return () => {
-      cancelAnimationFrame(raf);
-      clearTimeout(settleTimer);
       ro?.disconnect();
-      window.removeEventListener("resize", check);
+      window.removeEventListener("resize", measure);
     };
-  }, [certificates, marquee, copies]);
+  }, [certificates, shouldScroll]);
+
+  useEffect(() => {
+    if (!shouldScroll || baseWidth === 0 || isHovered) {
+      animationControls.stop();
+      return;
+    }
+
+    animationControls.start({
+      x: [0, -baseWidth],
+      transition: {
+        repeat: Infinity,
+        ease: "linear",
+        duration: Math.max(12, baseWidth / 60),
+      },
+    });
+
+    return () => animationControls.stop();
+  }, [animationControls, baseWidth, isHovered, shouldScroll]);
+
+  if (!certificates || certificates.length === 0) return null;
+
+  const renderCards = (prefix: string) =>
+    certificates.map((cert, index) => (
+      <CertificateCard
+        key={`${prefix}-${cert.id}-${index}`}
+        cert={cert}
+        index={index}
+      />
+    ));
 
   return (
     <div
       ref={containerRef}
-      // Marquee runs edge-to-edge (no side padding, no fade mask) so cards stay
-      // connected to the screen on both sides; the fixed row keeps its padding.
-      className={
-        marquee
-          ? "overflow-hidden -mx-6 md:-mx-4 pb-6"
-          : "overflow-hidden -mx-6 md:-mx-4 pb-6 px-6 md:px-4"
-      }
+      className="overflow-hidden -mx-6 md:-mx-4 pb-6 px-6 md:px-4"
     >
-      {marquee ? (
-        // Track forced LTR; animating x from -pitch to 0 slides cards left → right
-        // and jumps back by exactly one identical copy = seamless circle.
-        <motion.div
-          ref={trackRef as any}
-          className="flex w-max"
-          dir="ltr"
-          animate={{ x: pitch > 0 ? [-pitch, 0] : 0 }}
-          transition={{
-            repeat: Infinity,
-            ease: "linear",
-            duration: Math.max(6, pitch / 80),
-          }}
+      {!shouldScroll ? (
+        <div
+          ref={singleSetRef}
+          className="flex gap-6 justify-center flex-nowrap w-max mx-auto"
         >
-          {Array.from({ length: copies }).map((_, copy) => (
-            <div key={copy} className="flex gap-6 pr-6" dir="rtl">
-              {certificates.map((cert, index) => (
-                <CertificateCard
-                  key={`${cert.id}-${copy}-${index}`}
-                  cert={cert}
-                  index={index}
-                />
-              ))}
-            </div>
-          ))}
-        </motion.div>
+          {renderCards("static")}
+        </div>
       ) : (
-        <div ref={trackRef} className="flex gap-6 justify-center flex-nowrap">
-          {certificates.map((cert, index) => (
-            <CertificateCard key={cert.id} cert={cert} index={index} />
-          ))}
+        <div
+          className="relative"
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+        >
+          <div
+            ref={singleSetRef}
+            className="absolute left-0 top-0 flex w-max gap-6 pr-6 opacity-0 pointer-events-none"
+            aria-hidden="true"
+          >
+            {renderCards("measure")}
+          </div>
+          {(() => {
+            const filledSet = Array.from({ length: repeatCount }).flatMap(
+              () => certificates,
+            );
+            return (
+              <motion.div
+                className="flex w-max"
+                dir="ltr"
+                animate={animationControls}
+              >
+                <div className="flex shrink-0 gap-6 pr-6" dir="rtl">
+                  {filledSet.map((cert, index) => (
+                    <CertificateCard
+                      key={`track-1-${cert.id}-${index}`}
+                      cert={cert}
+                      index={index}
+                    />
+                  ))}
+                </div>
+                <div className="flex shrink-0 gap-6 pr-6" dir="rtl">
+                  {filledSet.map((cert, index) => (
+                    <CertificateCard
+                      key={`track-2-${cert.id}-${index}`}
+                      cert={cert}
+                      index={index}
+                    />
+                  ))}
+                </div>
+              </motion.div>
+            );
+          })()}
         </div>
       )}
     </div>
