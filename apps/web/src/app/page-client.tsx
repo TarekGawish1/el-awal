@@ -1969,44 +1969,53 @@ const CERTIFICATES_BY_STAGE = [
   },
 ];
 
+function getCertificateIdentity(cert: any) {
+  const student = String(cert?.student || cert?.studentName || "").trim();
+  const subject = String(cert?.subject || "").trim();
+  const stage = String(cert?.stage || "").trim();
+  const year = String(cert?.year || "").trim();
+  const grade = String(cert?.grade || cert?.score || "").trim();
+  const id = String(cert?.id || "").trim();
+  return id || `${student}|${subject}|${stage}|${year}|${grade}`;
+}
+
 function CertificateCard({ cert, index }: { cert: any; index: number }) {
+  const displayName = cert.student || cert.studentName || "طالب";
+  const displayTitle = cert.title || (cert.subject ? `التفوق في ${cert.subject}` : "شهادة تقدير");
+  const hasRealCertificateImage = Boolean(cert.image) && cert.image !== "/certification-bg.webp";
+
   return (
     <div
-      key={`${cert.id}-${index}`}
+      key={`${cert.id || displayName}-${index}`}
       className="shrink-0 w-[280px] sm:w-[320px] bg-white rounded-2xl p-3 border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all group"
     >
       <div className="relative overflow-hidden rounded-xl bg-slate-100 aspect-[4/3] mb-4">
         <img
           src={cert.image}
-          alt={cert.title}
+          alt={displayTitle}
           loading="lazy"
           decoding="async"
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
-        {/* Printed certificate content — always visible so the card never looks blank */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
-          <div className="font-black text-slate-800 text-lg sm:text-xl leading-snug drop-shadow-sm">
-            {cert.student}
-          </div>
-          <div className="text-xs sm:text-sm font-bold text-amber-700 mt-1.5">
-            {cert.subject ? `التفوق في مادة ${cert.subject}` : cert.title}
-          </div>
-          {cert.grade && (
-            <div className="mt-1.5 text-sm font-black text-slate-700 bg-white/70 border border-amber-200 px-3 py-0.5 rounded-full shadow-sm">
-              الدرجة: {cert.grade}
+        {!hasRealCertificateImage && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
+            <div className="font-black text-slate-800 text-lg sm:text-xl leading-snug drop-shadow-sm">
+              {displayName}
             </div>
-          )}
-        </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
-          <div className="text-white">
-            <div className="font-bold text-lg">{cert.student}</div>
-            <div className="text-sm text-slate-200">{cert.title}</div>
+            <div className="text-xs sm:text-sm font-bold text-amber-700 mt-1.5">
+              {displayTitle}
+            </div>
+            {cert.grade && (
+              <div className="mt-1.5 text-sm font-black text-slate-700 bg-white/70 border border-amber-200 px-3 py-0.5 rounded-full shadow-sm">
+                الدرجة: {cert.grade}
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </div>
       <div className="text-center px-2 pb-2">
-        <h4 className="font-bold text-slate-900 truncate">{cert.student}</h4>
-        <p className="text-sm text-slate-500 truncate">{cert.title}</p>
+        <h4 className="font-bold text-slate-900 truncate">{displayName}</h4>
+        <p className="text-sm text-slate-500 truncate">{displayTitle}</p>
         {(cert.grade || cert.year) && (
           <div className="flex items-center justify-center gap-2 mt-2">
             {cert.grade && (
@@ -2300,7 +2309,7 @@ function CertificatesSection() {
         const visibleOnly = combined.filter((item) => item.isPublic !== false);
         const uniqueSaved = Array.from(
           new Map(
-            visibleOnly.map((item) => [`${item.student}__${item.title}`, item]),
+            visibleOnly.map((item) => [getCertificateIdentity(item), item]),
           ).values(),
         );
 
