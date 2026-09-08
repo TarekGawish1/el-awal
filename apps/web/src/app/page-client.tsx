@@ -183,8 +183,6 @@ const HERO_FRAME_COUNT = 22;
 const HERO_FRAME_DURATION_MS = 150;
 let cachedHeroFrames: HTMLImageElement[] | null = null;
 let heroFramesLoadPromise: Promise<HTMLImageElement[]> | null = null;
-let loadedHeroFrameCount = 0;
-const heroLoadProgressListeners = new Set<(loadedCount: number) => void>();
 
 function loadSingleHeroFrame(index: number): Promise<HTMLImageElement | null> {
   return new Promise<HTMLImageElement | null>((resolve) => {
@@ -193,13 +191,9 @@ function loadSingleHeroFrame(index: number): Promise<HTMLImageElement | null> {
     // Decorative frames must never out-prioritize LCP
     (image as any).fetchPriority = 'low';
     image.onload = () => {
-      loadedHeroFrameCount += 1;
-      heroLoadProgressListeners.forEach((listener) => listener(loadedHeroFrameCount));
       resolve(image);
     };
     image.onerror = () => {
-      loadedHeroFrameCount += 1;
-      heroLoadProgressListeners.forEach((listener) => listener(loadedHeroFrameCount));
       resolve(null);
     };
     image.src = `/hero-animation/frame_${String(index).padStart(6, '0')}.webp`;
@@ -234,9 +228,6 @@ function loadHeroFramesOnce(): Promise<HTMLImageElement[]> {
 
 function HeroImageSequence() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [loadingProgress, setLoadingProgress] = useState(() =>
-    Math.round((loadedHeroFrameCount / HERO_FRAME_COUNT) * 100),
-  );
 
   useEffect(() => {
     let isActive = true;
@@ -245,11 +236,6 @@ function HeroImageSequence() {
     let currentFrameIndex = 0;
     let lastFrameTime = 0;
     let frames: HTMLImageElement[] = [];
-
-    const updateProgress = (loadedCount: number) => {
-      if (isActive) setLoadingProgress(Math.round((loadedCount / HERO_FRAME_COUNT) * 100));
-    };
-    heroLoadProgressListeners.add(updateProgress);
 
     const drawFrame = () => {
       const canvas = canvasRef.current;
@@ -298,7 +284,6 @@ function HeroImageSequence() {
         loadHeroFramesOnce().then((loadedFrames) => {
           if (!isActive) return;
           frames = loadedFrames;
-          setLoadingProgress(100);
           if (frames.length === 0) return;
 
           drawFrame();
@@ -346,7 +331,6 @@ function HeroImageSequence() {
 
     return () => {
       isActive = false;
-      heroLoadProgressListeners.delete(updateProgress);
       resizeObserver?.disconnect();
       if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId);
     };
@@ -355,13 +339,6 @@ function HeroImageSequence() {
   return (
     <div className="absolute inset-0 z-0 pointer-events-none">
       <canvas ref={canvasRef} className="block w-full h-full opacity-10" aria-hidden="true" />
-      {loadingProgress < 100 && (
-        <div className="absolute inset-0 flex items-center justify-center" role="status" aria-live="polite">
-          <span className="rounded-full bg-white/80 px-4 py-2 text-sm font-bold text-slate-600 shadow-sm backdrop-blur-sm">
-            جاري تحميل الخلفية {loadingProgress}%
-          </span>
-        </div>
-      )}
     </div>
   );
 }
@@ -1634,8 +1611,6 @@ const ABOUT_IMAGE_DURATION_MS = 3500;
 const ABOUT_IMAGE_BASE_URL = 'https://pub-e729d46cf5fd4798932ccae48f7361ef.r2.dev/about_us';
 let cachedAboutImages: HTMLImageElement[] | null = null;
 let aboutImagesLoadPromise: Promise<HTMLImageElement[]> | null = null;
-let loadedAboutImageCount = 0;
-const aboutLoadProgressListeners = new Set<(loadedCount: number) => void>();
 
 function loadSingleAboutImage(index: number): Promise<HTMLImageElement | null> {
   return new Promise<HTMLImageElement | null>((resolve) => {
@@ -1644,13 +1619,9 @@ function loadSingleAboutImage(index: number): Promise<HTMLImageElement | null> {
     // Hint: only the first image is critical, the rest are background slideshow frames
     if (index > 2) (image as any).fetchPriority = 'low';
     image.onload = () => {
-      loadedAboutImageCount += 1;
-      aboutLoadProgressListeners.forEach((listener) => listener(loadedAboutImageCount));
       resolve(image);
     };
     image.onerror = () => {
-      loadedAboutImageCount += 1;
-      aboutLoadProgressListeners.forEach((listener) => listener(loadedAboutImageCount));
       resolve(null);
     };
     image.src = `${ABOUT_IMAGE_BASE_URL}/${index + 1}.webp`;
@@ -1696,9 +1667,7 @@ function loadAboutImagesOnce(): Promise<HTMLImageElement[]> {
 
 function AboutBackgroundSequence() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [loadingProgress, setLoadingProgress] = useState(() =>
-    Math.round((loadedAboutImageCount / ABOUT_IMAGE_COUNT) * 100),
-  );
+  const [hasImages, setHasImages] = useState(false);
 
   useEffect(() => {
     let isActive = true;
@@ -1706,11 +1675,6 @@ function AboutBackgroundSequence() {
     let resizeObserver: ResizeObserver | null = null;
     let images: HTMLImageElement[] = [];
     let currentImageIndex = 0;
-
-    const updateProgress = (loadedCount: number) => {
-      if (isActive) setLoadingProgress(Math.round((loadedCount / ABOUT_IMAGE_COUNT) * 100));
-    };
-    aboutLoadProgressListeners.add(updateProgress);
 
     const drawCurrentImage = () => {
       const canvas = canvasRef.current;
@@ -1749,9 +1713,8 @@ function AboutBackgroundSequence() {
       loadAboutImagesOnce().then((loadedImages) => {
         if (!isActive) return;
         images = loadedImages;
-        // Progress reflects the 3 critical images; the rest stream in silently
-        setLoadingProgress(100);
         if (images.length === 0) return;
+        setHasImages(true);
 
         drawCurrentImage();
         if (canvasRef.current && typeof ResizeObserver !== 'undefined') {
@@ -1784,7 +1747,6 @@ function AboutBackgroundSequence() {
 
     return () => {
       isActive = false;
-      aboutLoadProgressListeners.delete(updateProgress);
       resizeObserver?.disconnect();
       observer?.disconnect();
       if (intervalId !== null) window.clearInterval(intervalId);
@@ -1792,15 +1754,17 @@ function AboutBackgroundSequence() {
   }, []);
 
   return (
-    <div className="absolute inset-0 z-0 bg-slate-900">
-      <canvas ref={canvasRef} className="block w-full h-full" aria-hidden="true" />
-      {loadingProgress < 100 && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center" role="status" aria-live="polite">
-          <span className="rounded-full bg-slate-950/70 px-4 py-2 text-sm font-bold text-white backdrop-blur-sm">
-            جاري تحميل الصور {loadingProgress}%
-          </span>
-        </div>
-      )}
+    <div className="absolute inset-0 z-0 bg-slate-900 overflow-hidden">
+      {/* Always-on premium gradient fallback — visible instantly, even if R2 images 404 or network is slow */}
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900" aria-hidden="true" />
+      <div className="absolute -top-[20%] -right-[10%] w-[60%] h-[60%] rounded-full bg-blue-600/20 blur-[120px]" aria-hidden="true" />
+      <div className="absolute bottom-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-600/15 blur-[120px]" aria-hidden="true" />
+      <div className="absolute inset-0 bg-[url('/noise.svg')] opacity-20 mix-blend-overlay" aria-hidden="true" />
+      <canvas
+        ref={canvasRef}
+        className={`block w-full h-full absolute inset-0 transition-opacity duration-1000 ${hasImages ? 'opacity-100' : 'opacity-0'}`}
+        aria-hidden="true"
+      />
       <div className="absolute inset-0 bg-slate-900/50" />
     </div>
   );
