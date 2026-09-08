@@ -2587,8 +2587,8 @@ function AboutBackgroundSequence() {
     let images: HTMLImageElement[] = [];
     let currentImageIndex = 0;
 
-    // Fill the complete About section on every screen size. Centering keeps
-    // the important middle of each slideshow frame in view on tall phones.
+    // Use a soft cover layer to fill the section, then show the complete frame
+    // on top so tall phone layouts do not make the subject look zoomed in.
     const drawCurrentImage = () => {
       const canvas = canvasRef.current;
       const image = images[currentImageIndex];
@@ -2606,16 +2606,39 @@ function AboutBackgroundSequence() {
         canvas.height = targetHeight;
       }
 
-      const scale = Math.max(
+      const coverScale = Math.max(
         canvas.width / image.naturalWidth,
         canvas.height / image.naturalHeight,
       );
-      const drawWidth = image.naturalWidth * scale;
-      const drawHeight = image.naturalHeight * scale;
-      const offsetX = (canvas.width - drawWidth) / 2;
-      const offsetY = (canvas.height - drawHeight) / 2;
       context.clearRect(0, 0, canvas.width, canvas.height);
-      context.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+
+      const coverWidth = image.naturalWidth * coverScale;
+      const coverHeight = image.naturalHeight * coverScale;
+      context.save();
+      context.globalAlpha = 0.35;
+      context.filter = "blur(18px)";
+      context.drawImage(
+        image,
+        (canvas.width - coverWidth) / 2,
+        (canvas.height - coverHeight) / 2,
+        coverWidth,
+        coverHeight,
+      );
+      context.restore();
+
+      const containScale = Math.min(
+        canvas.width / image.naturalWidth,
+        canvas.height / image.naturalHeight,
+      );
+      const containWidth = image.naturalWidth * containScale;
+      const containHeight = image.naturalHeight * containScale;
+      context.drawImage(
+        image,
+        (canvas.width - containWidth) / 2,
+        (canvas.height - containHeight) / 2,
+        containWidth,
+        containHeight,
+      );
     };
 
     // Only start loading the local slideshow when the About section is near
