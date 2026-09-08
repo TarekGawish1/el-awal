@@ -1798,64 +1798,44 @@ function CertificatesSection() {
 
         {/* Academic year + class filters */}
         {(availableYears.length > 0 || availableGrades.length > 0) && (
-          <div className="flex flex-col items-center gap-3 mb-12">
+          <div className="flex flex-wrap items-center justify-center gap-4 mb-12">
             {availableYears.length > 0 && (
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                <button
-                  onClick={() => setSelectedYear('ALL')}
-                  className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${
-                    selectedYear === 'ALL'
-                      ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
-                      : 'bg-white text-slate-600 border border-slate-200 hover:border-amber-300'
-                  }`}
+              <label className="flex items-center gap-2 text-sm font-bold text-slate-600">
+                <span>السنة الدراسية:</span>
+                <select
+                  value={selectedYear}
+                  onChange={(event) => setSelectedYear(event.target.value)}
+                  className="min-w-40 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm outline-none transition-colors focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
                 >
-                  كل السنوات
-                </button>
-                {availableYears.map((year) => (
-                  <button
-                    key={year}
-                    onClick={() => setSelectedYear(year)}
-                    className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${
-                      selectedYear === year
-                        ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:border-amber-300'
-                    }`}
-                  >
-                    العام الدراسي {year}
-                  </button>
-                ))}
-              </div>
+                  <option value="ALL">كل السنوات</option>
+                  {availableYears.map((year) => (
+                    <option key={year} value={year}>
+                      العام الدراسي {year}
+                    </option>
+                  ))}
+                </select>
+              </label>
             )}
             {availableGrades.length > 0 && (
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                <button
-                  onClick={() => setSelectedGrade('ALL')}
-                  className={`px-5 py-2 rounded-xl font-semibold text-sm transition-colors border ${
-                    selectedGrade === 'ALL'
-                      ? 'bg-slate-800 text-white border-slate-800'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-                  }`}
+              <label className="flex items-center gap-2 text-sm font-bold text-slate-600">
+                <span>الصف الدراسي:</span>
+                <select
+                  value={selectedGrade}
+                  onChange={(event) => setSelectedGrade(event.target.value)}
+                  className="min-w-36 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
                 >
-                  كل الصفوف
-                </button>
-                {availableGrades.map((grade) => (
-                  <button
-                    key={grade}
-                    onClick={() => setSelectedGrade(grade)}
-                    className={`px-5 py-2 rounded-xl font-semibold text-sm transition-colors border ${
-                      selectedGrade === grade
-                        ? 'bg-slate-800 text-white border-slate-800'
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-                    }`}
-                  >
-                    {grade}
-                  </button>
-                ))}
-              </div>
+                  <option value="ALL">كل الصفوف</option>
+                  {availableGrades.map((grade) => (
+                    <option key={grade} value={grade}>
+                      {grade}
+                    </option>
+                  ))}
+                </select>
+              </label>
             )}
           </div>
         )}
-
+ 
         <div className="space-y-16">
           {visibleStages.length === 0 ? (
             <div className="text-center py-12 bg-white/50 backdrop-blur-sm rounded-2xl border border-slate-200 shadow-sm max-w-3xl mx-auto">
