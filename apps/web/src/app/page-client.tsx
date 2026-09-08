@@ -1375,10 +1375,12 @@ const SEED_CERTIFICATES = [
   title: `التفوق في ${s.subject}`,
   subject: s.subject,
   student: s.student,
-  grade: s.grade,
+  grade: s.grade, // الدرجة (score) — feeds the grade badge
+  classGrade: '', // الصف الدراسي — seeds predate class linking
   year: s.year,
   image: '/certification-bg.webp',
   stage: s.stage,
+  isPublic: true,
 }));
 
 const CERTIFICATES_BY_STAGE = [
@@ -1495,28 +1497,42 @@ function StageCertificateRow({ certificates }: { certificates: any[] }) {
     <div
       ref={containerRef}
       className="overflow-hidden -mx-6 md:-mx-4 pb-6 px-6 md:px-4"
-      style={{
-        WebkitMaskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)',
-        maskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)'
-      }}
+      style={
+        marquee
+          ? {
+              WebkitMaskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)',
+              maskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)',
+            }
+          : undefined
+      }
     >
       {marquee ? (
+        // Auto-slide marquee (overflow only): cards travel left → right.
+        // Track is forced LTR so flex lays out left-to-right; animating x from
+        // -25% to 0% moves everything rightward and loops seamlessly because
+        // the track holds 4 identical copies (each copy ends with pr-6 so one
+        // copy pitch is exactly 25% of the track width).
         <motion.div
           ref={trackRef as any}
-          className="flex gap-6 w-max"
-          animate={{ x: ["0%", "25%"] }}
+          className="flex w-max"
+          dir="ltr"
+          animate={{ x: ["-25%", "0%"] }}
           transition={{
             repeat: Infinity,
             ease: "linear",
             duration: 20,
           }}
         >
-          {[...certificates, ...certificates, ...certificates, ...certificates].map((cert, index) => (
-            <CertificateCard key={`${cert.id}-${index}`} cert={cert} index={index} />
+          {[0, 1, 2, 3].map((copy) => (
+            <div key={copy} className="flex gap-6 pr-6" dir="rtl">
+              {certificates.map((cert, index) => (
+                <CertificateCard key={`${cert.id}-${copy}-${index}`} cert={cert} index={index} />
+              ))}
+            </div>
           ))}
         </motion.div>
       ) : (
-        <div ref={trackRef} className="flex gap-6 justify-center flex-wrap">
+        <div ref={trackRef} className="flex gap-6 justify-center flex-nowrap">
           {certificates.map((cert, index) => (
             <CertificateCard key={cert.id} cert={cert} index={index} />
           ))}
@@ -1529,6 +1545,7 @@ function StageCertificateRow({ certificates }: { certificates: any[] }) {
 function CertificatesSection() {
   const [stagesData, setStagesData] = useState(CERTIFICATES_BY_STAGE);
   const [selectedYear, setSelectedYear] = useState<string>('ALL');
+  const [selectedGrade, setSelectedGrade] = useState<string>('ALL');
   const autoYearApplied = useRef(false);
 
   // Academic-year organization: derive available years from loaded certificates
@@ -1537,6 +1554,18 @@ function CertificatesSection() {
       stagesData.flatMap((s) => (s.certificates || []).map((c: any) => String(c.year || '').trim()).filter(Boolean)),
     ),
   ).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+
+  // Class (صف دراسي) organization: derive available classes from the year-filtered certificates
+  const availableGrades = Array.from(
+    new Set(
+      stagesData.flatMap((s) =>
+        (s.certificates || [])
+          .filter((c: any) => selectedYear === 'ALL' || String(c.year || '').trim() === selectedYear)
+          .map((c: any) => String(c.classGrade || '').trim())
+          .filter(Boolean),
+      ),
+    ),
+  ).sort((a, b) => a.localeCompare(b, 'ar'));
 
   // Site control: spotlight one academic year by default (current year if present,
   // otherwise the latest). Visitors can still switch to any year or "all years".
@@ -1552,10 +1581,11 @@ function CertificatesSection() {
   const visibleStages = stagesData
     .map((stage) => ({
       ...stage,
-      certificates:
-        selectedYear === 'ALL'
-          ? stage.certificates
-          : (stage.certificates || []).filter((c: any) => String(c.year || '').trim() === selectedYear),
+      certificates: (stage.certificates || []).filter(
+        (c: any) =>
+          (selectedYear === 'ALL' || String(c.year || '').trim() === selectedYear) &&
+          (selectedGrade === 'ALL' || String(c.classGrade || '').trim() === selectedGrade),
+      ),
     }))
     .filter((stage) => stage.certificates && stage.certificates.length > 0);
 
@@ -1632,21 +1662,28 @@ function CertificatesSection() {
           subject: c.subject,
           student: c.studentName || 'طالب',
           grade: c.score,
+          classGrade: c.grade || '',
           year: c.year,
           image: c.fileUrl || '/certification-bg.webp',
-          stage: c.stage
+          stage: c.stage,
+          isPublic: c.isPublic !== false,
         }));
 
         const mappedLocalCerts = localCerts.map((c: any) => ({
           id: c.id,
           title: c.subject ? `التفوق في ${c.subject}` : 'شهادة تقدير',
           student: c.studentName || 'طالب',
-          image: c.image || 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate',
-          stage: c.stage || (c.data && c.data.stage)
+          grade: c.score,
+          classGrade: c.grade || (c.data && c.data.grade) || '',
+          year: c.year || (c.data && c.data.year) || '',
+          image: c.image || '/certification-bg.webp',
+          stage: c.stage || (c.data && c.data.stage),
+          isPublic: c.isPublic !== false,
         }));
 
         const combined = [...mappedApiCerts, ...mappedLocalCerts, ...SEED_CERTIFICATES];
-        const uniqueSaved = Array.from(new Map(combined.map(item => [`${item.student}__${item.title}`, item])).values());
+        const visibleOnly = combined.filter((item) => item.isPublic !== false);
+        const uniqueSaved = Array.from(new Map(visibleOnly.map(item => [`${item.student}__${item.title}`, item])).values());
 
         if (uniqueSaved.length > 0) {
           const newSecondary = uniqueSaved.filter((c: any) => c.stage === 'الثانوية');
@@ -1712,32 +1749,63 @@ function CertificatesSection() {
           </motion.div>
         </div>
 
-        {/* Academic year filter */}
-        {availableYears.length > 0 && (
-          <div className="flex flex-wrap items-center justify-center gap-2 mb-12">
-            <button
-              onClick={() => setSelectedYear('ALL')}
-              className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${
-                selectedYear === 'ALL'
-                  ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
-                  : 'bg-white text-slate-600 border border-slate-200 hover:border-amber-300'
-              }`}
-            >
-              كل السنوات
-            </button>
-            {availableYears.map((year) => (
-              <button
-                key={year}
-                onClick={() => setSelectedYear(year)}
-                className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${
-                  selectedYear === year
-                    ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:border-amber-300'
-                }`}
-              >
-                العام الدراسي {year}
-              </button>
-            ))}
+        {/* Academic year + class filters */}
+        {(availableYears.length > 0 || availableGrades.length > 0) && (
+          <div className="flex flex-col items-center gap-3 mb-12">
+            {availableYears.length > 0 && (
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <button
+                  onClick={() => setSelectedYear('ALL')}
+                  className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${
+                    selectedYear === 'ALL'
+                      ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:border-amber-300'
+                  }`}
+                >
+                  كل السنوات
+                </button>
+                {availableYears.map((year) => (
+                  <button
+                    key={year}
+                    onClick={() => setSelectedYear(year)}
+                    className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 ${
+                      selectedYear === year
+                        ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:border-amber-300'
+                    }`}
+                  >
+                    العام الدراسي {year}
+                  </button>
+                ))}
+              </div>
+            )}
+            {availableGrades.length > 0 && (
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <button
+                  onClick={() => setSelectedGrade('ALL')}
+                  className={`px-5 py-2 rounded-xl font-semibold text-sm transition-colors border ${
+                    selectedGrade === 'ALL'
+                      ? 'bg-slate-800 text-white border-slate-800'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  كل الصفوف
+                </button>
+                {availableGrades.map((grade) => (
+                  <button
+                    key={grade}
+                    onClick={() => setSelectedGrade(grade)}
+                    className={`px-5 py-2 rounded-xl font-semibold text-sm transition-colors border ${
+                      selectedGrade === grade
+                        ? 'bg-slate-800 text-white border-slate-800'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    {grade}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

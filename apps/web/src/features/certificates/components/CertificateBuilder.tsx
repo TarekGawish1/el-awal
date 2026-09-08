@@ -45,6 +45,26 @@ function toGradeLevel(stage: string, grade: string): string {
   return `${grade} ${STAGE_SUFFIX[stage] || ''}`.trim();
 }
 
+function parseGradeLevel(gradeLevel: string): { stage: string; grade: string } {
+  if (!gradeLevel) return { stage: '', grade: '' };
+  for (const [stage, suffix] of Object.entries(STAGE_SUFFIX)) {
+    if (gradeLevel.endsWith(suffix)) {
+      const grade = gradeLevel.slice(0, gradeLevel.length - suffix.length).trim();
+      if (grade && (STAGE_GRADES as Record<string, { label: string; value: string }[]>)[stage]?.some((g) => g.value === grade)) {
+        return { stage, grade };
+      }
+      return { stage, grade };
+    }
+  }
+  return { stage: '', grade: '' };
+}
+
+interface GroupOption {
+  id: string;
+  name: string;
+  gradeLevel: string;
+}
+
 export function CertificateBuilder() {
   const router = useRouter();
   
@@ -68,22 +88,63 @@ export function CertificateBuilder() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [studentSuggestions, setStudentSuggestions] = useState<{ id: string; name: string }[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+  const [groups, setGroups] = useState<GroupOption[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState('');
+  const [isLoadingGroups, setIsLoadingGroups] = useState(false);
 
-  // Real student lookup: students enrolled in the selected class (stage + grade).
-  // Typing a name narrows the search; any typed name can still be used manually.
+  // Load teacher groups once for the group-first student picker.
   useEffect(() => {
-    if (!data.stage || !data.grade) {
+    let cancelled = false;
+    (async () => {
+      setIsLoadingGroups(true);
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+        const token = getStoredAccessToken();
+        const res = await fetch(`${baseUrl}/groups`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (res.ok && !cancelled) {
+          const json = await res.json();
+          const list = Array.isArray(json) ? json : json?.data || [];
+          setGroups(
+            list
+              .map((g: any) => ({ id: String(g.id), name: g.name || 'مجموعة', gradeLevel: g.gradeLevel || '' }))
+              .filter((g: GroupOption) => g.id),
+          );
+        }
+      } catch (e) {
+        console.warn('Group lookup failed:', e);
+      } finally {
+        if (!cancelled) setIsLoadingGroups(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Real student lookup: prefer the selected group (groupId filter).
+  // Falls back to the legacy stage+grade (gradeLevel) filter when no group is picked.
+  // Typing a name narrows the search server-side; any typed name can still be used manually.
+  useEffect(() => {
+    const hasGroup = !!selectedGroupId;
+    const gradeLevel = toGradeLevel(data.stage, data.grade);
+    if (!hasGroup && (!data.stage || !data.grade)) {
       setStudentSuggestions([]);
       return;
     }
-    const gradeLevel = toGradeLevel(data.stage, data.grade);
     const search = data.studentName.trim();
     const timer = setTimeout(async () => {
       setIsLoadingStudents(true);
       try {
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
         const token = getStoredAccessToken();
-        const params = new URLSearchParams({ gradeLevel, limit: '20' });
+        const params = new URLSearchParams({ limit: hasGroup ? '50' : '20' });
+        if (hasGroup) {
+          params.set('groupId', selectedGroupId);
+        } else if (gradeLevel) {
+          params.set('gradeLevel', gradeLevel);
+        }
         if (search) params.set('search', search);
         const res = await fetch(`${baseUrl}/students?${params.toString()}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -104,7 +165,21 @@ export function CertificateBuilder() {
       }
     }, 350);
     return () => clearTimeout(timer);
-  }, [data.stage, data.grade, data.studentName]);
+  }, [selectedGroupId, data.stage, data.grade, data.studentName]);
+
+  const handleGroupChange = (groupId: string) => {
+    setSelectedGroupId(groupId);
+    // Clear the typed student so we never mix rosters, then auto-fill stage/grade from the group.
+    setData((prev) => ({ ...prev, studentName: '' }));
+    setShowSuggestions(true);
+    const group = groups.find((g) => g.id === groupId);
+    if (group?.gradeLevel) {
+      const parsed = parseGradeLevel(group.gradeLevel);
+      if (parsed.stage || parsed.grade) {
+        setData((prev) => ({ ...prev, stage: parsed.stage, grade: parsed.grade }));
+      }
+    }
+  };
 
   const containerRef = useRef<HTMLDivElement>(null);
   const certificateRef = useRef<HTMLDivElement>(null);
@@ -151,6 +226,9 @@ export function CertificateBuilder() {
       scorePos: { x: 577, y: 636 },
       datePos: { x: 388, y: 620 },
     });
+    setSelectedGroupId('');
+    setStudentSuggestions([]);
+    setShowSuggestions(false);
   };
 
   const handleGenerate = async () => {
@@ -312,6 +390,22 @@ export function CertificateBuilder() {
             </div>
             
             <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">المجموعة</label>
+                <Select
+                  value={selectedGroupId}
+                  onChange={(e) => handleGroupChange(e.target.value)}
+                  options={[
+                    { label: isLoadingGroups ? 'جاري تحميل المجموعات...' : 'اختر المجموعة...', value: '' },
+                    ...groups.map((g) => ({
+                      label: g.gradeLevel ? `${g.name} - ${g.gradeLevel}` : g.name,
+                      value: g.id,
+                    })),
+                  ]}
+                  disabled={isLoadingGroups}
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">المرحلة الدراسية</label>
@@ -343,41 +437,76 @@ export function CertificateBuilder() {
                 </div>
               </div>
 
-              <div className="relative">
-                <label className="block text-sm font-medium text-slate-700 mb-1">اسم الطالب</label>
-                <Input 
-                  value={data.studentName} 
-                  onChange={(e) => {
-                    handleChange('studentName', e.target.value);
-                    setShowSuggestions(true);
-                  }} 
-                  onFocus={() => setShowSuggestions(true)}
-                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                  placeholder={(!data.stage || !data.grade) ? "اختر المرحلة والصف أولاً..." : "ابحث عن اسم الطالب..."}
-                  disabled={!data.stage || !data.grade}
-                />
-                {showSuggestions && (studentSuggestions.length > 0 || isLoadingStudents) && (
-                  <div className="absolute top-[100%] mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
-                    {isLoadingStudents && studentSuggestions.length === 0 ? (
-                      <div className="px-4 py-3 text-sm text-slate-400">جاري البحث عن طلاب هذا الصف...</div>
-                    ) : (
-                      studentSuggestions.map(student => (
-                        <div
-                          key={student.id}
-                          className="px-4 py-3 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 transition-colors"
-                          onMouseDown={(e) => {
-                            e.preventDefault(); // Prevent onBlur from firing before click
-                            handleChange('studentName', student.name);
-                            setShowSuggestions(false);
-                          }}
-                        >
-                          {student.name}
-                        </div>
-                      ))
+              {(() => {
+                const canPickStudent = !!selectedGroupId || (!!data.stage && !!data.grade);
+                const typedName = data.studentName.trim();
+                const exactMatch = typedName && studentSuggestions.some((s) => s.name.trim() === typedName);
+                return (
+                  <div className="relative">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">اسم الطالب</label>
+                    <Input
+                      value={data.studentName}
+                      onChange={(e) => {
+                        handleChange('studentName', e.target.value);
+                        setShowSuggestions(true);
+                      }}
+                      onFocus={() => setShowSuggestions(true)}
+                      onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                      placeholder={
+                        !canPickStudent
+                          ? 'اختر المجموعة أولاً...'
+                          : 'ابحث بكتابة الاسم أو اختر من القائمة...'
+                      }
+                      disabled={!canPickStudent}
+                    />
+                    {!canPickStudent ? null : showSuggestions && (
+                      <div className="absolute top-[100%] mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg z-50 max-h-56 overflow-y-auto">
+                        {isLoadingStudents && studentSuggestions.length === 0 ? (
+                          <div className="px-4 py-3 text-sm text-slate-400">جاري البحث عن طلاب المجموعة...</div>
+                        ) : (
+                          <>
+                            {studentSuggestions.length === 0 && !typedName ? (
+                              <div className="px-4 py-3 text-sm text-slate-400">
+                                لا يوجد طلاب في هذه المجموعة — اكتب الاسم لإضافته يدوياً.
+                              </div>
+                            ) : (
+                              studentSuggestions.map((student) => (
+                                <div
+                                  key={student.id}
+                                  className="px-4 py-3 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 transition-colors"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault(); // Prevent onBlur from firing before click
+                                    handleChange('studentName', student.name);
+                                    setShowSuggestions(false);
+                                  }}
+                                >
+                                  {student.name}
+                                </div>
+                              ))
+                            )}
+                            {typedName && !exactMatch ? (
+                              <div
+                                className="px-4 py-3 hover:bg-indigo-50 cursor-pointer text-sm text-indigo-700 font-medium border-t border-slate-100 transition-colors"
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  // Keep the typed free text as a new (not yet in system) student.
+                                  handleChange('studentName', typedName);
+                                  setShowSuggestions(false);
+                                }}
+                              >
+                                استخدام &quot;{typedName}&quot; (طالب جديد)
+                              </div>
+                            ) : null}
+                          </>
+                        )}
+                      </div>
                     )}
+                    {typedName && !exactMatch ? (
+                      <p className="mt-1 text-xs text-slate-400">سيُحفظ &quot;{typedName}&quot; كاسم جديد غير مسجل بالنظام.</p>
+                    ) : null}
                   </div>
-                )}
-              </div>
+                );
+              })()}
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">النوع</label>

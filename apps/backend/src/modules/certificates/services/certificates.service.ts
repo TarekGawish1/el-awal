@@ -45,8 +45,24 @@ export class CertificatesService {
 
   async getPublicCertificates() {
     return this.prisma.certificate.findMany({
+      where: { isPublic: true },
       orderBy: { createdAt: 'desc' },
       take: 100, // Fetch up to 100 recent certificates
+    });
+  }
+
+  async setVisibility(id: string, isPublic: boolean) {
+    const existing = await this.prisma.certificate.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('الشهادة غير موجودة أو تم حذفها مسبقاً');
+    }
+
+    return this.prisma.certificate.update({
+      where: { id },
+      data: { isPublic },
     });
   }
 
