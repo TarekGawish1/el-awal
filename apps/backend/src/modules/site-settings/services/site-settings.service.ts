@@ -2,10 +2,13 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 
 const VISIBLE_YEARS_KEY = 'certificates.visibleYears';
+const VISIBLE_STAGES_KEY = 'certificates.visibleStages';
+const VISIBLE_GRADES_KEY = 'certificates.visibleGrades';
+const VISIBLE_GROUPS_KEY = 'certificates.visibleGroups';
 
 // Whitelist of setting keys manageable through the API.
 // Unknown keys are rejected so random clients cannot pollute the store.
-const MANAGEABLE_KEYS = [VISIBLE_YEARS_KEY];
+const MANAGEABLE_KEYS = [VISIBLE_YEARS_KEY, VISIBLE_STAGES_KEY, VISIBLE_GRADES_KEY, VISIBLE_GROUPS_KEY];
 
 @Injectable()
 export class SiteSettingsService {
@@ -26,10 +29,16 @@ export class SiteSettingsService {
 
   /** Public landing-page settings (fail-open: null means "show all"). */
   async getPublicSettings() {
-    const row = await this.prisma.siteSetting.findUnique({
-      where: { key: VISIBLE_YEARS_KEY },
+    const rows = await this.prisma.siteSetting.findMany({
+      where: { key: { in: MANAGEABLE_KEYS } },
     });
-    return { certificatesVisibleYears: this.parseYears(row?.value) };
+    const valueFor = (key: string) => this.parseYears(rows.find((row) => row.key === key)?.value);
+    return {
+      certificatesVisibleYears: valueFor(VISIBLE_YEARS_KEY),
+      certificatesVisibleStages: valueFor(VISIBLE_STAGES_KEY),
+      certificatesVisibleGrades: valueFor(VISIBLE_GRADES_KEY),
+      certificatesVisibleGroups: valueFor(VISIBLE_GROUPS_KEY),
+    };
   }
 
   /** All manageable settings with parsed values (dashboard). */

@@ -1210,6 +1210,7 @@ model Certificate {
   grade         String?   @map("grade") @db.VarChar(100)
   teacherId     String?   @map("teacher_id") @db.Uuid
   teacherName   String    @map("teacher_name") @db.VarChar(255)
+  groupName     String?   @map("group_name") @db.VarChar(150)
   fileUrl       String?   @map("file_url") @db.Text
   isPublic      Boolean   @default(true) @map("is_public")
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)

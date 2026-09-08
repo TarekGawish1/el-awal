@@ -38,6 +38,7 @@ export class CertificatesService {
         stage: data.stage,
         grade: data.grade,
         teacherName: data.teacherName,
+        groupName: data.groupName,
         fileUrl: fileUrl,
       },
     });

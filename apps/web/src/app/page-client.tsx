@@ -2150,6 +2150,9 @@ function CertificatesSection() {
   // Owner control: academic years allowed on the landing page (null = all).
   // Managed from the teacher dashboard (سنوات الظهور على الموقع).
   const [allowedYears, setAllowedYears] = useState<string[] | null>(null);
+  const [allowedStages, setAllowedStages] = useState<string[] | null>(null);
+  const [allowedGrades, setAllowedGrades] = useState<string[] | null>(null);
+  const [allowedGroups, setAllowedGroups] = useState<string[] | null>(null);
   const autoYearApplied = useRef(false);
 
   const normalizeCertificateGrade = (grade: unknown, stage: unknown) => {
@@ -2251,6 +2254,15 @@ function CertificatesSection() {
           (!allowedYears ||
             allowedYears.includes(String(c.year || "").trim()) ||
             !String(c.year || "").trim()) &&
+          (!allowedStages ||
+            allowedStages.includes(String(c.stage || "").trim()) ||
+            !String(c.stage || "").trim()) &&
+          (!allowedGrades ||
+            allowedGrades.includes(normalizeCertificateGrade(c.classGrade, c.stage)) ||
+            !String(c.classGrade || "").trim()) &&
+          (!allowedGroups ||
+            allowedGroups.includes(String(c.groupName || "").trim()) ||
+            !String(c.groupName || "").trim()) &&
           (selectedGrade === "ALL" ||
             normalizeCertificateGrade(c.classGrade, c.stage) === selectedGrade),
       ),
@@ -2297,6 +2309,10 @@ function CertificatesSection() {
               formData.append(
                 "grade",
                 cert.grade || (cert.data && cert.data.grade) || "",
+              );
+              formData.append(
+                "groupName",
+                cert.groupName || (cert.data && cert.data.groupName) || "",
               );
               formData.append("fileUrl", cert.image); // Sending base64 as url fallback
 
@@ -2349,6 +2365,7 @@ function CertificatesSection() {
           year: c.year,
           image: c.fileUrl || "/certification-bg.webp",
           stage: c.stage,
+          groupName: c.groupName || "",
           isPublic: c.isPublic !== false,
         }));
 
@@ -2361,6 +2378,7 @@ function CertificatesSection() {
           year: c.year || (c.data && c.data.year) || "",
           image: c.image || "/certification-bg.webp",
           stage: c.stage || (c.data && c.data.stage),
+          groupName: c.groupName || (c.data && c.data.groupName) || "",
           isPublic: c.isPublic !== false,
         }));
 
@@ -2437,6 +2455,15 @@ function CertificatesSection() {
               raw.map((v: any) => String(v).trim()).filter(Boolean),
             );
           }
+          const readSetting = (key: string) => {
+            const value = settingsJson?.data?.[key] ?? settingsJson?.[key];
+            return Array.isArray(value)
+              ? value.map((v: any) => String(v).trim()).filter(Boolean)
+              : null;
+          };
+          setAllowedStages(readSetting("certificatesVisibleStages"));
+          setAllowedGrades(readSetting("certificatesVisibleGrades"));
+          setAllowedGroups(readSetting("certificatesVisibleGroups"));
         }
       } catch (settingsError) {
         console.warn(

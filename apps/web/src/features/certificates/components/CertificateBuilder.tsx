@@ -304,6 +304,8 @@ export function CertificateBuilder() {
         formData.append('stage', data.stage || '');
         formData.append('grade', data.grade || '');
         formData.append('teacherName', data.teacherName || '');
+        const selectedGroup = groups.find((group) => group.id === selectedGroupId);
+        formData.append('groupName', selectedGroup?.name || '');
 
         try {
           const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
@@ -335,6 +337,7 @@ export function CertificateBuilder() {
               score: data.score || '100',
               stage: data.stage || '',
               grade: data.grade || '',
+              groupName: selectedGroup?.name || '',
               issueDate: data.issueDate || '',
               createdAt: new Date().toISOString(),
               image: serverFileUrl,

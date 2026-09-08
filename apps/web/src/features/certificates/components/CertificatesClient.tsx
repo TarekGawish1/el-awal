@@ -19,6 +19,7 @@ interface SavedCertificate {
   grade: string;
   issueDate: string;
   year: string;
+  groupName?: string;
   isPublic: boolean;
   createdAt: string;
   data?: any;
@@ -37,6 +38,12 @@ export function CertificatesClient() {
     null,
   );
   const [savingYears, setSavingYears] = useState(false);
+  const [allowedStages, setAllowedStages] = useState<string[] | null>(null);
+  const [savedAllowedStages, setSavedAllowedStages] = useState<string[] | null>(null);
+  const [allowedGrades, setAllowedGrades] = useState<string[] | null>(null);
+  const [savedAllowedGrades, setSavedAllowedGrades] = useState<string[] | null>(null);
+  const [allowedGroups, setAllowedGroups] = useState<string[] | null>(null);
+  const [savedAllowedGroups, setSavedAllowedGroups] = useState<string[] | null>(null);
 
   const normalizeCertificateGrade = (grade: unknown, stage: unknown) => {
     const value = String(grade || "").trim();
@@ -112,6 +119,7 @@ export function CertificatesClient() {
           year: c.year,
           gender: c.gender,
           teacherName: c.teacherName,
+          groupName: c.groupName,
           isPublic: c.isPublic !== false,
           createdAt: c.createdAt,
           image: c.fileUrl || c.image || localImage,
@@ -182,6 +190,18 @@ export function CertificatesClient() {
           : null;
         setAllowedYears(val);
         setSavedAllowedYears(val);
+        const settingValue = (key: string) => {
+          const setting = arr.find((item: any) => item.key === key);
+          return Array.isArray(setting?.value)
+            ? setting.value.map((value: any) => String(value))
+            : null;
+        };
+        setAllowedStages(settingValue("certificates.visibleStages"));
+        setSavedAllowedStages(settingValue("certificates.visibleStages"));
+        setAllowedGrades(settingValue("certificates.visibleGrades"));
+        setSavedAllowedGrades(settingValue("certificates.visibleGrades"));
+        setAllowedGroups(settingValue("certificates.visibleGroups"));
+        setSavedAllowedGroups(settingValue("certificates.visibleGroups"));
       } catch (err) {
         console.warn("Could not load site settings:", err);
       }
@@ -206,22 +226,52 @@ export function CertificatesClient() {
     );
   };
 
+  const toggleAllowed = (
+    value: string,
+    current: string[] | null,
+    options: string[],
+    setter: React.Dispatch<React.SetStateAction<string[] | null>>,
+  ) => {
+    const base = current ?? options;
+    setter(base.includes(value) ? base.filter((item) => item !== value) : [...base, value]);
+  };
+
   const yearsDirty =
     JSON.stringify([...(allowedYears ?? [])].sort()) !==
     JSON.stringify([...(savedAllowedYears ?? [])].sort());
 
-  const handleSaveYears = async () => {
+  const visibilityDirty =
+    yearsDirty ||
+    JSON.stringify([...(allowedStages ?? [])].sort()) !== JSON.stringify([...(savedAllowedStages ?? [])].sort()) ||
+    JSON.stringify([...(allowedGrades ?? [])].sort()) !== JSON.stringify([...(savedAllowedGrades ?? [])].sort()) ||
+    JSON.stringify([...(allowedGroups ?? [])].sort()) !== JSON.stringify([...(savedAllowedGroups ?? [])].sort());
+
+  const stageOptions = ["الثانوية", "الإعدادية", "الابتدائية"];
+  const groupOptions = React.useMemo(
+    () => Array.from(new Set(certificates.map((certificate) => certificate.groupName?.trim()).filter(Boolean) as string[])).sort(),
+    [certificates],
+  );
+
+  const handleSaveVisibility = async () => {
     setSavingYears(true);
     try {
-      const value = allowedYears ?? yearOptions;
-      await apiClient("/site-settings", {
+      const values = [
+        ["certificates.visibleYears", allowedYears ?? yearOptions],
+        ["certificates.visibleStages", allowedStages ?? stageOptions],
+        ["certificates.visibleGrades", allowedGrades ?? allGrades],
+        ["certificates.visibleGroups", allowedGroups ?? groupOptions],
+      ];
+      await Promise.all(values.map(([key, value]) => apiClient("/site-settings", {
         method: "PATCH",
-        body: JSON.stringify({ key: "certificates.visibleYears", value }),
-      });
-      setSavedAllowedYears(value);
-      toast.success("تم حفظ سنوات العرض على الموقع");
+        body: JSON.stringify({ key, value }),
+      })));
+      setSavedAllowedYears(allowedYears ?? yearOptions);
+      setSavedAllowedStages(allowedStages ?? stageOptions);
+      setSavedAllowedGrades(allowedGrades ?? allGrades);
+      setSavedAllowedGroups(allowedGroups ?? groupOptions);
+      toast.success("تم حفظ إعدادات ظهور الشهادات");
     } catch (err: any) {
-      console.error("Failed to save visible years:", err);
+      console.error("Failed to save certificate visibility:", err);
       toast.error(err?.message || "فشل حفظ الإعداد");
     } finally {
       setSavingYears(false);
@@ -433,17 +483,17 @@ export function CertificatesClient() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="text-base font-bold text-slate-800">
-              سنوات الظهور على الموقع
+              إعدادات ظهور الشهادات على الموقع
             </h3>
             <p className="text-xs text-slate-500 mt-1">
-              اختر السنوات الدراسية التي تظهر لزوار الموقع في لوحة الشرف. غير
-              المحدد يختفي تماماً من الموقع.
+              اختر السنوات والمراحل والصفوف والمجموعات التي تظهر لزوار الموقع.
+              غير المحدد يختفي تماماً من الموقع.
             </p>
           </div>
           <Button
             variant="primary"
-            onClick={handleSaveYears}
-            disabled={!yearsDirty || savingYears || yearOptions.length === 0}
+            onClick={handleSaveVisibility}
+            disabled={!visibilityDirty || savingYears}
             className="shrink-0"
           >
             {savingYears ? "جاري الحفظ..." : "حفظ الإعداد"}
@@ -460,7 +510,7 @@ export function CertificatesClient() {
           >
             الكل
           </button>
-          {yearOptions.map((year) => {
+            {yearOptions.map((year) => {
             const active = (allowedYears ?? yearOptions).includes(year);
             return (
               <button
@@ -477,6 +527,33 @@ export function CertificatesClient() {
             );
           })}
         </div>
+        {[
+          { label: "المراحل", options: stageOptions, value: allowedStages, setter: setAllowedStages },
+          { label: "الصفوف", options: allGrades, value: allowedGrades, setter: setAllowedGrades },
+          { label: "المجموعات", options: groupOptions, value: allowedGroups, setter: setAllowedGroups },
+        ].map(({ label, options, value, setter }) => (
+          <div key={label} className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="w-20 text-xs font-bold text-slate-400">{label}:</span>
+            <button
+              onClick={() => setter(null)}
+              className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${value === null ? "border-indigo-200 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-600"}`}
+            >
+              الكل
+            </button>
+            {options.map((option) => {
+              const active = (value ?? options).includes(option);
+              return (
+                <button
+                  key={option}
+                  onClick={() => toggleAllowed(option, value, options, setter)}
+                  className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${active ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-400 line-through"}`}
+                >
+                  {option}
+                </button>
+              );
+            })}
+          </div>
+        ))}
       </div>
 
       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col gap-3">

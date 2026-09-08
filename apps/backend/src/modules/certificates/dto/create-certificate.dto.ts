@@ -55,6 +55,12 @@ export class CreateCertificateDto {
   @MaxLength(150)
   teacherName?: string;
 
+  @ApiProperty({ example: 'مجموعة الأحد', description: 'المجموعة الدراسية', required: false })
+  @IsString()
+  @IsOptional()
+  @MaxLength(150)
+  groupName?: string;
+
   @ApiProperty({ example: 'https://...', description: 'رابط ملف الشهادة المرفوع مسبقاً', required: false })
   @IsString()
   @IsOptional()
