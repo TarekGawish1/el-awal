@@ -2126,7 +2126,6 @@ function StageCertificateRow({ certificates }: { certificates: any[] }) {
 
 function CertificatesSection() {
   const [stagesData, setStagesData] = useState(CERTIFICATES_BY_STAGE);
-  const [selectedGrade, setSelectedGrade] = useState<string>("ALL");
   // Owner control: academic years allowed on the landing page (null = all).
   // Managed from the teacher dashboard (سنوات الظهور على الموقع).
   const [allowedYears, setAllowedYears] = useState<string[] | null>(null);
@@ -2157,24 +2156,6 @@ function CertificatesSection() {
       : value;
   };
 
-  // Class (صف دراسي) organization: derive available classes from the loaded certificates.
-  const availableGrades = Array.from(
-    new Set(
-      stagesData.flatMap((s) =>
-        (s.certificates || [])
-          .map((c: any) => normalizeCertificateGrade(c.classGrade, c.stage))
-          .filter(Boolean),
-      ),
-    ),
-  ).sort((a, b) => a.localeCompare(b, "ar"));
-
-  const gradeOptions = Array.from(
-    new Set([
-      ...Object.values(GRADE_LEVELS_BY_STAGE).flat(),
-      ...availableGrades,
-    ]),
-  ).sort((a, b) => a.localeCompare(b, "ar"));
-
   const visibleStages = stagesData
     .map((stage) => ({
       ...stage,
@@ -2194,8 +2175,6 @@ function CertificatesSection() {
           (!allowedGroups ||
             allowedGroups.includes(String(c.groupName || "").trim()) ||
             !String(c.groupName || "").trim()) &&
-          (selectedGrade === "ALL" ||
-            normalizeCertificateGrade(c.classGrade, c.stage) === selectedGrade),
       ),
     }))
     .filter((stage) => stage.certificates && stage.certificates.length > 0);
@@ -2440,28 +2419,6 @@ function CertificatesSection() {
         </div>
 
         {/* Academic year + class filters */}
-        {availableGrades.length > 0 && (
-          <div className="flex flex-wrap items-center justify-center gap-4 mb-12">
-            {availableGrades.length > 0 && (
-              <label className="flex items-center gap-2 text-sm font-bold text-slate-600">
-                <span>الصف الدراسي:</span>
-                <select
-                  value={selectedGrade}
-                  onChange={(event) => setSelectedGrade(event.target.value)}
-                  className="min-w-36 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
-                >
-                  <option value="ALL">كل الصفوف</option>
-                  {gradeOptions.map((grade) => (
-                    <option key={grade} value={grade}>
-                      {grade}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-          </div>
-        )}
-
         <div className="space-y-16">
           {visibleStages.length === 0 ? (
             <div className="text-center py-12 bg-white/50 backdrop-blur-sm rounded-2xl border border-slate-200 shadow-sm max-w-3xl mx-auto">
