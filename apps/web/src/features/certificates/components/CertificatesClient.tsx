@@ -347,19 +347,38 @@ export function CertificatesClient() {
 
   const stages = ["الكل", "الثانوية", "الإعدادية", "الابتدائية"];
 
-  const grades = React.useMemo(() => {
-    const allGrades = Object.values(GRADE_LEVELS_BY_STAGE).flat();
+  const allGrades = React.useMemo(() => {
+    const allCanonicalGrades = Object.values(GRADE_LEVELS_BY_STAGE).flat();
     const existingGrades = certificates
       .map((certificate) =>
         normalizeCertificateGrade(certificate.grade, certificate.stage),
       )
       .filter(Boolean);
-    return ["الكل", ...Array.from(new Set([...allGrades, ...existingGrades]))];
+    return Array.from(new Set([...allCanonicalGrades, ...existingGrades]));
   }, [certificates]);
+
+  const grades = React.useMemo(() => {
+    const stageGrades = selectedStage === "الكل"
+      ? allGrades
+      : allGrades.filter((grade) => {
+          const stageSuffix = {
+            الثانوية: "الثانوي",
+            الإعدادية: "الإعدادي",
+            الابتدائية: "الابتدائي",
+          }[selectedStage];
+          return stageSuffix ? grade.endsWith(stageSuffix) : true;
+        });
+    return ["الكل", ...stageGrades];
+  }, [allGrades, selectedStage]);
 
   const years = React.useMemo(() => {
     const set = new Set<string>();
-    certificates.forEach((c) => {
+    certificates.filter((certificate) => {
+      const matchesStage = selectedStage === "الكل" || certificate.stage === selectedStage;
+      const matchesGrade = selectedGrade === "الكل" ||
+        normalizeCertificateGrade(certificate.grade, certificate.stage) === selectedGrade;
+      return matchesStage && matchesGrade;
+    }).forEach((c) => {
       const y = String(c.year || "").trim();
       if (y) set.add(y);
     });
@@ -369,7 +388,19 @@ export function CertificatesClient() {
         b.localeCompare(a, undefined, { numeric: true }),
       ),
     ];
-  }, [certificates]);
+  }, [certificates, selectedStage, selectedGrade]);
+
+  useEffect(() => {
+    if (selectedGrade !== "الكل" && !grades.includes(selectedGrade)) {
+      setSelectedGrade("الكل");
+    }
+  }, [grades, selectedGrade]);
+
+  useEffect(() => {
+    if (selectedYear !== "الكل" && !years.includes(selectedYear)) {
+      setSelectedYear("الكل");
+    }
+  }, [selectedYear, years]);
 
   return (
     <div className="space-y-6">
