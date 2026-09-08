@@ -2126,7 +2126,6 @@ function StageCertificateRow({ certificates }: { certificates: any[] }) {
 
 function CertificatesSection() {
   const [stagesData, setStagesData] = useState(CERTIFICATES_BY_STAGE);
-  const [selectedYear, setSelectedYear] = useState<string>("ALL");
   const [selectedGrade, setSelectedGrade] = useState<string>("ALL");
   // Owner control: academic years allowed on the landing page (null = all).
   // Managed from the teacher dashboard (سنوات الظهور على الموقع).
@@ -2134,7 +2133,6 @@ function CertificatesSection() {
   const [allowedStages, setAllowedStages] = useState<string[] | null>(null);
   const [allowedGrades, setAllowedGrades] = useState<string[] | null>(null);
   const [allowedGroups, setAllowedGroups] = useState<string[] | null>(null);
-  const autoYearApplied = useRef(false);
 
   const normalizeCertificateGrade = (grade: unknown, stage: unknown) => {
     const value = String(grade || "").trim();
@@ -2159,30 +2157,11 @@ function CertificatesSection() {
       : value;
   };
 
-  // Academic-year organization: derive available years from loaded certificates,
-  // restricted to the owner-allowed set.
-  const availableYears = Array.from(
-    new Set(
-      stagesData.flatMap((s) =>
-        (s.certificates || [])
-          .map((c: any) => String(c.year || "").trim())
-          .filter(Boolean),
-      ),
-    ),
-  )
-    .filter((year) => !allowedYears || allowedYears.includes(year))
-    .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
-
-  // Class (صف دراسي) organization: derive available classes from the year-filtered certificates
+  // Class (صف دراسي) organization: derive available classes from the loaded certificates.
   const availableGrades = Array.from(
     new Set(
       stagesData.flatMap((s) =>
         (s.certificates || [])
-          .filter(
-            (c: any) =>
-              selectedYear === "ALL" ||
-              String(c.year || "").trim() === selectedYear,
-          )
           .map((c: any) => normalizeCertificateGrade(c.classGrade, c.stage))
           .filter(Boolean),
       ),
@@ -2196,42 +2175,11 @@ function CertificatesSection() {
     ]),
   ).sort((a, b) => a.localeCompare(b, "ar"));
 
-  // Site control: spotlight one academic year by default (current year if present,
-  // otherwise the latest). Visitors can still switch to any year or "all years".
-  // Runs once so a manual "كل السنوات" choice is never overridden.
-  useEffect(() => {
-    if (!autoYearApplied.current && availableYears.length > 0) {
-      autoYearApplied.current = true;
-      const currentYear = new Date().getFullYear().toString();
-      setSelectedYear(
-        availableYears.includes(currentYear) ? currentYear : availableYears[0],
-      );
-    }
-  }, [availableYears]);
-
-  // If the current selection becomes disallowed (owner changed the setting),
-  // fall back to the spotlight default instead of showing an empty section.
-  useEffect(() => {
-    if (
-      autoYearApplied.current &&
-      selectedYear !== "ALL" &&
-      availableYears.length > 0 &&
-      !availableYears.includes(selectedYear)
-    ) {
-      const currentYear = new Date().getFullYear().toString();
-      setSelectedYear(
-        availableYears.includes(currentYear) ? currentYear : availableYears[0],
-      );
-    }
-  }, [availableYears, selectedYear]);
-
   const visibleStages = stagesData
     .map((stage) => ({
       ...stage,
       certificates: (stage.certificates || []).filter(
         (c: any) =>
-          (selectedYear === "ALL" ||
-            String(c.year || "").trim() === selectedYear) &&
           (!allowedYears ||
             allowedYears.includes(String(c.year || "").trim()) ||
             !String(c.year || "").trim()) &&
@@ -2492,25 +2440,8 @@ function CertificatesSection() {
         </div>
 
         {/* Academic year + class filters */}
-        {(availableYears.length > 0 || availableGrades.length > 0) && (
+        {availableGrades.length > 0 && (
           <div className="flex flex-wrap items-center justify-center gap-4 mb-12">
-            {availableYears.length > 0 && (
-              <label className="flex items-center gap-2 text-sm font-bold text-slate-600">
-                <span>السنة الدراسية:</span>
-                <select
-                  value={selectedYear}
-                  onChange={(event) => setSelectedYear(event.target.value)}
-                  className="min-w-40 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm outline-none transition-colors focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
-                >
-                  <option value="ALL">كل السنوات</option>
-                  {availableYears.map((year) => (
-                    <option key={year} value={year}>
-                      العام الدراسي {year}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
             {availableGrades.length > 0 && (
               <label className="flex items-center gap-2 text-sm font-bold text-slate-600">
                 <span>الصف الدراسي:</span>
@@ -2656,10 +2587,9 @@ function AboutBackgroundSequence() {
     let images: HTMLImageElement[] = [];
     let currentImageIndex = 0;
 
-    // Centered fullscreen cover. All slideshow files are normalized to the
-    // same 16:9 aspect ratio, so every frame fills the section edge-to-edge.
-    // Center on both axes so students' faces (usually mid-frame) stay visible
-    // instead of pinning to the top and cropping them out.
+    // Keep the complete slideshow frame visible on narrow portrait screens.
+    // The dark background fills the remaining space when the frame is wider
+    // than the tall About section.
     const drawCurrentImage = () => {
       const canvas = canvasRef.current;
       const image = images[currentImageIndex];
@@ -2677,7 +2607,7 @@ function AboutBackgroundSequence() {
         canvas.height = targetHeight;
       }
 
-      const scale = Math.max(
+      const scale = Math.min(
         canvas.width / image.naturalWidth,
         canvas.height / image.naturalHeight,
       );
