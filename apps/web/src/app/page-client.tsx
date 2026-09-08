@@ -1670,15 +1670,22 @@ function AboutBackgroundSequence() {
 
   useEffect(() => {
     let isActive = true;
-    let rafId: number | null = null;
+    let intervalId: number | null = null;
+    let resizeObserver: ResizeObserver | null = null;
     let images: HTMLImageElement[] = [];
     let currentImageIndex = 0;
-    let slideStart = 0;
-    let panForward = true;
 
-    const syncCanvasSize = () => {
+    // Static frame: the whole photo is always fully visible (contain),
+    // centered sharp over a fullscreen ambient blurred fill — no cropping,
+    // no oversize zoom, no motion.
+    const drawCurrentImage = () => {
       const canvas = canvasRef.current;
-      if (!canvas) return false;
+      const image = images[currentImageIndex];
+      if (!canvas || !image) return;
+
+      const context = canvas.getContext('2d');
+      if (!context) return;
+
       const bounds = canvas.getBoundingClientRect();
       const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
       const targetWidth = Math.max(1, Math.round(bounds.width * pixelRatio));
@@ -1687,49 +1694,38 @@ function AboutBackgroundSequence() {
         canvas.width = targetWidth;
         canvas.height = targetHeight;
       }
-      return true;
-    };
 
-    // Full-screen cover — fills the entire frame, no bars.
-    // `progress` (0..1) slowly pans vertically across the photo during its
-    // slide, so group photos show every face over time instead of cropping
-    // someone out with a static crop. Direction alternates each slide.
-    const drawCurrentImage = (progress: number) => {
-      const canvas = canvasRef.current;
-      const image = images[currentImageIndex];
-      if (!canvas || !image) return;
-
-      const context = canvas.getContext('2d');
-      if (!context) return;
-      if (!syncCanvasSize()) return;
-
-      const scale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
-      const drawWidth = image.naturalWidth * scale;
-      const drawHeight = image.naturalHeight * scale;
-      const offsetX = (canvas.width - drawWidth) / 2;
-      // Cover bounds: top-aligned shows faces at top, bottom-aligned shows feet/bottom
-      const topOffset = canvas.height - drawHeight;
-      const eased = progress * progress * (3 - 2 * progress); // smoothstep
-      const span = eased * (0 - topOffset);
-      const offsetY = panForward ? topOffset + span : 0 - span;
+      // 1. Fullscreen ambient fill (blurred cover) — no empty bars
+      const coverScale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
+      const coverWidth = image.naturalWidth * coverScale;
+      const coverHeight = image.naturalHeight * coverScale;
       context.clearRect(0, 0, canvas.width, canvas.height);
-      context.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
-    };
+      context.save();
+      try {
+        (context as any).filter = 'blur(60px)';
+      } catch { /* filter unsupported — plain fill */ }
+      context.globalAlpha = 0.7;
+      const bleed = 80;
+      context.drawImage(
+        image,
+        (canvas.width - coverWidth) / 2 - bleed / 2,
+        (canvas.height - coverHeight) / 2 - bleed / 2,
+        coverWidth + bleed,
+        coverHeight + bleed,
+      );
+      context.restore();
 
-    const render = (now: number) => {
-      if (!isActive) return;
-      if (images.length > 0) {
-        if (!slideStart) slideStart = now;
-        let t = (now - slideStart) / ABOUT_IMAGE_DURATION_MS;
-        if (t >= 1) {
-          currentImageIndex = (currentImageIndex + 1) % images.length;
-          slideStart = now;
-          panForward = !panForward;
-          t = 0;
-        }
-        drawCurrentImage(Math.min(1, Math.max(0, t)));
-      }
-      rafId = window.requestAnimationFrame(render);
+      // 2. Whole photo, sharp, fully inside the frame
+      const fitScale = Math.min(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
+      const fitWidth = image.naturalWidth * fitScale;
+      const fitHeight = image.naturalHeight * fitScale;
+      context.drawImage(
+        image,
+        (canvas.width - fitWidth) / 2,
+        (canvas.height - fitHeight) / 2,
+        fitWidth,
+        fitHeight,
+      );
     };
 
     // Only start loading the local slideshow when the About section is near
@@ -1742,8 +1738,16 @@ function AboutBackgroundSequence() {
         if (images.length === 0) return;
         setHasImages(true);
 
-        slideStart = 0;
-        if (rafId === null) rafId = window.requestAnimationFrame(render);
+        drawCurrentImage();
+        if (canvasRef.current && typeof ResizeObserver !== 'undefined') {
+          resizeObserver = new ResizeObserver(drawCurrentImage);
+          resizeObserver.observe(canvasRef.current);
+        }
+        intervalId = window.setInterval(() => {
+          if (images.length === 0) return;
+          currentImageIndex = (currentImageIndex + 1) % images.length;
+          drawCurrentImage();
+        }, ABOUT_IMAGE_DURATION_MS);
       });
     };
 
@@ -1765,8 +1769,9 @@ function AboutBackgroundSequence() {
 
     return () => {
       isActive = false;
+      resizeObserver?.disconnect();
       observer?.disconnect();
-      if (rafId !== null) window.cancelAnimationFrame(rafId);
+      if (intervalId !== null) window.clearInterval(intervalId);
     };
   }, []);
 
