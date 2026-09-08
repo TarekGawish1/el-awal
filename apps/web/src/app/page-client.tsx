@@ -23,6 +23,7 @@ import { getRoleLandingRoute } from "@/features/auth/utils/role-routing";
 import { submitContactMessage } from "./actions";
 import { useQuery } from "@tanstack/react-query";
 import { testimonialsApi } from "@/features/testimonials/api/testimonials.api";
+import { GRADE_LEVELS_BY_STAGE } from "@/lib/constants/grades";
 
 function IntroSequence({ onComplete }: { onComplete: () => void }) {
   useEffect(() => {
@@ -2151,6 +2152,29 @@ function CertificatesSection() {
   const [allowedYears, setAllowedYears] = useState<string[] | null>(null);
   const autoYearApplied = useRef(false);
 
+  const normalizeCertificateGrade = (grade: unknown, stage: unknown) => {
+    const value = String(grade || "").trim();
+    if (!value) return "";
+    if (
+      Object.values(GRADE_LEVELS_BY_STAGE).some((grades) =>
+        grades.includes(value),
+      )
+    ) {
+      return value;
+    }
+
+    const suffixByStage: Record<string, string> = {
+      الثانوية: "الثانوي",
+      الإعدادية: "الإعدادي",
+      الابتدائية: "الابتدائي",
+    };
+    const suffix = suffixByStage[String(stage || "").trim()];
+    return suffix &&
+      /^الصف (الأول|الثاني|الثالث|الرابع|الخامس|السادس)$/.test(value)
+      ? `${value} ${suffix}`
+      : value;
+  };
+
   // Academic-year organization: derive available years from loaded certificates,
   // restricted to the owner-allowed set.
   const availableYears = Array.from(
@@ -2175,10 +2199,17 @@ function CertificatesSection() {
               selectedYear === "ALL" ||
               String(c.year || "").trim() === selectedYear,
           )
-          .map((c: any) => String(c.classGrade || "").trim())
+          .map((c: any) => normalizeCertificateGrade(c.classGrade, c.stage))
           .filter(Boolean),
       ),
     ),
+  ).sort((a, b) => a.localeCompare(b, "ar"));
+
+  const gradeOptions = Array.from(
+    new Set([
+      ...Object.values(GRADE_LEVELS_BY_STAGE).flat(),
+      ...availableGrades,
+    ]),
   ).sort((a, b) => a.localeCompare(b, "ar"));
 
   // Site control: spotlight one academic year by default (current year if present,
@@ -2221,7 +2252,7 @@ function CertificatesSection() {
             allowedYears.includes(String(c.year || "").trim()) ||
             !String(c.year || "").trim()) &&
           (selectedGrade === "ALL" ||
-            String(c.classGrade || "").trim() === selectedGrade),
+            normalizeCertificateGrade(c.classGrade, c.stage) === selectedGrade),
       ),
     }))
     .filter((stage) => stage.certificates && stage.certificates.length > 0);
@@ -2479,7 +2510,7 @@ function CertificatesSection() {
                   className="min-w-36 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
                 >
                   <option value="ALL">كل الصفوف</option>
-                  {availableGrades.map((grade) => (
+                  {gradeOptions.map((grade) => (
                     <option key={grade} value={grade}>
                       {grade}
                     </option>
