@@ -231,7 +231,7 @@ export function CertificatesClient() {
     options: string[],
     setter: React.Dispatch<React.SetStateAction<string[] | null>>,
   ) => {
-    const base = current ?? options;
+    const base = current ?? [value];
     setter(
       base.includes(value)
         ? base.filter((item) => item !== value)
@@ -253,17 +253,6 @@ export function CertificatesClient() {
       JSON.stringify([...(savedAllowedGroups ?? [])].sort());
 
   const stageOptions = ["الثانوية", "الإعدادية", "الابتدائية"];
-  const groupOptions = React.useMemo(
-    () =>
-      Array.from(
-        new Set(
-          certificates
-            .map((certificate) => certificate.groupName?.trim())
-            .filter(Boolean) as string[],
-        ),
-      ).sort(),
-    [certificates],
-  );
 
   const handleSaveVisibility = async () => {
     setSavingYears(true);
@@ -277,7 +266,6 @@ export function CertificatesClient() {
       await Promise.all(
         values.map(([key, value]) =>
           apiClient("/site-settings", {
-            method: "PATCH",
             body: JSON.stringify({ key, value }),
           }),
         ),
@@ -424,6 +412,41 @@ export function CertificatesClient() {
     return Array.from(new Set([...allCanonicalGrades, ...existingGrades]));
   }, [certificates]);
 
+  const gradeOptions = React.useMemo(() => {
+    const selectedStages = allowedStages ?? stageOptions;
+    return allGrades.filter((grade) =>
+      selectedStages.some((stage) => {
+        const suffix = {
+          الثانوية: "الثانوي",
+          الإعدادية: "الإعدادي",
+          الابتدائية: "الابتدائي",
+        }[stage];
+        return suffix ? grade.endsWith(suffix) : false;
+      }),
+    );
+  }, [allGrades, allowedStages]);
+
+  const groupOptions = React.useMemo(() => {
+    const selectedStages = allowedStages ?? stageOptions;
+    const scopedCertificates = certificates.filter((certificate) => {
+      const matchesStage = selectedStages.includes(certificate.stage);
+      const normalizedGrade = normalizeCertificateGrade(
+        certificate.grade,
+        certificate.stage,
+      );
+      const matchesGrade =
+        allowedGrades === null || allowedGrades?.includes(normalizedGrade);
+      return matchesStage && matchesGrade;
+    });
+    return Array.from(
+      new Set(
+        scopedCertificates
+          .map((certificate) => certificate.groupName?.trim())
+          .filter(Boolean) as string[],
+      ),
+    ).sort();
+  }, [certificates, allowedGrades, allowedStages]);
+
   const grades = React.useMemo(() => {
     const stageGrades =
       selectedStage === "الكل"
@@ -464,6 +487,26 @@ export function CertificatesClient() {
       ),
     ];
   }, [certificates, selectedStage, selectedGrade]);
+
+  useEffect(() => {
+    if (allowedGrades !== null) {
+      setAllowedGrades((current) => {
+        if (current === null) return current;
+        const next = current.filter((grade) => gradeOptions.includes(grade));
+        return next.length === 0 ? null : next;
+      });
+    }
+  }, [gradeOptions]);
+
+  useEffect(() => {
+    if (allowedGroups !== null) {
+      setAllowedGroups((current) => {
+        if (current === null) return current;
+        const next = current.filter((group) => groupOptions.includes(group));
+        return next.length === 0 ? null : next;
+      });
+    }
+  }, [groupOptions]);
 
   useEffect(() => {
     if (selectedGrade !== "الكل" && !grades.includes(selectedGrade)) {
@@ -517,67 +560,74 @@ export function CertificatesClient() {
           </Button>
         </div>
         <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          {
-            label: "السنوات",
-            options: yearOptions,
-            value: allowedYears,
-            setter: setAllowedYears,
-          },
-          {
-            label: "المراحل",
-            options: stageOptions,
-            value: allowedStages,
-            setter: setAllowedStages,
-          },
-          {
-            label: "الصفوف",
-            options: allGrades,
-            value: allowedGrades,
-            setter: setAllowedGrades,
-          },
-          {
-            label: "المجموعات",
-            options: groupOptions,
-            value: allowedGroups,
-            setter: setAllowedGroups,
-          },
-        ].map(({ label, options, value, setter }) => (
-          <details key={label} className="relative group">
-            <summary className="flex cursor-pointer list-none items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:border-indigo-300">
-              <span>{label}</span>
-              <span className="text-xs text-slate-400">
-                {value === null ? "الكل" : `${value.length} محدد`}
-              </span>
-            </summary>
-            <div className="absolute right-0 z-20 mt-1 max-h-64 w-full min-w-52 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
-              <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                <input
-                  type="checkbox"
-                  checked={value === null}
-                  onChange={() => setter(null)}
-                  className="h-4 w-4 accent-indigo-600"
-                />
-                الكل
-              </label>
-              {options.length === 0 ? (
-                <p className="px-2 py-2 text-xs text-slate-400">لا توجد خيارات بعد</p>
-              ) : (
-                options.map((option) => (
-                  <label key={option} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm text-slate-600 hover:bg-slate-50">
-                    <input
-                      type="checkbox"
-                      checked={(value ?? options).includes(option)}
-                      onChange={() => toggleAllowed(option, value, options, setter)}
-                      className="h-4 w-4 accent-emerald-600"
-                    />
-                    <span>{option}</span>
-                  </label>
-                ))
-              )}
-            </div>
-          </details>
-        ))}
+          {[
+            {
+              label: "السنوات",
+              options: yearOptions,
+              value: allowedYears,
+              setter: setAllowedYears,
+            },
+            {
+              label: "المراحل",
+              options: stageOptions,
+              value: allowedStages,
+              setter: setAllowedStages,
+            },
+            {
+              label: "الصفوف",
+              options: gradeOptions,
+              value: allowedGrades,
+              setter: setAllowedGrades,
+            },
+            {
+              label: "المجموعات",
+              options: groupOptions,
+              value: allowedGroups,
+              setter: setAllowedGroups,
+            },
+          ].map(({ label, options, value, setter }) => (
+            <details key={label} className="relative group">
+              <summary className="flex cursor-pointer list-none items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:border-indigo-300">
+                <span>{label}</span>
+                <span className="text-xs text-slate-400">
+                  {value === null ? "الكل" : `${value.length} محدد`}
+                </span>
+              </summary>
+              <div className="absolute right-0 z-20 mt-1 max-h-64 w-full min-w-52 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
+                <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                  <input
+                    type="checkbox"
+                    checked={value === null}
+                    onChange={() => setter(null)}
+                    className="h-4 w-4 accent-indigo-600"
+                  />
+                  الكل
+                </label>
+                {options.length === 0 ? (
+                  <p className="px-2 py-2 text-xs text-slate-400">
+                    لا توجد خيارات بعد
+                  </p>
+                ) : (
+                  options.map((option) => (
+                    <label
+                      key={option}
+                      className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={(value ?? options).includes(option)}
+                        onChange={() =>
+                          toggleAllowed(option, value, options, setter)
+                        }
+                        className="h-4 w-4 accent-emerald-600"
+                      />
+                      <span>{option}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </details>
+          ))}
         </div>
       </div>
 
