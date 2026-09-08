@@ -266,6 +266,7 @@ export function CertificatesClient() {
       await Promise.all(
         values.map(([key, value]) =>
           apiClient("/site-settings", {
+            method: "PATCH",
             body: JSON.stringify({ key, value }),
           }),
         ),
