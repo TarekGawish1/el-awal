@@ -32,14 +32,18 @@ const STAGE_GRADES = {
   ],
 };
 
-// TODO: Replace with real API fetch based on stage and grade
-const MOCK_STUDENTS = [
-  { id: 1, name: 'أحمد محمد علي', gender: 'MALE', stage: 'الثانوية', grade: 'الصف الأول' },
-  { id: 2, name: 'سارة خالد أحمد', gender: 'FEMALE', stage: 'الثانوية', grade: 'الصف الأول' },
-  { id: 3, name: 'عمر طارق جاويش', gender: 'MALE', stage: 'الإعدادية', grade: 'الصف الثالث' },
-  { id: 4, name: 'منى محمود عبدلله', gender: 'FEMALE', stage: 'الإعدادية', grade: 'الصف الثالث' },
-  { id: 5, name: 'مصطفى السيد محمود', gender: 'MALE', stage: 'الابتدائية', grade: 'الصف السادس' },
-];
+// Maps the builder's stage/grade picks to the canonical gradeLevel stored on student profiles
+// (e.g. stage 'الثانوية' + grade 'الصف الأول' → 'الصف الأول الثانوي')
+const STAGE_SUFFIX: Record<string, string> = {
+  'الثانوية': 'الثانوي',
+  'الإعدادية': 'الإعدادي',
+  'الابتدائية': 'الابتدائي',
+};
+
+function toGradeLevel(stage: string, grade: string): string {
+  if (!stage || !grade) return '';
+  return `${grade} ${STAGE_SUFFIX[stage] || ''}`.trim();
+}
 
 export function CertificateBuilder() {
   const router = useRouter();
@@ -62,14 +66,44 @@ export function CertificateBuilder() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [scale, setScale] = useState(1);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [studentSuggestions, setStudentSuggestions] = useState<{ id: string; name: string }[]>([]);
+  const [isLoadingStudents, setIsLoadingStudents] = useState(false);
 
-  const filteredStudents = React.useMemo(() => {
-    if (!data.stage || !data.grade) return [];
-    return MOCK_STUDENTS.filter(s => 
-      s.stage === data.stage && 
-      s.grade === data.grade && 
-      s.name.includes(data.studentName)
-    );
+  // Real student lookup: students enrolled in the selected class (stage + grade).
+  // Typing a name narrows the search; any typed name can still be used manually.
+  useEffect(() => {
+    if (!data.stage || !data.grade) {
+      setStudentSuggestions([]);
+      return;
+    }
+    const gradeLevel = toGradeLevel(data.stage, data.grade);
+    const search = data.studentName.trim();
+    const timer = setTimeout(async () => {
+      setIsLoadingStudents(true);
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+        const token = getStoredAccessToken();
+        const params = new URLSearchParams({ gradeLevel, limit: '20' });
+        if (search) params.set('search', search);
+        const res = await fetch(`${baseUrl}/students?${params.toString()}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const list = json?.data || [];
+          setStudentSuggestions(
+            list
+              .map((s: any) => ({ id: String(s.id), name: s.user?.fullName || '' }))
+              .filter((s: { id: string; name: string }) => s.name),
+          );
+        }
+      } catch (e) {
+        console.warn('Student lookup failed:', e);
+      } finally {
+        setIsLoadingStudents(false);
+      }
+    }, 350);
+    return () => clearTimeout(timer);
   }, [data.stage, data.grade, data.studentName]);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -322,22 +356,25 @@ export function CertificateBuilder() {
                   placeholder={(!data.stage || !data.grade) ? "اختر المرحلة والصف أولاً..." : "ابحث عن اسم الطالب..."}
                   disabled={!data.stage || !data.grade}
                 />
-                {showSuggestions && filteredStudents.length > 0 && (
+                {showSuggestions && (studentSuggestions.length > 0 || isLoadingStudents) && (
                   <div className="absolute top-[100%] mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
-                    {filteredStudents.map(student => (
-                      <div 
-                        key={student.id} 
-                        className="px-4 py-3 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 transition-colors"
-                        onMouseDown={(e) => {
-                          e.preventDefault(); // Prevent onBlur from firing before click
-                          handleChange('studentName', student.name);
-                          handleChange('gender', student.gender as any);
-                          setShowSuggestions(false);
-                        }}
-                      >
-                        {student.name}
-                      </div>
-                    ))}
+                    {isLoadingStudents && studentSuggestions.length === 0 ? (
+                      <div className="px-4 py-3 text-sm text-slate-400">جاري البحث عن طلاب هذا الصف...</div>
+                    ) : (
+                      studentSuggestions.map(student => (
+                        <div
+                          key={student.id}
+                          className="px-4 py-3 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 transition-colors"
+                          onMouseDown={(e) => {
+                            e.preventDefault(); // Prevent onBlur from firing before click
+                            handleChange('studentName', student.name);
+                            setShowSuggestions(false);
+                          }}
+                        >
+                          {student.name}
+                        </div>
+                      ))
+                    )}
                   </div>
                 )}
               </div>

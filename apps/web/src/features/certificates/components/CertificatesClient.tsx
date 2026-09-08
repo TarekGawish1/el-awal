@@ -17,6 +17,7 @@ interface SavedCertificate {
   stage: string;
   grade: string;
   issueDate: string;
+  year: string;
   createdAt: string;
   data?: any;
 }
@@ -25,6 +26,7 @@ export function CertificatesClient() {
   const [certificates, setCertificates] = useState<SavedCertificate[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStage, setSelectedStage] = useState('الكل');
+  const [selectedYear, setSelectedYear] = useState('الكل');
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const isUuid = (id: string) =>
@@ -59,6 +61,7 @@ export function CertificatesClient() {
         stage: c.stage,
         grade: c.grade,
         issueDate: c.issueDate,
+        year: c.year,
         createdAt: c.createdAt,
         image: c.fileUrl,
       }));
@@ -154,10 +157,20 @@ export function CertificatesClient() {
   const filteredCertificates = certificates.filter(cert => {
     const matchesSearch = cert.studentName?.includes(searchTerm) || cert.subject?.includes(searchTerm);
     const matchesStage = selectedStage === 'الكل' || cert.stage === selectedStage;
-    return matchesSearch && matchesStage;
+    const matchesYear = selectedYear === 'الكل' || String(cert.year || '').trim() === selectedYear;
+    return matchesSearch && matchesStage && matchesYear;
   });
 
   const stages = ['الكل', 'الثانوية', 'الإعدادية', 'الابتدائية'];
+
+  const years = React.useMemo(() => {
+    const set = new Set<string>();
+    certificates.forEach((c) => {
+      const y = String(c.year || '').trim();
+      if (y) set.add(y);
+    });
+    return ['الكل', ...Array.from(set).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))];
+  }, [certificates]);
 
   return (
     <div className="space-y-6">
@@ -176,7 +189,7 @@ export function CertificatesClient() {
         </div>
       </div>
 
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col gap-3">
         <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
           {stages.map(stage => (
             <button
@@ -192,16 +205,34 @@ export function CertificatesClient() {
             </button>
           ))}
         </div>
-        <div className="relative w-full md:w-80">
-          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-            <Search className="h-4 w-4 text-slate-400" />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
+            <span className="text-xs font-bold text-slate-400 whitespace-nowrap self-center ml-1">السنة الدراسية:</span>
+            {years.map(year => (
+              <button
+                key={year}
+                onClick={() => setSelectedYear(year)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                  selectedYear === year
+                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {year === 'الكل' ? 'كل السنوات' : year}
+              </button>
+            ))}
           </div>
-          <Input
-            className="pr-10"
-            placeholder="ابحث عن اسم الطالب..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+          <div className="relative w-full md:w-80">
+            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-slate-400" />
+            </div>
+            <Input
+              className="pr-10"
+              placeholder="ابحث عن اسم الطالب..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 
@@ -259,7 +290,7 @@ export function CertificatesClient() {
                     <Award className="w-6 h-6" />
                   </div>
                   <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-md">
-                    {cert.issueDate}
+                    {cert.year || cert.issueDate}
                   </span>
                 </div>
                 <h3 className="text-lg font-bold text-slate-800 mb-1">{cert.studentName}</h3>
