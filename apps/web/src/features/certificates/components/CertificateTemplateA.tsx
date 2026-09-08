@@ -81,18 +81,23 @@ export const CertificateTemplateA = forwardRef<HTMLDivElement, Props>(
 
         {/* Score / Grade (Placed over the gold seal) */}
         <div
-          className="absolute flex flex-col items-center justify-center"
+          className="absolute flex items-center justify-center"
           style={{
             top: `${data.scorePos?.y || 640}px`,
-            left: `${data.scorePos?.x || 573}px`, // 573 is approx 50% of 1146
+            left: `${data.scorePos?.x || 573}px`,
             transform: "translate(-50%, -50%)",
-            width: "120px",
-            height: "120px",
+            width: "150px",
+            height: "150px",
+            textAlign: "center",
           }}
         >
           <span
-            className="text-[3.5rem] font-bold text-[#0A192F] leading-none"
-            style={{ fontFamily: "'Tajawal', sans-serif" }}
+            className="block text-[3rem] font-extrabold text-[#0A192F] leading-none"
+            style={{
+              fontFamily: "'Tajawal', sans-serif",
+              lineHeight: 1,
+              textShadow: "0 1px 0 rgba(255,255,255,0.35)",
+            }}
           >
             {data.score || "0"}
           </span>
@@ -100,16 +105,24 @@ export const CertificateTemplateA = forwardRef<HTMLDivElement, Props>(
 
         {/* Year (Placed in the red ribbon seal) */}
         <div
-          className="absolute flex flex-col items-center justify-center"
+          className="absolute flex items-center justify-center"
           style={{
             top: `${data.yearPos?.y || 540}px`,
             left: `${data.yearPos?.x || 200}px`,
             transform: "translate(-50%, -50%)",
+            width: "120px",
+            height: "120px",
+            textAlign: "center",
           }}
         >
           <span
-            className="text-[1.8rem] font-bold text-[#0A192F] leading-none"
-            style={{ fontFamily: "'Tajawal', sans-serif" }}
+            className="block text-[1.75rem] font-extrabold text-[#0A192F] leading-none"
+            style={{
+              fontFamily: "'Tajawal', sans-serif",
+              lineHeight: 1,
+              letterSpacing: "0.04em",
+              textShadow: "0 1px 0 rgba(255,255,255,0.35)",
+            }}
           >
             {data.year}
           </span>
