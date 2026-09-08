@@ -78,6 +78,21 @@ export function CertificatesClient() {
   const isUuid = (id: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
+  const getCertificateIdentity = (cert: any) => {
+    const identityParts = [
+      cert?.id ?? "",
+      cert?.studentName ?? "",
+      cert?.subject ?? "",
+      cert?.stage ?? "",
+      cert?.grade ?? "",
+      cert?.year ?? "",
+      cert?.issueDate ?? "",
+      cert?.teacherName ?? "",
+      cert?.score ?? "",
+    ];
+    return identityParts.map((part) => String(part).trim()).join("|");
+  };
+
   useEffect(() => {
     const fetchAndMergeCertificates = async () => {
       let localCerts: any[] = [];
@@ -110,8 +125,7 @@ export function CertificatesClient() {
         const localMatch = localCerts.find(
           (local: any) =>
             local.id === c.id ||
-            (local.studentName?.trim() === c.studentName?.trim() &&
-              local.subject?.trim() === c.subject?.trim()),
+            (!local.id && getCertificateIdentity(local) === getCertificateIdentity(c)),
         );
         const localImage = localMatch?.image || localMatch?.data?.image;
 
@@ -134,14 +148,13 @@ export function CertificatesClient() {
         };
       });
 
-      // Filter out local certificates that are already present in the API
+      const apiIdentitySet = new Set(
+        mappedApiCerts.map((api: any) => getCertificateIdentity(api)),
+      );
+
+      // Filter out only true duplicates that match the same certificate record.
       const nonDuplicateLocalCerts = localCerts.filter((local: any) => {
-        return !mappedApiCerts.some(
-          (api: any) =>
-            api.id === local.id ||
-            (api.studentName?.trim() === local.studentName?.trim() &&
-              api.subject?.trim() === local.subject?.trim()),
-        );
+        return !apiIdentitySet.has(getCertificateIdentity(local));
       });
 
       // Keep localStorage clean of redundant duplicates
@@ -158,14 +171,14 @@ export function CertificatesClient() {
 
       const combined = [...mappedApiCerts, ...nonDuplicateLocalCerts];
 
-      // Deduplicate by studentName + subject + stage to guarantee single appearance
+      // Deduplicate only when the same certificate record is repeated.
       const seen = new Set<string>();
       const uniqueSaved: any[] = [];
       for (const item of combined) {
-        const key = `${item.studentName?.trim()}_${item.subject?.trim()}_${item.stage?.trim()}`;
+        const key = getCertificateIdentity(item);
         if (!seen.has(key) && !seen.has(item.id)) {
           seen.add(key);
-          seen.add(item.id);
+          if (item.id) seen.add(item.id);
           uniqueSaved.push(item);
         }
       }
