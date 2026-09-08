@@ -1675,9 +1675,9 @@ function AboutBackgroundSequence() {
     let images: HTMLImageElement[] = [];
     let currentImageIndex = 0;
 
-    // Static frame: the whole photo is always fully visible (contain),
-    // centered sharp over a fullscreen ambient blurred fill — no cropping,
-    // no oversize zoom, no motion.
+    // Static fullscreen cover. All slideshow files are normalized to the
+    // same 16:9 aspect ratio, so every frame fills the section edge-to-edge
+    // with no bars, no oversize zoom, and no motion.
     const drawCurrentImage = () => {
       const canvas = canvasRef.current;
       const image = images[currentImageIndex];
@@ -1695,36 +1695,16 @@ function AboutBackgroundSequence() {
         canvas.height = targetHeight;
       }
 
-      // 1. Fullscreen ambient fill (blurred cover) — no empty bars
-      const coverScale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
-      const coverWidth = image.naturalWidth * coverScale;
-      const coverHeight = image.naturalHeight * coverScale;
+      const scale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
+      const drawWidth = image.naturalWidth * scale;
+      const drawHeight = image.naturalHeight * scale;
       context.clearRect(0, 0, canvas.width, canvas.height);
-      context.save();
-      try {
-        (context as any).filter = 'blur(60px)';
-      } catch { /* filter unsupported — plain fill */ }
-      context.globalAlpha = 0.7;
-      const bleed = 80;
       context.drawImage(
         image,
-        (canvas.width - coverWidth) / 2 - bleed / 2,
-        (canvas.height - coverHeight) / 2 - bleed / 2,
-        coverWidth + bleed,
-        coverHeight + bleed,
-      );
-      context.restore();
-
-      // 2. Whole photo, sharp, fully inside the frame
-      const fitScale = Math.min(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
-      const fitWidth = image.naturalWidth * fitScale;
-      const fitHeight = image.naturalHeight * fitScale;
-      context.drawImage(
-        image,
-        (canvas.width - fitWidth) / 2,
-        (canvas.height - fitHeight) / 2,
-        fitWidth,
-        fitHeight,
+        (canvas.width - drawWidth) / 2,
+        (canvas.height - drawHeight) / 2,
+        drawWidth,
+        drawHeight,
       );
     };
 
