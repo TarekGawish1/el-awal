@@ -1696,12 +1696,40 @@ function AboutBackgroundSequence() {
       const drawWidth = image.naturalWidth * scale;
       const drawHeight = image.naturalHeight * scale;
       context.clearRect(0, 0, canvas.width, canvas.height);
+      try {
+        // 1. Blurred cover fill — fills wide desktop frames with ambient color, no empty bars
+        context.save();
+        (context as any).filter = 'blur(60px)';
+        context.globalAlpha = 0.7;
+        const bleed = 80;
+        context.drawImage(
+          image,
+          (canvas.width - drawWidth) / 2 - bleed / 2,
+          (canvas.height - drawHeight) / 2 - bleed / 2,
+          drawWidth + bleed,
+          drawHeight + bleed,
+        );
+        context.restore();
+      } catch {
+        // context.filter unsupported — fall back to plain cover below
+        context.drawImage(
+          image,
+          (canvas.width - drawWidth) / 2,
+          (canvas.height - drawHeight) / 2,
+          drawWidth,
+          drawHeight,
+        );
+      }
+      // 2. Sharp contain — whole photo (faces) always fully visible, centered
+      const fitScale = Math.min(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
+      const fitWidth = image.naturalWidth * fitScale;
+      const fitHeight = image.naturalHeight * fitScale;
       context.drawImage(
         image,
-        (canvas.width - drawWidth) / 2,
-        (canvas.height - drawHeight) / 2,
-        drawWidth,
-        drawHeight,
+        (canvas.width - fitWidth) / 2,
+        (canvas.height - fitHeight) / 2,
+        fitWidth,
+        fitHeight,
       );
     };
 
