@@ -1357,20 +1357,29 @@ function TestimonialsSection() {
 // Static honor-roll seeds — always shown in the landing certificates section
 // (merged with backend + local certificates, never overwritten by them).
 const SEED_CERTIFICATES = [
-  { id: 'seed-1', student: 'حنين طه محمد', subject: 'الإحصاء', grade: '57', year: '2025' },
-  { id: 'seed-2', student: 'نور احمد طه', subject: 'الإحصاء', grade: '58', year: '2025' },
-  { id: 'seed-3', student: 'ميرنا يحيى عبد المنعم', subject: 'الإحصاء', grade: '59', year: '2025' },
-  { id: 'seed-4', student: 'شهد وائل السعيد', subject: 'الإحصاء', grade: '56', year: '2025' },
-  { id: 'seed-5', student: 'جنى صلاح عبد الرازق', subject: 'الإحصاء', grade: '59.5', year: '2025' },
-  { id: 'seed-6', student: 'حنين محمد سندي', subject: 'الإحصاء', grade: '59.5', year: '2025' },
+  { id: 'seed-1', student: 'حنين طه محمد', subject: 'الإحصاء', grade: '57', year: '2025', stage: 'الثانوية' },
+  { id: 'seed-2', student: 'نور احمد طه', subject: 'الإحصاء', grade: '58', year: '2025', stage: 'الثانوية' },
+  { id: 'seed-3', student: 'ميرنا يحيى عبد المنعم', subject: 'الإحصاء', grade: '59', year: '2025', stage: 'الثانوية' },
+  { id: 'seed-4', student: 'شهد وائل السعيد', subject: 'الإحصاء', grade: '56', year: '2025', stage: 'الثانوية' },
+  { id: 'seed-5', student: 'جنى صلاح عبد الرازق', subject: 'الإحصاء', grade: '59.5', year: '2025', stage: 'الثانوية' },
+  { id: 'seed-6', student: 'حنين محمد سندي', subject: 'الإحصاء', grade: '59.5', year: '2025', stage: 'الثانوية' },
+  { id: 'seed-p1', student: 'أمير رضا عبد الرؤوف', subject: 'الرياضيات', grade: '57', year: '2025', stage: 'الإعدادية' },
+  { id: 'seed-p2', student: 'محمد صالح جابر', subject: 'الرياضيات', grade: '57', year: '2025', stage: 'الإعدادية' },
+  { id: 'seed-p3', student: 'ملك فريدة العباسي', subject: 'الرياضيات', grade: '59', year: '2025', stage: 'الإعدادية' },
+  { id: 'seed-p4', student: 'عمر محمد عبد الهادي', subject: 'الرياضيات', grade: '57', year: '2025', stage: 'الإعدادية' },
+  { id: 'seed-p5', student: 'جودي أحمد مشعل', subject: 'الرياضيات', grade: '59', year: '2025', stage: 'الإعدادية' },
+  { id: 'seed-p6', student: 'شهد محمد السيد مراد', subject: 'الرياضيات', grade: '58.2', year: '2025', stage: 'الإعدادية' },
+  { id: 'seed-p7', student: 'شيرين محمد شحاتة', subject: 'الرياضيات', grade: '59.5', year: '2025', stage: 'الإعدادية' },
+  { id: 'seed-p8', student: 'أدهم أحمد عمرو وسليم', subject: 'الرياضيات', grade: '59.5', year: '2025', stage: 'الإعدادية' },
 ].map((s) => ({
   id: s.id,
   title: `التفوق في ${s.subject}`,
+  subject: s.subject,
   student: s.student,
   grade: s.grade,
   year: s.year,
   image: '/certification-bg.webp',
-  stage: 'الثانوية',
+  stage: s.stage,
 }));
 
 const CERTIFICATES_BY_STAGE = [
@@ -1464,8 +1473,11 @@ function CertificatesSection() {
         const mappedApiCerts = apiCerts.map((c: any) => ({
           id: c.id,
           title: c.subject ? `التفوق في ${c.subject}` : 'شهادة تقدير',
+          subject: c.subject,
           student: c.studentName || 'طالب',
-          image: c.fileUrl || 'https://placehold.co/600x400/e2e8f0/475569?text=Certificate',
+          grade: c.score,
+          year: c.year,
+          image: c.fileUrl || '/certification-bg.webp',
           stage: c.stage
         }));
 
@@ -1601,6 +1613,20 @@ function CertificatesSection() {
                           decoding="async"
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />
+                        {/* Printed certificate content — always visible so the card never looks blank */}
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
+                          <div className="font-black text-slate-800 text-lg sm:text-xl leading-snug drop-shadow-sm">
+                            {cert.student}
+                          </div>
+                          <div className="text-xs sm:text-sm font-bold text-amber-700 mt-1.5">
+                            {cert.subject ? `التفوق في مادة ${cert.subject}` : cert.title}
+                          </div>
+                          {cert.grade && (
+                            <div className="mt-1.5 text-sm font-black text-slate-700 bg-white/70 border border-amber-200 px-3 py-0.5 rounded-full shadow-sm">
+                              الدرجة: {cert.grade}
+                            </div>
+                          )}
+                        </div>
                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
                           <div className="text-white">
                             <div className="font-bold text-lg">{cert.student}</div>
@@ -1708,9 +1734,10 @@ function AboutBackgroundSequence() {
     let images: HTMLImageElement[] = [];
     let currentImageIndex = 0;
 
-    // Static fullscreen cover. All slideshow files are normalized to the
-    // same 16:9 aspect ratio, so every frame fills the section edge-to-edge
-    // with no bars, no oversize zoom, and no motion.
+    // Centered fullscreen cover. All slideshow files are normalized to the
+    // same 16:9 aspect ratio, so every frame fills the section edge-to-edge.
+    // Center on both axes so students' faces (usually mid-frame) stay visible
+    // instead of pinning to the top and cropping them out.
     const drawCurrentImage = () => {
       const canvas = canvasRef.current;
       const image = images[currentImageIndex];
@@ -1731,11 +1758,13 @@ function AboutBackgroundSequence() {
       const scale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
       const drawWidth = image.naturalWidth * scale;
       const drawHeight = image.naturalHeight * scale;
+      const offsetX = (canvas.width - drawWidth) / 2;
+      const offsetY = (canvas.height - drawHeight) / 2;
       context.clearRect(0, 0, canvas.width, canvas.height);
       context.drawImage(
         image,
-        (canvas.width - drawWidth) / 2,
-        0,
+        offsetX,
+        offsetY,
         drawWidth,
         drawHeight,
       );
