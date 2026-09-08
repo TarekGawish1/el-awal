@@ -2093,7 +2093,10 @@ function StageCertificateRow({ certificates }: { certificates: any[] }) {
           ))}
         </div>
       ) : (
-        <div className="relative w-full overflow-hidden pointer-events-auto">
+        <div
+          className="relative w-full overflow-hidden pointer-events-auto"
+          dir="ltr"
+        >
           <style>{`@keyframes infinite-scroll-ltr { 0% { transform: translateX(-50%); } 100% { transform: translateX(0%); } } .animate-continuous-ltr { display: flex; width: max-content; animation: infinite-scroll-ltr ${Math.max(18, normalizedList.length * 4)}s linear infinite; will-change: transform; }`}</style>
           <div className="animate-continuous-ltr" dir="ltr">
             <div className="flex gap-6 pr-6 shrink-0" dir="rtl">
