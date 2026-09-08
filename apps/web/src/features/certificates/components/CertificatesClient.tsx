@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Plus, Award, Search, FileText, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -27,6 +27,7 @@ interface SavedCertificate {
 
 export function CertificatesClient() {
   const [certificates, setCertificates] = useState<SavedCertificate[]>([]);
+  const visibilityPanelRef = useRef<HTMLDivElement>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStage, setSelectedStage] = useState("الكل");
   const [selectedYear, setSelectedYear] = useState("الكل");
@@ -255,6 +256,11 @@ export function CertificatesClient() {
   const stageOptions = ["الثانوية", "الإعدادية", "الابتدائية"];
 
   const handleSaveVisibility = async () => {
+    visibilityPanelRef.current
+      ?.querySelectorAll<HTMLDetailsElement>("details[open]")
+      .forEach((details) => {
+        details.open = false;
+      });
     setSavingYears(true);
     try {
       const values = [
@@ -540,7 +546,10 @@ export function CertificatesClient() {
         </div>
       </div>
 
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+      <div
+        ref={visibilityPanelRef}
+        className="bg-white p-4 rounded-xl shadow-sm border border-slate-100"
+      >
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="text-base font-bold text-slate-800">

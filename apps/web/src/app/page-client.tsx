@@ -2587,9 +2587,8 @@ function AboutBackgroundSequence() {
     let images: HTMLImageElement[] = [];
     let currentImageIndex = 0;
 
-    // Keep the complete slideshow frame visible on narrow portrait screens.
-    // The dark background fills the remaining space when the frame is wider
-    // than the tall About section.
+    // Fill the complete About section on every screen size. Centering keeps
+    // the important middle of each slideshow frame in view on tall phones.
     const drawCurrentImage = () => {
       const canvas = canvasRef.current;
       const image = images[currentImageIndex];
@@ -2607,7 +2606,7 @@ function AboutBackgroundSequence() {
         canvas.height = targetHeight;
       }
 
-      const scale = Math.min(
+      const scale = Math.max(
         canvas.width / image.naturalWidth,
         canvas.height / image.naturalHeight,
       );
