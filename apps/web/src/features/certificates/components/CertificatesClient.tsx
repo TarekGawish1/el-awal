@@ -534,98 +534,98 @@ export function CertificatesClient() {
                 key={cert.id}
                 className={`overflow-hidden hover:shadow-md transition-shadow flex flex-col ${cert.isPublic === false ? "opacity-70" : ""}`}
               >
-              {cert.isPublic === false && (
-                <div className="bg-slate-800 text-white text-xs font-bold text-center py-1.5">
-                  مخفية من الموقع
-                </div>
-              )}
-              <div className="relative w-full aspect-[1.41] bg-slate-100 border-b border-slate-100">
-                <img
-                  src={certificateImage}
-                  alt={`شهادة ${cert.studentName}`}
-                  className="w-full h-full object-cover"
-                />
-                {usesTemplateFallback && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8 pt-2">
-                    <span className="text-xl sm:text-2xl font-bold text-slate-800 drop-shadow-sm">
-                      {cert.studentName}
-                    </span>
-                    <span className="mt-1 text-xs sm:text-sm font-semibold text-amber-700">
-                      {cert.subject}
-                    </span>
+                {cert.isPublic === false && (
+                  <div className="bg-slate-800 text-white text-xs font-bold text-center py-1.5">
+                    مخفية من الموقع
                   </div>
                 )}
-              </div>
-              <div className="p-5 flex-1 flex flex-col">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center">
-                    <Award className="w-6 h-6" />
+                <div className="relative w-full aspect-[1.41] bg-slate-100 border-b border-slate-100">
+                  <img
+                    src={certificateImage}
+                    alt={`شهادة ${cert.studentName}`}
+                    className="w-full h-full object-cover"
+                  />
+                  {usesTemplateFallback && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8 pt-2">
+                      <span className="text-xl sm:text-2xl font-bold text-slate-800 drop-shadow-sm">
+                        {cert.studentName}
+                      </span>
+                      <span className="mt-1 text-xs sm:text-sm font-semibold text-amber-700">
+                        {cert.subject}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div className="p-5 flex-1 flex flex-col">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center">
+                      <Award className="w-6 h-6" />
+                    </div>
+                    <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-md">
+                      {cert.year || cert.issueDate}
+                    </span>
                   </div>
-                  <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-md">
-                    {cert.year || cert.issueDate}
-                  </span>
-                </div>
-                <h3 className="text-lg font-bold text-slate-800 mb-1">
-                  {cert.studentName}
-                </h3>
-                <div className="flex items-center gap-2 text-sm text-slate-600 mb-4 flex-wrap">
-                  <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs">
-                    {cert.subject}
-                  </span>
-                  <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded text-xs">
-                    {cert.score} درجة
-                  </span>
-                </div>
-                <div className="mt-auto flex items-center justify-between text-sm text-slate-500 border-t border-slate-100 pt-4">
-                  <span>
-                    {cert.stage}
-                    {cert.grade ? ` - ${cert.grade}` : ""}
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => handleToggleVisibility(cert)}
-                      disabled={togglingId === cert.id}
-                      title={
-                        cert.isPublic === false
-                          ? "إظهار على الموقع"
-                          : "إخفاء من الموقع"
-                      }
-                      className={`font-medium hover:underline text-xs disabled:opacity-50 disabled:cursor-wait flex items-center gap-1 ${
-                        cert.isPublic === false
-                          ? "text-emerald-600 hover:text-emerald-700"
-                          : "text-slate-500 hover:text-slate-700"
-                      }`}
-                    >
-                      {cert.isPublic === false ? (
-                        <Eye className="w-3.5 h-3.5" />
-                      ) : (
-                        <EyeOff className="w-3.5 h-3.5" />
-                      )}
-                      {togglingId === cert.id
-                        ? "جاري..."
-                        : cert.isPublic === false
-                          ? "إظهار"
-                          : "إخفاء"}
-                    </button>
-                    <button
-                      onClick={() => handleDelete(cert.id)}
-                      disabled={deletingId === cert.id}
-                      className="text-red-500 hover:text-red-700 font-medium hover:underline text-xs disabled:opacity-50 disabled:cursor-wait"
-                    >
-                      {deletingId === cert.id ? "جاري الحذف..." : "حذف"}
-                    </button>
-                    {cert.data?.image || (cert as any).image ? (
-                      <a
-                        href={cert.data?.image || (cert as any).image}
-                        download={`شهادة-${cert.studentName}.png`}
-                        className="text-blue-600 hover:text-blue-700 font-medium hover:underline text-xs"
+                  <h3 className="text-lg font-bold text-slate-800 mb-1">
+                    {cert.studentName}
+                  </h3>
+                  <div className="flex items-center gap-2 text-sm text-slate-600 mb-4 flex-wrap">
+                    <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs">
+                      {cert.subject}
+                    </span>
+                    <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded text-xs">
+                      {cert.score} درجة
+                    </span>
+                  </div>
+                  <div className="mt-auto flex items-center justify-between text-sm text-slate-500 border-t border-slate-100 pt-4">
+                    <span>
+                      {cert.stage}
+                      {cert.grade ? ` - ${cert.grade}` : ""}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => handleToggleVisibility(cert)}
+                        disabled={togglingId === cert.id}
+                        title={
+                          cert.isPublic === false
+                            ? "إظهار على الموقع"
+                            : "إخفاء من الموقع"
+                        }
+                        className={`font-medium hover:underline text-xs disabled:opacity-50 disabled:cursor-wait flex items-center gap-1 ${
+                          cert.isPublic === false
+                            ? "text-emerald-600 hover:text-emerald-700"
+                            : "text-slate-500 hover:text-slate-700"
+                        }`}
                       >
-                        تحميل
-                      </a>
-                    ) : null}
+                        {cert.isPublic === false ? (
+                          <Eye className="w-3.5 h-3.5" />
+                        ) : (
+                          <EyeOff className="w-3.5 h-3.5" />
+                        )}
+                        {togglingId === cert.id
+                          ? "جاري..."
+                          : cert.isPublic === false
+                            ? "إظهار"
+                            : "إخفاء"}
+                      </button>
+                      <button
+                        onClick={() => handleDelete(cert.id)}
+                        disabled={deletingId === cert.id}
+                        className="text-red-500 hover:text-red-700 font-medium hover:underline text-xs disabled:opacity-50 disabled:cursor-wait"
+                      >
+                        {deletingId === cert.id ? "جاري الحذف..." : "حذف"}
+                      </button>
+                      {cert.data?.image || (cert as any).image ? (
+                        <a
+                          href={cert.data?.image || (cert as any).image}
+                          download={`شهادة-${cert.studentName}.png`}
+                          className="text-blue-600 hover:text-blue-700 font-medium hover:underline text-xs"
+                        >
+                          تحميل
+                        </a>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
-              </div>
               </Card>
             );
           })}
