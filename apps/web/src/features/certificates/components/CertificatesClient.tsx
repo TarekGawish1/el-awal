@@ -55,7 +55,8 @@ export function CertificatesClient() {
       الابتدائية: "الابتدائي",
     };
     const suffix = suffixByStage[String(stage || "").trim()];
-    return suffix && /^الصف (الأول|الثاني|الثالث|الرابع|الخامس|السادس)$/.test(value)
+    return suffix &&
+      /^الصف (الأول|الثاني|الثالث|الرابع|الخامس|السادس)$/.test(value)
       ? `${value} ${suffix}`
       : value;
   };
