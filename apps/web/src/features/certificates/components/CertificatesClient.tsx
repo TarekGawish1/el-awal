@@ -373,18 +373,20 @@ export function CertificatesClient() {
   }, [allGrades, selectedStage]);
 
   const years = React.useMemo(() => {
+    const matchesCurrentFilters = certificates.filter((certificate) => {
+      const matchesStage =
+        selectedStage === "الكل" || certificate.stage === selectedStage;
+      const matchesGrade =
+        selectedGrade === "الكل" ||
+        normalizeCertificateGrade(certificate.grade, certificate.stage) ===
+          selectedGrade;
+      return matchesStage && matchesGrade;
+    });
+    const sourceCertificates = matchesCurrentFilters.length
+      ? matchesCurrentFilters
+      : certificates;
     const set = new Set<string>();
-    certificates
-      .filter((certificate) => {
-        const matchesStage =
-          selectedStage === "الكل" || certificate.stage === selectedStage;
-        const matchesGrade =
-          selectedGrade === "الكل" ||
-          normalizeCertificateGrade(certificate.grade, certificate.stage) ===
-            selectedGrade;
-        return matchesStage && matchesGrade;
-      })
-      .forEach((c) => {
+    sourceCertificates.forEach((c) => {
         const y = String(c.year || "").trim();
         if (y) set.add(y);
       });
