@@ -472,7 +472,7 @@ export default function DashboardLayout({
       {isMobileSidebarOpen && (
         <div
           onClick={() => setIsMobileSidebarOpen(false)}
-          className="fixed inset-0 bg-neutral-900/60 z-45 lg:hidden backdrop-blur-xs"
+          className="fixed inset-0 bg-neutral-900/60 z-40 lg:hidden"
           aria-hidden="true"
         />
       )}
