@@ -126,15 +126,43 @@ export function useWebPush(): UseWebPushReturn {
 
     setPermission(Notification.permission as PushPermissionState);
 
-    // Check if already subscribed safely without hanging
-    navigator.serviceWorker
-      ?.getRegistration()
-      .then((reg) => {
-        if (!reg) return null;
-        return reg.pushManager.getSubscription();
-      })
-      .then((sub) => setIsSubscribed(!!sub))
-      .catch(() => setIsSubscribed(false));
+    let cancelled = false;
+
+    // PwaRegister can still be registering the worker when this hook mounts.
+    // Wait briefly for that registration before checking the persisted browser subscription.
+    const syncExistingSubscription = async () => {
+      try {
+        const existingRegistration = await navigator.serviceWorker.getRegistration();
+        const registration =
+          existingRegistration ||
+          (await Promise.race([
+            navigator.serviceWorker.ready,
+            new Promise<ServiceWorkerRegistration | null>((resolve) =>
+              setTimeout(() => resolve(null), 3000),
+            ),
+          ]));
+
+        if (!registration) return;
+
+        const subscription = await registration.pushManager.getSubscription();
+        if (cancelled) return;
+
+        setIsSubscribed(!!subscription);
+
+        // Keep the backend record alive if the browser retained the subscription.
+        if (subscription) {
+          await postSubscription(subscription.toJSON()).catch(() => undefined);
+        }
+      } catch {
+        if (!cancelled) setIsSubscribed(false);
+      }
+    };
+
+    void syncExistingSubscription();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const subscribe = useCallback(async (): Promise<boolean> => {
