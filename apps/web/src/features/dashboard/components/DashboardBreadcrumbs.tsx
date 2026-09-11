@@ -37,6 +37,7 @@ const routeLabels: Record<string, string> = {
   reservations: 'طلبات الانضمام والقبول',
   inquiries: 'رسائل الموقع والاستفسارات',
   'activity-log': 'سجل النشاطات',
+  analytics: 'إحصائيات المنصة والزوار',
   assistants: 'إدارة المساعدين',
   certificates: 'الشهادات',
   settings: 'الإعدادات',

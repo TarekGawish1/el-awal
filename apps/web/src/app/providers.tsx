@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import { syncEngine } from '@/lib/offline/sync-engine';
@@ -8,6 +8,7 @@ import { initQrDetector } from '@/lib/qr/qr-detector-init';
 
 import { VideoUploadManagerProvider } from '@/features/courses/context/video-upload-manager.context';
 import { BackgroundVideoUploadMonitor } from '@/features/courses/components/BackgroundVideoUploadMonitor';
+import { AnalyticsTracker } from '@/components/analytics/AnalyticsTracker';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
@@ -36,6 +37,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <Suspense fallback={null}>
+        <AnalyticsTracker />
+      </Suspense>
       <VideoUploadManagerProvider>
         {children}
         <BackgroundVideoUploadMonitor />

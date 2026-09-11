@@ -136,4 +136,8 @@ export const API_ENDPOINTS = {
     MARK_READ: (id: string) => `/contact-messages/${id}/read`,
     DELETE: (id: string) => `/contact-messages/${id}`,
   },
+  ANALYTICS: {
+    TRACK: '/analytics/track',
+    STATS: '/analytics/stats',
+  },
 } as const;

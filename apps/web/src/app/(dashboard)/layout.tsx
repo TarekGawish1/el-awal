@@ -103,6 +103,7 @@ export default function DashboardLayout({
       '/teacher/certificates': 'الشهادات التقديرية',
       '/teacher/assistants': 'إدارة المساعدين',
       '/teacher/activity-log': 'سجل النشاطات وتتبع العمليات',
+      '/teacher/analytics': 'إحصائيات المنصة والزوار',
       '/student/dashboard': 'لوحة تحكم الطالب',
       '/student/homework': 'الواجبات المنزلية',
       '/student/assessments': 'الاختبارات',

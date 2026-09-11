@@ -272,6 +272,7 @@ model User {
   teacherAssistants     TeacherAssistant[]     @relation("TeacherAssistants")
   assistantToTeachers   TeacherAssistant[]     @relation("AssistantToTeachers")
   auditLogs             AuditLog[]             @relation("UserAuditLogs")
+  pageViews             PageView[]             @relation("UserPageViews")
 
   @@index([role], map: "idx_users_role")
   @@index([phone], map: "idx_users_phone")
@@ -1233,5 +1234,31 @@ model AuditLog {
   @@index([entityType, entityId], map: "idx_audit_logs_entity")
   @@index([action], map: "idx_audit_logs_action")
   @@map("audit_logs")
+}
+
+// ==========================================
+// 16. WEB ANALYTICS & TELEMETRY DOMAIN
+// ==========================================
+
+model PageView {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  tenantId      String?   @map("tenant_id") @db.Uuid
+  userId        String?   @map("user_id") @db.Uuid
+  user          User?     @relation("UserPageViews", fields: [userId], references: [id], onDelete: SetNull)
+  visitorHash   String    @map("visitor_hash") @db.VarChar(64)
+  path          String    @map("path") @db.VarChar(500)
+  referrer      String?   @map("referrer") @db.VarChar(500)
+  userAgent     String?   @map("user_agent") @db.VarChar(500)
+  isLandingPage Boolean   @default(false) @map("is_landing_page")
+  metadata      Json?     @map("metadata")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([createdAt(sort: Desc)], map: "idx_page_views_created_at")
+  @@index([isLandingPage, createdAt(sort: Desc)], map: "idx_page_views_landing_created")
+  @@index([tenantId, createdAt(sort: Desc)], map: "idx_page_views_tenant_created")
+  @@index([visitorHash, createdAt(sort: Desc)], map: "idx_page_views_visitor_created")
+  @@index([tenantId, isLandingPage, createdAt(sort: Desc)], map: "idx_page_views_tenant_landing_created")
+  @@index([path, createdAt(sort: Desc)], map: "idx_page_views_path_created")
+  @@map("page_views")
 }
 
