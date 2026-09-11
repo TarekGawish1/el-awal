@@ -106,8 +106,12 @@ export class OfflineSyncEngine {
 
   public setQueryClient(client: any): void {
     this.queryClient = client;
-    // Perform initial downstream delta pull to populate local db on startup
+    // Perform initial downstream delta pull to populate local db on startup —
+    // but ONLY when a session exists. Public pages (landing, login) have no
+    // tokens, so skip entirely to avoid a useless 401 bootstrap on first paint.
     if (typeof navigator !== 'undefined' && navigator.onLine) {
+      const hasSession = Boolean(getStoredAccessToken() || getStoredRefreshToken());
+      if (!hasSession) return;
       setTimeout(() => {
         this.checkAndSync({ skipCooldown: true });
       }, 1000);
@@ -539,6 +543,12 @@ export class OfflineSyncEngine {
   public async checkAndSync(options?: { skipCooldown?: boolean }) {
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : this.isOnlineState;
     if (!isOnline) return;
+
+    // Guard: public/unauthenticated visits must never trigger authenticated sync.
+    if (typeof window !== 'undefined') {
+      const hasSession = Boolean(getStoredAccessToken() || getStoredRefreshToken());
+      if (!hasSession) return;
+    }
 
     const verified = await this.verifyConnection();
     if (verified) {

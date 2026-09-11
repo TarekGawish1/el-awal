@@ -7,11 +7,13 @@ import {
   getStoredRefreshToken,
   getStoredUser,
   clearStoredTokens,
+  setStoredUser,
 } from '../utils/auth-tokens';
 import { disconnectRealtimeSocket } from '@/lib/realtime/socket';
 
 interface AuthActions {
   setSession: (session: AuthTokensResponse) => void;
+  setUser: (user: AuthUser) => void;
   updateTokens: (tokens: { accessToken: string; refreshToken: string }) => void;
   clearSession: () => void;
   initialize: () => void;
@@ -56,6 +58,11 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       isAuthenticated: true,
       isInitialized: true,
     });
+  },
+
+  setUser: (user: AuthUser) => {
+    setStoredUser(user);
+    set({ user });
   },
 
   updateTokens: (tokens: { accessToken: string; refreshToken: string }) => {

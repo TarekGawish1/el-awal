@@ -92,7 +92,7 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ['Cairo', 'Inter', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-cairo)', 'var(--font-inter)', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         sm: '4px',

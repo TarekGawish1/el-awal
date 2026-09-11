@@ -306,7 +306,7 @@ export function StudentRegistrationForm() {
         name="studentPhone"
         type="tel"
         label="رقم هاتف الطالب"
-        placeholder="01012345678"
+        placeholder="01xxxxxxxxx"
         value={studentPhone}
         onChange={(e) => {
           setStudentPhone(e.target.value);
@@ -327,7 +327,7 @@ export function StudentRegistrationForm() {
           name="parentPhone"
           type="tel"
           label="رقم هاتف ولي الأمر"
-          placeholder="01098765432"
+          placeholder="01xxxxxxxxx"
           value={parentPhone}
           onChange={(e) => {
             setParentPhone(e.target.value);

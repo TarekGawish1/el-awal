@@ -5,7 +5,12 @@ import Link from 'next/link';
 import { X, Loader2, Search, UserPlus, QrCode, RefreshCcw, Check, Users, ArrowLeftRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Scanner } from '@yudiel/react-qr-scanner';
+import dynamic from 'next/dynamic';
+
+const Scanner = dynamic(
+  () => import('@yudiel/react-qr-scanner').then((mod) => mod.Scanner),
+  { ssr: false }
+);
 import { Alert } from '@/components/ui/Alert';
 import { useAddStudent, useSearchStudents, useGroupStudents } from '../hooks/useGroups';
 import { Student } from '../types/groups.types';

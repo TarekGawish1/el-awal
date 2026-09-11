@@ -227,7 +227,7 @@ export function GroupRegistrationForm({ token }: { token: string }) {
           name="phone"
           type="tel"
           label="رقم هاتف الطالب (واتساب)"
-          placeholder="01012345678"
+          placeholder="01xxxxxxxxx"
           value={phone}
           onChange={(e) => {
             setPhone(e.target.value);
@@ -264,7 +264,7 @@ export function GroupRegistrationForm({ token }: { token: string }) {
           name="parentPhone"
           type="tel"
           label="رقم هاتف ولي الأمر"
-          placeholder="01098765432"
+          placeholder="01xxxxxxxxx"
           value={parentPhone}
           onChange={(e) => {
             setParentPhone(e.target.value);

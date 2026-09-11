@@ -8,6 +8,7 @@ describe('BootstrapProgressIndicator Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
+    window.sessionStorage.clear();
   });
 
   it('renders progress and dismisses immediately when clicking the close button', () => {
@@ -93,5 +94,72 @@ describe('BootstrapProgressIndicator Component', () => {
 
     expect(screen.queryByText('تجهيز مساحة العمل المحلية')).toBeNull();
     expect(container.firstChild).toBeNull();
+  });
+
+  it('does not show for routine background delta syncs', () => {
+    vi.spyOn(useBootstrapSyncModule, 'useBootstrapSync').mockReturnValue({
+      isBootstrapping: false,
+      percentage: 100,
+      message: 'تم تجهيز مساحة العمل بنجاح والجاهزية للعمل بدون إنترنت 🚀',
+      lastEvent: {
+        type: 'SUCCESS',
+        percentage: 100,
+        message: 'تم تجهيز مساحة العمل بنجاح والجاهزية للعمل بدون إنترنت 🚀',
+        data: { isDelta: true, forceFull: false },
+      },
+      triggerBootstrap: vi.fn(),
+    });
+
+    const { container } = render(<BootstrapProgressIndicator />);
+
+    expect(screen.queryByText('جاهز للعمل بدون إنترنت')).toBeNull();
+    expect(container.firstChild).toBeNull();
+  });
+
+  it('suppresses repeated successes within the same session', () => {
+    vi.spyOn(useBootstrapSyncModule, 'useBootstrapSync').mockReturnValue({
+      isBootstrapping: false,
+      percentage: 100,
+      message: 'تم تجهيز مساحة العمل بنجاح والجاهزية للعمل بدون إنترنت 🚀',
+      lastEvent: {
+        type: 'SUCCESS',
+        percentage: 100,
+        message: 'تم تجهيز مساحة العمل بنجاح والجاهزية للعمل بدون إنترنت 🚀',
+        data: { isDelta: false, forceFull: false },
+      },
+      triggerBootstrap: vi.fn(),
+    });
+
+    // First success in the session shows the indicator and marks it as presented
+    const { container, unmount } = render(<BootstrapProgressIndicator />);
+    expect(screen.getByText('جاهز للعمل بدون إنترنت')).toBeDefined();
+    unmount();
+
+    // A later routine success must not reappear for the rest of the session
+    const second = render(<BootstrapProgressIndicator />);
+    expect(screen.queryByText('جاهز للعمل بدون إنترنت')).toBeNull();
+    expect(second.container.firstChild).toBeNull();
+  });
+
+  it('always shows for explicit user-initiated full syncs', () => {
+    vi.spyOn(useBootstrapSyncModule, 'useBootstrapSync').mockReturnValue({
+      isBootstrapping: false,
+      percentage: 100,
+      message: 'تم تجهيز مساحة العمل بنجاح والجاهزية للعمل بدون إنترنت 🚀',
+      lastEvent: {
+        type: 'SUCCESS',
+        percentage: 100,
+        message: 'تم تجهيز مساحة العمل بنجاح والجاهزية للعمل بدون إنترنت 🚀',
+        data: { isDelta: false, forceFull: true },
+      },
+      triggerBootstrap: vi.fn(),
+    });
+
+    // Force a not-yet-presented session state
+    window.sessionStorage.setItem('elawal_bootstrap_completed', 'true');
+
+    render(<BootstrapProgressIndicator />);
+
+    expect(screen.getByText('جاهز للعمل بدون إنترنت')).toBeDefined();
   });
 });

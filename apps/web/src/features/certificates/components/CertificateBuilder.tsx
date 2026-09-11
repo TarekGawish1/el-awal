@@ -1,59 +1,97 @@
-'use client';
+"use client";
 
-import React, { useState, useRef, useEffect } from 'react';
-import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
-import { Download, Loader2, ZoomIn, ZoomOut, Maximize2, RefreshCw } from 'lucide-react';
-import html2canvas from 'html2canvas';
-import { useRouter } from 'next/navigation';
-import { toast } from 'react-hot-toast';
-import { CertificateTemplateA, CertificateData } from './CertificateTemplateA';
+import React, { useState, useRef, useEffect } from "react";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
+import {
+  Download,
+  Loader2,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  RefreshCw,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { toast } from "react-hot-toast";
+import { getStoredAccessToken } from "@/features/auth/utils/auth-tokens";
+import { CertificateTemplateA, CertificateData } from "./CertificateTemplateA";
 
 const STAGE_GRADES = {
-  'الابتدائية': [
-    { label: 'الصف الأول', value: 'الصف الأول' },
-    { label: 'الصف الثاني', value: 'الصف الثاني' },
-    { label: 'الصف الثالث', value: 'الصف الثالث' },
-    { label: 'الصف الرابع', value: 'الصف الرابع' },
-    { label: 'الصف الخامس', value: 'الصف الخامس' },
-    { label: 'الصف السادس', value: 'الصف السادس' },
+  الابتدائية: [
+    { label: "الصف الأول", value: "الصف الأول" },
+    { label: "الصف الثاني", value: "الصف الثاني" },
+    { label: "الصف الثالث", value: "الصف الثالث" },
+    { label: "الصف الرابع", value: "الصف الرابع" },
+    { label: "الصف الخامس", value: "الصف الخامس" },
+    { label: "الصف السادس", value: "الصف السادس" },
   ],
-  'الإعدادية': [
-    { label: 'الصف الأول', value: 'الصف الأول' },
-    { label: 'الصف الثاني', value: 'الصف الثاني' },
-    { label: 'الصف الثالث', value: 'الصف الثالث' },
+  الإعدادية: [
+    { label: "الصف الأول", value: "الصف الأول" },
+    { label: "الصف الثاني", value: "الصف الثاني" },
+    { label: "الصف الثالث", value: "الصف الثالث" },
   ],
-  'الثانوية': [
-    { label: 'الصف الأول', value: 'الصف الأول' },
-    { label: 'الصف الثاني', value: 'الصف الثاني' },
-    { label: 'الصف الثالث', value: 'الصف الثالث' },
+  الثانوية: [
+    { label: "الصف الأول", value: "الصف الأول" },
+    { label: "الصف الثاني", value: "الصف الثاني" },
+    { label: "الصف الثالث", value: "الصف الثالث" },
   ],
 };
 
-// TODO: Replace with real API fetch based on stage and grade
-const MOCK_STUDENTS = [
-  { id: 1, name: 'أحمد محمد علي', gender: 'MALE', stage: 'الثانوية', grade: 'الصف الأول' },
-  { id: 2, name: 'سارة خالد أحمد', gender: 'FEMALE', stage: 'الثانوية', grade: 'الصف الأول' },
-  { id: 3, name: 'عمر طارق جاويش', gender: 'MALE', stage: 'الإعدادية', grade: 'الصف الثالث' },
-  { id: 4, name: 'منى محمود عبدلله', gender: 'FEMALE', stage: 'الإعدادية', grade: 'الصف الثالث' },
-  { id: 5, name: 'مصطفى السيد محمود', gender: 'MALE', stage: 'الابتدائية', grade: 'الصف السادس' },
-];
+// Maps the builder's stage/grade picks to the canonical gradeLevel stored on student profiles
+// (e.g. stage 'الثانوية' + grade 'الصف الأول' → 'الصف الأول الثانوي')
+const STAGE_SUFFIX: Record<string, string> = {
+  الثانوية: "الثانوي",
+  الإعدادية: "الإعدادي",
+  الابتدائية: "الابتدائي",
+};
+
+function toGradeLevel(stage: string, grade: string): string {
+  if (!stage || !grade) return "";
+  return `${grade} ${STAGE_SUFFIX[stage] || ""}`.trim();
+}
+
+function parseGradeLevel(gradeLevel: string): { stage: string; grade: string } {
+  if (!gradeLevel) return { stage: "", grade: "" };
+  for (const [stage, suffix] of Object.entries(STAGE_SUFFIX)) {
+    if (gradeLevel.endsWith(suffix)) {
+      const grade = gradeLevel
+        .slice(0, gradeLevel.length - suffix.length)
+        .trim();
+      if (
+        grade &&
+        (STAGE_GRADES as Record<string, { label: string; value: string }[]>)[
+          stage
+        ]?.some((g) => g.value === grade)
+      ) {
+        return { stage, grade };
+      }
+      return { stage, grade };
+    }
+  }
+  return { stage: "", grade: "" };
+}
+
+interface GroupOption {
+  id: string;
+  name: string;
+  gradeLevel: string;
+}
 
 export function CertificateBuilder() {
   const router = useRouter();
-  
+
   const [data, setData] = useState<CertificateData>({
-    studentName: '',
-    gender: 'MALE',
-    subject: '',
-    score: '100',
-    issueDate: new Date().toLocaleDateString('ar-EG'),
+    studentName: "",
+    gender: "MALE",
+    subject: "",
+    score: "100",
+    issueDate: new Date().toLocaleDateString("ar-EG"),
     year: new Date().getFullYear().toString(),
-    teacherName: 'أحمد غريب', // Default or from profile
-    stage: '',
-    grade: '',
+    teacherName: "أحمد غريب", // Default or from profile
+    stage: "",
+    grade: "",
     yearPos: { x: 143, y: 573 },
     scorePos: { x: 577, y: 636 },
     datePos: { x: 388, y: 620 },
@@ -62,15 +100,135 @@ export function CertificateBuilder() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [scale, setScale] = useState(1);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [studentSuggestions, setStudentSuggestions] = useState<
+    { id: string; name: string }[]
+  >([]);
+  const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+  const [groups, setGroups] = useState<GroupOption[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState("");
+  const [isLoadingGroups, setIsLoadingGroups] = useState(false);
 
-  const filteredStudents = React.useMemo(() => {
-    if (!data.stage || !data.grade) return [];
-    return MOCK_STUDENTS.filter(s => 
-      s.stage === data.stage && 
-      s.grade === data.grade && 
-      s.name.includes(data.studentName)
-    );
-  }, [data.stage, data.grade, data.studentName]);
+  const filteredGroups = React.useMemo(
+    () =>
+      groups.filter((group) => {
+        const parsed = parseGradeLevel(group.gradeLevel);
+        if (data.stage && parsed.stage !== data.stage) return false;
+        if (data.grade && parsed.grade !== data.grade) return false;
+        return true;
+      }),
+    [groups, data.stage, data.grade],
+  );
+
+  useEffect(() => {
+    if (
+      selectedGroupId &&
+      !filteredGroups.some((group) => group.id === selectedGroupId)
+    ) {
+      setSelectedGroupId("");
+    }
+  }, [filteredGroups, selectedGroupId]);
+
+  // Load teacher groups once for the group-first student picker.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setIsLoadingGroups(true);
+      try {
+        const baseUrl =
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
+        const token = getStoredAccessToken();
+        const res = await fetch(`${baseUrl}/groups`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (res.ok && !cancelled) {
+          const json = await res.json();
+          const list = Array.isArray(json) ? json : json?.data || [];
+          setGroups(
+            list
+              .map((g: any) => ({
+                id: String(g.id),
+                name: g.name || "مجموعة",
+                gradeLevel: g.gradeLevel || "",
+              }))
+              .filter((g: GroupOption) => g.id),
+          );
+        }
+      } catch (e) {
+        console.warn("Group lookup failed:", e);
+      } finally {
+        if (!cancelled) setIsLoadingGroups(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Real student lookup: prefer the selected group (groupId filter).
+  // Falls back to the legacy stage+grade (gradeLevel) filter when no group is picked.
+  // Typing a name narrows the search server-side; any typed name can still be used manually.
+  useEffect(() => {
+    const hasGroup = !!selectedGroupId;
+    const gradeLevel = toGradeLevel(data.stage, data.grade);
+    if (!hasGroup && (!data.stage || !data.grade)) {
+      setStudentSuggestions([]);
+      return;
+    }
+    const search = data.studentName.trim();
+    const timer = setTimeout(async () => {
+      setIsLoadingStudents(true);
+      try {
+        const baseUrl =
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
+        const token = getStoredAccessToken();
+        const params = new URLSearchParams({ limit: hasGroup ? "50" : "20" });
+        if (hasGroup) {
+          params.set("groupId", selectedGroupId);
+        } else if (gradeLevel) {
+          params.set("gradeLevel", gradeLevel);
+        }
+        if (search) params.set("search", search);
+        const res = await fetch(`${baseUrl}/students?${params.toString()}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const list = json?.data || [];
+          setStudentSuggestions(
+            list
+              .map((s: any) => ({
+                id: String(s.id),
+                name: s.user?.fullName || "",
+              }))
+              .filter((s: { id: string; name: string }) => s.name),
+          );
+        }
+      } catch (e) {
+        console.warn("Student lookup failed:", e);
+      } finally {
+        setIsLoadingStudents(false);
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [selectedGroupId, data.stage, data.grade, data.studentName]);
+
+  const handleGroupChange = (groupId: string) => {
+    setSelectedGroupId(groupId);
+    // Clear the typed student so we never mix rosters, then auto-fill stage/grade from the group.
+    setData((prev) => ({ ...prev, studentName: "" }));
+    setShowSuggestions(true);
+    const group = groups.find((g) => g.id === groupId);
+    if (group?.gradeLevel) {
+      const parsed = parseGradeLevel(group.gradeLevel);
+      if (parsed.stage || parsed.grade) {
+        setData((prev) => ({
+          ...prev,
+          stage: parsed.stage,
+          grade: parsed.grade,
+        }));
+      }
+    }
+  };
 
   const containerRef = useRef<HTMLDivElement>(null);
   const certificateRef = useRef<HTMLDivElement>(null);
@@ -81,124 +239,135 @@ export function CertificateBuilder() {
       if (containerRef.current) {
         const containerWidth = containerRef.current.clientWidth;
         // Template A is 1146px wide (from viewBox)
-        const targetWidth = 1146; 
-        
+        const targetWidth = 1146;
+
         // Add some padding (e.g., 32px) so it doesn't touch the edges
         const availableWidth = containerWidth - 32;
-        
+
         // If container is smaller than target, scale down
         // If larger, we could scale up, but usually we cap at scale 1 (or allow slight upscale)
-        const newScale = Math.min(availableWidth / targetWidth, 1.2); 
+        const newScale = Math.min(availableWidth / targetWidth, 1.2);
         setScale(newScale);
       }
     };
 
     updateScale();
-    window.addEventListener('resize', updateScale);
-    return () => window.removeEventListener('resize', updateScale);
+    window.addEventListener("resize", updateScale);
+    return () => window.removeEventListener("resize", updateScale);
   }, []);
 
   const handleChange = (field: keyof CertificateData, value: any) => {
-    setData(prev => ({ ...prev, [field]: value }));
+    setData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleReset = () => {
     setData({
-      studentName: '',
-      gender: 'MALE',
-      subject: '',
-      score: '100',
-      issueDate: new Date().toLocaleDateString('ar-EG'),
+      studentName: "",
+      gender: "MALE",
+      subject: "",
+      score: "100",
+      issueDate: new Date().toLocaleDateString("ar-EG"),
       year: new Date().getFullYear().toString(),
-      teacherName: 'أحمد غريب',
-      stage: '',
-      grade: '',
+      teacherName: "أحمد غريب",
+      stage: "",
+      grade: "",
       yearPos: { x: 143, y: 573 },
       scorePos: { x: 577, y: 636 },
       datePos: { x: 388, y: 620 },
     });
+    setSelectedGroupId("");
+    setStudentSuggestions([]);
+    setShowSuggestions(false);
   };
 
   const handleGenerate = async () => {
     if (!certificateRef.current) return;
-    
+
     setIsGenerating(true);
-    
+
     try {
       // Create a fixed wrapper to prevent scroll/offset issues in html2canvas
-      const wrapper = document.createElement('div');
-      wrapper.style.position = 'fixed';
-      wrapper.style.top = '0';
-      wrapper.style.left = '0';
-      wrapper.style.width = '0';
-      wrapper.style.height = '0';
-      wrapper.style.overflow = 'hidden';
+      const wrapper = document.createElement("div");
+      wrapper.style.position = "fixed";
+      wrapper.style.top = "0";
+      wrapper.style.left = "0";
+      wrapper.style.width = "0";
+      wrapper.style.height = "0";
+      wrapper.style.overflow = "hidden";
 
       const clone = certificateRef.current.cloneNode(true) as HTMLElement;
-      clone.style.margin = '0';
+      clone.style.margin = "0";
       wrapper.appendChild(clone);
       document.body.appendChild(wrapper);
 
       // Ensure fonts are fully loaded before rendering
       await document.fonts.ready;
 
+      const { default: html2canvas } = await import("html2canvas");
       const canvas = await html2canvas(clone, {
         scale: 2, // Better resolution
         useCORS: true,
-        backgroundColor: '#FDFDFD',
+        backgroundColor: "#FDFDFD",
         width: 1146,
         height: 810,
         scrollX: 0,
         scrollY: 0,
         windowWidth: 1146,
-        windowHeight: 810
+        windowHeight: 810,
       });
-      
+
       document.body.removeChild(wrapper);
 
       // Convert canvas to a lightweight PNG or WebP data URL for local download
-      const downloadImgData = canvas.toDataURL('image/png');
-      
+      const downloadImgData = canvas.toDataURL("image/png");
+
       // Highly compressed version for localStorage to prevent QuotaExceededError
       // Canvas is currently at scale: 2 (2292x1620), we downscale it for the preview
-      const previewCanvas = document.createElement('canvas');
+      const previewCanvas = document.createElement("canvas");
       previewCanvas.width = 1146 / 2;
       previewCanvas.height = 810 / 2;
-      const ctx = previewCanvas.getContext('2d');
+      const ctx = previewCanvas.getContext("2d");
       if (ctx) {
         ctx.drawImage(canvas, 0, 0, previewCanvas.width, previewCanvas.height);
       }
-      const previewImgData = previewCanvas.toDataURL('image/webp', 0.5);
-      
+      const previewImgData = previewCanvas.toDataURL("image/webp", 0.5);
+
       // Trigger download
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = downloadImgData;
-      link.download = `شهادة-${data.studentName || 'طالب'}.png`;
+      link.download = `شهادة-${data.studentName || "طالب"}.png`;
       link.click();
-      
+
       // Upload to Backend (Cloudflare R2 Bucket + Database)
       canvas.toBlob(async (blob) => {
         if (!blob) return;
-        
+
         const formData = new FormData();
-        formData.append('file', blob, `certificate-${Date.now()}.png`);
-        formData.append('studentName', data.studentName || 'طالب');
-        formData.append('gender', data.gender || 'MALE');
-        formData.append('subject', data.subject || 'عام');
-        formData.append('score', data.score || '100');
-        formData.append('issueDate', data.issueDate || '');
-        formData.append('year', data.year || '');
-        formData.append('stage', data.stage || '');
-        formData.append('grade', data.grade || '');
-        formData.append('teacherName', data.teacherName || '');
+        formData.append("file", blob, `certificate-${Date.now()}.png`);
+        formData.append("studentName", data.studentName || "طالب");
+        formData.append("gender", data.gender || "MALE");
+        formData.append("subject", data.subject || "عام");
+        formData.append("score", data.score || "100");
+        formData.append("issueDate", data.issueDate || "");
+        formData.append("year", data.year || "");
+        formData.append("stage", data.stage || "");
+        formData.append("grade", data.grade || "");
+        formData.append("teacherName", data.teacherName || "");
+        const selectedGroup = groups.find(
+          (group) => group.id === selectedGroupId,
+        );
+        formData.append("groupName", selectedGroup?.name || "");
 
         try {
-          const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
-          const res = await fetch(`${baseUrl}/certificates`, { 
-            method: 'POST', 
-            body: formData 
+          const baseUrl =
+            process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
+          const token = getStoredAccessToken();
+          const res = await fetch(`${baseUrl}/certificates`, {
+            method: "POST",
+            body: formData,
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
           });
-          
+
           let savedCertId = Date.now().toString();
           let serverFileUrl = previewImgData;
 
@@ -207,53 +376,71 @@ export function CertificateBuilder() {
             const created = json?.data || json;
             if (created?.id) savedCertId = created.id;
             if (created?.fileUrl) serverFileUrl = created.fileUrl;
-            console.log('Certificate uploaded successfully to R2 bucket and database.');
+            console.log(
+              "Certificate uploaded successfully to R2 bucket and database.",
+            );
           }
 
           // Save/Update in localStorage with the real backend DB id so no duplicate ID ever exists
           try {
-            const savedCerts = JSON.parse(localStorage.getItem('saved_certificates') || '[]');
+            const savedCerts = JSON.parse(
+              localStorage.getItem("saved_certificates") || "[]",
+            );
             const newCertificate = {
               id: savedCertId,
-              studentName: data.studentName || 'طالب',
-              subject: data.subject || 'عام',
-              score: data.score || '100',
-              stage: data.stage || '',
-              grade: data.grade || '',
-              issueDate: data.issueDate || '',
+              studentName: data.studentName || "طالب",
+              subject: data.subject || "عام",
+              score: data.score || "100",
+              stage: data.stage || "",
+              grade: data.grade || "",
+              groupName: selectedGroup?.name || "",
+              issueDate: data.issueDate || "",
               createdAt: new Date().toISOString(),
               image: serverFileUrl,
-              data: { ...data }
+              data: { ...data },
             };
-            
-            // Remove any local duplicate with the same student & subject
-            const filteredCerts = savedCerts.filter((c: any) => 
-              c.id !== savedCertId && 
-              !(c.studentName?.trim() === newCertificate.studentName.trim() && c.subject?.trim() === newCertificate.subject.trim())
-            );
-            const updatedCerts = [newCertificate, ...filteredCerts].slice(0, 50);
-            localStorage.setItem('saved_certificates', JSON.stringify(updatedCerts));
 
-            const syncedFlags = JSON.parse(localStorage.getItem('synced_certificates') || '{}');
+            // Remove any local duplicate with the same student & subject
+            const filteredCerts = savedCerts.filter(
+              (c: any) =>
+                c.id !== savedCertId &&
+                !(
+                  c.studentName?.trim() === newCertificate.studentName.trim() &&
+                  c.subject?.trim() === newCertificate.subject.trim()
+                ),
+            );
+            const updatedCerts = [newCertificate, ...filteredCerts].slice(
+              0,
+              50,
+            );
+            localStorage.setItem(
+              "saved_certificates",
+              JSON.stringify(updatedCerts),
+            );
+
+            const syncedFlags = JSON.parse(
+              localStorage.getItem("synced_certificates") || "{}",
+            );
             syncedFlags[savedCertId] = true;
-            localStorage.setItem('synced_certificates', JSON.stringify(syncedFlags));
+            localStorage.setItem(
+              "synced_certificates",
+              JSON.stringify(syncedFlags),
+            );
           } catch (storageErr) {
-            console.warn('LocalStorage save error:', storageErr);
+            console.warn("LocalStorage save error:", storageErr);
           }
-          
-          toast.success('تم إنشاء الشهادة بنجاح!');
-          router.push('/teacher/certificates');
-          
-        } catch(e) {
+
+          toast.success("تم إنشاء الشهادة بنجاح!");
+          router.push("/teacher/certificates");
+        } catch (e) {
           console.error("Failed to upload certificate", e);
-          toast.success('تم حفظ الشهادة بنجاح!');
-          router.push('/teacher/certificates');
+          toast.success("تم حفظ الشهادة بنجاح!");
+          router.push("/teacher/certificates");
         }
-      }, 'image/png');
-      
+      }, "image/png");
     } catch (error) {
-      console.error('Error generating PDF:', error);
-      toast.error('حدث خطأ أثناء إنشاء الشهادة');
+      console.error("Error generating PDF:", error);
+      toast.error("حدث خطأ أثناء إنشاء الشهادة");
     } finally {
       setIsGenerating(false);
     }
@@ -262,225 +449,403 @@ export function CertificateBuilder() {
   return (
     <div className="max-w-7xl mx-auto py-8">
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-        
         {/* Form Section */}
         <div className="xl:col-span-4 space-y-6 order-2 xl:order-1">
           <Card className="p-6">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-slate-800">بيانات الشهادة</h2>
-              <Button variant="ghost" size="sm" onClick={handleReset} className="text-slate-500 hover:text-slate-700">
+              <h2 className="text-xl font-bold text-slate-800">
+                بيانات الشهادة
+              </h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleReset}
+                className="text-slate-500 hover:text-slate-700"
+              >
                 <RefreshCw className="w-4 h-4 ml-2" />
                 إعادة تعيين
               </Button>
             </div>
-            
+
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">المرحلة الدراسية</label>
-                  <Select 
-                    value={data.stage} 
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    المرحلة الدراسية
+                  </label>
+                  <Select
+                    value={data.stage}
                     onChange={(e) => {
-                      handleChange('stage', e.target.value);
-                      handleChange('grade', ''); // Reset grade when stage changes
-                    }} 
+                      setSelectedGroupId("");
+                      handleChange("stage", e.target.value);
+                      handleChange("grade", ""); // Reset grade when stage changes
+                    }}
                     options={[
-                      { label: 'اختر المرحلة...', value: '' },
-                      { label: 'الابتدائية', value: 'الابتدائية' },
-                      { label: 'الإعدادية', value: 'الإعدادية' },
-                      { label: 'الثانوية', value: 'الثانوية' },
+                      { label: "اختر المرحلة...", value: "" },
+                      { label: "الابتدائية", value: "الابتدائية" },
+                      { label: "الإعدادية", value: "الإعدادية" },
+                      { label: "الثانوية", value: "الثانوية" },
                     ]}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">الصف الدراسي</label>
-                  <Select 
-                    value={data.grade} 
-                    onChange={(e) => handleChange('grade', e.target.value)} 
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    الصف الدراسي
+                  </label>
+                  <Select
+                    value={data.grade}
+                    onChange={(e) => {
+                      setSelectedGroupId("");
+                      handleChange("grade", e.target.value);
+                    }}
                     options={[
-                      { label: 'اختر الصف...', value: '' },
-                      ...(data.stage && STAGE_GRADES[data.stage as keyof typeof STAGE_GRADES] ? STAGE_GRADES[data.stage as keyof typeof STAGE_GRADES] : []),
+                      { label: "اختر الصف...", value: "" },
+                      ...(data.stage &&
+                      STAGE_GRADES[data.stage as keyof typeof STAGE_GRADES]
+                        ? STAGE_GRADES[data.stage as keyof typeof STAGE_GRADES]
+                        : []),
                     ]}
                     disabled={!data.stage}
                   />
                 </div>
               </div>
 
-              <div className="relative">
-                <label className="block text-sm font-medium text-slate-700 mb-1">اسم الطالب</label>
-                <Input 
-                  value={data.studentName} 
-                  onChange={(e) => {
-                    handleChange('studentName', e.target.value);
-                    setShowSuggestions(true);
-                  }} 
-                  onFocus={() => setShowSuggestions(true)}
-                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                  placeholder={(!data.stage || !data.grade) ? "اختر المرحلة والصف أولاً..." : "ابحث عن اسم الطالب..."}
-                  disabled={!data.stage || !data.grade}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  المجموعة
+                </label>
+                <Select
+                  value={selectedGroupId}
+                  onChange={(e) => handleGroupChange(e.target.value)}
+                  options={[
+                    {
+                      label: isLoadingGroups
+                        ? "جاري تحميل المجموعات..."
+                        : !data.stage || !data.grade
+                          ? "اختر المرحلة والصف أولاً"
+                          : filteredGroups.length === 0
+                            ? "لا توجد مجموعات لهذا الصف"
+                            : "اختر المجموعة...",
+                      value: "",
+                    },
+                    ...filteredGroups.map((g) => ({
+                      label: g.gradeLevel
+                        ? `${g.name} - ${g.gradeLevel}`
+                        : g.name,
+                      value: g.id,
+                    })),
+                  ]}
+                  disabled={isLoadingGroups || !data.stage || !data.grade}
                 />
-                {showSuggestions && filteredStudents.length > 0 && (
-                  <div className="absolute top-[100%] mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
-                    {filteredStudents.map(student => (
-                      <div 
-                        key={student.id} 
-                        className="px-4 py-3 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 transition-colors"
-                        onMouseDown={(e) => {
-                          e.preventDefault(); // Prevent onBlur from firing before click
-                          handleChange('studentName', student.name);
-                          handleChange('gender', student.gender as any);
-                          setShowSuggestions(false);
-                        }}
-                      >
-                        {student.name}
-                      </div>
-                    ))}
+              </div>
+
+              {(() => {
+                const canPickStudent =
+                  !!selectedGroupId || (!!data.stage && !!data.grade);
+                const typedName = data.studentName.trim();
+                const exactMatch =
+                  typedName &&
+                  studentSuggestions.some((s) => s.name.trim() === typedName);
+                return (
+                  <div className="relative">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      اسم الطالب
+                    </label>
+                    <Input
+                      value={data.studentName}
+                      onChange={(e) => {
+                        handleChange("studentName", e.target.value);
+                        setShowSuggestions(true);
+                      }}
+                      onFocus={() => setShowSuggestions(true)}
+                      onBlur={() =>
+                        setTimeout(() => setShowSuggestions(false), 200)
+                      }
+                      placeholder={
+                        !canPickStudent
+                          ? "اختر المجموعة أولاً..."
+                          : "ابحث بكتابة الاسم أو اختر من القائمة..."
+                      }
+                      disabled={!canPickStudent}
+                    />
+                    {!canPickStudent
+                      ? null
+                      : showSuggestions && (
+                          <div className="absolute top-[100%] mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg z-50 max-h-56 overflow-y-auto">
+                            {isLoadingStudents &&
+                            studentSuggestions.length === 0 ? (
+                              <div className="px-4 py-3 text-sm text-slate-400">
+                                جاري البحث عن طلاب المجموعة...
+                              </div>
+                            ) : (
+                              <>
+                                {studentSuggestions.length === 0 &&
+                                !typedName ? (
+                                  <div className="px-4 py-3 text-sm text-slate-400">
+                                    لا يوجد طلاب في هذه المجموعة — اكتب الاسم
+                                    لإضافته يدوياً.
+                                  </div>
+                                ) : (
+                                  studentSuggestions.map((student) => (
+                                    <div
+                                      key={student.id}
+                                      className="px-4 py-3 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 transition-colors"
+                                      onMouseDown={(e) => {
+                                        e.preventDefault(); // Prevent onBlur from firing before click
+                                        handleChange(
+                                          "studentName",
+                                          student.name,
+                                        );
+                                        setShowSuggestions(false);
+                                      }}
+                                    >
+                                      {student.name}
+                                    </div>
+                                  ))
+                                )}
+                                {typedName && !exactMatch ? (
+                                  <div
+                                    className="px-4 py-3 hover:bg-indigo-50 cursor-pointer text-sm text-indigo-700 font-medium border-t border-slate-100 transition-colors"
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      // Keep the typed free text as a new (not yet in system) student.
+                                      handleChange("studentName", typedName);
+                                      setShowSuggestions(false);
+                                    }}
+                                  >
+                                    استخدام &quot;{typedName}&quot; (طالب جديد)
+                                  </div>
+                                ) : null}
+                              </>
+                            )}
+                          </div>
+                        )}
+                    {typedName && !exactMatch ? (
+                      <p className="mt-1 text-xs text-slate-400">
+                        سيُحفظ &quot;{typedName}&quot; كاسم جديد غير مسجل
+                        بالنظام.
+                      </p>
+                    ) : null}
                   </div>
-                )}
-              </div>
+                );
+              })()}
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">النوع</label>
-                <Select 
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  النوع
+                </label>
+                <Select
                   value={data.gender}
-                  onChange={(e) => handleChange('gender', e.target.value as any)}
+                  onChange={(e) =>
+                    handleChange("gender", e.target.value as any)
+                  }
                   options={[
-                    { label: 'ذكر (الطالب / أدائه)', value: 'MALE' },
-                    { label: 'أنثى (الطالبة / أدائها)', value: 'FEMALE' }
+                    { label: "ذكر (الطالب / أدائه)", value: "MALE" },
+                    { label: "أنثى (الطالبة / أدائها)", value: "FEMALE" },
                   ]}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">المادة</label>
-                <Select 
-                  value={data.subject} 
-                  onChange={(e) => handleChange('subject', e.target.value)} 
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  المادة
+                </label>
+                <Select
+                  value={data.subject}
+                  onChange={(e) => handleChange("subject", e.target.value)}
                   options={[
-                    { label: 'اختر المادة...', value: '' },
-                    { label: 'الإحصاء', value: 'الإحصاء' },
-                    { label: 'الرياضيات', value: 'الرياضيات' },
-                    { label: 'الفيزياء', value: 'الفيزياء' },
-                    { label: 'الكيمياء', value: 'الكيمياء' },
-                    { label: 'الأحياء', value: 'الأحياء' },
-                    { label: 'اللغة العربية', value: 'اللغة العربية' },
-                    { label: 'اللغة الإنجليزية', value: 'اللغة الإنجليزية' },
+                    { label: "اختر المادة...", value: "" },
+                    { label: "الإحصاء", value: "الإحصاء" },
+                    { label: "الرياضيات", value: "الرياضيات" },
+                    { label: "الفيزياء", value: "الفيزياء" },
+                    { label: "الكيمياء", value: "الكيمياء" },
+                    { label: "الأحياء", value: "الأحياء" },
+                    { label: "اللغة العربية", value: "اللغة العربية" },
+                    { label: "اللغة الإنجليزية", value: "اللغة الإنجليزية" },
                   ]}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">الدرجة</label>
-                <Input 
-                  value={data.score} 
-                  onChange={(e) => handleChange('score', e.target.value)} 
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  الدرجة
+                </label>
+                <Input
+                  value={data.score}
+                  onChange={(e) => handleChange("score", e.target.value)}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">اسم المعلم المانح</label>
-                <Input 
-                  value={data.teacherName} 
-                  onChange={(e) => handleChange('teacherName', e.target.value)} 
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  اسم المعلم المانح
+                </label>
+                <Input
+                  value={data.teacherName}
+                  onChange={(e) => handleChange("teacherName", e.target.value)}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">التاريخ</label>
-                  <Input 
-                    value={data.issueDate} 
-                    onChange={(e) => handleChange('issueDate', e.target.value)} 
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    التاريخ
+                  </label>
+                  <Input
+                    value={data.issueDate}
+                    onChange={(e) => handleChange("issueDate", e.target.value)}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">السنة</label>
-                  <Input 
-                    value={data.year} 
-                    onChange={(e) => handleChange('year', e.target.value)} 
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    السنة
+                  </label>
+                  <Input
+                    value={data.year}
+                    onChange={(e) => handleChange("year", e.target.value)}
                   />
                 </div>
               </div>
 
               <div className="pt-4 border-t border-slate-100">
-                <h3 className="text-sm font-bold text-slate-800 mb-3">تعديل أماكن العناصر (X / Y)</h3>
-                
+                <h3 className="text-sm font-bold text-slate-800 mb-3">
+                  تعديل أماكن العناصر (X / Y)
+                </h3>
+
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-2">موقع الدرجة (Score)</label>
+                    <label className="block text-xs font-medium text-slate-500 mb-2">
+                      موقع الدرجة (Score)
+                    </label>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-slate-400">X:</span>
-                        <Input 
-                          type="number" 
-                          value={data.scorePos.x} 
-                          onChange={(e) => setData(p => ({ ...p, scorePos: { ...p.scorePos, x: Number(e.target.value) } }))} 
+                        <Input
+                          type="number"
+                          value={data.scorePos.x}
+                          onChange={(e) =>
+                            setData((p) => ({
+                              ...p,
+                              scorePos: {
+                                ...p.scorePos,
+                                x: Number(e.target.value),
+                              },
+                            }))
+                          }
                         />
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-slate-400">Y:</span>
-                        <Input 
-                          type="number" 
-                          value={data.scorePos.y} 
-                          onChange={(e) => setData(p => ({ ...p, scorePos: { ...p.scorePos, y: Number(e.target.value) } }))} 
+                        <Input
+                          type="number"
+                          value={data.scorePos.y}
+                          onChange={(e) =>
+                            setData((p) => ({
+                              ...p,
+                              scorePos: {
+                                ...p.scorePos,
+                                y: Number(e.target.value),
+                              },
+                            }))
+                          }
                         />
                       </div>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-2">موقع السنة (Year)</label>
+                    <label className="block text-xs font-medium text-slate-500 mb-2">
+                      موقع السنة (Year)
+                    </label>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-slate-400">X:</span>
-                        <Input 
-                          type="number" 
-                          value={data.yearPos.x} 
-                          onChange={(e) => setData(p => ({ ...p, yearPos: { ...p.yearPos, x: Number(e.target.value) } }))} 
+                        <Input
+                          type="number"
+                          value={data.yearPos.x}
+                          onChange={(e) =>
+                            setData((p) => ({
+                              ...p,
+                              yearPos: {
+                                ...p.yearPos,
+                                x: Number(e.target.value),
+                              },
+                            }))
+                          }
                         />
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-slate-400">Y:</span>
-                        <Input 
-                          type="number" 
-                          value={data.yearPos.y} 
-                          onChange={(e) => setData(p => ({ ...p, yearPos: { ...p.yearPos, y: Number(e.target.value) } }))} 
+                        <Input
+                          type="number"
+                          value={data.yearPos.y}
+                          onChange={(e) =>
+                            setData((p) => ({
+                              ...p,
+                              yearPos: {
+                                ...p.yearPos,
+                                y: Number(e.target.value),
+                              },
+                            }))
+                          }
                         />
                       </div>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-2">موقع التاريخ (Date)</label>
+                    <label className="block text-xs font-medium text-slate-500 mb-2">
+                      موقع التاريخ (Date)
+                    </label>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-slate-400">X:</span>
-                        <Input 
-                          type="number" 
-                          value={data.datePos.x} 
-                          onChange={(e) => setData(p => ({ ...p, datePos: { ...p.datePos, x: Number(e.target.value) } }))} 
+                        <Input
+                          type="number"
+                          value={data.datePos.x}
+                          onChange={(e) =>
+                            setData((p) => ({
+                              ...p,
+                              datePos: {
+                                ...p.datePos,
+                                x: Number(e.target.value),
+                              },
+                            }))
+                          }
                         />
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-slate-400">Y:</span>
-                        <Input 
-                          type="number" 
-                          value={data.datePos.y} 
-                          onChange={(e) => setData(p => ({ ...p, datePos: { ...p.datePos, y: Number(e.target.value) } }))} 
+                        <Input
+                          type="number"
+                          value={data.datePos.y}
+                          onChange={(e) =>
+                            setData((p) => ({
+                              ...p,
+                              datePos: {
+                                ...p.datePos,
+                                y: Number(e.target.value),
+                              },
+                            }))
+                          }
                         />
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-              
+
               <div className="pt-6 mt-4 border-t border-slate-100">
-                <Button 
+                <Button
                   className="w-full py-6 text-lg bg-indigo-500 hover:bg-indigo-600 shadow-md"
                   onClick={handleGenerate}
                   disabled={isGenerating || !data.studentName || !data.subject}
                 >
-                  {isGenerating ? <Loader2 className="w-5 h-5 ml-2 animate-spin" /> : <Download className="w-5 h-5 ml-2" />}
+                  {isGenerating ? (
+                    <Loader2 className="w-5 h-5 ml-2 animate-spin" />
+                  ) : (
+                    <Download className="w-5 h-5 ml-2" />
+                  )}
                   إنشاء وتحميل الصورة
                 </Button>
               </div>
@@ -492,36 +857,38 @@ export function CertificateBuilder() {
         <div className="xl:col-span-8 order-1 xl:order-2">
           <Card className="p-4 bg-slate-50 overflow-hidden">
             <div className="flex items-center justify-between mb-4 px-2">
-              <h3 className="text-lg font-semibold text-slate-700">المعاينة الحية</h3>
-              
+              <h3 className="text-lg font-semibold text-slate-700">
+                المعاينة الحية
+              </h3>
+
               <div className="flex items-center bg-white rounded-md shadow-sm border border-slate-200">
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => setScale(s => Math.max(s - 0.1, 0.3))}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setScale((s) => Math.max(s - 0.1, 0.3))}
                   className="rounded-none rounded-r-md px-3"
                   title="تصغير"
                 >
                   <ZoomOut className="w-4 h-4 text-slate-600" />
                 </Button>
-                
+
                 <span className="text-xs font-medium text-slate-600 px-3 min-w-[3rem] text-center">
                   {Math.round(scale * 100)}%
                 </span>
-                
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => setScale(s => Math.min(s + 0.1, 2))}
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setScale((s) => Math.min(s + 0.1, 2))}
                   className="rounded-none px-3 border-r border-slate-200"
                   title="تكبير"
                 >
                   <ZoomIn className="w-4 h-4 text-slate-600" />
                 </Button>
-                
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setScale(1)}
                   className="rounded-none rounded-l-md px-3 border-r border-slate-200"
                   title="الحجم الطبيعي"
@@ -531,17 +898,17 @@ export function CertificateBuilder() {
               </div>
             </div>
 
-            <div 
+            <div
               ref={containerRef}
               className="w-full flex justify-center overflow-x-auto custom-scrollbar pb-4 bg-slate-100 rounded-lg shadow-inner"
-              style={{ minHeight: '600px' }}
+              style={{ minHeight: "600px" }}
             >
-              <div 
+              <div
                 className="transition-transform duration-200 ease-out origin-top flex-shrink-0"
-                style={{ 
+                style={{
                   transform: `scale(${scale})`,
-                  width: '1146px',
-                  height: '810px'
+                  width: "1146px",
+                  height: "810px",
                 }}
               >
                 <CertificateTemplateA ref={certificateRef} data={data} />

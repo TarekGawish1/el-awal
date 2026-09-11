@@ -1243,6 +1243,15 @@ export class SyncService {
             return;
           }
 
+          if (user?.role === UserRole.STUDENT || user?.role === UserRole.PARENT) {
+            result.conflicts.push({
+              operationId: opId,
+              reason: 'FORBIDDEN: Only teachers and staff are authorized to record payments',
+            });
+            result.failedCount++;
+            return;
+          }
+
           const isBookletOp = op.paymentType === 'BOOKLET' || Boolean(op.bookletId);
 
           // Resolve group ID if not provided: pick student's first active enrollment
@@ -1252,6 +1261,41 @@ export class SyncService {
               (e: any) => e.status === GroupEnrollmentStatus.ACTIVE,
             );
             resolvedGroupId = activeEnrollment?.groupId || student.groupEnrollments[0].groupId;
+          }
+
+          let authoritativeMonthlyFee: number | null = null;
+          if (resolvedGroupId && typeof tx.academicGroup?.findUnique === 'function') {
+            const targetGroup = await tx.academicGroup.findUnique({
+              where: { id: resolvedGroupId },
+              select: { id: true, teacherId: true, monthlyFee: true },
+            });
+
+            if (!targetGroup) {
+              result.conflicts.push({
+                operationId: opId,
+                reason: `Target group [${resolvedGroupId}] does not exist`,
+                entityId: resolvedGroupId,
+              });
+              result.failedCount++;
+              return;
+            }
+
+            if (user?.role === UserRole.TEACHER) {
+              const teacherId = user.teacherProfileId || user.id;
+              if (targetGroup.teacherId && targetGroup.teacherId !== teacherId && targetGroup.teacherId !== user.id) {
+                result.conflicts.push({
+                  operationId: opId,
+                  reason: 'FORBIDDEN: You do not have authority to manage payments for this academic group',
+                  entityId: resolvedGroupId,
+                });
+                result.failedCount++;
+                return;
+              }
+            }
+
+            if (targetGroup && Number(targetGroup.monthlyFee) > 0) {
+              authoritativeMonthlyFee = Number(targetGroup.monthlyFee);
+            }
           }
 
           let savedPaymentRecord: any = null;
@@ -1397,8 +1441,8 @@ export class SyncService {
             }
           } else {
             // Flow B: Ingest Monthly Tuition Payment
-            let authoritativeExpected = clientExpected;
-            if (resolvedGroupId && typeof tx.academicGroup?.findUnique === 'function') {
+            let authoritativeExpected = authoritativeMonthlyFee ?? clientExpected;
+            if (authoritativeMonthlyFee === null && resolvedGroupId && typeof tx.academicGroup?.findUnique === 'function') {
               try {
                 const group = await tx.academicGroup.findUnique({
                   where: { id: resolvedGroupId },
@@ -2141,15 +2185,33 @@ export class SyncService {
               );
             }
 
+            if (user?.role === UserRole.STUDENT || user?.role === UserRole.PARENT) {
+              results.push({ mutationId: mutation.id, status: 'FAILED', error: 'UNAUTHORIZED_ROLE' });
+              continue;
+            }
+
             // 2. Validate Session and Student Enrollment
             const session = await this.prisma.lessonSession.findUnique({
               where: { id: sessionId },
-              select: { groupId: true },
+              select: {
+                groupId: true,
+                group: {
+                  select: { teacherId: true },
+                },
+              },
             });
 
             if (!session) {
               results.push({ mutationId: mutation.id, status: 'FAILED', error: 'SESSION_NOT_FOUND' });
               continue;
+            }
+
+            if (user?.role === UserRole.TEACHER) {
+              const teacherId = user.teacherProfileId || user.id;
+              if (session.group?.teacherId && session.group.teacherId !== teacherId && session.group.teacherId !== user.id) {
+                results.push({ mutationId: mutation.id, status: 'FAILED', error: 'FORBIDDEN_GROUP_ACCESS' });
+                continue;
+              }
             }
 
             const studentData = await this.prisma.studentProfile.findFirst({
@@ -2348,15 +2410,33 @@ export class SyncService {
               continue;
             }
 
-            // 2. Enforce Cross-Group Authorization Rules
+            // 2. Enforce Cross-Group Authorization Rules & Staff Authorization
+            if (user?.role === UserRole.STUDENT || user?.role === UserRole.PARENT) {
+              results.push({ mutationId: mutation.id, status: 'FAILED', error: 'UNAUTHORIZED_ROLE' });
+              continue;
+            }
+
             const session = await this.prisma.lessonSession.findUnique({
               where: { id: sessionId },
-              select: { groupId: true },
+              select: {
+                groupId: true,
+                group: {
+                  select: { teacherId: true },
+                },
+              },
             });
 
             if (!session) {
               results.push({ mutationId: mutation.id, status: 'FAILED', error: 'SESSION_NOT_FOUND' });
               continue;
+            }
+
+            if (user?.role === UserRole.TEACHER) {
+              const teacherId = user.teacherProfileId || user.id;
+              if (session.group?.teacherId && session.group.teacherId !== teacherId && session.group.teacherId !== user.id) {
+                results.push({ mutationId: mutation.id, status: 'FAILED', error: 'FORBIDDEN_GROUP_ACCESS' });
+                continue;
+              }
             }
 
             const studentData = await this.prisma.studentProfile.findFirst({

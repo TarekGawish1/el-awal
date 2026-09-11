@@ -18,3 +18,10 @@ export function generateSecurePassword(length = 6): string {
   }
   return chars.join('');
 }
+
+/**
+ * Assigns a 48-hour expiration date for generated temporary access PIN codes.
+ */
+export function getTemporaryPinExpiration(hours = 48): Date {
+  return new Date(Date.now() + hours * 60 * 60 * 1000);
+}

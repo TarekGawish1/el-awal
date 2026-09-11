@@ -375,12 +375,17 @@ self.addEventListener('fetch', (event) => {
     request.destination === 'manifest';
 
   if (isStaticAsset) {
+    // The hero animation reuses the same finite image sequence. Cache frames
+    // without background revalidation so each animation loop stays offline.
+    const isHeroAnimationFrame = url.pathname.startsWith('/hero-animation/');
+
     event.respondWith(
       (async () => {
         const cachedResponse = await caches.match(request);
         if (cachedResponse) {
-          // Revalidate in background if online
-          if (navigator.onLine) {
+          // Hero frames are intentionally cache-first; revalidating here would
+          // download the entire sequence again on every animation loop.
+          if (navigator.onLine && !isHeroAnimationFrame) {
             fetch(request)
               .then(async (networkResponse) => {
                 if (isCachableResponse(networkResponse)) {

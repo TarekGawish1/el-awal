@@ -11,7 +11,7 @@ import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { AuthTokensResponseDto } from '../dto/auth-response.dto';
 import { RegisterByGroupDto } from '../dto/register-by-group.dto';
 import { normalizeEgyptianPhone } from '../../../common/utils/phone.util';
-import { generateSecurePassword } from '../../../common/utils/password.util';
+import { generateSecurePassword, getTemporaryPinExpiration } from '../../../common/utils/password.util';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
 import { NotificationsService } from '../../notifications/services/notifications.service';
 import { NotificationChannel, NotificationType } from '@prisma/client';
@@ -135,14 +135,16 @@ export class AuthService {
     let isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
 
     // If password doesn't match own passwordHash:
-    // A) Check student temporary access PIN if user is a student (permanent direct access)
+    // A) Check student temporary access PIN if user is a student (enforce 48h expiration)
     if (!isPasswordValid && user.studentProfile?.tempAccessPin) {
-      if (user.studentProfile.tempAccessPin === dto.password) {
+      const isPinExpired =
+        user.studentProfile.pinExpiresAt && new Date(user.studentProfile.pinExpiresAt) < new Date();
+      if (!isPinExpired && user.studentProfile.tempAccessPin === dto.password) {
         isPasswordValid = true;
       }
     }
 
-    // B) Check linked student's password or tempAccessPin if user has a parentProfile (permanent direct access)
+    // B) Check linked student's password or tempAccessPin if user has a parentProfile
     let authenticatedAsParentViaStudentPin = false;
     if (!isPasswordValid && user.parentProfile?.studentLinks?.length) {
       for (const link of user.parentProfile.studentLinks) {
@@ -154,7 +156,10 @@ export class AuthService {
             break;
           }
         }
+        const isPinExpired =
+          link.student?.pinExpiresAt && new Date(link.student.pinExpiresAt) < new Date();
         if (
+          !isPinExpired &&
           link.student?.tempAccessPin &&
           link.student.tempAccessPin === dto.password
         ) {
@@ -168,6 +173,28 @@ export class AuthService {
     if (!isPasswordValid) {
       this.logger.warn(`Authentication failed: Invalid password for user [${dto.identifier}]`);
       throw new UnauthorizedException('بيانات الدخول غير صحيحة أو الحساب غير مفعل');
+    }
+
+    // Clear tempAccessPin and pendingCredentials upon verified login with real password
+    if (
+      user.studentProfile &&
+      (user.studentProfile.tempAccessPin || (user.studentProfile as any).pendingCredentials)
+    ) {
+      const usedTempPin = user.studentProfile.tempAccessPin === dto.password;
+      if (!usedTempPin) {
+        await this.prisma.studentProfile
+          .update({
+            where: { id: user.studentProfile.id },
+            data: {
+              tempAccessPin: null,
+              pinExpiresAt: null,
+              pendingCredentials: null,
+            },
+          })
+          .catch((err) =>
+            this.logger.warn('Failed to clear tempAccessPin upon verified password login:', err),
+          );
+      }
     }
 
     const overrideRole = authenticatedAsParentViaStudentPin ? UserRole.PARENT : undefined;
@@ -220,6 +247,9 @@ export class AuthService {
                     deletedAt: true,
                     passwordHash: true,
                     parentProfile: { select: { id: true } },
+                    secretariatProfile: { select: { id: true } },
+                    teacherProfile: { select: { id: true } },
+                    studentProfile: { select: { id: true } },
                   },
                 },
               },
@@ -254,6 +284,9 @@ export class AuthService {
           deletedAt: true,
           passwordHash: true,
           parentProfile: { select: { id: true } },
+          secretariatProfile: { select: { id: true } },
+          teacherProfile: { select: { id: true } },
+          studentProfile: { select: { id: true } },
         },
       });
 
@@ -333,7 +366,7 @@ export class AuthService {
     const accessSecret = this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
     const refreshSecret = this.configService.getOrThrow<string>('JWT_REFRESH_SECRET');
     const accessExpiry = this.configService.get<string>('JWT_ACCESS_EXPIRES_IN', '15m');
-    const refreshExpiry = this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '7d');
+    const refreshExpiry = this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '30d');
 
     const accessPayload: JwtTokenPayload = {
       sub: user.id,
@@ -385,6 +418,34 @@ export class AuthService {
       }
     }
 
+    let teacherProfileId = user.teacherProfile?.id;
+    let studentProfileId = user.studentProfile?.id;
+    let parentProfileId = user.parentProfile?.id;
+    let secretariatProfileId = user.secretariatProfile?.id;
+
+    if (!secretariatProfileId || !parentProfileId || !teacherProfileId || !studentProfileId) {
+      const fullUserProfiles = typeof this.prisma.user?.findUnique === 'function'
+        ? await this.prisma.user.findUnique({
+            where: { id: user.id },
+            select: {
+              teacherProfile: { select: { id: true } },
+              studentProfile: { select: { id: true } },
+              parentProfile: { select: { id: true } },
+              secretariatProfile: { select: { id: true } },
+              assistantToTeachers: { where: { status: 'ACTIVE' }, take: 1, select: { id: true } },
+            },
+          })
+        : null;
+      if (fullUserProfiles) {
+        if (!teacherProfileId) teacherProfileId = fullUserProfiles.teacherProfile?.id;
+        if (!studentProfileId) studentProfileId = fullUserProfiles.studentProfile?.id;
+        if (!parentProfileId) parentProfileId = fullUserProfiles.parentProfile?.id;
+        if (!secretariatProfileId) {
+          secretariatProfileId = fullUserProfiles.secretariatProfile?.id || (fullUserProfiles.assistantToTeachers && fullUserProfiles.assistantToTeachers.length > 0 ? user.id : undefined);
+        }
+      }
+    }
+
     return {
       accessToken,
       refreshToken,
@@ -396,10 +457,10 @@ export class AuthService {
         email: user.email || undefined,
         phone: user.phone || undefined,
         role: effectiveRole,
-        teacherProfileId: user.teacherProfile?.id,
-        studentProfileId: user.studentProfile?.id,
-        parentProfileId: user.parentProfile?.id,
-        secretariatProfileId: user.secretariatProfile?.id,
+        teacherProfileId,
+        studentProfileId,
+        parentProfileId,
+        secretariatProfileId,
         permissions,
       },
     };
@@ -418,6 +479,7 @@ export class AuthService {
         studentProfile: { select: { id: true } },
         parentProfile: { select: { id: true } },
         secretariatProfile: { select: { id: true } },
+        assistantToTeachers: { where: { status: 'ACTIVE' }, take: 1, select: { id: true } },
       },
     });
 
@@ -425,16 +487,40 @@ export class AuthService {
       throw new UnauthorizedException('الحساب غير موجود أو غير مفعل');
     }
 
+    const hasAssistantLink = Boolean(user.assistantToTeachers && user.assistantToTeachers.length > 0);
+    const hasParentLink = await this.prisma.parentStudentLink.findFirst({
+      where: { parentId: user.id },
+      select: { id: true },
+    });
+
     // Check if user has the required profile for the target role
     const roleProfileMap: Record<string, boolean> = {
-      [UserRole.TEACHER]: Boolean(user.teacherProfile),
-      [UserRole.STUDENT]: Boolean(user.studentProfile),
-      [UserRole.PARENT]: Boolean(user.parentProfile),
-      [UserRole.SECRETARIAT]: Boolean(user.secretariatProfile),
+      [UserRole.TEACHER]: Boolean(user.teacherProfile) || user.role === UserRole.TEACHER,
+      [UserRole.STUDENT]: Boolean(user.studentProfile) || user.role === UserRole.STUDENT,
+      [UserRole.PARENT]: Boolean(user.parentProfile) || Boolean(hasParentLink) || user.role === UserRole.PARENT,
+      [UserRole.SECRETARIAT]: Boolean(user.secretariatProfile) || hasAssistantLink || user.role === UserRole.SECRETARIAT,
     };
 
     if (!roleProfileMap[targetRole]) {
       throw new BadRequestException('ليس لديك صلاحية التبديل إلى هذا الدور');
+    }
+
+    if (targetRole === UserRole.SECRETARIAT && !user.secretariatProfile && (hasAssistantLink || user.role === UserRole.SECRETARIAT)) {
+      const sp = await this.prisma.secretariatProfile.upsert({
+        where: { id: user.id },
+        create: { id: user.id, staffTitle: 'مساعد معلم' },
+        update: {},
+      });
+      user.secretariatProfile = { id: sp.id };
+    }
+
+    if (targetRole === UserRole.PARENT && !user.parentProfile && (hasParentLink || user.role === UserRole.PARENT)) {
+      const pp = await this.prisma.parentProfile.upsert({
+        where: { id: user.id },
+        create: { id: user.id, relationshipType: 'ولي أمر' },
+        update: {},
+      });
+      user.parentProfile = { id: pp.id };
     }
 
     return this.issueTokens(user, targetRole);
@@ -447,7 +533,7 @@ export class AuthService {
     const refreshSecret = this.configService.getOrThrow<string>('JWT_REFRESH_SECRET');
     const accessSecret = this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
     const accessExpiry = this.configService.get<string>('JWT_ACCESS_EXPIRES_IN', '15m');
-    const refreshExpiry = this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '7d');
+    const refreshExpiry = this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '30d');
 
     let decoded: JwtTokenPayload;
     try {
@@ -473,9 +559,57 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh session');
     }
 
-    // Reuse detection: If token was already revoked, revoke all active sessions for this user!
+    // Grace period for rotated refresh tokens (60 seconds)
+    // Prevents concurrent requests or retries from falsely triggering reuse detection panic
+    const GRACE_PERIOD_MS = 60 * 1000;
+    const isWithinGracePeriod =
+      existingSession.revokedAt &&
+      Date.now() - existingSession.revokedAt.getTime() < GRACE_PERIOD_MS;
+
     if (existingSession.revokedAt) {
-      this.logger.error(`Suspicious refresh token reuse detected for user ${existingSession.userId}. Revoking all sessions.`);
+      if (isWithinGracePeriod && existingSession.replacedById) {
+        this.logger.log(
+          `Concurrent refresh token request received within grace period for user ${existingSession.userId}. Issuing refreshed tokens without revoking session family.`,
+        );
+
+        const replacement = await this.prisma.refreshTokenSession.findUnique({
+          where: { id: existingSession.replacedById },
+        });
+
+        if (replacement && !replacement.revokedAt && replacement.expiresAt > new Date()) {
+          const user = await this.prisma.user.findUnique({
+            where: { id: decoded.sub },
+          });
+
+          if (user && user.isActive && !user.deletedAt) {
+            let effectiveRole = user.role;
+            if (decoded.role && decoded.role !== user.role) {
+              effectiveRole = decoded.role as UserRole;
+            }
+            const accessPayload: JwtTokenPayload = {
+              sub: user.id,
+              email: user.email || undefined,
+              phone: user.phone || undefined,
+              role: effectiveRole,
+              typ: 'access',
+            };
+            const accessToken = await this.jwtService.signAsync(accessPayload, {
+              secret: accessSecret,
+              expiresIn: accessExpiry,
+            });
+
+            return {
+              accessToken,
+              refreshToken: dto.refreshToken,
+            };
+          }
+        }
+      }
+
+      // True reuse attack detected outside grace period: Revoke all active sessions for this user!
+      this.logger.error(
+        `Suspicious refresh token reuse detected for user ${existingSession.userId} outside grace period. Revoking all sessions.`,
+      );
       await this.prisma.refreshTokenSession.updateMany({
         where: { userId: existingSession.userId, revokedAt: null },
         data: { revokedAt: new Date() },
@@ -752,7 +886,7 @@ export class AuthService {
                 attendanceMode: 'CENTER',
                 emergencyPhone: parentPhone,
                 tempAccessPin: dto.password,
-                pinExpiresAt: null,
+                pinExpiresAt: getTemporaryPinExpiration(48),
               },
             },
           },

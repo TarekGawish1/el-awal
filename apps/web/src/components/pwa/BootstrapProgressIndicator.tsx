@@ -10,9 +10,28 @@ export function BootstrapProgressIndicator() {
   const [isDismissed, setIsDismissed] = useState(false);
   const autoHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Trigger visibility when bootstrapping is active or completes
+  const isExplicitFull = lastEvent?.data?.forceFull === true;
+  const isDeltaSync = lastEvent?.data?.isDelta === true;
+
+  // Trigger visibility only for initial setup or explicit user-initiated full syncs
   useEffect(() => {
     if (isDismissed) {
+      setVisible(false);
+      return;
+    }
+
+    // Suppress popups for routine background delta syncs
+    if (isDeltaSync && !isExplicitFull) {
+      setVisible(false);
+      return;
+    }
+
+    // Check if initial bootstrap was already successfully presented in this browser session
+    const hasBeenNotifiedInSession =
+      typeof window !== 'undefined' &&
+      sessionStorage.getItem('elawal_bootstrap_completed') === 'true';
+
+    if (hasBeenNotifiedInSession && !isExplicitFull) {
       setVisible(false);
       return;
     }
@@ -34,12 +53,15 @@ export function BootstrapProgressIndicator() {
 
     if (isComplete) {
       setVisible(true);
+      if (typeof window !== 'undefined' && (lastEvent?.type === 'SUCCESS' || percentage === 100)) {
+        sessionStorage.setItem('elawal_bootstrap_completed', 'true');
+      }
       if (autoHideTimerRef.current) {
         clearTimeout(autoHideTimerRef.current);
       }
       autoHideTimerRef.current = setTimeout(() => {
         setVisible(false);
-      }, 3500);
+      }, 3000);
     }
 
     return () => {
@@ -47,14 +69,14 @@ export function BootstrapProgressIndicator() {
         clearTimeout(autoHideTimerRef.current);
       }
     };
-  }, [isBootstrapping, lastEvent, percentage, isDismissed]);
+  }, [isBootstrapping, lastEvent, percentage, isDismissed, isDeltaSync, isExplicitFull]);
 
-  // When a new bootstrap starts, reset dismissed state
+  // When an explicit full bootstrap starts, reset dismissed state
   useEffect(() => {
-    if (isBootstrapping) {
+    if (isBootstrapping && isExplicitFull) {
       setIsDismissed(false);
     }
-  }, [isBootstrapping]);
+  }, [isBootstrapping, isExplicitFull]);
 
   const handleClose = (e: React.MouseEvent) => {
     e.preventDefault();

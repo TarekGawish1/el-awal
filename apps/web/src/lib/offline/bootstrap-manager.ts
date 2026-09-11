@@ -6,6 +6,7 @@
 import { offlineDb } from './db';
 import { API_ENDPOINTS } from '../api/endpoints';
 import { apiClient } from '../api/client';
+import { getStoredAccessToken, getStoredRefreshToken } from '@/features/auth/utils/auth-tokens';
 import { QueryClient } from '@tanstack/react-query';
 
 export type BootstrapEventType = 'START' | 'PROGRESS' | 'SUCCESS' | 'ERROR' | 'OFFLINE_FALLBACK';
@@ -69,6 +70,16 @@ class BootstrapManager {
     skipCooldown?: boolean;
     queryClient?: QueryClient;
   }): Promise<{ success: boolean; isDelta: boolean; counts?: Record<string, number> }> {
+    // Guard: never hit the authenticated bootstrap endpoint from public pages
+    // (e.g. landing page) where there is no session — prevents useless 401s
+    // that hurt Lighthouse scores and spam the backend + console.
+    if (typeof window !== 'undefined') {
+      const hasSession = Boolean(getStoredAccessToken() || getStoredRefreshToken());
+      if (!hasSession) {
+        return { success: false, isDelta: false };
+      }
+    }
+
     if (this.isBootstrappingState) {
       return { success: false, isDelta: false };
     }
@@ -90,7 +101,11 @@ class BootstrapManager {
 
     this.isBootstrappingState = true;
     this.lastError = null;
-    this.notify('START', 0, 'بدء تنزيل مساحة العمل للعمل بدون إنترنت...');
+    const isExplicitForceFull = Boolean(options?.forceFull);
+    this.notify('START', 0, 'بدء تنزيل مساحة العمل للعمل بدون إنترنت...', {
+      isDelta: !isExplicitForceFull,
+      forceFull: isExplicitForceFull,
+    });
 
     try {
       const doBootstrap = async () => {
@@ -102,7 +117,10 @@ class BootstrapManager {
         ? `${API_ENDPOINTS.SYNC.BOOTSTRAP}?since=${lastSyncTime}`
         : API_ENDPOINTS.SYNC.BOOTSTRAP;
 
-      this.notify('PROGRESS', 25, 'جاري استقبال وتجهيز بيانات المجموعات والطلاب...');
+      this.notify('PROGRESS', 25, 'جاري استقبال وتجهيز بيانات المجموعات والطلاب...', {
+        isDelta: !isExplicitForceFull,
+        forceFull: isExplicitForceFull,
+      });
 
       // Abort after 12s to prevent indefinite hanging on flaky networks
       const timeoutPromise = new Promise((_, reject) =>
@@ -146,7 +164,10 @@ class BootstrapManager {
 
       const qc = options?.queryClient;
 
-      this.notify('PROGRESS', 50, 'حفظ سجلات الطلاب والمجموعات والحصص محلياً...');
+      this.notify('PROGRESS', 50, 'حفظ سجلات الطلاب والمجموعات والحصص محلياً...', {
+        isDelta: !isExplicitForceFull,
+        forceFull: isExplicitForceFull,
+      });
 
       // 1. Ingest Students
       // If it's a delta, only upsert. If it's full, sync snapshot (pruning missing).
@@ -312,6 +333,7 @@ class BootstrapManager {
       this.notify('SUCCESS', 100, 'تم تجهيز مساحة العمل بنجاح والجاهزية للعمل بدون إنترنت 🚀', {
         counts,
         isDelta: isDeltaResponse,
+        forceFull: isExplicitForceFull,
       });
 
       return {

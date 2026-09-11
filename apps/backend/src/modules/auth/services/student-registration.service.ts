@@ -6,7 +6,7 @@ import { PrismaService } from '../../../core/database/prisma.service';
 import { AuthService } from './auth.service';
 import { RegisterStudentDto } from '../dto/student-registration.dto';
 import { normalizeEgyptianPhone, getPhoneVariants } from '../../../common/utils/phone.util';
-import { generateSecurePassword } from '../../../common/utils/password.util';
+import { generateSecurePassword, getTemporaryPinExpiration } from '../../../common/utils/password.util';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
 import { NotificationsService } from '../../notifications/services/notifications.service';
 import { formatStudentApprovalMessage, formatStudentRegistrationMessage } from '../../../utils/spintax';
@@ -114,7 +114,7 @@ export class StudentRegistrationService {
                 attendanceMode: dto.attendanceMode as any,
                 emergencyPhone: parentPhone,
                 tempAccessPin: studentPassword,
-                pinExpiresAt: null,
+                pinExpiresAt: getTemporaryPinExpiration(48),
               },
             },
           },

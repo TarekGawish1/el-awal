@@ -1,7 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Scanner } from '@yudiel/react-qr-scanner';
+import dynamic from 'next/dynamic';
+
+const Scanner = dynamic(
+  () => import('@yudiel/react-qr-scanner').then((mod) => mod.Scanner),
+  { ssr: false }
+);
 import { X, QrCode, CheckCircle2, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
 import { useEnrollByQrToken } from '../hooks/useCourses';
 import toast from 'react-hot-toast';

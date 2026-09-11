@@ -23,6 +23,7 @@ export const API_ENDPOINTS = {
   TEACHER: {
     DASHBOARD_OVERVIEW: '/teachers/dashboard/overview', // Recommended server aggregation contract
     ACADEMIC_PERIOD: '/teachers/academic-period',
+    PROFILE: '/teachers/profile',
     SAVED_LOCATIONS: '/teachers/saved-locations',
     ASSISTANTS: {
       LIST: '/teachers/assistants',
@@ -139,5 +140,16 @@ export const API_ENDPOINTS = {
   ANALYTICS: {
     TRACK: '/analytics/track',
     STATS: '/analytics/stats',
+    LANDING: '/analytics/landing',
+    GEO_RANKING: '/analytics/geo-ranking',
+    STUDENT_RANKING: '/analytics/students/ranking',
+    SESSION_START: '/analytics/session/start',
+    SESSION_PING: '/analytics/session/ping',
+  },
+  TESTIMONIALS: {
+    PUBLIC: '/testimonials/public',
+    MINE: '/testimonials/mine',
+    LIST: '/testimonials',
+    UPDATE: (id: string) => `/testimonials/${id}`,
   },
 } as const;

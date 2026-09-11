@@ -28,6 +28,8 @@ import { CertificatesModule } from './modules/certificates/certificates.module';
 import { AssistantsModule } from './modules/assistants/assistants.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { TestimonialsModule } from './modules/testimonials/testimonials.module';
+import { SiteSettingsModule } from './modules/site-settings/site-settings.module';
 
 @Module({
   imports: [
@@ -43,7 +45,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     // Realtime WebSocket transport (Socket.IO)
     RealtimeModule,
 
-    // 15 Domain Feature Modules + Health + Audit + Analytics
+    // Domain Feature Modules + Health + Audit + Analytics + Testimonials + SiteSettings
     AuthModule,
     UsersModule,
     StudentsModule,
@@ -67,6 +69,8 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     AssistantsModule,
     AuditModule,
     AnalyticsModule,
+    TestimonialsModule,
+    SiteSettingsModule,
   ],
 })
 export class AppModule {}

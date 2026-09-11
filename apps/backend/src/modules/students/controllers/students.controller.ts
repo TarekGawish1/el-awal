@@ -17,6 +17,7 @@ import { UpdateStudentDto } from '../dto/update-student.dto';
 import { StudentQueryDto } from '../dto/student-query.dto';
 import { StudentQrCodeResponseDto } from '../dto/qr-code-response.dto';
 import { StudentGroupQueryDto } from '../dto/student-group-query.dto';
+import { ResetStudentPasswordDto } from '../dto/reset-student-password.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
 import { UserRole, StudentAcademicStatus } from '@prisma/client';
@@ -157,7 +158,7 @@ export class StudentsController {
   @ApiOperation({ summary: 'Reset student password and optionally send WhatsApp notification' })
   async resetStudentPassword(
     @Param('id') id: string,
-    @Body() dto: any,
+    @Body() dto: ResetStudentPasswordDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.studentsService.resetStudentPassword(id, dto, user);

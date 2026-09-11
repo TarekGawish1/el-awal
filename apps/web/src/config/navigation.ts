@@ -15,6 +15,8 @@ import {
   Award,
   History,
   BarChart3,
+  MessageSquareHeart,
+  Settings,
 } from 'lucide-react';
 
 export interface NavItemConfig {
@@ -69,6 +71,7 @@ export const TEACHER_NAVIGATION_SECTIONS: NavSectionConfig[] = [
     items: [
       { label: 'مركز الإشعارات', href: '/teacher/notifications', icon: Bell, onlineOnly: false },
       { label: 'رسائل الموقع', href: '/teacher/inquiries', icon: MessageSquareShare, onlineOnly: true, badgeKey: 'inquiries' },
+      { label: 'آراء الطلاب', href: '/teacher/testimonials', icon: MessageSquareHeart, onlineOnly: true },
     ],
   },
   {
@@ -80,6 +83,7 @@ export const TEACHER_NAVIGATION_SECTIONS: NavSectionConfig[] = [
       { label: 'إدارة المساعدين', href: '/teacher/assistants', icon: Users, onlineOnly: true, roleRequirement: 'TEACHER' },
       { label: 'سجل النشاطات', href: '/teacher/activity-log', icon: History, onlineOnly: true, roleRequirement: 'TEACHER' },
       { label: 'إحصائيات المنصة والزوار', href: '/teacher/analytics', icon: BarChart3, onlineOnly: true, roleRequirement: 'TEACHER' },
+      { label: 'بيانات المدرس', href: '/teacher/settings', icon: Settings, onlineOnly: true, roleRequirement: 'TEACHER' },
       {
         label: 'ربط وإدارة الواتساب',
         href: '#whatsapp-manager',
@@ -115,6 +119,7 @@ export const STUDENT_NAVIGATION_SECTIONS: NavSectionConfig[] = [
     items: [
       { label: 'الحضور', href: '/student/attendance', icon: QrCode, onlineOnly: false, isHighlighted: true },
       { label: 'المدفوعات', href: '/student/payments', icon: DollarSign, onlineOnly: false },
+      { label: 'شاركنا رأيك', href: '/student/testimonials', icon: MessageSquareHeart, onlineOnly: true },
     ],
   },
 ];

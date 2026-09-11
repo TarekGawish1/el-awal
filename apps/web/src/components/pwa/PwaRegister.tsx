@@ -40,12 +40,8 @@ export function PwaRegister() {
           if (newWorker) {
             newWorker.addEventListener('statechange', () => {
               if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // New update available
-                toast.success('يتوفر إصدار جديد من المنصة. أعد تحميل الصفحة للتحديث.', {
-                  duration: 6000,
-                  icon: '🚀',
-                  position: 'bottom-left',
-                });
+                // New update available - handled silently in background without intrusive toast prompt
+                console.debug('[ServiceWorker] New version installed in background');
               }
             });
           }

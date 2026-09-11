@@ -1,7 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Scanner } from '@yudiel/react-qr-scanner';
+import dynamic from 'next/dynamic';
+
+const Scanner = dynamic(
+  () => import('@yudiel/react-qr-scanner').then((mod) => mod.Scanner),
+  { ssr: false }
+);
 import { useScanQrAttendance } from '../hooks/use-attendance';
 import { Alert } from '@/components/ui/Alert';
 import { RefreshCcw, AlertTriangle, CheckCircle2, XCircle, Users } from 'lucide-react';

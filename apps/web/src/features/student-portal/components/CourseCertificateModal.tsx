@@ -2,7 +2,6 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { X, Download, Award, Loader2, Sparkles, CheckCircle2, ZoomIn, ZoomOut } from 'lucide-react';
-import html2canvas from 'html2canvas';
 import { CertificateTemplateA, CertificateData } from '../../certificates/components/CertificateTemplateA';
 import toast from 'react-hot-toast';
 
@@ -121,6 +120,7 @@ export function CourseCertificateModal({ isOpen, onClose, data }: CourseCertific
       cloned.style.height = '810px';
       document.body.appendChild(cloned);
 
+      const { default: html2canvas } = await import('html2canvas');
       const canvas = await html2canvas(cloned, {
         scale: 2, // High-res 2x
         useCORS: true,
