@@ -113,7 +113,10 @@ export class AnalyticsService {
 
       // If landing page, also record in dedicated LandingVisit table with resolved geo
       if (isLanding) {
-        const geo = this.geoLocationService.resolve(params.ipAddress, params.headers || {});
+        const geo = await this.geoLocationService.resolveAsync(params.ipAddress, params.headers || {}, {
+          city: params.city,
+          country: params.country,
+        });
         void this.prisma.landingVisit
           .create({
             data: {
@@ -157,7 +160,10 @@ export class AnalyticsService {
     userAgent?: string,
     headers: Record<string, any> = {},
   ): Promise<{ sessionId: string; country: string; city: string }> {
-    const geo = this.geoLocationService.resolve(ipAddress, headers);
+    const geo = await this.geoLocationService.resolveAsync(ipAddress, headers, {
+      city: dto.city,
+      country: dto.country,
+    });
 
     const session = await this.prisma.userSession.create({
       data: {
@@ -209,7 +215,28 @@ export class AnalyticsService {
   }
 
   /**
-   * Resolves the start and end Date objects based on the requested filter range.
+   * Calculates the exact start and end of a given calendar day in Africa/Cairo timezone.
+   */
+  public getCairoMidnight(date: Date = new Date()): { startOfToday: Date; endOfToday: Date } {
+    const cairoDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(date);
+    const [year, month, day] = cairoDateStr.split('-').map(Number);
+    const sample = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Africa/Cairo',
+      hour: 'numeric',
+      hour12: false,
+    }).formatToParts(sample);
+    const cairoHourAtNoon = parseInt(parts.find((p) => p.type === 'hour')?.value || '15', 10);
+    const offsetHours = cairoHourAtNoon - 12;
+
+    const startOfToday = new Date(Date.UTC(year, month - 1, day, 0, 0, 0) - offsetHours * 3600 * 1000);
+    const endOfToday = new Date(startOfToday.getTime() + 24 * 3600 * 1000 - 1);
+    return { startOfToday, endOfToday };
+  }
+
+  /**
+   * Resolves the start and end Date objects based on the requested filter range
+   * normalized to Africa/Cairo local time.
    */
   public resolveDateRange(
     range: string = 'week',
@@ -233,21 +260,33 @@ export class AnalyticsService {
 
     switch (range) {
       case 'today': {
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+        const { startOfToday, endOfToday } = this.getCairoMidnight(now);
+        startDate = startOfToday;
+        endDate = endOfToday;
         break;
       }
       case 'week': {
-        startDate = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
-        startDate.setHours(0, 0, 0, 0);
+        const { endOfToday } = this.getCairoMidnight(now);
+        endDate = endOfToday;
+        startDate = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000 + 1);
         break;
       }
       case 'month': {
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+        const cairoDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(now);
+        const [year, month] = cairoDateStr.split('-').map(Number);
+        const { startOfToday } = this.getCairoMidnight(new Date(Date.UTC(year, month - 1, 1, 12, 0, 0)));
+        const { endOfToday } = this.getCairoMidnight(now);
+        startDate = startOfToday;
+        endDate = endOfToday;
         break;
       }
       case 'year': {
-        startDate = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+        const cairoDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(now);
+        const [year] = cairoDateStr.split('-').map(Number);
+        const { startOfToday } = this.getCairoMidnight(new Date(Date.UTC(year, 0, 1, 12, 0, 0)));
+        const { endOfToday } = this.getCairoMidnight(now);
+        startDate = startOfToday;
+        endDate = endOfToday;
         break;
       }
       case 'all': {
@@ -255,8 +294,9 @@ export class AnalyticsService {
         break;
       }
       default: {
-        startDate = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
-        startDate.setHours(0, 0, 0, 0);
+        const { endOfToday } = this.getCairoMidnight(now);
+        endDate = endOfToday;
+        startDate = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000 + 1);
       }
     }
 
@@ -442,7 +482,7 @@ export class AnalyticsService {
       });
 
       for (const lv of landingVisits) {
-        const key = groupBy === 'country' ? lv.country || 'مصر' : lv.city || 'القاهرة';
+        const key = groupBy === 'country' ? lv.country || 'مصر' : lv.city || 'غير محدد';
         if (!locationMap.has(key)) {
           locationMap.set(key, { count: 0, hashes: new Set<string>() });
         }
@@ -469,7 +509,7 @@ export class AnalyticsService {
       });
 
       for (const us of userSessions) {
-        const key = groupBy === 'country' ? us.country || 'مصر' : us.city || 'القاهرة';
+        const key = groupBy === 'country' ? us.country || 'مصر' : us.city || 'غير محدد';
         if (!locationMap.has(key)) {
           locationMap.set(key, { count: 0, hashes: new Set<string>() });
         }
@@ -561,7 +601,7 @@ export class AnalyticsService {
           totalDuration: 0,
           sessionsCount: 0,
           lastActive: s.lastActiveAt || s.startedAt,
-          city: s.city || 'القاهرة',
+          city: s.city || 'غير محدد',
           country: s.country || 'مصر',
         });
       }
@@ -680,8 +720,13 @@ export class AnalyticsService {
       }
 
       for (const v of views) {
-        const d = new Date(v.createdAt);
-        const key = `${d.getHours().toString().padStart(2, '0')}:00`;
+        const cairoHourStr = new Intl.DateTimeFormat('en-US', {
+          timeZone: 'Africa/Cairo',
+          hour: 'numeric',
+          hour12: false,
+        }).format(new Date(v.createdAt));
+        const cairoHour = parseInt(cairoHourStr, 10);
+        const key = `${(cairoHour % 24).toString().padStart(2, '0')}:00`;
         const bucket = bucketsMap.get(key);
         if (bucket) {
           bucket.views++;
@@ -693,15 +738,18 @@ export class AnalyticsService {
     } else {
       const current = new Date(startDate);
       while (current <= endDate) {
-        const yyyyMmDd = current.toISOString().split('T')[0];
+        const cairoDate = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Africa/Cairo',
+        }).format(current);
         const dayLabel = current.toLocaleDateString('ar-EG', {
+          timeZone: 'Africa/Cairo',
           weekday: 'short',
           month: 'short',
           day: 'numeric',
         });
-        bucketsMap.set(yyyyMmDd, {
+        bucketsMap.set(cairoDate, {
           label: dayLabel,
-          date: yyyyMmDd,
+          date: cairoDate,
           views: 0,
           visitors: new Set<string>(),
           landing: 0,
@@ -711,8 +759,10 @@ export class AnalyticsService {
       }
 
       for (const v of views) {
-        const yyyyMmDd = new Date(v.createdAt).toISOString().split('T')[0];
-        const bucket = bucketsMap.get(yyyyMmDd);
+        const cairoDate = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Africa/Cairo',
+        }).format(new Date(v.createdAt));
+        const bucket = bucketsMap.get(cairoDate);
         if (bucket) {
           bucket.views++;
           bucket.visitors.add(v.visitorHash);

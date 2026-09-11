@@ -1,4 +1,5 @@
 import { API_BASE_URL, API_ENDPOINTS } from '../api/endpoints';
+import { getCachedGeoHint, getClientGeoHint } from './geo-client';
 
 export interface TrackPageViewOptions {
   path: string;
@@ -6,6 +7,8 @@ export interface TrackPageViewOptions {
   isLandingPage?: boolean;
   tenantId?: string;
   metadata?: Record<string, any>;
+  city?: string;
+  country?: string;
 }
 
 /**
@@ -27,21 +30,29 @@ export function trackPageView({
   isLandingPage,
   tenantId,
   metadata,
+  city,
+  country,
 }: TrackPageViewOptions): void {
   if (typeof window === 'undefined') return;
 
   // Do not track offline sessions or disabled environments
   if (typeof navigator !== 'undefined' && !navigator.onLine) return;
 
+  // Ensure background geo hint is warming up
+  void getClientGeoHint();
+
   try {
     const isLanding = isLandingPage ?? isLandingPath(path);
     const resolvedReferrer = referrer ?? (document.referrer ? document.referrer.slice(0, 500) : undefined);
+    const geoHint = getCachedGeoHint();
 
     const payload = {
       path: path || window.location.pathname || '/',
       referrer: resolvedReferrer,
       isLandingPage: isLanding,
       tenantId: tenantId || undefined,
+      city: city || geoHint?.city || undefined,
+      country: country || geoHint?.country || undefined,
       metadata: {
         screenWidth: window.innerWidth,
         screenHeight: window.innerHeight,

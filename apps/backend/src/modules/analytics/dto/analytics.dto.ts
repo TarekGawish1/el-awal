@@ -37,6 +37,16 @@ export class TrackPageViewDto {
   @IsOptional()
   @IsObject()
   metadata?: Record<string, any>;
+
+  @ApiPropertyOptional({ description: 'Client-detected city/governorate', example: 'دمياط' })
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @ApiPropertyOptional({ description: 'Client-detected country', example: 'مصر' })
+  @IsOptional()
+  @IsString()
+  country?: string;
 }
 
 export class AnalyticsQueryDto {
@@ -79,6 +89,16 @@ export class StartSessionDto {
   @IsOptional()
   @IsString()
   tenantId?: string;
+
+  @ApiPropertyOptional({ description: 'Client-detected city/governorate', example: 'دمياط' })
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @ApiPropertyOptional({ description: 'Client-detected country', example: 'مصر' })
+  @IsOptional()
+  @IsString()
+  country?: string;
 }
 
 export class PingSessionDto {

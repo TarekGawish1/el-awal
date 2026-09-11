@@ -70,12 +70,17 @@ export async function fetchLandingStats(params: {
  */
 export async function startUserSession(
   tenantId?: string,
+  geo?: { city?: string; country?: string },
 ): Promise<{ sessionId: string; country: string; city: string }> {
   return apiClient<{ sessionId: string; country: string; city: string }>(
     API_ENDPOINTS.ANALYTICS.SESSION_START,
     {
       method: 'POST',
-      body: JSON.stringify({ tenantId }),
+      body: JSON.stringify({
+        tenantId,
+        city: geo?.city,
+        country: geo?.country,
+      }),
     },
   );
 }

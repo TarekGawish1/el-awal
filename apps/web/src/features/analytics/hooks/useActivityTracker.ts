@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 import { startUserSession, pingUserSession } from '../api/analytics.api';
 import { API_BASE_URL, API_ENDPOINTS } from '@/lib/api/endpoints';
+import { getCachedGeoHint, getClientGeoHint } from '@/lib/analytics/geo-client';
 
 export function useActivityTracker() {
   const user = useAuthStore((s) => s.user);
@@ -18,17 +19,27 @@ export function useActivityTracker() {
     let isMounted = true;
     const tenantId = user.teacherProfileId;
 
-    // 1. Start User Session on mount
-    startUserSession(tenantId)
-      .then((res) => {
+    // 1. Start User Session on mount with geo hint
+    const initSession = async () => {
+      let geoHint = getCachedGeoHint();
+      if (!geoHint) {
+        geoHint = await getClientGeoHint();
+      }
+
+      if (!isMounted) return;
+
+      try {
+        const res = await startUserSession(tenantId, geoHint ? { city: geoHint.city, country: geoHint.country } : undefined);
         if (isMounted && res?.sessionId) {
           sessionIdRef.current = res.sessionId;
           lastPingTimeRef.current = Date.now();
         }
-      })
-      .catch(() => {
+      } catch {
         // Telemetry failure is intentionally silent
-      });
+      }
+    };
+
+    void initSession();
 
     // 2. Periodic 30s Heartbeat Ping
     const interval = setInterval(() => {

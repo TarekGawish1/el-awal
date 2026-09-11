@@ -76,10 +76,19 @@ describe('Analytics & Telemetry Subsystem', () => {
     it('gracefully handles localhost and private IP subnets', () => {
       const geoLocal = geoService.resolve('127.0.0.1');
       expect(geoLocal.country).toBe('مصر');
-      expect(geoLocal.city).toBe('القاهرة');
+      expect(geoLocal.city).toContain('دمياط');
 
       const geoPrivate = geoService.resolve('192.168.1.55');
       expect(geoPrivate.country).toBe('مصر');
+    });
+
+    it('resolves Damietta via ISO governorate code DT or Cloudflare headers', () => {
+      const geo = geoService.resolve('197.63.16.111', {
+        'cf-ipcountry': 'EG',
+        'cf-region-code': 'dt',
+      });
+      expect(geo.country).toBe('مصر');
+      expect(geo.city).toBe('دمياط');
     });
   });
 
