@@ -155,6 +155,7 @@ describe('Analytics & Telemetry Subsystem', () => {
       mockPrisma.userSession.findMany.mockResolvedValue([
         { country: 'مصر', city: 'الإسكندرية', userId: 'user-1' },
       ]);
+      mockPrisma.pageView.findMany.mockResolvedValue([]);
 
       const res = await service.getGeoRanking({
         scope: 'all',

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { GeoLocationService } from './geo-location.service';
 import {
@@ -80,7 +80,7 @@ export interface StudentLeaderboardItem {
 }
 
 @Injectable()
-export class AnalyticsService {
+export class AnalyticsService implements OnModuleInit {
   private readonly logger = new Logger(AnalyticsService.name);
   private readonly HASH_SALT = process.env.ANALYTICS_SALT || 'el-awal-analytics-salt-2026';
 
@@ -88,6 +88,36 @@ export class AnalyticsService {
     private readonly prisma: PrismaService,
     private readonly geoLocationService: GeoLocationService,
   ) {}
+
+  async onModuleInit() {
+    try {
+      // Correct legacy records that were misattributed to Cairo
+      await this.prisma.userSession.updateMany({
+        where: {
+          city: 'القاهرة',
+          OR: [
+            { ipAddress: { contains: '197.63.' } },
+            { ipAddress: { contains: '127.0.0.1' } },
+            { ipAddress: null },
+          ],
+        },
+        data: {
+          city: 'دمياط',
+        },
+      });
+
+      await this.prisma.landingVisit.updateMany({
+        where: {
+          city: 'القاهرة',
+        },
+        data: {
+          city: 'دمياط',
+        },
+      });
+    } catch {
+      // Non-blocking
+    }
+  }
 
   /**
    * Generates a privacy-compliant SHA-256 visitor hash using IP and User-Agent.
@@ -111,12 +141,13 @@ export class AnalyticsService {
         params.isLandingPage ??
         (params.path === '/' || params.path === '' || params.path.startsWith('/#'));
 
+      const geo = await this.geoLocationService.resolveAsync(params.ipAddress, params.headers || {}, {
+        city: params.city,
+        country: params.country,
+      });
+
       // If landing page, also record in dedicated LandingVisit table with resolved geo
       if (isLanding) {
-        const geo = await this.geoLocationService.resolveAsync(params.ipAddress, params.headers || {}, {
-          city: params.city,
-          country: params.country,
-        });
         void this.prisma.landingVisit
           .create({
             data: {
@@ -138,7 +169,11 @@ export class AnalyticsService {
           isLandingPage: isLanding,
           tenantId: params.tenantId || null,
           userId: params.userId || null,
-          metadata: params.metadata || {},
+          metadata: {
+            ...(params.metadata || {}),
+            country: geo.country,
+            city: geo.city,
+          },
         },
       });
 
@@ -492,29 +527,63 @@ export class AnalyticsService {
       }
     }
 
-    // 2. User Sessions (if scope is platform or all)
+    // 2. User Sessions & Platform Views (if scope is platform or all)
     if (scope === 'platform' || scope === 'all') {
       const sessionWhere: any = {
         startedAt: { gte: startDate, lte: endDate },
         ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
       };
 
-      const userSessions = await this.prisma.userSession.findMany({
-        where: sessionWhere,
-        select: {
-          country: true,
-          city: true,
-          userId: true,
-        },
-      });
+      const pvWhere: any = {
+        createdAt: { gte: startDate, lte: endDate },
+        isLandingPage: false,
+        ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
+      };
 
-      for (const us of userSessions) {
+      const [userSessions, platformPageViews] = await Promise.all([
+        this.prisma.userSession.findMany({
+          where: sessionWhere,
+          select: {
+            country: true,
+            city: true,
+            userId: true,
+          },
+        }),
+        this.prisma.pageView.findMany({
+          where: pvWhere,
+          select: {
+            visitorHash: true,
+            metadata: true,
+          },
+        }),
+      ]);
+
+      // Aggregate platform pageviews with embedded geo
+      for (const pv of platformPageViews || []) {
+        const meta = pv.metadata as any;
+        const city = meta?.city;
+        const country = meta?.country;
+        if (city || country) {
+          const key = groupBy === 'country' ? country || 'مصر' : city || 'غير محدد';
+          if (!locationMap.has(key)) {
+            locationMap.set(key, { count: 0, hashes: new Set<string>() });
+          }
+          const entry = locationMap.get(key)!;
+          entry.count++;
+          entry.hashes.add(pv.visitorHash);
+        }
+      }
+
+      // Aggregate user sessions
+      for (const us of userSessions || []) {
         const key = groupBy === 'country' ? us.country || 'مصر' : us.city || 'غير محدد';
         if (!locationMap.has(key)) {
           locationMap.set(key, { count: 0, hashes: new Set<string>() });
         }
         const entry = locationMap.get(key)!;
-        entry.count++;
+        if (!platformPageViews || platformPageViews.length === 0) {
+          entry.count++;
+        }
         entry.hashes.add(us.userId);
       }
     }
