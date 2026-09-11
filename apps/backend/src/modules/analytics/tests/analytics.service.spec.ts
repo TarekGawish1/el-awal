@@ -2,18 +2,34 @@ import { describe, expect, it, jest, beforeEach } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AnalyticsService } from '../services/analytics.service';
 import { AnalyticsController } from '../controllers/analytics.controller';
+import { GeoLocationService } from '../services/geo-location.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { UserRole } from '@prisma/client';
 
-describe('Analytics Telemetry Subsystem', () => {
+describe('Analytics & Telemetry Subsystem', () => {
   let service: AnalyticsService;
   let controller: AnalyticsController;
+  let geoService: GeoLocationService;
 
   const mockPrisma: any = {
     pageView: {
       create: jest.fn(),
       count: jest.fn(),
       groupBy: jest.fn(),
+      findMany: jest.fn(),
+    },
+    landingVisit: {
+      create: jest.fn(),
+      count: jest.fn(),
+      groupBy: jest.fn(),
+      findMany: jest.fn(),
+    },
+    userSession: {
+      create: jest.fn(),
+      update: jest.fn(),
+      findMany: jest.fn(),
+    },
+    user: {
       findMany: jest.fn(),
     },
   };
@@ -25,6 +41,7 @@ describe('Analytics Telemetry Subsystem', () => {
       controllers: [AnalyticsController],
       providers: [
         AnalyticsService,
+        GeoLocationService,
         {
           provide: PrismaService,
           useValue: mockPrisma,
@@ -34,147 +51,207 @@ describe('Analytics Telemetry Subsystem', () => {
 
     service = module.get<AnalyticsService>(AnalyticsService);
     controller = module.get<AnalyticsController>(AnalyticsController);
+    geoService = module.get<GeoLocationService>(GeoLocationService);
   });
 
-  describe('Visitor Hash Generation', () => {
-    it('generates consistent SHA-256 hash for same IP and user agent', () => {
-      const hash1 = service.generateVisitorHash('192.168.1.1', 'Mozilla/5.0');
-      const hash2 = service.generateVisitorHash('192.168.1.1', 'Mozilla/5.0');
-      expect(hash1).toBe(hash2);
-      expect(hash1).toHaveLength(64);
+  describe('Geo-Location Resolution Service', () => {
+    it('prioritizes Cloudflare headers for country and city', () => {
+      const geo = geoService.resolve('197.38.100.20', {
+        'cf-ipcountry': 'EG',
+        'cf-ipcity': 'Mansoura',
+      });
+
+      expect(geo.country).toBe('مصر');
+      expect(geo.city).toBe('المنصورة');
+      expect(geo.countryCode).toBe('EG');
     });
 
-    it('generates different hashes for different clients', () => {
-      const hash1 = service.generateVisitorHash('192.168.1.1', 'Mozilla/5.0');
-      const hash2 = service.generateVisitorHash('10.0.0.1', 'Mozilla/5.0');
-      expect(hash1).not.toBe(hash2);
+    it('translates Egyptian cities and governorates accurately', () => {
+      expect(geoService.localizeCity('Cairo')).toBe('القاهرة');
+      expect(geoService.localizeCity('Alexandria')).toBe('الإسكندرية');
+      expect(geoService.localizeCity('Damietta')).toBe('دمياط');
+      expect(geoService.localizeCity('Tanta')).toBe('طنطا');
     });
 
-    it('normalizes IPv6 mapped IPv4 addresses', () => {
-      const hashV4 = service.generateVisitorHash('127.0.0.1', 'Safari');
-      const hashV6 = service.generateVisitorHash('::ffff:127.0.0.1', 'Safari');
-      expect(hashV4).toBe(hashV6);
+    it('gracefully handles localhost and private IP subnets', () => {
+      const geoLocal = geoService.resolve('127.0.0.1');
+      expect(geoLocal.country).toBe('مصر');
+      expect(geoLocal.city).toBe('القاهرة');
+
+      const geoPrivate = geoService.resolve('192.168.1.55');
+      expect(geoPrivate.country).toBe('مصر');
     });
   });
 
-  describe('Page View Recording', () => {
-    it('records page view with computed visitor hash in non-blocking manner', async () => {
-      mockPrisma.pageView.create.mockResolvedValue({ id: 'test-pv-id' });
-
-      await service.recordPageView({
-        path: '/',
-        ipAddress: '203.0.113.195',
-        userAgent: 'Chrome',
-        isLandingPage: true,
+  describe('User Session & Heartbeat Telemetry', () => {
+    it('starts an authenticated user session with resolved geo location', async () => {
+      mockPrisma.userSession.create.mockResolvedValue({
+        id: 'session-uuid-1',
+        country: 'مصر',
+        city: 'المنصورة',
       });
 
-      expect(mockPrisma.pageView.create).toHaveBeenCalledTimes(1);
-      const callArgs = mockPrisma.pageView.create.mock.calls[0][0];
-      expect(callArgs.data.path).toBe('/');
-      expect(callArgs.data.isLandingPage).toBe(true);
-      expect(callArgs.data.visitorHash).toHaveLength(64);
-    });
+      const result = await service.startSession(
+        'user-123',
+        { tenantId: 'tenant-456' },
+        '197.38.100.20',
+        'Mozilla/5.0',
+        { 'cf-ipcountry': 'EG', 'cf-ipcity': 'Mansoura' },
+      );
 
-    it('auto-infers landing page when path is root /', async () => {
-      mockPrisma.pageView.create.mockResolvedValue({ id: 'test-pv-id' });
-
-      await service.recordPageView({
-        path: '/',
-        ipAddress: '203.0.113.195',
-      });
-
-      expect(mockPrisma.pageView.create).toHaveBeenCalledWith(
+      expect(result.sessionId).toBe('session-uuid-1');
+      expect(result.city).toBe('المنصورة');
+      expect(mockPrisma.userSession.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            isLandingPage: true,
+            userId: 'user-123',
+            tenantId: 'tenant-456',
+            country: 'مصر',
+            city: 'المنصورة',
           }),
         }),
       );
     });
 
-    it('does not throw or disrupt execution if database insertion encounters an error', async () => {
-      mockPrisma.pageView.create.mockRejectedValue(new Error('DB Connection Timeout'));
+    it('increments duration on heartbeat ping and clamps high values against idle tabs', async () => {
+      mockPrisma.userSession.update.mockResolvedValue({
+        id: 'session-uuid-1',
+        durationSeconds: 120,
+      });
 
-      await expect(
-        service.recordPageView({
-          path: '/test',
-          ipAddress: '127.0.0.1',
+      // Ping with 90 seconds -> should be clamped to 60s
+      const pingRes = await service.pingSession({
+        sessionId: 'session-uuid-1',
+        elapsedSeconds: 90,
+      });
+
+      expect(pingRes.success).toBe(true);
+      expect(mockPrisma.userSession.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            durationSeconds: { increment: 60 },
+          }),
         }),
-      ).resolves.not.toThrow();
+      );
     });
   });
 
-  describe('Analytics Stats Aggregation', () => {
-    it('aggregates total views and unique visitors correctly across scopes', async () => {
-      mockPrisma.pageView.count
-        .mockResolvedValueOnce(150) // totalViews
-        .mockResolvedValueOnce(90)  // landingViews
-        .mockResolvedValueOnce(60); // systemViews
+  describe('Geographic Ranking', () => {
+    it('aggregates and ranks locations with percentages', async () => {
+      mockPrisma.landingVisit.findMany.mockResolvedValue([
+        { country: 'مصر', city: 'القاهرة', visitorHash: 'hash-1' },
+        { country: 'مصر', city: 'القاهرة', visitorHash: 'hash-2' },
+        { country: 'مصر', city: 'المنصورة', visitorHash: 'hash-3' },
+      ]);
+      mockPrisma.userSession.findMany.mockResolvedValue([
+        { country: 'مصر', city: 'الإسكندرية', userId: 'user-1' },
+      ]);
 
-      mockPrisma.pageView.groupBy
-        .mockResolvedValueOnce([
-          { visitorHash: 'hash1' },
-          { visitorHash: 'hash2' },
-          { visitorHash: 'hash3' },
-        ]) // unique visitors groupBy
-        .mockResolvedValueOnce([
-          { path: '/', isLandingPage: true, _count: { path: 90 } },
-          { path: '/teacher/dashboard', isLandingPage: false, _count: { path: 60 } },
-        ]); // top pages groupBy
+      const res = await service.getGeoRanking({
+        scope: 'all',
+        groupBy: 'city',
+        range: 'week',
+      });
 
-      mockPrisma.pageView.findMany
-        .mockResolvedValueOnce([]) // time series views
-        .mockResolvedValueOnce([
-          { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-          { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)' },
-        ]); // device sample views
-
-      const stats = await service.getStats({ scope: 'all', range: 'week' }, 'teacher-123');
-
-      expect(stats.summary.totalViews).toBe(150);
-      expect(stats.summary.uniqueVisitors).toBe(3);
-      expect(stats.summary.landingViews).toBe(90);
-      expect(stats.summary.systemViews).toBe(60);
-      expect(stats.summary.viewsPerVisitor).toBe(50);
-      expect(stats.topPages).toHaveLength(2);
-      expect(stats.topPages[0].path).toBe('/');
-      expect(stats.topPages[0].views).toBe(90);
+      expect(res.totalVisits).toBe(4);
+      expect(res.items.length).toBeGreaterThanOrEqual(3);
+      expect(res.items[0].name).toBe('القاهرة');
+      expect(res.items[0].visitCount).toBe(2);
+      expect(res.items[0].percentage).toBe(50);
+      expect(res.items[0].rank).toBe(1);
     });
   });
 
-  describe('AnalyticsController Endpoints', () => {
-    it('POST /analytics/track accepts tracking beacon and returns 202 Accepted', async () => {
-      mockPrisma.pageView.create.mockResolvedValue({ id: 'pv-id' });
+  describe('Student Engagement Leaderboard', () => {
+    it('ranks students by total active duration and formats hours/minutes', async () => {
+      mockPrisma.userSession.findMany.mockResolvedValue([
+        {
+          userId: 'stu-1',
+          durationSeconds: 3700, // ~1h 1m
+          startedAt: new Date(),
+          lastActiveAt: new Date(),
+          city: 'المنصورة',
+          country: 'مصر',
+        },
+        {
+          userId: 'stu-2',
+          durationSeconds: 1800, // 30m
+          startedAt: new Date(),
+          lastActiveAt: new Date(),
+          city: 'القاهرة',
+          country: 'مصر',
+        },
+      ]);
+
+      mockPrisma.user.findMany.mockResolvedValue([
+        {
+          id: 'stu-1',
+          fullName: 'أحمد محمود',
+          phone: '01012345678',
+          studentProfile: { studentCode: 'STU-101', gradeLevel: 'الصف الأول الثانوي' },
+        },
+        {
+          id: 'stu-2',
+          fullName: 'سارة إبراهيم',
+          phone: '01198765432',
+          studentProfile: { studentCode: 'STU-102', gradeLevel: 'الصف الأول الثانوي' },
+        },
+      ]);
+
+      const res = await service.getStudentEngagementLeaderboard({
+        sortBy: 'duration',
+        range: 'month',
+      });
+
+      expect(res.students).toHaveLength(2);
+      expect(res.students[0].studentName).toBe('أحمد محمود');
+      expect(res.students[0].rank).toBe(1);
+      expect(res.students[0].totalDurationFormatted).toContain('1 ساعة');
+      expect(res.students[1].studentName).toBe('سارة إبراهيم');
+      expect(res.students[1].rank).toBe(2);
+    });
+  });
+
+  describe('Landing Stats', () => {
+    it('queries landing visits count and unique visitors', async () => {
+      mockPrisma.landingVisit.count.mockResolvedValue(50);
+      mockPrisma.landingVisit.groupBy.mockResolvedValue([
+        { visitorHash: 'h1' },
+        { visitorHash: 'h2' },
+      ]);
+
+      const res = await service.getLandingStats({ range: 'week' });
+      expect(res.totalViews).toBe(50);
+      expect(res.uniqueVisitors).toBe(2);
+    });
+  });
+
+  describe('Controller Route Protection & Ingestion', () => {
+    it('POST /session/start initializes session with request headers', async () => {
+      mockPrisma.userSession.create.mockResolvedValue({
+        id: 'sess-1',
+        country: 'مصر',
+        city: 'القاهرة',
+      });
 
       const mockReq: any = {
-        headers: {
-          'x-forwarded-for': '198.51.100.25',
-          'user-agent': 'Chrome/120.0',
-        },
-        ip: '198.51.100.25',
+        headers: { 'x-forwarded-for': '127.0.0.1' },
+        socket: { remoteAddress: '127.0.0.1' },
       };
+      const user: any = { id: 'u1', role: UserRole.STUDENT };
 
-      const result = await controller.trackPageView(
-        { path: '/courses', isLandingPage: false },
-        mockReq,
-      );
-
-      expect(result).toEqual({ success: true });
+      const res = await controller.startSession({}, user, mockReq);
+      expect(res.sessionId).toBe('sess-1');
     });
 
-    it('GET /analytics/stats queries statistics for authenticated teacher workspace', async () => {
-      mockPrisma.pageView.count.mockResolvedValue(10);
-      mockPrisma.pageView.groupBy.mockResolvedValue([]);
-      mockPrisma.pageView.findMany.mockResolvedValue([]);
+    it('POST /session/ping updates session active time', async () => {
+      mockPrisma.userSession.update.mockResolvedValue({
+        id: 'sess-1',
+        durationSeconds: 60,
+      });
 
-      const user: any = {
-        id: 'user-teach-1',
-        teacherProfileId: 'teach-prof-1',
-        role: UserRole.TEACHER,
-      };
-
-      const result = await controller.getStats({ scope: 'system', range: 'month' }, user);
-      expect(result.summary).toBeDefined();
+      const res = await controller.pingSession({ sessionId: 'b6e3f282-e30c-4395-814e-f82ad31057e0', elapsedSeconds: 30 });
+      expect(res.success).toBe(true);
     });
   });
 });

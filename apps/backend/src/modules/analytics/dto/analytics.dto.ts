@@ -1,5 +1,17 @@
-import { IsString, IsOptional, IsBoolean, IsIn, IsDateString, IsObject } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsBoolean,
+  IsIn,
+  IsDateString,
+  IsObject,
+  IsNumber,
+  IsUUID,
+  Min,
+  Max,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 export class TrackPageViewDto {
   @ApiProperty({ description: 'The URL path visited', example: '/' })
@@ -60,4 +72,133 @@ export class AnalyticsQueryDto {
   @IsOptional()
   @IsString()
   tenantId?: string;
+}
+
+export class StartSessionDto {
+  @ApiPropertyOptional({ description: 'Tenant ID / Teacher Profile ID associated with the session' })
+  @IsOptional()
+  @IsString()
+  tenantId?: string;
+}
+
+export class PingSessionDto {
+  @ApiProperty({ description: 'Active session UUID', example: 'b6e3f282-e30c-4395-814e-f82ad31057e0' })
+  @IsUUID()
+  sessionId: string;
+
+  @ApiPropertyOptional({ description: 'Elapsed active seconds since last ping', default: 30 })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(120)
+  @Type(() => Number)
+  elapsedSeconds?: number = 30;
+}
+
+export class GeoRankingQueryDto {
+  @ApiPropertyOptional({
+    description: 'Filter scope: landing visits, platform user sessions, or all combined',
+    enum: ['landing', 'platform', 'all'],
+    default: 'all',
+  })
+  @IsOptional()
+  @IsIn(['landing', 'platform', 'all'])
+  scope?: 'landing' | 'platform' | 'all' = 'all';
+
+  @ApiPropertyOptional({
+    description: 'Group ranking by country or city/governorate',
+    enum: ['country', 'city'],
+    default: 'city',
+  })
+  @IsOptional()
+  @IsIn(['country', 'city'])
+  groupBy?: 'country' | 'city' = 'city';
+
+  @ApiPropertyOptional({
+    description: 'Predefined date range',
+    enum: ['today', 'week', 'month', 'year', 'all', 'custom'],
+    default: 'week',
+  })
+  @IsOptional()
+  @IsIn(['today', 'week', 'month', 'year', 'all', 'custom'])
+  range?: 'today' | 'week' | 'month' | 'year' | 'all' | 'custom' = 'week';
+
+  @ApiPropertyOptional({ description: 'Custom range start date (ISO string)' })
+  @IsOptional()
+  @IsDateString()
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'Custom range end date (ISO string)' })
+  @IsOptional()
+  @IsDateString()
+  to?: string;
+
+  @ApiPropertyOptional({ description: 'Tenant ID filter' })
+  @IsOptional()
+  @IsString()
+  tenantId?: string;
+}
+
+export class LandingStatsQueryDto {
+  @ApiPropertyOptional({
+    description: 'Predefined date range',
+    enum: ['today', 'week', 'month', 'year', 'all', 'custom'],
+    default: 'week',
+  })
+  @IsOptional()
+  @IsIn(['today', 'week', 'month', 'year', 'all', 'custom'])
+  range?: 'today' | 'week' | 'month' | 'year' | 'all' | 'custom' = 'week';
+
+  @ApiPropertyOptional({ description: 'Custom range start date (ISO string)' })
+  @IsOptional()
+  @IsDateString()
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'Custom range end date (ISO string)' })
+  @IsOptional()
+  @IsDateString()
+  to?: string;
+}
+
+export class StudentRankingQueryDto {
+  @ApiPropertyOptional({
+    description: 'Sort leaderboard by total active duration or total session visit count',
+    enum: ['duration', 'visits'],
+    default: 'duration',
+  })
+  @IsOptional()
+  @IsIn(['duration', 'visits'])
+  sortBy?: 'duration' | 'visits' = 'duration';
+
+  @ApiPropertyOptional({
+    description: 'Predefined date range',
+    enum: ['today', 'week', 'month', 'year', 'all', 'custom'],
+    default: 'week',
+  })
+  @IsOptional()
+  @IsIn(['today', 'week', 'month', 'year', 'all', 'custom'])
+  range?: 'today' | 'week' | 'month' | 'year' | 'all' | 'custom' = 'week';
+
+  @ApiPropertyOptional({ description: 'Custom range start date (ISO string)' })
+  @IsOptional()
+  @IsDateString()
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'Custom range end date (ISO string)' })
+  @IsOptional()
+  @IsDateString()
+  to?: string;
+
+  @ApiPropertyOptional({ description: 'Tenant ID filter' })
+  @IsOptional()
+  @IsString()
+  tenantId?: string;
+
+  @ApiPropertyOptional({ description: 'Number of top students to return', default: 20 })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(100)
+  @Type(() => Number)
+  limit?: number = 20;
 }

@@ -22,6 +22,8 @@ import {
 import { useAnalyticsStats } from '../hooks/useAnalytics';
 import { AnalyticsScope, AnalyticsRange } from '../types/analytics.types';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
+import { GeoRankingCard } from './GeoRankingCard';
+import { StudentLeaderboardCard } from './StudentLeaderboardCard';
 
 export function AnalyticsDashboard() {
   const isOnline = useOnlineStatus();
@@ -609,6 +611,21 @@ export function AnalyticsDashboard() {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Geographic Ranking & Student Engagement Leaderboard */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <GeoRankingCard
+          range={range}
+          from={range === 'custom' ? appliedCustomFrom : undefined}
+          to={range === 'custom' ? appliedCustomTo : undefined}
+          scope={scope === 'landing' ? 'landing' : scope === 'system' ? 'platform' : 'all'}
+        />
+        <StudentLeaderboardCard
+          range={range}
+          from={range === 'custom' ? appliedCustomFrom : undefined}
+          to={range === 'custom' ? appliedCustomTo : undefined}
+        />
       </div>
     </div>
   );
