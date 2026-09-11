@@ -479,25 +479,22 @@ export class AnalyticsService {
       }
     }
 
-    // If both returned 0 (e.g. fresh DB), fallback to default sample distribution for smooth UX
     if (locationMap.size === 0) {
-      if (groupBy === 'city') {
-        locationMap.set('القاهرة', { count: 1, hashes: new Set(['v1']) });
-        locationMap.set('الإسكندرية', { count: 0, hashes: new Set() });
-        locationMap.set('المنصورة', { count: 0, hashes: new Set() });
-      } else {
-        locationMap.set('مصر', { count: 1, hashes: new Set(['v1']) });
-      }
+      return {
+        items: [],
+        totalVisits: 0,
+        groupBy,
+      };
     }
 
-    const totalVisits = Array.from(locationMap.values()).reduce((sum, val) => sum + val.count, 0) || 1;
+    const totalVisits = Array.from(locationMap.values()).reduce((sum, val) => sum + val.count, 0);
 
     const sorted = Array.from(locationMap.entries())
       .map(([name, stat]) => ({
         name,
         visitCount: stat.count,
         uniqueVisitors: stat.hashes.size,
-        percentage: Math.round((stat.count / totalVisits) * 100),
+        percentage: totalVisits > 0 ? Math.round((stat.count / totalVisits) * 100) : 0,
       }))
       .sort((a, b) => b.visitCount - a.visitCount)
       .map((item, index) => ({
@@ -514,6 +511,7 @@ export class AnalyticsService {
 
   /**
    * Retrieves the Student Engagement Leaderboard ranked by active duration or session frequency.
+   * Strictly filters for authenticated STUDENTS belonging to the teacher's workspace.
    */
   public async getStudentEngagementLeaderboard(
     query: StudentRankingQueryDto,
@@ -527,9 +525,12 @@ export class AnalyticsService {
     const where: any = {
       startedAt: { gte: startDate, lte: endDate },
       ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
+      user: {
+        role: 'STUDENT',
+      },
     };
 
-    // Aggregate sessions by userId
+    // Aggregate sessions strictly for students
     const sessions = await this.prisma.userSession.findMany({
       where,
       select: {
@@ -574,42 +575,7 @@ export class AnalyticsService {
 
     const userIds = Array.from(studentMap.keys());
     if (userIds.length === 0) {
-      // If no sessions yet, fetch enrolled students in teacher workspace to show roster
-      const fallbackStudents = await this.prisma.user.findMany({
-        where: {
-          role: 'STUDENT',
-          studentProfile: { isNot: null },
-        },
-        select: {
-          id: true,
-          fullName: true,
-          phone: true,
-          studentProfile: {
-            select: {
-              studentCode: true,
-              gradeLevel: true,
-            },
-          },
-        },
-        take: 5,
-      });
-
-      const items: StudentLeaderboardItem[] = fallbackStudents.map((st, index) => ({
-        rank: index + 1,
-        userId: st.id,
-        studentName: st.fullName,
-        studentCode: st.studentProfile?.studentCode || 'STU-001',
-        phone: st.phone || undefined,
-        gradeLevel: st.studentProfile?.gradeLevel || undefined,
-        city: 'القاهرة',
-        country: 'مصر',
-        totalSessions: 0,
-        totalDurationSeconds: 0,
-        totalDurationFormatted: '0 دقيقة',
-        lastActiveAt: new Date().toISOString(),
-      }));
-
-      return { students: items, sortBy };
+      return { students: [], sortBy };
     }
 
     // Fetch user details with student profiles

@@ -12,11 +12,11 @@ export function useActivityTracker() {
   const lastPingTimeRef = useRef<number>(Date.now());
 
   useEffect(() => {
-    // Only track authenticated user sessions
-    if (!isAuthenticated || !user) return;
+    // Only track authenticated student activity sessions (exclude teachers and admins from student leaderboards)
+    if (!isAuthenticated || !user || user.role !== 'STUDENT') return;
 
     let isMounted = true;
-    const tenantId = user.teacherProfileId || (user.role === 'TEACHER' ? user.id : undefined);
+    const tenantId = user.teacherProfileId;
 
     // 1. Start User Session on mount
     startUserSession(tenantId)
