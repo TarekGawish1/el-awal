@@ -71,6 +71,7 @@ export async function fetchLandingStats(params: {
 export async function startUserSession(
   tenantId?: string,
   geo?: { city?: string; country?: string },
+  visitorId?: string,
 ): Promise<{ sessionId: string; country: string; city: string }> {
   return apiClient<{ sessionId: string; country: string; city: string }>(
     API_ENDPOINTS.ANALYTICS.SESSION_START,
@@ -80,6 +81,7 @@ export async function startUserSession(
         tenantId,
         city: geo?.city,
         country: geo?.country,
+        visitorId,
       }),
     },
   );

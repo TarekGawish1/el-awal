@@ -5,6 +5,7 @@ import { useAuthStore } from '@/features/auth/store/auth.store';
 import { startUserSession, pingUserSession } from '../api/analytics.api';
 import { API_BASE_URL, API_ENDPOINTS } from '@/lib/api/endpoints';
 import { getCachedGeoHint, getClientGeoHint } from '@/lib/analytics/geo-client';
+import { getOrCreateVisitorId } from '@/lib/analytics/tracker';
 
 export function useActivityTracker() {
   const user = useAuthStore((s) => s.user);
@@ -19,7 +20,7 @@ export function useActivityTracker() {
     let isMounted = true;
     const tenantId = user.teacherProfileId;
 
-    // 1. Start User Session on mount with geo hint
+    // 1. Start User Session on mount with geo hint and device visitorId
     const initSession = async () => {
       let geoHint = getCachedGeoHint();
       if (!geoHint) {
@@ -29,7 +30,12 @@ export function useActivityTracker() {
       if (!isMounted) return;
 
       try {
-        const res = await startUserSession(tenantId, geoHint ? { city: geoHint.city, country: geoHint.country } : undefined);
+        const vid = getOrCreateVisitorId();
+        const res = await startUserSession(
+          tenantId,
+          geoHint ? { city: geoHint.city, country: geoHint.country } : undefined,
+          vid || undefined,
+        );
         if (isMounted && res?.sessionId) {
           sessionIdRef.current = res.sessionId;
           lastPingTimeRef.current = Date.now();

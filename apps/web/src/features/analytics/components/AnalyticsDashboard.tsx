@@ -89,7 +89,7 @@ export function AnalyticsDashboard() {
   const maxViews = Math.max(...timeSeries.map((t) => t.totalViews), 1);
 
   return (
-    <div className="space-y-6 pb-12 animate-in fade-in duration-200">
+    <div className="space-y-6 pb-28 sm:pb-12 animate-in fade-in duration-200">
       {/* Header & Refresh */}
       <div className="bg-white rounded-2xl p-5 sm:p-6 border border-neutral-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -387,14 +387,17 @@ export function AnalyticsDashboard() {
             </p>
           </div>
 
-          <div className="flex items-center gap-4 text-xs font-bold text-neutral-600 self-start sm:self-auto">
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-xs bg-primary-600" />
-              <span>الموقع التعريفي</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-xs bg-emerald-500" />
-              <span>النظام الداخلي</span>
+          <div className="flex items-center justify-between sm:justify-end gap-3 text-xs font-bold text-neutral-600">
+            <span className="text-[11px] text-neutral-400 sm:hidden">اسحب أفقياً للتنقل ⟵</span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-xs bg-primary-600" />
+                <span>الموقع التعريفي</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-xs bg-emerald-500" />
+                <span>النظام الداخلي</span>
+              </div>
             </div>
           </div>
         </div>
@@ -409,10 +412,10 @@ export function AnalyticsDashboard() {
             </p>
           </div>
         ) : (
-          <div className="relative pt-6 pb-2">
-            <div className="h-56 flex items-end gap-1.5 sm:gap-3 w-full px-2">
+          <div className="relative pt-6 pb-2 overflow-x-auto scrollbar-thin">
+            <div className={`h-56 flex items-end gap-2 sm:gap-3 px-2 ${timeSeries.length > 7 ? 'min-w-[640px]' : 'min-w-[420px] sm:min-w-0'} w-full`}>
               {timeSeries.map((point, index) => {
-                const totalHeightPct = Math.max(8, (point.totalViews / maxViews) * 100);
+                const totalHeightPct = Math.max(12, (point.totalViews / maxViews) * 100);
                 const landingHeightPct = point.totalViews > 0 ? (point.landingViews / point.totalViews) * 100 : 0;
                 const systemHeightPct = point.totalViews > 0 ? (point.systemViews / point.totalViews) * 100 : 0;
                 const isHovered = hoveredIndex === index;
@@ -420,11 +423,12 @@ export function AnalyticsDashboard() {
                 return (
                   <div
                     key={point.date}
-                    className="flex-1 flex flex-col items-center h-full justify-end group relative cursor-pointer"
+                    className="flex-1 flex flex-col items-center h-full justify-end group relative cursor-pointer min-w-[36px]"
                     onMouseEnter={() => setHoveredIndex(index)}
                     onMouseLeave={() => setHoveredIndex(null)}
+                    onClick={() => setHoveredIndex(hoveredIndex === index ? null : index)}
                   >
-                    {/* Tooltip on Hover */}
+                    {/* Tooltip on Hover / Touch */}
                     {isHovered && (
                       <div className="absolute bottom-full mb-2 z-30 px-3 py-2 bg-neutral-900 text-white rounded-xl shadow-lg text-xs whitespace-nowrap pointer-events-none animate-in fade-in duration-150">
                         <p className="font-bold text-neutral-200 border-b border-neutral-700 pb-1 mb-1">
@@ -451,27 +455,34 @@ export function AnalyticsDashboard() {
                       </div>
                     )}
 
-                    {/* Stacked Bar */}
-                    <div
-                      className={`w-full rounded-t-lg overflow-hidden flex flex-col-reverse transition-all duration-200 ${
-                        isHovered ? 'ring-2 ring-primary-500 scale-y-105' : 'opacity-90 hover:opacity-100'
-                      }`}
-                      style={{ height: `${totalHeightPct}%` }}
-                    >
-                      {/* Landing part */}
+                    {/* Stacked Bar or Base Placeholder for 0 views */}
+                    {point.totalViews === 0 ? (
                       <div
-                        className="bg-primary-600 transition-all"
-                        style={{ height: `${landingHeightPct}%` }}
+                        className="w-full bg-neutral-100 hover:bg-neutral-200 rounded-t-sm h-2 transition-colors"
+                        title={`${point.label}: 0 زيارة`}
                       />
-                      {/* System part */}
+                    ) : (
                       <div
-                        className="bg-emerald-500 transition-all"
-                        style={{ height: `${systemHeightPct}%` }}
-                      />
-                    </div>
+                        className={`w-full rounded-t-lg overflow-hidden flex flex-col-reverse shadow-xs transition-all duration-200 ${
+                          isHovered ? 'ring-2 ring-primary-500 scale-y-105' : 'opacity-95 hover:opacity-100'
+                        }`}
+                        style={{ height: `${totalHeightPct}%` }}
+                      >
+                        {/* Landing part */}
+                        <div
+                          className="bg-primary-600 transition-all"
+                          style={{ height: `${landingHeightPct}%` }}
+                        />
+                        {/* System part */}
+                        <div
+                          className="bg-emerald-500 transition-all"
+                          style={{ height: `${systemHeightPct}%` }}
+                        />
+                      </div>
+                    )}
 
                     {/* X-axis Label */}
-                    <span className="text-[10px] font-bold text-neutral-500 mt-2 truncate max-w-full text-center">
+                    <span className="text-[10px] sm:text-xs font-bold text-neutral-500 mt-2 truncate max-w-full text-center whitespace-nowrap">
                       {point.label}
                     </span>
                   </div>

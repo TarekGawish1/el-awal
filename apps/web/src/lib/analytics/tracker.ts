@@ -1,6 +1,30 @@
 import { API_BASE_URL, API_ENDPOINTS } from '../api/endpoints';
 import { getCachedGeoHint, getClientGeoHint } from './geo-client';
 
+const VISITOR_STORAGE_KEY = 'elawal_vid';
+
+/**
+ * Returns or generates a persistent anonymous device-level visitor identifier.
+ * Stored in localStorage so devices sharing a single Wi-Fi / NAT router are counted
+ * as distinct unique visitors.
+ */
+export function getOrCreateVisitorId(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    let vid = localStorage.getItem(VISITOR_STORAGE_KEY);
+    if (!vid) {
+      vid =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : 'vid_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 11);
+      localStorage.setItem(VISITOR_STORAGE_KEY, vid);
+    }
+    return vid;
+  } catch {
+    return '';
+  }
+}
+
 export interface TrackPageViewOptions {
   path: string;
   referrer?: string;
@@ -9,6 +33,7 @@ export interface TrackPageViewOptions {
   metadata?: Record<string, any>;
   city?: string;
   country?: string;
+  visitorId?: string;
 }
 
 /**
@@ -32,6 +57,7 @@ export function trackPageView({
   metadata,
   city,
   country,
+  visitorId,
 }: TrackPageViewOptions): void {
   if (typeof window === 'undefined') return;
 
@@ -45,12 +71,14 @@ export function trackPageView({
     const isLanding = isLandingPage ?? isLandingPath(path);
     const resolvedReferrer = referrer ?? (document.referrer ? document.referrer.slice(0, 500) : undefined);
     const geoHint = getCachedGeoHint();
+    const resolvedVisitorId = visitorId || getOrCreateVisitorId();
 
     const payload = {
       path: path || window.location.pathname || '/',
       referrer: resolvedReferrer,
       isLandingPage: isLanding,
       tenantId: tenantId || undefined,
+      visitorId: resolvedVisitorId || undefined,
       city: city || geoHint?.city || undefined,
       country: country || geoHint?.country || undefined,
       metadata: {

@@ -47,6 +47,11 @@ export class TrackPageViewDto {
   @IsOptional()
   @IsString()
   country?: string;
+
+  @ApiPropertyOptional({ description: 'Persistent client device visitor ID for multi-device Wi-Fi isolation', example: 'vid_1a2b3c4d' })
+  @IsOptional()
+  @IsString()
+  visitorId?: string;
 }
 
 export class AnalyticsQueryDto {
@@ -99,6 +104,11 @@ export class StartSessionDto {
   @IsOptional()
   @IsString()
   country?: string;
+
+  @ApiPropertyOptional({ description: 'Persistent client device visitor ID for multi-device Wi-Fi isolation', example: 'vid_1a2b3c4d' })
+  @IsOptional()
+  @IsString()
+  visitorId?: string;
 }
 
 export class PingSessionDto {

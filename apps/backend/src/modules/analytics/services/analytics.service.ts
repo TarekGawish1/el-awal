@@ -120,14 +120,17 @@ export class AnalyticsService implements OnModuleInit {
   }
 
   /**
-   * Generates a privacy-compliant SHA-256 visitor hash using IP and User-Agent.
+   * Generates a privacy-compliant SHA-256 visitor hash.
+   * Prioritizes persistent client-side visitorId so multiple devices on the same Wi-Fi
+   * network are accurately distinguished as separate unique visitors.
    */
-  public generateVisitorHash(ip?: string, userAgent?: string): string {
+  public generateVisitorHash(ip?: string, userAgent?: string, visitorId?: string): string {
     const cleanIp = (ip || '127.0.0.1').replace(/^::ffff:/, '').trim();
     const cleanUa = (userAgent || 'unknown').trim();
+    const clientIdentifier = visitorId && visitorId.trim() ? `vid::${visitorId.trim()}` : `${cleanIp}::${cleanUa}`;
     return crypto
       .createHash('sha256')
-      .update(`${cleanIp}::${cleanUa}::${this.HASH_SALT}`)
+      .update(`${clientIdentifier}::${this.HASH_SALT}`)
       .digest('hex');
   }
 
@@ -136,7 +139,7 @@ export class AnalyticsService implements OnModuleInit {
    */
   public async recordPageView(params: RecordPageViewParams): Promise<void> {
     try {
-      const visitorHash = this.generateVisitorHash(params.ipAddress, params.userAgent);
+      const visitorHash = this.generateVisitorHash(params.ipAddress, params.userAgent, params.visitorId);
       const isLanding =
         params.isLandingPage ??
         (params.path === '/' || params.path === '' || params.path.startsWith('/#'));
