@@ -204,23 +204,28 @@ export async function uploadRawFile(
   folder = 'assessments',
   onProgress?: UploadProgressCallback,
 ): Promise<{ fileUrl: string; fileKey: string; fileSize: number; fileType: string; fileName: string }> {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('folder', folder);
+  const mimeType = file.type || 'application/octet-stream';
+  const presigned = await generatePresignedUrl({
+    fileName: file.name,
+    contentType: mimeType,
+    fileSizeBytes: file.size,
+    folder,
+  });
 
-  return uploadWithProgress<{ fileUrl: string; fileKey: string; fileSize: number; fileType: string; fileName: string }>(
-    '/content/upload-raw',
-    'POST',
-    formData,
-    undefined,
-    onProgress,
-  );
+  await uploadFileToR2(presigned.uploadUrl, file, mimeType, onProgress);
+
+  return {
+    fileUrl: presigned.publicUrl,
+    fileKey: presigned.fileKey,
+    fileSize: file.size,
+    fileType: mimeType,
+    fileName: file.name,
+  };
 }
 
 /**
- * Resilient file upload helper that uses direct server-side upload via the backend API
- * (which bypasses any browser-to-R2 Cloudflare CORS restrictions), and falls back
- * to presigned direct upload if needed.
+ * Direct presigned file upload helper that uploads straight from browser
+ * to Cloudflare R2 with real-time progress tracking.
  */
 export async function uploadFileResilient(
   file: File,
@@ -228,29 +233,20 @@ export async function uploadFileResilient(
   onProgress?: UploadProgressCallback,
 ): Promise<{ fileUrl: string; fileKey: string }> {
   try {
-    const rawRes = await uploadRawFile(file, folder, onProgress);
+    const presigned = await generatePresignedUrl({
+      fileName: file.name,
+      contentType: file.type || 'application/octet-stream',
+      fileSizeBytes: file.size,
+      folder,
+    });
+    await uploadFileToR2(presigned.uploadUrl, file, file.type, onProgress);
     return {
-      fileUrl: rawRes.fileUrl,
-      fileKey: rawRes.fileKey,
+      fileUrl: presigned.publicUrl || presigned.uploadUrl,
+      fileKey: presigned.fileKey,
     };
-  } catch (rawErr) {
-    console.warn('Server-side raw upload failed, attempting direct presigned upload fallback:', rawErr);
-    try {
-      const presigned = await generatePresignedUrl({
-        fileName: file.name,
-        contentType: file.type || 'application/octet-stream',
-        fileSizeBytes: file.size,
-        folder,
-      });
-      await uploadFileToR2(presigned.uploadUrl, file, file.type, onProgress);
-      return {
-        fileUrl: presigned.publicUrl || presigned.uploadUrl,
-        fileKey: presigned.fileKey,
-      };
-    } catch (presignedErr) {
-      console.error('Both server-side and presigned uploads failed:', { rawErr, presignedErr });
-      throw new Error('فشل رفع الملف. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى.');
-    }
+  } catch (err) {
+    console.error('Direct presigned upload to Cloudflare R2 failed:', err);
+    throw new Error('فشل رفع الملف إلى التخزين السحابي. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى.');
   }
 }
 

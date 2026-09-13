@@ -12,6 +12,7 @@ import {
   Video,
   Zap,
   Clock,
+  RotateCw,
 } from 'lucide-react';
 import { useVideoUploadManager } from '../context/video-upload-manager.context';
 import {
@@ -20,7 +21,7 @@ import {
 } from '../utils/video-optimizer';
 
 export function BackgroundVideoUploadMonitor() {
-  const { activeTasks, cancelUpload, dismissTask } = useVideoUploadManager();
+  const { activeTasks, cancelUpload, retryUpload, dismissTask } = useVideoUploadManager();
   const [isMinimized, setIsMinimized] = useState(false);
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
 
@@ -251,13 +252,25 @@ export function BackgroundVideoUploadMonitor() {
               )}
 
               {(isCompleted || isError) && (
-                <button
-                  type="button"
-                  onClick={() => dismissTask(currentTask.id)}
-                  className="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold transition-colors"
-                >
-                  إغلاق التنبيه
-                </button>
+                <div className="flex items-center gap-2">
+                  {isError && (
+                    <button
+                      type="button"
+                      onClick={() => retryUpload(currentTask.id)}
+                      className="px-3 py-1 text-xs bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <RotateCw className="w-3 h-3" />
+                      <span>إعادة المحاولة</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => dismissTask(currentTask.id)}
+                    className="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold transition-colors cursor-pointer"
+                  >
+                    إغلاق التنبيه
+                  </button>
+                </div>
               )}
             </div>
           </div>

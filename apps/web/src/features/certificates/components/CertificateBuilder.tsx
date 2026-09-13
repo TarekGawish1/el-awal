@@ -338,34 +338,73 @@ export function CertificateBuilder() {
       link.download = `شهادة-${data.studentName || "طالب"}.png`;
       link.click();
 
-      // Upload to Backend (Cloudflare R2 Bucket + Database)
+      // Upload to Cloudflare R2 via Presigned URL + Database
       canvas.toBlob(async (blob) => {
         if (!blob) return;
-
-        const formData = new FormData();
-        formData.append("file", blob, `certificate-${Date.now()}.png`);
-        formData.append("studentName", data.studentName || "طالب");
-        formData.append("gender", data.gender || "MALE");
-        formData.append("subject", data.subject || "عام");
-        formData.append("score", data.score || "100");
-        formData.append("issueDate", data.issueDate || "");
-        formData.append("year", data.year || "");
-        formData.append("stage", data.stage || "");
-        formData.append("grade", data.grade || "");
-        formData.append("teacherName", data.teacherName || "");
-        const selectedGroup = groups.find(
-          (group) => group.id === selectedGroupId,
-        );
-        formData.append("groupName", selectedGroup?.name || "");
 
         try {
           const baseUrl =
             process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
           const token = getStoredAccessToken();
+
+          // 1. Get presigned upload URL for Cloudflare R2
+          let uploadedFileUrl = previewImgData;
+          try {
+            const presignedRes = await fetch(`${baseUrl}/content/presigned-upload-url`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify({
+                fileName: `certificate-${Date.now()}.png`,
+                contentType: "image/png",
+                fileSizeBytes: blob.size,
+                folder: "certificates",
+              }),
+            });
+
+            if (presignedRes.ok) {
+              const presignedData = await presignedRes.json();
+              const presigned = presignedData?.data || presignedData;
+
+              // 2. Direct PUT to Cloudflare R2
+              await fetch(presigned.uploadUrl, {
+                method: "PUT",
+                headers: { "Content-Type": "image/png" },
+                body: blob,
+              });
+
+              uploadedFileUrl = presigned.publicUrl || presigned.uploadUrl;
+            }
+          } catch (uploadErr) {
+            console.warn("Direct R2 upload for certificate failed, using preview thumbnail fallback:", uploadErr);
+          }
+
+          const selectedGroup = groups.find(
+            (group) => group.id === selectedGroupId,
+          );
+
+          // 3. Save certificate metadata with direct R2 publicUrl
           const res = await fetch(`${baseUrl}/certificates`, {
             method: "POST",
-            body: formData,
-            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              studentName: data.studentName || "طالب",
+              gender: data.gender || "MALE",
+              subject: data.subject || "عام",
+              score: data.score || "100",
+              issueDate: data.issueDate || "",
+              year: data.year || "",
+              stage: data.stage || "",
+              grade: data.grade || "",
+              teacherName: data.teacherName || "",
+              groupName: selectedGroup?.name || "",
+              fileUrl: uploadedFileUrl,
+            }),
           });
 
           let savedCertId = Date.now().toString();

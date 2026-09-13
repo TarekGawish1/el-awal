@@ -112,56 +112,34 @@ export function useUploadContent() {
           setStage('success');
           return result;
         } catch (bunnyErr: any) {
-          console.warn('Direct Bunny Stream upload failed, falling back to direct multipart:', bunnyErr);
-          // Fallback to direct multipart through backend
+          console.warn('Direct Bunny Stream upload failed, falling back to direct presigned R2 upload:', bunnyErr);
         }
       }
 
-      // 2. Direct Multipart upload through backend (with real-time progress)
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('title', metadata.title);
-        if (metadata.description) formData.append('description', metadata.description);
-        formData.append('contentType', isVideo ? ContentType.LECTURE_RECORDING : metadata.contentType);
-        if (metadata.gradeLevel) formData.append('gradeLevel', metadata.gradeLevel);
-        if (metadata.academicYear) formData.append('academicYear', metadata.academicYear);
-        if (metadata.academicTerm) formData.append('academicTerm', metadata.academicTerm);
-        if (metadata.groupId) formData.append('groupId', metadata.groupId);
-        if (metadata.sessionTopic) formData.append('sessionTopic', metadata.sessionTopic);
-        if (metadata.sessionId) formData.append('sessionId', metadata.sessionId);
+      // 2. Direct Presigned Cloudflare R2 Upload (for images, documents, and fallback videos)
+      const mimeType = file.type || (isVideo ? 'video/mp4' : 'application/octet-stream');
+      const presignedPayload: PresignedUploadPayload = {
+        fileName: metadata.originalFileName || file.name,
+        contentType: mimeType,
+        fileSizeBytes: file.size,
+        folder: isVideo ? 'courses/videos' : 'courses',
+      };
+      const presigned = await generatePresignedUrl(presignedPayload);
+      await uploadFileToR2(presigned.uploadUrl, file, mimeType, handleProgress);
 
-        const result = await uploadContentDirectly(formData, handleProgress);
-        setUploadProgress(100);
-        setStage('success');
-        return result;
-      } catch (directError: any) {
-        console.warn('Direct upload failed, attempting presigned fallback:', directError);
-
-        // 3. Fallback to presigned R2 upload with progress tracking
-        const mimeType = file.type || 'application/octet-stream';
-        const presignedPayload: PresignedUploadPayload = {
-          fileName: metadata.originalFileName,
-          contentType: mimeType,
-          fileSizeBytes: file.size,
-          folder: 'courses',
-        };
-        const presigned = await generatePresignedUrl(presignedPayload);
-        await uploadFileToR2(presigned.uploadUrl, file, mimeType, handleProgress);
-
-        setStage('processing');
-        const createPayload: CreateContentPayload = {
-          ...metadata,
-          fileKey: presigned.fileKey,
-          fileUrl: presigned.publicUrl,
-          fileSize: file.size,
-          mimeType,
-        };
-        const result = await createContent(createPayload);
-        setUploadProgress(100);
-        setStage('success');
-        return result;
-      }
+      setStage('processing');
+      const createPayload: CreateContentPayload = {
+        ...metadata,
+        contentType: isVideo ? ContentType.LECTURE_RECORDING : metadata.contentType,
+        fileKey: isVideo ? `r2:${presigned.fileKey}` : presigned.fileKey,
+        fileUrl: presigned.publicUrl || presigned.uploadUrl,
+        fileSize: file.size,
+        mimeType,
+      };
+      const result = await createContent(createPayload);
+      setUploadProgress(100);
+      setStage('success');
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: contentKeys.lists() });
@@ -249,23 +227,30 @@ export function useUpdateContent() {
             setStage('success');
             return result;
           } catch (bunnyErr: any) {
-            console.warn('Direct Bunny Stream replacement failed, falling back to direct multipart:', bunnyErr);
+            console.warn('Direct Bunny Stream replacement failed, falling back to direct presigned R2 upload:', bunnyErr);
           }
         }
 
-        const formData = new FormData();
-        formData.append('file', file);
-        if (metadata.title !== undefined) formData.append('title', metadata.title);
-        if (metadata.description !== undefined) formData.append('description', metadata.description);
-        formData.append('contentType', isVideo ? ContentType.LECTURE_RECORDING : (metadata.contentType || ContentType.FILE));
-        if (metadata.gradeLevel !== undefined) formData.append('gradeLevel', metadata.gradeLevel);
-        if (metadata.academicYear !== undefined) formData.append('academicYear', metadata.academicYear);
-        if (metadata.academicTerm !== undefined) formData.append('academicTerm', metadata.academicTerm);
-        if (metadata.groupId !== undefined) formData.append('groupId', metadata.groupId);
-        if (metadata.sessionTopic !== undefined) formData.append('sessionTopic', metadata.sessionTopic);
-        if (metadata.sessionId !== undefined) formData.append('sessionId', metadata.sessionId);
+        // Direct Presigned Cloudflare R2 Upload
+        const mimeType = file.type || (isVideo ? 'video/mp4' : 'application/octet-stream');
+        const presignedPayload: PresignedUploadPayload = {
+          fileName: metadata.originalFileName || file.name,
+          contentType: mimeType,
+          fileSizeBytes: file.size,
+          folder: isVideo ? 'courses/videos' : 'courses',
+        };
+        const presigned = await generatePresignedUrl(presignedPayload);
+        await uploadFileToR2(presigned.uploadUrl, file, mimeType, handleProgress);
 
-        const result = await updateContentDirectly(id, formData, handleProgress);
+        setStage('processing');
+        const result = await updateContent(id, {
+          ...metadata,
+          contentType: isVideo ? ContentType.LECTURE_RECORDING : (metadata.contentType || ContentType.FILE),
+          fileKey: isVideo ? `r2:${presigned.fileKey}` : presigned.fileKey,
+          fileUrl: presigned.publicUrl || presigned.uploadUrl,
+          fileSize: file.size,
+          mimeType,
+        });
         setUploadProgress(100);
         setStage('success');
         return result;

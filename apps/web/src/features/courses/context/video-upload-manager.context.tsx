@@ -68,6 +68,7 @@ interface VideoUploadManagerContextType {
   activeTasks: VideoUploadTask[];
   startUpload: (options: StartUploadOptions) => Promise<string>;
   cancelUpload: (taskId: string) => void;
+  retryUpload: (taskId: string) => Promise<void>;
   dismissTask: (taskId: string) => void;
   getTaskForLesson: (
     lessonId?: string,
@@ -90,6 +91,7 @@ export function VideoUploadManagerProvider({
   const activeXhrsRef = useRef<Record<string, XMLHttpRequest>>({});
   const tasksRef = useRef<Record<string, VideoUploadTask>>({});
   tasksRef.current = tasks;
+  const taskOptionsRef = useRef<Record<string, StartUploadOptions>>({});
 
   const queryClient = useQueryClient();
 
@@ -239,6 +241,8 @@ export function VideoUploadManagerProvider({
         (isCoursePreview && courseId ? `preview-${courseId}` : undefined) ||
         `upload-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
+      taskOptionsRef.current[taskId] = options;
+
       const initialTask: VideoUploadTask = {
         id: taskId,
         lessonId,
@@ -277,6 +281,153 @@ export function VideoUploadManagerProvider({
           videoMeta: metaData,
           durationSeconds: metaDuration,
         });
+
+        // Helper to finalize upload success and auto-save metadata
+        const finalizeSuccess = async (result: {
+          videoId: string;
+          embedUrl: string;
+          provider?: 'bunny' | 'r2';
+        }) => {
+          updateTask(taskId, {
+            status: 'completed',
+            progress: 100,
+            videoId: result.videoId,
+            embedUrl: result.embedUrl,
+            durationSeconds: metaDuration,
+            completedAt: new Date(),
+          });
+
+          // If lessonId is already known, auto-save video details to the lesson in background
+          const currentTaskState = tasksRef.current[taskId];
+          const targetLessonId = currentTaskState?.lessonId || lessonId;
+
+          if (targetLessonId) {
+            try {
+              await coursesApi.updateLesson(targetLessonId, {
+                bunnyVideoId:
+                  result.provider === 'r2'
+                    ? `r2:${result.videoId}`
+                    : result.videoId,
+                contentUrl: result.embedUrl,
+                videoDurationSeconds: metaDuration,
+              });
+              queryClient.invalidateQueries({ queryKey: ['courses'] });
+              queryClient.invalidateQueries({
+                queryKey: ['lesson-stream-auth', targetLessonId],
+              });
+            } catch (saveErr) {
+              console.warn('Auto background update of lesson failed:', saveErr);
+            }
+          }
+
+          // If courseId and isCoursePreview are set, auto-save preview video to course in background
+          const isPreview = currentTaskState?.isCoursePreview ?? isCoursePreview;
+          const targetCourseId = currentTaskState?.courseId || courseId;
+
+          if (isPreview && targetCourseId) {
+            try {
+              await coursesApi.updateCourse(targetCourseId, {
+                previewVideoUrl: result.embedUrl,
+              });
+              queryClient.invalidateQueries({ queryKey: ['courses'] });
+              queryClient.invalidateQueries({
+                queryKey: ['course-details', targetCourseId],
+              });
+              queryClient.invalidateQueries({
+                queryKey: ['course-outline', targetCourseId],
+              });
+              queryClient.invalidateQueries({
+                queryKey: ['course-public-details', targetCourseId],
+              });
+
+              // Clean up previous preview video from Bunny if replaced
+              const prevUrl = currentTaskState?.oldPreviewUrl || oldPreviewUrl;
+              if (prevUrl && prevUrl !== result.embedUrl) {
+                coursesApi.deleteUploadedFile(prevUrl).catch(() => {});
+              }
+            } catch (saveErr) {
+              console.warn('Auto background update of course preview video failed:', saveErr);
+            }
+          }
+
+          toast.success(
+            `تم اكتمال رفع فيديو "${lessonTitle || file.name}" بنجاح! 🚀`,
+            { duration: 6000 },
+          );
+
+          if (onSuccess) {
+            onSuccess({
+              videoId: result.videoId,
+              embedUrl: result.embedUrl,
+              durationSeconds: metaDuration,
+            });
+          }
+        };
+
+        // Direct Cloudflare R2 Presigned Video Upload Fallback (Zero backend server buffering)
+        const executeDirectR2Fallback = async (reason?: string) => {
+          if (activeXhrsRef.current[taskId]) {
+            try {
+              activeXhrsRef.current[taskId].abort();
+            } catch {}
+            delete activeXhrsRef.current[taskId];
+          }
+
+          console.warn(
+            `Direct Bunny Stream upload failed (${reason || 'network/cors'}). Switching to Cloudflare R2 direct presigned upload for: ${lessonTitle || file.name}`,
+          );
+
+          updateTask(taskId, {
+            status: 'uploading',
+            progress: 20,
+            uploadedBytes: 0,
+            speedMbps: 0,
+            etaSeconds: 0,
+            provider: 'r2',
+          });
+
+          toast(
+            `جاري تحويل رفع "${lessonTitle || file.name}" إلى السحابة الاحتياطية (Cloudflare R2)...`,
+            { icon: '🔄', duration: 4000 },
+          );
+
+          let lastLoaded = 0;
+          let lastTime = Date.now();
+
+          const fallbackResult = await coursesApi.uploadVideoDirectToR2(
+            file,
+            lessonTitle.trim() || file.name,
+            (percent, loaded, total) => {
+              const now = Date.now();
+              const timeDiff = (now - lastTime) / 1000;
+              let currentSpeed = 0;
+              let eta = 0;
+
+              if (timeDiff >= 0.5) {
+                const bytesDiff = loaded - lastLoaded;
+                currentSpeed = bytesDiff / timeDiff / (1024 * 1024);
+                const remainingBytes = total - loaded;
+                eta = currentSpeed > 0 ? remainingBytes / (1024 * 1024) / currentSpeed : 0;
+                lastLoaded = loaded;
+                lastTime = now;
+              }
+
+              updateTask(taskId, {
+                uploadedBytes: loaded,
+                totalBytes: total,
+                progress: Math.min(Math.round((percent / 100) * 75) + 20, 98),
+                speedMbps: currentSpeed > 0 ? parseFloat(currentSpeed.toFixed(2)) : undefined,
+                etaSeconds: eta > 0 ? Math.ceil(eta) : undefined,
+              });
+            },
+          );
+
+          await finalizeSuccess({
+            videoId: fallbackResult.videoId,
+            embedUrl: fallbackResult.embedUrl,
+            provider: 'r2',
+          });
+        };
 
         try {
           const creds = await coursesApi.getVideoUploadCredentials(
@@ -355,116 +506,76 @@ export function VideoUploadManagerProvider({
           xhr.onload = async () => {
             delete activeXhrsRef.current[taskId];
             if (xhr.status >= 200 && xhr.status < 300) {
-              updateTask(taskId, {
-                status: 'completed',
-                progress: 100,
+              await finalizeSuccess({
                 videoId: creds.videoId,
                 embedUrl: creds.embedUrl,
-                durationSeconds: metaDuration,
-                completedAt: new Date(),
+                provider: creds.provider,
               });
-
-              // If lessonId is already known, auto-save video details to the lesson in background
-              const currentTaskState = tasksRef.current[taskId];
-              const targetLessonId = currentTaskState?.lessonId || lessonId;
-
-              if (targetLessonId) {
-                try {
-                  await coursesApi.updateLesson(targetLessonId, {
-                    bunnyVideoId:
-                      creds.provider === 'r2'
-                        ? `r2:${creds.videoId}`
-                        : creds.videoId,
-                    contentUrl: creds.embedUrl,
-                    videoDurationSeconds: metaDuration,
-                  });
-                  queryClient.invalidateQueries({ queryKey: ['courses'] });
-                  queryClient.invalidateQueries({
-                    queryKey: ['lesson-stream-auth', targetLessonId],
-                  });
-                } catch (saveErr) {
-                  console.warn('Auto background update of lesson failed:', saveErr);
-                }
-              }
-
-              // If courseId and isCoursePreview are set, auto-save preview video to course in background
-              const isPreview = currentTaskState?.isCoursePreview ?? isCoursePreview;
-              const targetCourseId = currentTaskState?.courseId || courseId;
-
-              if (isPreview && targetCourseId) {
-                try {
-                  await coursesApi.updateCourse(targetCourseId, {
-                    previewVideoUrl: creds.embedUrl,
-                  });
-                  queryClient.invalidateQueries({ queryKey: ['courses'] });
-                  queryClient.invalidateQueries({
-                    queryKey: ['course-details', targetCourseId],
-                  });
-                  queryClient.invalidateQueries({
-                    queryKey: ['course-outline', targetCourseId],
-                  });
-                  queryClient.invalidateQueries({
-                    queryKey: ['course-public-details', targetCourseId],
-                  });
-
-                  // Clean up previous preview video from Bunny if replaced
-                  const prevUrl = currentTaskState?.oldPreviewUrl || oldPreviewUrl;
-                  if (prevUrl && prevUrl !== creds.embedUrl) {
-                    coursesApi.deleteUploadedFile(prevUrl).catch(() => {});
-                  }
-                } catch (saveErr) {
-                  console.warn('Auto background update of course preview video failed:', saveErr);
-                }
-              }
-
-              toast.success(
-                `تم اكتمال رفع فيديو "${lessonTitle || file.name}" بنجاح! 🚀`,
-                { duration: 6000 },
-              );
-
-              if (onSuccess) {
-                onSuccess({
-                  videoId: creds.videoId,
-                  embedUrl: creds.embedUrl,
-                  durationSeconds: metaDuration,
-                });
-              }
             } else {
+              // Direct PUT returned non-2xx -> attempt server fallback
+              try {
+                await executeDirectR2Fallback(`HTTP status ${xhr.status}`);
+              } catch (fallbackErr: any) {
+                updateTask(taskId, {
+                  status: 'error',
+                  error: fallbackErr?.message || `تعذر رفع الفيديو إلى سيرفر البث السحابي (كود: ${xhr.status})`,
+                });
+                toast.error(
+                  `فشل رفع الفيديو "${lessonTitle || file.name}"`,
+                );
+              }
+            }
+          };
+
+          xhr.onerror = async () => {
+            delete activeXhrsRef.current[taskId];
+            // Network/CORS/Brave Shields block -> attempt direct R2 fallback
+            try {
+              await executeDirectR2Fallback('network_error_or_cors_block');
+            } catch (fallbackErr: any) {
               updateTask(taskId, {
                 status: 'error',
-                error: `تعذر رفع الفيديو إلى سيرفر البث السحابي (كود: ${xhr.status})`,
+                error: fallbackErr?.message || 'حدث خطأ في الاتصال أثناء رفع الفيديو',
               });
               toast.error(
-                `فشل رفع الفيديو "${lessonTitle || file.name}" (كود: ${xhr.status})`,
+                `حدث خطأ في الاتصال أثناء رفع فيديو "${lessonTitle || file.name}"`,
               );
             }
           };
 
-          xhr.onerror = () => {
+          xhr.send(file);
+        } catch (err: any) {
+          try {
+            await executeDirectR2Fallback(err?.message || 'credential_generation_error');
+          } catch (fallbackErr: any) {
             delete activeXhrsRef.current[taskId];
             updateTask(taskId, {
               status: 'error',
-              error: 'حدث خطأ في الاتصال أثناء رفع الفيديو',
+              error: fallbackErr?.message || err?.message || 'تعذر الحصول على تصريح رفع الفيديو',
             });
-            toast.error(
-              `حدث خطأ في الاتصال أثناء رفع فيديو "${lessonTitle || file.name}"`,
-            );
-          };
-
-          xhr.send(file);
-        } catch (err: any) {
-          delete activeXhrsRef.current[taskId];
-          updateTask(taskId, {
-            status: 'error',
-            error: err?.message || 'تعذر الحصول على تصريح رفع الفيديو',
-          });
-          toast.error(err?.message || 'تعذر الحصول على تصريح رفع الفيديو');
+            toast.error(fallbackErr?.message || err?.message || 'تعذر الحصول على تصريح رفع الفيديو');
+          }
         }
       })();
 
       return taskId;
     },
     [queryClient, updateTask],
+  );
+
+  const retryUpload = useCallback(
+    async (taskId: string) => {
+      const options = taskOptionsRef.current[taskId];
+      if (!options) return;
+      delete tasksRef.current[taskId];
+      setTasks((prev) => {
+        const next = { ...prev };
+        delete next[taskId];
+        return next;
+      });
+      await startUpload(options);
+    },
+    [startUpload],
   );
 
   const activeTasks = Object.values(tasks).filter(
@@ -483,6 +594,7 @@ export function VideoUploadManagerProvider({
         activeTasks,
         startUpload,
         cancelUpload,
+        retryUpload,
         dismissTask,
         getTaskForLesson,
         getTaskForCoursePreview,
@@ -499,6 +611,7 @@ const defaultContextValue: VideoUploadManagerContextType = {
   activeTasks: [],
   startUpload: async () => '',
   cancelUpload: () => {},
+  retryUpload: async () => {},
   dismissTask: () => {},
   getTaskForLesson: () => undefined,
   getTaskForCoursePreview: () => undefined,

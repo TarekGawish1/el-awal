@@ -99,4 +99,38 @@ describe('Background Video Upload & Monitor Suite', () => {
     // After expand, the detailed note is visible again
     expect(screen.getByText(/يستمر الرفع بأمان في الخلفية/)).toBeDefined();
   });
+
+  it('renders retry button when upload encounters an error and allows dismissing', async () => {
+    function ErrorTaskComponent() {
+      const { tasks, startUpload, retryUpload, dismissTask } = useVideoUploadManager();
+      return (
+        <div>
+          <button
+            type="button"
+            onClick={() => {
+              startUpload({
+                file: new File(['bad'], 'test.mp4', { type: 'video/mp4' }),
+                lessonTitle: 'فيديو تجريبي للاختبار',
+                lessonId: 'err-123',
+              }).catch(() => {});
+            }}
+          >
+            تشغيل مهمة الرفع
+          </button>
+        </div>
+      );
+    }
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <VideoUploadManagerProvider>
+          <ErrorTaskComponent />
+          <BackgroundVideoUploadMonitor />
+        </VideoUploadManagerProvider>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByText('تشغيل مهمة الرفع'));
+    expect(await screen.findByText('فيديو تجريبي للاختبار')).toBeDefined();
+  });
 });

@@ -429,9 +429,6 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
         }
 
         try {
-          const res = await uploadRawFile(file, 'booklets');
-          uploadedUrls.push(res.fileUrl);
-        } catch {
           const presigned = await generatePresignedUrl({
             fileName: file.name,
             contentType: file.type || 'image/jpeg',
@@ -439,8 +436,10 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
             folder: 'assessments',
           });
 
-          await uploadFileToR2(presigned.uploadUrl, file);
+          await uploadFileToR2(presigned.uploadUrl, file, file.type || 'image/jpeg');
           uploadedUrls.push(presigned.publicUrl);
+        } catch {
+          toast.error(`حدث خطأ أثناء رفع الصورة ${file.name}`);
         }
       }
       setBookletImages(uploadedUrls);

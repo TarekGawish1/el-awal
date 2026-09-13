@@ -158,6 +158,71 @@ export const coursesApi = {
     });
   },
 
+  // Direct Cloudflare R2 Presigned Video Upload Fallback (Bypasses browser CORS, Brave Shields, and network blocks)
+  uploadVideoDirectToR2: async (
+    file: File,
+    title?: string,
+    onProgress?: (percent: number, loaded: number, total: number) => void,
+  ): Promise<{
+    videoId: string;
+    embedUrl: string;
+    provider: 'r2';
+    playbackUrl?: string;
+  }> => {
+    const presigned = await coursesApi.getPresignedUploadUrl({
+      fileName: file.name,
+      contentType: file.type || 'video/mp4',
+      fileType: file.type || 'video/mp4',
+      fileSizeBytes: file.size,
+      folder: 'courses/videos',
+    });
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', presigned.uploadUrl);
+      xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
+
+      if (onProgress) {
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable && event.total > 0) {
+            const percent = Math.min(Math.round((event.loaded / event.total) * 100), 100);
+            onProgress(percent, event.loaded, event.total);
+          }
+        };
+      }
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve({
+            videoId: `r2:${presigned.fileKey}`,
+            embedUrl: presigned.publicUrl,
+            playbackUrl: presigned.publicUrl,
+            provider: 'r2',
+          });
+        } else {
+          reject(new Error(`فشل رفع الفيديو إلى Cloudflare R2 (كود: ${xhr.status})`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('تعذر الاتصال بـ Cloudflare R2 أثناء رفع الفيديو.'));
+      xhr.onabort = () => reject(new Error('تم إلغاء رفع الفيديو'));
+      xhr.send(file);
+    });
+  },
+
+  uploadVideoDirectToServer: async (
+    file: File,
+    title?: string,
+    onProgress?: (percent: number, loaded: number, total: number) => void,
+  ): Promise<{
+    videoId: string;
+    embedUrl: string;
+    provider: 'r2' | 'bunny';
+    playbackUrl?: string;
+  }> => {
+    return coursesApi.uploadVideoDirectToR2(file, title, onProgress);
+  },
+
   // Timestamped Q&A
   getLessonQuestions: async (lessonId: string): Promise<LessonQuestion[]> => {
     return apiClient<LessonQuestion[]>(`/courses/lessons/${lessonId}/questions`);
@@ -452,21 +517,19 @@ export const coursesApi = {
     fileType: string;
     fileName: string;
   }> => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('folder', folder);
+    const mimeType = file.type || 'application/octet-stream';
+    const presigned = await coursesApi.getPresignedUploadUrl({
+      fileName: file.name,
+      contentType: mimeType,
+      fileType: mimeType,
+      fileSizeBytes: file.size,
+      folder,
+    });
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      const url = `${API_BASE_URL}/content/upload-file`;
-      xhr.open('POST', url);
-
-      const token = getStoredAccessToken();
-      if (token) {
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      }
-
-      xhr.setRequestHeader('Accept', 'application/json');
+      xhr.open('PUT', presigned.uploadUrl);
+      xhr.setRequestHeader('Content-Type', mimeType);
 
       if (onProgress) {
         xhr.upload.onprogress = (event) => {
@@ -478,32 +541,22 @@ export const coursesApi = {
       }
 
       xhr.onload = () => {
-        let responseJson: any;
-        try {
-          responseJson = JSON.parse(xhr.responseText);
-        } catch {
-          responseJson = xhr.responseText;
-        }
-
         if (xhr.status >= 200 && xhr.status < 300) {
-          const data =
-            responseJson && typeof responseJson === 'object' && 'data' in responseJson
-              ? responseJson.data
-              : responseJson;
-
-          resolve(data);
+          resolve({
+            fileUrl: presigned.publicUrl,
+            fileKey: presigned.fileKey,
+            fileSize: file.size,
+            fileType: mimeType,
+            fileName: file.name,
+          });
         } else {
-          const rawError =
-            (responseJson && responseJson.message) ||
-            (responseJson && responseJson.error) ||
-            `فشل الرفع (كود ${xhr.status})`;
-          reject(new Error(translateErrorMessage(rawError)));
+          reject(new Error(`فشل رفع الملف إلى التخزين السحابي (كود: ${xhr.status})`));
         }
       };
 
-      xhr.onerror = () => reject(new Error('تعذر الاتصال بالخادم أثناء رفع الملف. يرجى التحقق من اتصالك بالإنترنت.'));
+      xhr.onerror = () => reject(new Error('تعذر الاتصال بخادم التخزين السحابي أثناء الرفع. يرجى التحقق من اتصالك بالإنترنت.'));
       xhr.onabort = () => reject(new Error('تم إلغاء عملية الرفع'));
-      xhr.send(formData);
+      xhr.send(file);
     });
   },
 

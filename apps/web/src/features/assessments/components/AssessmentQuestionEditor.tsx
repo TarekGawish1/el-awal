@@ -70,23 +70,17 @@ export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestion
     }
     setLoading(true);
     try {
-      const res = await uploadRawFile(file, 'assessments');
-      onSuccess(res.fileUrl);
+      const presigned = await generatePresignedUrl({
+        fileName: file.name,
+        contentType: file.type || 'image/jpeg',
+        fileSizeBytes: file.size,
+        folder: 'assessments',
+      });
+      await uploadFileToR2(presigned.uploadUrl, file, file.type || 'image/jpeg');
+      onSuccess(presigned.publicUrl);
       toast.success('تم رفع الصورة بنجاح');
-    } catch {
-      try {
-        const presigned = await generatePresignedUrl({
-          fileName: file.name,
-          contentType: file.type || 'image/jpeg',
-          fileSizeBytes: file.size,
-          folder: 'assessments',
-        });
-        await uploadFileToR2(presigned.uploadUrl, file);
-        onSuccess(presigned.publicUrl);
-        toast.success('تم رفع الصورة بنجاح');
-      } catch (error: any) {
-        toast.error(error?.message || 'حدث خطأ أثناء رفع الصورة');
-      }
+    } catch (error: any) {
+      toast.error(error?.message || 'حدث خطأ أثناء رفع الصورة');
     } finally {
       setLoading(false);
     }

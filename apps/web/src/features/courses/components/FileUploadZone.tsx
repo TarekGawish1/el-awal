@@ -45,30 +45,6 @@ export function FileUploadZone({
   const [lastUploadedKey, setLastUploadedKey] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const performDirectFallbackUpload = async (file: File) => {
-    try {
-      const directResult = await coursesApi.uploadDirectFile(file, folder, (percent) => {
-        setUploadProgress(percent);
-      });
-
-      setIsUploading(false);
-      setUploadProgress(100);
-      setLastUploadedKey(directResult.fileKey);
-      onUploadComplete({
-        fileUrl: directResult.fileUrl,
-        fileKey: directResult.fileKey,
-        fileSize: directResult.fileSize || file.size,
-        fileType: directResult.fileType || file.type,
-        fileName: directResult.fileName || file.name,
-      });
-      toast.success('تم رفع الملف بنجاح');
-    } catch (err: any) {
-      setIsUploading(false);
-      setUploadProgress(0);
-      toast.error(translateErrorMessage(err?.message) || 'تعذر رفع الملف، يرجى المحاولة مجدداً');
-    }
-  };
-
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -91,15 +67,8 @@ export function FileUploadZone({
         folder,
       });
 
-      // If presigned URL is invalid, empty, or internal fallback route, use direct multipart upload
-      const isValidExternalUrl =
-        presigned?.uploadUrl &&
-        presigned.uploadUrl.startsWith('http') &&
-        !presigned.uploadUrl.includes('https://.r2');
-
-      if (!isValidExternalUrl) {
-        await performDirectFallbackUpload(file);
-        return;
+      if (!presigned?.uploadUrl) {
+        throw new Error('لم يتم استلام تصريح الرفع السحابي');
       }
 
       setUploadProgress(35);
@@ -129,20 +98,23 @@ export function FileUploadZone({
           });
           toast.success('تم رفع الملف بنجاح');
         } else {
-          // Direct fallback if presigned PUT returned non-2xx
-          await performDirectFallbackUpload(file);
+          setIsUploading(false);
+          setUploadProgress(0);
+          toast.error(`تعذر رفع الملف إلى التخزين السحابي (كود: ${xhr.status})`);
         }
       };
 
       xhr.onerror = async () => {
-        // Direct fallback if presigned PUT had network / CORS error
-        await performDirectFallbackUpload(file);
+        setIsUploading(false);
+        setUploadProgress(0);
+        toast.error('تعذر الاتصال بخادم التخزين السحابي أثناء الرفع. يرجى التحقق من اتصالك بالإنترنت.');
       };
 
       xhr.send(file);
-    } catch {
-      // Direct fallback if presigned initialization failed
-      await performDirectFallbackUpload(file);
+    } catch (err: any) {
+      setIsUploading(false);
+      setUploadProgress(0);
+      toast.error(translateErrorMessage(err?.message) || 'تعذر بدء عملية رفع الملف');
     }
   };
 
