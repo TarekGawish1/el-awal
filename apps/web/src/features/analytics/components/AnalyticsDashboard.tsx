@@ -439,6 +439,44 @@ export function AnalyticsDashboard() {
           </div>
         </div>
 
+        {/* Active Inspection Banner when hovering any bar */}
+        {hoveredIndex !== null && timeSeries[hoveredIndex] && (
+          <div className="bg-neutral-900 text-white p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs shadow-lg animate-in fade-in duration-100 border border-neutral-700">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-primary-400 animate-ping" />
+              <span className="font-black text-sm text-primary-200">
+                {timeSeries[hoveredIndex].label}
+              </span>
+            </div>
+            <div className="flex items-center gap-4 sm:gap-6 flex-wrap text-xs">
+              <span className="flex items-center gap-1.5">
+                <span className="text-neutral-400">إجمالي الزيارات:</span>
+                <span className="font-black font-mono text-white text-sm">
+                  {formatNumber(timeSeries[hoveredIndex].totalViews)}
+                </span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="text-neutral-400">الزوار الفريدين:</span>
+                <span className="font-black font-mono text-emerald-400 text-sm">
+                  {formatNumber(timeSeries[hoveredIndex].uniqueVisitors)}
+                </span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="text-neutral-400">الموقع التعريفي:</span>
+                <span className="font-black font-mono text-primary-300">
+                  {formatNumber(timeSeries[hoveredIndex].landingViews)}
+                </span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="text-neutral-400">لوحة النظام:</span>
+                <span className="font-black font-mono text-emerald-300">
+                  {formatNumber(timeSeries[hoveredIndex].systemViews)}
+                </span>
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Time-Series Chart Container */}
         {timeSeries.length === 0 || summary.totalViews === 0 ? (
           <div className="h-64 flex flex-col items-center justify-center text-center p-6 bg-neutral-50/50 rounded-xl border border-dashed border-neutral-200">
@@ -449,15 +487,18 @@ export function AnalyticsDashboard() {
             </p>
           </div>
         ) : (
-          <div className="relative pt-4 pb-2 overflow-x-auto scrollbar-thin">
-            {/* Chart area – overflow-hidden prevents bars from escaping the chart bounds */}
-            <div className={`flex items-end gap-1.5 sm:gap-2 px-2 ${
-              timeSeries.length > 12
-                ? `min-w-[${Math.max(640, timeSeries.length * 52)}px]`
-                : timeSeries.length > 7
-                ? 'min-w-[640px]'
-                : 'min-w-[420px] sm:min-w-0'
-            } w-full`} style={{ height: '224px' }}>
+          <div className="relative pt-3 pb-2 overflow-x-auto scrollbar-thin">
+            {/* Chart area */}
+            <div
+              className={`flex items-end gap-1.5 sm:gap-2 px-2 ${
+                timeSeries.length > 12
+                  ? `min-w-[${Math.max(680, timeSeries.length * 54)}px]`
+                  : timeSeries.length > 7
+                  ? 'min-w-[640px]'
+                  : 'min-w-[420px] sm:min-w-0'
+              } w-full`}
+              style={{ height: '260px' }}
+            >
               {timeSeries.map((point, index) => {
                 const totalHeightPct = Math.max(4, (point.totalViews / maxViews) * 100);
                 const landingHeightPct = point.totalViews > 0 ? (point.landingViews / point.totalViews) * 100 : 0;
@@ -473,50 +514,74 @@ export function AnalyticsDashboard() {
                 return (
                   <div
                     key={point.date}
-                    className="flex-1 flex flex-col items-center justify-end group relative cursor-pointer min-w-[36px]"
-                    style={{ height: '196px' }}
+                    className={`flex-1 flex flex-col items-center justify-end group relative cursor-pointer min-w-[38px] rounded-xl transition-all duration-150 ${
+                      isHovered ? 'bg-neutral-100/80 ring-1 ring-neutral-300/80 z-30' : 'hover:bg-neutral-50/60'
+                    }`}
+                    style={{ height: '240px' }}
                     onMouseEnter={() => setHoveredIndex(index)}
                     onMouseLeave={() => setHoveredIndex(null)}
                     onClick={() => setHoveredIndex(hoveredIndex === index ? null : index)}
                   >
-                    {/* Tooltip on Hover / Touch */}
+                    {/* Tooltip on Hover / Touch – anchored safely at top-2 so it NEVER clips at the top */}
                     {isHovered && (
-                      <div className="absolute bottom-full mb-2 z-30 px-3 py-2 bg-neutral-900 text-white rounded-xl shadow-lg text-xs whitespace-nowrap pointer-events-none animate-in fade-in duration-150">
-                        <p className="font-bold text-neutral-200 border-b border-neutral-700 pb-1 mb-1">
-                          {point.label}
-                        </p>
-                        <div className="space-y-0.5 text-[11px]">
-                          <p className="flex justify-between gap-3">
-                            <span className="text-neutral-400">إجمالي الزيارات:</span>
-                            <span className="font-bold text-white">{formatNumber(point.totalViews)}</span>
-                          </p>
-                          <p className="flex justify-between gap-3">
-                            <span className="text-neutral-400">الزوار الفريدين:</span>
-                            <span className="font-bold text-emerald-400">{formatNumber(point.uniqueVisitors)}</span>
-                          </p>
-                          <p className="flex justify-between gap-3">
-                            <span className="text-neutral-400">الموقع التعريفي:</span>
-                            <span className="font-bold text-primary-300">{formatNumber(point.landingViews)}</span>
-                          </p>
-                          <p className="flex justify-between gap-3">
-                            <span className="text-neutral-400">لوحة النظام:</span>
-                            <span className="font-bold text-emerald-300">{formatNumber(point.systemViews)}</span>
-                          </p>
+                      <div
+                        className={`absolute top-2 z-50 p-3 bg-neutral-900/95 text-white rounded-xl shadow-2xl border border-neutral-700 text-xs whitespace-nowrap pointer-events-none animate-in fade-in zoom-in-95 duration-100 backdrop-blur-xs min-w-[175px] ${
+                          index < 3
+                            ? 'right-0'
+                            : index >= timeSeries.length - 3
+                            ? 'left-0'
+                            : 'left-1/2 -translate-x-1/2'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2 border-b border-neutral-700/80 pb-1.5 mb-2">
+                          <span className="font-black text-white text-xs">{point.label}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 bg-primary-500/30 text-primary-300 rounded-md font-black">
+                            {formatNumber(point.totalViews)} زيارة
+                          </span>
+                        </div>
+                        <div className="space-y-1.5 text-[11px]">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-neutral-400 flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                              الزوار الفريدين:
+                            </span>
+                            <span className="font-black text-emerald-400 font-mono">
+                              {formatNumber(point.uniqueVisitors)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-neutral-400 flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-primary-500 shrink-0" />
+                              الموقع التعريفي:
+                            </span>
+                            <span className="font-bold text-primary-300 font-mono">
+                              {formatNumber(point.landingViews)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-neutral-400 flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                              لوحة النظام:
+                            </span>
+                            <span className="font-bold text-emerald-300 font-mono">
+                              {formatNumber(point.systemViews)}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     )}
 
-                    {/* Bar area – fixed height container prevents bars from ever overflowing */}
-                    <div className="w-full flex flex-col justify-end" style={{ height: '172px' }}>
+                    {/* Bar area */}
+                    <div className="w-full flex flex-col justify-end px-1" style={{ height: '172px' }}>
                       {point.totalViews === 0 ? (
                         <div
-                          className="w-full bg-neutral-100 hover:bg-neutral-200 rounded-t-sm h-1.5 transition-colors"
+                          className="w-full bg-neutral-200/60 hover:bg-neutral-300 rounded-t-xs h-1.5 transition-colors"
                           title={`${point.label}: 0 زيارة`}
                         />
                       ) : (
                         <div
                           className={`w-full rounded-t-lg overflow-hidden flex flex-col-reverse shadow-xs transition-all duration-200 ${
-                            isHovered ? 'ring-2 ring-primary-500/50 brightness-110' : 'opacity-95 hover:opacity-100'
+                            isHovered ? 'ring-2 ring-primary-500/70 brightness-110' : 'opacity-95 hover:opacity-100'
                           }`}
                           style={{ height: `${totalHeightPct}%` }}
                         >
@@ -535,7 +600,10 @@ export function AnalyticsDashboard() {
                     </div>
 
                     {/* X-axis Label */}
-                    <span className="text-[10px] font-bold text-neutral-500 mt-1.5 truncate max-w-full text-center whitespace-nowrap leading-tight" style={{ height: '24px' }}>
+                    <span
+                      className="text-[10px] font-bold text-neutral-500 mt-1.5 truncate max-w-full text-center whitespace-nowrap leading-tight"
+                      style={{ height: '24px' }}
+                    >
                       {displayLabel}
                     </span>
                   </div>
