@@ -403,7 +403,7 @@ export function VisitorListCard({ range, from, to, scope = 'all' }: VisitorListC
                             title="إجمالي وقت التواجد للزائر على المنصة"
                           >
                             <Clock className="w-3.5 h-3.5 text-amber-600" />
-                            <span>{visitor.totalDurationFormatted}</span>
+                            <span>إجمالي التواجد: {visitor.totalDurationFormatted}</span>
                           </div>
                         )}
                       </div>
@@ -481,8 +481,19 @@ export function VisitorListCard({ range, from, to, scope = 'all' }: VisitorListC
                             </div>
                           </div>
 
-                          <div className="text-end shrink-0 text-neutral-500 font-mono text-[11px] self-end sm:self-auto">
-                            {formatDateTime(visit.createdAt)}
+                          <div className="text-end shrink-0 flex flex-col items-end gap-1 self-end sm:self-auto">
+                            {visit.durationFormatted && (
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-800 rounded-md text-[11px] font-bold border border-amber-200/60"
+                                title="مدة هذه الزيارة المحددة"
+                              >
+                                <Clock className="w-3 h-3 text-amber-600" />
+                                <span>{visit.durationFormatted}</span>
+                              </span>
+                            )}
+                            <span className="text-neutral-500 font-mono text-[11px]">
+                              {formatDateTime(visit.createdAt)}
+                            </span>
                           </div>
                         </div>
                       ))}

@@ -108,6 +108,8 @@ export interface IndividualVisitItem {
   userAgent?: string | null;
   city?: string;
   country?: string;
+  durationSeconds?: number;
+  durationFormatted?: string;
 }
 
 export interface VisitorListItem {
@@ -2070,8 +2072,35 @@ export class AnalyticsService implements OnModuleInit {
         .slice(0, 3)
         .map(([p]) => p);
 
+      // Sort visitor views chronologically ascending to compute individual visit durations
+      const chronologicalViews = [...visitorViews].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      );
+
+      const viewDurationMap = new Map<string, number>();
+      for (let i = 0; i < chronologicalViews.length; i++) {
+        const currentView = chronologicalViews[i];
+        const currentMeta = currentView.metadata as any;
+        const currentActive = Number(currentMeta?.activeDurationSeconds);
+
+        let dur = 45;
+        if (currentActive && currentActive > 0) {
+          dur = currentActive;
+        } else if (i < chronologicalViews.length - 1) {
+          const nextView = chronologicalViews[i + 1];
+          const diffSec = Math.round(
+            (new Date(nextView.createdAt).getTime() - new Date(currentView.createdAt).getTime()) / 1000,
+          );
+          if (diffSec > 0 && diffSec <= 1800) {
+            dur = Math.max(diffSec, 15);
+          }
+        }
+        viewDurationMap.set(currentView.id, dur);
+      }
+
       const individualVisits: IndividualVisitItem[] = visitorViews.map((v) => {
         const meta = v.metadata as any;
+        const dur = viewDurationMap.get(v.id) || 45;
         return {
           id: v.id,
           path: v.path,
@@ -2081,6 +2110,8 @@ export class AnalyticsService implements OnModuleInit {
           userAgent: v.userAgent,
           city: meta?.city || city,
           country: meta?.country || country,
+          durationSeconds: dur,
+          durationFormatted: this.formatDurationArabic(dur),
         };
       });
 

@@ -144,6 +144,8 @@ export interface IndividualVisitItem {
   userAgent?: string | null;
   city?: string;
   country?: string;
+  durationSeconds?: number;
+  durationFormatted?: string;
 }
 
 export interface VisitorListItem {
