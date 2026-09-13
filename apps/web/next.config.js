@@ -57,11 +57,11 @@ const nextConfig = {
         key: 'Content-Security-Policy',
         value: [
           "default-src 'self'",
-          "script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com https://www.clarity.ms https://scripts.clarity.ms",
+          "script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com",
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
           "img-src 'self' data: blob: https: https://c.clarity.ms https://*.clarity.ms",
           "font-src 'self' data: https://fonts.gstatic.com",
-          "connect-src 'self' https://api.al-awal.online https://al-awal-cbe2188d9efa.herokuapp.com https://pub-e729d46cf5fd4798932ccae48f7361ef.r2.dev https://*.r2.dev https://www.clarity.ms https://*.clarity.ms",
+          "connect-src 'self' https://api.al-awal.online https://al-awal-cbe2188d9efa.herokuapp.com https://pub-e729d46cf5fd4798932ccae48f7361ef.r2.dev https://*.r2.dev https://www.clarity.ms https://*.clarity.ms https://ipwho.is https://static.cloudflareinsights.com https://cloudflareinsights.com",
           'frame-src \'self\' https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com',
           "media-src 'self' blob: https:",
           "object-src 'none'",
