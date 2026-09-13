@@ -1041,7 +1041,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 <Trophy className="w-8 h-8 text-amber-600" />
               </div>
               <div className="text-right">
-                <h3 className="text-lg font-extrabold text-amber-900">🎉 أحسنت! أتممت الدورة واختباراتها بالكامل!</h3>
+                <h3 className="text-lg font-extrabold text-amber-900">أحسنت! أتممت الدورة واختباراتها بالكامل!</h3>
                 <p className="text-sm text-amber-700/80 mt-0.5">
                   لقد أكملت جميع الدروس واجتزت كافة الاختبارات في دورة <span className="font-bold">{course.title}</span> بنجاح
                 </p>
@@ -1071,9 +1071,9 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
               <div className="text-right">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-base sm:text-lg font-extrabold text-indigo-950">
-                    📚 أتممت جميع الدروس! يتبقى عليك إتمام الاختبارات للحصول على الشهادة
+                    أتممت جميع الدروس! يتبقى عليك إتمام الاختبارات للحصول على الشهادة
                   </h3>
-                  <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                  <span className="text-xs px-2.5 py-0.5 rounded-md font-bold bg-amber-100 text-amber-800 border border-amber-300">
                     تم إنجاز {completedQuizzesCount} من {allQuizzes.length} اختبارات
                   </span>
                 </div>
@@ -1095,7 +1095,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
               className="z-10 flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-primary-600 hover:from-indigo-700 hover:to-primary-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap cursor-pointer"
             >
               <FileQuestion className="w-4 h-4" />
-              الانتقال للاختبارات والتقييم 📝
+              الانتقال للاختبارات والتقييم
             </button>
           </div>
         </div>
@@ -1118,11 +1118,11 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
               <span className="text-[11px] text-slate-500">{course.subject}</span>
               {isTeacherOrAdmin && (
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                  <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
                     وضع معاينة المعلم
                   </span>
                   {course.enforceSequentialLessons && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1">
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
                       <Lock className="w-2.5 h-2.5" />
                       ترتيب المنهج إلزامي
                     </span>
@@ -1335,7 +1335,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                     }`}
                   >
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>{isLessonCompleted ? 'تم إتمام الدرس بنجاح ✔' : 'إتمام هذا الدرس والمتابعة 🚀'}</span>
+                    <span>{isLessonCompleted ? 'تم إتمام الدرس بنجاح' : 'إتمام هذا الدرس والمتابعة'}</span>
                   </button>
                 </div>
               )}
@@ -1365,7 +1365,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
 
               <div className="flex items-center gap-2.5 flex-wrap">
                 {activeLesson?.isPreview && (
-                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 self-start sm:self-auto">
+                  <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 self-start sm:self-auto">
                     معاينة مجانية متاحة
                   </span>
                 )}
@@ -1428,7 +1428,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
               <Paperclip className="w-4 h-4" />
               <span>المرفقات والتحميلات</span>
               {lessonViewer?.attachments && lessonViewer.attachments.length > 0 && (
-                <span className="bg-primary-50 text-primary-700 px-1.5 py-0.2 rounded-full text-[10px] font-bold">
+                <span className="bg-primary-50 text-primary-700 px-1.5 py-0.2 rounded-md text-[10px] font-bold">
                   {lessonViewer.attachments.length}
                 </span>
               )}
@@ -1556,10 +1556,6 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
       {postVideoPrompt?.isOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-100 text-center relative overflow-hidden animate-in zoom-in-95">
-            {/* Background decorative gradient */}
-            <div className="absolute -top-16 -right-16 w-36 h-36 bg-amber-100/60 rounded-full blur-2xl pointer-events-none" />
-            <div className="absolute -bottom-16 -left-16 w-36 h-36 bg-primary-100/60 rounded-full blur-2xl pointer-events-none" />
-
             <div className="relative z-10">
               {/* Top badge / icon */}
               <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center mx-auto mb-4 shadow-sm">
@@ -1567,7 +1563,7 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
               </div>
 
               <h3 className="text-lg font-black text-slate-900 leading-tight">
-                أحسنت! أكملت مشاهدة شرح الدرس 👏
+                أحسنت! أكملت مشاهدة شرح الدرس
               </h3>
               <p className="text-xs text-slate-600 mt-2 font-medium">
                 {postVideoPrompt.isHomework
@@ -1583,15 +1579,15 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
                         {postVideoPrompt.isHomework ? 'واجب الدرس' : 'اختبار الدرس'}
                       </span>
                       {postVideoPrompt.assessment.isOptional ? (
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
                           اختياري
                         </span>
                       ) : (
-                        <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                        <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md">
                           إجباري للمتابعة
                         </span>
                       )}

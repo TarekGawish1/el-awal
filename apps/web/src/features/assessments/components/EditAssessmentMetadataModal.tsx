@@ -304,7 +304,7 @@ export function EditAssessmentMetadataModal({ isOpen, onClose, assessment }: Edi
                     : 'text-slate-600 hover:bg-slate-50'
                 }`}
               >
-                ⚠️ إجباري (مطلوب للتقدم)
+                إجباري (مطلوب للتقدم)
               </button>
               <button
                 type="button"
@@ -315,7 +315,7 @@ export function EditAssessmentMetadataModal({ isOpen, onClose, assessment }: Edi
                     : 'text-slate-600 hover:bg-slate-50'
                 }`}
               >
-                ✨ اختياري (يمكن تخطيه)
+                اختياري (يمكن تخطيه)
               </button>
             </div>
             <p className="text-slate-500 text-xs mt-2">

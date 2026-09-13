@@ -872,10 +872,10 @@ export function RecordPaymentModal({
                   <div className="flex items-center justify-between font-bold">
                     <span>
                       {isFullPayment
-                        ? '✅ سداد كامل للمبلغ'
+                        ? 'سداد كامل للمبلغ'
                         : isPartialPayment
-                        ? '⚡ سداد جزئي (دفعة مقدمة / قسط)'
-                        : 'ℹ️ تفاصيل الرسوم المستحقة'}
+                        ? 'سداد جزئي (دفعة مقدمة / قسط)'
+                        : 'تفاصيل الرسوم المستحقة'}
                     </span>
                     <span className="font-extrabold">
                       إجمالي الاشتراك: {currentExpectedAmount} ج.م

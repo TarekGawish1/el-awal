@@ -38,7 +38,7 @@ function showLogicalConflictToast(message: string) {
         dir="rtl"
       >
         <div className="flex items-start gap-3 flex-1 min-w-0">
-          <span className="text-xl shrink-0 mt-0.5">⚠️</span>
+          <AlertTriangle className="w-5 h-5 text-rose-300 shrink-0 mt-0.5" />
           <div className="flex-1 text-right">
             <p className="text-xs font-bold text-rose-100">تعارض في إعدادات التقييم</p>
             <p className="text-xs text-rose-200 mt-1 leading-relaxed">{message}</p>
@@ -1284,7 +1284,7 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                         : 'text-slate-600 hover:bg-slate-50'
                     }`}
                   >
-                    ⚠️ إجباري (مطلوب للتقدم)
+                    إجباري (مطلوب للتقدم)
                   </button>
                   <button
                     type="button"
@@ -1303,7 +1303,7 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
                         : 'text-slate-600 hover:bg-slate-50'
                     }`}
                   >
-                    ✨ اختياري (يمكن تخطيه)
+                    اختياري (يمكن تخطيه)
                   </button>
                 </div>
               </div>

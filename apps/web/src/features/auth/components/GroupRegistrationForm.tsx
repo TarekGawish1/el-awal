@@ -126,7 +126,7 @@ export function GroupRegistrationForm({ token }: { token: string }) {
           <CheckCircle2 className="h-11 w-11 text-emerald-600" />
         </div>
         <div className="space-y-1">
-          <h3 className="text-2xl font-extrabold text-neutral-900">تم التسجيل بنجاح! 🎉</h3>
+          <h3 className="text-2xl font-extrabold text-neutral-900">تم التسجيل بنجاح</h3>
           <p className="text-sm font-medium text-neutral-500">
             تم إنشاء حسابك وانضمامك للمجموعة، جاري تحويلك إلى لوحة التحكم...
           </p>

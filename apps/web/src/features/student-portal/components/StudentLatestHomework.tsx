@@ -109,13 +109,13 @@ export function StudentLatestHomework() {
 
           {assessment.dueDate && (
             <p className={`flex items-center gap-1.5 text-xs font-semibold ${isExpired ? 'text-rose-600' : 'text-amber-700'}`}>
-              <Clock className="w-3.5 h-3.5" />آخر موعد للتسليم: {formatArabicDate(assessment.dueDate)} — الساعة {formatArabicTime(assessment.dueDate)}
+              <Clock className="w-3.5 h-3.5" />آخر موعد للتسليم: {formatArabicDate(assessment.dueDate)} (الساعة {formatArabicTime(assessment.dueDate)})
             </p>
           )}
 
           {safeSubmission ? (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
-              <Badge variant="success" className="mb-2">✅ تم تسليم الحل</Badge>
+              <Badge variant="success" className="mb-2">تم تسليم الحل</Badge>
               <p className="text-xs text-emerald-800 leading-6">
                 {safeSubmission.submittedAt && `تم الرفع بتاريخ ${formatDateTime(safeSubmission.submittedAt)}`}
                 {safeSubmission.attachmentUrl ? ` • ${safeSubmission.attachmentUrl.split('/').pop()}` : ''}
@@ -127,12 +127,12 @@ export function StudentLatestHomework() {
             </div>
           ) : isExpired ? (
             <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-4">
-              <Badge variant="error" className="mb-2">⏰ انتهى موعد التسليم</Badge>
+              <Badge variant="error" className="mb-2">انتهى موعد التسليم</Badge>
               <p className="text-xs text-rose-700 font-medium">انتهت المدة المحددة لتسليم هذا الواجب. يرجى مراجعة المعلم.</p>
             </div>
           ) : (
             <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
-              <Badge variant="warning" className="mb-2">⚠️ بانتظار تسليم الحل</Badge>
+              <Badge variant="warning" className="mb-2">بانتظار تسليم الحل</Badge>
               <div className="flex flex-wrap items-center gap-2">
                 <Link href={`/student/homework?id=${assessment.id}`}>
                   <Button type="button" className="bg-primary-600 hover:bg-primary-700 font-bold"><Edit3 className="h-4 w-4" />حل واجب الحصة الآن</Button>

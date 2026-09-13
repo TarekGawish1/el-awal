@@ -266,7 +266,7 @@ export function SessionDetailsModal({
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
                     <span className="font-extrabold text-xs text-rose-900">
-                      ⚠️ تم إلغاء هذه الحصة لهذا اليوم
+                      تم إلغاء هذه الحصة لهذا اليوم
                     </span>
                   </div>
                   {session.cancellationReason && (

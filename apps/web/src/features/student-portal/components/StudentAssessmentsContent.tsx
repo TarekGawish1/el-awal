@@ -769,7 +769,7 @@ function AssessmentWrapper({
         </button>
 
         {timeLeft !== null && !mySubmission && !isPastDue && (
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold font-mono transition-all shadow-sm ${
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold font-mono transition-all shadow-sm ${
             timeLeft <= 120
               ? 'bg-rose-500 text-white animate-pulse ring-4 ring-rose-200'
               : timeLeft <= 300
@@ -784,7 +784,6 @@ function AssessmentWrapper({
 
       {/* Overview Card */}
       <Card className="border-none shadow-sm shadow-slate-200/50 bg-gradient-to-br from-white to-slate-50/20 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-48 h-48 bg-primary-50 rounded-full blur-3xl opacity-50 -mr-10 -mt-10 pointer-events-none"></div>
         <CardContent className="p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative z-10">
           <div className="space-y-2">
             <div className="flex items-center gap-2">

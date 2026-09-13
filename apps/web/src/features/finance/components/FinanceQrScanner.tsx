@@ -180,14 +180,14 @@ export function FinanceQrScanner({
               isDuplicate: true,
               message:
                 paymentType === 'BOOKLET'
-                  ? `⚠️ تم سداد قيمة المذكرة لهذا الطالب مسبقاً (${amount} ج.م).`
-                  : `⚠️ تم سداد مصروفات شهر ${selectedPeriodMonth} لهذا الطالب مسبقاً (${amount} ج.م).`,
+                  ? `تم سداد قيمة المذكرة لهذا الطالب مسبقاً (${amount} ج.م).`
+                  : `تم سداد مصروفات شهر ${selectedPeriodMonth} لهذا الطالب مسبقاً (${amount} ج.م).`,
               studentName,
               bookletTitle,
               groupName: data.group?.name,
               amount,
             });
-            toast('تم السداد لهذا الطالب مسبقاً', { icon: '⚠️' });
+            toast.error('تم السداد لهذا الطالب مسبقاً');
           } else {
             playBeep('success');
             setFlashType('success');

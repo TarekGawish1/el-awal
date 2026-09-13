@@ -527,7 +527,7 @@ function CredentialsScreen({
           <CheckCircle2 className="h-11 w-11 text-emerald-600" />
         </div>
         <div className="space-y-1">
-          <h3 className="text-2xl font-extrabold text-neutral-900">تم إنشاء الحساب بنجاح! 🎉</h3>
+          <h3 className="text-2xl font-extrabold text-neutral-900">تم إنشاء الحساب بنجاح</h3>
           <p className="text-sm font-medium text-neutral-500">
             احفظ بيانات الدخول الخاصة بك للدخول إلى حسابك في أي وقت
           </p>

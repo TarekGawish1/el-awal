@@ -15,6 +15,7 @@ import {
   Sparkles,
   XCircle,
   RefreshCcw,
+  GraduationCap,
 } from 'lucide-react';
 import { AssessmentSummary, CourseModule, CourseLesson } from '@/features/courses/types/courses.types';
 import { useAssessment } from '@/features/assessments/hooks/use-assessments';
@@ -191,7 +192,7 @@ function QuizCard({
                   <div className="flex items-center gap-2 mb-1 justify-end sm:justify-start">
                     <Sparkles className="w-4 h-4 text-yellow-300" />
                     <span className="text-[11px] font-bold text-emerald-100 uppercase tracking-wide">
-                      {hasThreshold ? 'مبروك! لقد اجتزت الاختبار بنجاح 🎉' : 'تم تصحيح اختبارك ✅'}
+                      {hasThreshold ? 'مبروك! لقد اجتزت الاختبار بنجاح' : 'تم تصحيح اختبارك'}
                     </span>
                   </div>
                   <h3 className="text-lg font-black leading-tight">
@@ -204,7 +205,7 @@ function QuizCard({
                     </span>{' '}
                     من{' '}
                     <span className="font-bold text-white font-mono">{totalScore}</span>{' '}
-                    درجة{hasThreshold ? ` — فوق درجة النجاح (${passingScore} د) ✨` : ' — عمل ممتاز ✨'}
+                    درجة{hasThreshold ? ` (فوق درجة النجاح: ${passingScore} درجة)` : ' (نتيجة ممتازة)'}
                   </p>
                 </>
               ) : (
@@ -248,7 +249,7 @@ function QuizCard({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-black text-slate-900 flex items-center gap-1.5">
-                  <span>🎓</span>
+                  <GraduationCap className="w-4 h-4 text-primary-600 shrink-0" />
                   <span>
                     درجتك في الاختبار: {scoreObtained} / {totalScore} ({percentage}%)
                   </span>
@@ -256,7 +257,7 @@ function QuizCard({
                 <p className="text-[11px] text-slate-500 mt-0.5">{quiz.title}</p>
               </div>
               <span
-                className={`self-start sm:self-auto px-3 py-1 rounded-full text-[11px] font-bold border ${
+                className={`self-start sm:self-auto px-3 py-1 rounded-md text-[11px] font-bold border ${
                   percentage >= 50
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                     : 'bg-rose-50 text-rose-700 border-rose-200'
@@ -321,12 +322,12 @@ function QuizCard({
               <Hourglass className="w-6 h-6" />
             </div>
             <div>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">
+              <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 text-blue-800">
                 تم تسليم الاختبار
               </span>
               <h3 className="text-sm font-bold text-slate-900 mt-1">{quiz.title}</h3>
               <p className="text-xs text-blue-600 font-semibold mt-0.5">
-                إجاباتك قيد التصحيح والمراجعة من المعلم — ستظهر درجتك هنا فور الاعتماد
+                إجاباتك قيد التصحيح والمراجعة من المعلم، وستظهر درجتك هنا فور الاعتماد
               </p>
             </div>
           </div>
@@ -353,19 +354,19 @@ function QuizCard({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+              <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-800">
                 اختبار الدرس السريع
               </span>
               {quiz.isOptional ? (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                   اختياري (يمكن تجاوزه)
                 </span>
               ) : requirePassingScore ? (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                  🎯 يشترط النجاح للمتابعة
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                  يشترط النجاح للمتابعة
                 </span>
               ) : (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
                   إجباري للمتابعة
                 </span>
               )}
@@ -512,7 +513,7 @@ function QuizCard({
               }`}
             >
               {isGraded && passed
-                ? '✨ مبروك! تجاوزت الاختبار'
+                ? 'تم اجتياز الاختبار بنجاح'
                 : isGraded && failed
                 ? 'لم تتجاوز درجة النجاح'
                 : hasSubmitted

@@ -134,10 +134,8 @@ export function StudentDashboard() {
       )}
       {/* Header Profile Section */}
       <div className="bg-gradient-to-r from-primary-600 to-primary-800 rounded-2xl p-6 md:p-8 text-white shadow-lg flex flex-col md:flex-row items-center md:items-start justify-between gap-6 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
-        
         <div className="flex-1 space-y-2 z-10 text-center md:text-right">
-          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">أهلاً بك، {studentName} 👋</h1>
+          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">أهلاً بك، {studentName}</h1>
           <p className="text-primary-100 text-sm md:text-base opacity-90 max-w-lg">
             {profile?.gradeLevel} • الكود: {profile?.studentCode}
           </p>
@@ -328,7 +326,7 @@ export function StudentDashboard() {
                     <div className="px-4 pb-3">
                       <div className="flex items-center justify-between text-[11px] mb-1">
                         <span className={course.progressPercentage >= 100 ? 'text-emerald-700 font-bold flex items-center gap-1' : 'text-slate-500 font-medium'}>
-                          {course.progressPercentage >= 100 ? '🎉 أتممت الدورة (100%)' : `التقدم: ${course.progressPercentage || 0}%`}
+                          {course.progressPercentage >= 100 ? 'أتممت الدورة (100%)' : `التقدم: ${course.progressPercentage || 0}%`}
                         </span>
                         {course.totalLessons > 0 && (
                           <span className="text-slate-400 text-[10px]">
@@ -672,7 +670,7 @@ function OnlineCoursesCatalog({
                         {isCompleted ? (
                           <span className="text-emerald-800 flex items-center gap-1.5 font-extrabold text-xs">
                             <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                            <span>أتممت هذه الدورة بنجاح 🎉</span>
+                            <span>أتممت هذه الدورة بنجاح</span>
                           </span>
                         ) : (
                           <span className="text-slate-700 flex items-center gap-1.5 font-semibold text-xs">
@@ -833,7 +831,7 @@ function OnlineCoursesCatalog({
               <button
                 type="button"
                 onClick={() => setPreviewVideoModal(null)}
-                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>

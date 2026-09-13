@@ -22,6 +22,8 @@ import {
   ShieldCheck,
   Info,
   Edit,
+  AlertTriangle,
+  AlertCircle,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { CourseLesson, LessonAttachment } from "../types/courses.types";
@@ -57,7 +59,7 @@ function showLogicalConflictToast(message: string) {
         dir="rtl"
       >
         <div className="flex items-start gap-3 flex-1 min-w-0">
-          <span className="text-xl shrink-0 mt-0.5">⚠️</span>
+          <AlertTriangle className="w-5 h-5 text-rose-300 shrink-0 mt-0.5" />
           <div className="flex-1 text-right">
             <p className="text-xs font-bold text-rose-100">تعارض في إعدادات التقييم</p>
             <p className="text-xs text-rose-200 mt-1 leading-relaxed">{message}</p>
@@ -1286,7 +1288,7 @@ export function LessonEditorModal({
                     </div>
 
                     <div className="bg-blue-50/80 border border-blue-100/90 rounded-xl p-2.5 text-center text-xs text-blue-800 flex items-center justify-center gap-2">
-                      <span className="text-base leading-none">💡</span>
+                      <Info className="w-4 h-4 text-blue-600 shrink-0" />
                       <span className="font-medium">
                         يستمر رفع الفيديو في الخلفية بأمان — يمكنك إغلاق نافذة الدرس أو متابعة العمل وإضافة الاختبارات دون انقطاع.
                       </span>
@@ -1685,7 +1687,7 @@ export function LessonEditorModal({
                               : "border-purple-100 bg-white/60 hover:bg-white"
                           }`}
                         >
-                          <span className="text-base leading-none">⚠️</span>
+                          <AlertCircle className="w-4 h-4 text-purple-600 shrink-0" />
                           <span>
                             <span className="block text-xs font-bold text-slate-800">
                               إجباري (مطلوب)
@@ -1712,7 +1714,7 @@ export function LessonEditorModal({
                               : "border-purple-100 bg-white/60 hover:bg-white"
                           }`}
                         >
-                          <span className="text-base leading-none">✨</span>
+                          <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
                           <span>
                             <span className="block text-xs font-bold text-slate-800">
                               اختياري (يمكن تجاوزه)
@@ -1940,7 +1942,7 @@ export function LessonEditorModal({
                               : "border-blue-100 bg-white/60 hover:bg-white"
                           }`}
                         >
-                          <span className="text-base leading-none">⚠️</span>
+                          <AlertCircle className="w-4 h-4 text-blue-600 shrink-0" />
                           <span>
                             <span className="block text-xs font-bold text-slate-800">
                               واجب إجباري
@@ -1967,7 +1969,7 @@ export function LessonEditorModal({
                               : "border-blue-100 bg-white/60 hover:bg-white"
                           }`}
                         >
-                          <span className="text-base leading-none">✨</span>
+                          <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
                           <span>
                             <span className="block text-xs font-bold text-slate-800">
                               واجب اختياري (تطبيقي)

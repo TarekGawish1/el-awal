@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { WifiOff, ArrowRight, ShieldAlert } from 'lucide-react';
+import { WifiOff, ArrowRight, ShieldAlert, Lightbulb } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
 interface FeatureRequiresOnlineCardProps {
@@ -39,7 +39,10 @@ export function FeatureRequiresOnlineCard({
       </div>
 
       <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-100 text-xs text-neutral-600 text-start space-y-1.5">
-        <p className="font-bold text-neutral-800">💡 ماذا يمكنك فعله بدون إنترنت؟</p>
+        <p className="font-bold text-neutral-800 flex items-center gap-1.5">
+          <Lightbulb className="w-4 h-4 text-amber-500 shrink-0" />
+          <span>ماذا يمكنك فعله بدون إنترنت؟</span>
+        </p>
         <ul className="list-disc list-inside space-y-1 text-neutral-600 leading-normal">
           <li>رصد حضور الطلاب بالماسح الضوئي QR أو يدوياً.</li>
           <li>تسجيل طلاب جدد وإنشاء مجموعات دراسية جديدة.</li>

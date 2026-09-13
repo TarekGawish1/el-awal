@@ -46,7 +46,7 @@ export function DashboardHeader({
           </span>
         </div>
         <h1 className="text-2xl md:text-3xl font-bold text-neutral-900 tracking-tight">
-          صباح الخير يا {formattedTeacherName} 👋
+          صباح الخير يا {formattedTeacherName}
         </h1>
         <p className="text-sm text-neutral-600 mt-1 font-medium">
           {isMounted ? formatArabicDate(new Date()) : ''} • عندك {todaySessionsCount} حصص النهارده

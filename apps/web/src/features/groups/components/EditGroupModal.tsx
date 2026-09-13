@@ -503,8 +503,8 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
                       </div>
                       {index === 1 && slot1Suggested && (
                         <div className="flex items-center gap-1.5 pt-1">
-                          <span className="text-[10px] text-primary-600 bg-primary-50 border border-primary-100 px-2 py-0.5 rounded-full font-semibold animate-pulse">
-                            ✨ تم اقتراح هذا الموعد تلقائياً — يمكنك تعديله
+                          <span className="text-[11px] text-primary-700 bg-primary-50 border border-primary-200 px-2.5 py-0.5 rounded-md font-medium">
+                            اقتراح تلقائي: يمكنك تعديل الموعد حسب جدولك
                           </span>
                         </div>
                       )}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Clock, FileText, Users, Plus } from 'lucide-react';
+import { Clock, FileText, Users, Plus, AlertTriangle } from 'lucide-react';
 import { LessonSessionItem } from '../types/schedules.types';
 import {
   formatArabicTime12H,
@@ -201,8 +201,8 @@ export function MonthlyCalendarView({
                           (ملغاة)
                         </span>
                       ) : layoutInfo?.hasConflict ? (
-                        <span className="mr-1 text-[9px] text-amber-800 font-black whitespace-nowrap">
-                          ⚠️
+                        <span className="mr-1 text-[9px] text-amber-800 font-black whitespace-nowrap flex items-center" title="تعارض في الموعد">
+                          <AlertTriangle className="w-2.5 h-2.5 text-amber-800" />
                         </span>
                       ) : null}
                     </div>

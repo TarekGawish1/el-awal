@@ -338,7 +338,7 @@ export function AcademicPeriodSwitcher() {
                       <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                       <div className="text-xs leading-snug">
                         <span className="font-black text-amber-950 block mb-0.5">
-                          ⚠️ تنبيه هام لكامل المنصة:
+                          تنبيه هام لكامل المنصة:
                         </span>
                         <span className="text-[11px] text-amber-800 font-medium">
                           تغيير العام أو الفصل الدراسي سيؤثر على كامل النظام وجميع المعلمين والطلاب في تصفية المجموعات، الحصص المجدولة، الواجبات، والتقارير المالية.

@@ -641,7 +641,7 @@ function CourseEnrollmentsView() {
               <CheckCircle className="w-10 h-10 text-emerald-500/80 mb-1" />
               <p className="text-sm font-bold text-slate-700">
                 {pendingRequests.length === 0
-                  ? 'لا توجد طلبات اشتراك معلقة حالياً 🎉'
+                  ? 'لا توجد طلبات اشتراك معلقة حالياً'
                   : 'لا توجد طلبات مطابقة لخيارات الفلترة أو البحث'}
               </p>
               <p className="text-xs text-slate-400 max-w-sm">

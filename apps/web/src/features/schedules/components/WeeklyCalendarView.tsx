@@ -311,10 +311,10 @@ export function WeeklyCalendarView({
                             )}
                             {layoutInfo.hasConflict && (
                               <span
-                                className="text-[7.5px] font-black bg-amber-500 text-slate-950 px-1 py-0.2 rounded-full shrink-0"
+                                className="bg-amber-500 text-slate-950 p-0.5 rounded-md shrink-0 flex items-center justify-center"
                                 title="يوجد تعارض زمني مع حصة أخرى"
                               >
-                                ⚠️
+                                <AlertTriangle className="w-2.5 h-2.5" />
                               </span>
                             )}
                           </div>
@@ -344,17 +344,18 @@ export function WeeklyCalendarView({
                           <div className="border-b border-slate-100 pb-2">
                             <div className="flex items-center justify-between gap-2 mb-1.5">
                               {isCancelled ? (
-                                <span className="text-[10px] font-extrabold text-rose-800 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200 flex items-center gap-1">
+                                <span className="text-[10px] font-extrabold text-rose-800 bg-rose-50 px-2.5 py-0.5 rounded-md border border-rose-200 flex items-center gap-1">
                                   <span className="w-2 h-2 rounded-full bg-rose-600" />
-                                  ⚠️ الحصة ملغاة لهذا اليوم
+                                  الحصة ملغاة لهذا اليوم
                                 </span>
                               ) : layoutInfo.hasConflict ? (
-                                <span className="text-[10px] font-extrabold text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300 flex items-center gap-1">
-                                  ⚠️ تعارض زمني في الموعد
+                                <span className="text-[10px] font-extrabold text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-md border border-amber-300 flex items-center gap-1">
+                                  <AlertTriangle className="w-3 h-3 text-amber-700 shrink-0" />
+                                  تعارض زمني في الموعد
                                 </span>
                               ) : (
-                                <span className="text-[10px] font-extrabold text-primary-700 bg-primary-50 px-2.5 py-0.5 rounded-full border border-primary-100">
-                                  📖 تفاصيل الحصة المجدولة
+                                <span className="text-[10px] font-extrabold text-primary-700 bg-primary-50 px-2.5 py-0.5 rounded-md border border-primary-100">
+                                  تفاصيل الحصة المجدولة
                                 </span>
                               )}
                               {session.group?.gradeLevel && (

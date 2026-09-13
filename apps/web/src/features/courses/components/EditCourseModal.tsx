@@ -24,6 +24,7 @@ import {
   Loader2,
   Gauge,
   CheckCircle,
+  Info,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUpdateCourse } from '../hooks/useCourses';
@@ -662,7 +663,7 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
                 </div>
 
                 <div className="bg-blue-50/80 border border-blue-100/90 rounded-xl p-2.5 text-center text-xs text-blue-800 flex items-center justify-center gap-2">
-                  <span className="text-base leading-none">💡</span>
+                  <Info className="w-4 h-4 text-blue-600 shrink-0" />
                   <span className="font-medium">
                     يستمر رفع الفيديو في الخلفية بأمان — يمكنك الضغط على "حفظ التغييرات" وسيكتمل الرفع والربط تلقائياً.
                   </span>

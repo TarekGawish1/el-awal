@@ -45,7 +45,7 @@ export function StudentRecentAssessments() {
               <Link key={assessment.id} href={`/student/assessments?id=${assessment.id}`} className="block bg-slate-50 rounded-xl p-4 hover:bg-slate-100 transition-colors border border-slate-100">
                 <div className="flex justify-between items-start gap-2">
                   <div className="flex-1 min-w-0">
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 mb-1.5">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 mb-1.5">
                       <Users className="w-3 h-3" />
                       {assessment.group?.name || assessment.targetGroups?.[0]?.name || 'مجموعة السنتر'}
                     </span>

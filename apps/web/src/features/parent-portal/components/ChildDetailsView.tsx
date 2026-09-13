@@ -393,7 +393,7 @@ export function ChildDetailsView({ studentId }: ChildDetailsViewProps) {
                       {isSubmitted ? (
                         <div className="text-end">
                           <Badge variant="success" className="px-2.5 py-1 text-xs font-bold bg-emerald-100 text-emerald-800 border-emerald-200">
-                            ✅ تم تسليم الواجب
+                            تم تسليم الواجب
                           </Badge>
                           {isGraded && submission.scoreObtained !== null && (
                             <p className="text-[11px] font-black text-emerald-700 mt-1">
@@ -403,11 +403,11 @@ export function ChildDetailsView({ studentId }: ChildDetailsViewProps) {
                         </div>
                       ) : isOverdue ? (
                         <Badge variant="error" className="px-2.5 py-1 text-xs font-bold bg-rose-100 text-rose-800 border-rose-200">
-                          ⚠️ فات موعد التسليم
+                          فات موعد التسليم
                         </Badge>
                       ) : (
                         <Badge variant="warning" className="px-2.5 py-1 text-xs font-bold bg-amber-100 text-amber-800 border-amber-200">
-                          📝 مطلوب حله وتسليمه
+                          مطلوب حله وتسليمه
                         </Badge>
                       )}
                     </div>
