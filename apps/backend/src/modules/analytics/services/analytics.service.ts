@@ -149,34 +149,9 @@ export class AnalyticsService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    try {
-      // Correct legacy records that were misattributed to Cairo
-      await this.prisma.userSession.updateMany({
-        where: {
-          city: 'القاهرة',
-          OR: [
-            { ipAddress: { contains: '197.63.' } },
-            { ipAddress: { contains: '127.0.0.1' } },
-            { ipAddress: null },
-          ],
-        },
-        data: {
-          city: 'دمياط',
-        },
-      });
-
-      await this.prisma.landingVisit.updateMany({
-        where: {
-          city: 'القاهرة',
-        },
-        data: {
-          city: 'دمياط',
-        },
-      });
-    } catch {
-      // Non-blocking
-    }
+    // Non-blocking initialization
   }
+
 
   /**
    * Generates a privacy-compliant SHA-256 visitor hash.
@@ -592,7 +567,16 @@ export class AnalyticsService implements OnModuleInit {
       });
 
       for (const lv of landingVisits) {
-        const key = groupBy === 'country' ? lv.country || 'مصر' : lv.city || 'غير محدد';
+        let city = lv.city;
+        let country = lv.country || 'مصر';
+        if (country === 'SG' || country === 'سنغافورة') {
+          country = 'سنغافورة';
+          if (!city || city === 'عام' || city === 'خارج مصر') city = 'سنغافورة';
+        } else if (city === 'عام' || city === 'خارج مصر') {
+          city = country;
+        }
+
+        const key = groupBy === 'country' ? country : (city || 'غير محدد');
         if (!locationMap.has(key)) {
           locationMap.set(key, { count: 0, hashes: new Set<string>() });
         }
@@ -636,10 +620,17 @@ export class AnalyticsService implements OnModuleInit {
       // Aggregate platform pageviews with embedded geo
       for (const pv of platformPageViews || []) {
         const meta = pv.metadata as any;
-        const city = meta?.city;
-        const country = meta?.country;
+        let city = meta?.city;
+        let country = meta?.country;
+        if (country === 'SG' || country === 'سنغافورة') {
+          country = 'سنغافورة';
+          if (!city || city === 'عام' || city === 'خارج مصر') city = 'سنغافورة';
+        } else if (city === 'عام' || city === 'خارج مصر') {
+          city = country || 'خارج مصر';
+        }
+
         if (city || country) {
-          const key = groupBy === 'country' ? country || 'مصر' : city || 'غير محدد';
+          const key = groupBy === 'country' ? (country || 'مصر') : (city || 'غير محدد');
           if (!locationMap.has(key)) {
             locationMap.set(key, { count: 0, hashes: new Set<string>() });
           }
@@ -651,7 +642,16 @@ export class AnalyticsService implements OnModuleInit {
 
       // Aggregate user sessions
       for (const us of userSessions || []) {
-        const key = groupBy === 'country' ? us.country || 'مصر' : us.city || 'غير محدد';
+        let city = us.city;
+        let country = us.country || 'مصر';
+        if (country === 'SG' || country === 'سنغافورة') {
+          country = 'سنغافورة';
+          if (!city || city === 'عام' || city === 'خارج مصر') city = 'سنغافورة';
+        } else if (city === 'عام' || city === 'خارج مصر') {
+          city = country;
+        }
+
+        const key = groupBy === 'country' ? country : (city || 'غير محدد');
         if (!locationMap.has(key)) {
           locationMap.set(key, { count: 0, hashes: new Set<string>() });
         }
@@ -689,8 +689,11 @@ export class AnalyticsService implements OnModuleInit {
 
     const sorted = Array.from(locationMap.entries())
       .map(([name, stat]) => {
-        // Normalize legacy "عام" entries and raw ISO codes (e.g. "SG") stored in DB
-        let normalizedName = name === 'عام' ? 'خارج مصر' : name;
+        // Normalize legacy entries and raw ISO codes (e.g. "SG") stored in DB
+        let normalizedName = name;
+        if (normalizedName === 'عام' || normalizedName === 'خارج مصر') {
+          normalizedName = 'سنغافورة';
+        }
         // If the name looks like a raw 2-letter ISO code, translate it
         if (/^[A-Z]{2}$/.test(normalizedName) && LEGACY_COUNTRY_CODES[normalizedName]) {
           normalizedName = LEGACY_COUNTRY_CODES[normalizedName];
@@ -702,6 +705,7 @@ export class AnalyticsService implements OnModuleInit {
           percentage: totalVisits > 0 ? Math.round((stat.count / totalVisits) * 100) : 0,
         };
       })
+
       // Merge entries with the same name (e.g., old "عام" merged with new "خارج مصر")
       .reduce(
         (acc, item) => {

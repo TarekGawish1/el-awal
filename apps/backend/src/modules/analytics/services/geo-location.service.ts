@@ -198,14 +198,74 @@ export class GeoLocationService {
     'new valley': 'الوادي الجديد',
     'al wadi al jadid': 'الوادي الجديد',
 
-    // Other Arab Metros
+    // Other Arab & Gulf Metros
     riyadh: 'الرياض',
     jeddah: 'جدة',
+    mecca: 'مكة المكرمة',
+    medina: 'المدينة المنورة',
     dammam: 'الدمام',
+    khobar: 'الخبر',
     dubai: 'دبي',
     'abu dhabi': 'أبوظبي',
-    kuwait: 'الكويت',
+    sharjah: 'الشارقة',
+    ajman: 'عجمان',
+    kuwait: 'مدينة الكويت',
+    'kuwait city': 'مدينة الكويت',
+    doha: 'الدوحة',
+    manama: 'المنامة',
+    muscat: 'مسقط',
+    amman: 'عمّان',
+    baghdad: 'بغداد',
+    erbil: 'أربيل',
+    basra: 'البصرة',
+    beirut: 'بيروت',
+    damascus: 'دمشق',
+    tripoli: 'طرابلس',
+    tunis: 'تونس',
+    algiers: 'الجزائر',
+    casablanca: 'الدار البيضاء',
+    rabat: 'الرباط',
+    khartoum: 'الخرطوم',
+    sanaa: 'صنعاء',
+    gaza: 'غزة',
+    jerusalem: 'القدس',
+
+    // Singapore & Global Tech Metros
+    singapore: 'سنغافورة',
+    sg: 'سنغافورة',
+    london: 'لندن',
+    paris: 'باريس',
+    berlin: 'برلين',
+    frankfurt: 'فرانكفورت',
+    rome: 'روما',
+    milan: 'ميلانو',
+    madrid: 'مدريد',
+    barcelona: 'برشلونة',
+    amsterdam: 'أمستردام',
+    brussels: 'بروكسل',
+    vienna: 'فيينا',
+    zurich: 'زيورخ',
+    geneva: 'جنيف',
+    stockholm: 'ستوكهولم',
+    oslo: 'أوسلو',
+    copenhagen: 'كوبنهاغن',
+    istanbul: 'إسطنبول',
+    moscow: 'موسكو',
+    'new york': 'نيويورك',
+    'los angeles': 'لوس أنجلوس',
+    chicago: 'شيكاغو',
+    houston: 'هيوستن',
+    'san francisco': 'سان فرانسيسكو',
+    washington: 'واشنطن',
+    toronto: 'تورونتو',
+    sydney: 'سيدني',
+    melbourne: 'ملبورن',
+    tokyo: 'طوكيو',
+    seoul: 'سيول',
+    beijing: 'بكين',
+    'hong kong': 'هونغ كونغ',
   };
+
 
   private readonly COUNTRY_ARABIC_NAMES: Record<string, string> = {
     // Arab World
@@ -344,7 +404,16 @@ export class GeoLocationService {
 
     if (cfCountry && cfCountry !== 'XX' && cfCountry !== 'T1') {
       const country = this.COUNTRY_ARABIC_NAMES[cfCountry] || cfCountry;
-      const finalCity = resolvedCity || (cfCountry === 'EG' ? 'غير محدد' : 'خارج مصر');
+      let finalCity = resolvedCity;
+      if (!finalCity) {
+        if (cfCountry === 'EG') {
+          finalCity = 'غير محدد';
+        } else if (cfCountry === 'SG') {
+          finalCity = 'سنغافورة';
+        } else {
+          finalCity = cityHeader || country;
+        }
+      }
       return { country, city: finalCity, countryCode: cfCountry };
     }
 
@@ -365,13 +434,22 @@ export class GeoLocationService {
 
     // 6. MaxMind GeoIP Offline Lookup
     try {
-      const geo = geoip.lookup(cleanIp);
+      const geo = geoip ? geoip.lookup(cleanIp) : null;
       if (geo && geo.country) {
         const countryCode = geo.country.toUpperCase();
         const country = this.COUNTRY_ARABIC_NAMES[countryCode] || countryCode;
         const regionMatch = geo.region ? this.EGYPT_GOVERNORATE_CODES[geo.region.toLowerCase()] : '';
         const cityMatch = geo.city ? this.localizeCity(geo.city) : '';
-        const detectedCity = cityMatch || regionMatch || (countryCode === 'EG' ? 'غير محدد' : 'خارج مصر');
+        let detectedCity = cityMatch || regionMatch;
+        if (!detectedCity) {
+          if (countryCode === 'EG') {
+            detectedCity = 'غير محدد';
+          } else if (countryCode === 'SG') {
+            detectedCity = 'سنغافورة';
+          } else {
+            detectedCity = (geo.city && this.localizeCity(geo.city)) || country;
+          }
+        }
 
         const result: ResolvedGeoLocation = {
           country,
@@ -454,7 +532,18 @@ export class GeoLocationService {
           const regionCity = this.EGYPT_GOVERNORATE_CODES[regionCode] || '';
           const cityFromCity = this.localizeCity(data.city);
           const cityFromRegion = this.localizeCity(data.regionName);
-          const city = cityFromCity || cityFromRegion || regionCity || (data.countryCode === 'EG' ? 'غير محدد' : 'خارج مصر');
+          let city = cityFromCity || cityFromRegion || regionCity;
+
+          if (!city) {
+            if (data.countryCode === 'EG') {
+              city = 'غير محدد';
+            } else if (data.countryCode === 'SG') {
+              city = 'سنغافورة';
+            } else {
+              city = (data.city && this.localizeCity(data.city)) || data.regionName || country;
+            }
+          }
+
 
           const resolved: ResolvedGeoLocation = {
             country,
