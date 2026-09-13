@@ -107,6 +107,30 @@ export class CoursesService {
   }
 
   /**
+   * Helper to dynamically sign Bunny Stream course preview embed URLs when token auth is active.
+   */
+  signPreviewVideoUrl(rawUrl?: string | null): string | null {
+    if (!rawUrl) return null;
+    const match = rawUrl.match(/iframe\.mediadelivery\.net\/embed\/(\d+)\/([a-f0-9\-]{36})/i);
+    if (!match) return rawUrl;
+
+    const tokenSecurityKey =
+      process.env.BUNNY_STREAM_TOKEN_KEY ||
+      (typeof this.bunnyVideoService?.getTokenSecurityKey === 'function'
+        ? this.bunnyVideoService.getTokenSecurityKey()
+        : '') ||
+      '';
+    if (!tokenSecurityKey) {
+      return rawUrl;
+    }
+
+    const libraryId = match[1];
+    const videoId = match[2];
+    const ticket = generateBunnyEmbedTicket(libraryId, videoId, tokenSecurityKey, 86400);
+    return ticket.embedUrl;
+  }
+
+  /**
    * Creates a new course scoped to the instructor.
    */
   async createCourse(teacherId: string, dto: CreateCourseDto) {

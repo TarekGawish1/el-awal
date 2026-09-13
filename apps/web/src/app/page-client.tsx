@@ -2150,8 +2150,8 @@ function StageCertificateRow({ certificates }: { certificates: any[] }) {
           </div>
         </div>
         {/* Transparent fading sides — softens the hard cut-off at both edges */}
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-6 sm:w-10 bg-gradient-to-r from-slate-50 to-transparent z-10" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-6 sm:w-10 bg-gradient-to-l from-slate-50 to-transparent z-10" />
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-4 sm:w-6 bg-gradient-to-r from-slate-50 to-transparent z-10" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-4 sm:w-6 bg-gradient-to-l from-slate-50 to-transparent z-10" />
       </div>
     </div>
   );
@@ -3197,7 +3197,7 @@ function FooterSection() {
             <span>•</span>
             <div>
               تم التطوير بواسطة شركة{" "}
-              <span className="font-bold text-white tracking-wider">TAD X</span>
+              <span className="font-bold text-white tracking-wider">TADX</span>
             </div>
           </div>
         </div>
