@@ -2057,99 +2057,50 @@ function CertificateCard({ cert, index }: { cert: any; index: number }) {
 }
 
 function StageCertificateRow({ certificates }: { certificates: any[] }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const staticMeasureRef = useRef<HTMLDivElement>(null);
-  const [shouldScroll, setShouldScroll] = useState(false);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    const content = staticMeasureRef.current;
-    if (!container || !content || certificates.length === 0) return;
-
-    const checkOverflow = () => {
-      const containerWidth = container.clientWidth;
-      const contentWidth = content.scrollWidth;
-      if (containerWidth === 0 || contentWidth === 0) return;
-      setShouldScroll(contentWidth > containerWidth);
-    };
-
-    checkOverflow();
-    const ro =
-      typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(checkOverflow)
-        : null;
-    ro?.observe(container);
-    ro?.observe(content);
-    window.addEventListener("resize", checkOverflow);
-
-    return () => {
-      ro?.disconnect();
-      window.removeEventListener("resize", checkOverflow);
-    };
-  }, [certificates]);
-
   if (!certificates || certificates.length === 0) return null;
 
+  // Always marquee — on desktop the cards used to fit inside the wide
+  // container so `shouldScroll` stayed false (static row), while on phones
+  // the same cards overflowed and scrolled. Duplicating to a minimum width
+  // guarantees the animation runs on every screen size.
   const baseMultiplier =
-    certificates.length < 5 ? Math.ceil(6 / certificates.length) : 1;
+    certificates.length < 8 ? Math.ceil(8 / certificates.length) : 1;
   const normalizedList = Array.from({ length: baseMultiplier }).flatMap(
     () => certificates,
   );
+  const duration = Math.max(20, normalizedList.length * 3);
 
   return (
-    <div ref={containerRef} className="w-full overflow-hidden pb-6">
-      <div
-        ref={staticMeasureRef}
-        className="absolute opacity-0 pointer-events-none flex gap-6 w-max"
-        aria-hidden="true"
-      >
-        {certificates.map((cert, index) => (
-          <CertificateCard
-            cert={cert}
-            index={index}
-            key={`measure-${cert.id}-${index}`}
-          />
-        ))}
-      </div>
-
-      {!shouldScroll ? (
-        <div className="flex gap-6 justify-center flex-nowrap px-4">
-          {certificates.map((cert, index) => (
-            <CertificateCard
-              cert={cert}
-              index={index}
-              key={`static-${cert.id}-${index}`}
-            />
-          ))}
-        </div>
-      ) : (
+    <div className="w-full overflow-hidden pb-6">
+      <div className="relative w-full overflow-hidden" dir="ltr">
+        <style>{`@keyframes infinite-scroll-ltr { 0% { transform: translateX(-50%); } 100% { transform: translateX(0%); } }`}</style>
         <div
-          className="relative w-full overflow-hidden pointer-events-auto"
+          className="flex w-max will-change-transform hover:[animation-play-state:paused]"
           dir="ltr"
+          style={{
+            animation: `infinite-scroll-ltr ${duration}s linear infinite`,
+          }}
         >
-          <style>{`@keyframes infinite-scroll-ltr { 0% { transform: translateX(-50%); } 100% { transform: translateX(0%); } } .animate-continuous-ltr { display: flex; width: max-content; animation: infinite-scroll-ltr ${Math.max(18, normalizedList.length * 4)}s linear infinite; will-change: transform; }`}</style>
-          <div className="animate-continuous-ltr" dir="ltr">
-            <div className="flex gap-6 pr-6 shrink-0" dir="rtl">
-              {normalizedList.map((cert, index) => (
-                <CertificateCard
-                  cert={cert}
-                  index={index}
-                  key={`set1-${cert.id}-${index}`}
-                />
-              ))}
-            </div>
-            <div className="flex gap-6 pr-6 shrink-0" dir="rtl">
-              {normalizedList.map((cert, index) => (
-                <CertificateCard
-                  cert={cert}
-                  index={index}
-                  key={`set2-${cert.id}-${index}`}
-                />
-              ))}
-            </div>
+          <div className="flex gap-6 pr-6 shrink-0" dir="rtl">
+            {normalizedList.map((cert, index) => (
+              <CertificateCard
+                cert={cert}
+                index={index}
+                key={`set1-${cert.id}-${index}`}
+              />
+            ))}
+          </div>
+          <div className="flex gap-6 pr-6 shrink-0" dir="rtl" aria-hidden="true">
+            {normalizedList.map((cert, index) => (
+              <CertificateCard
+                cert={cert}
+                index={index}
+                key={`set2-${cert.id}-${index}`}
+              />
+            ))}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
