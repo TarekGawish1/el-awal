@@ -2058,7 +2058,6 @@ function CertificateCard({ cert, index }: { cert: any; index: number }) {
 
 function StageCertificateRow({ certificates }: { certificates: any[] }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
-  const pausedRef = useRef(false);
 
   const normalizedList =
     certificates && certificates.length > 0
@@ -2106,13 +2105,12 @@ function StageCertificateRow({ certificates }: { certificates: any[] }) {
     const step = (now: number) => {
       const dt = Math.min((now - last) / 1000, 0.1);
       last = now;
-      if (!pausedRef.current) {
-        if (half <= 0) measure();
-        if (half > 0) {
-          x += SPEED_PX_PER_SEC * dt;
-          if (x >= 0) x -= half;
-          track.style.transform = `translate3d(${x}px,0,0)`;
-        }
+      // Never pauses — no hover stop, keeps moving on desktop and phone.
+      if (half <= 0) measure();
+      if (half > 0) {
+        x += SPEED_PX_PER_SEC * dt;
+        if (x >= 0) x -= half;
+        track.style.transform = `translate3d(${x}px,0,0)`;
       }
       raf = requestAnimationFrame(step);
     };
@@ -2129,15 +2127,7 @@ function StageCertificateRow({ certificates }: { certificates: any[] }) {
   if (!certificates || certificates.length === 0) return null;
 
   return (
-    <div
-      className="w-full overflow-hidden pb-6"
-      onMouseEnter={() => {
-        pausedRef.current = true;
-      }}
-      onMouseLeave={() => {
-        pausedRef.current = false;
-      }}
-    >
+    <div className="w-full overflow-hidden pb-6">
       <div className="relative w-full overflow-hidden" dir="ltr">
         <div ref={trackRef} className="flex w-max will-change-transform" dir="ltr">
           <div className="flex gap-6 pr-6 shrink-0" dir="rtl">
@@ -2159,6 +2149,9 @@ function StageCertificateRow({ certificates }: { certificates: any[] }) {
             ))}
           </div>
         </div>
+        {/* Transparent fading sides — softens the hard cut-off at both edges */}
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-16 sm:w-24 bg-gradient-to-r from-slate-50 to-transparent z-10" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-16 sm:w-24 bg-gradient-to-l from-slate-50 to-transparent z-10" />
       </div>
     </div>
   );
