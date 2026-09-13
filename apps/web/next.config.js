@@ -1,6 +1,26 @@
 /** @type {import('next').NextConfig} */
+const isDev = process.env.NODE_ENV !== 'production';
+
 const nextConfig = {
   output: 'standalone',
+
+  async rewrites() {
+    const rawBackendUrl =
+      process.env.BACKEND_INTERNAL_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      'https://al-awal-cbe2188d9efa.herokuapp.com/api/v1';
+
+    const backendUrl = rawBackendUrl.includes('localhost:3000')
+      ? 'https://al-awal-cbe2188d9efa.herokuapp.com/api/v1'
+      : rawBackendUrl.replace(/\/$/, '');
+
+    return [
+      {
+        source: '/api/v1/:path*',
+        destination: `${backendUrl}/:path*`,
+      },
+    ];
+  },
   
   experimental: {
     // Tree-shake barrel exports for these heavy packages
@@ -57,19 +77,19 @@ const nextConfig = {
         key: 'Content-Security-Policy',
         value: [
           "default-src 'self'",
-          "script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com",
+          `script-src 'self' 'unsafe-inline' ${isDev ? "'unsafe-eval'" : ''} https://www.youtube.com https://s.ytimg.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com`,
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
           "img-src 'self' data: blob: https: https://c.clarity.ms https://*.clarity.ms",
           "font-src 'self' data: https://fonts.gstatic.com",
-          "connect-src 'self' https://api.al-awal.online wss://api.al-awal.online https://al-awal-cbe2188d9efa.herokuapp.com wss://al-awal-cbe2188d9efa.herokuapp.com https://pub-e729d46cf5fd4798932ccae48f7361ef.r2.dev https://*.r2.dev https://www.clarity.ms https://*.clarity.ms https://ipwho.is https://static.cloudflareinsights.com https://cloudflareinsights.com",
-          'frame-src \'self\' https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com',
+          "connect-src 'self' http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:* https://api.al-awal.online wss://api.al-awal.online https://al-awal-cbe2188d9efa.herokuapp.com wss://al-awal-cbe2188d9efa.herokuapp.com https://pub-e729d46cf5fd4798932ccae48f7361ef.r2.dev https://*.r2.dev https://www.clarity.ms https://*.clarity.ms https://ipwho.is https://static.cloudflareinsights.com https://cloudflareinsights.com",
+          "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com",
           "media-src 'self' blob: https:",
           "object-src 'none'",
           "base-uri 'self'",
           "form-action 'self'",
-          'frame-ancestors \'self\'',
-          'upgrade-insecure-requests',
-        ].join('; '),
+          "frame-ancestors 'self'",
+          ...(isDev ? [] : ['upgrade-insecure-requests']),
+        ].filter(Boolean).join('; '),
       },
     ];
 
