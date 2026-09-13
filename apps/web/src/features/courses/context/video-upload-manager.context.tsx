@@ -364,8 +364,8 @@ export function VideoUploadManagerProvider({
           }
         };
 
-        // Direct Cloudflare R2 Presigned Video Upload Fallback (Zero backend server buffering)
-        const executeDirectR2Fallback = async (reason?: string) => {
+        // Fallback: upload directly to Bunny Stream via secure server proxy
+        const executeServerFallback = async (reason?: string) => {
           if (activeXhrsRef.current[taskId]) {
             try {
               activeXhrsRef.current[taskId].abort();
@@ -374,7 +374,7 @@ export function VideoUploadManagerProvider({
           }
 
           console.warn(
-            `Direct Bunny Stream upload failed (${reason || 'network/cors'}). Switching to Cloudflare R2 direct presigned upload for: ${lessonTitle || file.name}`,
+            `Direct browser Bunny upload interrupted (${reason || 'network/cors'}). Switching to secure server upload to Bunny Stream for: ${lessonTitle || file.name}`,
           );
 
           updateTask(taskId, {
@@ -383,18 +383,18 @@ export function VideoUploadManagerProvider({
             uploadedBytes: 0,
             speedMbps: 0,
             etaSeconds: 0,
-            provider: 'r2',
+            provider: 'bunny',
           });
 
           toast(
-            `جاري تحويل رفع "${lessonTitle || file.name}" إلى السحابة الاحتياطية (Cloudflare R2)...`,
+            `جاري استكمال رفع "${lessonTitle || file.name}" إلى سيرفر البث (Bunny Stream)...`,
             { icon: '🔄', duration: 4000 },
           );
 
           let lastLoaded = 0;
           let lastTime = Date.now();
 
-          const fallbackResult = await coursesApi.uploadVideoDirectToR2(
+          const fallbackResult = await coursesApi.uploadVideoDirectToServer(
             file,
             lessonTitle.trim() || file.name,
             (percent, loaded, total) => {
@@ -425,7 +425,7 @@ export function VideoUploadManagerProvider({
           await finalizeSuccess({
             videoId: fallbackResult.videoId,
             embedUrl: fallbackResult.embedUrl,
-            provider: 'r2',
+            provider: 'bunny',
           });
         };
 
@@ -514,7 +514,7 @@ export function VideoUploadManagerProvider({
             } else {
               // Direct PUT returned non-2xx -> attempt server fallback
               try {
-                await executeDirectR2Fallback(`HTTP status ${xhr.status}`);
+                await executeServerFallback(`HTTP status ${xhr.status}`);
               } catch (fallbackErr: any) {
                 updateTask(taskId, {
                   status: 'error',
@@ -529,9 +529,9 @@ export function VideoUploadManagerProvider({
 
           xhr.onerror = async () => {
             delete activeXhrsRef.current[taskId];
-            // Network/CORS/Brave Shields block -> attempt direct R2 fallback
+            // Network/CORS/Brave Shields block -> attempt server fallback to Bunny Stream
             try {
-              await executeDirectR2Fallback('network_error_or_cors_block');
+              await executeServerFallback('network_error_or_cors_block');
             } catch (fallbackErr: any) {
               updateTask(taskId, {
                 status: 'error',
@@ -546,7 +546,7 @@ export function VideoUploadManagerProvider({
           xhr.send(file);
         } catch (err: any) {
           try {
-            await executeDirectR2Fallback(err?.message || 'credential_generation_error');
+            await executeServerFallback(err?.message || 'credential_generation_error');
           } catch (fallbackErr: any) {
             delete activeXhrsRef.current[taskId];
             updateTask(taskId, {

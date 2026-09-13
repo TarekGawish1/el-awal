@@ -158,29 +158,31 @@ export const coursesApi = {
     });
   },
 
-  // Direct Cloudflare R2 Presigned Video Upload Fallback (Bypasses browser CORS, Brave Shields, and network blocks)
-  uploadVideoDirectToR2: async (
+  // Server-Side Fallback Direct Video Upload to Bunny Stream (Bypasses browser CORS, Brave Shields, and network blocks)
+  uploadVideoDirectToServer: async (
     file: File,
     title?: string,
     onProgress?: (percent: number, loaded: number, total: number) => void,
   ): Promise<{
     videoId: string;
     embedUrl: string;
-    provider: 'r2';
+    provider: 'bunny';
     playbackUrl?: string;
   }> => {
-    const presigned = await coursesApi.getPresignedUploadUrl({
-      fileName: file.name,
-      contentType: file.type || 'video/mp4',
-      fileType: file.type || 'video/mp4',
-      fileSizeBytes: file.size,
-      folder: 'courses/videos',
-    });
+    const formData = new FormData();
+    formData.append('file', file);
+    if (title) formData.append('title', title);
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      xhr.open('PUT', presigned.uploadUrl);
-      xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
+      const url = `${API_BASE_URL}/courses/lessons/upload-video-stream`;
+      xhr.open('POST', url);
+
+      const token = getStoredAccessToken();
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+      xhr.setRequestHeader('Accept', 'application/json');
 
       if (onProgress) {
         xhr.upload.onprogress = (event) => {
@@ -193,34 +195,35 @@ export const coursesApi = {
 
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
-          resolve({
-            videoId: `r2:${presigned.fileKey}`,
-            embedUrl: presigned.publicUrl,
-            playbackUrl: presigned.publicUrl,
-            provider: 'r2',
-          });
+          try {
+            const json = JSON.parse(xhr.responseText);
+            const data = json?.data || json;
+            resolve({
+              videoId: data.videoId,
+              embedUrl: data.embedUrl,
+              playbackUrl: data.playbackUrl,
+              provider: 'bunny',
+            });
+          } catch {
+            resolve(JSON.parse(xhr.responseText));
+          }
         } else {
-          reject(new Error(`فشل رفع الفيديو إلى Cloudflare R2 (كود: ${xhr.status})`));
+          let errorMsg = `تعذر رفع الفيديو إلى سيرفر البث السحابي (كود: ${xhr.status})`;
+          try {
+            const errObj = JSON.parse(xhr.responseText);
+            if (errObj?.message) errorMsg = errObj.message;
+          } catch {}
+          reject(new Error(errorMsg));
         }
       };
 
-      xhr.onerror = () => reject(new Error('تعذر الاتصال بـ Cloudflare R2 أثناء رفع الفيديو.'));
+      xhr.onerror = () => {
+        reject(new Error('تعذر الاتصال بالسيرفر أثناء رفع الفيديو إلى Bunny Stream.'));
+      };
       xhr.onabort = () => reject(new Error('تم إلغاء رفع الفيديو'));
-      xhr.send(file);
-    });
-  },
 
-  uploadVideoDirectToServer: async (
-    file: File,
-    title?: string,
-    onProgress?: (percent: number, loaded: number, total: number) => void,
-  ): Promise<{
-    videoId: string;
-    embedUrl: string;
-    provider: 'r2' | 'bunny';
-    playbackUrl?: string;
-  }> => {
-    return coursesApi.uploadVideoDirectToR2(file, title, onProgress);
+      xhr.send(formData);
+    });
   },
 
   // Timestamped Q&A

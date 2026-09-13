@@ -1677,37 +1677,34 @@ export class CoursesService {
   }
 
   /**
-   * Generates direct upload credentials for Bunny Stream video upload,
-   * falling back automatically to Cloudflare R2 presigned video upload if Bunny is unavailable.
+   * Generates direct upload credentials for Bunny Stream video upload.
    */
   async generateDirectVideoUploadCredentials(title: string) {
-    try {
-      const creds = await this.bunnyVideoService.generateDirectUploadCredentials(title);
-      return {
-        ...creds,
-        provider: 'bunny' as const,
-        contentUrl: creds.embedUrl,
-      };
-    } catch (err: any) {
-      this.logger.warn(
-        `Bunny Stream direct upload credential generation failed (${err?.message || err}), falling back to R2 presigned video upload.`,
-      );
-      const sanitized = (title || 'course-video').replace(/[^a-zA-Z0-9_-]/g, '_');
-      const fileKey = `uploads/courses/videos/${Date.now()}-${randomUUID().slice(0, 8)}-${sanitized}.mp4`;
-      const r2Upload = await this.storageService.generatePresignedUploadUrl(fileKey, 'video/mp4', 7200);
-      return {
-        videoId: `r2:${fileKey}`,
-        libraryId: '',
-        uploadUrl: r2Upload.uploadUrl,
-        authorizationSignature: '',
-        authorizationExpire: Math.floor(Date.now() / 1000) + 7200,
-        accessKey: '',
-        embedUrl: r2Upload.publicUrl || '',
-        playbackUrl: r2Upload.publicUrl || '',
-        contentUrl: r2Upload.publicUrl || '',
-        provider: 'r2' as const,
-      };
+    const creds = await this.bunnyVideoService.generateDirectUploadCredentials(title);
+    return {
+      ...creds,
+      provider: 'bunny' as const,
+      contentUrl: creds.embedUrl,
+    };
+  }
+
+  /**
+   * Uploads a video buffer directly to Bunny Stream via server proxy fallback.
+   * Ensures all videos reside exclusively on Bunny Stream.
+   */
+  async uploadVideoDirect(file: Express.Multer.File, title?: string) {
+    if (!file || !file.buffer) {
+      throw new BadRequestException('ملف الفيديو مطلوب للرفع');
     }
+    const videoTitle = title?.trim() || file.originalname || 'Course Video';
+    const result = await this.bunnyVideoService.uploadVideo(videoTitle, file.buffer);
+    return {
+      provider: 'bunny' as const,
+      videoId: result.videoId,
+      embedUrl: result.embedUrl,
+      playbackUrl: result.playbackUrl,
+      contentUrl: result.embedUrl,
+    };
   }
 
   /**

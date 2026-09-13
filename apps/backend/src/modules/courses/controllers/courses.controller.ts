@@ -10,9 +10,12 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
   BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { CoursesService } from '../services/courses.service';
 import { CreateCourseDto } from '../dto/create-course.dto';
 import { UpdateCourseDto } from '../dto/update-course.dto';
@@ -90,6 +93,27 @@ export class CoursesController {
     @Body('title') title: string,
   ) {
     return this.coursesService.generateDirectVideoUploadCredentials(title || 'New Course Lesson');
+  }
+
+  @Post('lessons/upload-video-stream')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: 500 * 1024 * 1024, // 500MB
+      },
+    }),
+  )
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Direct video upload to Bunny Stream via server proxy fallback' })
+  async uploadVideoStream(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('title') title?: string,
+  ) {
+    if (!file) {
+      throw new BadRequestException('ملف الفيديو مطلوب للرفع');
+    }
+    return this.coursesService.uploadVideoDirect(file, title);
   }
 
   @Post()
