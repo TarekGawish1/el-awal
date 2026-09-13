@@ -547,7 +547,14 @@ export const coursesApi = {
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const res = JSON.parse(xhr.responseText);
-            resolve(res);
+            const data = res?.data || res;
+            resolve({
+              fileUrl: data.fileUrl || data.url || data.publicUrl,
+              fileKey: data.fileKey || data.key,
+              fileSize: data.fileSize || data.size,
+              fileType: data.fileType || data.type,
+              fileName: data.fileName || data.name,
+            });
           } catch (e) {
             reject(new Error('استجابة غير صالحة من السيرفر'));
           }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { UploadCloud, CheckCircle, File, Image as ImageIcon, Trash2, Loader2, ExternalLink } from 'lucide-react';
 import { coursesApi } from '../api/courses.api';
 import { API_BASE_URL } from '@/lib/api/endpoints';
@@ -43,7 +43,16 @@ export function FileUploadZone({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [lastUploadedKey, setLastUploadedKey] = useState<string | null>(null);
+  const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    return () => {
+      if (localPreviewUrl && localPreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(localPreviewUrl);
+      }
+    };
+  }, [localPreviewUrl]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -52,6 +61,15 @@ export function FileUploadZone({
     if (file.size > maxSizeBytes) {
       toast.error(`حجم الملف يتجاوز الحد المسموح (${Math.round(maxSizeBytes / (1024 * 1024))} ميجابايت)`);
       return;
+    }
+
+    if (fileCategory === 'image' || file.type.startsWith('image/')) {
+      try {
+        if (typeof window !== 'undefined' && window.URL?.createObjectURL) {
+          const blobUrl = URL.createObjectURL(file);
+          setLocalPreviewUrl(blobUrl);
+        }
+      } catch {}
     }
 
     try {
@@ -92,13 +110,16 @@ export function FileUploadZone({
           });
           setUploadProgress(100);
           setIsUploading(false);
-          setLastUploadedKey(res.fileKey);
+          const data = (res as any)?.data || res;
+          const finalUrl = data?.fileUrl || data?.url || data?.publicUrl;
+          const finalKey = data?.fileKey || data?.key;
+          setLastUploadedKey(finalKey || null);
           onUploadComplete({
-            fileUrl: res.fileUrl,
-            fileKey: res.fileKey,
-            fileSize: res.fileSize || file.size,
-            fileType: res.fileType || mimeType,
-            fileName: res.fileName || file.name,
+            fileUrl: finalUrl,
+            fileKey: finalKey,
+            fileSize: data?.fileSize || file.size,
+            fileType: data?.fileType || mimeType,
+            fileName: data?.fileName || file.name,
           });
           toast.success('تم رفع الملف بنجاح');
         } catch (fbErr: any) {
@@ -140,13 +161,16 @@ export function FileUploadZone({
         });
         setUploadProgress(100);
         setIsUploading(false);
-        setLastUploadedKey(res.fileKey);
+        const data = (res as any)?.data || res;
+        const finalUrl = data?.fileUrl || data?.url || data?.publicUrl;
+        const finalKey = data?.fileKey || data?.key;
+        setLastUploadedKey(finalKey || null);
         onUploadComplete({
-          fileUrl: res.fileUrl,
-          fileKey: res.fileKey,
-          fileSize: res.fileSize || file.size,
-          fileType: res.fileType || mimeType,
-          fileName: res.fileName || file.name,
+          fileUrl: finalUrl,
+          fileKey: finalKey,
+          fileSize: data?.fileSize || file.size,
+          fileType: data?.fileType || mimeType,
+          fileName: data?.fileName || file.name,
         });
         toast.success('تم رفع الملف بنجاح');
       } catch (fbErr: any) {
@@ -163,6 +187,10 @@ export function FileUploadZone({
       coursesApi.deleteUploadedFile(keyToDelete);
     }
     setLastUploadedKey(null);
+    if (localPreviewUrl && localPreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(localPreviewUrl);
+    }
+    setLocalPreviewUrl(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -170,17 +198,19 @@ export function FileUploadZone({
   };
 
   const resolvedFileUrl =
-    currentFileUrl && (currentFileUrl.startsWith('http') || currentFileUrl.startsWith('data:') || currentFileUrl.startsWith('blob:'))
+    (currentFileUrl && (currentFileUrl.startsWith('http') || currentFileUrl.startsWith('data:') || currentFileUrl.startsWith('blob:')))
       ? currentFileUrl
       : currentFileUrl
         ? `${API_BASE_URL.replace(/\/api\/v1\/?$/, '')}${currentFileUrl.startsWith('/') ? '' : '/'}${currentFileUrl}`
-        : '';
+        : localPreviewUrl || '';
+
+  const hasFile = Boolean(currentFileUrl || localPreviewUrl);
 
   return (
     <div className="space-y-1.5 text-right">
       <label className="block text-xs font-bold text-slate-800">{label}</label>
 
-      {currentFileUrl ? (
+      {hasFile ? (
         <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl shadow-sm">
           <div className="flex items-center gap-3 overflow-hidden">
             {fileCategory === 'image' ? (

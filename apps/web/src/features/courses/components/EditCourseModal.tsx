@@ -128,8 +128,15 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
     }
   }, [backgroundUploadTask]);
 
+  const prevIsOpenRef = useRef(false);
+  const prevCourseIdRef = useRef(course.id);
+
   useEffect(() => {
-    if (isOpen) {
+    const isOpening = isOpen && (!prevIsOpenRef.current || prevCourseIdRef.current !== course.id);
+    prevIsOpenRef.current = isOpen;
+    prevCourseIdRef.current = course.id;
+
+    if (isOpening) {
       setTitle(course.title || '');
       setDescription(course.description || '');
       setSubject(course.subject || 'الرياضيات');
@@ -155,7 +162,7 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
       newlyUploadedPreviewUrlRef.current = null;
       previewUploadTaskIdRef.current = null;
     }
-  }, [isOpen, course]);
+  }, [isOpen, course.id]);
 
   // Clean up any newly uploaded staged image or video on unmount/cancel if not submitted
   useEffect(() => {
