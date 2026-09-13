@@ -287,7 +287,7 @@ export class GeoLocationService {
 
     if (cfCountry && cfCountry !== 'XX' && cfCountry !== 'T1') {
       const country = this.COUNTRY_ARABIC_NAMES[cfCountry] || cfCountry;
-      const finalCity = resolvedCity || (cfCountry === 'EG' ? 'غير محدد' : 'عام');
+      const finalCity = resolvedCity || (cfCountry === 'EG' ? 'غير محدد' : 'خارج مصر');
       return { country, city: finalCity, countryCode: cfCountry };
     }
 
@@ -314,7 +314,7 @@ export class GeoLocationService {
         const country = this.COUNTRY_ARABIC_NAMES[countryCode] || countryCode;
         const regionMatch = geo.region ? this.EGYPT_GOVERNORATE_CODES[geo.region.toLowerCase()] : '';
         const cityMatch = geo.city ? this.localizeCity(geo.city) : '';
-        const detectedCity = cityMatch || regionMatch || (countryCode === 'EG' ? 'غير محدد' : 'عام');
+        const detectedCity = cityMatch || regionMatch || (countryCode === 'EG' ? 'غير محدد' : 'خارج مصر');
 
         const result: ResolvedGeoLocation = {
           country,
@@ -397,7 +397,7 @@ export class GeoLocationService {
           const regionCity = this.EGYPT_GOVERNORATE_CODES[regionCode] || '';
           const cityFromCity = this.localizeCity(data.city);
           const cityFromRegion = this.localizeCity(data.regionName);
-          const city = cityFromCity || cityFromRegion || regionCity || (data.countryCode === 'EG' ? 'غير محدد' : 'عام');
+          const city = cityFromCity || cityFromRegion || regionCity || (data.countryCode === 'EG' ? 'غير محدد' : 'خارج مصر');
 
           const resolved: ResolvedGeoLocation = {
             country,

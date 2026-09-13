@@ -603,10 +603,29 @@ export class AnalyticsService implements OnModuleInit {
 
     const sorted = Array.from(locationMap.entries())
       .map(([name, stat]) => ({
-        name,
+        // Normalize legacy "عام" entries stored in DB to the new label "خارج مصر"
+        name: name === 'عام' ? 'خارج مصر' : name,
         visitCount: stat.count,
         uniqueVisitors: stat.hashes.size,
         percentage: totalVisits > 0 ? Math.round((stat.count / totalVisits) * 100) : 0,
+      }))
+      // Merge entries with the same name (e.g., old "عام" merged with new "خارج مصر")
+      .reduce(
+        (acc, item) => {
+          const existing = acc.find((a) => a.name === item.name);
+          if (existing) {
+            existing.visitCount += item.visitCount;
+            existing.uniqueVisitors += item.uniqueVisitors;
+          } else {
+            acc.push(item);
+          }
+          return acc;
+        },
+        [] as { name: string; visitCount: number; uniqueVisitors: number; percentage: number }[],
+      )
+      .map((item) => ({
+        ...item,
+        percentage: totalVisits > 0 ? Math.round((item.visitCount / totalVisits) * 100) : 0,
       }))
       .sort((a, b) => b.visitCount - a.visitCount)
       .map((item, index) => ({
@@ -759,6 +778,9 @@ export class AnalyticsService implements OnModuleInit {
 
   /**
    * Builds time-series buckets.
+   * - Today → hourly buckets
+   * - Week/Month/Custom → daily buckets
+   * - Year/All → monthly buckets (to avoid hundreds of X-axis labels)
    */
   private async buildTimeSeries(where: any, range: string, startDate: Date, endDate: Date) {
     const views = await this.prisma.pageView.findMany({
@@ -772,12 +794,14 @@ export class AnalyticsService implements OnModuleInit {
     });
 
     const isToday = range === 'today';
+    const isMonthly = range === 'year' || range === 'all';
     const bucketsMap = new Map<
       string,
       { label: string; date: string; views: number; visitors: Set<string>; landing: number; system: number }
     >();
 
     if (isToday) {
+      // Hourly buckets for today
       for (let hour = 0; hour < 24; hour++) {
         const key = `${hour.toString().padStart(2, '0')}:00`;
         const hourLabel = `${hour % 12 || 12} ${hour < 12 ? 'ص' : 'م'}`;
@@ -807,7 +831,56 @@ export class AnalyticsService implements OnModuleInit {
           else bucket.system++;
         }
       }
+    } else if (isMonthly) {
+      // Monthly buckets for year/all ranges
+      const current = new Date(startDate);
+      // Start from the first day of the start month
+      current.setDate(1);
+      current.setHours(0, 0, 0, 0);
+
+      while (current <= endDate) {
+        const cairoStr = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Africa/Cairo',
+        }).format(current);
+        const [yr, mo] = cairoStr.split('-').map(Number);
+        const monthKey = `${yr}-${mo.toString().padStart(2, '0')}`;
+
+        if (!bucketsMap.has(monthKey)) {
+          const monthLabel = current.toLocaleDateString('ar-EG', {
+            timeZone: 'Africa/Cairo',
+            month: 'long',
+            year: 'numeric',
+          });
+          bucketsMap.set(monthKey, {
+            label: monthLabel,
+            date: monthKey,
+            views: 0,
+            visitors: new Set<string>(),
+            landing: 0,
+            system: 0,
+          });
+        }
+
+        // Advance by one month
+        current.setMonth(current.getMonth() + 1);
+      }
+
+      for (const v of views) {
+        const cairoStr = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Africa/Cairo',
+        }).format(new Date(v.createdAt));
+        const [yr, mo] = cairoStr.split('-').map(Number);
+        const monthKey = `${yr}-${mo.toString().padStart(2, '0')}`;
+        const bucket = bucketsMap.get(monthKey);
+        if (bucket) {
+          bucket.views++;
+          bucket.visitors.add(v.visitorHash);
+          if (v.isLandingPage) bucket.landing++;
+          else bucket.system++;
+        }
+      }
     } else {
+      // Daily buckets for week/month/custom ranges
       const current = new Date(startDate);
       while (current <= endDate) {
         const cairoDate = new Intl.DateTimeFormat('en-CA', {

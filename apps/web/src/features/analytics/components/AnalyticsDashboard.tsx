@@ -412,18 +412,31 @@ export function AnalyticsDashboard() {
             </p>
           </div>
         ) : (
-          <div className="relative pt-6 pb-2 overflow-x-auto scrollbar-thin">
-            <div className={`h-56 flex items-end gap-2 sm:gap-3 px-2 ${timeSeries.length > 7 ? 'min-w-[640px]' : 'min-w-[420px] sm:min-w-0'} w-full`}>
+          <div className="relative pt-4 pb-2 overflow-x-auto scrollbar-thin">
+            {/* Chart area – overflow-hidden prevents bars from escaping the chart bounds */}
+            <div className={`flex items-end gap-1.5 sm:gap-2 px-2 ${
+              timeSeries.length > 12
+                ? `min-w-[${Math.max(640, timeSeries.length * 52)}px]`
+                : timeSeries.length > 7
+                ? 'min-w-[640px]'
+                : 'min-w-[420px] sm:min-w-0'
+            } w-full`} style={{ height: '224px' }}>
               {timeSeries.map((point, index) => {
-                const totalHeightPct = Math.max(12, (point.totalViews / maxViews) * 100);
+                const totalHeightPct = Math.max(4, (point.totalViews / maxViews) * 100);
                 const landingHeightPct = point.totalViews > 0 ? (point.landingViews / point.totalViews) * 100 : 0;
                 const systemHeightPct = point.totalViews > 0 ? (point.systemViews / point.totalViews) * 100 : 0;
                 const isHovered = hoveredIndex === index;
 
+                // For year/all ranges, show a shorter label (just month name without year)
+                const displayLabel = (range === 'year' || range === 'all')
+                  ? point.label.replace(/\s*\d{4}$/, '').trim()
+                  : point.label;
+
                 return (
                   <div
                     key={point.date}
-                    className="flex-1 flex flex-col items-center h-full justify-end group relative cursor-pointer min-w-[36px]"
+                    className="flex-1 flex flex-col items-center justify-end group relative cursor-pointer min-w-[36px]"
+                    style={{ height: '196px' }}
                     onMouseEnter={() => setHoveredIndex(index)}
                     onMouseLeave={() => setHoveredIndex(null)}
                     onClick={() => setHoveredIndex(hoveredIndex === index ? null : index)}
@@ -455,35 +468,37 @@ export function AnalyticsDashboard() {
                       </div>
                     )}
 
-                    {/* Stacked Bar or Base Placeholder for 0 views */}
-                    {point.totalViews === 0 ? (
-                      <div
-                        className="w-full bg-neutral-100 hover:bg-neutral-200 rounded-t-sm h-2 transition-colors"
-                        title={`${point.label}: 0 زيارة`}
-                      />
-                    ) : (
-                      <div
-                        className={`w-full rounded-t-lg overflow-hidden flex flex-col-reverse shadow-xs transition-all duration-200 ${
-                          isHovered ? 'ring-2 ring-primary-500 scale-y-105' : 'opacity-95 hover:opacity-100'
-                        }`}
-                        style={{ height: `${totalHeightPct}%` }}
-                      >
-                        {/* Landing part */}
+                    {/* Bar area – fixed height container prevents bars from ever overflowing */}
+                    <div className="w-full flex flex-col justify-end" style={{ height: '172px' }}>
+                      {point.totalViews === 0 ? (
                         <div
-                          className="bg-primary-600 transition-all"
-                          style={{ height: `${landingHeightPct}%` }}
+                          className="w-full bg-neutral-100 hover:bg-neutral-200 rounded-t-sm h-1.5 transition-colors"
+                          title={`${point.label}: 0 زيارة`}
                         />
-                        {/* System part */}
+                      ) : (
                         <div
-                          className="bg-emerald-500 transition-all"
-                          style={{ height: `${systemHeightPct}%` }}
-                        />
-                      </div>
-                    )}
+                          className={`w-full rounded-t-lg overflow-hidden flex flex-col-reverse shadow-xs transition-all duration-200 ${
+                            isHovered ? 'ring-2 ring-primary-500/50 brightness-110' : 'opacity-95 hover:opacity-100'
+                          }`}
+                          style={{ height: `${totalHeightPct}%` }}
+                        >
+                          {/* Landing part */}
+                          <div
+                            className="bg-primary-600 transition-all"
+                            style={{ height: `${landingHeightPct}%` }}
+                          />
+                          {/* System part */}
+                          <div
+                            className="bg-emerald-500 transition-all"
+                            style={{ height: `${systemHeightPct}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
 
                     {/* X-axis Label */}
-                    <span className="text-[10px] sm:text-xs font-bold text-neutral-500 mt-2 truncate max-w-full text-center whitespace-nowrap">
-                      {point.label}
+                    <span className="text-[10px] font-bold text-neutral-500 mt-1.5 truncate max-w-full text-center whitespace-nowrap leading-tight" style={{ height: '24px' }}>
+                      {displayLabel}
                     </span>
                   </div>
                 );
