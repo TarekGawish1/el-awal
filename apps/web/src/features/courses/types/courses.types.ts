@@ -153,7 +153,7 @@ export interface CourseDetail {
 }
 
 export interface DirectUploadCredentials {
-  provider?: 'bunny' | 'r2';
+  provider?: 'bunny';
   videoId: string;
   libraryId: string;
   uploadUrl: string;

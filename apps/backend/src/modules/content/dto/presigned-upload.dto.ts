@@ -17,9 +17,6 @@ export const ALLOWED_MIME_TYPES = [
   'audio/mpeg',
   'audio/mp3',
   'audio/wav',
-  'video/mp4',
-  'video/webm',
-  'video/quicktime',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/msword',
 ] as const;

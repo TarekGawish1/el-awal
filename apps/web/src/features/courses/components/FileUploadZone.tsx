@@ -84,6 +84,30 @@ export function FileUploadZone({
         }
       };
 
+      const executeFallbackUpload = async () => {
+        try {
+          setUploadProgress(40);
+          const res = await coursesApi.uploadRawFile(file, folder, (percent) => {
+            setUploadProgress(Math.min(Math.round(percent * 0.6 + 35), 98));
+          });
+          setUploadProgress(100);
+          setIsUploading(false);
+          setLastUploadedKey(res.fileKey);
+          onUploadComplete({
+            fileUrl: res.fileUrl,
+            fileKey: res.fileKey,
+            fileSize: res.fileSize || file.size,
+            fileType: res.fileType || mimeType,
+            fileName: res.fileName || file.name,
+          });
+          toast.success('تم رفع الملف بنجاح');
+        } catch (fbErr: any) {
+          setIsUploading(false);
+          setUploadProgress(0);
+          toast.error(translateErrorMessage(fbErr?.message) || 'تعذر الاتصال بخادم التخزين السحابي أثناء الرفع.');
+        }
+      };
+
       xhr.onload = async () => {
         if (xhr.status >= 200 && xhr.status < 300) {
           setUploadProgress(100);
@@ -98,23 +122,38 @@ export function FileUploadZone({
           });
           toast.success('تم رفع الملف بنجاح');
         } else {
-          setIsUploading(false);
-          setUploadProgress(0);
-          toast.error(`تعذر رفع الملف إلى التخزين السحابي (كود: ${xhr.status})`);
+          await executeFallbackUpload();
         }
       };
 
       xhr.onerror = async () => {
-        setIsUploading(false);
-        setUploadProgress(0);
-        toast.error('تعذر الاتصال بخادم التخزين السحابي أثناء الرفع. يرجى التحقق من اتصالك بالإنترنت.');
+        await executeFallbackUpload();
       };
 
       xhr.send(file);
     } catch (err: any) {
-      setIsUploading(false);
-      setUploadProgress(0);
-      toast.error(translateErrorMessage(err?.message) || 'تعذر بدء عملية رفع الملف');
+      try {
+        const mimeType = file.type || 'application/octet-stream';
+        setUploadProgress(40);
+        const res = await coursesApi.uploadRawFile(file, folder, (percent) => {
+          setUploadProgress(Math.min(Math.round(percent * 0.6 + 35), 98));
+        });
+        setUploadProgress(100);
+        setIsUploading(false);
+        setLastUploadedKey(res.fileKey);
+        onUploadComplete({
+          fileUrl: res.fileUrl,
+          fileKey: res.fileKey,
+          fileSize: res.fileSize || file.size,
+          fileType: res.fileType || mimeType,
+          fileName: res.fileName || file.name,
+        });
+        toast.success('تم رفع الملف بنجاح');
+      } catch (fbErr: any) {
+        setIsUploading(false);
+        setUploadProgress(0);
+        toast.error(translateErrorMessage(fbErr?.message || err?.message) || 'تعذر بدء عملية رفع الملف');
+      }
     }
   };
 

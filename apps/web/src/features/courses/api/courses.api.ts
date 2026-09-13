@@ -509,7 +509,7 @@ export const coursesApi = {
     });
   },
 
-  uploadDirectFile: async (
+  uploadRawFile: async (
     file: File,
     folder = 'courses',
     onProgress?: (percent: number) => void,
@@ -520,19 +520,19 @@ export const coursesApi = {
     fileType: string;
     fileName: string;
   }> => {
-    const mimeType = file.type || 'application/octet-stream';
-    const presigned = await coursesApi.getPresignedUploadUrl({
-      fileName: file.name,
-      contentType: mimeType,
-      fileType: mimeType,
-      fileSizeBytes: file.size,
-      folder,
-    });
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('folder', folder);
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const uploadBase = API_BASE_URL.replace(/\/+$/, '');
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      xhr.open('PUT', presigned.uploadUrl);
-      xhr.setRequestHeader('Content-Type', mimeType);
+      xhr.open('POST', `${uploadBase}/content/upload-raw`);
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
 
       if (onProgress) {
         xhr.upload.onprogress = (event) => {
@@ -545,22 +545,79 @@ export const coursesApi = {
 
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
-          resolve({
-            fileUrl: presigned.publicUrl,
-            fileKey: presigned.fileKey,
-            fileSize: file.size,
-            fileType: mimeType,
-            fileName: file.name,
-          });
+          try {
+            const res = JSON.parse(xhr.responseText);
+            resolve(res);
+          } catch (e) {
+            reject(new Error('استجابة غير صالحة من السيرفر'));
+          }
         } else {
-          reject(new Error(`فشل رفع الملف إلى التخزين السحابي (كود: ${xhr.status})`));
+          reject(new Error(`فشل رفع الملف إلى السيرفر (كود: ${xhr.status})`));
         }
       };
 
-      xhr.onerror = () => reject(new Error('تعذر الاتصال بخادم التخزين السحابي أثناء الرفع. يرجى التحقق من اتصالك بالإنترنت.'));
-      xhr.onabort = () => reject(new Error('تم إلغاء عملية الرفع'));
-      xhr.send(file);
+      xhr.onerror = () => reject(new Error('تعذر الاتصال بالسيرفر أثناء الرفع.'));
+      xhr.send(formData);
     });
+  },
+
+  uploadDirectFile: async (
+    file: File,
+    folder = 'courses',
+    onProgress?: (percent: number) => void,
+  ): Promise<{
+    fileUrl: string;
+    fileKey: string;
+    fileSize: number;
+    fileType: string;
+    fileName: string;
+  }> => {
+    const mimeType = file.type || 'application/octet-stream';
+    try {
+      const presigned = await coursesApi.getPresignedUploadUrl({
+        fileName: file.name,
+        contentType: mimeType,
+        fileType: mimeType,
+        fileSizeBytes: file.size,
+        folder,
+      });
+
+      return await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', presigned.uploadUrl);
+        xhr.setRequestHeader('Content-Type', mimeType);
+
+        if (onProgress) {
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable && event.total > 0) {
+              const percent = Math.min(Math.round((event.loaded / event.total) * 100), 100);
+              onProgress(percent);
+            }
+          };
+        }
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve({
+              fileUrl: presigned.publicUrl,
+              fileKey: presigned.fileKey,
+              fileSize: file.size,
+              fileType: mimeType,
+              fileName: file.name,
+            });
+          } else {
+            reject(new Error(`فشل رفع الملف إلى التخزين السحابي (كود: ${xhr.status})`));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error('تعذر الاتصال بخادم التخزين السحابي أثناء الرفع.'));
+        xhr.onabort = () => reject(new Error('تم إلغاء عملية الرفع'));
+        xhr.send(file);
+      });
+    } catch (err) {
+      console.warn('Direct presigned upload failed; falling back to server raw upload:', err);
+      return await coursesApi.uploadRawFile(file, folder, onProgress);
+    }
   },
 
   deleteUploadedFile: async (fileKeyOrUrl?: string | null): Promise<{ success: boolean }> => {

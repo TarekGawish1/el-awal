@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { StorageService } from '../../../integrations/storage/storage.service';
@@ -27,6 +27,10 @@ export class ContentService {
     const fileKey = `uploads/${folder}/${Date.now()}-${randomUUID().slice(0, 8)}-${sanitizedFileName}`;
 
     const rawContentType = dto.contentType || dto.fileType || 'application/octet-stream';
+    if (rawContentType.startsWith('video/') || /\.(mp4|webm|mov|mkv|avi)$/i.test(dto.fileName)) {
+      throw new BadRequestException('يجب رفع مقاطع الفيديو عبر Bunny Stream فقط');
+    }
+
     const presigned = await this.storageService.generatePresignedUploadUrl(
       fileKey,
       rawContentType,
@@ -43,28 +47,10 @@ export class ContentService {
 
   /**
    * Generates direct client-to-Bunny Stream upload credentials for video recordings.
+   * All videos must reside on Bunny Stream exclusively.
    */
   async generatePresignedVideoUpload(title: string) {
-    try {
-      return await this.bunnyVideoService.generateDirectUploadCredentials(title);
-    } catch (err: any) {
-      this.logger.warn(
-        `Bunny Stream presigned video upload failed (${err?.message || err}), falling back to R2 direct presigned upload.`,
-      );
-      const sanitized = (title || 'lesson-video').replace(/[^a-zA-Z0-9_-]/g, '_');
-      const fileKey = `uploads/content/videos/${Date.now()}-${randomUUID().slice(0, 8)}-${sanitized}.mp4`;
-      const r2Upload = await this.storageService.generatePresignedUploadUrl(fileKey, 'video/mp4', 7200);
-      return {
-        videoId: `r2:${fileKey}`,
-        libraryId: '',
-        uploadUrl: r2Upload.uploadUrl,
-        authorizationSignature: '',
-        authorizationExpire: Math.floor(Date.now() / 1000) + 7200,
-        accessKey: '',
-        embedUrl: r2Upload.publicUrl || '',
-        playbackUrl: r2Upload.publicUrl || '',
-      };
-    }
+    return await this.bunnyVideoService.generateDirectUploadCredentials(title);
   }
 
   /**

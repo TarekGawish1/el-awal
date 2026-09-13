@@ -286,7 +286,7 @@ export function VideoUploadManagerProvider({
         const finalizeSuccess = async (result: {
           videoId: string;
           embedUrl: string;
-          provider?: 'bunny' | 'r2';
+          provider?: 'bunny';
         }) => {
           updateTask(taskId, {
             status: 'completed',
@@ -304,10 +304,7 @@ export function VideoUploadManagerProvider({
           if (targetLessonId) {
             try {
               await coursesApi.updateLesson(targetLessonId, {
-                bunnyVideoId:
-                  result.provider === 'r2'
-                    ? `r2:${result.videoId}`
-                    : result.videoId,
+                bunnyVideoId: result.videoId,
                 contentUrl: result.embedUrl,
                 videoDurationSeconds: metaDuration,
               });
@@ -445,26 +442,22 @@ export function VideoUploadManagerProvider({
           activeXhrsRef.current[taskId] = xhr;
           xhr.open('PUT', creds.uploadUrl);
 
-          if (creds.provider === 'r2') {
-            xhr.setRequestHeader('Content-Type', 'video/mp4');
-          } else {
-            if (creds.accessKey) xhr.setRequestHeader('AccessKey', creds.accessKey);
-            if (creds.authorizationSignature) {
-              xhr.setRequestHeader(
-                'AuthorizationSignature',
-                creds.authorizationSignature,
-              );
-            }
-            if (creds.authorizationExpire) {
-              xhr.setRequestHeader(
-                'AuthorizationExpire',
-                String(creds.authorizationExpire),
-              );
-            }
-            if (creds.libraryId) xhr.setRequestHeader('LibraryId', creds.libraryId);
-            if (creds.videoId) xhr.setRequestHeader('VideoId', creds.videoId);
-            xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+          if (creds.accessKey) xhr.setRequestHeader('AccessKey', creds.accessKey);
+          if (creds.authorizationSignature) {
+            xhr.setRequestHeader(
+              'AuthorizationSignature',
+              creds.authorizationSignature,
+            );
           }
+          if (creds.authorizationExpire) {
+            xhr.setRequestHeader(
+              'AuthorizationExpire',
+              String(creds.authorizationExpire),
+            );
+          }
+          if (creds.libraryId) xhr.setRequestHeader('LibraryId', creds.libraryId);
+          if (creds.videoId) xhr.setRequestHeader('VideoId', creds.videoId);
+          xhr.setRequestHeader('Content-Type', 'application/octet-stream');
 
           let lastLoaded = 0;
           let lastTime = Date.now();
