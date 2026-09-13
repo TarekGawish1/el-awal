@@ -22,6 +22,7 @@ import {
   UserPlus,
   Monitor,
   Chrome,
+  Clock,
 } from 'lucide-react';
 import { useAnalyticsStats } from '../hooks/useAnalytics';
 import { AnalyticsScope, AnalyticsRange } from '../types/analytics.types';
@@ -90,6 +91,9 @@ export function AnalyticsDashboard() {
     landingViews: 0,
     systemViews: 0,
     viewsPerVisitor: 0,
+    totalDurationSeconds: 0,
+    totalDurationFormatted: '0 دقيقة',
+    avgDurationPerVisitorFormatted: '0 دقيقة',
   };
 
   const timeSeries = data?.timeSeries || [];
@@ -261,7 +265,7 @@ export function AnalyticsDashboard() {
       </div>
 
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {/* Card 1: Total Views */}
         <div className="bg-white rounded-2xl p-5 border border-neutral-200/80 shadow-xs relative overflow-hidden group hover:border-primary-200 transition-colors">
           <div className="flex items-center justify-between">
@@ -381,6 +385,30 @@ export function AnalyticsDashboard() {
             )}
           </div>
           <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-bl from-rose-500/5 to-transparent rounded-bl-full pointer-events-none" />
+        </div>
+
+        {/* Card 5: Total Browsing Time */}
+        <div className="bg-white rounded-2xl p-5 border border-neutral-200/80 shadow-xs relative overflow-hidden group hover:border-amber-200 transition-colors">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-neutral-500 uppercase">إجمالي وقت التواجد</span>
+            <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl group-hover:scale-105 transition-transform">
+              <Clock className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <h3 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
+              {isLoading ? (
+                <div className="h-8 w-24 bg-neutral-200 animate-pulse rounded-md" />
+              ) : (
+                summary.totalDurationFormatted || '0 دقيقة'
+              )}
+            </h3>
+            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-neutral-500">
+              <span>متوسط للزائر:</span>
+              <span className="font-bold text-amber-700">{summary.avgDurationPerVisitorFormatted || '0 دقيقة'}</span>
+            </div>
+          </div>
+          <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-bl from-amber-500/5 to-transparent rounded-bl-full pointer-events-none" />
         </div>
       </div>
 

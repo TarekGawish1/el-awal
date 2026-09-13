@@ -152,6 +152,12 @@ export function VisitorListCard({ range, from, to, scope = 'all' }: VisitorListC
               <span className="px-2.5 py-0.5 bg-primary-100 text-primary-800 rounded-full text-xs font-black">
                 {formatNumber(totalVisitors)} زائر فريد
               </span>
+              {data?.totalDurationFormatted && (
+                <span className="px-2.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200/80 rounded-full text-xs font-black flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-amber-600" />
+                  <span>إجمالي وقت التواجد: {data.totalDurationFormatted}</span>
+                </span>
+              )}
             </div>
           </div>
           <p className="text-xs sm:text-sm text-neutral-500 mt-1">
@@ -384,11 +390,22 @@ export function VisitorListCard({ range, from, to, scope = 'all' }: VisitorListC
                       </span>
                     </div>
 
-                    {/* Visit Count & Timing */}
+                    {/* Visit Count, Duration & Timing */}
                     <div className="text-end">
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary-50 text-primary-700 rounded-xl text-xs font-black border border-primary-100">
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>{formatNumber(visitor.totalVisits)} زيارة</span>
+                      <div className="flex items-center gap-1.5 justify-end flex-wrap">
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary-50 text-primary-700 rounded-xl text-xs font-black border border-primary-100">
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>{formatNumber(visitor.totalVisits)} زيارة</span>
+                        </div>
+                        {visitor.totalDurationFormatted && (
+                          <div
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-800 rounded-xl text-xs font-black border border-amber-200/60"
+                            title="إجمالي وقت التواجد للزائر على المنصة"
+                          >
+                            <Clock className="w-3.5 h-3.5 text-amber-600" />
+                            <span>{visitor.totalDurationFormatted}</span>
+                          </div>
+                        )}
                       </div>
                       <p className="text-[11px] text-neutral-400 mt-1" title={visitor.lastSeenAt}>
                         آخر ظهور: {formatDateTime(visitor.lastSeenAt)}

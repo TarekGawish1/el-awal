@@ -11,7 +11,11 @@ export interface AnalyticsSummary {
   viewsPerVisitor: number;
   newVisitors?: number;
   returningVisitors?: number;
+  totalDurationSeconds?: number;
+  totalDurationFormatted?: string;
+  avgDurationPerVisitorFormatted?: string;
 }
+
 
 export interface AnalyticsTimeSeriesPoint {
   date: string;
@@ -146,6 +150,8 @@ export interface VisitorListItem {
   visitorHash: string;
   shortHash: string;
   totalVisits: number;
+  totalDurationSeconds: number;
+  totalDurationFormatted: string;
   firstSeenAt: string;
   lastSeenAt: string;
   user?: {
@@ -169,10 +175,14 @@ export interface VisitorListItem {
 export interface VisitorListResponse {
   visitors: VisitorListItem[];
   totalVisitors: number;
+  totalDurationSeconds: number;
+  totalDurationFormatted: string;
+  avgDurationFormatted: string;
   page: number;
   limit: number;
   totalPages: number;
 }
+
 
 export interface VisitorListParams {
   scope?: AnalyticsScope;

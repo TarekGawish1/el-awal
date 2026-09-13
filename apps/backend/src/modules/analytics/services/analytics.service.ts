@@ -29,7 +29,11 @@ export interface AnalyticsStatsResponse {
     viewsPerVisitor: number;
     newVisitors?: number;
     returningVisitors?: number;
+    totalDurationSeconds?: number;
+    totalDurationFormatted?: string;
+    avgDurationPerVisitorFormatted?: string;
   };
+
   timeSeries: {
     date: string;
     label: string;
@@ -109,6 +113,8 @@ export interface VisitorListItem {
   visitorHash: string;
   shortHash: string;
   totalVisits: number;
+  totalDurationSeconds: number;
+  totalDurationFormatted: string;
   firstSeenAt: string;
   lastSeenAt: string;
   user?: {
@@ -132,10 +138,14 @@ export interface VisitorListItem {
 export interface VisitorListResponse {
   visitors: VisitorListItem[];
   totalVisitors: number;
+  totalDurationSeconds: number;
+  totalDurationFormatted: string;
+  avgDurationFormatted: string;
   page: number;
   limit: number;
   totalPages: number;
 }
+
 
 
 @Injectable()
@@ -468,6 +478,21 @@ export class AnalyticsService implements OnModuleInit {
     const newVisitors = visitCountGroups.filter((g) => g._count.visitorHash === 1).length;
     const returningVisitors = visitCountGroups.filter((g) => g._count.visitorHash > 1).length;
 
+    // Aggregate total platform browsing duration
+    const sessionAgg = await this.prisma.userSession.aggregate({
+      where: {
+        startedAt: { gte: startDate, lte: endDate },
+        ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
+      },
+      _sum: { durationSeconds: true },
+    });
+    const sessionDuration = sessionAgg._sum?.durationSeconds || 0;
+    const estimatedGuestDuration = Math.round(landingViews * 50);
+    const totalDurationSeconds = sessionDuration + estimatedGuestDuration;
+    const totalDurationFormatted = this.formatDurationArabic(totalDurationSeconds);
+    const avgDurationSeconds = uniqueVisitors > 0 ? Math.round(totalDurationSeconds / uniqueVisitors) : 0;
+    const avgDurationPerVisitorFormatted = this.formatDurationArabic(avgDurationSeconds);
+
     return {
       summary: {
         totalViews,
@@ -477,7 +502,11 @@ export class AnalyticsService implements OnModuleInit {
         viewsPerVisitor,
         newVisitors,
         returningVisitors,
+        totalDurationSeconds,
+        totalDurationFormatted,
+        avgDurationPerVisitorFormatted,
       },
+
       timeSeries,
       topPages,
       devices,
@@ -1247,6 +1276,63 @@ export class AnalyticsService implements OnModuleInit {
   }
 
   /**
+   * Calculates realistic browsing/engagement duration in seconds for a visitor based on visits timestamps
+   * or authenticated user session pings.
+   */
+  public calculateVisitorDuration(views: { createdAt: Date | string }[], sessionsDuration: number = 0): number {
+    if (sessionsDuration > 0) {
+      return sessionsDuration;
+    }
+    if (!views || views.length === 0) return 0;
+    if (views.length === 1) return 45; // baseline engagement 45s
+
+    const times = views
+      .map((v) => new Date(v.createdAt).getTime())
+      .sort((a, b) => a - b);
+
+    let totalSeconds = 0;
+    let sessionStart = times[0];
+    let sessionLast = times[0];
+
+    for (let i = 1; i < times.length; i++) {
+      const diffSec = (times[i] - sessionLast) / 1000;
+      if (diffSec <= 1800) {
+        // Continuous session (<= 30 min gap)
+        sessionLast = times[i];
+      } else {
+        // Gap > 30 min: end previous session
+        const sessionDiff = Math.round((sessionLast - sessionStart) / 1000);
+        totalSeconds += Math.max(sessionDiff, 45);
+        sessionStart = times[i];
+        sessionLast = times[i];
+      }
+    }
+    const finalSessionDiff = Math.round((sessionLast - sessionStart) / 1000);
+    totalSeconds += Math.max(finalSessionDiff, 45);
+
+    return Math.max(totalSeconds, views.length * 30);
+  }
+
+  /**
+   * Formats duration in seconds to a human-readable Arabic string.
+   */
+  public formatDurationArabic(seconds: number = 0): string {
+    if (seconds <= 0) return 'أقل من دقيقة';
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSecs = seconds % 60;
+
+    if (hours > 0) {
+      return `${hours} ساعة ${minutes > 0 ? `و ${minutes} دقيقة` : ''}`;
+    }
+    if (minutes > 0) {
+      return `${minutes} دقيقة ${remainingSecs > 10 ? `و ${remainingSecs} ثانية` : ''}`;
+    }
+    return `${remainingSecs} ثانية`;
+  }
+
+
+  /**
    * Retrieves a filtered list of unique visitors with visit frequency, metadata, and detailed visit history.
    */
   public async getVisitorsList(
@@ -1344,6 +1430,9 @@ export class AnalyticsService implements OnModuleInit {
         page,
         limit,
         totalPages,
+        totalDurationSeconds: 0,
+        totalDurationFormatted: '0 دقيقة',
+        avgDurationFormatted: '0 دقيقة',
       };
     }
 
@@ -1405,6 +1494,25 @@ export class AnalyticsService implements OnModuleInit {
       viewsMap.set(v.visitorHash, list);
     }
 
+    // Fetch user sessions for authenticated users in current page
+    const userIds = views.filter((v) => v.user?.id).map((v) => v.user!.id);
+    const sessionDurationsByUserId = new Map<string, number>();
+    if (userIds.length > 0) {
+      const userSessions = await this.prisma.userSession.findMany({
+        where: {
+          userId: { in: userIds },
+          startedAt: { gte: startDate, lte: endDate },
+        },
+        select: { userId: true, durationSeconds: true },
+      });
+      for (const s of userSessions) {
+        sessionDurationsByUserId.set(
+          s.userId,
+          (sessionDurationsByUserId.get(s.userId) || 0) + s.durationSeconds,
+        );
+      }
+    }
+
     const visitors: VisitorListItem[] = pagedGroups.map((g) => {
       const visitorViews = viewsMap.get(g.visitorHash) || [];
       const firstView = visitorViews[0]; // newest
@@ -1456,10 +1564,17 @@ export class AnalyticsService implements OnModuleInit {
         };
       });
 
+      // Calculate visit duration for this specific visitor
+      const userSessionSecs = userView?.user ? (sessionDurationsByUserId.get(userView.user.id) || 0) : 0;
+      const durationSeconds = this.calculateVisitorDuration(visitorViews, userSessionSecs);
+      const totalDurationFormatted = this.formatDurationArabic(durationSeconds);
+
       return {
         visitorHash: g.visitorHash,
         shortHash: g.visitorHash.slice(0, 8),
         totalVisits: g._count?.visitorHash || visitorViews.length,
+        totalDurationSeconds: durationSeconds,
+        totalDurationFormatted,
         firstSeenAt: g._min?.createdAt ? new Date(g._min.createdAt).toISOString() : new Date().toISOString(),
         lastSeenAt: g._max?.createdAt ? new Date(g._max.createdAt).toISOString() : new Date().toISOString(),
         user: userView?.user
@@ -1483,14 +1598,29 @@ export class AnalyticsService implements OnModuleInit {
       };
     });
 
+    let totalAllVisitorsDurationSeconds = 0;
+    for (const v of visitors) {
+      totalAllVisitorsDurationSeconds += v.totalDurationSeconds;
+    }
+    if (totalVisitors > visitors.length && visitors.length > 0) {
+      const avg = totalAllVisitorsDurationSeconds / visitors.length;
+      totalAllVisitorsDurationSeconds = Math.round(avg * totalVisitors);
+    }
+    const totalDurationFormatted = this.formatDurationArabic(totalAllVisitorsDurationSeconds);
+    const avgDurationSeconds = totalVisitors > 0 ? Math.round(totalAllVisitorsDurationSeconds / totalVisitors) : 0;
+    const avgDurationFormatted = this.formatDurationArabic(avgDurationSeconds);
 
     return {
       visitors,
       totalVisitors,
+      totalDurationSeconds: totalAllVisitorsDurationSeconds,
+      totalDurationFormatted,
+      avgDurationFormatted,
       page,
       limit,
       totalPages,
     };
+
   }
 }
 
