@@ -16,6 +16,17 @@ export function AnalyticsTracker() {
   useEffect(() => {
     if (!pathname) return;
 
+    // Do not track visits of teachers or assistants or admin routes
+    if (
+      (user?.role as string) === 'TEACHER' ||
+      (user?.role as string) === 'SECRETARIAT' ||
+      pathname.startsWith('/teacher') ||
+      pathname.startsWith('/secretariat') ||
+      pathname.startsWith('/assistant')
+    ) {
+      return;
+    }
+
     // Compose full relative path with query parameters if present
     const queryString = searchParams?.toString();
     const fullPath = queryString ? `${pathname}?${queryString}` : pathname;
@@ -27,7 +38,7 @@ export function AnalyticsTracker() {
     lastTrackedPathRef.current = fullPath;
 
     // Determine tenant context from authenticated user if available
-    const tenantId = user?.teacherProfileId || (user?.role === 'TEACHER' ? user.id : undefined);
+    const tenantId = user?.teacherProfileId || ((user?.role as string) === 'TEACHER' ? user?.id : undefined);
 
     // Fire non-blocking page view telemetry
     trackPageView({

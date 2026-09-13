@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { GeoLocationService } from './geo-location.service';
 import {
@@ -183,6 +184,26 @@ export class AnalyticsService implements OnModuleInit {
    */
   public async recordPageView(params: RecordPageViewParams): Promise<void> {
     try {
+      // Never track teacher, secretariat, or admin paths
+      if (
+        params.path?.startsWith('/teacher') ||
+        params.path?.startsWith('/secretariat') ||
+        params.path?.startsWith('/assistant') ||
+        params.path?.startsWith('/admin')
+      ) {
+        return;
+      }
+
+      if (params.userId) {
+        const user = await this.prisma.user.findUnique({
+          where: { id: params.userId },
+          select: { role: true },
+        });
+        if (user?.role === UserRole.TEACHER || user?.role === UserRole.SECRETARIAT) {
+          return;
+        }
+      }
+
       const visitorHash = this.generateVisitorHash(params.ipAddress, params.userAgent, params.visitorId);
       const isLanding =
         params.isLandingPage ??
@@ -242,6 +263,14 @@ export class AnalyticsService implements OnModuleInit {
     userAgent?: string,
     headers: Record<string, any> = {},
   ): Promise<{ sessionId: string; country: string; city: string }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (user?.role === UserRole.TEACHER || user?.role === UserRole.SECRETARIAT) {
+      return { sessionId: 'teacher-excluded', country: 'مصر', city: 'القاهرة' };
+    }
+
     const geo = await this.geoLocationService.resolveAsync(ipAddress, headers, {
       city: dto.city,
       country: dto.country,
@@ -386,6 +415,32 @@ export class AnalyticsService implements OnModuleInit {
   }
 
   /**
+   * Identifies all visitor hashes associated with teachers or secretariat staff.
+   */
+  public async getExcludedTeacherHashes(): Promise<string[]> {
+    const teacherUsers = await this.prisma.user.findMany({
+      where: { role: { in: [UserRole.TEACHER, UserRole.SECRETARIAT] } },
+      select: { id: true },
+    });
+    const teacherUserIds = teacherUsers.map((u) => u.id);
+
+    const teacherPageViews = await this.prisma.pageView.findMany({
+      where: {
+        OR: [
+          { userId: { in: teacherUserIds } },
+          { path: { startsWith: '/teacher' } },
+          { path: { startsWith: '/secretariat' } },
+          { path: { startsWith: '/assistant' } },
+        ],
+      },
+      select: { visitorHash: true },
+      distinct: ['visitorHash'],
+    });
+
+    return teacherPageViews.map((pv) => pv.visitorHash);
+  }
+
+  /**
    * Retrieves aggregated analytics statistics for the dashboard.
    */
   public async getStats(query: AnalyticsQueryDto, userTenantId?: string): Promise<AnalyticsStatsResponse> {
@@ -421,9 +476,21 @@ export class AnalyticsService implements OnModuleInit {
       }
     }
 
+    const excludedTeacherHashes = await this.getExcludedTeacherHashes();
+    const teacherExclusion = {
+      ...(excludedTeacherHashes.length > 0 ? { visitorHash: { notIn: excludedTeacherHashes } } : {}),
+      NOT: [
+        { user: { role: { in: [UserRole.TEACHER, UserRole.SECRETARIAT] } } },
+        { path: { startsWith: '/teacher' } },
+        { path: { startsWith: '/secretariat' } },
+        { path: { startsWith: '/assistant' } },
+      ],
+    };
+
     const where = {
       ...baseDateCondition,
       ...scopeCondition,
+      ...teacherExclusion,
     };
 
     const totalViews = await this.prisma.pageView.count({ where });
@@ -437,11 +504,13 @@ export class AnalyticsService implements OnModuleInit {
     const landingWhere = {
       ...baseDateCondition,
       isLandingPage: true,
+      ...teacherExclusion,
     };
     const systemWhere = {
       ...baseDateCondition,
       isLandingPage: false,
       ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
+      ...teacherExclusion,
     };
 
     const [landingViews, systemViews] = await Promise.all([
@@ -478,10 +547,11 @@ export class AnalyticsService implements OnModuleInit {
     const newVisitors = visitCountGroups.filter((g) => g._count.visitorHash === 1).length;
     const returningVisitors = visitCountGroups.filter((g) => g._count.visitorHash > 1).length;
 
-    // Aggregate total platform browsing duration
+    // Aggregate total platform browsing duration (strictly for students and guests, excluding teachers & assistants)
     const sessionAgg = await this.prisma.userSession.aggregate({
       where: {
         startedAt: { gte: startDate, lte: endDate },
+        user: { role: { notIn: [UserRole.TEACHER, UserRole.SECRETARIAT] } },
         ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
       },
       _sum: { durationSeconds: true },
@@ -528,12 +598,14 @@ export class AnalyticsService implements OnModuleInit {
     query: LandingStatsQueryDto,
   ): Promise<{ totalViews: number; uniqueVisitors: number }> {
     const { startDate, endDate } = this.resolveDateRange(query.range, query.from, query.to);
+    const excludedTeacherHashes = await this.getExcludedTeacherHashes();
 
     const where = {
       createdAt: {
         gte: startDate,
         lte: endDate,
       },
+      ...(excludedTeacherHashes.length > 0 ? { visitorHash: { notIn: excludedTeacherHashes } } : {}),
     };
 
     const [totalLandingViews, uniqueLandingVisitors] = await Promise.all([
@@ -578,6 +650,17 @@ export class AnalyticsService implements OnModuleInit {
     const { startDate, endDate } = this.resolveDateRange(query.range, query.from, query.to);
     const effectiveTenantId = query.tenantId || userTenantId;
 
+    const excludedTeacherHashes = await this.getExcludedTeacherHashes();
+    const teacherExclusion = {
+      ...(excludedTeacherHashes.length > 0 ? { visitorHash: { notIn: excludedTeacherHashes } } : {}),
+      NOT: [
+        { user: { role: { in: [UserRole.TEACHER, UserRole.SECRETARIAT] } } },
+        { path: { startsWith: '/teacher' } },
+        { path: { startsWith: '/secretariat' } },
+        { path: { startsWith: '/assistant' } },
+      ],
+    };
+
     // We collect counts in a Map: locationName -> { count, uniqueHashes }
     const locationMap = new Map<string, { count: number; hashes: Set<string> }>();
 
@@ -585,6 +668,7 @@ export class AnalyticsService implements OnModuleInit {
     if (scope === 'landing' || scope === 'all') {
       const landingWhere = {
         createdAt: { gte: startDate, lte: endDate },
+        ...(excludedTeacherHashes.length > 0 ? { visitorHash: { notIn: excludedTeacherHashes } } : {}),
       };
       const landingVisits = await this.prisma.landingVisit.findMany({
         where: landingWhere,
@@ -619,6 +703,7 @@ export class AnalyticsService implements OnModuleInit {
     if (scope === 'platform' || scope === 'all') {
       const sessionWhere: any = {
         startedAt: { gte: startDate, lte: endDate },
+        user: { role: { notIn: [UserRole.TEACHER, UserRole.SECRETARIAT] } },
         ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
       };
 
@@ -626,6 +711,7 @@ export class AnalyticsService implements OnModuleInit {
         createdAt: { gte: startDate, lte: endDate },
         isLandingPage: false,
         ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
+        ...teacherExclusion,
       };
 
       const [userSessions, platformPageViews] = await Promise.all([
@@ -1376,6 +1462,7 @@ export class AnalyticsService implements OnModuleInit {
       const searchTerm = query.search.trim();
       const matchedUsers = await this.prisma.user.findMany({
         where: {
+          role: { notIn: [UserRole.TEACHER, UserRole.SECRETARIAT] },
           OR: [
             { fullName: { contains: searchTerm, mode: 'insensitive' } },
             { phone: { contains: searchTerm } },
@@ -1389,9 +1476,21 @@ export class AnalyticsService implements OnModuleInit {
       searchUserIds = matchedUsers.map((u) => u.id);
     }
 
+    const excludedTeacherHashes = await this.getExcludedTeacherHashes();
+    const teacherExclusion = {
+      ...(excludedTeacherHashes.length > 0 ? { visitorHash: { notIn: excludedTeacherHashes } } : {}),
+      NOT: [
+        { user: { role: { in: [UserRole.TEACHER, UserRole.SECRETARIAT] } } },
+        { path: { startsWith: '/teacher' } },
+        { path: { startsWith: '/secretariat' } },
+        { path: { startsWith: '/assistant' } },
+      ],
+    };
+
     const where: any = {
       ...baseDateCondition,
       ...scopeCondition,
+      ...teacherExclusion,
       ...(searchUserIds !== undefined ? { userId: { in: searchUserIds } } : {}),
     };
 
@@ -1442,6 +1541,7 @@ export class AnalyticsService implements OnModuleInit {
         visitorHash: { in: pagedHashes },
         ...baseDateCondition,
         ...scopeCondition,
+        ...teacherExclusion,
       },
       orderBy: { createdAt: 'desc' },
       select: {
@@ -1474,7 +1574,10 @@ export class AnalyticsService implements OnModuleInit {
 
     // Also fetch landing visits to resolve city/country if pageView metadata doesn't have it
     const landingVisits = await this.prisma.landingVisit.findMany({
-      where: { visitorHash: { in: pagedHashes } },
+      where: {
+        visitorHash: { in: pagedHashes },
+        ...(excludedTeacherHashes.length > 0 ? { visitorHash: { notIn: excludedTeacherHashes } } : {}),
+      },
       select: { visitorHash: true, city: true, country: true },
       orderBy: { createdAt: 'desc' },
       take: 500,
@@ -1494,13 +1597,16 @@ export class AnalyticsService implements OnModuleInit {
       viewsMap.set(v.visitorHash, list);
     }
 
-    // Fetch user sessions for authenticated users in current page
-    const userIds = views.filter((v) => v.user?.id).map((v) => v.user!.id);
+    // Fetch user sessions for authenticated users in current page (strictly students)
+    const userIds = views
+      .filter((v) => v.user?.id && v.user.role !== UserRole.TEACHER && v.user.role !== UserRole.SECRETARIAT)
+      .map((v) => v.user!.id);
     const sessionDurationsByUserId = new Map<string, number>();
     if (userIds.length > 0) {
       const userSessions = await this.prisma.userSession.findMany({
         where: {
           userId: { in: userIds },
+          user: { role: { notIn: [UserRole.TEACHER, UserRole.SECRETARIAT] } },
           startedAt: { gte: startDate, lte: endDate },
         },
         select: { userId: true, durationSeconds: true },

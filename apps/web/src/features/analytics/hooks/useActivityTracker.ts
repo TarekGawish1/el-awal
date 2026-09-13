@@ -14,8 +14,9 @@ export function useActivityTracker() {
   const lastPingTimeRef = useRef<number>(Date.now());
 
   useEffect(() => {
-    // Track authenticated activity sessions (student leaderboard strictly filters by STUDENT role on backend)
+    // Track authenticated activity sessions (exclude teachers and assistants)
     if (!isAuthenticated || !user) return;
+    if ((user.role as string) === 'TEACHER' || (user.role as string) === 'SECRETARIAT') return;
 
     let isMounted = true;
     const tenantId = user.teacherProfileId;

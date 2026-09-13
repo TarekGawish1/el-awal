@@ -439,44 +439,6 @@ export function AnalyticsDashboard() {
           </div>
         </div>
 
-        {/* Active Inspection Banner when hovering any bar */}
-        {hoveredIndex !== null && timeSeries[hoveredIndex] && (
-          <div className="bg-neutral-900 text-white p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs shadow-lg animate-in fade-in duration-100 border border-neutral-700">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-primary-400 animate-ping" />
-              <span className="font-black text-sm text-primary-200">
-                {timeSeries[hoveredIndex].label}
-              </span>
-            </div>
-            <div className="flex items-center gap-4 sm:gap-6 flex-wrap text-xs">
-              <span className="flex items-center gap-1.5">
-                <span className="text-neutral-400">إجمالي الزيارات:</span>
-                <span className="font-black font-mono text-white text-sm">
-                  {formatNumber(timeSeries[hoveredIndex].totalViews)}
-                </span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="text-neutral-400">الزوار الفريدين:</span>
-                <span className="font-black font-mono text-emerald-400 text-sm">
-                  {formatNumber(timeSeries[hoveredIndex].uniqueVisitors)}
-                </span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="text-neutral-400">الموقع التعريفي:</span>
-                <span className="font-black font-mono text-primary-300">
-                  {formatNumber(timeSeries[hoveredIndex].landingViews)}
-                </span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="text-neutral-400">لوحة النظام:</span>
-                <span className="font-black font-mono text-emerald-300">
-                  {formatNumber(timeSeries[hoveredIndex].systemViews)}
-                </span>
-              </span>
-            </div>
-          </div>
-        )}
-
         {/* Time-Series Chart Container */}
         {timeSeries.length === 0 || summary.totalViews === 0 ? (
           <div className="h-64 flex flex-col items-center justify-center text-center p-6 bg-neutral-50/50 rounded-xl border border-dashed border-neutral-200">

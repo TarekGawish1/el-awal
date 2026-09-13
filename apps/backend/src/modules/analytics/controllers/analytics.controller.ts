@@ -61,6 +61,18 @@ export class AnalyticsController {
     const userAgent = req.headers['user-agent'] || '';
     const authenticatedUser = (req as any).user as AuthenticatedUser | undefined;
 
+    // Exclude teachers, assistants, and administrative pages from tracking
+    if (
+      authenticatedUser?.role === UserRole.TEACHER ||
+      authenticatedUser?.role === UserRole.SECRETARIAT ||
+      dto.path?.startsWith('/teacher') ||
+      dto.path?.startsWith('/secretariat') ||
+      dto.path?.startsWith('/assistant') ||
+      dto.path?.startsWith('/admin')
+    ) {
+      return { success: true };
+    }
+
     void this.analyticsService.recordPageView({
       ...dto,
       ipAddress,
@@ -85,6 +97,12 @@ export class AnalyticsController {
     @Req() req: Request,
   ) {
     if (!user) throw new UnauthorizedException('Session requires authenticated user');
+
+    // Never track activity sessions for teachers or assistants
+    if (user.role === UserRole.TEACHER || user.role === UserRole.SECRETARIAT) {
+      return { sessionId: 'teacher-excluded', country: 'مصر', city: 'القاهرة' };
+    }
+
     const ipAddress = this.extractClientIp(req);
     const userAgent = req.headers['user-agent'] || '';
 
@@ -105,6 +123,9 @@ export class AnalyticsController {
   })
   @ApiResponse({ status: 200, description: 'Session duration incremented' })
   async pingSession(@Body() dto: PingSessionDto) {
+    if (dto.sessionId === 'teacher-excluded') {
+      return { success: true, duration: 0 };
+    }
     return this.analyticsService.pingSession(dto);
   }
 
