@@ -4,6 +4,13 @@ const isDev = process.env.NODE_ENV !== 'production';
 const nextConfig = {
   output: 'standalone',
 
+  // Lint in CI (`pnpm lint`), never block Heroku production builds on lint.
+  // (A lint-config mismatch previously failed deploys with
+  // "ESLint: Invalid Options: Unknown options: useEslintrc, extensions".)
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+
   async rewrites() {
     const rawBackendUrl =
       process.env.BACKEND_INTERNAL_URL ||

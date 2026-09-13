@@ -65,7 +65,7 @@ export function FileUploadZone({
 
     if (fileCategory === 'image' || file.type.startsWith('image/')) {
       try {
-        if (typeof window !== 'undefined' && window.URL?.createObjectURL) {
+        if (typeof window !== 'undefined' && typeof window.URL?.createObjectURL === 'function') {
           const blobUrl = URL.createObjectURL(file);
           setLocalPreviewUrl(blobUrl);
         }
