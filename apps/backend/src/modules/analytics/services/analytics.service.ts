@@ -1589,49 +1589,32 @@ export class AnalyticsService implements OnModuleInit {
     }
     if (!views || views.length === 0) return 0;
 
-    // Check if any views have explicit activeDurationSeconds recorded from client-side engagement pings
-    let recordedPingsDuration = 0;
-    for (const v of views) {
-      const meta = (v as any).metadata as Record<string, any> | undefined;
-      const active = Number(meta?.activeDurationSeconds);
-      if (active && active > 0) {
-        recordedPingsDuration += active;
-      }
-    }
-
-    // Single-page visit (e.g. single-page landing site):
-    if (views.length === 1) {
-      if (recordedPingsDuration > 0) {
-        return recordedPingsDuration;
-      }
-      return 45; // baseline fallback only if no pings arrived yet
-    }
-
-    const times = views
-      .map((v) => new Date(v.createdAt).getTime())
-      .sort((a, b) => a - b);
+    const sorted = [...views].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
 
     let totalSeconds = 0;
-    let sessionStart = times[0];
-    let sessionLast = times[0];
+    for (let i = 0; i < sorted.length; i++) {
+      const currentView = sorted[i];
+      const currentMeta = (currentView as any).metadata as Record<string, any> | undefined;
+      const currentActive = Number(currentMeta?.activeDurationSeconds);
 
-    for (let i = 1; i < times.length; i++) {
-      const diffSec = (times[i] - sessionLast) / 1000;
-      if (diffSec <= 1800) {
-        // Continuous session (<= 30 min gap)
-        sessionLast = times[i];
-      } else {
-        // Gap > 30 min: end previous session
-        const sessionDiff = Math.round((sessionLast - sessionStart) / 1000);
-        totalSeconds += Math.max(sessionDiff, 45);
-        sessionStart = times[i];
-        sessionLast = times[i];
+      let dur = 45;
+      if (currentActive && currentActive > 0) {
+        dur = currentActive;
+      } else if (i < sorted.length - 1) {
+        const nextView = sorted[i + 1];
+        const diffSec = Math.round(
+          (new Date(nextView.createdAt).getTime() - new Date(currentView.createdAt).getTime()) / 1000,
+        );
+        if (diffSec > 0 && diffSec <= 1800) {
+          dur = Math.max(diffSec, 15);
+        }
       }
+      totalSeconds += dur;
     }
-    const finalSessionDiff = Math.round((sessionLast - sessionStart) / 1000);
-    totalSeconds += Math.max(finalSessionDiff, 45);
 
-    return Math.max(totalSeconds, recordedPingsDuration, views.length * 30);
+    return totalSeconds;
   }
 
   /**

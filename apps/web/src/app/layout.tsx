@@ -3,6 +3,7 @@ import { Cairo, Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 import { PwaRegister, PwaInstallPrompt } from '@/components/pwa';
+import { ClarityProvider } from '@/components/analytics/ClarityProvider';
 
 const cairo = Cairo({
   subsets: ['arabic', 'latin'],
@@ -72,6 +73,7 @@ export default function RootLayout({
       </head>
       <body className="bg-neutral-50 text-neutral-900 min-h-screen flex flex-col antialiased no-scrollbar">
         <Providers>
+          <ClarityProvider />
           {children}
           <PwaRegister />
           <PwaInstallPrompt />
