@@ -7,6 +7,38 @@ import { offlineDb } from '@/lib/offline/db';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 
+vi.mock('../api/students.api', () => ({
+  fetchStudents: vi.fn().mockImplementation(async () => {
+    const serverStudents: any[] = [];
+    for (let i = 1; i <= 47; i++) {
+      serverStudents.push({
+        id: `stu-${i}`,
+        studentCode: `STU-${1000 + i}`,
+        gradeLevel: 'الصف الأول الثانوي',
+        academicStage: '',
+        academicStatus: 'ACTIVE',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        user: { id: `u-${i}`, fullName: `طالب نشط ${i}`, phone: '', email: '', isActive: true },
+        groupEnrollments: [],
+        parentLinks: [],
+      });
+    }
+    return {
+      success: true,
+      data: serverStudents,
+      meta: { total: 47, limit: 20, hasMore: false },
+      timestamp: new Date().toISOString(),
+    };
+  }),
+  createStudent: vi.fn(),
+  fetchStudentById: vi.fn(),
+  fetchStudentQrCode: vi.fn(),
+  regenerateStudentQrToken: vi.fn(),
+  updateStudentStatus: vi.fn(),
+  resetStudentPassword: vi.fn(),
+}));
+
 describe('Student Offline Filter Parity & Sync Conflict Surfacing', () => {
   let queryClient: QueryClient;
   let originalNavigatorOnLine: boolean;

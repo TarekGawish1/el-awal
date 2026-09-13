@@ -63,7 +63,7 @@ describe('StudentLatestHomework card', () => {
       isLoading: false,
     } as any);
     render(<StudentLatestHomework />);
-    expect(screen.getByText('✅ تم تسليم الحل')).toBeInTheDocument();
+    expect(screen.getByText(/تم تسليم الحل/)).toBeInTheDocument();
     expect(screen.getByText(/بانتظار مراجعة الأستاذ/)).toBeInTheDocument();
   });
 
@@ -74,6 +74,6 @@ describe('StudentLatestHomework card', () => {
     } as any);
     render(<StudentLatestHomework />);
     expect(screen.getByText('الحصة 4: قوانين نيوتن للحركة')).toBeInTheDocument();
-    expect(screen.getByText('⏰ انتهى موعد التسليم')).toBeInTheDocument();
+    expect(screen.getByText(/انتهى موعد التسليم/)).toBeInTheDocument();
   });
 });

@@ -1,5 +1,10 @@
 import '@testing-library/jest-dom';
-import { beforeEach } from 'vitest';
+import { beforeEach, vi } from 'vitest';
+
+vi.mock('next/font/google', () => ({
+  Cairo: () => ({ className: 'font-cairo', variable: '--font-cairo' }),
+  Inter: () => ({ className: 'font-inter', variable: '--font-inter' }),
+}));
 import { useAuthStore } from './src/features/auth/store/auth.store';
 
 beforeEach(() => {
