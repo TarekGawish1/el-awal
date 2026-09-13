@@ -30,12 +30,15 @@ describe('Analytics & Telemetry Subsystem', () => {
       findMany: jest.fn(),
     },
     user: {
+      findUnique: jest.fn(),
       findMany: jest.fn(),
     },
   };
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockPrisma.user.findMany.mockResolvedValue([]);
+    mockPrisma.user.findUnique.mockResolvedValue({ role: UserRole.STUDENT });
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AnalyticsController],

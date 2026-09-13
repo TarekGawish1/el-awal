@@ -284,3 +284,23 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
     });
   }
 }
+
+apiClient.get = function <T>(endpoint: string, options?: RequestOptions): Promise<T> {
+  return apiClient<T>(endpoint, { method: 'GET', ...options });
+};
+
+apiClient.post = function <T>(endpoint: string, body?: any, options?: RequestOptions): Promise<T> {
+  return apiClient<T>(endpoint, { method: 'POST', body, ...options });
+};
+
+apiClient.put = function <T>(endpoint: string, body?: any, options?: RequestOptions): Promise<T> {
+  return apiClient<T>(endpoint, { method: 'PUT', body, ...options });
+};
+
+apiClient.patch = function <T>(endpoint: string, body?: any, options?: RequestOptions): Promise<T> {
+  return apiClient<T>(endpoint, { method: 'PATCH', body, ...options });
+};
+
+apiClient.delete = function <T>(endpoint: string, options?: RequestOptions): Promise<T> {
+  return apiClient<T>(endpoint, { method: 'DELETE', ...options });
+};

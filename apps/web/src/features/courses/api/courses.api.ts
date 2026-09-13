@@ -226,6 +226,10 @@ export const coursesApi = {
     return apiClient(`/courses/lessons/${lessonId}/stream-auth`);
   },
 
+  getLessonStreamTicket: async (lessonId: string): Promise<{ embedUrl: string; expiresAt: number }> => {
+    return apiClient.get(`/courses/lessons/${lessonId}/stream-ticket`);
+  },
+
   updateLessonProgress: async (lessonId: string, data: { lastPositionSeconds: number; isCompleted?: boolean }): Promise<any> => {
     return apiClient(`/courses/lessons/${lessonId}/progress`, {
       method: 'POST',

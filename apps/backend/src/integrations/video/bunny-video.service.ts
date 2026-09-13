@@ -33,6 +33,21 @@ export interface DirectUploadCredentialsResult {
   playbackUrl: string;
 }
 
+export function generateBunnyEmbedTicket(
+  libraryId: string,
+  videoId: string,
+  tokenSecurityKey: string,
+  ttlSeconds = 7200, // 2 hours expiration
+): { embedUrl: string; expires: number } {
+  const expires = Math.floor(Date.now() / 1000) + ttlSeconds;
+  // Bunny token formula: SHA256(securityKey + videoId + expires)
+  const hashable = `${tokenSecurityKey}${videoId}${expires}`;
+  const token = createHash('sha256').update(hashable).digest('hex');
+
+  const embedUrl = `https://iframe.mediadelivery.net/embed/${libraryId}/${videoId}?token=${token}&expires=${expires}`;
+  return { embedUrl, expires };
+}
+
 @Injectable()
 export class BunnyVideoService {
   private readonly logger = new Logger(BunnyVideoService.name);
@@ -43,13 +58,27 @@ export class BunnyVideoService {
 
   constructor(private readonly configService: ConfigService) {
     this.apiKey = this.configService.get<string>('BUNNY_API_KEY', '').trim();
-    this.libraryId = this.configService.get<string>('BUNNY_LIBRARY_ID', '').trim();
+    this.libraryId = (
+      this.configService.get<string>('BUNNY_STREAM_LIBRARY_ID') ||
+      this.configService.get<string>('BUNNY_LIBRARY_ID', '')
+    ).trim();
     this.cdnHostname = this.configService.get<string>('BUNNY_CDN_HOSTNAME', 'video.elawal.com').trim();
-    this.tokenSecurityKey = this.configService.get<string>('BUNNY_TOKEN_SECURITY_KEY', '').trim();
+    this.tokenSecurityKey = (
+      this.configService.get<string>('BUNNY_STREAM_TOKEN_KEY') ||
+      this.configService.get<string>('BUNNY_TOKEN_SECURITY_KEY', '')
+    ).trim();
   }
 
   getLibraryId(): string {
     return this.libraryId;
+  }
+
+  getTokenSecurityKey(): string {
+    return this.tokenSecurityKey;
+  }
+
+  generateEmbedTicket(videoId: string, ttlSeconds = 7200): { embedUrl: string; expires: number } {
+    return generateBunnyEmbedTicket(this.libraryId, videoId, this.tokenSecurityKey, ttlSeconds);
   }
 
   /**

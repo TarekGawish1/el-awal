@@ -9,6 +9,7 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { CoursesService } from '../services/courses.service';
@@ -39,6 +40,8 @@ import {
 } from '../dto/enrollment.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
 import { Public } from '../../../core/security/decorators/public.decorator';
+import { JwtAuthGuard } from '../../../core/security/guards/jwt-auth.guard';
+import { RolesGuard } from '../../../core/security/guards/roles.guard';
 import {
   CurrentUser,
   AuthenticatedUser,
@@ -518,6 +521,21 @@ export class CoursesController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.coursesService.getLessonStreamAuth(lessonId, user);
+  }
+
+  @Get('lessons/:lessonId/stream-ticket')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Generate cryptographically signed short-lived Bunny Stream embed ticket' })
+  @ApiResponse({ status: 200, description: 'Signed Bunny Stream embed ticket returned' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden: student not enrolled in course' })
+  @ApiResponse({ status: 404, description: 'Lesson or Bunny video not found' })
+  async getLessonStreamTicket(
+    @Param('lessonId') lessonId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.coursesService.getLessonStreamTicket(lessonId, user);
   }
 
   @Get(':id/enrollments')

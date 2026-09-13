@@ -56,7 +56,23 @@ import { normalizeEgyptianPhone } from '../../../common/utils/phone.util';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
 import { RealtimeGateway } from '../../../realtime/realtime.gateway';
 import { createHash, randomUUID } from 'crypto';
+import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
+
+export function generateBunnyEmbedTicket(
+  libraryId: string,
+  videoId: string,
+  tokenSecurityKey: string,
+  ttlSeconds = 7200, // 2 hours expiration
+): { embedUrl: string; expires: number } {
+  const expires = Math.floor(Date.now() / 1000) + ttlSeconds;
+  // Bunny token formula: SHA256(securityKey + videoId + expires)
+  const hashable = `${tokenSecurityKey}${videoId}${expires}`;
+  const token = crypto.createHash('sha256').update(hashable).digest('hex');
+
+  const embedUrl = `https://iframe.mediadelivery.net/embed/${libraryId}/${videoId}?token=${token}&expires=${expires}`;
+  return { embedUrl, expires };
+}
 
 @Injectable()
 export class CoursesService {
@@ -2883,6 +2899,126 @@ export class CoursesService {
       playbackUrl,
       isPreview: lesson.isPreview,
       watermark,
+    };
+  }
+
+  /**
+   * Asserts student enrollment or academic group access for a lesson.
+   * Throws 403 Forbidden if not enrolled.
+   */
+  async assertStudentCourseAccess(lessonId: string, userId: string) {
+    const lesson = await this.prisma.courseLesson.findUnique({
+      where: { id: lessonId },
+      include: {
+        module: {
+          include: {
+            course: {
+              include: {
+                groupAccess: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!lesson) {
+      throw new NotFoundException(`Lesson [${lessonId}] not found`);
+    }
+
+    if (lesson.isPreview) {
+      return lesson;
+    }
+
+    const course = lesson.module?.course;
+    if (!course) {
+      throw new NotFoundException(`Course for lesson [${lessonId}] not found`);
+    }
+
+    let studentProfile = await this.prisma.studentProfile
+      .findUnique({
+        where: { id: userId },
+        include: { user: true, groupEnrollments: true },
+      })
+      .catch(() => null);
+
+    if (!studentProfile) {
+      studentProfile = await this.prisma.studentProfile
+        .findFirst({
+          where: {
+            OR: [{ id: userId }, { user: { id: userId } }],
+          },
+          include: { user: true, groupEnrollments: true },
+        })
+        .catch(() => null);
+    }
+
+    if (studentProfile) {
+      // 1. Check direct active course enrollment
+      const enrollment = await this.prisma.courseEnrollment.findUnique({
+        where: {
+          courseId_studentId: {
+            courseId: course.id,
+            studentId: studentProfile.id,
+          },
+        },
+      });
+
+      if (enrollment && enrollment.status === CourseEnrollmentStatus.ACTIVE) {
+        return lesson;
+      }
+
+      // 2. Check physical group batch access
+      const studentGroupIds = studentProfile.groupEnrollments?.map((g: any) => g.groupId) || [];
+      const courseGroupIds = course.groupAccess?.map((ga: any) => ga.groupId) || [];
+      const hasMatchingGroup = studentGroupIds.some((gid: string) => courseGroupIds.includes(gid));
+      if (hasMatchingGroup) {
+        return lesson;
+      }
+    }
+
+    throw new ForbiddenException('يجب الاشتراك في هذا الكورس أولاً لمشاهدة شرح هذا الدرس');
+  }
+
+  /**
+   * Generates a cryptographically signed, short-lived Bunny Stream embed ticket for authenticated, enrolled students.
+   * Endpoint: GET /api/v1/courses/lessons/:lessonId/stream-ticket
+   */
+  async getLessonStreamTicket(
+    lessonId: string,
+    user: AuthenticatedUser,
+  ): Promise<{ embedUrl: string; expiresAt: number }> {
+    if (user.role === UserRole.STUDENT) {
+      await this.assertStudentCourseAccess(lessonId, user.id);
+    }
+
+    const lesson = await this.prisma.courseLesson.findUnique({
+      where: { id: lessonId },
+    });
+
+    if (!lesson) {
+      throw new NotFoundException(`Lesson [${lessonId}] not found`);
+    }
+
+    const videoId = lesson.bunnyVideoId;
+    if (!videoId || videoId.trim() === '') {
+      throw new NotFoundException(`Bunny video ID not available for lesson [${lessonId}]`);
+    }
+
+    const libraryId =
+      process.env.BUNNY_STREAM_LIBRARY_ID ||
+      this.bunnyVideoService.getLibraryId() ||
+      '730290';
+    const tokenSecurityKey =
+      process.env.BUNNY_STREAM_TOKEN_KEY ||
+      this.bunnyVideoService.getTokenSecurityKey() ||
+      '8b44960b-e9c9-4851-a355-14edf0d4e6e2';
+
+    const ticket = generateBunnyEmbedTicket(libraryId, videoId, tokenSecurityKey, 7200);
+
+    return {
+      embedUrl: ticket.embedUrl,
+      expiresAt: ticket.expires,
     };
   }
 

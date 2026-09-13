@@ -30,6 +30,8 @@ const baseEnvSchema = z.object({
   BUNNY_LIBRARY_ID: z.string().optional(),
   BUNNY_CDN_HOSTNAME: z.string().optional(),
   BUNNY_TOKEN_SECURITY_KEY: z.string().optional(),
+  BUNNY_STREAM_LIBRARY_ID: z.string().min(1, 'BUNNY_STREAM_LIBRARY_ID is required'),
+  BUNNY_STREAM_TOKEN_KEY: z.string().min(1, 'BUNNY_STREAM_TOKEN_KEY is required'),
 
   // Operational security controls
   ENABLE_SWAGGER: z.coerce.boolean().default(false),
@@ -63,6 +65,22 @@ export const envSchema = baseEnvSchema.superRefine((env, ctx) => {
     return;
   }
 
+  if (!env.BUNNY_STREAM_LIBRARY_ID || env.BUNNY_STREAM_LIBRARY_ID.trim() === '') {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['BUNNY_STREAM_LIBRARY_ID'],
+      message: 'BUNNY_STREAM_LIBRARY_ID is required in production',
+    });
+  }
+
+  if (!env.BUNNY_STREAM_TOKEN_KEY || env.BUNNY_STREAM_TOKEN_KEY.trim() === '') {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['BUNNY_STREAM_TOKEN_KEY'],
+      message: 'BUNNY_STREAM_TOKEN_KEY is required in production',
+    });
+  }
+
   if (env.DATABASE_URL.includes('localhost') || env.DATABASE_URL.includes('127.0.0.1')) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -76,6 +94,8 @@ export type EnvConfig = z.infer<typeof envSchema> & {
   JWT_ACCESS_SECRET: string;
   JWT_REFRESH_SECRET: string;
   CORS_ORIGINS: string;
+  BUNNY_STREAM_LIBRARY_ID: string;
+  BUNNY_STREAM_TOKEN_KEY: string;
 };
 
 export function validateEnv(config: Record<string, unknown>): EnvConfig {
@@ -118,6 +138,21 @@ export function validateEnv(config: Record<string, unknown>): EnvConfig {
     normalizedConfig.CORS_ORIGINS = 'https://al-awal.online,https://al-awal-cbe2188d9efa.herokuapp.com';
   }
 
+  if (!normalizedConfig.BUNNY_STREAM_LIBRARY_ID && normalizedConfig.BUNNY_LIBRARY_ID) {
+    normalizedConfig.BUNNY_STREAM_LIBRARY_ID = normalizedConfig.BUNNY_LIBRARY_ID;
+  }
+  if (!normalizedConfig.BUNNY_STREAM_TOKEN_KEY && normalizedConfig.BUNNY_TOKEN_SECURITY_KEY) {
+    normalizedConfig.BUNNY_STREAM_TOKEN_KEY = normalizedConfig.BUNNY_TOKEN_SECURITY_KEY;
+  }
+  if (normalizedConfig.NODE_ENV !== 'production') {
+    if (!normalizedConfig.BUNNY_STREAM_LIBRARY_ID) {
+      normalizedConfig.BUNNY_STREAM_LIBRARY_ID = '730290';
+    }
+    if (!normalizedConfig.BUNNY_STREAM_TOKEN_KEY) {
+      normalizedConfig.BUNNY_STREAM_TOKEN_KEY = '8b44960b-e9c9-4851-a355-14edf0d4e6e2';
+    }
+  }
+
   const parsed = envSchema.safeParse(normalizedConfig);
 
   if (!parsed.success) {
@@ -132,5 +167,7 @@ export function validateEnv(config: Record<string, unknown>): EnvConfig {
     CORS_ORIGINS: (parsed.data.CORS_ORIGINS as string) || '*',
     JWT_ACCESS_SECRET: parsed.data.JWT_ACCESS_SECRET as string,
     JWT_REFRESH_SECRET: parsed.data.JWT_REFRESH_SECRET as string,
+    BUNNY_STREAM_LIBRARY_ID: parsed.data.BUNNY_STREAM_LIBRARY_ID as string,
+    BUNNY_STREAM_TOKEN_KEY: parsed.data.BUNNY_STREAM_TOKEN_KEY as string,
   };
 }

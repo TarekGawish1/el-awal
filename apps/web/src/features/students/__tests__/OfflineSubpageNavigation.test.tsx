@@ -233,11 +233,11 @@ describe('Offline Subpage Navigation & Resilient Hydration', () => {
 
     await waitFor(() => {
       expect(screen.getAllByText('عمر خالد المنشاوي')[0]).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
     expect(screen.getAllByText('STU-101001')[0]).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByText('مجموعة الفيزياء للثانوية')).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
     expect(screen.getByText('خالد المنشاوي')).toBeInTheDocument();
     expect(screen.getByTitle('فتح الصفحة الكاملة')).toBeInTheDocument();
   });

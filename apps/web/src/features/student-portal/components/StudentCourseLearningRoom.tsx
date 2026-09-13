@@ -116,6 +116,23 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     refetch: refetchStreamAuth,
   } = useLessonStreamAuth(selectedLessonId || '');
 
+  // Floating Dynamic Anti-Theft Watermark
+  const [watermarkPos, setWatermarkPos] = useState({ top: 15, left: 15 });
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    const shift = () => {
+      const newTop = Math.floor(Math.random() * 70) + 8;
+      const newLeft = Math.floor(Math.random() * 62) + 8;
+      setWatermarkPos({ top: newTop, left: newLeft });
+      const delay = Math.floor(Math.random() * 10000) + 20000;
+      timeoutId = setTimeout(shift, delay);
+    };
+    shift();
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, []);
+
   // ── Completed-lessons tracking ────────────────────────────────────────────────
   // The server (course.completedLessonIds) is the single source of truth for what THIS
   // student has completed. localStorage is only a per-student offline cache. We never
@@ -1269,8 +1286,9 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
           {/* Strict 16:9 Aspect Ratio Video Player Card */}
           <div ref={videoContainerRef} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
             <div
-              className="relative w-full aspect-video bg-black overflow-hidden flex items-center justify-center"
+              className="relative w-full aspect-video bg-black overflow-hidden flex items-center justify-center select-none"
               style={{ aspectRatio: '16 / 9', width: '100%' }}
+              onContextMenu={(e) => e.preventDefault()}
             >
               {isLessonLoading || isStreamAuthLoading ? (
                 <div className="flex flex-col items-center gap-3 text-white">
@@ -1340,14 +1358,15 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 </div>
               )}
 
-              {/* Dynamic Anti-Piracy Watermark Overlay (Strictly Absolute within Container) */}
+              {/* Floating Dynamic Anti-Theft Watermark Overlay */}
               {streamAuth?.watermark && (
-                <div
-                  className="pointer-events-none absolute inset-0 z-20 w-full h-full overflow-hidden flex items-start justify-end p-4"
-                >
-                  <span className="select-none opacity-25 text-[11px] font-mono text-white font-bold bg-black/40 px-2 py-1 rounded-md backdrop-blur-xs">
-                    {streamAuth.watermark.studentCode} • {streamAuth.watermark.studentPhone}
-                  </span>
+                <div className="pointer-events-none absolute inset-0 overflow-hidden z-20">
+                  <div
+                    className="text-xs font-mono font-bold text-white/20 tracking-wider p-3 select-none transition-all duration-1000"
+                    style={{ top: `${watermarkPos.top}%`, left: `${watermarkPos.left}%`, position: 'absolute' }}
+                  >
+                    {streamAuth.watermark.studentName} • {streamAuth.watermark.studentCode || streamAuth.watermark.studentPhone}
+                  </div>
                 </div>
               )}
             </div>

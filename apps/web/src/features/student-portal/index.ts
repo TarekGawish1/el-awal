@@ -5,3 +5,4 @@ export * from './components/LessonSummaryTab';
 export * from './components/LessonResourcesTab';
 export * from './components/LessonQuizTab';
 export * from './components/AntiPiracyWatermark';
+export * from './components/LessonVideoPlayer';
