@@ -2057,30 +2057,89 @@ function CertificateCard({ cert, index }: { cert: any; index: number }) {
 }
 
 function StageCertificateRow({ certificates }: { certificates: any[] }) {
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const pausedRef = useRef(false);
+
+  const normalizedList =
+    certificates && certificates.length > 0
+      ? certificates.length < 8
+        ? Array.from({
+            length: Math.ceil(8 / certificates.length),
+          }).flatMap(() => certificates)
+        : certificates
+      : [];
+
+  // JS-driven marquee (requestAnimationFrame + inline transform).
+  // A CSS keyframes animation was unreliable here: it stayed static whenever
+  // the cards fit the wide desktop container, and globals.css kills ALL CSS
+  // animations under `prefers-reduced-motion: reduce` (common on Windows when
+  // "Animation effects" are off) — while phones kept moving. rAF is immune to
+  // both, so desktop and phone behave identically.
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track || normalizedList.length === 0) return;
+
+    const SPEED_PX_PER_SEC = 80; // rightward (left-to-right), like before
+    let raf = 0;
+    let last = performance.now();
+    let half = track.offsetWidth / 2;
+    let x = -half;
+
+    const measure = () => {
+      half = track.offsetWidth / 2;
+      if (half > 0) {
+        if (x > 0) x -= half;
+        if (x < -half) x += half;
+      }
+    };
+    measure();
+
+    const ro =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(measure)
+        : null;
+    ro?.observe(track);
+    window.addEventListener("resize", measure);
+    // Re-measure once layout settles (fonts / late paint).
+    const settleTimer = window.setTimeout(measure, 600);
+
+    const step = (now: number) => {
+      const dt = Math.min((now - last) / 1000, 0.1);
+      last = now;
+      if (!pausedRef.current) {
+        if (half <= 0) measure();
+        if (half > 0) {
+          x += SPEED_PX_PER_SEC * dt;
+          if (x >= 0) x -= half;
+          track.style.transform = `translate3d(${x}px,0,0)`;
+        }
+      }
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      ro?.disconnect();
+      window.removeEventListener("resize", measure);
+      window.clearTimeout(settleTimer);
+    };
+  }, [certificates, normalizedList.length]);
+
   if (!certificates || certificates.length === 0) return null;
 
-  // Always marquee — on desktop the cards used to fit inside the wide
-  // container so `shouldScroll` stayed false (static row), while on phones
-  // the same cards overflowed and scrolled. Duplicating to a minimum width
-  // guarantees the animation runs on every screen size.
-  const baseMultiplier =
-    certificates.length < 8 ? Math.ceil(8 / certificates.length) : 1;
-  const normalizedList = Array.from({ length: baseMultiplier }).flatMap(
-    () => certificates,
-  );
-  const duration = Math.max(20, normalizedList.length * 3);
-
   return (
-    <div className="w-full overflow-hidden pb-6">
+    <div
+      className="w-full overflow-hidden pb-6"
+      onMouseEnter={() => {
+        pausedRef.current = true;
+      }}
+      onMouseLeave={() => {
+        pausedRef.current = false;
+      }}
+    >
       <div className="relative w-full overflow-hidden" dir="ltr">
-        <style>{`@keyframes infinite-scroll-ltr { 0% { transform: translateX(-50%); } 100% { transform: translateX(0%); } }`}</style>
-        <div
-          className="flex w-max will-change-transform hover:[animation-play-state:paused]"
-          dir="ltr"
-          style={{
-            animation: `infinite-scroll-ltr ${duration}s linear infinite`,
-          }}
-        >
+        <div ref={trackRef} className="flex w-max will-change-transform" dir="ltr">
           <div className="flex gap-6 pr-6 shrink-0" dir="rtl">
             {normalizedList.map((cert, index) => (
               <CertificateCard
