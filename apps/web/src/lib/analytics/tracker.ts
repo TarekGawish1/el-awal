@@ -124,3 +124,37 @@ export function trackPageView({
     // Intentionally silent
   }
 }
+
+/**
+ * Sends a lightweight active duration ping for a specific page.
+ * Uses navigator.sendBeacon so it runs completely off the main thread with zero UI lag.
+ */
+export function sendPageEngagementPing(path: string, durationSeconds: number): void {
+  if (typeof window === "undefined" || durationSeconds <= 0) return;
+  if (typeof navigator !== "undefined" && !navigator.onLine) return;
+
+  try {
+    const visitorId = getOrCreateVisitorId();
+    const payload = JSON.stringify({
+      visitorId,
+      path: path || window.location.pathname || "/",
+      durationSeconds: Math.round(durationSeconds),
+    });
+    const endpoint = `${API_BASE_URL}${API_ENDPOINTS.ANALYTICS.PAGE_PING}`;
+
+    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+      const blob = new Blob([payload], { type: "application/json" });
+      if (navigator.sendBeacon(endpoint, blob)) return;
+    }
+
+    fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: payload,
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    // Intentionally silent
+  }
+}
+

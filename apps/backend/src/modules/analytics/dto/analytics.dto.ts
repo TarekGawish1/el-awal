@@ -352,3 +352,23 @@ export class VisitorListQueryDto {
   @IsIn(["recent", "visits"])
   sortBy?: "recent" | "visits" = "recent";
 }
+
+export class PageEngagementPingDto {
+  @ApiPropertyOptional({ description: "Anonymous device visitor ID" })
+  @IsOptional()
+  @IsString()
+  visitorId?: string;
+
+  @ApiProperty({ description: "Path of the page being viewed", example: "/" })
+  @IsString()
+  path!: string;
+
+  @ApiProperty({
+    description: "Active time spent on this page in seconds",
+    example: 45,
+  })
+  @IsNumber()
+  @Min(1)
+  durationSeconds!: number;
+}
+

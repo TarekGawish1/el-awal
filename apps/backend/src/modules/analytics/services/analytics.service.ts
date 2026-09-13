@@ -1579,14 +1579,31 @@ export class AnalyticsService implements OnModuleInit {
    * or authenticated user session pings.
    */
   public calculateVisitorDuration(
-    views: { createdAt: Date | string }[],
+    views: { createdAt: Date | string; metadata?: any }[],
     sessionsDuration: number = 0,
   ): number {
     if (sessionsDuration > 0) {
       return sessionsDuration;
     }
     if (!views || views.length === 0) return 0;
-    if (views.length === 1) return 45; // baseline engagement 45s
+
+    // Check if any views have explicit activeDurationSeconds recorded from client-side engagement pings
+    let recordedPingsDuration = 0;
+    for (const v of views) {
+      const meta = (v as any).metadata as Record<string, any> | undefined;
+      const active = Number(meta?.activeDurationSeconds);
+      if (active && active > 0) {
+        recordedPingsDuration += active;
+      }
+    }
+
+    // Single-page visit (e.g. single-page landing site):
+    if (views.length === 1) {
+      if (recordedPingsDuration > 0) {
+        return recordedPingsDuration;
+      }
+      return 45; // baseline fallback only if no pings arrived yet
+    }
 
     const times = views
       .map((v) => new Date(v.createdAt).getTime())
@@ -1612,7 +1629,7 @@ export class AnalyticsService implements OnModuleInit {
     const finalSessionDiff = Math.round((sessionLast - sessionStart) / 1000);
     totalSeconds += Math.max(finalSessionDiff, 45);
 
-    return Math.max(totalSeconds, views.length * 30);
+    return Math.max(totalSeconds, recordedPingsDuration, views.length * 30);
   }
 
   /**
@@ -1634,7 +1651,7 @@ export class AnalyticsService implements OnModuleInit {
   }
 
   /**
-   * Calculates the exact total active browsing duration across all unique visitors in a query scope.
+   * Aggregates active platform browsing duration across all visitors in a time window.
    */
   public async calculateTotalActiveDuration(
     where: any,
@@ -1647,6 +1664,7 @@ export class AnalyticsService implements OnModuleInit {
         visitorHash: true,
         createdAt: true,
         userId: true,
+        metadata: true,
       },
       orderBy: { createdAt: "asc" },
       take: 10000,
@@ -1656,14 +1674,14 @@ export class AnalyticsService implements OnModuleInit {
       return { totalDurationSeconds: 0, avgDurationSeconds: 0 };
     }
 
-    const viewsByVisitor = new Map<string, { createdAt: Date }[]>();
+    const viewsByVisitor = new Map<string, { createdAt: Date; metadata?: any }[]>();
     const userIds = new Set<string>();
 
     for (const v of views) {
       if (!viewsByVisitor.has(v.visitorHash)) {
         viewsByVisitor.set(v.visitorHash, []);
       }
-      viewsByVisitor.get(v.visitorHash)!.push({ createdAt: v.createdAt });
+      viewsByVisitor.get(v.visitorHash)!.push({ createdAt: v.createdAt, metadata: v.metadata });
       if (v.userId) userIds.add(v.userId);
     }
 
@@ -1706,6 +1724,83 @@ export class AnalyticsService implements OnModuleInit {
       uniqueCount > 0 ? Math.round(totalDurationSeconds / uniqueCount) : 0;
 
     return { totalDurationSeconds, avgDurationSeconds };
+  }
+
+  /**
+   * Records active engagement duration for guest or single-page landing visitors.
+   */
+  public async recordPageEngagement(params: {
+    visitorId?: string;
+    path: string;
+    durationSeconds: number;
+    ipAddress?: string;
+    userAgent?: string;
+  }): Promise<{ success: boolean; duration: number }> {
+    try {
+      if (!params.durationSeconds || params.durationSeconds <= 0) {
+        return { success: true, duration: 0 };
+      }
+
+      // Ignore teacher and administrative routes
+      if (
+        params.path?.startsWith("/teacher") ||
+        params.path?.startsWith("/secretariat") ||
+        params.path?.startsWith("/assistant") ||
+        params.path?.startsWith("/admin")
+      ) {
+        return { success: true, duration: 0 };
+      }
+
+      const visitorHash = this.generateVisitorHash(
+        params.ipAddress,
+        params.userAgent,
+        params.visitorId,
+      );
+      const cappedDuration = Math.min(Math.round(params.durationSeconds), 7200); // Max 2 hours
+
+      // Find the most recent page view for this visitor on this path (within the last 4 hours)
+      const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+      let recentView = await this.prisma.pageView.findFirst({
+        where: {
+          visitorHash,
+          path: params.path,
+          createdAt: { gte: fourHoursAgo },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (!recentView) {
+        recentView = await this.prisma.pageView.findFirst({
+          where: {
+            visitorHash,
+            createdAt: { gte: fourHoursAgo },
+          },
+          orderBy: { createdAt: "desc" },
+        });
+      }
+
+      if (recentView) {
+        const existingMeta = (recentView.metadata as Record<string, any>) || {};
+        const currentActiveSecs = Number(existingMeta.activeDurationSeconds) || 0;
+        const newDuration = Math.max(currentActiveSecs, cappedDuration);
+
+        await this.prisma.pageView.update({
+          where: { id: recentView.id },
+          data: {
+            metadata: {
+              ...existingMeta,
+              activeDurationSeconds: newDuration,
+            },
+          },
+        });
+
+        return { success: true, duration: newDuration };
+      }
+
+      return { success: true, duration: cappedDuration };
+    } catch {
+      return { success: false, duration: 0 };
+    }
   }
 
   /**

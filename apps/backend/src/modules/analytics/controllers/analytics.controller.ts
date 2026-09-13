@@ -26,6 +26,7 @@ import {
   LandingStatsQueryDto,
   StudentRankingQueryDto,
   VisitorListQueryDto,
+  PageEngagementPingDto,
 } from "../dto/analytics.dto";
 import { Public } from "../../../core/security/decorators/public.decorator";
 import { Roles } from "../../../core/security/decorators/roles.decorator";
@@ -141,6 +142,32 @@ export class AnalyticsController {
       return { success: true, duration: 0 };
     }
     return this.analyticsService.pingSession(dto);
+  }
+
+  @Post("ping-page")
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      "Heartbeat ping to record active time spent by guest/landing visitors on a single page",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Page engagement duration recorded",
+  })
+  async pingPageEngagement(
+    @Body() dto: PageEngagementPingDto,
+    @Req() req: Request,
+  ) {
+    const ipAddress = this.extractClientIp(req);
+    const userAgent = req.headers["user-agent"] || "";
+    return this.analyticsService.recordPageEngagement({
+      visitorId: dto.visitorId,
+      path: dto.path,
+      durationSeconds: dto.durationSeconds,
+      ipAddress,
+      userAgent,
+    });
   }
 
   @Get("stats")
