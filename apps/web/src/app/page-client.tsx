@@ -24,6 +24,7 @@ import { submitContactMessage } from "./actions";
 import { useQuery } from "@tanstack/react-query";
 import { testimonialsApi } from "@/features/testimonials/api/testimonials.api";
 import { GRADE_LEVELS_BY_STAGE } from "@/lib/constants/grades";
+import { CookieConsentSettingsTrigger } from "@/components/analytics/CookieConsentBanner";
 
 function IntroSequence({ onComplete }: { onComplete: () => void }) {
   useEffect(() => {
@@ -123,8 +124,17 @@ function Navbar() {
         setIsLoginDropdownOpen(false);
       }
     }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsLoginDropdownOpen(false);
+      }
+    }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, []);
 
   return (
@@ -234,8 +244,12 @@ function Navbar() {
           ) : (
             <div className="relative" ref={dropdownRef}>
               <button
+                type="button"
                 onClick={() => setIsLoginDropdownOpen(!isLoginDropdownOpen)}
-                className="text-slate-600 font-bold hover:text-slate-900 transition-colors px-2 sm:px-4 py-2 flex items-center gap-1 text-sm sm:text-base"
+                aria-haspopup="menu"
+                aria-expanded={isLoginDropdownOpen}
+                aria-label="قائمة تسجيل الدخول"
+                className="text-slate-700 font-bold hover:text-slate-900 transition-colors px-2 sm:px-4 py-2 flex items-center gap-1 text-sm sm:text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-lg"
               >
                 تسجيل الدخول
                 <svg
@@ -807,6 +821,9 @@ function CoursesSection() {
               initial={{ scale: 0.95, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 20 }}
+              role="dialog"
+              aria-modal="true"
+              aria-label={`تفاصيل كورس ${selectedCourse.title}`}
               onClick={(e) => e.stopPropagation()}
               className="relative w-full max-w-5xl bg-white rounded-3xl overflow-hidden shadow-2xl my-8 flex flex-col max-h-[90vh]"
             >
@@ -836,8 +853,10 @@ function CoursesSection() {
                   </p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setSelectedCourse(null)}
-                  className="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors shrink-0"
+                  aria-label="إغلاق نافذة المعاينة"
+                  className="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -857,6 +876,8 @@ function CoursesSection() {
                           }
                           src={`${activePreviewLesson.videoUrl}${activePreviewLesson.videoUrl.includes("?") ? "&" : "?"}autoplay=0`}
                           loading="lazy"
+                          title={`مشغل فيديو ${activePreviewLesson.title || selectedCourse.title}`}
+                          referrerPolicy="strict-origin-when-cross-origin"
                           className="w-full h-full border-0 absolute inset-0"
                           allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
                           allowFullScreen
@@ -2887,6 +2908,13 @@ function ContactForm() {
           </svg>
         )}
       </button>
+      <p className="text-[11px] text-slate-500 leading-relaxed text-center pt-1">
+        بإرسال رسالتك، فإنك تؤكد موافقتك على{" "}
+        <Link href="/privacy" className="text-indigo-600 hover:underline font-bold">
+          سياسة الخصوصية
+        </Link>{" "}
+        واستخدام بياناتك للرد على استفسارك والتواصل معك.
+      </p>
     </form>
   );
 }
@@ -3002,10 +3030,28 @@ function ContactUsSection() {
               </div>
               <div>
                 <h3 className="font-bold text-slate-900 text-lg mb-1">
-                  العنوان
+                  الفروع ومقرات السنتر
                 </h3>
-                <p className="text-slate-600">سنتر العدليه - دمياط</p>
+                <p className="text-slate-600">سنتر العدليه التعليمي - دمياط</p>
                 <p className="text-slate-600 mt-1">سنتر البستان - دمياط</p>
+              </div>
+            </div>
+
+            {/* Email & Hours */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-6 hover:shadow-md transition-shadow">
+              <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                <Clock className="w-7 h-7" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-lg mb-1">
+                  ساعات العمل والدعم
+                </h3>
+                <p className="text-slate-600 text-xs">
+                  البريد: <a href="mailto:support@al-awal.online" className="text-blue-600 hover:underline font-bold" dir="ltr">support@al-awal.online</a>
+                </p>
+                <p className="text-slate-500 text-xs mt-1">
+                  يومياً: 9:00 ص - 9:00 م (الجمعة من 1:00 م)
+                </p>
               </div>
             </div>
           </motion.div>
@@ -3032,44 +3078,150 @@ function ContactUsSection() {
 function FooterSection() {
   return (
     <footer
-      className="bg-slate-900 text-slate-300 py-8 border-t border-slate-800"
+      className="bg-slate-950 text-slate-300 pt-16 pb-10 border-t border-slate-800"
       dir="rtl"
     >
-      <div className="container mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="flex items-center gap-6">
-          <Link
-            href="/terms"
-            className="hover:text-blue-400 transition-colors text-sm font-medium"
-          >
-            شروط الاستخدام
-          </Link>
-          <Link
-            href="/privacy"
-            className="hover:text-blue-400 transition-colors text-sm font-medium"
-          >
-            سياسة الخصوصية
-          </Link>
-          <a
-            href="https://www.facebook.com/ahmd.ghryb.abw.asm"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-blue-400 transition-colors flex items-center gap-2 text-sm font-medium"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              fill="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.469h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.469h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-            </svg>
-            فيسبوك
-          </a>
+      <div className="container mx-auto px-6">
+        {/* Top 4-Column Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 pb-12 border-b border-slate-800/80 text-right">
+          {/* Col 1: Platform & Business Identity */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-black text-sm">
+                الأول
+              </div>
+              <span className="text-lg font-black text-white tracking-tight">
+                منصة الأول التعليمية
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              المؤسسة التعليمية المعتمدة للأستاذ أحمد غريب. متخصصة في تدريس مادة الرياضيات للمراحل الإعدادية والثانوية بحضور سنتر ومتابعة رقمية ذكية.
+            </p>
+            <div className="pt-2 text-[11px] text-slate-400 space-y-1">
+              <div>السجل والترخيص: <span className="text-slate-300 font-mono">482-910-335</span></div>
+              <div>المقر: محافظة دمياط (سنتر العدلية وسنتر البستان)</div>
+            </div>
+          </div>
+
+          {/* Col 2: Physical Centers */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+              الفروع ومقرات السنتر
+            </h3>
+            <div className="space-y-2 text-xs text-slate-400">
+              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                <div className="font-bold text-slate-200 mb-0.5">فرع 1: سنتر العدلية التعليمي</div>
+                <div>محافظة دمياط - العدلية - شارع المدارس</div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                <div className="font-bold text-slate-200 mb-0.5">فرع 2: سنتر البستان التعليمي</div>
+                <div>محافظة دمياط - البستان - بجوار المجمع الطبي</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Col 3: Support & Hours */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+              التواصل والدعم الفني
+            </h3>
+            <ul className="space-y-2 text-xs text-slate-400">
+              <li>
+                <span className="text-slate-300 font-semibold">الهاتف:</span>{" "}
+                <span dir="ltr" className="font-mono text-slate-200">012 2130 1224</span>
+              </li>
+              <li>
+                <span className="text-slate-300 font-semibold">واتساب:</span>{" "}
+                <span dir="ltr" className="font-mono text-slate-200">010 2190 2000</span>
+              </li>
+              <li>
+                <span className="text-slate-300 font-semibold">البريد:</span>{" "}
+                <a href="mailto:support@al-awal.online" className="text-blue-400 hover:underline font-mono" dir="ltr">
+                  support@al-awal.online
+                </a>
+              </li>
+              <li className="pt-1 text-[11px] text-slate-400">
+                مواعيد العمل: يومياً 9:00 ص - 9:00 م (الجمعة من 1:00 م)
+              </li>
+            </ul>
+          </div>
+
+          {/* Col 4: Legal & Policies */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+              السياسات والامتثال
+            </h3>
+            <ul className="space-y-2 text-xs">
+              <li>
+                <Link
+                  href="/terms"
+                  className="text-slate-400 hover:text-blue-400 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-400 rounded"
+                >
+                  شروط الاستخدام والخدمة
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/privacy"
+                  className="text-slate-400 hover:text-blue-400 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-400 rounded"
+                >
+                  سياسة الخصوصية وحماية البيانات
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/refund"
+                  className="text-slate-400 hover:text-blue-400 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-400 rounded"
+                >
+                  سياسة الاسترداد والإلغاء
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/cookies"
+                  className="text-slate-400 hover:text-blue-400 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-400 rounded"
+                >
+                  سياسة ملفات تعريف الارتباط
+                </Link>
+              </li>
+              <li className="pt-1">
+                <CookieConsentSettingsTrigger className="text-slate-400 hover:text-amber-400 text-xs transition-colors underline flex items-center gap-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-400 rounded" />
+              </li>
+            </ul>
+          </div>
         </div>
-        <div className="text-sm font-medium text-slate-400">
-          تم تطوير المنصه بواسطة شركة{" "}
-          <span className="font-bold text-white tracking-wider">TAD X</span>
+
+        {/* Bottom Bar: Copyright & Attribution */}
+        <div className="pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-400">
+          <div className="text-center md:text-right">
+            جميع الحقوق محفوظة © {new Date().getFullYear()} لمنصة الأول التعليمية (أستاذ أحمد غريب).
+          </div>
+          <div className="flex items-center gap-4">
+            <a
+              href="https://www.facebook.com/ahmd.ghryb.abw.asm"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="صفحة الأستاذ أحمد غريب على فيسبوك"
+              className="hover:text-blue-400 transition-colors flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-400 rounded"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.469h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.469h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+              </svg>
+              <span>فيسبوك</span>
+            </a>
+            <span>•</span>
+            <div>
+              تم التطوير بواسطة شركة{" "}
+              <span className="font-bold text-white tracking-wider">TAD X</span>
+            </div>
+          </div>
         </div>
       </div>
     </footer>

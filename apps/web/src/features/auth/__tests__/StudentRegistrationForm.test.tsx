@@ -39,7 +39,7 @@ function selectCenterMode() {
 function selectOption(labelText: RegExp, optionText: string) {
   const trigger = screen.getByLabelText(labelText);
   fireEvent.click(trigger);
-  const optionButton = screen.getByRole('button', { name: optionText });
+  const optionButton = screen.queryByRole('option', { name: optionText }) || screen.getByRole('button', { name: optionText });
   fireEvent.click(optionButton);
 }
 
@@ -50,6 +50,8 @@ function fillValidInfo() {
   fireEvent.change(screen.getByLabelText(/رقم هاتف ولي الأمر/i), { target: { value: '01098765432' } });
   selectOption(/المرحلة الدراسية/i, 'المرحلة الثانوية');
   selectOption(/الصف الدراسي/i, 'الصف الثالث الثانوي');
+  const checkbox = document.getElementById('reg-terms-agreed') as HTMLInputElement | null;
+  if (checkbox && !checkbox.checked) fireEvent.click(checkbox);
 }
 
 describe('StudentRegistrationForm Component', () => {
@@ -78,6 +80,7 @@ describe('StudentRegistrationForm Component', () => {
     expect(screen.getByLabelText(/رقم هاتف ولي الأمر/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/المرحلة الدراسية/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/الصف الدراسي/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/أوافق على/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /متابعة/i })).toBeInTheDocument();
   });
 
@@ -94,6 +97,7 @@ describe('StudentRegistrationForm Component', () => {
     expect(await screen.findByText('يرجى إدخال رقم هاتف ولي الأمر')).toBeInTheDocument();
     expect(await screen.findByText('يرجى اختيار المرحلة الدراسية')).toBeInTheDocument();
     expect(await screen.findByText('يرجى اختيار الصف الدراسي')).toBeInTheDocument();
+    expect(await screen.findByText('يرجى الموافقة على شروط الاستخدام وسياسة الخصوصية للمتابعة')).toBeInTheDocument();
     expect(base.registerStudent).not.toHaveBeenCalled();
   });
 

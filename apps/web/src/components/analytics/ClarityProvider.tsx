@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import Clarity from '@microsoft/clarity';
+import { hasConsented, COOKIE_CONSENT_EVENT, CookieConsentState } from '@/lib/consent/cookie-consent';
 
 const DEFAULT_CLARITY_PROJECT_ID = 'yhncqluw0e';
 
@@ -14,19 +15,41 @@ const CLARITY_PROJECT_ID =
 // Module-level flag prevents double init under React StrictMode / re-mounts.
 let hasInitialized = false;
 
+function initClaritySafely() {
+  if (typeof window === 'undefined') return;
+  if (hasInitialized) return;
+  if (!CLARITY_PROJECT_ID) return;
+
+  // GDPR/ePrivacy Compliance: verify user gave consent for analytics
+  if (!hasConsented('analytics')) {
+    return;
+  }
+
+  try {
+    Clarity.init(CLARITY_PROJECT_ID);
+    hasInitialized = true;
+  } catch {
+    // Analytics must never break the app.
+  }
+}
+
 export function ClarityProvider() {
   useEffect(() => {
-    // useEffect only runs on the client, so Clarity.init() never runs during SSR.
-    if (typeof window === 'undefined') return;
-    if (hasInitialized) return;
-    if (!CLARITY_PROJECT_ID) return;
+    // Check and init on mount if consent already exists
+    initClaritySafely();
 
-    try {
-      Clarity.init(CLARITY_PROJECT_ID);
-      hasInitialized = true;
-    } catch {
-      // Analytics must never break the app.
-    }
+    // Listen for consent changes when user interacts with CookieConsentBanner
+    const handleConsentUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<CookieConsentState>;
+      if (customEvent.detail?.analytics) {
+        initClaritySafely();
+      }
+    };
+
+    window.addEventListener(COOKIE_CONSENT_EVENT, handleConsentUpdate);
+    return () => {
+      window.removeEventListener(COOKIE_CONSENT_EVENT, handleConsentUpdate);
+    };
   }, []);
 
   return null;

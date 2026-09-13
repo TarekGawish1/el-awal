@@ -39,6 +39,7 @@ interface FieldErrors {
   parentPhone?: string;
   academicStage?: string;
   gradeLevel?: string;
+  termsAgreed?: string;
 }
 
 function normalizePhone(value: string): string {
@@ -62,6 +63,7 @@ export function StudentRegistrationForm() {
   const [academicStage, setAcademicStage] = useState<AcademicStage | ''>('');
   const [gradeLevel, setGradeLevel] = useState('');
   const [attendanceMode, setAttendanceMode] = useState<'CENTER' | 'ONLINE' | ''>('');
+  const [termsAgreed, setTermsAgreed] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -96,6 +98,10 @@ export function StudentRegistrationForm() {
 
     if (!gradeLevel) {
       errors.gradeLevel = 'يرجى اختيار الصف الدراسي';
+    }
+
+    if (!termsAgreed) {
+      errors.termsAgreed = 'يرجى الموافقة على شروط الاستخدام وسياسة الخصوصية للمتابعة';
     }
 
     setFieldErrors(errors);
@@ -379,6 +385,41 @@ export function StudentRegistrationForm() {
           ...(isAcademicStageKey(academicStage) ? GRADE_LEVELS[academicStage] : []),
         ]}
       />
+
+      <div className="space-y-1 pt-1 text-start">
+        <label className="flex items-start gap-2.5 cursor-pointer select-none">
+          <input
+            id="reg-terms-agreed"
+            type="checkbox"
+            checked={termsAgreed}
+            onChange={(e) => {
+              setTermsAgreed(e.target.checked);
+              if (fieldErrors.termsAgreed) {
+                setFieldErrors((prev) => ({ ...prev, termsAgreed: undefined }));
+              }
+            }}
+            disabled={isRegistering}
+            className="mt-1 h-4 w-4 rounded border-neutral-300 text-primary-600 focus:ring-primary-500 focus:ring-offset-2 transition-colors cursor-pointer"
+            aria-describedby={fieldErrors.termsAgreed ? 'reg-terms-error' : undefined}
+          />
+          <span className="text-xs text-neutral-600 leading-relaxed">
+            أوافق على{' '}
+            <Link href="/terms" target="_blank" className="font-bold text-primary-600 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500 rounded">
+              شروط الاستخدام
+            </Link>{' '}
+            و{' '}
+            <Link href="/privacy" target="_blank" className="font-bold text-primary-600 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500 rounded">
+              سياسة الخصوصية
+            </Link>{' '}
+            الخاصة بمنصة الأول وأؤكد صحة البيانات المدخلة.
+          </span>
+        </label>
+        {fieldErrors.termsAgreed && (
+          <p id="reg-terms-error" role="alert" className="text-xs text-error-600 font-medium">
+            {fieldErrors.termsAgreed}
+          </p>
+        )}
+      </div>
 
       <Button
         type="submit"
