@@ -1,7 +1,7 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
-import { PrismaService } from '../../../core/database/prisma.service';
-import { GeoLocationService } from './geo-location.service';
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { UserRole } from "@prisma/client";
+import { PrismaService } from "../../../core/database/prisma.service";
+import { GeoLocationService } from "./geo-location.service";
 import {
   TrackPageViewDto,
   AnalyticsQueryDto,
@@ -11,8 +11,8 @@ import {
   LandingStatsQueryDto,
   StudentRankingQueryDto,
   VisitorListQueryDto,
-} from '../dto/analytics.dto';
-import * as crypto from 'crypto';
+} from "../dto/analytics.dto";
+import * as crypto from "crypto";
 
 export interface RecordPageViewParams extends TrackPageViewDto {
   ipAddress?: string;
@@ -50,7 +50,7 @@ export interface AnalyticsStatsResponse {
     percentage: number;
   }[];
   devices: {
-    device: 'Desktop' | 'Mobile' | 'Tablet';
+    device: "Desktop" | "Mobile" | "Tablet";
     labelAr: string;
     count: number;
     percentage: number;
@@ -68,7 +68,7 @@ export interface AnalyticsStatsResponse {
     percentage: number;
   }[];
   filters: {
-    scope: 'landing' | 'system' | 'all';
+    scope: "landing" | "system" | "all";
     range: string;
     startDate: string;
     endDate: string;
@@ -129,7 +129,7 @@ export interface VisitorListItem {
   } | null;
   country: string;
   city: string;
-  device: 'Desktop' | 'Mobile' | 'Tablet';
+  device: "Desktop" | "Mobile" | "Tablet";
   os: string;
   browser: string;
   topPages: string[];
@@ -147,12 +147,11 @@ export interface VisitorListResponse {
   totalPages: number;
 }
 
-
-
 @Injectable()
 export class AnalyticsService implements OnModuleInit {
   private readonly logger = new Logger(AnalyticsService.name);
-  private readonly HASH_SALT = process.env.ANALYTICS_SALT || 'el-awal-analytics-salt-2026';
+  private readonly HASH_SALT =
+    process.env.ANALYTICS_SALT || "el-awal-analytics-salt-2026";
 
   constructor(
     private readonly prisma: PrismaService,
@@ -163,20 +162,26 @@ export class AnalyticsService implements OnModuleInit {
     // Non-blocking initialization
   }
 
-
   /**
    * Generates a privacy-compliant SHA-256 visitor hash.
    * Prioritizes persistent client-side visitorId so multiple devices on the same Wi-Fi
    * network are accurately distinguished as separate unique visitors.
    */
-  public generateVisitorHash(ip?: string, userAgent?: string, visitorId?: string): string {
-    const cleanIp = (ip || '127.0.0.1').replace(/^::ffff:/, '').trim();
-    const cleanUa = (userAgent || 'unknown').trim();
-    const clientIdentifier = visitorId && visitorId.trim() ? `vid::${visitorId.trim()}` : `${cleanIp}::${cleanUa}`;
+  public generateVisitorHash(
+    ip?: string,
+    userAgent?: string,
+    visitorId?: string,
+  ): string {
+    const cleanIp = (ip || "127.0.0.1").replace(/^::ffff:/, "").trim();
+    const cleanUa = (userAgent || "unknown").trim();
+    const clientIdentifier =
+      visitorId && visitorId.trim()
+        ? `vid::${visitorId.trim()}`
+        : `${cleanIp}::${cleanUa}`;
     return crypto
-      .createHash('sha256')
+      .createHash("sha256")
       .update(`${clientIdentifier}::${this.HASH_SALT}`)
-      .digest('hex');
+      .digest("hex");
   }
 
   /**
@@ -186,10 +191,10 @@ export class AnalyticsService implements OnModuleInit {
     try {
       // Never track teacher, secretariat, or admin paths
       if (
-        params.path?.startsWith('/teacher') ||
-        params.path?.startsWith('/secretariat') ||
-        params.path?.startsWith('/assistant') ||
-        params.path?.startsWith('/admin')
+        params.path?.startsWith("/teacher") ||
+        params.path?.startsWith("/secretariat") ||
+        params.path?.startsWith("/assistant") ||
+        params.path?.startsWith("/admin")
       ) {
         return;
       }
@@ -199,20 +204,33 @@ export class AnalyticsService implements OnModuleInit {
           where: { id: params.userId },
           select: { role: true },
         });
-        if (user?.role === UserRole.TEACHER || user?.role === UserRole.SECRETARIAT) {
+        if (
+          user?.role === UserRole.TEACHER ||
+          user?.role === UserRole.SECRETARIAT
+        ) {
           return;
         }
       }
 
-      const visitorHash = this.generateVisitorHash(params.ipAddress, params.userAgent, params.visitorId);
+      const visitorHash = this.generateVisitorHash(
+        params.ipAddress,
+        params.userAgent,
+        params.visitorId,
+      );
       const isLanding =
         params.isLandingPage ??
-        (params.path === '/' || params.path === '' || params.path.startsWith('/#'));
+        (params.path === "/" ||
+          params.path === "" ||
+          params.path.startsWith("/#"));
 
-      const geo = await this.geoLocationService.resolveAsync(params.ipAddress, params.headers || {}, {
-        city: params.city,
-        country: params.country,
-      });
+      const geo = await this.geoLocationService.resolveAsync(
+        params.ipAddress,
+        params.headers || {},
+        {
+          city: params.city,
+          country: params.country,
+        },
+      );
 
       // If landing page, also record in dedicated LandingVisit table with resolved geo
       if (isLanding) {
@@ -220,7 +238,7 @@ export class AnalyticsService implements OnModuleInit {
           .create({
             data: {
               visitorHash,
-              path: (params.path || '/').slice(0, 500),
+              path: (params.path || "/").slice(0, 500),
               country: geo.country,
               city: geo.city,
             },
@@ -230,7 +248,7 @@ export class AnalyticsService implements OnModuleInit {
 
       await this.prisma.pageView.create({
         data: {
-          path: (params.path || '/').slice(0, 500),
+          path: (params.path || "/").slice(0, 500),
           referrer: params.referrer ? params.referrer.slice(0, 500) : null,
           userAgent: params.userAgent ? params.userAgent.slice(0, 500) : null,
           visitorHash,
@@ -267,8 +285,11 @@ export class AnalyticsService implements OnModuleInit {
       where: { id: userId },
       select: { role: true },
     });
-    if (user?.role === UserRole.TEACHER || user?.role === UserRole.SECRETARIAT) {
-      return { sessionId: 'teacher-excluded', country: 'مصر', city: 'القاهرة' };
+    if (
+      user?.role === UserRole.TEACHER ||
+      user?.role === UserRole.SECRETARIAT
+    ) {
+      return { sessionId: "teacher-excluded", country: "مصر", city: "القاهرة" };
     }
 
     const geo = await this.geoLocationService.resolveAsync(ipAddress, headers, {
@@ -290,7 +311,9 @@ export class AnalyticsService implements OnModuleInit {
       },
     });
 
-    this.logger.debug(`[Session] Started session ${session.id} for user ${userId} in ${geo.city}, ${geo.country}`);
+    this.logger.debug(
+      `[Session] Started session ${session.id} for user ${userId} in ${geo.city}, ${geo.country}`,
+    );
     return {
       sessionId: session.id,
       country: geo.country,
@@ -320,7 +343,9 @@ export class AnalyticsService implements OnModuleInit {
         totalDurationSeconds: session.durationSeconds,
       };
     } catch (err: any) {
-      this.logger.debug(`Failed to ping session ${dto.sessionId}: ${err?.message}`);
+      this.logger.debug(
+        `Failed to ping session ${dto.sessionId}: ${err?.message}`,
+      );
       return { success: false, totalDurationSeconds: 0 };
     }
   }
@@ -328,19 +353,29 @@ export class AnalyticsService implements OnModuleInit {
   /**
    * Calculates the exact start and end of a given calendar day in Africa/Cairo timezone.
    */
-  public getCairoMidnight(date: Date = new Date()): { startOfToday: Date; endOfToday: Date } {
-    const cairoDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(date);
-    const [year, month, day] = cairoDateStr.split('-').map(Number);
+  public getCairoMidnight(date: Date = new Date()): {
+    startOfToday: Date;
+    endOfToday: Date;
+  } {
+    const cairoDateStr = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Africa/Cairo",
+    }).format(date);
+    const [year, month, day] = cairoDateStr.split("-").map(Number);
     const sample = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Africa/Cairo',
-      hour: 'numeric',
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Africa/Cairo",
+      hour: "numeric",
       hour12: false,
     }).formatToParts(sample);
-    const cairoHourAtNoon = parseInt(parts.find((p) => p.type === 'hour')?.value || '15', 10);
+    const cairoHourAtNoon = parseInt(
+      parts.find((p) => p.type === "hour")?.value || "15",
+      10,
+    );
     const offsetHours = cairoHourAtNoon - 12;
 
-    const startOfToday = new Date(Date.UTC(year, month - 1, day, 0, 0, 0) - offsetHours * 3600 * 1000);
+    const startOfToday = new Date(
+      Date.UTC(year, month - 1, day, 0, 0, 0) - offsetHours * 3600 * 1000,
+    );
     const endOfToday = new Date(startOfToday.getTime() + 24 * 3600 * 1000 - 1);
     return { startOfToday, endOfToday };
   }
@@ -350,7 +385,7 @@ export class AnalyticsService implements OnModuleInit {
    * normalized to Africa/Cairo local time.
    */
   public resolveDateRange(
-    range: string = 'week',
+    range: string = "week",
     from?: string,
     to?: string,
   ): { startDate: Date; endDate: Date } {
@@ -358,10 +393,11 @@ export class AnalyticsService implements OnModuleInit {
     let startDate: Date;
     let endDate: Date = new Date();
 
-    if (range === 'custom' && from && to) {
+    if (range === "custom" && from && to) {
       startDate = new Date(from);
       endDate = new Date(to);
-      if (isNaN(startDate.getTime())) startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      if (isNaN(startDate.getTime()))
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       if (isNaN(endDate.getTime())) endDate = new Date();
       if (to.length <= 10) {
         endDate.setHours(23, 59, 59, 999);
@@ -370,37 +406,45 @@ export class AnalyticsService implements OnModuleInit {
     }
 
     switch (range) {
-      case 'today': {
+      case "today": {
         const { startOfToday, endOfToday } = this.getCairoMidnight(now);
         startDate = startOfToday;
         endDate = endOfToday;
         break;
       }
-      case 'week': {
+      case "week": {
         const { endOfToday } = this.getCairoMidnight(now);
         endDate = endOfToday;
         startDate = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000 + 1);
         break;
       }
-      case 'month': {
-        const cairoDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(now);
-        const [year, month] = cairoDateStr.split('-').map(Number);
-        const { startOfToday } = this.getCairoMidnight(new Date(Date.UTC(year, month - 1, 1, 12, 0, 0)));
+      case "month": {
+        const cairoDateStr = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Africa/Cairo",
+        }).format(now);
+        const [year, month] = cairoDateStr.split("-").map(Number);
+        const { startOfToday } = this.getCairoMidnight(
+          new Date(Date.UTC(year, month - 1, 1, 12, 0, 0)),
+        );
         const { endOfToday } = this.getCairoMidnight(now);
         startDate = startOfToday;
         endDate = endOfToday;
         break;
       }
-      case 'year': {
-        const cairoDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(now);
-        const [year] = cairoDateStr.split('-').map(Number);
-        const { startOfToday } = this.getCairoMidnight(new Date(Date.UTC(year, 0, 1, 12, 0, 0)));
+      case "year": {
+        const cairoDateStr = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Africa/Cairo",
+        }).format(now);
+        const [year] = cairoDateStr.split("-").map(Number);
+        const { startOfToday } = this.getCairoMidnight(
+          new Date(Date.UTC(year, 0, 1, 12, 0, 0)),
+        );
         const { endOfToday } = this.getCairoMidnight(now);
         startDate = startOfToday;
         endDate = endOfToday;
         break;
       }
-      case 'all': {
+      case "all": {
         startDate = new Date(2024, 0, 1, 0, 0, 0, 0);
         break;
       }
@@ -428,13 +472,13 @@ export class AnalyticsService implements OnModuleInit {
       where: {
         OR: [
           { userId: { in: teacherUserIds } },
-          { path: { startsWith: '/teacher' } },
-          { path: { startsWith: '/secretariat' } },
-          { path: { startsWith: '/assistant' } },
+          { path: { startsWith: "/teacher" } },
+          { path: { startsWith: "/secretariat" } },
+          { path: { startsWith: "/assistant" } },
         ],
       },
       select: { visitorHash: true },
-      distinct: ['visitorHash'],
+      distinct: ["visitorHash"],
     });
 
     return teacherPageViews.map((pv) => pv.visitorHash);
@@ -443,10 +487,17 @@ export class AnalyticsService implements OnModuleInit {
   /**
    * Retrieves aggregated analytics statistics for the dashboard.
    */
-  public async getStats(query: AnalyticsQueryDto, userTenantId?: string): Promise<AnalyticsStatsResponse> {
-    const scope = query.scope || 'all';
-    const range = query.range || 'week';
-    const { startDate, endDate } = this.resolveDateRange(range, query.from, query.to);
+  public async getStats(
+    query: AnalyticsQueryDto,
+    userTenantId?: string,
+  ): Promise<AnalyticsStatsResponse> {
+    const scope = query.scope || "all";
+    const range = query.range || "week";
+    const { startDate, endDate } = this.resolveDateRange(
+      range,
+      query.from,
+      query.to,
+    );
 
     const baseDateCondition = {
       createdAt: {
@@ -458,9 +509,9 @@ export class AnalyticsService implements OnModuleInit {
     let scopeCondition: any = {};
     const effectiveTenantId = query.tenantId || userTenantId;
 
-    if (scope === 'landing') {
+    if (scope === "landing") {
       scopeCondition = { isLandingPage: true };
-    } else if (scope === 'system') {
+    } else if (scope === "system") {
       scopeCondition = {
         isLandingPage: false,
         ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
@@ -478,12 +529,14 @@ export class AnalyticsService implements OnModuleInit {
 
     const excludedTeacherHashes = await this.getExcludedTeacherHashes();
     const teacherExclusion = {
-      ...(excludedTeacherHashes.length > 0 ? { visitorHash: { notIn: excludedTeacherHashes } } : {}),
+      ...(excludedTeacherHashes.length > 0
+        ? { visitorHash: { notIn: excludedTeacherHashes } }
+        : {}),
       NOT: [
         { user: { role: { in: [UserRole.TEACHER, UserRole.SECRETARIAT] } } },
-        { path: { startsWith: '/teacher' } },
-        { path: { startsWith: '/secretariat' } },
-        { path: { startsWith: '/assistant' } },
+        { path: { startsWith: "/teacher" } },
+        { path: { startsWith: "/secretariat" } },
+        { path: { startsWith: "/assistant" } },
       ],
     };
 
@@ -496,7 +549,7 @@ export class AnalyticsService implements OnModuleInit {
     const totalViews = await this.prisma.pageView.count({ where });
 
     const uniqueGroups = await this.prisma.pageView.groupBy({
-      by: ['visitorHash'],
+      by: ["visitorHash"],
       where,
     });
     const uniqueVisitors = uniqueGroups.length;
@@ -514,17 +567,22 @@ export class AnalyticsService implements OnModuleInit {
     };
 
     const [landingViews, systemViews] = await Promise.all([
-      scope === 'system' ? 0 : this.prisma.pageView.count({ where: landingWhere }),
-      scope === 'landing' ? 0 : this.prisma.pageView.count({ where: systemWhere }),
+      scope === "system"
+        ? 0
+        : this.prisma.pageView.count({ where: landingWhere }),
+      scope === "landing"
+        ? 0
+        : this.prisma.pageView.count({ where: systemWhere }),
     ]);
 
-    const viewsPerVisitor = uniqueVisitors > 0 ? Number((totalViews / uniqueVisitors).toFixed(1)) : 0;
+    const viewsPerVisitor =
+      uniqueVisitors > 0 ? Number((totalViews / uniqueVisitors).toFixed(1)) : 0;
 
     const topPagesGroup = await this.prisma.pageView.groupBy({
-      by: ['path', 'isLandingPage'],
+      by: ["path", "isLandingPage"],
       where,
       _count: { path: true },
-      orderBy: { _count: { path: 'desc' } },
+      orderBy: { _count: { path: "desc" } },
       take: 8,
     });
 
@@ -532,36 +590,39 @@ export class AnalyticsService implements OnModuleInit {
       path: item.path,
       isLandingPage: item.isLandingPage,
       views: item._count.path,
-      percentage: totalViews > 0 ? Math.round((item._count.path / totalViews) * 100) : 0,
+      percentage:
+        totalViews > 0 ? Math.round((item._count.path / totalViews) * 100) : 0,
     }));
 
-    const timeSeries = await this.buildTimeSeries(where, range, startDate, endDate);
-    const { devices, osBreakdown, browserBreakdown } = await this.buildEnhancedDeviceBreakdown(where, totalViews);
+    const timeSeries = await this.buildTimeSeries(
+      where,
+      range,
+      startDate,
+      endDate,
+    );
+    const { devices, osBreakdown, browserBreakdown } =
+      await this.buildEnhancedDeviceBreakdown(where, totalViews);
 
     // New vs Returning: visitors with exactly 1 pageView in the period = new; >1 = returning
     const visitCountGroups = await this.prisma.pageView.groupBy({
-      by: ['visitorHash'],
+      by: ["visitorHash"],
       where,
       _count: { visitorHash: true },
     });
-    const newVisitors = visitCountGroups.filter((g) => g._count.visitorHash === 1).length;
-    const returningVisitors = visitCountGroups.filter((g) => g._count.visitorHash > 1).length;
+    const newVisitors = visitCountGroups.filter(
+      (g) => g._count.visitorHash === 1,
+    ).length;
+    const returningVisitors = visitCountGroups.filter(
+      (g) => g._count.visitorHash > 1,
+    ).length;
 
-    // Aggregate total platform browsing duration (strictly for students and guests, excluding teachers & assistants)
-    const sessionAgg = await this.prisma.userSession.aggregate({
-      where: {
-        startedAt: { gte: startDate, lte: endDate },
-        user: { role: { notIn: [UserRole.TEACHER, UserRole.SECRETARIAT] } },
-        ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
-      },
-      _sum: { durationSeconds: true },
-    });
-    const sessionDuration = sessionAgg._sum?.durationSeconds || 0;
-    const estimatedGuestDuration = Math.round(landingViews * 50);
-    const totalDurationSeconds = sessionDuration + estimatedGuestDuration;
-    const totalDurationFormatted = this.formatDurationArabic(totalDurationSeconds);
-    const avgDurationSeconds = uniqueVisitors > 0 ? Math.round(totalDurationSeconds / uniqueVisitors) : 0;
-    const avgDurationPerVisitorFormatted = this.formatDurationArabic(avgDurationSeconds);
+    // Aggregate exact total platform browsing duration across all visitors in this period
+    const { totalDurationSeconds, avgDurationSeconds } =
+      await this.calculateTotalActiveDuration(where, startDate, endDate);
+    const totalDurationFormatted =
+      this.formatDurationArabic(totalDurationSeconds);
+    const avgDurationPerVisitorFormatted =
+      this.formatDurationArabic(avgDurationSeconds);
 
     return {
       summary: {
@@ -597,7 +658,11 @@ export class AnalyticsService implements OnModuleInit {
   public async getLandingStats(
     query: LandingStatsQueryDto,
   ): Promise<{ totalViews: number; uniqueVisitors: number }> {
-    const { startDate, endDate } = this.resolveDateRange(query.range, query.from, query.to);
+    const { startDate, endDate } = this.resolveDateRange(
+      query.range,
+      query.from,
+      query.to,
+    );
     const excludedTeacherHashes = await this.getExcludedTeacherHashes();
 
     const where = {
@@ -605,13 +670,15 @@ export class AnalyticsService implements OnModuleInit {
         gte: startDate,
         lte: endDate,
       },
-      ...(excludedTeacherHashes.length > 0 ? { visitorHash: { notIn: excludedTeacherHashes } } : {}),
+      ...(excludedTeacherHashes.length > 0
+        ? { visitorHash: { notIn: excludedTeacherHashes } }
+        : {}),
     };
 
     const [totalLandingViews, uniqueLandingVisitors] = await Promise.all([
       this.prisma.landingVisit.count({ where }),
       this.prisma.landingVisit.groupBy({
-        by: ['visitorHash'],
+        by: ["visitorHash"],
         where,
       }),
     ]);
@@ -624,7 +691,7 @@ export class AnalyticsService implements OnModuleInit {
       };
       const [pvCount, pvUnique] = await Promise.all([
         this.prisma.pageView.count({ where: pvWhere }),
-        this.prisma.pageView.groupBy({ by: ['visitorHash'], where: pvWhere }),
+        this.prisma.pageView.groupBy({ by: ["visitorHash"], where: pvWhere }),
       ]);
       return {
         totalViews: pvCount,
@@ -644,31 +711,46 @@ export class AnalyticsService implements OnModuleInit {
   public async getGeoRanking(
     query: GeoRankingQueryDto,
     userTenantId?: string,
-  ): Promise<{ items: GeoRankingItem[]; totalVisits: number; groupBy: 'country' | 'city' }> {
-    const groupBy = query.groupBy || 'city';
-    const scope = query.scope || 'all';
-    const { startDate, endDate } = this.resolveDateRange(query.range, query.from, query.to);
+  ): Promise<{
+    items: GeoRankingItem[];
+    totalVisits: number;
+    groupBy: "country" | "city";
+  }> {
+    const groupBy = query.groupBy || "city";
+    const scope = query.scope || "all";
+    const { startDate, endDate } = this.resolveDateRange(
+      query.range,
+      query.from,
+      query.to,
+    );
     const effectiveTenantId = query.tenantId || userTenantId;
 
     const excludedTeacherHashes = await this.getExcludedTeacherHashes();
     const teacherExclusion = {
-      ...(excludedTeacherHashes.length > 0 ? { visitorHash: { notIn: excludedTeacherHashes } } : {}),
+      ...(excludedTeacherHashes.length > 0
+        ? { visitorHash: { notIn: excludedTeacherHashes } }
+        : {}),
       NOT: [
         { user: { role: { in: [UserRole.TEACHER, UserRole.SECRETARIAT] } } },
-        { path: { startsWith: '/teacher' } },
-        { path: { startsWith: '/secretariat' } },
-        { path: { startsWith: '/assistant' } },
+        { path: { startsWith: "/teacher" } },
+        { path: { startsWith: "/secretariat" } },
+        { path: { startsWith: "/assistant" } },
       ],
     };
 
     // We collect counts in a Map: locationName -> { count, uniqueHashes }
-    const locationMap = new Map<string, { count: number; hashes: Set<string> }>();
+    const locationMap = new Map<
+      string,
+      { count: number; hashes: Set<string> }
+    >();
 
     // 1. Landing Visits (if scope is landing or all)
-    if (scope === 'landing' || scope === 'all') {
+    if (scope === "landing" || scope === "all") {
       const landingWhere = {
         createdAt: { gte: startDate, lte: endDate },
-        ...(excludedTeacherHashes.length > 0 ? { visitorHash: { notIn: excludedTeacherHashes } } : {}),
+        ...(excludedTeacherHashes.length > 0
+          ? { visitorHash: { notIn: excludedTeacherHashes } }
+          : {}),
       };
       const landingVisits = await this.prisma.landingVisit.findMany({
         where: landingWhere,
@@ -681,15 +763,15 @@ export class AnalyticsService implements OnModuleInit {
 
       for (const lv of landingVisits) {
         let city = lv.city;
-        let country = lv.country || 'مصر';
-        if (country === 'SG' || country === 'سنغافورة') {
-          country = 'سنغافورة';
-          if (!city || city === 'عام' || city === 'خارج مصر') city = 'سنغافورة';
-        } else if (city === 'عام' || city === 'خارج مصر') {
+        let country = lv.country || "مصر";
+        if (country === "SG" || country === "سنغافورة") {
+          country = "سنغافورة";
+          if (!city || city === "عام" || city === "خارج مصر") city = "سنغافورة";
+        } else if (city === "عام" || city === "خارج مصر") {
           city = country;
         }
 
-        const key = groupBy === 'country' ? country : (city || 'غير محدد');
+        const key = groupBy === "country" ? country : city || "غير محدد";
         if (!locationMap.has(key)) {
           locationMap.set(key, { count: 0, hashes: new Set<string>() });
         }
@@ -700,7 +782,7 @@ export class AnalyticsService implements OnModuleInit {
     }
 
     // 2. User Sessions & Platform Views (if scope is platform or all)
-    if (scope === 'platform' || scope === 'all') {
+    if (scope === "platform" || scope === "all") {
       const sessionWhere: any = {
         startedAt: { gte: startDate, lte: endDate },
         user: { role: { notIn: [UserRole.TEACHER, UserRole.SECRETARIAT] } },
@@ -737,15 +819,16 @@ export class AnalyticsService implements OnModuleInit {
         const meta = pv.metadata as any;
         let city = meta?.city;
         let country = meta?.country;
-        if (country === 'SG' || country === 'سنغافورة') {
-          country = 'سنغافورة';
-          if (!city || city === 'عام' || city === 'خارج مصر') city = 'سنغافورة';
-        } else if (city === 'عام' || city === 'خارج مصر') {
-          city = country || 'خارج مصر';
+        if (country === "SG" || country === "سنغافورة") {
+          country = "سنغافورة";
+          if (!city || city === "عام" || city === "خارج مصر") city = "سنغافورة";
+        } else if (city === "عام" || city === "خارج مصر") {
+          city = country || "خارج مصر";
         }
 
         if (city || country) {
-          const key = groupBy === 'country' ? (country || 'مصر') : (city || 'غير محدد');
+          const key =
+            groupBy === "country" ? country || "مصر" : city || "غير محدد";
           if (!locationMap.has(key)) {
             locationMap.set(key, { count: 0, hashes: new Set<string>() });
           }
@@ -758,15 +841,15 @@ export class AnalyticsService implements OnModuleInit {
       // Aggregate user sessions
       for (const us of userSessions || []) {
         let city = us.city;
-        let country = us.country || 'مصر';
-        if (country === 'SG' || country === 'سنغافورة') {
-          country = 'سنغافورة';
-          if (!city || city === 'عام' || city === 'خارج مصر') city = 'سنغافورة';
-        } else if (city === 'عام' || city === 'خارج مصر') {
+        let country = us.country || "مصر";
+        if (country === "SG" || country === "سنغافورة") {
+          country = "سنغافورة";
+          if (!city || city === "عام" || city === "خارج مصر") city = "سنغافورة";
+        } else if (city === "عام" || city === "خارج مصر") {
           city = country;
         }
 
-        const key = groupBy === 'country' ? country : (city || 'غير محدد');
+        const key = groupBy === "country" ? country : city || "غير محدد";
         if (!locationMap.has(key)) {
           locationMap.set(key, { count: 0, hashes: new Set<string>() });
         }
@@ -786,38 +869,81 @@ export class AnalyticsService implements OnModuleInit {
       };
     }
 
-    const totalVisits = Array.from(locationMap.values()).reduce((sum, val) => sum + val.count, 0);
+    const totalVisits = Array.from(locationMap.values()).reduce(
+      (sum, val) => sum + val.count,
+      0,
+    );
 
     // Inline country code → Arabic name map for normalizing any raw ISO codes stored in DB
     const LEGACY_COUNTRY_CODES: Record<string, string> = {
-      EG: 'مصر', SA: 'المملكة العربية السعودية', AE: 'الإمارات العربية المتحدة',
-      KW: 'الكويت', QA: 'قطر', OM: 'سلطنة عمان', BH: 'البحرين', JO: 'الأردن',
-      IQ: 'العراق', LB: 'لبنان', PS: 'فلسطين', SY: 'سوريا', YE: 'اليمن',
-      LY: 'ليبيا', SD: 'السودان', DZ: 'الجزائر', TN: 'تونس', MA: 'المغرب',
-      US: 'الولايات المتحدة', GB: 'المملكة المتحدة', DE: 'ألمانيا', FR: 'فرنسا',
-      TR: 'تركيا', IT: 'إيطاليا', CA: 'كندا', AU: 'أستراليا', NL: 'هولندا',
-      SE: 'السويد', NO: 'النرويج', DK: 'الدنمارك', CH: 'سويسرا', RU: 'روسيا',
-      SG: 'سنغافورة', JP: 'اليابان', CN: 'الصين', IN: 'الهند', KR: 'كوريا الجنوبية',
-      PK: 'باكستان', ID: 'إندونيسيا', MY: 'ماليزيا', TH: 'تايلاند', HK: 'هونج كونج',
-      BR: 'البرازيل', MX: 'المكسيك', NG: 'نيجيريا', ZA: 'جنوب أفريقيا',
+      EG: "مصر",
+      SA: "المملكة العربية السعودية",
+      AE: "الإمارات العربية المتحدة",
+      KW: "الكويت",
+      QA: "قطر",
+      OM: "سلطنة عمان",
+      BH: "البحرين",
+      JO: "الأردن",
+      IQ: "العراق",
+      LB: "لبنان",
+      PS: "فلسطين",
+      SY: "سوريا",
+      YE: "اليمن",
+      LY: "ليبيا",
+      SD: "السودان",
+      DZ: "الجزائر",
+      TN: "تونس",
+      MA: "المغرب",
+      US: "الولايات المتحدة",
+      GB: "المملكة المتحدة",
+      DE: "ألمانيا",
+      FR: "فرنسا",
+      TR: "تركيا",
+      IT: "إيطاليا",
+      CA: "كندا",
+      AU: "أستراليا",
+      NL: "هولندا",
+      SE: "السويد",
+      NO: "النرويج",
+      DK: "الدنمارك",
+      CH: "سويسرا",
+      RU: "روسيا",
+      SG: "سنغافورة",
+      JP: "اليابان",
+      CN: "الصين",
+      IN: "الهند",
+      KR: "كوريا الجنوبية",
+      PK: "باكستان",
+      ID: "إندونيسيا",
+      MY: "ماليزيا",
+      TH: "تايلاند",
+      HK: "هونج كونج",
+      BR: "البرازيل",
+      MX: "المكسيك",
+      NG: "نيجيريا",
+      ZA: "جنوب أفريقيا",
     };
 
     const sorted = Array.from(locationMap.entries())
       .map(([name, stat]) => {
         // Normalize legacy entries and raw ISO codes (e.g. "SG") stored in DB
         let normalizedName = name;
-        if (normalizedName === 'عام' || normalizedName === 'خارج مصر') {
-          normalizedName = 'سنغافورة';
+        if (normalizedName === "عام" || normalizedName === "خارج مصر") {
+          normalizedName = "سنغافورة";
         }
         // If the name looks like a raw 2-letter ISO code, translate it
-        if (/^[A-Z]{2}$/.test(normalizedName) && LEGACY_COUNTRY_CODES[normalizedName]) {
+        if (
+          /^[A-Z]{2}$/.test(normalizedName) &&
+          LEGACY_COUNTRY_CODES[normalizedName]
+        ) {
           normalizedName = LEGACY_COUNTRY_CODES[normalizedName];
         }
         return {
           name: normalizedName,
           visitCount: stat.count,
           uniqueVisitors: stat.hashes.size,
-          percentage: totalVisits > 0 ? Math.round((stat.count / totalVisits) * 100) : 0,
+          percentage:
+            totalVisits > 0 ? Math.round((stat.count / totalVisits) * 100) : 0,
         };
       })
 
@@ -833,11 +959,19 @@ export class AnalyticsService implements OnModuleInit {
           }
           return acc;
         },
-        [] as { name: string; visitCount: number; uniqueVisitors: number; percentage: number }[],
+        [] as {
+          name: string;
+          visitCount: number;
+          uniqueVisitors: number;
+          percentage: number;
+        }[],
       )
       .map((item) => ({
         ...item,
-        percentage: totalVisits > 0 ? Math.round((item.visitCount / totalVisits) * 100) : 0,
+        percentage:
+          totalVisits > 0
+            ? Math.round((item.visitCount / totalVisits) * 100)
+            : 0,
       }))
       .sort((a, b) => b.visitCount - a.visitCount)
       .map((item, index) => ({
@@ -859,17 +993,24 @@ export class AnalyticsService implements OnModuleInit {
   public async getStudentEngagementLeaderboard(
     query: StudentRankingQueryDto,
     userTenantId?: string,
-  ): Promise<{ students: StudentLeaderboardItem[]; sortBy: 'duration' | 'visits' }> {
-    const sortBy = query.sortBy || 'duration';
+  ): Promise<{
+    students: StudentLeaderboardItem[];
+    sortBy: "duration" | "visits";
+  }> {
+    const sortBy = query.sortBy || "duration";
     const limit = query.limit || 20;
-    const { startDate, endDate } = this.resolveDateRange(query.range, query.from, query.to);
+    const { startDate, endDate } = this.resolveDateRange(
+      query.range,
+      query.from,
+      query.to,
+    );
     const effectiveTenantId = query.tenantId || userTenantId;
 
     const where: any = {
       startedAt: { gte: startDate, lte: endDate },
       ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
       user: {
-        role: 'STUDENT',
+        role: "STUDENT",
       },
     };
 
@@ -884,7 +1025,7 @@ export class AnalyticsService implements OnModuleInit {
         city: true,
         country: true,
       },
-      orderBy: { lastActiveAt: 'desc' },
+      orderBy: { lastActiveAt: "desc" },
     });
 
     const studentMap = new Map<
@@ -904,8 +1045,8 @@ export class AnalyticsService implements OnModuleInit {
           totalDuration: 0,
           sessionsCount: 0,
           lastActive: s.lastActiveAt || s.startedAt,
-          city: s.city || 'غير محدد',
-          country: s.country || 'مصر',
+          city: s.city || "غير محدد",
+          country: s.country || "مصر",
         });
       }
       const agg = studentMap.get(s.userId)!;
@@ -945,7 +1086,7 @@ export class AnalyticsService implements OnModuleInit {
       const hours = Math.floor(seconds / 3600);
       const minutes = Math.floor((seconds % 3600) / 60);
       if (hours > 0) {
-        return `${hours} ساعة ${minutes > 0 ? `و ${minutes} د` : ''}`;
+        return `${hours} ساعة ${minutes > 0 ? `و ${minutes} د` : ""}`;
       }
       return `${Math.max(1, minutes)} دقيقة`;
     };
@@ -958,8 +1099,8 @@ export class AnalyticsService implements OnModuleInit {
         return {
           rank: 0,
           userId: uid,
-          studentName: details?.fullName || 'طالب',
-          studentCode: details?.studentProfile?.studentCode || 'STU-000',
+          studentName: details?.fullName || "طالب",
+          studentCode: details?.studentProfile?.studentCode || "STU-000",
           phone: details?.phone || undefined,
           gradeLevel: details?.studentProfile?.gradeLevel || undefined,
           city: agg.city,
@@ -971,7 +1112,7 @@ export class AnalyticsService implements OnModuleInit {
         };
       })
       .sort((a, b) => {
-        if (sortBy === 'duration') {
+        if (sortBy === "duration") {
           return b.totalDurationSeconds - a.totalDurationSeconds;
         }
         return b.totalSessions - a.totalSessions;
@@ -994,7 +1135,12 @@ export class AnalyticsService implements OnModuleInit {
    * - Week/Month/Custom → daily buckets
    * - Year/All → monthly buckets (to avoid hundreds of X-axis labels)
    */
-  private async buildTimeSeries(where: any, range: string, startDate: Date, endDate: Date) {
+  private async buildTimeSeries(
+    where: any,
+    range: string,
+    startDate: Date,
+    endDate: Date,
+  ) {
     const views = await this.prisma.pageView.findMany({
       where,
       select: {
@@ -1002,22 +1148,29 @@ export class AnalyticsService implements OnModuleInit {
         visitorHash: true,
         isLandingPage: true,
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: "asc" },
     });
 
-    const isToday = range === 'today';
-    const isMonthly = range === 'year';
-    const isYearly = range === 'all';
+    const isToday = range === "today";
+    const isMonthly = range === "year";
+    const isYearly = range === "all";
     const bucketsMap = new Map<
       string,
-      { label: string; date: string; views: number; visitors: Set<string>; landing: number; system: number }
+      {
+        label: string;
+        date: string;
+        views: number;
+        visitors: Set<string>;
+        landing: number;
+        system: number;
+      }
     >();
 
     if (isToday) {
       // Hourly buckets for today
       for (let hour = 0; hour < 24; hour++) {
-        const key = `${hour.toString().padStart(2, '0')}:00`;
-        const hourLabel = `${hour % 12 || 12} ${hour < 12 ? 'ص' : 'م'}`;
+        const key = `${hour.toString().padStart(2, "0")}:00`;
+        const hourLabel = `${hour % 12 || 12} ${hour < 12 ? "ص" : "م"}`;
         bucketsMap.set(key, {
           label: hourLabel,
           date: key,
@@ -1029,13 +1182,13 @@ export class AnalyticsService implements OnModuleInit {
       }
 
       for (const v of views) {
-        const cairoHourStr = new Intl.DateTimeFormat('en-US', {
-          timeZone: 'Africa/Cairo',
-          hour: 'numeric',
+        const cairoHourStr = new Intl.DateTimeFormat("en-US", {
+          timeZone: "Africa/Cairo",
+          hour: "numeric",
           hour12: false,
         }).format(new Date(v.createdAt));
         const cairoHour = parseInt(cairoHourStr, 10);
-        const key = `${(cairoHour % 24).toString().padStart(2, '0')}:00`;
+        const key = `${(cairoHour % 24).toString().padStart(2, "0")}:00`;
         const bucket = bucketsMap.get(key);
         if (bucket) {
           bucket.views++;
@@ -1052,10 +1205,10 @@ export class AnalyticsService implements OnModuleInit {
       current.setHours(0, 0, 0, 0);
 
       while (current <= endDate) {
-        const cairoStr = new Intl.DateTimeFormat('en-CA', {
-          timeZone: 'Africa/Cairo',
+        const cairoStr = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Africa/Cairo",
         }).format(current);
-        const [yr] = cairoStr.split('-').map(Number);
+        const [yr] = cairoStr.split("-").map(Number);
         const yearKey = `${yr}`;
 
         if (!bucketsMap.has(yearKey)) {
@@ -1074,10 +1227,10 @@ export class AnalyticsService implements OnModuleInit {
       }
 
       for (const v of views) {
-        const cairoStr = new Intl.DateTimeFormat('en-CA', {
-          timeZone: 'Africa/Cairo',
+        const cairoStr = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Africa/Cairo",
         }).format(new Date(v.createdAt));
-        const [yr] = cairoStr.split('-').map(Number);
+        const [yr] = cairoStr.split("-").map(Number);
         const yearKey = `${yr}`;
         const bucket = bucketsMap.get(yearKey);
         if (bucket) {
@@ -1095,17 +1248,17 @@ export class AnalyticsService implements OnModuleInit {
       current.setHours(0, 0, 0, 0);
 
       while (current <= endDate) {
-        const cairoStr = new Intl.DateTimeFormat('en-CA', {
-          timeZone: 'Africa/Cairo',
+        const cairoStr = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Africa/Cairo",
         }).format(current);
-        const [yr, mo] = cairoStr.split('-').map(Number);
-        const monthKey = `${yr}-${mo.toString().padStart(2, '0')}`;
+        const [yr, mo] = cairoStr.split("-").map(Number);
+        const monthKey = `${yr}-${mo.toString().padStart(2, "0")}`;
 
         if (!bucketsMap.has(monthKey)) {
-          const monthLabel = current.toLocaleDateString('ar-EG', {
-            timeZone: 'Africa/Cairo',
-            month: 'long',
-            year: 'numeric',
+          const monthLabel = current.toLocaleDateString("ar-EG", {
+            timeZone: "Africa/Cairo",
+            month: "long",
+            year: "numeric",
           });
           bucketsMap.set(monthKey, {
             label: monthLabel,
@@ -1122,11 +1275,11 @@ export class AnalyticsService implements OnModuleInit {
       }
 
       for (const v of views) {
-        const cairoStr = new Intl.DateTimeFormat('en-CA', {
-          timeZone: 'Africa/Cairo',
+        const cairoStr = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Africa/Cairo",
         }).format(new Date(v.createdAt));
-        const [yr, mo] = cairoStr.split('-').map(Number);
-        const monthKey = `${yr}-${mo.toString().padStart(2, '0')}`;
+        const [yr, mo] = cairoStr.split("-").map(Number);
+        const monthKey = `${yr}-${mo.toString().padStart(2, "0")}`;
         const bucket = bucketsMap.get(monthKey);
         if (bucket) {
           bucket.views++;
@@ -1139,14 +1292,14 @@ export class AnalyticsService implements OnModuleInit {
       // Daily buckets for week/month/custom ranges
       const current = new Date(startDate);
       while (current <= endDate) {
-        const cairoDate = new Intl.DateTimeFormat('en-CA', {
-          timeZone: 'Africa/Cairo',
+        const cairoDate = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Africa/Cairo",
         }).format(current);
-        const dayLabel = current.toLocaleDateString('ar-EG', {
-          timeZone: 'Africa/Cairo',
-          weekday: 'short',
-          month: 'short',
-          day: 'numeric',
+        const dayLabel = current.toLocaleDateString("ar-EG", {
+          timeZone: "Africa/Cairo",
+          weekday: "short",
+          month: "short",
+          day: "numeric",
         });
         bucketsMap.set(cairoDate, {
           label: dayLabel,
@@ -1160,8 +1313,8 @@ export class AnalyticsService implements OnModuleInit {
       }
 
       for (const v of views) {
-        const cairoDate = new Intl.DateTimeFormat('en-CA', {
-          timeZone: 'Africa/Cairo',
+        const cairoDate = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Africa/Cairo",
         }).format(new Date(v.createdAt));
         const bucket = bucketsMap.get(cairoDate);
         if (bucket) {
@@ -1190,12 +1343,37 @@ export class AnalyticsService implements OnModuleInit {
   private async buildEnhancedDeviceBreakdown(where: any, totalViews: number) {
     const empty = {
       devices: [
-        { device: 'Desktop' as const, labelAr: 'أجهزة الكمبيوتر', count: 0, percentage: 0 },
-        { device: 'Mobile' as const, labelAr: 'الهواتف الذكية', count: 0, percentage: 0 },
-        { device: 'Tablet' as const, labelAr: 'الأجهزة اللوحية', count: 0, percentage: 0 },
+        {
+          device: "Desktop" as const,
+          labelAr: "أجهزة الكمبيوتر",
+          count: 0,
+          percentage: 0,
+        },
+        {
+          device: "Mobile" as const,
+          labelAr: "الهواتف الذكية",
+          count: 0,
+          percentage: 0,
+        },
+        {
+          device: "Tablet" as const,
+          labelAr: "الأجهزة اللوحية",
+          count: 0,
+          percentage: 0,
+        },
       ],
-      osBreakdown: [] as { os: string; labelAr: string; count: number; percentage: number }[],
-      browserBreakdown: [] as { browser: string; labelAr: string; count: number; percentage: number }[],
+      osBreakdown: [] as {
+        os: string;
+        labelAr: string;
+        count: number;
+        percentage: number;
+      }[],
+      browserBreakdown: [] as {
+        browser: string;
+        labelAr: string;
+        count: number;
+        percentage: number;
+      }[],
     };
 
     if (totalViews === 0) return empty;
@@ -1213,22 +1391,34 @@ export class AnalyticsService implements OnModuleInit {
 
     // OS counters
     const osCounts: Record<string, number> = {
-      Android: 0, iOS: 0, Windows: 0, macOS: 0, Linux: 0, Other: 0,
+      Android: 0,
+      iOS: 0,
+      Windows: 0,
+      macOS: 0,
+      Linux: 0,
+      Other: 0,
     };
 
     // Browser counters
     const browserCounts: Record<string, number> = {
-      Chrome: 0, Safari: 0, Firefox: 0, Edge: 0, Opera: 0, Other: 0,
+      Chrome: 0,
+      Safari: 0,
+      Firefox: 0,
+      Edge: 0,
+      Opera: 0,
+      Other: 0,
     };
 
     for (const v of sampleViews) {
-      const ua = v.userAgent || '';
+      const ua = v.userAgent || "";
       const ual = ua.toLowerCase();
 
       // --- Device ---
       if (/tablet|ipad|playbook|silk/i.test(ua)) {
         tabletCount++;
-      } else if (/mobile|android|iphone|ipod|blackberry|opera mini|iemobile/i.test(ua)) {
+      } else if (
+        /mobile|android|iphone|ipod|blackberry|opera mini|iemobile/i.test(ua)
+      ) {
         mobileCount++;
       } else {
         desktopCount++;
@@ -1236,32 +1426,32 @@ export class AnalyticsService implements OnModuleInit {
 
       // --- OS ---
       if (/android/i.test(ua)) {
-        osCounts['Android']++;
+        osCounts["Android"]++;
       } else if (/iphone|ipad|ipod/i.test(ua)) {
-        osCounts['iOS']++;
+        osCounts["iOS"]++;
       } else if (/windows nt|windows phone/i.test(ua)) {
-        osCounts['Windows']++;
+        osCounts["Windows"]++;
       } else if (/macintosh|mac os x/i.test(ua)) {
-        osCounts['macOS']++;
+        osCounts["macOS"]++;
       } else if (/linux/i.test(ual)) {
-        osCounts['Linux']++;
+        osCounts["Linux"]++;
       } else {
-        osCounts['Other']++;
+        osCounts["Other"]++;
       }
 
       // --- Browser (order matters: Edge before Chrome, Opera before Chrome) ---
       if (/edg\//i.test(ua) || /edghtml/i.test(ua)) {
-        browserCounts['Edge']++;
+        browserCounts["Edge"]++;
       } else if (/opr\//i.test(ua) || /opera/i.test(ua)) {
-        browserCounts['Opera']++;
+        browserCounts["Opera"]++;
       } else if (/chrome|chromium/i.test(ua)) {
-        browserCounts['Chrome']++;
+        browserCounts["Chrome"]++;
       } else if (/firefox|fxios/i.test(ua)) {
-        browserCounts['Firefox']++;
+        browserCounts["Firefox"]++;
       } else if (/safari/i.test(ua)) {
-        browserCounts['Safari']++;
+        browserCounts["Safari"]++;
       } else {
-        browserCounts['Other']++;
+        browserCounts["Other"]++;
       }
     }
 
@@ -1269,23 +1459,41 @@ export class AnalyticsService implements OnModuleInit {
 
     // Scale device counts to totalViews
     const desktopRatio = desktopCount / sample;
-    const mobileRatio  = mobileCount  / sample;
-    const tabletRatio  = tabletCount  / sample;
+    const mobileRatio = mobileCount / sample;
+    const tabletRatio = tabletCount / sample;
     const scaledDesktop = Math.round(desktopRatio * totalViews);
-    const scaledMobile  = Math.round(mobileRatio  * totalViews);
-    const scaledTablet  = totalViews - scaledDesktop - scaledMobile;
+    const scaledMobile = Math.round(mobileRatio * totalViews);
+    const scaledTablet = totalViews - scaledDesktop - scaledMobile;
 
     const devices = [
-      { device: 'Desktop' as const, labelAr: 'أجهزة الكمبيوتر', count: Math.max(0, scaledDesktop), percentage: Math.round(desktopRatio * 100) },
-      { device: 'Mobile'  as const, labelAr: 'الهواتف الذكية',    count: Math.max(0, scaledMobile),  percentage: Math.round(mobileRatio  * 100) },
-      { device: 'Tablet'  as const, labelAr: 'الأجهزة اللوحية',   count: Math.max(0, scaledTablet),  percentage: Math.round(tabletRatio  * 100) },
+      {
+        device: "Desktop" as const,
+        labelAr: "أجهزة الكمبيوتر",
+        count: Math.max(0, scaledDesktop),
+        percentage: Math.round(desktopRatio * 100),
+      },
+      {
+        device: "Mobile" as const,
+        labelAr: "الهواتف الذكية",
+        count: Math.max(0, scaledMobile),
+        percentage: Math.round(mobileRatio * 100),
+      },
+      {
+        device: "Tablet" as const,
+        labelAr: "الأجهزة اللوحية",
+        count: Math.max(0, scaledTablet),
+        percentage: Math.round(tabletRatio * 100),
+      },
     ];
 
     // OS breakdown — filter zeros, sort descending
     const OS_LABELS: Record<string, string> = {
-      Android: 'أندرويد', iOS: 'آيفون / iOS',
-      Windows: 'ويندوز', macOS: 'ماك (macOS)',
-      Linux: 'لينكس', Other: 'أخرى',
+      Android: "أندرويد",
+      iOS: "آيفون / iOS",
+      Windows: "ويندوز",
+      macOS: "ماك (macOS)",
+      Linux: "لينكس",
+      Other: "أخرى",
     };
     const osBreakdown = Object.entries(osCounts)
       .filter(([, c]) => c > 0)
@@ -1299,9 +1507,12 @@ export class AnalyticsService implements OnModuleInit {
 
     // Browser breakdown — filter zeros, sort descending
     const BROWSER_LABELS: Record<string, string> = {
-      Chrome: 'جوجل كروم', Safari: 'سافاري',
-      Firefox: 'فايرفوكس', Edge: 'مايكروسوفت إيج',
-      Opera: 'أوبرا', Other: 'أخرى',
+      Chrome: "جوجل كروم",
+      Safari: "سافاري",
+      Firefox: "فايرفوكس",
+      Edge: "مايكروسوفت إيج",
+      Opera: "أوبرا",
+      Other: "أخرى",
     };
     const browserBreakdown = Object.entries(browserCounts)
       .filter(([, c]) => c > 0)
@@ -1319,43 +1530,45 @@ export class AnalyticsService implements OnModuleInit {
   /**
    * Helper to parse device category, OS, and browser from User-Agent string.
    */
-  public parseUserAgentString(ua: string = ''): {
-    device: 'Desktop' | 'Mobile' | 'Tablet';
+  public parseUserAgentString(ua: string = ""): {
+    device: "Desktop" | "Mobile" | "Tablet";
     os: string;
     browser: string;
   } {
     const ual = ua.toLowerCase();
-    let device: 'Desktop' | 'Mobile' | 'Tablet' = 'Desktop';
+    let device: "Desktop" | "Mobile" | "Tablet" = "Desktop";
     if (/tablet|ipad|playbook|silk/i.test(ua)) {
-      device = 'Tablet';
-    } else if (/mobile|android|iphone|ipod|blackberry|opera mini|iemobile/i.test(ua)) {
-      device = 'Mobile';
+      device = "Tablet";
+    } else if (
+      /mobile|android|iphone|ipod|blackberry|opera mini|iemobile/i.test(ua)
+    ) {
+      device = "Mobile";
     }
 
-    let os = 'Other';
+    let os = "Other";
     if (/android/i.test(ua)) {
-      os = 'Android';
+      os = "Android";
     } else if (/iphone|ipad|ipod/i.test(ua)) {
-      os = 'iOS';
+      os = "iOS";
     } else if (/windows nt|windows phone/i.test(ua)) {
-      os = 'Windows';
+      os = "Windows";
     } else if (/macintosh|mac os x/i.test(ua)) {
-      os = 'macOS';
+      os = "macOS";
     } else if (/linux/i.test(ual)) {
-      os = 'Linux';
+      os = "Linux";
     }
 
-    let browser = 'Other';
+    let browser = "Other";
     if (/edg\//i.test(ua) || /edghtml/i.test(ua)) {
-      browser = 'Edge';
+      browser = "Edge";
     } else if (/opr\//i.test(ua) || /opera/i.test(ua)) {
-      browser = 'Opera';
+      browser = "Opera";
     } else if (/chrome|chromium/i.test(ua)) {
-      browser = 'Chrome';
+      browser = "Chrome";
     } else if (/firefox|fxios/i.test(ua)) {
-      browser = 'Firefox';
+      browser = "Firefox";
     } else if (/safari/i.test(ua)) {
-      browser = 'Safari';
+      browser = "Safari";
     }
 
     return { device, os, browser };
@@ -1365,7 +1578,10 @@ export class AnalyticsService implements OnModuleInit {
    * Calculates realistic browsing/engagement duration in seconds for a visitor based on visits timestamps
    * or authenticated user session pings.
    */
-  public calculateVisitorDuration(views: { createdAt: Date | string }[], sessionsDuration: number = 0): number {
+  public calculateVisitorDuration(
+    views: { createdAt: Date | string }[],
+    sessionsDuration: number = 0,
+  ): number {
     if (sessionsDuration > 0) {
       return sessionsDuration;
     }
@@ -1403,20 +1619,94 @@ export class AnalyticsService implements OnModuleInit {
    * Formats duration in seconds to a human-readable Arabic string.
    */
   public formatDurationArabic(seconds: number = 0): string {
-    if (seconds <= 0) return 'أقل من دقيقة';
+    if (seconds <= 0) return "أقل من دقيقة";
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const remainingSecs = seconds % 60;
 
     if (hours > 0) {
-      return `${hours} ساعة ${minutes > 0 ? `و ${minutes} دقيقة` : ''}`;
+      return `${hours} ساعة ${minutes > 0 ? `و ${minutes} دقيقة` : ""}`;
     }
     if (minutes > 0) {
-      return `${minutes} دقيقة ${remainingSecs > 10 ? `و ${remainingSecs} ثانية` : ''}`;
+      return `${minutes} دقيقة ${remainingSecs > 10 ? `و ${remainingSecs} ثانية` : ""}`;
     }
     return `${remainingSecs} ثانية`;
   }
 
+  /**
+   * Calculates the exact total active browsing duration across all unique visitors in a query scope.
+   */
+  public async calculateTotalActiveDuration(
+    where: any,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<{ totalDurationSeconds: number; avgDurationSeconds: number }> {
+    const views = await this.prisma.pageView.findMany({
+      where,
+      select: {
+        visitorHash: true,
+        createdAt: true,
+        userId: true,
+      },
+      orderBy: { createdAt: "asc" },
+      take: 10000,
+    });
+
+    if (views.length === 0) {
+      return { totalDurationSeconds: 0, avgDurationSeconds: 0 };
+    }
+
+    const viewsByVisitor = new Map<string, { createdAt: Date }[]>();
+    const userIds = new Set<string>();
+
+    for (const v of views) {
+      if (!viewsByVisitor.has(v.visitorHash)) {
+        viewsByVisitor.set(v.visitorHash, []);
+      }
+      viewsByVisitor.get(v.visitorHash)!.push({ createdAt: v.createdAt });
+      if (v.userId) userIds.add(v.userId);
+    }
+
+    const sessionDurationsByUserId = new Map<string, number>();
+    if (userIds.size > 0) {
+      const userSessions = await this.prisma.userSession.findMany({
+        where: {
+          userId: { in: Array.from(userIds) },
+          user: { role: { notIn: [UserRole.TEACHER, UserRole.SECRETARIAT] } },
+          startedAt: { gte: startDate, lte: endDate },
+        },
+        select: { userId: true, durationSeconds: true },
+      });
+      for (const s of userSessions) {
+        sessionDurationsByUserId.set(
+          s.userId,
+          (sessionDurationsByUserId.get(s.userId) || 0) + s.durationSeconds,
+        );
+      }
+    }
+
+    let totalDurationSeconds = 0;
+    for (const [visitorHash, vViews] of viewsByVisitor.entries()) {
+      const firstViewWithUser = views.find(
+        (v) => v.visitorHash === visitorHash && v.userId,
+      );
+      const userSessionSecs = firstViewWithUser?.userId
+        ? sessionDurationsByUserId.get(firstViewWithUser.userId) || 0
+        : 0;
+
+      const visitorDuration = this.calculateVisitorDuration(
+        vViews,
+        userSessionSecs,
+      );
+      totalDurationSeconds += visitorDuration;
+    }
+
+    const uniqueCount = viewsByVisitor.size;
+    const avgDurationSeconds =
+      uniqueCount > 0 ? Math.round(totalDurationSeconds / uniqueCount) : 0;
+
+    return { totalDurationSeconds, avgDurationSeconds };
+  }
 
   /**
    * Retrieves a filtered list of unique visitors with visit frequency, metadata, and detailed visit history.
@@ -1425,9 +1715,13 @@ export class AnalyticsService implements OnModuleInit {
     query: VisitorListQueryDto,
     userTenantId?: string,
   ): Promise<VisitorListResponse> {
-    const scope = query.scope || 'all';
-    const range = query.range || 'week';
-    const { startDate, endDate } = this.resolveDateRange(range, query.from, query.to);
+    const scope = query.scope || "all";
+    const range = query.range || "week";
+    const { startDate, endDate } = this.resolveDateRange(
+      range,
+      query.from,
+      query.to,
+    );
 
     const baseDateCondition = {
       createdAt: {
@@ -1439,9 +1733,9 @@ export class AnalyticsService implements OnModuleInit {
     let scopeCondition: any = {};
     const effectiveTenantId = query.tenantId || userTenantId;
 
-    if (scope === 'landing') {
+    if (scope === "landing") {
       scopeCondition = { isLandingPage: true };
-    } else if (scope === 'system') {
+    } else if (scope === "system") {
       scopeCondition = {
         isLandingPage: false,
         ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
@@ -1464,10 +1758,14 @@ export class AnalyticsService implements OnModuleInit {
         where: {
           role: { notIn: [UserRole.TEACHER, UserRole.SECRETARIAT] },
           OR: [
-            { fullName: { contains: searchTerm, mode: 'insensitive' } },
+            { fullName: { contains: searchTerm, mode: "insensitive" } },
             { phone: { contains: searchTerm } },
-            { email: { contains: searchTerm, mode: 'insensitive' } },
-            { studentProfile: { studentCode: { contains: searchTerm, mode: 'insensitive' } } },
+            { email: { contains: searchTerm, mode: "insensitive" } },
+            {
+              studentProfile: {
+                studentCode: { contains: searchTerm, mode: "insensitive" },
+              },
+            },
           ],
         },
         select: { id: true },
@@ -1478,12 +1776,14 @@ export class AnalyticsService implements OnModuleInit {
 
     const excludedTeacherHashes = await this.getExcludedTeacherHashes();
     const teacherExclusion = {
-      ...(excludedTeacherHashes.length > 0 ? { visitorHash: { notIn: excludedTeacherHashes } } : {}),
+      ...(excludedTeacherHashes.length > 0
+        ? { visitorHash: { notIn: excludedTeacherHashes } }
+        : {}),
       NOT: [
         { user: { role: { in: [UserRole.TEACHER, UserRole.SECRETARIAT] } } },
-        { path: { startsWith: '/teacher' } },
-        { path: { startsWith: '/secretariat' } },
-        { path: { startsWith: '/assistant' } },
+        { path: { startsWith: "/teacher" } },
+        { path: { startsWith: "/secretariat" } },
+        { path: { startsWith: "/assistant" } },
       ],
     };
 
@@ -1496,7 +1796,7 @@ export class AnalyticsService implements OnModuleInit {
 
     // Aggregate unique visitors in period
     const groups = await this.prisma.pageView.groupBy({
-      by: ['visitorHash'],
+      by: ["visitorHash"],
       where,
       _count: { visitorHash: true },
       _max: { createdAt: true },
@@ -1504,13 +1804,19 @@ export class AnalyticsService implements OnModuleInit {
     });
 
     // Sort groups
-    if (query.sortBy === 'visits') {
-      groups.sort((a, b) => (b._count?.visitorHash || 0) - (a._count?.visitorHash || 0));
+    if (query.sortBy === "visits") {
+      groups.sort(
+        (a, b) => (b._count?.visitorHash || 0) - (a._count?.visitorHash || 0),
+      );
     } else {
       // Default: recent
       groups.sort((a, b) => {
-        const timeA = a._max?.createdAt ? new Date(a._max.createdAt).getTime() : 0;
-        const timeB = b._max?.createdAt ? new Date(b._max.createdAt).getTime() : 0;
+        const timeA = a._max?.createdAt
+          ? new Date(a._max.createdAt).getTime()
+          : 0;
+        const timeB = b._max?.createdAt
+          ? new Date(b._max.createdAt).getTime()
+          : 0;
         return timeB - timeA;
       });
     }
@@ -1530,8 +1836,8 @@ export class AnalyticsService implements OnModuleInit {
         limit,
         totalPages,
         totalDurationSeconds: 0,
-        totalDurationFormatted: '0 دقيقة',
-        avgDurationFormatted: '0 دقيقة',
+        totalDurationFormatted: "0 دقيقة",
+        avgDurationFormatted: "0 دقيقة",
       };
     }
 
@@ -1543,7 +1849,7 @@ export class AnalyticsService implements OnModuleInit {
         ...scopeCondition,
         ...teacherExclusion,
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       select: {
         id: true,
         visitorHash: true,
@@ -1576,16 +1882,24 @@ export class AnalyticsService implements OnModuleInit {
     const landingVisits = await this.prisma.landingVisit.findMany({
       where: {
         visitorHash: { in: pagedHashes },
-        ...(excludedTeacherHashes.length > 0 ? { visitorHash: { notIn: excludedTeacherHashes } } : {}),
+        ...(excludedTeacherHashes.length > 0
+          ? { visitorHash: { notIn: excludedTeacherHashes } }
+          : {}),
       },
       select: { visitorHash: true, city: true, country: true },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       take: 500,
     });
-    const landingGeoMap = new Map<string, { city?: string; country?: string }>();
+    const landingGeoMap = new Map<
+      string,
+      { city?: string; country?: string }
+    >();
     for (const lv of landingVisits) {
       if (!landingGeoMap.has(lv.visitorHash)) {
-        landingGeoMap.set(lv.visitorHash, { city: lv.city || undefined, country: lv.country || undefined });
+        landingGeoMap.set(lv.visitorHash, {
+          city: lv.city || undefined,
+          country: lv.country || undefined,
+        });
       }
     }
 
@@ -1599,7 +1913,12 @@ export class AnalyticsService implements OnModuleInit {
 
     // Fetch user sessions for authenticated users in current page (strictly students)
     const userIds = views
-      .filter((v) => v.user?.id && v.user.role !== UserRole.TEACHER && v.user.role !== UserRole.SECRETARIAT)
+      .filter(
+        (v) =>
+          v.user?.id &&
+          v.user.role !== UserRole.TEACHER &&
+          v.user.role !== UserRole.SECRETARIAT,
+      )
       .map((v) => v.user!.id);
     const sessionDurationsByUserId = new Map<string, number>();
     if (userIds.length > 0) {
@@ -1626,8 +1945,8 @@ export class AnalyticsService implements OnModuleInit {
 
       // Geo resolution
       const landingGeo = landingGeoMap.get(g.visitorHash);
-      let city = 'دمياط';
-      let country = 'مصر';
+      let city = "دمياط";
+      let country = "مصر";
 
       for (const v of visitorViews) {
         const meta = v.metadata as any;
@@ -1637,13 +1956,13 @@ export class AnalyticsService implements OnModuleInit {
           break;
         }
       }
-      if (city === 'دمياط' && landingGeo?.city) {
+      if (city === "دمياط" && landingGeo?.city) {
         city = landingGeo.city;
         if (landingGeo.country) country = landingGeo.country;
       }
 
       // Device & Browser
-      const ua = firstView?.userAgent || '';
+      const ua = firstView?.userAgent || "";
       const { device, os, browser } = this.parseUserAgentString(ua);
 
       // Top pages
@@ -1671,8 +1990,13 @@ export class AnalyticsService implements OnModuleInit {
       });
 
       // Calculate visit duration for this specific visitor
-      const userSessionSecs = userView?.user ? (sessionDurationsByUserId.get(userView.user.id) || 0) : 0;
-      const durationSeconds = this.calculateVisitorDuration(visitorViews, userSessionSecs);
+      const userSessionSecs = userView?.user
+        ? sessionDurationsByUserId.get(userView.user.id) || 0
+        : 0;
+      const durationSeconds = this.calculateVisitorDuration(
+        visitorViews,
+        userSessionSecs,
+      );
       const totalDurationFormatted = this.formatDurationArabic(durationSeconds);
 
       return {
@@ -1681,8 +2005,12 @@ export class AnalyticsService implements OnModuleInit {
         totalVisits: g._count?.visitorHash || visitorViews.length,
         totalDurationSeconds: durationSeconds,
         totalDurationFormatted,
-        firstSeenAt: g._min?.createdAt ? new Date(g._min.createdAt).toISOString() : new Date().toISOString(),
-        lastSeenAt: g._max?.createdAt ? new Date(g._max.createdAt).toISOString() : new Date().toISOString(),
+        firstSeenAt: g._min?.createdAt
+          ? new Date(g._min.createdAt).toISOString()
+          : new Date().toISOString(),
+        lastSeenAt: g._max?.createdAt
+          ? new Date(g._max.createdAt).toISOString()
+          : new Date().toISOString(),
         user: userView?.user
           ? {
               id: userView.user.id,
@@ -1690,7 +2018,8 @@ export class AnalyticsService implements OnModuleInit {
               email: userView.user.email,
               phone: userView.user.phone || undefined,
               role: userView.user.role,
-              studentCode: userView.user.studentProfile?.studentCode || undefined,
+              studentCode:
+                userView.user.studentProfile?.studentCode || undefined,
               gradeLevel: userView.user.studentProfile?.gradeLevel || undefined,
             }
           : null,
@@ -1704,16 +2033,13 @@ export class AnalyticsService implements OnModuleInit {
       };
     });
 
-    let totalAllVisitorsDurationSeconds = 0;
-    for (const v of visitors) {
-      totalAllVisitorsDurationSeconds += v.totalDurationSeconds;
-    }
-    if (totalVisitors > visitors.length && visitors.length > 0) {
-      const avg = totalAllVisitorsDurationSeconds / visitors.length;
-      totalAllVisitorsDurationSeconds = Math.round(avg * totalVisitors);
-    }
-    const totalDurationFormatted = this.formatDurationArabic(totalAllVisitorsDurationSeconds);
-    const avgDurationSeconds = totalVisitors > 0 ? Math.round(totalAllVisitorsDurationSeconds / totalVisitors) : 0;
+    const {
+      totalDurationSeconds: totalAllVisitorsDurationSeconds,
+      avgDurationSeconds,
+    } = await this.calculateTotalActiveDuration(where, startDate, endDate);
+    const totalDurationFormatted = this.formatDurationArabic(
+      totalAllVisitorsDurationSeconds,
+    );
     const avgDurationFormatted = this.formatDurationArabic(avgDurationSeconds);
 
     return {
@@ -1726,7 +2052,5 @@ export class AnalyticsService implements OnModuleInit {
       limit,
       totalPages,
     };
-
   }
 }
-

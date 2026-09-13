@@ -1,7 +1,7 @@
-import { API_BASE_URL, API_ENDPOINTS } from '../api/endpoints';
-import { getCachedGeoHint, getClientGeoHint } from './geo-client';
+import { API_BASE_URL, API_ENDPOINTS } from "../api/endpoints";
+import { getCachedGeoHint, getClientGeoHint } from "./geo-client";
 
-const VISITOR_STORAGE_KEY = 'elawal_vid';
+const VISITOR_STORAGE_KEY = "elawal_vid";
 
 /**
  * Returns or generates a persistent anonymous device-level visitor identifier.
@@ -9,19 +9,22 @@ const VISITOR_STORAGE_KEY = 'elawal_vid';
  * as distinct unique visitors.
  */
 export function getOrCreateVisitorId(): string {
-  if (typeof window === 'undefined') return '';
+  if (typeof window === "undefined") return "";
   try {
     let vid = localStorage.getItem(VISITOR_STORAGE_KEY);
     if (!vid) {
       vid =
-        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
           ? crypto.randomUUID()
-          : 'vid_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 11);
+          : "vid_" +
+            Date.now().toString(36) +
+            "_" +
+            Math.random().toString(36).substring(2, 11);
       localStorage.setItem(VISITOR_STORAGE_KEY, vid);
     }
     return vid;
   } catch {
-    return '';
+    return "";
   }
 }
 
@@ -40,8 +43,8 @@ export interface TrackPageViewOptions {
  * Checks if a given pathname belongs to the public landing / marketing surfaces.
  */
 export function isLandingPath(pathname: string): boolean {
-  if (!pathname || pathname === '/' || pathname.startsWith('/#')) return true;
-  const publicLandingRoutes = ['/terms', '/privacy', '/parent-access'];
+  if (!pathname || pathname === "/" || pathname.startsWith("/#")) return true;
+  const publicLandingRoutes = ["/terms", "/privacy", "/parent-access"];
   return publicLandingRoutes.some((route) => pathname.startsWith(route));
 }
 
@@ -59,22 +62,24 @@ export function trackPageView({
   country,
   visitorId,
 }: TrackPageViewOptions): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
 
   // Do not track offline sessions or disabled environments
-  if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+  if (typeof navigator !== "undefined" && !navigator.onLine) return;
 
   // Ensure background geo hint is warming up
   void getClientGeoHint();
 
   try {
     const isLanding = isLandingPage ?? isLandingPath(path);
-    const resolvedReferrer = referrer ?? (document.referrer ? document.referrer.slice(0, 500) : undefined);
+    const resolvedReferrer =
+      referrer ??
+      (document.referrer ? document.referrer.slice(0, 500) : undefined);
     const geoHint = getCachedGeoHint();
     const resolvedVisitorId = visitorId || getOrCreateVisitorId();
 
     const payload = {
-      path: path || window.location.pathname || '/',
+      path: path || window.location.pathname || "/",
       referrer: resolvedReferrer,
       isLandingPage: isLanding,
       tenantId: tenantId || undefined,
@@ -94,21 +99,24 @@ export function trackPageView({
     const payloadStr = JSON.stringify(payload);
 
     // Primary: navigator.sendBeacon (most resilient for page navigations)
-    if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
-      const blob = new Blob([payloadStr], { type: 'application/json' });
+    if (
+      typeof navigator !== "undefined" &&
+      typeof navigator.sendBeacon === "function"
+    ) {
+      const blob = new Blob([payloadStr], { type: "application/json" });
       const queued = navigator.sendBeacon(endpoint, blob);
       if (queued) return;
     }
 
     // Fallback: non-blocking fetch with keepalive: true
     fetch(endpoint, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: payloadStr,
       keepalive: true,
-      credentials: 'include',
+      credentials: "include",
     }).catch(() => {
       // Intentionally silent: telemetry failure must never bubble up
     });

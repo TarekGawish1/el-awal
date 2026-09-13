@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { useEffect, useRef } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
-import { trackPageView, isLandingPath } from '@/lib/analytics/tracker';
-import { useAuthStore } from '@/features/auth/store/auth.store';
-import { useActivityTracker } from '@/features/analytics/hooks/useActivityTracker';
+import { useEffect, useRef } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { trackPageView, isLandingPath } from "@/lib/analytics/tracker";
+import { useAuthStore } from "@/features/auth/store/auth.store";
+import { useActivityTracker } from "@/features/analytics/hooks/useActivityTracker";
 
 export function AnalyticsTracker() {
   useActivityTracker();
@@ -18,11 +18,11 @@ export function AnalyticsTracker() {
 
     // Do not track visits of teachers or assistants or admin routes
     if (
-      (user?.role as string) === 'TEACHER' ||
-      (user?.role as string) === 'SECRETARIAT' ||
-      pathname.startsWith('/teacher') ||
-      pathname.startsWith('/secretariat') ||
-      pathname.startsWith('/assistant')
+      (user?.role as string) === "TEACHER" ||
+      (user?.role as string) === "SECRETARIAT" ||
+      pathname.startsWith("/teacher") ||
+      pathname.startsWith("/secretariat") ||
+      pathname.startsWith("/assistant")
     ) {
       return;
     }
@@ -38,7 +38,9 @@ export function AnalyticsTracker() {
     lastTrackedPathRef.current = fullPath;
 
     // Determine tenant context from authenticated user if available
-    const tenantId = user?.teacherProfileId || ((user?.role as string) === 'TEACHER' ? user?.id : undefined);
+    const tenantId =
+      user?.teacherProfileId ||
+      ((user?.role as string) === "TEACHER" ? user?.id : undefined);
 
     // Fire non-blocking page view telemetry
     trackPageView({
