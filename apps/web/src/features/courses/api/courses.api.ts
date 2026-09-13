@@ -524,7 +524,7 @@ export const coursesApi = {
     formData.append('file', file);
     formData.append('folder', folder);
 
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const token = getStoredAccessToken() || (typeof window !== 'undefined' ? localStorage.getItem('token') : null);
     const uploadBase = API_BASE_URL.replace(/\/+$/, '');
 
     return new Promise((resolve, reject) => {
