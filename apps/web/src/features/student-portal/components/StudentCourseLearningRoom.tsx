@@ -26,6 +26,8 @@ import {
   ShieldCheck,
   Video,
   Trophy,
+  ShieldAlert,
+  EyeOff,
 } from 'lucide-react';
 import { useCourseDetail, useLessonViewer, useLessonStreamAuth } from '@/features/courses/hooks/useCourses';
 import { coursesApi } from '@/features/courses/api/courses.api';
@@ -116,15 +118,92 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
     refetch: refetchStreamAuth,
   } = useLessonStreamAuth(selectedLessonId || '');
 
-  // Floating Dynamic Anti-Theft Watermark
-  const [watermarkPos, setWatermarkPos] = useState({ top: 15, left: 15 });
+  // Tab & Window Focus Obscuring Mask (Screen Sharing / Multi-Window Defense)
+  const [isObscured, setIsObscured] = useState(false);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden || document.visibilityState === 'hidden') {
+        setIsObscured(true);
+      } else {
+        setIsObscured(false);
+      }
+    };
+
+    const handleWindowBlur = () => {
+      if (document.activeElement && document.activeElement.tagName === 'IFRAME') {
+        return;
+      }
+      setIsObscured(true);
+    };
+
+    const handleWindowFocus = () => {
+      if (!document.hidden && document.visibilityState !== 'hidden') {
+        setIsObscured(false);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleWindowBlur);
+    window.addEventListener('focus', handleWindowFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleWindowBlur);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, []);
+
+  // Keyboard Shortcut & DevTools Suppression
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+      const key = e.key ? e.key.toLowerCase() : '';
+
+      // F12 or PrintScreen
+      if (e.key === 'F12' || e.key === 'PrintScreen' || key === 'printscreen' || e.keyCode === 44) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+
+      // Ctrl/Cmd + Shift + I / J / C (DevTools)
+      if (isCtrlOrMeta && e.shiftKey && (key === 'i' || key === 'j' || key === 'c')) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+
+      // Ctrl/Cmd + U (View Source)
+      if (isCtrlOrMeta && key === 'u') {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+
+      // Ctrl/Cmd + S (Save Page)
+      if (isCtrlOrMeta && key === 's') {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, []);
+
+  // Floating Dynamic Anti-Theft Watermark (10% to 85% every 15–25s)
+  const [watermarkPos, setWatermarkPos] = useState({ top: 20, left: 20 });
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
     const shift = () => {
-      const newTop = Math.floor(Math.random() * 70) + 8;
-      const newLeft = Math.floor(Math.random() * 62) + 8;
+      const newTop = Math.floor(Math.random() * 75) + 10;
+      const newLeft = Math.floor(Math.random() * 75) + 10;
       setWatermarkPos({ top: newTop, left: newLeft });
-      const delay = Math.floor(Math.random() * 10000) + 20000;
+      const delay = Math.floor(Math.random() * 10000) + 15000;
       timeoutId = setTimeout(shift, delay);
     };
     shift();
@@ -1317,7 +1396,9 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                   src={getPausedEmbedUrl(streamAuth.embedUrl)}
                   loading="lazy"
                   onLoad={initIframePlayer}
-                  className="w-full h-full border-0 absolute inset-0 block"
+                  className={`w-full h-full border-0 absolute inset-0 block transition-opacity duration-300 ${
+                    isObscured ? 'opacity-0 pointer-events-none' : 'opacity-100'
+                  }`}
                   style={{ width: '100%', height: '100%', border: 0 }}
                   allow="accelerometer; gyroscope; encrypted-media; picture-in-picture;"
                   allowFullScreen
@@ -1332,7 +1413,9 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                   onEnded={() => handleVideoProgressOrEnd()}
                   onTimeUpdate={(e) => handleVideoProgressOrEnd(e.currentTarget.currentTime, e.currentTarget.duration)}
                   onContextMenu={(e) => e.preventDefault()}
-                  className="w-full h-full object-contain block"
+                  className={`w-full h-full object-contain block transition-opacity duration-300 ${
+                    isObscured ? 'opacity-0 pointer-events-none' : 'opacity-100'
+                  }`}
                   style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                 />
               ) : (
@@ -1358,11 +1441,53 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                 </div>
               )}
 
-              {/* Floating Dynamic Anti-Theft Watermark Overlay */}
+              {/* Tab/Window Focus Obscuring Blur Overlay */}
+              {isObscured && (
+                <div
+                  data-testid="tab-hidden-overlay"
+                  className="absolute inset-0 z-30 flex flex-col items-center justify-center p-6 text-center backdrop-blur-2xl bg-black/90 text-white select-none transition-all duration-300"
+                  onContextMenu={(e) => e.preventDefault()}
+                  draggable={false}
+                >
+                  <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mb-3 animate-pulse">
+                    <EyeOff className="w-7 h-7" />
+                  </div>
+                  <p className="text-sm sm:text-base font-bold text-amber-300 mb-2">
+                    ⚠️ تم إيقاف المشاهدة مؤقتاً: يرجى العودة لتبويب الدرس للمتابعة.
+                  </p>
+                  <p className="text-xs text-slate-400 max-w-md leading-relaxed">
+                    لحماية محتوى المنصة ومنع تسجيل الشاشة في الخلفية، يتوقف عرض الفيديو فور مغادرة الصفحة أو التبديل بين النوافذ.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!document.hidden) setIsObscured(false);
+                    }}
+                    className="mt-4 px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    متابعة المشاهدة
+                  </button>
+                </div>
+              )}
+
+              {/* Floating Dynamic Anti-Theft Watermark & Static Ghost Nodes */}
               {streamAuth?.watermark && (
-                <div className="pointer-events-none absolute inset-0 overflow-hidden z-20">
+                <div className="pointer-events-none absolute inset-0 overflow-hidden z-20 select-none" draggable={false}>
+                  <div className="absolute top-[10%] left-[8%] text-[10px] font-mono font-bold text-white/20 select-none pointer-events-none tracking-wider">
+                    {streamAuth.watermark.studentName} • {streamAuth.watermark.studentCode || streamAuth.watermark.studentPhone}
+                  </div>
+                  <div className="absolute top-[20%] right-[10%] text-[10px] font-mono font-bold text-white/20 select-none pointer-events-none tracking-wider">
+                    {streamAuth.watermark.studentName} • {streamAuth.watermark.studentCode || streamAuth.watermark.studentPhone}
+                  </div>
+                  <div className="absolute bottom-[22%] left-[12%] text-[10px] font-mono font-bold text-white/20 select-none pointer-events-none tracking-wider">
+                    {streamAuth.watermark.studentName} • {streamAuth.watermark.studentCode || streamAuth.watermark.studentPhone}
+                  </div>
+                  <div className="absolute bottom-[10%] right-[8%] text-[10px] font-mono font-bold text-white/20 select-none pointer-events-none tracking-wider">
+                    {streamAuth.watermark.studentName} • {streamAuth.watermark.studentCode || streamAuth.watermark.studentPhone}
+                  </div>
+
                   <div
-                    className="text-xs font-mono font-bold text-white/20 tracking-wider p-3 select-none transition-all duration-1000"
+                    className="text-xs font-mono font-bold text-white/30 tracking-wider p-2.5 select-none transition-all duration-700 ease-in-out backdrop-blur-[1px] bg-black/15 rounded-lg"
                     style={{ top: `${watermarkPos.top}%`, left: `${watermarkPos.left}%`, position: 'absolute' }}
                   >
                     {streamAuth.watermark.studentName} • {streamAuth.watermark.studentCode || streamAuth.watermark.studentPhone}

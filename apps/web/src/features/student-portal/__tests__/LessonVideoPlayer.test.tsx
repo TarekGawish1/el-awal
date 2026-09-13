@@ -1,11 +1,11 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LessonVideoPlayer } from '../components/LessonVideoPlayer';
 import { apiClient } from '@/lib/api/client';
 
-describe('LessonVideoPlayer Component', () => {
+describe('LessonVideoPlayer Component Hardened Security Defenses', () => {
   let queryClient: QueryClient;
 
   const mockSecureEmbedUrl =
@@ -80,7 +80,96 @@ describe('LessonVideoPlayer Component', () => {
     expect(contextMenuEvent).toBe(false);
   });
 
-  it('displays dynamic floating anti-theft watermark with student information', async () => {
+  it('renders blurred security overlay when tab becomes hidden (visibilitychange)', async () => {
+    vi.spyOn(apiClient, 'get').mockResolvedValueOnce({
+      embedUrl: mockSecureEmbedUrl,
+      expiresAt: 1720000000,
+    });
+
+    renderWithClient(
+      <LessonVideoPlayer lessonId="lesson-physics-101" user={mockUser} />,
+    );
+
+    await screen.findByTestId('bunny-stream-iframe');
+
+    // Initially not obscured
+    expect(screen.queryByTestId('tab-hidden-overlay')).not.toBeInTheDocument();
+
+    // Simulate tab hiding
+    Object.defineProperty(document, 'hidden', {
+      configurable: true,
+      get: () => true,
+    });
+
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    // Blurred overlay should appear
+    expect(screen.getByTestId('tab-hidden-overlay')).toBeInTheDocument();
+    expect(
+      screen.getByText('⚠️ تم إيقاف المشاهدة مؤقتاً: يرجى العودة لتبويب الدرس للمتابعة.'),
+    ).toBeInTheDocument();
+
+    // Restore tab visibility
+    Object.defineProperty(document, 'hidden', {
+      configurable: true,
+      get: () => false,
+    });
+
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    expect(screen.queryByTestId('tab-hidden-overlay')).not.toBeInTheDocument();
+  });
+
+  it('verifies pressing F12 or Ctrl+Shift+I fires preventDefault', () => {
+    renderWithClient(
+      <LessonVideoPlayer lessonId="lesson-physics-101" user={mockUser} />,
+    );
+
+    // Test F12
+    const f12Event = new KeyboardEvent('keydown', {
+      key: 'F12',
+      bubbles: true,
+      cancelable: true,
+    });
+    window.dispatchEvent(f12Event);
+    expect(f12Event.defaultPrevented).toBe(true);
+
+    // Test Ctrl + Shift + I (DevTools inspection)
+    const ctrlShiftIEvent = new KeyboardEvent('keydown', {
+      key: 'I',
+      ctrlKey: true,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    window.dispatchEvent(ctrlShiftIEvent);
+    expect(ctrlShiftIEvent.defaultPrevented).toBe(true);
+
+    // Test Ctrl + U (View Source)
+    const ctrlUEvent = new KeyboardEvent('keydown', {
+      key: 'u',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    window.dispatchEvent(ctrlUEvent);
+    expect(ctrlUEvent.defaultPrevented).toBe(true);
+
+    // Test PrintScreen
+    const printScreenEvent = new KeyboardEvent('keydown', {
+      key: 'PrintScreen',
+      bubbles: true,
+      cancelable: true,
+    });
+    window.dispatchEvent(printScreenEvent);
+    expect(printScreenEvent.defaultPrevented).toBe(true);
+  });
+
+  it('displays full student attribution dynamic watermark and static ghost nodes', async () => {
     vi.spyOn(apiClient, 'get').mockResolvedValueOnce({
       embedUrl: mockSecureEmbedUrl,
       expiresAt: 1720000000,
@@ -92,11 +181,15 @@ describe('LessonVideoPlayer Component', () => {
 
     const watermark = screen.getByTestId('dynamic-video-watermark');
     expect(watermark).toBeInTheDocument();
-    expect(watermark).toHaveTextContent('أحمد محمود رضوان • STU-2026-8888');
+    expect(watermark).toHaveTextContent('أحمد محمود رضوان • STU-2026-8888 • 01012345678');
     expect(watermark).toHaveStyle({ position: 'absolute' });
+
+    // Ghost nodes with identifying information across the frame
+    const ghostMatches = screen.getAllByText('أحمد محمود رضوان • STU-2026-8888 • 01012345678');
+    expect(ghostMatches.length).toBeGreaterThanOrEqual(4);
   });
 
-  it('shifts watermark coordinates randomly over timer intervals', async () => {
+  it('shifts watermark coordinates randomly over timer intervals between 10% and 85%', async () => {
     vi.useFakeTimers();
 
     vi.spyOn(apiClient, 'get').mockResolvedValueOnce({
@@ -109,17 +202,19 @@ describe('LessonVideoPlayer Component', () => {
     );
 
     const watermark = screen.getByTestId('dynamic-video-watermark');
-    const initialTop = watermark.style.top;
-    const initialLeft = watermark.style.left;
 
-    // Advance timer by 35 seconds to trigger next random shift
+    // Advance timer by 25 seconds to trigger next random shift
     act(() => {
-      vi.advanceTimersByTime(35000);
+      vi.advanceTimersByTime(25000);
     });
 
-    // Positions should be valid percentage strings
-    expect(watermark.style.top).toMatch(/%$/);
-    expect(watermark.style.left).toMatch(/%$/);
+    const topValue = parseInt(watermark.style.top, 10);
+    const leftValue = parseInt(watermark.style.left, 10);
+
+    expect(topValue).toBeGreaterThanOrEqual(10);
+    expect(topValue).toBeLessThanOrEqual(85);
+    expect(leftValue).toBeGreaterThanOrEqual(10);
+    expect(leftValue).toBeLessThanOrEqual(85);
 
     vi.useRealTimers();
   });
