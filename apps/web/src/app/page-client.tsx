@@ -3036,24 +3036,6 @@ function ContactUsSection() {
                 <p className="text-slate-600 mt-1">سنتر البستان - دمياط</p>
               </div>
             </div>
-
-            {/* Email & Hours */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-6 hover:shadow-md transition-shadow">
-              <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                <Clock className="w-7 h-7" />
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-900 text-lg mb-1">
-                  ساعات العمل والدعم
-                </h3>
-                <p className="text-slate-600 text-xs">
-                  البريد: <a href="mailto:support@al-awal.online" className="text-blue-600 hover:underline font-bold" dir="ltr">support@al-awal.online</a>
-                </p>
-                <p className="text-slate-500 text-xs mt-1">
-                  يومياً: 9:00 ص - 9:00 م (الجمعة من 1:00 م)
-                </p>
-              </div>
-            </div>
           </motion.div>
 
           {/* Contact Form */}
@@ -3082,8 +3064,8 @@ function FooterSection() {
       dir="rtl"
     >
       <div className="container mx-auto px-6">
-        {/* Top 4-Column Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 pb-12 border-b border-slate-800/80 text-right">
+        {/* Top 3-Column Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 pb-12 border-b border-slate-800/80 text-right">
           {/* Col 1: Platform & Business Identity */}
           <div className="space-y-4">
             <div className="flex items-center gap-2.5">
@@ -3098,7 +3080,6 @@ function FooterSection() {
               المؤسسة التعليمية المعتمدة للأستاذ أحمد غريب. متخصصة في تدريس مادة الرياضيات للمراحل الإعدادية والثانوية بحضور سنتر ومتابعة رقمية ذكية.
             </p>
             <div className="pt-2 text-[11px] text-slate-400 space-y-1">
-              <div>السجل والترخيص: <span className="text-slate-300 font-mono">482-910-335</span></div>
               <div>المقر: محافظة دمياط (سنتر العدلية وسنتر البستان)</div>
             </div>
           </div>
@@ -3120,33 +3101,7 @@ function FooterSection() {
             </div>
           </div>
 
-          {/* Col 3: Support & Hours */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-              التواصل والدعم الفني
-            </h3>
-            <ul className="space-y-2 text-xs text-slate-400">
-              <li>
-                <span className="text-slate-300 font-semibold">الهاتف:</span>{" "}
-                <span dir="ltr" className="font-mono text-slate-200">012 2130 1224</span>
-              </li>
-              <li>
-                <span className="text-slate-300 font-semibold">واتساب:</span>{" "}
-                <span dir="ltr" className="font-mono text-slate-200">010 2190 2000</span>
-              </li>
-              <li>
-                <span className="text-slate-300 font-semibold">البريد:</span>{" "}
-                <a href="mailto:support@al-awal.online" className="text-blue-400 hover:underline font-mono" dir="ltr">
-                  support@al-awal.online
-                </a>
-              </li>
-              <li className="pt-1 text-[11px] text-slate-400">
-                مواعيد العمل: يومياً 9:00 ص - 9:00 م (الجمعة من 1:00 م)
-              </li>
-            </ul>
-          </div>
-
-          {/* Col 4: Legal & Policies */}
+          {/* Col 3: Legal & Policies */}
           <div className="space-y-3">
             <h3 className="text-sm font-bold text-white uppercase tracking-wider">
               السياسات والامتثال

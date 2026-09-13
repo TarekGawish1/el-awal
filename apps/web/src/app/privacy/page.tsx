@@ -60,11 +60,11 @@ export default function PrivacyPage() {
               الجهة المسؤولة عن معالجة وإدارة بياناتك الشخصية هي <strong>منصة الأول التعليمية</strong>، المسجلة بالجمهورية المصرية، ومقرها الرئيسي: سنتر العدلية التعليمي وسنتر البستان، محافظة دمياط.
             </p>
             <p className="text-slate-700 leading-relaxed text-sm md:text-base">
-              للتواصل مع مسؤول حماية البيانات (DPO) أو لأي استفسار متعلق بالخصوصية:
+              لأي استفسار متعلق بالخصوصية وحماية البيانات أو ممارسة حقوقك:
               <br />
-              البريد الإلكتروني المخصص: <a href="mailto:privacy@al-awal.online" className="text-blue-600 hover:underline font-bold" dir="ltr">privacy@al-awal.online</a>
+              الهاتف / واتساب: <span dir="ltr" className="font-bold text-slate-900">012 2130 1224 / 010 2190 2000</span>
               <br />
-              الهاتف / واتساب الدعم الفني: <span dir="ltr" className="font-bold text-slate-900">012 2130 1224 / 010 2190 2000</span>
+              أو زيارة مقر السكرتارية في سنتر العدلية أو سنتر البستان بمحافظة دمياط.
             </p>
           </section>
 
@@ -169,7 +169,7 @@ export default function PrivacyPage() {
               <li><strong>حق سحب الموافقة (Withdrawal of Consent):</strong> تعديل أو إلغاء موافقتك على ملفات تعريف الارتباط أو الإشعارات في أي وقت.</li>
             </ul>
             <p className="text-xs md:text-sm text-slate-500 pt-1">
-              * لممارسة أي من هذه الحقوق، يرجى إرسال بريد إلكتروني رسمي إلى <a href="mailto:privacy@al-awal.online" className="text-teal-600 font-bold hover:underline">privacy@al-awal.online</a> مع توضيح اسم الطالب وكوده التعريفي.
+              * لممارسة أي من هذه الحقوق، يرجى التواصل مع إدارة المنصة والسكرتارية عبر واتساب: <span dir="ltr" className="font-bold text-slate-900">010 2190 2000</span> مع توضيح اسم الطالب وكوده التعريفي.
             </p>
           </section>
 

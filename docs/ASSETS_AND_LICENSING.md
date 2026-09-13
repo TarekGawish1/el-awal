@@ -60,4 +60,4 @@ All educational materials, recorded video lectures, graphic lecture notes, print
 - [x] **GDPR/ePrivacy Font Leak Check**: Fonts (`Cairo` & `Inter`) are imported via Next.js `next/font/google` which bundles and self-hosts font binaries locally during build, preventing user IP leak to third-party Google font servers.
 - [x] **Student Data in Media**: All student testimonials rendered on the landing page are dynamic records from `testimonialsApi.getPublic`, submitted with student permission.
 - [x] **Tracking Gating**: Microsoft Clarity is completely disabled until the user explicitly opts into "Analytics" in the Cookie Consent Banner.
-- [x] **Commercial Registration & Statutory Disclosure**: Business registration `482-910-335`, physical center addresses, and working hours are permanently embedded into the site footer and legal notices.
+- [x] **Physical Center & Identity Disclosure**: Verified physical educational centers (Al-Adliya & Al-Bustan) and official direct contact channels are embedded into the site footer and legal notices.

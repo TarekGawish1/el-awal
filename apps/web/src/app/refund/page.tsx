@@ -124,7 +124,7 @@ export default function RefundPolicyPage() {
               لتقديم طلب استرداد مالي رسمي، يرجى اتباع الخطوات الآتية:
             </p>
             <ol className="text-sm md:text-base text-slate-600 space-y-2 list-decimal list-inside">
-              <li>التواصل مع الدعم الفني أو السكرتارية عبر واتساب الرسمي: <span dir="ltr" className="font-bold text-slate-900">010 2190 2000</span> أو البريد الإلكتروني <a href="mailto:support@al-awal.online" className="text-blue-600 font-bold hover:underline" dir="ltr">support@al-awal.online</a>.</li>
+              <li>التواصل مع السكرتارية أو إدارة السنتر عبر واتساب الرسمي: <span dir="ltr" className="font-bold text-slate-900">010 2190 2000</span> أو الهاتف: <span dir="ltr" className="font-bold text-slate-900">012 2130 1224</span>.</li>
               <li>إرسال كود الطالب، ورقم الهاتف المسجل، وإيصال السداد أو لقطة شاشة لعملية التحويل، وتوضيح سبب الاسترداد.</li>
               <li>تقوم إدارة الحسابات بمراجعة سجل المشاهدات والنشاط الأكاديمي خلال 48 ساعة عمل للتأكد من استيفاء الشروط.</li>
               <li>يتم تحويل المبلغ المستحق بنفس وسيلة الدفع الأصلية (فودافون كاش / إنستاباي InstaPay / تحويل بنكي) في غضون <strong>5 إلى 14 يوم عمل</strong>.</li>
