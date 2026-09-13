@@ -18,6 +18,10 @@ import {
   Filter,
   CheckCircle2,
   Info,
+  UserCheck,
+  UserPlus,
+  Monitor,
+  Chrome,
 } from 'lucide-react';
 import { useAnalyticsStats } from '../hooks/useAnalytics';
 import { AnalyticsScope, AnalyticsRange } from '../types/analytics.types';
@@ -32,6 +36,8 @@ export function AnalyticsDashboard() {
   const [scope, setScope] = useState<AnalyticsScope>('all');
   const [range, setRange] = useState<AnalyticsRange>('week');
   const [isCustomOpen, setIsCustomOpen] = useState(false);
+  // Device section sub-tab: 'device' | 'os' | 'browser'
+  const [deviceTab, setDeviceTab] = useState<'device' | 'os' | 'browser'>('device');
 
   // Default custom range: last 7 days
   const todayStr = new Date().toISOString().split('T')[0];
@@ -330,48 +336,50 @@ export function AnalyticsDashboard() {
           <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-bl from-purple-500/5 to-transparent rounded-bl-full pointer-events-none" />
         </div>
 
-        {/* Card 4: Scope Distribution */}
-        <div className="bg-white rounded-2xl p-5 border border-neutral-200/80 shadow-xs relative overflow-hidden group hover:border-amber-200 transition-colors">
+        {/* Card 4: New vs Returning Visitors */}
+        <div className="bg-white rounded-2xl p-5 border border-neutral-200/80 shadow-xs relative overflow-hidden group hover:border-rose-200 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-neutral-500 uppercase">توزيع النطاقات</span>
-            <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl group-hover:scale-105 transition-transform">
-              <Globe className="w-5 h-5" />
+            <span className="text-xs font-bold text-neutral-500 uppercase">زوار جدد / عائدون</span>
+            <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl group-hover:scale-105 transition-transform">
+              <Users className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-3">
-            {summary.totalViews > 0 ? (
+            {isLoading ? (
+              <div className="h-8 w-24 bg-neutral-200 animate-pulse rounded-md" />
+            ) : summary.uniqueVisitors > 0 ? (
               <>
                 <div className="flex items-center justify-between text-xs font-bold mb-1.5">
-                  <span className="text-primary-700">
-                    موقع: {Math.round((summary.landingViews / summary.totalViews) * 100)}%
+                  <span className="text-emerald-700 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                    جدد: {formatNumber(summary.newVisitors ?? 0)}
                   </span>
-                  <span className="text-emerald-700">
-                    نظام: {Math.round((summary.systemViews / summary.totalViews) * 100)}%
+                  <span className="text-rose-600 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-rose-400 inline-block" />
+                    عائدون: {formatNumber(summary.returningVisitors ?? 0)}
                   </span>
                 </div>
                 <div className="w-full h-2.5 bg-neutral-100 rounded-full overflow-hidden flex">
                   <div
-                    className="h-full bg-primary-600 transition-all duration-500"
-                    style={{
-                      width: `${(summary.landingViews / summary.totalViews) * 100}%`,
-                    }}
-                    title={`الموقع التعريفي: ${summary.landingViews} زيارة`}
+                    className="h-full bg-emerald-500 transition-all duration-500"
+                    style={{ width: summary.uniqueVisitors > 0 ? `${Math.round(((summary.newVisitors ?? 0) / summary.uniqueVisitors) * 100)}%` : '0%' }}
+                    title="زوار جدد"
                   />
                   <div
-                    className="h-full bg-emerald-500 transition-all duration-500"
-                    style={{
-                      width: `${(summary.systemViews / summary.totalViews) * 100}%`,
-                    }}
-                    title={`النظام الداخلي: ${summary.systemViews} زيارة`}
+                    className="h-full bg-rose-400 transition-all duration-500"
+                    style={{ width: summary.uniqueVisitors > 0 ? `${Math.round(((summary.returningVisitors ?? 0) / summary.uniqueVisitors) * 100)}%` : '0%' }}
+                    title="عائدون"
                   />
                 </div>
-                <p className="text-[11px] text-neutral-400 mt-2">نسبة نشاط الزوار حسب المنصة</p>
+                <p className="text-[11px] text-neutral-400 mt-2">
+                  {summary.uniqueVisitors > 0 ? Math.round(((summary.returningVisitors ?? 0) / summary.uniqueVisitors) * 100) : 0}% زاروا أكثر من مرة
+                </p>
               </>
             ) : (
-              <div className="text-xs text-neutral-400 mt-2">لا توجد بيانات كافية للحساب</div>
+              <div className="text-xs text-neutral-400 mt-2">لا توجد بيانات كافية</div>
             )}
           </div>
-          <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-bl from-amber-500/5 to-transparent rounded-bl-full pointer-events-none" />
+          <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-bl from-rose-500/5 to-transparent rounded-bl-full pointer-events-none" />
         </div>
       </div>
 
@@ -427,8 +435,9 @@ export function AnalyticsDashboard() {
                 const systemHeightPct = point.totalViews > 0 ? (point.systemViews / point.totalViews) * 100 : 0;
                 const isHovered = hoveredIndex === index;
 
-                // For year/all ranges, show a shorter label (just month name without year)
-                const displayLabel = (range === 'year' || range === 'all')
+                // For 'year' range, show a shorter label (month name only, strip year suffix)
+                // For 'all' range, labels are already plain years (e.g. "2026") — show as-is
+                const displayLabel = range === 'year'
                   ? point.label.replace(/\s*\d{4}$/, '').trim()
                   : point.label;
 
@@ -577,60 +586,142 @@ export function AnalyticsDashboard() {
           )}
         </div>
 
-        {/* Device Breakdown (1 Col) */}
+        {/* Device Breakdown (1 Col) — with OS + Browser sub-tabs */}
         <div className="bg-white rounded-2xl p-5 sm:p-6 border border-neutral-200/80 shadow-xs space-y-4">
-          <div>
-            <h2 className="text-base sm:text-lg font-bold text-neutral-900">
-              الأجهزة المستخدمة
-            </h2>
-            <p className="text-xs text-neutral-500">
-              توزيع الزوار حسب نوع الجهاز ومتصفحات الهاتف
-            </p>
-          </div>
-
-          <div className="space-y-4 pt-2">
-            {data?.devices && data.devices.map((device) => {
-              const Icon =
-                device.device === 'Desktop'
-                  ? Laptop
-                  : device.device === 'Mobile'
-                  ? Smartphone
-                  : Tablet;
-
-              return (
-                <div
-                  key={device.device}
-                  className="p-3.5 bg-neutral-50/80 rounded-xl border border-neutral-200/60 space-y-2"
+          {/* Header + tab switcher */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base sm:text-lg font-bold text-neutral-900">الأجهزة والمتصفحات</h2>
+              <p className="text-xs text-neutral-500 mt-0.5">توزيع الزوار حسب نوع الجهاز ونظام التشغيل والمتصفح</p>
+            </div>
+            <div className="inline-flex p-1 bg-neutral-100 rounded-xl border border-neutral-200/60 self-start sm:self-auto">
+              {(['device', 'os', 'browser'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setDeviceTab(tab)}
+                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    deviceTab === tab
+                      ? 'bg-white text-primary-700 shadow-xs'
+                      : 'text-neutral-600 hover:text-neutral-900'
+                  }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className="p-2 bg-white rounded-lg border border-neutral-200 text-neutral-700 shadow-2xs">
-                        <Icon className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-neutral-900">{device.labelAr}</p>
-                        <p className="text-[11px] text-neutral-400">{device.device}</p>
-                      </div>
-                    </div>
-                    <div className="text-end">
-                      <p className="text-sm font-black text-neutral-900">{device.percentage}%</p>
-                      <p className="text-[10px] text-neutral-500">{formatNumber(device.count)} زيارة</p>
-                    </div>
-                  </div>
-
-                  <div className="w-full h-2 bg-neutral-200/80 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary-600 rounded-full transition-all duration-500"
-                      style={{ width: `${device.percentage}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+                  {tab === 'device' ? 'نوع الجهاز' : tab === 'os' ? 'نظام التشغيل' : 'المتصفح'}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {/* Device Type tab */}
+          {deviceTab === 'device' && (
+            <div className="space-y-3 pt-1">
+              {data?.devices && data.devices.map((device) => {
+                const Icon = device.device === 'Desktop' ? Laptop : device.device === 'Mobile' ? Smartphone : Tablet;
+                const color = device.device === 'Desktop' ? 'bg-primary-600' : device.device === 'Mobile' ? 'bg-emerald-500' : 'bg-amber-500';
+                const textColor = device.device === 'Desktop' ? 'text-primary-700' : device.device === 'Mobile' ? 'text-emerald-700' : 'text-amber-700';
+                const bgColor = device.device === 'Desktop' ? 'bg-primary-50' : device.device === 'Mobile' ? 'bg-emerald-50' : 'bg-amber-50';
+                return (
+                  <div key={device.device} className="p-3.5 bg-neutral-50/80 rounded-xl border border-neutral-200/60 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`p-2 ${bgColor} ${textColor} rounded-lg`}>
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-neutral-900">{device.labelAr}</p>
+                          <p className="text-[11px] text-neutral-400">{device.device}</p>
+                        </div>
+                      </div>
+                      <div className="text-end">
+                        <p className="text-sm font-black text-neutral-900">{device.percentage}%</p>
+                        <p className="text-[10px] text-neutral-500">{formatNumber(device.count)} زيارة</p>
+                      </div>
+                    </div>
+                    <div className="w-full h-2 bg-neutral-200/80 rounded-full overflow-hidden">
+                      <div className={`h-full ${color} rounded-full transition-all duration-500`} style={{ width: `${device.percentage}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* OS tab */}
+          {deviceTab === 'os' && (
+            <div className="space-y-3 pt-1">
+              {data?.osBreakdown && data.osBreakdown.length > 0 ? data.osBreakdown.map((item) => {
+                const osColors: Record<string, string> = {
+                  Android: 'bg-green-500', iOS: 'bg-neutral-800',
+                  Windows: 'bg-blue-500', macOS: 'bg-slate-500',
+                  Linux: 'bg-orange-500', Other: 'bg-neutral-400',
+                };
+                const osBg: Record<string, string> = {
+                  Android: 'bg-green-50 text-green-700', iOS: 'bg-neutral-100 text-neutral-700',
+                  Windows: 'bg-blue-50 text-blue-700', macOS: 'bg-slate-50 text-slate-700',
+                  Linux: 'bg-orange-50 text-orange-700', Other: 'bg-neutral-50 text-neutral-600',
+                };
+                return (
+                  <div key={item.os} className="p-3.5 bg-neutral-50/80 rounded-xl border border-neutral-200/60 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`px-2.5 py-1 rounded-lg text-[11px] font-black ${osBg[item.os] || 'bg-neutral-50 text-neutral-600'}`}>{item.os}</div>
+                        <p className="text-sm font-bold text-neutral-900">{item.labelAr}</p>
+                      </div>
+                      <div className="text-end">
+                        <p className="text-sm font-black text-neutral-900">{item.percentage}%</p>
+                        <p className="text-[10px] text-neutral-500">{formatNumber(item.count)} زيارة</p>
+                      </div>
+                    </div>
+                    <div className="w-full h-2 bg-neutral-200/80 rounded-full overflow-hidden">
+                      <div className={`h-full ${osColors[item.os] || 'bg-neutral-400'} rounded-full transition-all duration-500`} style={{ width: `${item.percentage}%` }} />
+                    </div>
+                  </div>
+                );
+              }) : (
+                <div className="py-8 text-center text-xs text-neutral-400">لا توجد بيانات نظام تشغيل بعد</div>
+              )}
+            </div>
+          )}
+
+          {/* Browser tab */}
+          {deviceTab === 'browser' && (
+            <div className="space-y-3 pt-1">
+              {data?.browserBreakdown && data.browserBreakdown.length > 0 ? data.browserBreakdown.map((item) => {
+                const browserColors: Record<string, string> = {
+                  Chrome: 'bg-yellow-500', Safari: 'bg-blue-500',
+                  Firefox: 'bg-orange-500', Edge: 'bg-sky-600',
+                  Opera: 'bg-red-500', Other: 'bg-neutral-400',
+                };
+                const browserBg: Record<string, string> = {
+                  Chrome: 'bg-yellow-50 text-yellow-700', Safari: 'bg-blue-50 text-blue-700',
+                  Firefox: 'bg-orange-50 text-orange-700', Edge: 'bg-sky-50 text-sky-700',
+                  Opera: 'bg-red-50 text-red-700', Other: 'bg-neutral-50 text-neutral-600',
+                };
+                return (
+                  <div key={item.browser} className="p-3.5 bg-neutral-50/80 rounded-xl border border-neutral-200/60 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`px-2 py-1 rounded-lg text-[11px] font-black ${browserBg[item.browser] || 'bg-neutral-50 text-neutral-600'}`}>{item.browser}</div>
+                        <p className="text-sm font-bold text-neutral-900">{item.labelAr}</p>
+                      </div>
+                      <div className="text-end">
+                        <p className="text-sm font-black text-neutral-900">{item.percentage}%</p>
+                        <p className="text-[10px] text-neutral-500">{formatNumber(item.count)} زيارة</p>
+                      </div>
+                    </div>
+                    <div className="w-full h-2 bg-neutral-200/80 rounded-full overflow-hidden">
+                      <div className={`h-full ${browserColors[item.browser] || 'bg-neutral-400'} rounded-full transition-all duration-500`} style={{ width: `${item.percentage}%` }} />
+                    </div>
+                  </div>
+                );
+              }) : (
+                <div className="py-8 text-center text-xs text-neutral-400">لا توجد بيانات متصفحات بعد</div>
+              )}
+            </div>
+          )}
 
           {/* Privacy Note Footer */}
-          <div className="mt-4 p-3 bg-neutral-50 rounded-xl border border-neutral-200/60 flex items-start gap-2.5">
+          <div className="mt-2 p-3 bg-neutral-50 rounded-xl border border-neutral-200/60 flex items-start gap-2.5">
             <Info className="w-4 h-4 text-primary-600 shrink-0 mt-0.5" />
             <p className="text-[11px] text-neutral-500 leading-relaxed">
               جميع التقديرات وحساب الزوار تعتمد على بصمة تشفير SHA-256 متوافقة مع معايير حماية الخصوصية GDPR، دون حفظ أي عناوين IP صريحة.

@@ -9,6 +9,8 @@ export interface AnalyticsSummary {
   landingViews: number;
   systemViews: number;
   viewsPerVisitor: number;
+  newVisitors?: number;
+  returningVisitors?: number;
 }
 
 export interface AnalyticsTimeSeriesPoint {
@@ -34,11 +36,27 @@ export interface AnalyticsDeviceBreakdown {
   percentage: number;
 }
 
+export interface AnalyticsOsBreakdown {
+  os: string;
+  labelAr: string;
+  count: number;
+  percentage: number;
+}
+
+export interface AnalyticsBrowserBreakdown {
+  browser: string;
+  labelAr: string;
+  count: number;
+  percentage: number;
+}
+
 export interface AnalyticsStatsData {
   summary: AnalyticsSummary;
   timeSeries: AnalyticsTimeSeriesPoint[];
   topPages: AnalyticsTopPage[];
   devices: AnalyticsDeviceBreakdown[];
+  osBreakdown?: AnalyticsOsBreakdown[];
+  browserBreakdown?: AnalyticsBrowserBreakdown[];
   filters: {
     scope: AnalyticsScope;
     range: AnalyticsRange;

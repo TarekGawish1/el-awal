@@ -423,7 +423,16 @@ export class AnalyticsService implements OnModuleInit {
     }));
 
     const timeSeries = await this.buildTimeSeries(where, range, startDate, endDate);
-    const devices = await this.buildDeviceBreakdown(where, totalViews);
+    const { devices, osBreakdown, browserBreakdown } = await this.buildEnhancedDeviceBreakdown(where, totalViews);
+
+    // New vs Returning: visitors with exactly 1 pageView in the period = new; >1 = returning
+    const visitCountGroups = await this.prisma.pageView.groupBy({
+      by: ['visitorHash'],
+      where,
+      _count: { visitorHash: true },
+    });
+    const newVisitors = visitCountGroups.filter((g) => g._count.visitorHash === 1).length;
+    const returningVisitors = visitCountGroups.filter((g) => g._count.visitorHash > 1).length;
 
     return {
       summary: {
@@ -432,10 +441,14 @@ export class AnalyticsService implements OnModuleInit {
         landingViews,
         systemViews,
         viewsPerVisitor,
+        newVisitors,
+        returningVisitors,
       },
       timeSeries,
       topPages,
       devices,
+      osBreakdown,
+      browserBreakdown,
       filters: {
         scope,
         range,
@@ -601,14 +614,35 @@ export class AnalyticsService implements OnModuleInit {
 
     const totalVisits = Array.from(locationMap.values()).reduce((sum, val) => sum + val.count, 0);
 
+    // Inline country code → Arabic name map for normalizing any raw ISO codes stored in DB
+    const LEGACY_COUNTRY_CODES: Record<string, string> = {
+      EG: 'مصر', SA: 'المملكة العربية السعودية', AE: 'الإمارات العربية المتحدة',
+      KW: 'الكويت', QA: 'قطر', OM: 'سلطنة عمان', BH: 'البحرين', JO: 'الأردن',
+      IQ: 'العراق', LB: 'لبنان', PS: 'فلسطين', SY: 'سوريا', YE: 'اليمن',
+      LY: 'ليبيا', SD: 'السودان', DZ: 'الجزائر', TN: 'تونس', MA: 'المغرب',
+      US: 'الولايات المتحدة', GB: 'المملكة المتحدة', DE: 'ألمانيا', FR: 'فرنسا',
+      TR: 'تركيا', IT: 'إيطاليا', CA: 'كندا', AU: 'أستراليا', NL: 'هولندا',
+      SE: 'السويد', NO: 'النرويج', DK: 'الدنمارك', CH: 'سويسرا', RU: 'روسيا',
+      SG: 'سنغافورة', JP: 'اليابان', CN: 'الصين', IN: 'الهند', KR: 'كوريا الجنوبية',
+      PK: 'باكستان', ID: 'إندونيسيا', MY: 'ماليزيا', TH: 'تايلاند', HK: 'هونج كونج',
+      BR: 'البرازيل', MX: 'المكسيك', NG: 'نيجيريا', ZA: 'جنوب أفريقيا',
+    };
+
     const sorted = Array.from(locationMap.entries())
-      .map(([name, stat]) => ({
-        // Normalize legacy "عام" entries stored in DB to the new label "خارج مصر"
-        name: name === 'عام' ? 'خارج مصر' : name,
-        visitCount: stat.count,
-        uniqueVisitors: stat.hashes.size,
-        percentage: totalVisits > 0 ? Math.round((stat.count / totalVisits) * 100) : 0,
-      }))
+      .map(([name, stat]) => {
+        // Normalize legacy "عام" entries and raw ISO codes (e.g. "SG") stored in DB
+        let normalizedName = name === 'عام' ? 'خارج مصر' : name;
+        // If the name looks like a raw 2-letter ISO code, translate it
+        if (/^[A-Z]{2}$/.test(normalizedName) && LEGACY_COUNTRY_CODES[normalizedName]) {
+          normalizedName = LEGACY_COUNTRY_CODES[normalizedName];
+        }
+        return {
+          name: normalizedName,
+          visitCount: stat.count,
+          uniqueVisitors: stat.hashes.size,
+          percentage: totalVisits > 0 ? Math.round((stat.count / totalVisits) * 100) : 0,
+        };
+      })
       // Merge entries with the same name (e.g., old "عام" merged with new "خارج مصر")
       .reduce(
         (acc, item) => {
@@ -794,7 +828,8 @@ export class AnalyticsService implements OnModuleInit {
     });
 
     const isToday = range === 'today';
-    const isMonthly = range === 'year' || range === 'all';
+    const isMonthly = range === 'year';
+    const isYearly = range === 'all';
     const bucketsMap = new Map<
       string,
       { label: string; date: string; views: number; visitors: Set<string>; landing: number; system: number }
@@ -831,8 +866,51 @@ export class AnalyticsService implements OnModuleInit {
           else bucket.system++;
         }
       }
+    } else if (isYearly) {
+      // Yearly buckets for 'all time' range
+      const current = new Date(startDate);
+      current.setMonth(0);
+      current.setDate(1);
+      current.setHours(0, 0, 0, 0);
+
+      while (current <= endDate) {
+        const cairoStr = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Africa/Cairo',
+        }).format(current);
+        const [yr] = cairoStr.split('-').map(Number);
+        const yearKey = `${yr}`;
+
+        if (!bucketsMap.has(yearKey)) {
+          bucketsMap.set(yearKey, {
+            label: `${yr}`,
+            date: yearKey,
+            views: 0,
+            visitors: new Set<string>(),
+            landing: 0,
+            system: 0,
+          });
+        }
+
+        // Advance by one year
+        current.setFullYear(current.getFullYear() + 1);
+      }
+
+      for (const v of views) {
+        const cairoStr = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Africa/Cairo',
+        }).format(new Date(v.createdAt));
+        const [yr] = cairoStr.split('-').map(Number);
+        const yearKey = `${yr}`;
+        const bucket = bucketsMap.get(yearKey);
+        if (bucket) {
+          bucket.views++;
+          bucket.visitors.add(v.visitorHash);
+          if (v.isLandingPage) bucket.landing++;
+          else bucket.system++;
+        }
+      }
     } else if (isMonthly) {
-      // Monthly buckets for year/all ranges
+      // Monthly buckets for 'year' range
       const current = new Date(startDate);
       // Start from the first day of the start month
       current.setDate(1);
@@ -928,29 +1006,48 @@ export class AnalyticsService implements OnModuleInit {
   }
 
   /**
-   * Infers device category from User-Agent patterns.
+   * Infers device category, OS, and browser from User-Agent patterns.
+   * Returns three parallel breakdowns in a single DB fetch.
    */
-  private async buildDeviceBreakdown(where: any, totalViews: number) {
-    if (totalViews === 0) {
-      return [
+  private async buildEnhancedDeviceBreakdown(where: any, totalViews: number) {
+    const empty = {
+      devices: [
         { device: 'Desktop' as const, labelAr: 'أجهزة الكمبيوتر', count: 0, percentage: 0 },
         { device: 'Mobile' as const, labelAr: 'الهواتف الذكية', count: 0, percentage: 0 },
         { device: 'Tablet' as const, labelAr: 'الأجهزة اللوحية', count: 0, percentage: 0 },
-      ];
-    }
+      ],
+      osBreakdown: [] as { os: string; labelAr: string; count: number; percentage: number }[],
+      browserBreakdown: [] as { browser: string; labelAr: string; count: number; percentage: number }[],
+    };
+
+    if (totalViews === 0) return empty;
 
     const sampleViews = await this.prisma.pageView.findMany({
       where,
       select: { userAgent: true },
-      take: 1000,
+      take: 2000,
     });
 
+    // Device counters
     let mobileCount = 0;
     let tabletCount = 0;
     let desktopCount = 0;
 
+    // OS counters
+    const osCounts: Record<string, number> = {
+      Android: 0, iOS: 0, Windows: 0, macOS: 0, Linux: 0, Other: 0,
+    };
+
+    // Browser counters
+    const browserCounts: Record<string, number> = {
+      Chrome: 0, Safari: 0, Firefox: 0, Edge: 0, Opera: 0, Other: 0,
+    };
+
     for (const v of sampleViews) {
-      const ua = (v.userAgent || '').toLowerCase();
+      const ua = v.userAgent || '';
+      const ual = ua.toLowerCase();
+
+      // --- Device ---
       if (/tablet|ipad|playbook|silk/i.test(ua)) {
         tabletCount++;
       } else if (/mobile|android|iphone|ipod|blackberry|opera mini|iemobile/i.test(ua)) {
@@ -958,36 +1055,86 @@ export class AnalyticsService implements OnModuleInit {
       } else {
         desktopCount++;
       }
+
+      // --- OS ---
+      if (/android/i.test(ua)) {
+        osCounts['Android']++;
+      } else if (/iphone|ipad|ipod/i.test(ua)) {
+        osCounts['iOS']++;
+      } else if (/windows nt|windows phone/i.test(ua)) {
+        osCounts['Windows']++;
+      } else if (/macintosh|mac os x/i.test(ua)) {
+        osCounts['macOS']++;
+      } else if (/linux/i.test(ual)) {
+        osCounts['Linux']++;
+      } else {
+        osCounts['Other']++;
+      }
+
+      // --- Browser (order matters: Edge before Chrome, Opera before Chrome) ---
+      if (/edg\//i.test(ua) || /edghtml/i.test(ua)) {
+        browserCounts['Edge']++;
+      } else if (/opr\//i.test(ua) || /opera/i.test(ua)) {
+        browserCounts['Opera']++;
+      } else if (/chrome|chromium/i.test(ua)) {
+        browserCounts['Chrome']++;
+      } else if (/firefox|fxios/i.test(ua)) {
+        browserCounts['Firefox']++;
+      } else if (/safari/i.test(ua)) {
+        browserCounts['Safari']++;
+      } else {
+        browserCounts['Other']++;
+      }
     }
 
-    const sampleTotal = sampleViews.length || 1;
-    const desktopRatio = desktopCount / sampleTotal;
-    const mobileRatio = mobileCount / sampleTotal;
-    const tabletRatio = tabletCount / sampleTotal;
+    const sample = sampleViews.length || 1;
 
+    // Scale device counts to totalViews
+    const desktopRatio = desktopCount / sample;
+    const mobileRatio  = mobileCount  / sample;
+    const tabletRatio  = tabletCount  / sample;
     const scaledDesktop = Math.round(desktopRatio * totalViews);
-    const scaledMobile = Math.round(mobileRatio * totalViews);
-    const scaledTablet = totalViews - (scaledDesktop + scaledMobile);
+    const scaledMobile  = Math.round(mobileRatio  * totalViews);
+    const scaledTablet  = totalViews - scaledDesktop - scaledMobile;
 
-    return [
-      {
-        device: 'Desktop' as const,
-        labelAr: 'أجهزة الكمبيوتر',
-        count: Math.max(0, scaledDesktop),
-        percentage: Math.round(desktopRatio * 100),
-      },
-      {
-        device: 'Mobile' as const,
-        labelAr: 'الهواتف الذكية',
-        count: Math.max(0, scaledMobile),
-        percentage: Math.round(mobileRatio * 100),
-      },
-      {
-        device: 'Tablet' as const,
-        labelAr: 'الأجهزة اللوحية',
-        count: Math.max(0, scaledTablet),
-        percentage: Math.round(tabletRatio * 100),
-      },
+    const devices = [
+      { device: 'Desktop' as const, labelAr: 'أجهزة الكمبيوتر', count: Math.max(0, scaledDesktop), percentage: Math.round(desktopRatio * 100) },
+      { device: 'Mobile'  as const, labelAr: 'الهواتف الذكية',    count: Math.max(0, scaledMobile),  percentage: Math.round(mobileRatio  * 100) },
+      { device: 'Tablet'  as const, labelAr: 'الأجهزة اللوحية',   count: Math.max(0, scaledTablet),  percentage: Math.round(tabletRatio  * 100) },
     ];
+
+    // OS breakdown — filter zeros, sort descending
+    const OS_LABELS: Record<string, string> = {
+      Android: 'أندرويد', iOS: 'آيفون / iOS',
+      Windows: 'ويندوز', macOS: 'ماك (macOS)',
+      Linux: 'لينكس', Other: 'أخرى',
+    };
+    const osBreakdown = Object.entries(osCounts)
+      .filter(([, c]) => c > 0)
+      .map(([os, c]) => ({
+        os,
+        labelAr: OS_LABELS[os] || os,
+        count: Math.round((c / sample) * totalViews),
+        percentage: Math.round((c / sample) * 100),
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    // Browser breakdown — filter zeros, sort descending
+    const BROWSER_LABELS: Record<string, string> = {
+      Chrome: 'جوجل كروم', Safari: 'سافاري',
+      Firefox: 'فايرفوكس', Edge: 'مايكروسوفت إيج',
+      Opera: 'أوبرا', Other: 'أخرى',
+    };
+    const browserBreakdown = Object.entries(browserCounts)
+      .filter(([, c]) => c > 0)
+      .map(([browser, c]) => ({
+        browser,
+        labelAr: BROWSER_LABELS[browser] || browser,
+        count: Math.round((c / sample) * totalViews),
+        percentage: Math.round((c / sample) * 100),
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    return { devices, osBreakdown, browserBreakdown };
   }
 }
