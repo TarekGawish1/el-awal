@@ -1,5 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
-import * as geoip from 'geoip-lite';
+
+// Safe optional geoip loader to prevent build breaks if geoip-lite native types are omitted
+let geoip: any = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  geoip = require('geoip-lite');
+} catch {
+  // Non-blocking fallback to Cloudflare/HTTP IP API
+}
 
 export interface ResolvedGeoLocation {
   country: string;

@@ -4,6 +4,7 @@ import {
   fetchGeoRanking,
   fetchStudentLeaderboard,
   fetchLandingStats,
+  fetchVisitorsList,
 } from '../api/analytics.api';
 import {
   AnalyticsQueryParams,
@@ -13,6 +14,8 @@ import {
   StudentLeaderboardParams,
   StudentLeaderboardResponse,
   LandingStatsResponse,
+  VisitorListParams,
+  VisitorListResponse,
 } from '../types/analytics.types';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
 
@@ -67,3 +70,28 @@ export function useLandingStats(params: { range?: string; from?: string; to?: st
     enabled: isOnline,
   });
 }
+
+export function useVisitorsList(params: VisitorListParams) {
+  const isOnline = useOnlineStatus();
+
+  return useQuery<VisitorListResponse>({
+    queryKey: [
+      'analytics-visitors-list',
+      params.scope,
+      params.range,
+      params.from,
+      params.to,
+      params.page,
+      params.limit,
+      params.search,
+      params.sortBy,
+      params.tenantId,
+    ],
+    queryFn: () => fetchVisitorsList(params),
+    placeholderData: keepPreviousData,
+    staleTime: 30 * 1000,
+    refetchInterval: isOnline ? 60 * 1000 : false,
+    enabled: isOnline,
+  });
+}
+

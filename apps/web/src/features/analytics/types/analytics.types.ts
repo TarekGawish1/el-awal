@@ -130,3 +130,59 @@ export interface LandingStatsResponse {
   totalViews: number;
   uniqueVisitors: number;
 }
+
+export interface IndividualVisitItem {
+  id: string;
+  path: string;
+  isLandingPage: boolean;
+  createdAt: string;
+  referrer?: string | null;
+  userAgent?: string | null;
+  city?: string;
+  country?: string;
+}
+
+export interface VisitorListItem {
+  visitorHash: string;
+  shortHash: string;
+  totalVisits: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+    phone?: string;
+    role: string;
+    studentCode?: string;
+    gradeLevel?: string;
+  } | null;
+  country: string;
+  city: string;
+  device: 'Desktop' | 'Mobile' | 'Tablet';
+  os: string;
+  browser: string;
+  topPages: string[];
+  visits: IndividualVisitItem[];
+}
+
+export interface VisitorListResponse {
+  visitors: VisitorListItem[];
+  totalVisitors: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface VisitorListParams {
+  scope?: AnalyticsScope;
+  range?: AnalyticsRange;
+  from?: string;
+  to?: string;
+  tenantId?: string;
+  page?: number;
+  limit?: number;
+  search?: string;
+  sortBy?: 'recent' | 'visits';
+}
+

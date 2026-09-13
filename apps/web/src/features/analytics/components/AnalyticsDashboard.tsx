@@ -28,6 +28,7 @@ import { AnalyticsScope, AnalyticsRange } from '../types/analytics.types';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import { GeoRankingCard } from './GeoRankingCard';
 import { StudentLeaderboardCard } from './StudentLeaderboardCard';
+import { VisitorListCard } from './VisitorListCard';
 
 export function AnalyticsDashboard() {
   const isOnline = useOnlineStatus();
@@ -744,6 +745,15 @@ export function AnalyticsDashboard() {
           to={range === 'custom' ? appliedCustomTo : undefined}
         />
       </div>
+
+      {/* Detailed Visitors List & Visits Log */}
+      <VisitorListCard
+        range={range}
+        from={range === 'custom' ? appliedCustomFrom : undefined}
+        to={range === 'custom' ? appliedCustomTo : undefined}
+        scope={scope}
+      />
     </div>
   );
 }
+

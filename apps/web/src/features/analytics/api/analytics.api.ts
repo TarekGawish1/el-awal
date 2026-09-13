@@ -8,6 +8,8 @@ import {
   StudentLeaderboardParams,
   StudentLeaderboardResponse,
   LandingStatsResponse,
+  VisitorListParams,
+  VisitorListResponse,
 } from '../types/analytics.types';
 
 /**
@@ -51,6 +53,16 @@ export async function fetchStudentLeaderboard(
     params: cleanParams(params),
   });
 }
+
+/**
+ * Fetches detailed visitors list with visit frequency, metadata, and individual visit history.
+ */
+export async function fetchVisitorsList(params: VisitorListParams): Promise<VisitorListResponse> {
+  return apiClient<VisitorListResponse>(API_ENDPOINTS.ANALYTICS.VISITORS, {
+    params: cleanParams(params),
+  });
+}
+
 
 /**
  * Fetches public landing page overview metrics (views and unique visitors).

@@ -143,6 +143,7 @@ export const API_ENDPOINTS = {
     LANDING: '/analytics/landing',
     GEO_RANKING: '/analytics/geo-ranking',
     STUDENT_RANKING: '/analytics/students/ranking',
+    VISITORS: '/analytics/visitors',
     SESSION_START: '/analytics/session/start',
     SESSION_PING: '/analytics/session/ping',
   },

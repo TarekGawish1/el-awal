@@ -20,6 +20,7 @@ import {
   GeoRankingQueryDto,
   LandingStatsQueryDto,
   StudentRankingQueryDto,
+  VisitorListQueryDto,
 } from '../dto/analytics.dto';
 import { Public } from '../../../core/security/decorators/public.decorator';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
@@ -162,4 +163,20 @@ export class AnalyticsController {
     const teacherId = user.teacherProfileId || user.id;
     return this.analyticsService.getStudentEngagementLeaderboard(query, teacherId);
   }
+
+  @Get('visitors')
+  @ApiBearerAuth()
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({
+    summary: 'Get detailed visitors list with visit frequency, metadata, and individual visit history',
+  })
+  @ApiResponse({ status: 200, description: 'Filtered visitors list with visit history' })
+  async getVisitorsList(
+    @Query() query: VisitorListQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const teacherId = user.teacherProfileId || user.id;
+    return this.analyticsService.getVisitorsList(query, teacherId);
+  }
 }
+

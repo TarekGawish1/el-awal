@@ -9,6 +9,7 @@ import {
   GeoRankingQueryDto,
   LandingStatsQueryDto,
   StudentRankingQueryDto,
+  VisitorListQueryDto,
 } from '../dto/analytics.dto';
 import * as crypto from 'crypto';
 
@@ -26,6 +27,8 @@ export interface AnalyticsStatsResponse {
     landingViews: number;
     systemViews: number;
     viewsPerVisitor: number;
+    newVisitors?: number;
+    returningVisitors?: number;
   };
   timeSeries: {
     date: string;
@@ -43,6 +46,18 @@ export interface AnalyticsStatsResponse {
   }[];
   devices: {
     device: 'Desktop' | 'Mobile' | 'Tablet';
+    labelAr: string;
+    count: number;
+    percentage: number;
+  }[];
+  osBreakdown?: {
+    os: string;
+    labelAr: string;
+    count: number;
+    percentage: number;
+  }[];
+  browserBreakdown?: {
+    browser: string;
     labelAr: string;
     count: number;
     percentage: number;
@@ -78,6 +93,50 @@ export interface StudentLeaderboardItem {
   totalDurationFormatted: string;
   lastActiveAt: string;
 }
+
+export interface IndividualVisitItem {
+  id: string;
+  path: string;
+  isLandingPage: boolean;
+  createdAt: string;
+  referrer?: string | null;
+  userAgent?: string | null;
+  city?: string;
+  country?: string;
+}
+
+export interface VisitorListItem {
+  visitorHash: string;
+  shortHash: string;
+  totalVisits: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+    phone?: string;
+    role: string;
+    studentCode?: string;
+    gradeLevel?: string;
+  } | null;
+  country: string;
+  city: string;
+  device: 'Desktop' | 'Mobile' | 'Tablet';
+  os: string;
+  browser: string;
+  topPages: string[];
+  visits: IndividualVisitItem[];
+}
+
+export interface VisitorListResponse {
+  visitors: VisitorListItem[];
+  totalVisitors: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 
 @Injectable()
 export class AnalyticsService implements OnModuleInit {
@@ -1137,4 +1196,297 @@ export class AnalyticsService implements OnModuleInit {
 
     return { devices, osBreakdown, browserBreakdown };
   }
+
+  /**
+   * Helper to parse device category, OS, and browser from User-Agent string.
+   */
+  public parseUserAgentString(ua: string = ''): {
+    device: 'Desktop' | 'Mobile' | 'Tablet';
+    os: string;
+    browser: string;
+  } {
+    const ual = ua.toLowerCase();
+    let device: 'Desktop' | 'Mobile' | 'Tablet' = 'Desktop';
+    if (/tablet|ipad|playbook|silk/i.test(ua)) {
+      device = 'Tablet';
+    } else if (/mobile|android|iphone|ipod|blackberry|opera mini|iemobile/i.test(ua)) {
+      device = 'Mobile';
+    }
+
+    let os = 'Other';
+    if (/android/i.test(ua)) {
+      os = 'Android';
+    } else if (/iphone|ipad|ipod/i.test(ua)) {
+      os = 'iOS';
+    } else if (/windows nt|windows phone/i.test(ua)) {
+      os = 'Windows';
+    } else if (/macintosh|mac os x/i.test(ua)) {
+      os = 'macOS';
+    } else if (/linux/i.test(ual)) {
+      os = 'Linux';
+    }
+
+    let browser = 'Other';
+    if (/edg\//i.test(ua) || /edghtml/i.test(ua)) {
+      browser = 'Edge';
+    } else if (/opr\//i.test(ua) || /opera/i.test(ua)) {
+      browser = 'Opera';
+    } else if (/chrome|chromium/i.test(ua)) {
+      browser = 'Chrome';
+    } else if (/firefox|fxios/i.test(ua)) {
+      browser = 'Firefox';
+    } else if (/safari/i.test(ua)) {
+      browser = 'Safari';
+    }
+
+    return { device, os, browser };
+  }
+
+  /**
+   * Retrieves a filtered list of unique visitors with visit frequency, metadata, and detailed visit history.
+   */
+  public async getVisitorsList(
+    query: VisitorListQueryDto,
+    userTenantId?: string,
+  ): Promise<VisitorListResponse> {
+    const scope = query.scope || 'all';
+    const range = query.range || 'week';
+    const { startDate, endDate } = this.resolveDateRange(range, query.from, query.to);
+
+    const baseDateCondition = {
+      createdAt: {
+        gte: startDate,
+        lte: endDate,
+      },
+    };
+
+    let scopeCondition: any = {};
+    const effectiveTenantId = query.tenantId || userTenantId;
+
+    if (scope === 'landing') {
+      scopeCondition = { isLandingPage: true };
+    } else if (scope === 'system') {
+      scopeCondition = {
+        isLandingPage: false,
+        ...(effectiveTenantId ? { tenantId: effectiveTenantId } : {}),
+      };
+    } else {
+      if (effectiveTenantId) {
+        scopeCondition = {
+          OR: [
+            { isLandingPage: true },
+            { tenantId: effectiveTenantId, isLandingPage: false },
+          ],
+        };
+      }
+    }
+
+    let searchUserIds: string[] | undefined;
+    if (query.search && query.search.trim()) {
+      const searchTerm = query.search.trim();
+      const matchedUsers = await this.prisma.user.findMany({
+        where: {
+          OR: [
+            { fullName: { contains: searchTerm, mode: 'insensitive' } },
+            { phone: { contains: searchTerm } },
+            { email: { contains: searchTerm, mode: 'insensitive' } },
+            { studentProfile: { studentCode: { contains: searchTerm, mode: 'insensitive' } } },
+          ],
+        },
+        select: { id: true },
+        take: 100,
+      });
+      searchUserIds = matchedUsers.map((u) => u.id);
+    }
+
+    const where: any = {
+      ...baseDateCondition,
+      ...scopeCondition,
+      ...(searchUserIds !== undefined ? { userId: { in: searchUserIds } } : {}),
+    };
+
+    // Aggregate unique visitors in period
+    const groups = await this.prisma.pageView.groupBy({
+      by: ['visitorHash'],
+      where,
+      _count: { visitorHash: true },
+      _max: { createdAt: true },
+      _min: { createdAt: true },
+    });
+
+    // Sort groups
+    if (query.sortBy === 'visits') {
+      groups.sort((a, b) => (b._count?.visitorHash || 0) - (a._count?.visitorHash || 0));
+    } else {
+      // Default: recent
+      groups.sort((a, b) => {
+        const timeA = a._max?.createdAt ? new Date(a._max.createdAt).getTime() : 0;
+        const timeB = b._max?.createdAt ? new Date(b._max.createdAt).getTime() : 0;
+        return timeB - timeA;
+      });
+    }
+
+    const totalVisitors = groups.length;
+    const page = Math.max(1, query.page || 1);
+    const limit = Math.min(100, Math.max(1, query.limit || 30));
+    const totalPages = Math.ceil(totalVisitors / limit) || 1;
+    const pagedGroups = groups.slice((page - 1) * limit, page * limit);
+    const pagedHashes = pagedGroups.map((g) => g.visitorHash);
+
+    if (pagedHashes.length === 0) {
+      return {
+        visitors: [],
+        totalVisitors,
+        page,
+        limit,
+        totalPages,
+      };
+    }
+
+    // Fetch page views for these visitors in the filtered period
+    const views = await this.prisma.pageView.findMany({
+      where: {
+        visitorHash: { in: pagedHashes },
+        ...baseDateCondition,
+        ...scopeCondition,
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        visitorHash: true,
+        path: true,
+        referrer: true,
+        userAgent: true,
+        isLandingPage: true,
+        metadata: true,
+        createdAt: true,
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            role: true,
+            studentProfile: {
+              select: {
+                studentCode: true,
+                gradeLevel: true,
+              },
+            },
+          },
+        },
+      },
+      take: 2000,
+    });
+
+    // Also fetch landing visits to resolve city/country if pageView metadata doesn't have it
+    const landingVisits = await this.prisma.landingVisit.findMany({
+      where: { visitorHash: { in: pagedHashes } },
+      select: { visitorHash: true, city: true, country: true },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+    const landingGeoMap = new Map<string, { city?: string; country?: string }>();
+    for (const lv of landingVisits) {
+      if (!landingGeoMap.has(lv.visitorHash)) {
+        landingGeoMap.set(lv.visitorHash, { city: lv.city || undefined, country: lv.country || undefined });
+      }
+    }
+
+    // Map views by visitorHash
+    const viewsMap = new Map<string, typeof views>();
+    for (const v of views) {
+      const list = viewsMap.get(v.visitorHash) || [];
+      list.push(v);
+      viewsMap.set(v.visitorHash, list);
+    }
+
+    const visitors: VisitorListItem[] = pagedGroups.map((g) => {
+      const visitorViews = viewsMap.get(g.visitorHash) || [];
+      const firstView = visitorViews[0]; // newest
+      const userView = visitorViews.find((v) => v.user);
+
+      // Geo resolution
+      const landingGeo = landingGeoMap.get(g.visitorHash);
+      let city = 'دمياط';
+      let country = 'مصر';
+
+      for (const v of visitorViews) {
+        const meta = v.metadata as any;
+        if (meta?.city && String(meta.city).trim()) {
+          city = String(meta.city).trim();
+          if (meta?.country) country = String(meta.country).trim();
+          break;
+        }
+      }
+      if (city === 'دمياط' && landingGeo?.city) {
+        city = landingGeo.city;
+        if (landingGeo.country) country = landingGeo.country;
+      }
+
+      // Device & Browser
+      const ua = firstView?.userAgent || '';
+      const { device, os, browser } = this.parseUserAgentString(ua);
+
+      // Top pages
+      const pageCounts = new Map<string, number>();
+      for (const v of visitorViews) {
+        pageCounts.set(v.path, (pageCounts.get(v.path) || 0) + 1);
+      }
+      const topPages = Array.from(pageCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([p]) => p);
+
+      const individualVisits: IndividualVisitItem[] = visitorViews.map((v) => {
+        const meta = v.metadata as any;
+        return {
+          id: v.id,
+          path: v.path,
+          isLandingPage: v.isLandingPage,
+          createdAt: v.createdAt.toISOString(),
+          referrer: v.referrer,
+          userAgent: v.userAgent,
+          city: meta?.city || city,
+          country: meta?.country || country,
+        };
+      });
+
+      return {
+        visitorHash: g.visitorHash,
+        shortHash: g.visitorHash.slice(0, 8),
+        totalVisits: g._count?.visitorHash || visitorViews.length,
+        firstSeenAt: g._min?.createdAt ? new Date(g._min.createdAt).toISOString() : new Date().toISOString(),
+        lastSeenAt: g._max?.createdAt ? new Date(g._max.createdAt).toISOString() : new Date().toISOString(),
+        user: userView?.user
+          ? {
+              id: userView.user.id,
+              name: userView.user.fullName,
+              email: userView.user.email,
+              phone: userView.user.phone || undefined,
+              role: userView.user.role,
+              studentCode: userView.user.studentProfile?.studentCode || undefined,
+              gradeLevel: userView.user.studentProfile?.gradeLevel || undefined,
+            }
+          : null,
+        country,
+        city,
+        device,
+        os,
+        browser,
+        topPages,
+        visits: individualVisits,
+      };
+    });
+
+
+    return {
+      visitors,
+      totalVisitors,
+      page,
+      limit,
+      totalPages,
+    };
+  }
 }
+
