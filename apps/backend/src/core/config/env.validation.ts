@@ -81,6 +81,25 @@ export const envSchema = baseEnvSchema.superRefine((env, ctx) => {
     });
   }
 
+  // Images are R2-only (no local disk): require all R2 settings in production
+  // so uploads fail fast at deploy instead of breaking silently at runtime.
+  const requiredR2: Array<[string, unknown]> = [
+    ['R2_ACCOUNT_ID', env.R2_ACCOUNT_ID],
+    ['R2_ACCESS_KEY_ID', env.R2_ACCESS_KEY_ID],
+    ['R2_SECRET_ACCESS_KEY', env.R2_SECRET_ACCESS_KEY],
+    ['R2_BUCKET_NAME', env.R2_BUCKET_NAME],
+    ['R2_PUBLIC_URL', env.R2_PUBLIC_URL],
+  ];
+  for (const [name, value] of requiredR2) {
+    if (!value || String(value).trim() === '') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [name],
+        message: `${name} is required in production (R2-only image storage)`,
+      });
+    }
+  }
+
   if (env.DATABASE_URL.includes('localhost') || env.DATABASE_URL.includes('127.0.0.1')) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,

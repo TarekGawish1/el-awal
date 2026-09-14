@@ -1,14 +1,13 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  HeadBucketCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import * as fs from 'fs';
-import * as path from 'path';
 
 export interface PresignedUploadResult {
   uploadUrl: string;
@@ -22,23 +21,20 @@ export class StorageService {
   private readonly s3Client: S3Client | null = null;
   private readonly bucketName: string;
   private readonly publicUrlBase: string;
+  private readonly accountId: string;
   private readonly isConfigured: boolean;
 
   constructor(private readonly configService: ConfigService) {
-    const accountId = this.configService.get<string>('R2_ACCOUNT_ID', '').trim();
-    const accessKeyId = this.configService.get<string>('R2_ACCESS_KEY_ID', '').trim();
-    const secretAccessKey = this.configService.get<string>('R2_SECRET_ACCESS_KEY', '').trim();
-    this.bucketName = this.configService.get<string>('R2_BUCKET_NAME', 'el-awal-assets');
-    this.publicUrlBase = this.configService.get<string>('R2_PUBLIC_URL', 'https://assets.elawal.com');
+    const accountId = String(this.configService.get<string>('R2_ACCOUNT_ID', '') || '').trim();
+    const accessKeyId = String(this.configService.get<string>('R2_ACCESS_KEY_ID', '') || '').trim();
+    const secretAccessKey = String(this.configService.get<string>('R2_SECRET_ACCESS_KEY', '') || '').trim();
+    const bucketName = String(this.configService.get<string>('R2_BUCKET_NAME', '') || '').trim();
+    const publicUrlBase = String(this.configService.get<string>('R2_PUBLIC_URL', '') || '').trim();
+    this.accountId = accountId;
+    this.bucketName = bucketName || 'el-awal-assets';
+    this.publicUrlBase = publicUrlBase;
 
-    this.isConfigured = Boolean(
-      accountId &&
-      accessKeyId &&
-      secretAccessKey &&
-      accountId !== '' &&
-      accessKeyId !== '' &&
-      secretAccessKey !== ''
-    );
+    this.isConfigured = Boolean(accountId && accessKeyId && secretAccessKey && bucketName && publicUrlBase);
 
     if (this.isConfigured) {
       this.s3Client = new S3Client({
@@ -49,9 +45,43 @@ export class StorageService {
           secretAccessKey,
         },
       });
-      this.logger.log('✅ Cloudflare R2 Storage client initialized successfully');
+      this.logger.log(`✅ Cloudflare R2 configured (bucket=${this.bucketName} public=${this.publicUrlBase})`);
     } else {
-      this.logger.warn('⚠️ Cloudflare R2 credentials missing; fallback local storage active.');
+      this.logger.error(
+        '❌ Cloudflare R2 is NOT configured. Image uploads are R2-only and will fail until ' +
+          'R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_BUCKET_NAME / R2_PUBLIC_URL are set.',
+      );
+    }
+  }
+
+  /**
+   * Verifies R2 credentials on boot: HeadBucket proves account + keys + bucket are correct.
+   * Fails fast in production so misconfiguration is caught at deploy, not at first upload.
+   */
+  async onModuleInit(): Promise<void> {
+    if (!this.isConfigured || !this.s3Client) {
+      const nodeEnv = String(this.configService.get<string>('NODE_ENV', '') || '').trim();
+      if (nodeEnv === 'production') {
+        throw new Error(
+          'R2 storage is required in production but R2_* env vars are missing. ' +
+            'Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, R2_PUBLIC_URL.',
+        );
+      }
+      return;
+    }
+    try {
+      await this.s3Client.send(new HeadBucketCommand({ Bucket: this.bucketName }));
+      this.logger.log(`✅ R2 credentials verified (bucket=${this.bucketName} reachable)`);
+    } catch (error: any) {
+      const msg = error?.message || String(error);
+      this.logger.error(
+        `❌ R2 credential verification failed (bucket=${this.bucketName}): ${msg}. ` +
+          `Check R2_ACCOUNT_ID, keys, bucket name, and that the API token has Object Read & Write on this bucket.`,
+      );
+      const nodeEnv = String(this.configService.get<string>('NODE_ENV', '') || '').trim();
+      if (nodeEnv === 'production') {
+        throw new Error(`R2 credential verification failed for bucket [${this.bucketName}]: ${msg}`);
+      }
     }
   }
 
@@ -59,47 +89,25 @@ export class StorageService {
     return this.isConfigured && !!this.s3Client;
   }
 
-  private toLocalRelativeKey(key: string): string {
-    const withoutLeadingSlash = key.replace(/^\/+/, '');
-    let candidate = withoutLeadingSlash;
-    try {
-      if (/^https?:\/\//i.test(candidate)) {
-        const parsed = new URL(candidate);
-        candidate = parsed.pathname.replace(/^\/+/, '');
-      }
-    } catch {
-      // keep as-is
+  private assertConfigured(): void {
+    if (!this.isConfigured || !this.s3Client) {
+      throw new InternalServerErrorException(
+        'التخزين السحابي غير مُعد على السيرفر (R2). يرجى ضبط إعدادات Cloudflare R2.',
+      );
     }
-    candidate = candidate.replace(/^uploads[\\/]/i, '');
-    candidate = candidate.replace(/^uploads[\\/]/i, '');
-    return candidate.replace(/\\/g, '/');
-  }
-
-  private toLocalPublicUrl(key: string): string {
-    return `/uploads/${this.toLocalRelativeKey(key)}`;
   }
 
   /**
-   * Generates a presigned URL allowing client direct upload to Cloudflare R2.
-   * If R2 is not configured, returns empty uploadUrl so frontend skips the
-   * direct PUT (backend only accepts POST multipart) and uses server fallback.
+   * Generates a presigned URL for direct browser -> Cloudflare R2 upload.
+   * R2-only: throws when storage is not configured instead of returning a
+   * misleading local fallback URL.
    */
   async generatePresignedUploadUrl(
     key: string,
     contentType: string,
     expiresInSeconds = 3600,
   ): Promise<PresignedUploadResult> {
-    if (!this.isConfigured || !this.s3Client) {
-      this.logger.warn(
-        `R2 not configured - signalling multipart fallback for key [${key}]. ` +
-          `Configure R2_* env vars in production (local disk is ephemeral).`,
-      );
-      return {
-        uploadUrl: '',
-        fileKey: key,
-        publicUrl: '',
-      };
-    }
+    this.assertConfigured();
 
     try {
       const command = new PutObjectCommand({
@@ -108,7 +116,7 @@ export class StorageService {
         ContentType: contentType,
       });
 
-      const uploadUrl = await getSignedUrl(this.s3Client, command, {
+      const uploadUrl = await getSignedUrl(this.s3Client!, command, {
         expiresIn: expiresInSeconds,
       });
 
@@ -119,81 +127,47 @@ export class StorageService {
       };
     } catch (error) {
       this.logger.error(`Failed to generate presigned upload URL for key [${key}]:`, error);
-      return {
-        uploadUrl: '',
-        fileKey: key,
-        publicUrl: '',
-      };
+      throw new InternalServerErrorException('تعذر تجهيز رابط الرفع السحابي (R2). حاول مرة أخرى.');
     }
   }
 
   /**
-   * Directly uploads a file buffer to Cloudflare R2 bucket with local fallback.
+   * Uploads a file buffer directly to Cloudflare R2. No local-disk fallback:
+   * local disks are ephemeral (Heroku) and must never store course images.
    */
   async uploadBuffer(key: string, buffer: Buffer, contentType: string): Promise<{ fileKey: string; publicUrl: string }> {
-    if (this.isConfigured && this.s3Client) {
-      try {
-        const command = new PutObjectCommand({
-          Bucket: this.bucketName,
-          Key: key,
-          Body: buffer,
-          ContentType: contentType,
-        });
-
-        await this.s3Client.send(command);
-        return {
-          fileKey: key,
-          publicUrl: `${this.publicUrlBase}/${key}`,
-        };
-      } catch (error) {
-        this.logger.error(`Failed to upload buffer for key [${key}] to R2, falling back:`, error);
-      }
-    }
-
-    // Local fallback storage. NOTE: ephemeral on Heroku - R2 required in prod.
+    this.assertConfigured();
     try {
-      const uploadDir = path.resolve(process.cwd(), 'uploads');
-      const relativeKey = this.toLocalRelativeKey(key);
-      const targetPath = path.resolve(uploadDir, relativeKey);
-      if (!targetPath.startsWith(uploadDir)) {
-        throw new Error(`Path traversal attempt blocked for key: ${key}`);
-      }
-      fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-      fs.writeFileSync(targetPath, buffer);
-      return {
-        fileKey: key,
-        publicUrl: this.toLocalPublicUrl(key),
-      };
-    } catch (err) {
-      if (contentType.startsWith('image/')) {
-        return {
-          fileKey: key,
-          publicUrl: `data:${contentType};base64,${buffer.toString('base64')}`,
-        };
-      }
+      const command = new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+        Body: buffer,
+        ContentType: contentType,
+      });
+
+      await this.s3Client!.send(command);
       return {
         fileKey: key,
         publicUrl: `${this.publicUrlBase}/${key}`,
       };
+    } catch (error) {
+      this.logger.error(`Failed to upload buffer for key [${key}] to R2:`, error);
+      throw new InternalServerErrorException('فشل رفع الملف إلى التخزين السحابي (R2). حاول مرة أخرى.');
     }
   }
 
   /**
-   * Generates a temporary time-bound presigned URL to download private files.
+   * Generates a time-bound presigned URL to download R2 files.
    */
   async generatePresignedDownloadUrl(
     key: string,
     expiresInSeconds = 3600,
   ): Promise<string> {
-    if (!this.isConfigured || !this.s3Client) {
-      if (key.startsWith('/') || key.startsWith('data:') || /^https?:\/\//i.test(key)) {
-        if (key.startsWith('/uploads/uploads/')) {
-          return key.replace('/uploads/uploads/', '/uploads/');
-        }
-        return key;
-      }
-      return this.toLocalPublicUrl(key);
+    // Pass through already-public URLs (R2 custom domain, legacy local paths).
+    if (key.startsWith('data:') || /^https?:\/\//i.test(key)) {
+      return key;
     }
+    this.assertConfigured();
 
     try {
       const command = new GetObjectCommand({
@@ -201,57 +175,45 @@ export class StorageService {
         Key: key,
       });
 
-      return await getSignedUrl(this.s3Client, command, {
+      return await getSignedUrl(this.s3Client!, command, {
         expiresIn: expiresInSeconds,
       });
     } catch (error) {
       this.logger.error(`Failed to generate presigned download URL for key [${key}]:`, error);
-      return `${this.publicUrlBase}/${key}`;
+      throw new InternalServerErrorException('تعذر تجهيز رابط التحميل السحابي (R2).');
     }
   }
 
   /**
-   * Deletes an object from Cloudflare R2 bucket or local fallback storage.
+   * Deletes an object from Cloudflare R2. No local-disk handling.
    */
   async deleteObject(key: string): Promise<void> {
     if (!key) return;
-
-    if (this.isConfigured && this.s3Client) {
-      try {
-        const command = new DeleteObjectCommand({
-          Bucket: this.bucketName,
-          Key: key,
-        });
-
-        await this.s3Client.send(command);
-        this.logger.log(`Deleted object [${key}] from R2 bucket [${this.bucketName}]`);
-      } catch (error) {
-        this.logger.error(`Failed to delete object [${key}] from R2:`, error);
+    if (key.startsWith('data:')) return;
+    // Legacy local paths or full local URLs have nothing to delete in R2.
+    if (key.startsWith('/uploads/') || key.includes('/uploads/')) {
+      this.logger.warn(`Skipping R2 delete for legacy local key: ${key} (re-upload to R2)`);
+      return;
+    }
+    let objectKey = key;
+    try {
+      if (/^https?:\/\//i.test(key)) {
+        const parsed = new URL(key);
+        objectKey = parsed.pathname.replace(/^\/+/, '');
       }
+    } catch {
+      // keep as-is
     }
 
-    // Local deletion handles both single and legacy double-prefix layouts.
+    this.assertConfigured();
     try {
-      let candidate = key;
-      if (/^https?:\/\//i.test(candidate) && candidate.includes('/uploads/')) {
-        candidate = candidate.substring(candidate.indexOf('/uploads/') + 1);
-      }
-      if (candidate.startsWith('data:')) return;
-      const cleanKey = candidate.replace(/^\/+/, '');
-      const uploadDir = path.resolve(process.cwd(), 'uploads');
-      const candidates = [
-        path.resolve(uploadDir, this.toLocalRelativeKey(cleanKey)),
-        path.resolve(uploadDir, cleanKey),
-      ];
-      for (const targetPath of candidates) {
-        if (!targetPath.startsWith(uploadDir)) continue;
-        if (fs.existsSync(targetPath) && fs.statSync(targetPath).isFile()) {
-          fs.unlinkSync(targetPath);
-          this.logger.log(`Deleted local file [${targetPath}]`);
-        }
-      }
-    } catch (err) {
-      this.logger.warn(`Failed to delete local fallback file for key [${key}]:`, err);
+      await this.s3Client!.send(
+        new DeleteObjectCommand({ Bucket: this.bucketName, Key: objectKey }),
+      );
+      this.logger.log(`Deleted object [${objectKey}] from R2 bucket [${this.bucketName}]`);
+    } catch (error) {
+      this.logger.error(`Failed to delete object [${objectKey}] from R2:`, error);
+      throw new InternalServerErrorException('فشل حذف الملف من التخزين السحابي (R2).');
     }
   }
 

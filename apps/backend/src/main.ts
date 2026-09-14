@@ -4,9 +4,6 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { AppLogger } from './core/logger/app-logger.service';
-import * as express from 'express';
-import * as path from 'path';
-import * as fs from 'fs';
 import helmet from 'helmet';
 
 async function bootstrap() {
@@ -24,28 +21,8 @@ async function bootstrap() {
     }),
   );
 
-  // Ensure local uploads directory exists for internal storage handlers
-  const uploadsPath = path.join(process.cwd(), 'uploads');
-  if (!fs.existsSync(uploadsPath)) {
-    fs.mkdirSync(uploadsPath, { recursive: true });
-  }
-  // Serve public course assets so thumbnails survive R2 outage / local fallback.
-  // Private student folders stay blocked (receipts, homework, submissions).
-  const PRIVATE_UPLOAD_PREFIXES = [
-    'payment-receipts',
-    'homework-submissions',
-    'essay-answers',
-    'assessment-submissions',
-  ];
-  const uploadsExpress = app.getHttpAdapter().getInstance();
-  uploadsExpress.use('/uploads', (req: any, res: any, next: any) => {
-    const reqPath = String(req.path || req.url || '');
-    if (PRIVATE_UPLOAD_PREFIXES.some((p) => reqPath.includes(p))) {
-      return res.status(403).json({ message: 'Forbidden' });
-    }
-    return next();
-  });
-  uploadsExpress.use('/uploads', express.static(uploadsPath, { maxAge: '7d' }));
+  // Image storage is R2-only: no local ./uploads directory is created or served.
+  // Any legacy /uploads/* URL means an old local file that must be re-uploaded to R2.
 
   // Trust upstream reverse proxy (e.g. Nginx, Cloudflare) if configured
   if (configService.get<boolean>('TRUST_PROXY', false)) {
