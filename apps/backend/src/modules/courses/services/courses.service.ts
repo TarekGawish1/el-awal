@@ -3045,12 +3045,15 @@ export class CoursesService {
           videoStatus = 'ERROR';
         } else if (details.status === 4) {
           videoStatus = 'READY';
-        } else if (details.status === 0 && details.storageSize === 0) {
-          // Object exists in Bunny but nothing was ever uploaded (failed/empty
-          // upload). It will never finish transcoding: surface ERROR with no
-          // player URLs so the UI stops spinning and the teacher deletes +
-          // re-uploads. Status 1-3 with 0 bytes is left as PROCESSING since
-          // Bunny's size field can briefly lag a healthy fresh upload.
+        } else if (details.storageSize === 0) {
+          // Object exists in Bunny but holds zero bytes. Bunny itself badges
+          // these as "Processing" yet they can never finish transcoding
+          // (there is nothing to transcode): surface ERROR with no player URLs
+          // so the UI stops spinning forever and the teacher deletes +
+          // re-uploads. storageSize is only acted on when positively zero, so
+          // unknown sizes (undefined) keep the old status-based behavior.
+          // Note: streamAuth runs on preview, well after any PUT completed,
+          // so a zero here is not a transient upload lag.
           this.logger.warn(
             `Lesson [${lessonId}] references 0-byte Bunny video [${videoId}] (status ${details.statusText}) - needs re-upload`,
           );
@@ -3059,6 +3062,14 @@ export class CoursesService {
           videoStatus = 'PROCESSING';
         } else {
           videoStatus = 'READY';
+        }
+
+        // Self-heal missing durations: browser metadata extraction often yields
+        // 0 (hence "0 دقيقة" everywhere), while Bunny knows the real length.
+        if (details.duration > 0 && !lesson.videoDurationSeconds) {
+          this.prisma.courseLesson
+            .update({ where: { id: lessonId }, data: { videoDurationSeconds: Math.round(details.duration) } })
+            .catch((err) => this.logger.warn(`Failed to backfill duration for lesson [${lessonId}]`, err));
         }
       } catch {
         // Fallback: default to READY if status check not available or in test env
