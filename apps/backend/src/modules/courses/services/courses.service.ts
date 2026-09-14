@@ -90,29 +90,91 @@ export class CoursesService {
 
   /**
    * Helper to safely extract Bunny Stream Video GUID from a string, URL, or URI.
+   * Handles bunny:<id>, bare GUID, iframe/bunnycdn URLs, and custom CDN hostnames.
    */
   private extractBunnyVideoId(value?: string | null): string | null {
     if (!value) return null;
     const trimmed = value.trim();
     if (!trimmed) return null;
-    if (trimmed.startsWith('bunny:')) return trimmed.replace('bunny:', '').trim();
-    const match = trimmed.match(
+    if (trimmed.startsWith('bunny:')) {
+      const id = trimmed.replace('bunny:', '').trim().split(/[?#\s]/)[0];
+      return id || null;
+    }
+    const guidMatch = trimmed.match(
       /(?:iframe\.mediadelivery\.net\/embed\/\d+\/|video\.bunnycdn\.com\/library\/\d+\/videos\/|video\.bunnycdn\.com\/play\/|video\.bunnycdn\.com\/)([a-f0-9\-]{36})/i,
     );
-    if (match) return match[1];
+    if (guidMatch) return guidMatch[1];
+    const cdnMatch = trimmed.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+    if (cdnMatch && (trimmed.includes('mediadelivery.net') || trimmed.includes('bunnycdn.com') || trimmed.includes('m3u8') || trimmed.includes('/embed/'))) {
+      return cdnMatch[1];
+    }
+    if (cdnMatch && !trimmed.startsWith('http://') && !trimmed.startsWith('https://') && !trimmed.startsWith('/')) {
+      return cdnMatch[1];
+    }
     if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://') && !trimmed.startsWith('/')) {
-      return trimmed;
+      return trimmed.split(/[?#\s]/)[0] || null;
+    }
+    return null;
+  }
+
+  private resolveLessonVideoId(lesson?: {
+    bunnyVideoId?: string | null;
+    videoAssetId?: string | null;
+    contentUrl?: string | null;
+  } | null): string | null {
+    if (!lesson) return null;
+    return (
+      this.extractBunnyVideoId(lesson.bunnyVideoId) ||
+      this.extractBunnyVideoId(lesson.videoAssetId) ||
+      this.extractBunnyVideoId(lesson.contentUrl)
+    );
+  }
+
+  private isBunnyEmbedUrl(value?: string | null): boolean {
+    if (!value) return false;
+    return (
+      value.includes('iframe.mediadelivery.net') ||
+      value.includes('video.bunnycdn.com') ||
+      value.startsWith('bunny:')
+    );
+  }
+
+  private resolveFreshLessonEmbed(
+    lesson?: { bunnyVideoId?: string | null; videoAssetId?: string | null; contentUrl?: string | null } | null,
+  ): string | null {
+    const videoId = this.resolveLessonVideoId(lesson);
+    if (videoId) {
+      try {
+        return this.bunnyVideoService.getEmbedUrl(videoId);
+      } catch {
+        return null;
+      }
+    }
+    if (lesson?.contentUrl && !this.isBunnyEmbedUrl(lesson.contentUrl)) {
+      return lesson.contentUrl;
     }
     return null;
   }
 
   /**
    * Helper to dynamically sign Bunny Stream course preview embed URLs when token auth is active.
+   * Handles stale signed URLs, bunny:<id>, and bare GUIDs - always returns fresh.
    */
   signPreviewVideoUrl(rawUrl?: string | null): string | null {
     if (!rawUrl) return null;
-    const match = rawUrl.match(/iframe\.mediadelivery\.net\/embed\/(\d+)\/([a-f0-9\-]{36})/i);
-    if (!match) return rawUrl;
+    const videoId = this.extractBunnyVideoId(rawUrl);
+    // Non-Bunny direct file - return as-is
+    if (!videoId || !this.isBunnyEmbedUrl(rawUrl)) {
+      // Bare GUID that looks like Bunny but without URL wrapper
+      if (videoId && /^[a-f0-9\-]{36}$/i.test(videoId)) {
+        try {
+          return this.bunnyVideoService.getEmbedUrl(videoId);
+        } catch {
+          return rawUrl;
+        }
+      }
+      return rawUrl;
+    }
 
     const tokenSecurityKey =
       process.env.BUNNY_STREAM_TOKEN_KEY ||
@@ -121,11 +183,21 @@ export class CoursesService {
         : '') ||
       '';
     if (!tokenSecurityKey) {
-      return rawUrl;
+      try {
+        return this.bunnyVideoService.getEmbedUrl(videoId);
+      } catch {
+        return rawUrl;
+      }
     }
 
-    const libraryId = match[1];
-    const videoId = match[2];
+    // Preserve original libraryId when present, else use configured one
+    const libMatch = rawUrl.match(/iframe\.mediadelivery\.net\/embed\/(\d+)\//i);
+    const libraryId =
+      libMatch?.[1] ||
+      (typeof this.bunnyVideoService?.getLibraryId === 'function'
+        ? this.bunnyVideoService.getLibraryId()
+        : '');
+    if (!libraryId) return rawUrl;
     const ticket = generateBunnyEmbedTicket(libraryId, videoId, tokenSecurityKey, 86400);
     return ticket.embedUrl;
   }
@@ -134,6 +206,11 @@ export class CoursesService {
    * Creates a new course scoped to the instructor.
    */
   async createCourse(teacherId: string, dto: CreateCourseDto) {
+    let previewVideoUrl = dto.previewVideoUrl || null;
+    if (previewVideoUrl && this.isBunnyEmbedUrl(previewVideoUrl)) {
+      const pid = this.extractBunnyVideoId(previewVideoUrl);
+      if (pid) previewVideoUrl = `bunny:${pid}`;
+    }
     try {
       return await this.prisma.course.create({
         data: {
@@ -146,7 +223,7 @@ export class CoursesService {
           academicTerm: dto.academicTerm || 'FIRST_TERM',
           price: dto.price || 0.0,
           coverImageUrl: dto.coverImageUrl,
-          previewVideoUrl: dto.previewVideoUrl || null,
+          previewVideoUrl,
           courseQuizId: dto.courseQuizId || null,
           enforceSequentialLessons: dto.enforceSequentialLessons ?? false,
           requireExamPassingToUnlock: dto.requireExamPassingToUnlock ?? false,
@@ -215,6 +292,7 @@ export class CoursesService {
       }
       return {
         ...c,
+        previewVideoUrl: this.signPreviewVideoUrl((c as any).previewVideoUrl),
         totalLessons,
         totalDurationSeconds,
       };
@@ -300,12 +378,7 @@ export class CoursesService {
         const formattedLessons = m.lessons.map((l) => {
           totalLessons++;
 
-          let embedUrl: string | null = null;
-          if (l.bunnyVideoId) {
-            embedUrl = this.bunnyVideoService.getEmbedUrl(l.bunnyVideoId);
-          } else if (l.contentUrl) {
-            embedUrl = l.contentUrl;
-          }
+          const embedUrl = this.resolveFreshLessonEmbed(l);
 
           if (embedUrl && !firstAnyLessonWithVideo) {
             firstAnyLessonWithVideo = { ...l, freeVideoUrl: embedUrl };
@@ -413,12 +486,7 @@ export class CoursesService {
     const formattedModules = course.modules.map((m) => {
       const formattedLessons = m.lessons.map((l) => {
         totalLessons++;
-        let embedUrl: string | null = null;
-        if (l.bunnyVideoId) {
-          embedUrl = this.bunnyVideoService.getEmbedUrl(l.bunnyVideoId);
-        } else if (l.contentUrl) {
-          embedUrl = l.contentUrl;
-        }
+        const embedUrl = this.resolveFreshLessonEmbed(l);
 
         if (embedUrl && !firstAnyLessonWithVideo) {
           firstAnyLessonWithVideo = { ...l, freeVideoUrl: embedUrl };
@@ -673,6 +741,7 @@ export class CoursesService {
 
     return {
       ...course,
+      previewVideoUrl: this.signPreviewVideoUrl((course as any).previewVideoUrl),
       modules: enrichedModules,
       courseQuiz: enrichedCourseQuiz,
       completedLessonIds,
@@ -702,6 +771,12 @@ export class CoursesService {
       throw new ForbiddenException('You do not have permission to modify this course');
     }
 
+    let previewVideoUrl = dto.previewVideoUrl;
+    if (previewVideoUrl && this.isBunnyEmbedUrl(previewVideoUrl)) {
+      const pid = this.extractBunnyVideoId(previewVideoUrl);
+      if (pid) previewVideoUrl = `bunny:${pid}` as any;
+    }
+
     return this.prisma.course.update({
       where: { id: courseId },
       data: {
@@ -714,7 +789,7 @@ export class CoursesService {
         ...(dto.academicTerm !== undefined ? { academicTerm: dto.academicTerm } : {}),
         ...(dto.price !== undefined ? { price: dto.price } : {}),
         ...(dto.coverImageUrl !== undefined ? { coverImageUrl: dto.coverImageUrl } : {}),
-        ...(dto.previewVideoUrl !== undefined ? { previewVideoUrl: dto.previewVideoUrl } : {}),
+        ...(previewVideoUrl !== undefined ? { previewVideoUrl: previewVideoUrl as any } : {}),
         ...(dto.status ? { status: dto.status } : {}),
         ...(dto.courseQuizId !== undefined ? { courseQuizId: dto.courseQuizId } : {}),
         ...(dto.enforceSequentialLessons !== undefined ? { enforceSequentialLessons: dto.enforceSequentialLessons } : {}),
@@ -1049,6 +1124,14 @@ export class CoursesService {
       orderIndex = lessonCount + 1;
     }
 
+    let normalizedBunnyId = this.extractBunnyVideoId(dto.bunnyVideoId);
+    const contentBunnyId = this.extractBunnyVideoId(dto.contentUrl);
+    if (!normalizedBunnyId && contentBunnyId) normalizedBunnyId = contentBunnyId;
+    let normalizedContentUrl = dto.contentUrl;
+    if (normalizedContentUrl && this.isBunnyEmbedUrl(normalizedContentUrl)) {
+      normalizedContentUrl = undefined as any;
+    }
+
     try {
       return await this.prisma.courseLesson.create({
         data: {
@@ -1058,8 +1141,8 @@ export class CoursesService {
           summary: dto.summary || null,
           orderIndex,
           lessonType: dto.lessonType || 'VIDEO',
-          bunnyVideoId: dto.bunnyVideoId,
-          contentUrl: dto.contentUrl,
+          bunnyVideoId: normalizedBunnyId || dto.bunnyVideoId,
+          contentUrl: normalizedContentUrl,
           videoDurationSeconds: dto.videoDurationSeconds,
           isPreview: dto.isFreePreview !== undefined ? dto.isFreePreview : (dto.isPreview !== undefined ? dto.isPreview : false),
           lessonQuizId: dto.lessonQuizId || null,
@@ -1140,6 +1223,15 @@ export class CoursesService {
     const newBunnyId = this.extractBunnyVideoId(dto.bunnyVideoId);
     const newContentBunnyId = this.extractBunnyVideoId(dto.contentUrl);
 
+    let sanitizedContentUrl = dto.contentUrl;
+    if (sanitizedContentUrl && this.isBunnyEmbedUrl(sanitizedContentUrl)) {
+      sanitizedContentUrl = null as any;
+    }
+    let sanitizedBunnyId = dto.bunnyVideoId;
+    if ((!sanitizedBunnyId || !sanitizedBunnyId.trim()) && newContentBunnyId) {
+      sanitizedBunnyId = newContentBunnyId;
+    }
+
     let updatedLesson;
     try {
       updatedLesson = await this.prisma.courseLesson.update({
@@ -1150,8 +1242,8 @@ export class CoursesService {
           ...(dto.summary !== undefined ? { summary: dto.summary } : {}),
           ...(dto.orderIndex !== undefined ? { orderIndex: dto.orderIndex } : {}),
           ...(dto.lessonType ? { lessonType: dto.lessonType } : {}),
-          ...(dto.bunnyVideoId !== undefined ? { bunnyVideoId: dto.bunnyVideoId } : {}),
-          ...(dto.contentUrl !== undefined ? { contentUrl: dto.contentUrl } : {}),
+          ...(sanitizedBunnyId !== undefined ? { bunnyVideoId: sanitizedBunnyId } : {}),
+          ...(sanitizedContentUrl !== undefined ? { contentUrl: sanitizedContentUrl } : {}),
           ...(dto.videoDurationSeconds !== undefined ? { videoDurationSeconds: dto.videoDurationSeconds } : {}),
           ...(isPreviewVal !== undefined ? { isPreview: isPreviewVal } : {}),
           ...(dto.lessonQuizId !== undefined ? { lessonQuizId: dto.lessonQuizId } : {}),
@@ -2613,22 +2705,31 @@ export class CoursesService {
       );
     }
 
-    // Media Token / Signed URLs Generation
+    // Media Token / Signed URLs Generation - resolve from all id fields
+    // so legacy lessons with only contentUrl still play via fresh signed URL.
     let videoPlayerUrl: string | null = null;
     let documentDownloadUrl: string | null = null;
 
-    if (lesson.lessonType === 'VIDEO' && lesson.bunnyVideoId) {
+    const resolvedViewerVideoId = this.resolveLessonVideoId(lesson as any);
+    if (lesson.lessonType === 'VIDEO' && resolvedViewerVideoId) {
       videoPlayerUrl = await this.bunnyVideoService.generateSecurePlaybackUrl(
-        lesson.bunnyVideoId,
+        resolvedViewerVideoId,
         7200, // 2 hours
       );
     }
 
     if (lesson.lessonType === 'DOCUMENT' && lesson.contentUrl) {
-      documentDownloadUrl = await this.storageService.generatePresignedDownloadUrl(
-        lesson.contentUrl,
-        3600, // 1 hour
-      );
+      if (!this.isBunnyEmbedUrl(lesson.contentUrl)) {
+        documentDownloadUrl = await this.storageService.generatePresignedDownloadUrl(
+          lesson.contentUrl,
+          3600, // 1 hour
+        );
+      } else if (resolvedViewerVideoId) {
+        videoPlayerUrl = await this.bunnyVideoService.generateSecurePlaybackUrl(
+          resolvedViewerVideoId,
+          7200,
+        );
+      }
     }
 
     // Retrieve Student's existing playback progress
@@ -2901,7 +3002,7 @@ export class CoursesService {
       throw new ForbiddenException('يجب الاشتراك في هذا الكورس أولاً لمشاهدة شرح هذا الدرس');
     }
 
-    const videoId = lesson.bunnyVideoId || lesson.contentUrl || '';
+    const videoId = this.resolveLessonVideoId(lesson as any) || '';
     let embedUrl = '';
     let playbackUrl = '';
     let videoStatus: 'READY' | 'PROCESSING' | 'ERROR' = 'READY';
@@ -3043,19 +3144,25 @@ export class CoursesService {
       throw new NotFoundException(`Lesson [${lessonId}] not found`);
     }
 
-    const videoId = lesson.bunnyVideoId;
+    const videoId = this.resolveLessonVideoId(lesson as any);
     if (!videoId || videoId.trim() === '') {
-      throw new NotFoundException(`Bunny video ID not available for lesson [${lessonId}]`);
+      throw new NotFoundException(
+        `Bunny video ID not available for lesson [${lessonId}] - upload the video again`,
+      );
     }
 
     const libraryId =
       process.env.BUNNY_STREAM_LIBRARY_ID ||
-      this.bunnyVideoService.getLibraryId() ||
-      '730290';
+      this.bunnyVideoService.getLibraryId();
     const tokenSecurityKey =
       process.env.BUNNY_STREAM_TOKEN_KEY ||
-      this.bunnyVideoService.getTokenSecurityKey() ||
-      '8b44960b-e9c9-4851-a355-14edf0d4e6e2';
+      this.bunnyVideoService.getTokenSecurityKey();
+
+    if (!libraryId || !tokenSecurityKey) {
+      throw new NotFoundException(
+        'Bunny Stream is not configured on the server (library / token key missing)',
+      );
+    }
 
     const ticket = generateBunnyEmbedTicket(libraryId, videoId, tokenSecurityKey, 7200);
 

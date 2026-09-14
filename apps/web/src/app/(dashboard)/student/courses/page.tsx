@@ -45,6 +45,7 @@ import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import { useRouter } from 'next/navigation';
 import { CourseSubscriptionModal } from '@/features/student-portal/components/CourseSubscriptionModal';
 import { CourseCertificateModal } from '@/features/student-portal/components/CourseCertificateModal';
+import { resolveAssetUrl } from '@/lib/utils/asset-url';
 import toast from 'react-hot-toast';
 
 export default function StudentCoursesPage() {
@@ -195,9 +196,12 @@ export default function StudentCoursesPage() {
                     <div className="h-44 w-full bg-slate-100 relative overflow-hidden shrink-0">
                       {c.coverImageUrl ? (
                         <img
-                          src={c.coverImageUrl}
+                          src={resolveAssetUrl(c.coverImageUrl)}
                           alt={c.title}
                           className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-500"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
                         />
                       ) : (
                         <div className="w-full h-full bg-gradient-to-tr from-primary-600 to-primary-700 flex items-center justify-center text-white">
@@ -442,7 +446,7 @@ export default function StudentCoursesPage() {
       )}
 
       {/* Free Preview Promo Video Modal */}
-      {previewVideoModal && (
+      {previewVideoModal && previewVideoModal.videoUrl && !previewVideoModal.videoUrl.startsWith('bunny:') && (
         <div
           className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
           onClick={() => setPreviewVideoModal(null)}
@@ -644,9 +648,12 @@ function AvailableCoursesCatalogTab({
                 <div className="h-44 w-full bg-slate-100 relative overflow-hidden shrink-0">
                   {c.coverImageUrl ? (
                     <img
-                      src={c.coverImageUrl}
+                      src={resolveAssetUrl(c.coverImageUrl)}
                       alt={c.title}
                       className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-500"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
                     />
                   ) : (
                     <div

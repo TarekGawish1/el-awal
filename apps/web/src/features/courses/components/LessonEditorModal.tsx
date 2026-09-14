@@ -649,11 +649,15 @@ export function LessonEditorModal({
       backgroundUploadTask?.videoId ||
       streamAuth?.videoId;
 
-    const effectiveContentUrl =
-      videoEmbedUrl ||
-      (bunnyVideoId && bunnyVideoId.startsWith("r2:") ? videoEmbedUrl : undefined) ||
-      backgroundUploadTask?.embedUrl ||
-      streamAuth?.embedUrl;
+    const isBunnyUrl = (u?: string) =>
+      !!u && (u.includes("iframe.mediadelivery.net") || u.includes("video.bunnycdn.com") || u.startsWith("bunny:"));
+    const rawContentCandidate =
+      (!(videoEmbedUrl && isBunnyUrl(videoEmbedUrl)) ? videoEmbedUrl : undefined) ||
+      (!(backgroundUploadTask?.embedUrl && isBunnyUrl(backgroundUploadTask.embedUrl))
+        ? backgroundUploadTask?.embedUrl
+        : undefined) ||
+      (!(streamAuth?.embedUrl && isBunnyUrl(streamAuth.embedUrl)) ? streamAuth?.embedUrl : undefined);
+    const effectiveContentUrl = effectiveVideoId ? undefined : rawContentCandidate;
 
     if (isUploadingVideo) {
       toast.error("يرجى الانتظار حتى يكتمل رفع ومعالجة الفيديو قبل حفظ الدرس ⏳");
@@ -795,11 +799,15 @@ export function LessonEditorModal({
       backgroundUploadTask?.videoId ||
       streamAuth?.videoId;
 
-    const effectiveContentUrl =
-      videoEmbedUrl ||
-      (bunnyVideoId && bunnyVideoId.startsWith("r2:") ? videoEmbedUrl : undefined) ||
-      backgroundUploadTask?.embedUrl ||
-      streamAuth?.embedUrl;
+    const isBunnyUrl2 = (u?: string) =>
+      !!u && (u.includes("iframe.mediadelivery.net") || u.includes("video.bunnycdn.com") || u.startsWith("bunny:"));
+    const rawContentCandidate2 =
+      (!(videoEmbedUrl && isBunnyUrl2(videoEmbedUrl)) ? videoEmbedUrl : undefined) ||
+      (!(backgroundUploadTask?.embedUrl && isBunnyUrl2(backgroundUploadTask.embedUrl))
+        ? backgroundUploadTask?.embedUrl
+        : undefined) ||
+      (!(streamAuth?.embedUrl && isBunnyUrl2(streamAuth.embedUrl)) ? streamAuth?.embedUrl : undefined);
+    const effectiveContentUrl = effectiveVideoId ? undefined : rawContentCandidate2;
 
     const payload = {
       title: title.trim(),

@@ -297,7 +297,8 @@ export function VideoUploadManagerProvider({
             completedAt: new Date(),
           });
 
-          // If lessonId is already known, auto-save video details to the lesson in background
+          // If lessonId is already known, auto-save video details to the lesson in background.
+          // Only persist bunnyVideoId - never the signed embedUrl (expires in ~2h -> 404).
           const currentTaskState = tasksRef.current[taskId];
           const targetLessonId = currentTaskState?.lessonId || lessonId;
 
@@ -305,7 +306,7 @@ export function VideoUploadManagerProvider({
             try {
               await coursesApi.updateLesson(targetLessonId, {
                 bunnyVideoId: result.videoId,
-                contentUrl: result.embedUrl,
+                contentUrl: null as any,
                 videoDurationSeconds: metaDuration,
               });
               queryClient.invalidateQueries({ queryKey: ['courses'] });
@@ -324,7 +325,7 @@ export function VideoUploadManagerProvider({
           if (isPreview && targetCourseId) {
             try {
               await coursesApi.updateCourse(targetCourseId, {
-                previewVideoUrl: result.embedUrl,
+                previewVideoUrl: `bunny:${result.videoId}` as any,
               });
               queryClient.invalidateQueries({ queryKey: ['courses'] });
               queryClient.invalidateQueries({

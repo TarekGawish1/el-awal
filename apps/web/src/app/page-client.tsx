@@ -25,6 +25,7 @@ import { useQuery } from "@tanstack/react-query";
 import { testimonialsApi } from "@/features/testimonials/api/testimonials.api";
 import { GRADE_LEVELS_BY_STAGE } from "@/lib/constants/grades";
 import { CookieConsentSettingsTrigger } from "@/components/analytics/CookieConsentBanner";
+import { resolveAssetUrl } from "@/lib/utils/asset-url";
 
 function IntroSequence({ onComplete }: { onComplete: () => void }) {
   useEffect(() => {
@@ -1279,7 +1280,7 @@ function CoursesSection() {
                 >
                   {course.coverImageUrl && (
                     <img
-                      src={course.coverImageUrl}
+                      src={resolveAssetUrl(course.coverImageUrl)}
                       alt={course.title}
                       loading="lazy"
                       decoding="async"

@@ -55,9 +55,34 @@ export class StorageService {
     }
   }
 
+  isR2Configured(): boolean {
+    return this.isConfigured && !!this.s3Client;
+  }
+
+  private toLocalRelativeKey(key: string): string {
+    const withoutLeadingSlash = key.replace(/^\/+/, '');
+    let candidate = withoutLeadingSlash;
+    try {
+      if (/^https?:\/\//i.test(candidate)) {
+        const parsed = new URL(candidate);
+        candidate = parsed.pathname.replace(/^\/+/, '');
+      }
+    } catch {
+      // keep as-is
+    }
+    candidate = candidate.replace(/^uploads[\\/]/i, '');
+    candidate = candidate.replace(/^uploads[\\/]/i, '');
+    return candidate.replace(/\\/g, '/');
+  }
+
+  private toLocalPublicUrl(key: string): string {
+    return `/uploads/${this.toLocalRelativeKey(key)}`;
+  }
+
   /**
    * Generates a presigned URL allowing client direct upload to Cloudflare R2.
-   * If R2 is not configured, returns a fallback direct upload endpoint.
+   * If R2 is not configured, returns empty uploadUrl so frontend skips the
+   * direct PUT (backend only accepts POST multipart) and uses server fallback.
    */
   async generatePresignedUploadUrl(
     key: string,
@@ -65,10 +90,14 @@ export class StorageService {
     expiresInSeconds = 3600,
   ): Promise<PresignedUploadResult> {
     if (!this.isConfigured || !this.s3Client) {
+      this.logger.warn(
+        `R2 not configured - signalling multipart fallback for key [${key}]. ` +
+          `Configure R2_* env vars in production (local disk is ephemeral).`,
+      );
       return {
-        uploadUrl: '/api/v1/content/upload-file',
+        uploadUrl: '',
         fileKey: key,
-        publicUrl: `${this.publicUrlBase}/${key}`,
+        publicUrl: '',
       };
     }
 
@@ -91,9 +120,9 @@ export class StorageService {
     } catch (error) {
       this.logger.error(`Failed to generate presigned upload URL for key [${key}]:`, error);
       return {
-        uploadUrl: '/api/v1/content/upload-file',
+        uploadUrl: '',
         fileKey: key,
-        publicUrl: `${this.publicUrlBase}/${key}`,
+        publicUrl: '',
       };
     }
   }
@@ -121,10 +150,11 @@ export class StorageService {
       }
     }
 
-    // Local / Base64 fallback storage with directory containment check
+    // Local fallback storage. NOTE: ephemeral on Heroku - R2 required in prod.
     try {
       const uploadDir = path.resolve(process.cwd(), 'uploads');
-      const targetPath = path.resolve(uploadDir, key);
+      const relativeKey = this.toLocalRelativeKey(key);
+      const targetPath = path.resolve(uploadDir, relativeKey);
       if (!targetPath.startsWith(uploadDir)) {
         throw new Error(`Path traversal attempt blocked for key: ${key}`);
       }
@@ -132,7 +162,7 @@ export class StorageService {
       fs.writeFileSync(targetPath, buffer);
       return {
         fileKey: key,
-        publicUrl: `/uploads/${key}`,
+        publicUrl: this.toLocalPublicUrl(key),
       };
     } catch (err) {
       if (contentType.startsWith('image/')) {
@@ -156,7 +186,13 @@ export class StorageService {
     expiresInSeconds = 3600,
   ): Promise<string> {
     if (!this.isConfigured || !this.s3Client) {
-      return `${this.publicUrlBase}/${key}`;
+      if (key.startsWith('/') || key.startsWith('data:') || /^https?:\/\//i.test(key)) {
+        if (key.startsWith('/uploads/uploads/')) {
+          return key.replace('/uploads/uploads/', '/uploads/');
+        }
+        return key;
+      }
+      return this.toLocalPublicUrl(key);
     }
 
     try {
@@ -194,18 +230,25 @@ export class StorageService {
       }
     }
 
-    // Local / fallback file deletion with directory containment check
+    // Local deletion handles both single and legacy double-prefix layouts.
     try {
-      const cleanKey = key.replace(/^\/+/, '');
-      const uploadDir = path.resolve(process.cwd(), 'uploads');
-      const targetPath = path.resolve(uploadDir, cleanKey.replace(/^uploads[\\/]/, ''));
-      if (!targetPath.startsWith(uploadDir)) {
-        this.logger.warn(`Path traversal attempt blocked in deleteObject for key: ${key}`);
-        return;
+      let candidate = key;
+      if (/^https?:\/\//i.test(candidate) && candidate.includes('/uploads/')) {
+        candidate = candidate.substring(candidate.indexOf('/uploads/') + 1);
       }
-      if (fs.existsSync(targetPath) && fs.statSync(targetPath).isFile()) {
-        fs.unlinkSync(targetPath);
-        this.logger.log(`Deleted local file [${targetPath}]`);
+      if (candidate.startsWith('data:')) return;
+      const cleanKey = candidate.replace(/^\/+/, '');
+      const uploadDir = path.resolve(process.cwd(), 'uploads');
+      const candidates = [
+        path.resolve(uploadDir, this.toLocalRelativeKey(cleanKey)),
+        path.resolve(uploadDir, cleanKey),
+      ];
+      for (const targetPath of candidates) {
+        if (!targetPath.startsWith(uploadDir)) continue;
+        if (fs.existsSync(targetPath) && fs.statSync(targetPath).isFile()) {
+          fs.unlinkSync(targetPath);
+          this.logger.log(`Deleted local file [${targetPath}]`);
+        }
       }
     } catch (err) {
       this.logger.warn(`Failed to delete local fallback file for key [${key}]:`, err);
@@ -216,6 +259,11 @@ export class StorageService {
    * Formats the public CDN URL for an asset key.
    */
   getPublicUrl(key: string): string {
-    return `${this.publicUrlBase}/${key}`;
+    if (!key) return key;
+    if (key.startsWith('data:') || key.startsWith('/uploads/')) {
+      return key.replace('/uploads/uploads/', '/uploads/');
+    }
+    if (/^https?:\/\//i.test(key)) return key;
+    return `${this.publicUrlBase}/${key.replace(/^\/+/, '')}`;
   }
 }

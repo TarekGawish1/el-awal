@@ -586,13 +586,21 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
           </div>
 
           <div className="mt-4 aspect-video max-w-3xl mx-auto rounded-2xl overflow-hidden bg-black border border-slate-200 shadow-md">
-            <iframe
-              src={`${course.previewVideoUrl}${course.previewVideoUrl.includes('?') ? '&' : '?'}autoplay=0`}
-              loading="lazy"
-              className="w-full h-full border-0"
-              allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
-              allowFullScreen
-            />
+            {!course.previewVideoUrl.startsWith('bunny:') ? (
+              <iframe
+                src={`${course.previewVideoUrl}${course.previewVideoUrl.includes('?') ? '&' : '?'}autoplay=0`}
+                loading="lazy"
+                className="w-full h-full border-0"
+                allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+                allowFullScreen
+              />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-slate-900 text-center p-6">
+                <Video className="w-8 h-8 text-amber-400" />
+                <p className="text-xs font-bold text-white">الفيديو التعريفي قيد المعالجة ⏳</p>
+                <p className="text-[11px] text-slate-400">سيظهر هنا فور اكتمال رفع Bunny Stream.</p>
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -1546,12 +1554,20 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
 
             <div className="p-4 sm:p-6 bg-slate-950">
               <div className="aspect-video w-full rounded-2xl overflow-hidden bg-black shadow-lg border border-slate-800">
-                <iframe
-                  src={`${course.previewVideoUrl}${course.previewVideoUrl.includes('?') ? '&' : '?'}autoplay=1`}
-                  className="w-full h-full border-0"
-                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
-                  allowFullScreen
-                />
+                {!course.previewVideoUrl.startsWith('bunny:') ? (
+                  <iframe
+                    src={`${course.previewVideoUrl}${course.previewVideoUrl.includes('?') ? '&' : '?'}autoplay=1`}
+                    className="w-full h-full border-0"
+                    allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+                    allowFullScreen
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-slate-900 text-center p-6">
+                    <Video className="w-8 h-8 text-amber-400" />
+                    <p className="text-xs font-bold text-white">الفيديو التعريفي قيد المعالجة ⏳</p>
+                    <p className="text-[11px] text-slate-400">سيظهر هنا فور اكتمال رفع Bunny Stream.</p>
+                  </div>
+                )}
               </div>
             </div>
 

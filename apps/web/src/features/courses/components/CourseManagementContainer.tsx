@@ -38,6 +38,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTeacherCourses, useDeleteCourse } from '../hooks/useCourses';
 import { coursesApi } from '../api/courses.api';
 import { API_BASE_URL } from '@/lib/api/endpoints';
+import { resolveCoverUrl } from '@/lib/utils/asset-url';
 import { CourseDetail } from '../types/courses.types';
 import { CreateCourseModal } from './CreateCourseModal';
 import { EditCourseModal } from './EditCourseModal';
@@ -232,9 +233,12 @@ export function CourseManagementContainer() {
                 <div className="relative aspect-video bg-slate-100 overflow-hidden">
                   {c.coverImageUrl ? (
                     <img
-                      src={c.coverImageUrl}
+                      src={resolveCoverUrl(c.coverImageUrl)}
                       alt={c.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
                     />
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-primary-50 to-slate-100 text-primary-600 p-4 text-center">

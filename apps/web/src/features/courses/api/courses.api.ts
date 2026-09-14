@@ -589,6 +589,10 @@ export const coursesApi = {
         folder,
       });
 
+      if (!presigned?.uploadUrl || !presigned.uploadUrl.startsWith('http') || !presigned?.publicUrl) {
+        throw new Error('FALLBACK_TO_SERVER_UPLOAD');
+      }
+
       return await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('PUT', presigned.uploadUrl);

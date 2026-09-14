@@ -85,8 +85,11 @@ export function FileUploadZone({
         folder,
       });
 
-      if (!presigned?.uploadUrl) {
-        throw new Error('لم يتم استلام تصريح الرفع السحابي');
+      // R2 not configured -> backend returns empty uploadUrl.
+      // Old backends returned relative /api/... PUT target that always 404s
+      // (backend only accepts POST multipart). Skip doomed PUT, use fallback.
+      if (!presigned?.uploadUrl || !presigned.uploadUrl.startsWith('http') || !presigned?.publicUrl) {
+        throw new Error('FALLBACK_TO_SERVER_UPLOAD');
       }
 
       setUploadProgress(35);
@@ -197,12 +200,15 @@ export function FileUploadZone({
     onRemoveFile?.();
   };
 
-  const resolvedFileUrl =
-    (currentFileUrl && (currentFileUrl.startsWith('http') || currentFileUrl.startsWith('data:') || currentFileUrl.startsWith('blob:')))
-      ? currentFileUrl
-      : currentFileUrl
-        ? `${API_BASE_URL.replace(/\/api\/v1\/?$/, '')}${currentFileUrl.startsWith('/') ? '' : '/'}${currentFileUrl}`
-        : localPreviewUrl || '';
+  const resolvedFileUrl = (() => {
+    if (!currentFileUrl && !localPreviewUrl) return '';
+    const src = currentFileUrl || localPreviewUrl || '';
+    if (src.startsWith('http') || src.startsWith('data:') || src.startsWith('blob:')) {
+      return src.replace('/uploads/uploads/', '/uploads/');
+    }
+    const normalized = src.replace('/uploads/uploads/', '/uploads/');
+    return `${API_BASE_URL.replace(/\/api\/v1\/?$/, '')}${normalized.startsWith('/') ? '' : '/'}${normalized}`;
+  })();
 
   const hasFile = Boolean(currentFileUrl || localPreviewUrl);
 

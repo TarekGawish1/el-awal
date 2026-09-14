@@ -316,9 +316,18 @@ export function EditCourseModal({ isOpen, course, onClose, onSuccess }: EditCour
       };
 
       // If video upload is still active in background, we omit previewVideoUrl from payload
-      // so video-upload-manager can auto-save the embedUrl when upload completes!
+      // so video-upload-manager can auto-save bunny:<id> when upload completes!
       if (!isUploadingVideo) {
-        payload.previewVideoUrl = previewVideoUrl.trim() || null;
+        let promoToSave: string | null = previewVideoUrl.trim() || null;
+        if (promoToSave) {
+          const m =
+            promoToSave.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i) ||
+            (newlyUploadedBunnyVideoIdRef.current ? [null, newlyUploadedBunnyVideoIdRef.current] : null);
+          if (m?.[1] && (promoToSave.includes('mediadelivery.net') || promoToSave.includes('bunnycdn.com') || promoToSave.startsWith('bunny:'))) {
+            promoToSave = `bunny:${m[1]}`;
+          }
+        }
+        (payload as any).previewVideoUrl = promoToSave;
       }
 
       await updateMutation.mutateAsync(payload);

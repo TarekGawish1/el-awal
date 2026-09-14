@@ -21,6 +21,7 @@ import { StudentRecentAssessments } from './StudentRecentAssessments';
 import { StudentLatestHomework } from './StudentLatestHomework';
 import { GroupReservation } from './GroupReservation';
 import { filterUpcomingGroupExams } from '../utils/assessments';
+import { resolveAssetUrl } from '@/lib/utils/asset-url';
 
 export function StudentDashboard() {
   const { data: profile, isLoading: isProfileLoading } = useStudentProfile();
@@ -283,9 +284,12 @@ export function StudentDashboard() {
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         {course.coverImageUrl ? (
                           <img
-                            src={course.coverImageUrl}
+                            src={resolveAssetUrl(course.coverImageUrl)}
                             alt={course.title}
                             className="w-12 h-12 rounded-xl object-cover shrink-0 border border-slate-200"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
                           />
                         ) : (
                           <div className="w-12 h-12 rounded-xl bg-primary-100 text-primary-600 flex items-center justify-center shrink-0">
@@ -554,9 +558,12 @@ function OnlineCoursesCatalog({
                 {course.coverImageUrl ? (
                   <>
                     <img
-                      src={course.coverImageUrl}
+                      src={resolveAssetUrl(course.coverImageUrl)}
                       alt={course.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/30 pointer-events-none" />
                   </>
@@ -807,7 +814,7 @@ function OnlineCoursesCatalog({
       )}
 
       {/* Course Promo / Preview Video Modal */}
-      {previewVideoModal && (
+      {previewVideoModal && previewVideoModal.videoUrl && !previewVideoModal.videoUrl.startsWith('bunny:') && (
         <div
           className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
           onClick={() => setPreviewVideoModal(null)}

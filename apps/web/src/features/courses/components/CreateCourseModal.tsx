@@ -204,6 +204,17 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
     try {
       isSubmittedRef.current = true;
       const finalPrice = isFreeCourse ? 0 : (parseFloat(price) || 0);
+      let promoToSave = previewVideoUrl.trim() || undefined;
+      if (promoToSave) {
+        const m =
+          promoToSave.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i) ||
+          (newlyUploadedBunnyVideoIdRef.current ? [null, newlyUploadedBunnyVideoIdRef.current] : null);
+        if (m?.[1] && (promoToSave.includes('mediadelivery.net') || promoToSave.includes('bunnycdn.com') || promoToSave.startsWith('bunny:'))) {
+          promoToSave = `bunny:${m[1]}`;
+        } else if (newlyUploadedBunnyVideoIdRef.current) {
+          promoToSave = `bunny:${newlyUploadedBunnyVideoIdRef.current}`;
+        }
+      }
       const newCourse = await createMutation.mutateAsync({
         title: title.trim(),
         description: description.trim() || undefined,
@@ -212,7 +223,7 @@ export function CreateCourseModal({ isOpen, onClose, onSuccess }: CreateCourseMo
         academicStage,
         price: finalPrice,
         coverImageUrl: coverImageUrl || undefined,
-        previewVideoUrl: previewVideoUrl.trim() || undefined,
+        previewVideoUrl: promoToSave,
         courseQuizId: courseQuizId || undefined,
         hasCertificate,
       });

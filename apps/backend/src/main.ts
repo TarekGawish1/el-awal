@@ -29,8 +29,23 @@ async function bootstrap() {
   if (!fs.existsSync(uploadsPath)) {
     fs.mkdirSync(uploadsPath, { recursive: true });
   }
-  // Public raw express static serving on '/uploads' disabled for security hardening:
-  // prevents unauthenticated access to private student documents and receipts.
+  // Serve public course assets so thumbnails survive R2 outage / local fallback.
+  // Private student folders stay blocked (receipts, homework, submissions).
+  const PRIVATE_UPLOAD_PREFIXES = [
+    'payment-receipts',
+    'homework-submissions',
+    'essay-answers',
+    'assessment-submissions',
+  ];
+  const uploadsExpress = app.getHttpAdapter().getInstance();
+  uploadsExpress.use('/uploads', (req: any, res: any, next: any) => {
+    const reqPath = String(req.path || req.url || '');
+    if (PRIVATE_UPLOAD_PREFIXES.some((p) => reqPath.includes(p))) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+    return next();
+  });
+  uploadsExpress.use('/uploads', express.static(uploadsPath, { maxAge: '7d' }));
 
   // Trust upstream reverse proxy (e.g. Nginx, Cloudflare) if configured
   if (configService.get<boolean>('TRUST_PROXY', false)) {
