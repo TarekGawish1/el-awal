@@ -118,14 +118,10 @@ export function uploadVideoToBunny(
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', uploadUrl);
 
+    // AccessKey + body only (see video-upload-manager: extra signature
+    // headers make Bunny reply 2xx while storing 0 bytes).
     if (credentials.accessKey) {
       xhr.setRequestHeader('AccessKey', credentials.accessKey);
-    }
-    if (credentials.authorizationSignature && credentials.authorizationExpire) {
-      xhr.setRequestHeader('AuthorizationSignature', credentials.authorizationSignature);
-      xhr.setRequestHeader('AuthorizationExpire', credentials.authorizationExpire.toString());
-      if (credentials.libraryId) xhr.setRequestHeader('LibraryId', credentials.libraryId);
-      if (credentials.videoId) xhr.setRequestHeader('VideoId', credentials.videoId);
     }
     xhr.setRequestHeader('Content-Type', 'application/octet-stream');
 

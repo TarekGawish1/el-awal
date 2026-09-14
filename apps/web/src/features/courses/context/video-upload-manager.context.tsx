@@ -445,23 +445,12 @@ export function VideoUploadManagerProvider({
           activeXhrsRef.current[taskId] = xhr;
           xhr.open('PUT', creds.uploadUrl);
 
-          // Bunny simple direct upload authenticates via AccessKey; the
-          // signature headers accompany it.
+          // Bunny simple direct upload: AccessKey + octet-stream body only.
+          // Do NOT attach the TUS-style signature headers (AuthorizationSignature
+          // / AuthorizationExpire / LibraryId / VideoId) here - Bunny answers
+          // those PUTs with 2xx while silently discarding the body, which is
+          // how every upload landed as 0 Bytes / stuck-Processing forever.
           if (creds.accessKey) xhr.setRequestHeader('AccessKey', creds.accessKey);
-          if (creds.authorizationSignature) {
-            xhr.setRequestHeader(
-              'AuthorizationSignature',
-              creds.authorizationSignature,
-            );
-          }
-          if (creds.authorizationExpire) {
-            xhr.setRequestHeader(
-              'AuthorizationExpire',
-              String(creds.authorizationExpire),
-            );
-          }
-          if (creds.libraryId) xhr.setRequestHeader('LibraryId', creds.libraryId);
-          if (creds.videoId) xhr.setRequestHeader('VideoId', creds.videoId);
           xhr.setRequestHeader('Content-Type', 'application/octet-stream');
 
           let lastLoaded = 0;
