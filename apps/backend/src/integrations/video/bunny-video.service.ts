@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
 
@@ -312,6 +312,12 @@ export class BunnyVideoService {
       );
 
       if (!response.ok) {
+        // Deleted-in-dashboard or otherwise missing videos must surface as
+        // 404 (so callers stop generating player URLs for them) instead of
+        // blending into generic errors that get swallowed as READY.
+        if (response.status === 404) {
+          throw new NotFoundException(`Bunny video [${videoId}] not found in library`);
+        }
         throw new Error(`Bunny API responded with status ${response.status}: ${await response.text()}`);
       }
 
@@ -335,6 +341,7 @@ export class BunnyVideoService {
         storageSize: Number(data.storageSize ?? data.size ?? 0) || 0,
       };
     } catch (error) {
+      if (error instanceof NotFoundException) throw error;
       this.logger.error(`Failed to get Bunny Stream video details for [${videoId}]:`, error);
       throw error;
     }

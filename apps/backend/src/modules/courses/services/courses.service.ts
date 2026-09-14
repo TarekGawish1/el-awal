@@ -3071,9 +3071,20 @@ export class CoursesService {
             .update({ where: { id: lessonId }, data: { videoDurationSeconds: Math.round(details.duration) } })
             .catch((err) => this.logger.warn(`Failed to backfill duration for lesson [${lessonId}]`, err));
         }
-      } catch {
-        // Fallback: default to READY if status check not available or in test env
-        videoStatus = 'READY';
+      } catch (err) {
+        if (err instanceof NotFoundException) {
+          // Video was deleted (e.g. directly in the Bunny dashboard), so the
+          // lesson row is orphaned. Report ERROR with no player URLs instead
+          // of a bogus embed that 404s inside the player. Teacher clears the
+          // reference in the builder and re-uploads.
+          this.logger.warn(
+            `Lesson [${lessonId}] references deleted/missing Bunny video [${videoId}] - clear and re-upload`,
+          );
+          videoStatus = 'ERROR';
+        } else {
+          // Fallback: default to READY if status check not available or in test env
+          videoStatus = 'READY';
+        }
       }
 
       if (videoStatus !== 'ERROR') {
