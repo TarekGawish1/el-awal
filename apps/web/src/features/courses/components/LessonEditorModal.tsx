@@ -106,6 +106,14 @@ export function LessonEditorModal({
 }: LessonEditorModalProps) {
   const router = useRouter();
   const isEditing = !!lesson;
+  // When a video is picked before the lesson exists, the upload handler
+  // auto-creates the lesson immediately so the background upload has a stable
+  // lessonId. Save handlers must UPDATE that row - creating again here is what
+  // used to duplicate every lesson (same title twice).
+  const autoCreatedLessonIdRef = useRef<string | null>(null);
+  const [autoCreatedLessonId, setAutoCreatedLessonId] = useState<string | null>(null);
+  const resolvedLessonId = lesson?.id || autoCreatedLessonId || null;
+  const isEditingEffective = !!resolvedLessonId;
   const [isSavingAndRedirecting, setIsSavingAndRedirecting] = useState(false);
   const createMutation = useCreateLesson(courseId);
   const updateMutation = useUpdateLesson(courseId);
@@ -113,7 +121,7 @@ export function LessonEditorModal({
   const deleteAttachmentMutation = useDeleteAttachment(courseId);
 
   const queryClient = useQueryClient();
-  const { data: streamAuth } = useLessonStreamAuth(lesson?.id || "");
+  const { data: streamAuth } = useLessonStreamAuth(resolvedLessonId || "");
 
   const { data: assessmentsData } = useAssessments();
   const assessments = Array.isArray(assessmentsData)
@@ -188,7 +196,7 @@ export function LessonEditorModal({
     dismissTask,
   } = useVideoUploadManager();
 
-  const backgroundUploadTask = getTaskForLesson(lesson?.id, moduleId);
+  const backgroundUploadTask = getTaskForLesson(resolvedLessonId || undefined, moduleId);
 
   // Merge general assessments with any specific assessments linked on the lesson object
   const allAvailableAssessments = React.useMemo(() => {
@@ -329,6 +337,10 @@ export function LessonEditorModal({
   useEffect(() => {
     isSubmittedRef.current = false;
     initialBunnyVideoIdRef.current = lesson?.bunnyVideoId || null;
+    // Fresh auto-created row tracking per modal session: a new "add lesson"
+    // open starts with none; opening an existing lesson clears any stale one.
+    autoCreatedLessonIdRef.current = null;
+    setAutoCreatedLessonId(null);
     if (lesson) {
       setTitle(lesson.title || "");
       setDescription(lesson.description || "");
@@ -582,6 +594,8 @@ export function LessonEditorModal({
           },
         });
         targetLessonId = created.id;
+        autoCreatedLessonIdRef.current = created.id;
+        setAutoCreatedLessonId(created.id);
         isSubmittedRef.current = true;
       }
 
@@ -685,10 +699,10 @@ export function LessonEditorModal({
 
     try {
       isSubmittedRef.current = true;
-      let savedLessonId: string | undefined = lesson?.id;
-      if (isEditing && lesson) {
+      let savedLessonId: string | undefined = resolvedLessonId || undefined;
+      if (isEditingEffective && resolvedLessonId) {
         await updateMutation.mutateAsync({
-          lessonId: lesson.id,
+          lessonId: resolvedLessonId,
           data: payload,
         });
       } else {
@@ -828,14 +842,14 @@ export function LessonEditorModal({
       // Mark as submitted so unmount cleanup hook never deletes the uploaded video/files
       isSubmittedRef.current = true;
 
-      let targetLessonId = lesson?.id;
+      let targetLessonId = resolvedLessonId || undefined;
 
-      if (isEditing && lesson) {
+      if (isEditingEffective && resolvedLessonId) {
         await updateMutation.mutateAsync({
-          lessonId: lesson.id,
+          lessonId: resolvedLessonId,
           data: payload,
         });
-        targetLessonId = lesson.id;
+        targetLessonId = resolvedLessonId;
       } else {
         const newLesson = await createMutation.mutateAsync({
           moduleId,
