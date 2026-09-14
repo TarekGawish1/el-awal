@@ -1807,20 +1807,51 @@ export class CoursesService {
   /**
    * Uploads a video buffer directly to Bunny Stream via server proxy fallback.
    * Ensures all videos reside exclusively on Bunny Stream.
+   * When videoId is provided (the object created for the browser direct PUT),
+   * bytes are uploaded to THAT object so a failed direct PUT does not leave
+   * two 0-byte orphans. Empty files are rejected before any Bunny object is
+   * created, and 0-byte results are deleted instead of being saved to lessons.
    */
-  async uploadVideoDirect(file: Express.Multer.File, title?: string) {
-    if (!file || !file.buffer) {
-      throw new BadRequestException('ملف الفيديو مطلوب للرفع');
+  async uploadVideoDirect(file: Express.Multer.File, title?: string, videoId?: string) {
+    if (!file || !file.buffer || file.buffer.length === 0 || file.size === 0) {
+      throw new BadRequestException('ملف الفيديو فارغ (0 بايت). يرجى اختيار ملف فيديو صالح وإعادة الرفع.');
     }
     const videoTitle = title?.trim() || file.originalname || 'Course Video';
-    const result = await this.bunnyVideoService.uploadVideo(videoTitle, file.buffer);
-    return {
-      provider: 'bunny' as const,
-      videoId: result.videoId,
-      embedUrl: result.embedUrl,
-      playbackUrl: result.playbackUrl,
-      contentUrl: result.embedUrl,
-    };
+
+    // Reuse the browser's video object when available (direct PUT failed midway).
+    if (videoId && videoId.trim() !== '') {
+      const targetId = videoId.trim();
+      try {
+        await this.bunnyVideoService.uploadVideoBuffer(targetId, file.buffer);
+      } catch (error: any) {
+        throw new BadRequestException(
+          `فشل رفع الفيديو إلى Bunny Stream: ${error?.message || 'خطأ غير متوقع'}. احذف الفيديو العالق وأعد الرفع.`,
+        );
+      }
+      return {
+        provider: 'bunny' as const,
+        videoId: targetId,
+        embedUrl: this.bunnyVideoService.getEmbedUrl(targetId),
+        playbackUrl: this.bunnyVideoService.generateSecurePlaybackUrl(targetId),
+        contentUrl: this.bunnyVideoService.getEmbedUrl(targetId),
+      };
+    }
+
+    try {
+      const result = await this.bunnyVideoService.uploadVideo(videoTitle, file.buffer);
+      return {
+        provider: 'bunny' as const,
+        videoId: result.videoId,
+        embedUrl: result.embedUrl,
+        playbackUrl: result.playbackUrl,
+        contentUrl: result.embedUrl,
+      };
+    } catch (error: any) {
+      if (error instanceof BadRequestException) throw error;
+      throw new BadRequestException(
+        `فشل رفع الفيديو إلى Bunny Stream: ${error?.message || 'خطأ غير متوقع'}. أعد المحاولة.`,
+      );
+    }
   }
 
   /**
@@ -3010,10 +3041,20 @@ export class CoursesService {
     if (videoId) {
       try {
         const details = await this.bunnyVideoService.getVideoDetails(videoId);
-        if (details.status === 0 || details.status === 1 || details.status === 2 || details.status === 3) {
-          videoStatus = 'PROCESSING';
-        } else if (details.status === 5) {
+        if (details.status === 5) {
           videoStatus = 'ERROR';
+        } else if (details.status === 4) {
+          videoStatus = 'READY';
+        } else if (details.storageSize === 0) {
+          // Object exists in Bunny but no bytes ever landed (failed/empty upload).
+          // It will never finish transcoding: surface ERROR with no player URLs
+          // so the UI stops spinning and the teacher deletes + re-uploads.
+          this.logger.warn(
+            `Lesson [${lessonId}] references 0-byte Bunny video [${videoId}] (status ${details.statusText}) - needs re-upload`,
+          );
+          videoStatus = 'ERROR';
+        } else if (details.status === 0 || details.status === 1 || details.status === 2 || details.status === 3) {
+          videoStatus = 'PROCESSING';
         } else {
           videoStatus = 'READY';
         }
@@ -3022,8 +3063,10 @@ export class CoursesService {
         videoStatus = 'READY';
       }
 
-      playbackUrl = this.bunnyVideoService.generateSecurePlaybackUrl(videoId);
-      embedUrl = this.bunnyVideoService.getEmbedUrl(videoId);
+      if (videoStatus !== 'ERROR') {
+        playbackUrl = this.bunnyVideoService.generateSecurePlaybackUrl(videoId);
+        embedUrl = this.bunnyVideoService.getEmbedUrl(videoId);
+      }
     }
 
     const watermark = {

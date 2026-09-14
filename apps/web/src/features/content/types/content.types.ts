@@ -51,7 +51,7 @@ export interface PresignedVideoUploadResponse {
   uploadUrl: string;
   authorizationSignature: string;
   authorizationExpire: number;
-  accessKey: string;
+  accessKey?: string;
   embedUrl: string;
   playbackUrl: string;
 }

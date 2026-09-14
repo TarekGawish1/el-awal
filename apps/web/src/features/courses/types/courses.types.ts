@@ -159,7 +159,7 @@ export interface DirectUploadCredentials {
   uploadUrl: string;
   authorizationSignature: string;
   authorizationExpire: number;
-  accessKey: string;
+  accessKey?: string;
   embedUrl: string;
   playbackUrl: string;
   contentUrl?: string;

@@ -159,10 +159,13 @@ export const coursesApi = {
   },
 
   // Server-Side Fallback Direct Video Upload to Bunny Stream (Bypasses browser CORS, Brave Shields, and network blocks)
+  // When videoId is provided (the object created for the direct browser PUT),
+  // the server uploads bytes to THAT object instead of creating a second one.
   uploadVideoDirectToServer: async (
     file: File,
     title?: string,
     onProgress?: (percent: number, loaded: number, total: number) => void,
+    videoId?: string,
   ): Promise<{
     videoId: string;
     embedUrl: string;
@@ -172,6 +175,7 @@ export const coursesApi = {
     const formData = new FormData();
     formData.append('file', file);
     if (title) formData.append('title', title);
+    if (videoId) formData.append('videoId', videoId);
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();

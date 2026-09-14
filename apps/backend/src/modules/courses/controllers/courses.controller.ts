@@ -109,11 +109,15 @@ export class CoursesController {
   async uploadVideoStream(
     @UploadedFile() file: Express.Multer.File,
     @Body('title') title?: string,
+    @Body('videoId') videoId?: string,
   ) {
     if (!file) {
       throw new BadRequestException('ملف الفيديو مطلوب للرفع');
     }
-    return this.coursesService.uploadVideoDirect(file, title);
+    if (file.size === 0) {
+      throw new BadRequestException('ملف الفيديو فارغ (0 بايت). يرجى اختيار ملف فيديو صالح وإعادة الرفع.');
+    }
+    return this.coursesService.uploadVideoDirect(file, title, videoId);
   }
 
   @Post()

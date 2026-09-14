@@ -66,6 +66,15 @@ export function validateVideoFile(file: File): { isValid: boolean; error?: strin
     return { isValid: false, error: 'لم يتم تحديد أي ملف فيديو' };
   }
 
+  // Reject empty files before any Bunny object is created: a 0-byte upload
+  // leaves a video stuck in "Processing" forever (0 Bytes, 00:00:00).
+  if (!file.size || file.size === 0) {
+    return {
+      isValid: false,
+      error: 'ملف الفيديو فارغ (0 بايت). يرجى اختيار ملف فيديو صالح وإعادة المحاولة.',
+    };
+  }
+
   // Check 2 GB size limit
   if (file.size > MAX_VIDEO_SIZE_BYTES) {
     const currentSize = formatVideoSize(file.size);

@@ -14,6 +14,7 @@ export interface VideoDetailsResult {
   status: number; // 0 = Created, 1 = Uploaded, 2 = Processing, 3 = Transcoding, 4 = Finished, 5 = Error
   statusText: string;
   encodeProgress: number;
+  storageSize: number; // bytes stored in Bunny (0 = no data uploaded yet)
 }
 
 export interface UploadVideoResult {
@@ -28,7 +29,11 @@ export interface DirectUploadCredentialsResult {
   uploadUrl: string;
   authorizationSignature: string;
   authorizationExpire: number;
-  accessKey: string;
+  // NOTE: the Stream API key is intentionally NOT exposed here. Browsers must
+  // upload with the signature headers only (AuthorizationSignature,
+  // AuthorizationExpire, LibraryId, VideoId). Sending AccessKey from the
+  // browser both leaks the secret and triggers CORS preflight failures on
+  // video.bunnycdn.com, which is how 0-byte stuck videos were created.
   embedUrl: string;
   playbackUrl: string;
 }
@@ -159,7 +164,6 @@ export class BunnyVideoService {
       uploadUrl: `https://video.bunnycdn.com/library/${this.libraryId}/videos/${videoId}`,
       authorizationSignature,
       authorizationExpire: expirationTime,
-      accessKey: this.apiKey,
       embedUrl,
       playbackUrl,
     };
@@ -167,8 +171,14 @@ export class BunnyVideoService {
 
   /**
    * Uploads a raw binary video buffer to Bunny Stream for a specified video ID.
+   * Rejects empty buffers BEFORE touching the network so we never create
+   * 0-byte videos that sit in "Processing" forever, and verifies afterwards
+   * that Bunny actually stored bytes.
    */
   async uploadVideoBuffer(videoId: string, buffer: Buffer): Promise<void> {
+    if (!buffer || buffer.length === 0) {
+      throw new BadRequestException('ملف الفيديو فارغ (0 بايت). يرجى اختيار ملف فيديو صالح وإعادة الرفع.');
+    }
     try {
       const uploadUrl = `https://video.bunnycdn.com/library/${this.libraryId}/videos/${videoId}`;
       const response = await fetch(uploadUrl, {
@@ -186,8 +196,25 @@ export class BunnyVideoService {
         throw new Error(`Failed to upload video to Bunny Stream (status ${response.status})`);
       }
 
+      // Verify Bunny actually stored bytes - a 2xx with 0 stored bytes means
+      // the upload did not land (truncated body / timeout) and would otherwise
+      // leave a video stuck in "Processing" forever.
+      try {
+        const details = await this.getVideoDetails(videoId);
+        if (details.storageSize === 0 && details.status !== 4) {
+          throw new Error('Bunny stored 0 bytes for this upload');
+        }
+      } catch (verifyErr: any) {
+        if (verifyErr instanceof BadRequestException) throw verifyErr;
+        this.logger.error(
+          `Bunny upload verification failed for [${videoId}]: ${verifyErr?.message || verifyErr}`,
+        );
+        throw new Error('Upload reached Bunny but could not be verified - please retry');
+      }
+
       this.logger.log(`✅ Video [${videoId}] buffer successfully uploaded to Bunny Stream`);
     } catch (error) {
+      if (error instanceof BadRequestException) throw error;
       this.logger.error(`Error uploading video buffer to Bunny Stream for [${videoId}]:`, error);
       throw error;
     }
@@ -197,8 +224,17 @@ export class BunnyVideoService {
    * Creates a video record in Bunny Stream and uploads the buffer in one integrated operation.
    */
   async uploadVideo(title: string, buffer: Buffer): Promise<UploadVideoResult> {
+    if (!buffer || buffer.length === 0) {
+      throw new BadRequestException('ملف الفيديو فارغ (0 بايت). يرجى اختيار ملف فيديو صالح وإعادة الرفع.');
+    }
     const { videoId } = await this.createDirectUploadVideo(title);
-    await this.uploadVideoBuffer(videoId, buffer);
+    try {
+      await this.uploadVideoBuffer(videoId, buffer);
+    } catch (error) {
+      // Don't leave a 0-byte orphan behind when the bytes never landed.
+      await this.deleteVideo(videoId).catch(() => {});
+      throw error;
+    }
 
     const embedUrl = this.getEmbedUrl(videoId);
     const playbackUrl = this.tokenSecurityKey
@@ -299,6 +335,7 @@ export class BunnyVideoService {
         status: data.status,
         statusText: statusMap[data.status] || 'UNKNOWN',
         encodeProgress: data.encodeProgress || 0,
+        storageSize: Number(data.storageSize ?? data.size ?? 0) || 0,
       };
     } catch (error) {
       this.logger.error(`Failed to get Bunny Stream video details for [${videoId}]:`, error);
