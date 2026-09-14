@@ -3045,10 +3045,12 @@ export class CoursesService {
           videoStatus = 'ERROR';
         } else if (details.status === 4) {
           videoStatus = 'READY';
-        } else if (details.storageSize === 0) {
-          // Object exists in Bunny but no bytes ever landed (failed/empty upload).
-          // It will never finish transcoding: surface ERROR with no player URLs
-          // so the UI stops spinning and the teacher deletes + re-uploads.
+        } else if (details.status === 0 && details.storageSize === 0) {
+          // Object exists in Bunny but nothing was ever uploaded (failed/empty
+          // upload). It will never finish transcoding: surface ERROR with no
+          // player URLs so the UI stops spinning and the teacher deletes +
+          // re-uploads. Status 1-3 with 0 bytes is left as PROCESSING since
+          // Bunny's size field can briefly lag a healthy fresh upload.
           this.logger.warn(
             `Lesson [${lessonId}] references 0-byte Bunny video [${videoId}] (status ${details.statusText}) - needs re-upload`,
           );

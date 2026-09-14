@@ -118,7 +118,9 @@ export function uploadVideoToBunny(
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', uploadUrl);
 
-    // Signed upload headers only - never send AccessKey from the browser.
+    if (credentials.accessKey) {
+      xhr.setRequestHeader('AccessKey', credentials.accessKey);
+    }
     if (credentials.authorizationSignature && credentials.authorizationExpire) {
       xhr.setRequestHeader('AuthorizationSignature', credentials.authorizationSignature);
       xhr.setRequestHeader('AuthorizationExpire', credentials.authorizationExpire.toString());

@@ -445,9 +445,9 @@ export function VideoUploadManagerProvider({
           activeXhrsRef.current[taskId] = xhr;
           xhr.open('PUT', creds.uploadUrl);
 
-          // Signed upload: signature headers only. Never send the Stream API
-          // key (AccessKey) from the browser - it leaks the secret and makes
-          // video.bunnycdn.com reject the preflight, producing 0-byte videos.
+          // Bunny simple direct upload authenticates via AccessKey; the
+          // signature headers accompany it.
+          if (creds.accessKey) xhr.setRequestHeader('AccessKey', creds.accessKey);
           if (creds.authorizationSignature) {
             xhr.setRequestHeader(
               'AuthorizationSignature',

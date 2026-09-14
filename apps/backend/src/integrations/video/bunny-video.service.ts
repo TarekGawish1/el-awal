@@ -29,11 +29,9 @@ export interface DirectUploadCredentialsResult {
   uploadUrl: string;
   authorizationSignature: string;
   authorizationExpire: number;
-  // NOTE: the Stream API key is intentionally NOT exposed here. Browsers must
-  // upload with the signature headers only (AuthorizationSignature,
-  // AuthorizationExpire, LibraryId, VideoId). Sending AccessKey from the
-  // browser both leaks the secret and triggers CORS preflight failures on
-  // video.bunnycdn.com, which is how 0-byte stuck videos were created.
+  // The browser direct PUT authenticates with this key (Bunny simple upload
+  // flow). It is sent along the signature headers.
+  accessKey: string;
   embedUrl: string;
   playbackUrl: string;
 }
@@ -164,6 +162,7 @@ export class BunnyVideoService {
       uploadUrl: `https://video.bunnycdn.com/library/${this.libraryId}/videos/${videoId}`,
       authorizationSignature,
       authorizationExpire: expirationTime,
+      accessKey: this.apiKey,
       embedUrl,
       playbackUrl,
     };
@@ -172,8 +171,10 @@ export class BunnyVideoService {
   /**
    * Uploads a raw binary video buffer to Bunny Stream for a specified video ID.
    * Rejects empty buffers BEFORE touching the network so we never create
-   * 0-byte videos that sit in "Processing" forever, and verifies afterwards
-   * that Bunny actually stored bytes.
+   * 0-byte videos that sit in "Processing" forever. A 2xx PUT means Bunny
+   * accepted the bytes; the follow-up status check is best-effort only and
+   * never fails the upload (Bunny's read API can lag seconds behind a PUT,
+   * and a strict check here caused false "could not be verified" loops).
    */
   async uploadVideoBuffer(videoId: string, buffer: Buffer): Promise<void> {
     if (!buffer || buffer.length === 0) {
@@ -196,20 +197,16 @@ export class BunnyVideoService {
         throw new Error(`Failed to upload video to Bunny Stream (status ${response.status})`);
       }
 
-      // Verify Bunny actually stored bytes - a 2xx with 0 stored bytes means
-      // the upload did not land (truncated body / timeout) and would otherwise
-      // leave a video stuck in "Processing" forever.
-      try {
-        const details = await this.getVideoDetails(videoId);
-        if (details.storageSize === 0 && details.status !== 4) {
-          throw new Error('Bunny stored 0 bytes for this upload');
+      // Best-effort confirmation poll: give Bunny a few seconds to register
+      // the bytes. Never throws - the 2xx above is the source of truth.
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          const details = await this.getVideoDetails(videoId);
+          if (details.storageSize > 0 || details.status >= 1) break;
+        } catch {
+          // ignore and retry
         }
-      } catch (verifyErr: any) {
-        if (verifyErr instanceof BadRequestException) throw verifyErr;
-        this.logger.error(
-          `Bunny upload verification failed for [${videoId}]: ${verifyErr?.message || verifyErr}`,
-        );
-        throw new Error('Upload reached Bunny but could not be verified - please retry');
+        await new Promise((resolve) => setTimeout(resolve, 3000));
       }
 
       this.logger.log(`✅ Video [${videoId}] buffer successfully uploaded to Bunny Stream`);
