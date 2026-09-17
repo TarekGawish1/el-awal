@@ -59,6 +59,33 @@ export function formatEtaArabic(seconds: number): string {
 }
 
 /**
+ * Formats lesson video duration into natural Arabic representation.
+ * Prevents videos under 60 seconds (e.g. 6 seconds) from displaying as "0 دقيقة".
+ */
+export function formatLessonDurationArabic(seconds?: number | null): string {
+  if (!seconds || seconds <= 0 || isNaN(seconds)) return '0 دقيقة';
+  const totalSeconds = Math.round(seconds);
+  if (totalSeconds < 60) {
+    return `${totalSeconds} ثانية`;
+  }
+  const hours = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+  const remainingSecs = totalSeconds % 60;
+
+  if (hours > 0) {
+    if (mins > 0) {
+      return `${hours} ساعة و ${mins} دقيقة`;
+    }
+    return `${hours} ساعة`;
+  }
+
+  if (remainingSecs > 0 && mins < 5) {
+    return `${mins} دقيقة و ${remainingSecs} ثانية`;
+  }
+  return `${mins} دقيقة`;
+}
+
+/**
  * Validates whether the video file is within the 2 GB limit and has a valid video format.
  */
 export function validateVideoFile(file: File): { isValid: boolean; error?: string } {
@@ -125,7 +152,7 @@ export function extractVideoMetadata(file: File): Promise<VideoMetadata> {
         bitrateMbps: 0,
         needsCompressionSuggestion: file.size > 800 * 1024 * 1024,
       });
-    }, 2500);
+    }, 6000);
 
     const cleanup = () => {
       clearTimeout(timer);
@@ -133,10 +160,15 @@ export function extractVideoMetadata(file: File): Promise<VideoMetadata> {
       video.remove();
     };
 
-    video.onloadedmetadata = () => {
+    const handleSuccess = () => {
       if (isSettled) return;
+      const rawDuration = video.duration;
+      if (!rawDuration || isNaN(rawDuration) || rawDuration <= 0) {
+        return; // wait for durationchange if metadata fired before duration was parsed
+      }
       isSettled = true;
-      const durationSeconds = Math.round(video.duration) || 0;
+      cleanup();
+      const durationSeconds = Math.round(rawDuration) || 0;
       const width = video.videoWidth || 1920;
       const height = video.videoHeight || 1080;
       const fileSizeBytes = file.size;
@@ -163,9 +195,9 @@ export function extractVideoMetadata(file: File): Promise<VideoMetadata> {
       const aspectRatio = `${width / divisor}:${height / divisor}`;
 
       // Suggest compression if video is > 500MB and has high bitrate
-      const needsCompressionSuggestion = fileSizeBytes > 500 * 1024 * 1024 && bitrateMbps > 8;
+      const needsCompressionSuggestion =
+        fileSizeBytes > 500 * 1024 * 1024 && bitrateMbps > 8;
 
-      cleanup();
       resolve({
         durationSeconds,
         width,
@@ -178,6 +210,10 @@ export function extractVideoMetadata(file: File): Promise<VideoMetadata> {
         needsCompressionSuggestion,
       });
     };
+
+    video.onloadedmetadata = handleSuccess;
+    video.ondurationchange = handleSuccess;
+    video.onloadeddata = handleSuccess;
 
     video.onerror = () => {
       if (isSettled) return;

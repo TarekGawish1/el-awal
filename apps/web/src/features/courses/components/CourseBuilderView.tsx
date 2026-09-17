@@ -52,6 +52,7 @@ import { CourseGroupAccessModal } from './CourseGroupAccessModal';
 import { CourseEnrollmentsTab } from './CourseEnrollmentsTab';
 import { useQueryClient } from '@tanstack/react-query';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { formatLessonDurationArabic } from '../utils/video-optimizer';
 import toast from 'react-hot-toast';
 
 interface CourseBuilderViewProps {
@@ -1222,7 +1223,7 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
                                       {les.videoDurationSeconds ? (
                                         <span className="flex items-center gap-1 shrink-0">
                                           <Clock className="w-3 h-3 text-slate-400" />
-                                          {Math.floor(les.videoDurationSeconds / 60)} دقيقة
+                                          {formatLessonDurationArabic(les.videoDurationSeconds)}
                                         </span>
                                       ) : null}
                                       {hasVideo && (

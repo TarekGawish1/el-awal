@@ -578,26 +578,11 @@ export function LessonEditorModal({
         setIsInspectingVideo(false);
       }
 
-      // If lesson does not exist yet, create it immediately so the upload has a permanent lessonId
-      let targetLessonId = lesson?.id;
-      if (!targetLessonId) {
-        const created = await createMutation.mutateAsync({
-          moduleId,
-          data: {
-            title: title.trim() || file.name.replace(/\.[^/.]+$/, ""),
-            description: description.trim() || undefined,
-            summary: summary.trim() || undefined,
-            lessonType,
-            videoDurationSeconds: metaDuration || 0,
-            isFreePreview,
-            isPreview: isFreePreview,
-          },
-        });
-        targetLessonId = created.id;
-        autoCreatedLessonIdRef.current = created.id;
-        setAutoCreatedLessonId(created.id);
-        isSubmittedRef.current = true;
+      if (!title.trim()) {
+        setTitle(file.name.replace(/\.[^/.]+$/, ""));
       }
+
+      const targetLessonId = lesson?.id || undefined;
 
       await startBackgroundUpload({
         file,
@@ -611,10 +596,11 @@ export function LessonEditorModal({
           if (result.durationSeconds > 0) {
             setVideoDurationSeconds(result.durationSeconds);
           }
+          setIsUploadingVideo(false);
         },
       });
 
-      toast.success("بدأ رفع الفيديو في الخلفية! يمكنك متابعة العمل أو إغلاق النافذة بأمان.");
+      toast.success("بدأ رفع ومعالجة الفيديو بنجاح! يرجى الانتظار حتى اكتمال الرفع.");
     } catch (err: any) {
       setIsInspectingVideo(false);
       setIsUploadingVideo(false);
@@ -822,6 +808,17 @@ export function LessonEditorModal({
         : undefined) ||
       (!(streamAuth?.embedUrl && isBunnyUrl2(streamAuth.embedUrl)) ? streamAuth?.embedUrl : undefined);
     const effectiveContentUrl = effectiveVideoId ? undefined : rawContentCandidate2;
+
+    if (isUploadingVideo) {
+      toast.error("يرجى الانتظار حتى يكتمل رفع ومعالجة الفيديو قبل حفظ الدرس ⏳");
+      return;
+    }
+
+    if (!effectiveVideoId && !effectiveContentUrl) {
+      toast.error("يجب رفع أو اختيار فيديو لهذا الدرس 🎥 (لا يمكن حفظ الدرس بدون فيديو)");
+      setActiveTab("video");
+      return;
+    }
 
     const payload = {
       title: title.trim(),
@@ -2089,13 +2086,24 @@ export function LessonEditorModal({
           <button
             type="button"
             onClick={handleSaveLesson}
-            disabled={createMutation.isPending || updateMutation.isPending}
-            className="px-6 py-2.5 rounded-xl text-xs font-bold bg-primary-600 hover:bg-primary-700 text-white transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
+            disabled={
+              createMutation.isPending ||
+              updateMutation.isPending ||
+              isUploadingVideo ||
+              (!bunnyVideoId && !backgroundUploadTask?.videoId && !videoEmbedUrl && !streamAuth?.videoId)
+            }
+            className="px-6 py-2.5 rounded-xl text-xs font-bold bg-primary-600 hover:bg-primary-700 text-white transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
           >
-            {(createMutation.isPending || updateMutation.isPending) && (
+            {(createMutation.isPending || updateMutation.isPending || isUploadingVideo) && (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
             )}
-            <span>{isEditing ? "حفظ التعديلات" : "إضافة الدرس للمنهج"}</span>
+            <span>
+              {isUploadingVideo
+                ? "جاري رفع الفيديو..."
+                : isEditing
+                ? "حفظ التعديلات"
+                : "إضافة الدرس للمنهج"}
+            </span>
           </button>
         </div>
       </div>

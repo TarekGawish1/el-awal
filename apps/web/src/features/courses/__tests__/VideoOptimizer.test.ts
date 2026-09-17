@@ -4,6 +4,7 @@ import {
   formatVideoSize,
   formatDuration,
   formatEtaArabic,
+  formatLessonDurationArabic,
   MAX_VIDEO_SIZE_BYTES,
 } from '../utils/video-optimizer';
 
@@ -78,5 +79,16 @@ describe('Video Optimizer & 2GB Limit Engine', () => {
     expect(formatDuration(3665)).toBe('1:01:05');
     expect(formatEtaArabic(45)).toBe('45 ثانية');
     expect(formatEtaArabic(125)).toBe('2 دقيقة و 5 ثانية');
+  });
+
+  it('formats lesson duration in Arabic without truncating short videos to 0', () => {
+    expect(formatLessonDurationArabic(6)).toBe('6 ثانية');
+    expect(formatLessonDurationArabic(45)).toBe('45 ثانية');
+    expect(formatLessonDurationArabic(0)).toBe('0 دقيقة');
+    expect(formatLessonDurationArabic(null)).toBe('0 دقيقة');
+    expect(formatLessonDurationArabic(120)).toBe('2 دقيقة');
+    expect(formatLessonDurationArabic(135)).toBe('2 دقيقة و 15 ثانية');
+    expect(formatLessonDurationArabic(3600)).toBe('1 ساعة');
+    expect(formatLessonDurationArabic(3720)).toBe('1 ساعة و 2 دقيقة');
   });
 });

@@ -1132,6 +1132,22 @@ export class CoursesService {
       normalizedContentUrl = undefined as any;
     }
 
+    const effectiveLessonType = dto.lessonType || 'VIDEO';
+    const hasVideo = !!normalizedBunnyId || (!!normalizedContentUrl && !this.isBunnyEmbedUrl(normalizedContentUrl));
+    if (effectiveLessonType === 'VIDEO' && !hasVideo) {
+      throw new BadRequestException('لا يمكن إنشاء درس بدون فيديو. يرجى رفع أو تحديد فيديو للدرس.');
+    }
+
+    let effectiveDurationSeconds = dto.videoDurationSeconds;
+    if ((!effectiveDurationSeconds || effectiveDurationSeconds <= 0) && normalizedBunnyId) {
+      try {
+        const bDetails = await this.bunnyVideoService.getVideoDetails(normalizedBunnyId);
+        if (bDetails?.duration > 0) {
+          effectiveDurationSeconds = Math.round(bDetails.duration);
+        }
+      } catch {}
+    }
+
     try {
       return await this.prisma.courseLesson.create({
         data: {
@@ -1140,10 +1156,10 @@ export class CoursesService {
           description: dto.description,
           summary: dto.summary || null,
           orderIndex,
-          lessonType: dto.lessonType || 'VIDEO',
+          lessonType: effectiveLessonType,
           bunnyVideoId: normalizedBunnyId || dto.bunnyVideoId,
           contentUrl: normalizedContentUrl,
-          videoDurationSeconds: dto.videoDurationSeconds,
+          videoDurationSeconds: effectiveDurationSeconds,
           isPreview: dto.isFreePreview !== undefined ? dto.isFreePreview : (dto.isPreview !== undefined ? dto.isPreview : false),
           lessonQuizId: dto.lessonQuizId || null,
           attachments: dto.attachments?.length
@@ -1232,6 +1248,26 @@ export class CoursesService {
       sanitizedBunnyId = newContentBunnyId;
     }
 
+    const effectiveLessonType = dto.lessonType || lesson.lessonType || 'VIDEO';
+    if (effectiveLessonType === 'VIDEO') {
+      const willHaveBunny = sanitizedBunnyId !== undefined ? !!sanitizedBunnyId : !!lesson.bunnyVideoId;
+      const willHaveContent = sanitizedContentUrl !== undefined ? !!sanitizedContentUrl : !!lesson.contentUrl;
+      if (!willHaveBunny && !willHaveContent) {
+        throw new BadRequestException('لا يمكن إزالة الفيديو من الدرس. يجب أن يحتوي الدرس على فيديو.');
+      }
+    }
+
+    let effectiveDurationSeconds = dto.videoDurationSeconds;
+    const targetBunnyId = sanitizedBunnyId || (lesson.bunnyVideoId && !dto.bunnyVideoId ? lesson.bunnyVideoId : undefined);
+    if ((!effectiveDurationSeconds || effectiveDurationSeconds <= 0) && targetBunnyId && (!lesson.videoDurationSeconds || sanitizedBunnyId)) {
+      try {
+        const bDetails = await this.bunnyVideoService.getVideoDetails(targetBunnyId);
+        if (bDetails?.duration > 0) {
+          effectiveDurationSeconds = Math.round(bDetails.duration);
+        }
+      } catch {}
+    }
+
     let updatedLesson;
     try {
       updatedLesson = await this.prisma.courseLesson.update({
@@ -1244,7 +1280,7 @@ export class CoursesService {
           ...(dto.lessonType ? { lessonType: dto.lessonType } : {}),
           ...(sanitizedBunnyId !== undefined ? { bunnyVideoId: sanitizedBunnyId } : {}),
           ...(sanitizedContentUrl !== undefined ? { contentUrl: sanitizedContentUrl } : {}),
-          ...(dto.videoDurationSeconds !== undefined ? { videoDurationSeconds: dto.videoDurationSeconds } : {}),
+          ...(effectiveDurationSeconds !== undefined ? { videoDurationSeconds: effectiveDurationSeconds } : {}),
           ...(isPreviewVal !== undefined ? { isPreview: isPreviewVal } : {}),
           ...(dto.lessonQuizId !== undefined ? { lessonQuizId: dto.lessonQuizId } : {}),
         },
@@ -3037,38 +3073,38 @@ export class CoursesService {
     let embedUrl = '';
     let playbackUrl = '';
     let videoStatus: 'READY' | 'PROCESSING' | 'ERROR' = 'READY';
+    let bunnyDetails: any = null;
 
     if (videoId) {
       try {
-        const details = await this.bunnyVideoService.getVideoDetails(videoId);
-        if (details.status === 5) {
+        bunnyDetails = await this.bunnyVideoService.getVideoDetails(videoId);
+        if (bunnyDetails.status === 5 || bunnyDetails.status === 6) {
           videoStatus = 'ERROR';
-        } else if (details.status === 4) {
+        } else if (bunnyDetails.status === 4) {
           videoStatus = 'READY';
-        } else if (details.storageSize === 0) {
-          // Object exists in Bunny but holds zero bytes. Bunny itself badges
-          // these as "Processing" yet they can never finish transcoding
-          // (there is nothing to transcode): surface ERROR with no player URLs
-          // so the UI stops spinning forever and the teacher deletes +
-          // re-uploads. storageSize is only acted on when positively zero, so
-          // unknown sizes (undefined) keep the old status-based behavior.
-          // Note: streamAuth runs on preview, well after any PUT completed,
-          // so a zero here is not a transient upload lag.
+        } else if (
+          bunnyDetails.status === 0 ||
+          bunnyDetails.status === 1 ||
+          bunnyDetails.status === 2 ||
+          bunnyDetails.status === 3
+        ) {
+          // Video is created, uploaded, processing, or transcoding in Bunny Stream.
+          // In Bunny Stream, storageSize is ALWAYS 0 bytes while transcoding is underway.
+          videoStatus = 'PROCESSING';
+        } else if (bunnyDetails.storageSize === 0 && bunnyDetails.duration === 0) {
           this.logger.warn(
-            `Lesson [${lessonId}] references 0-byte Bunny video [${videoId}] (status ${details.statusText}) - needs re-upload`,
+            `Lesson [${lessonId}] references empty Bunny video [${videoId}] (status ${bunnyDetails.statusText}) - needs re-upload`,
           );
           videoStatus = 'ERROR';
-        } else if (details.status === 0 || details.status === 1 || details.status === 2 || details.status === 3) {
-          videoStatus = 'PROCESSING';
         } else {
           videoStatus = 'READY';
         }
 
-        // Self-heal missing durations: browser metadata extraction often yields
+        // Self-heal missing or 0 durations: browser metadata extraction often yields
         // 0 (hence "0 دقيقة" everywhere), while Bunny knows the real length.
-        if (details.duration > 0 && !lesson.videoDurationSeconds) {
+        if (bunnyDetails.duration > 0 && (!lesson.videoDurationSeconds || lesson.videoDurationSeconds === 0)) {
           this.prisma.courseLesson
-            .update({ where: { id: lessonId }, data: { videoDurationSeconds: Math.round(details.duration) } })
+            .update({ where: { id: lessonId }, data: { videoDurationSeconds: Math.round(bunnyDetails.duration) } })
             .catch((err) => this.logger.warn(`Failed to backfill duration for lesson [${lessonId}]`, err));
         }
       } catch (err) {
@@ -3105,6 +3141,9 @@ export class CoursesService {
       title: lesson.title,
       videoId,
       videoStatus,
+      duration: bunnyDetails?.duration
+        ? Math.round(bunnyDetails.duration)
+        : (lesson.videoDurationSeconds || 0),
       libraryId: this.bunnyVideoService.getLibraryId(),
       embedUrl,
       playbackUrl,

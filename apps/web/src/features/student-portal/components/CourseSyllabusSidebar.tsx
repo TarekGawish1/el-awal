@@ -15,6 +15,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import { CourseModule, CourseLesson, AssessmentSummary } from '@/features/courses/types/courses.types';
+import { formatLessonDurationArabic } from '@/features/courses/utils/video-optimizer';
 import toast from 'react-hot-toast';
 
 interface CourseSyllabusSidebarProps {
@@ -421,7 +422,7 @@ export function CourseSyllabusSidebar({
                           <p className="truncate text-xs">{les.title}</p>
                           <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-0.5">
                             {les.videoDurationSeconds ? (
-                              <span>{Math.floor(les.videoDurationSeconds / 60)} دقيقة</span>
+                              <span>{formatLessonDurationArabic(les.videoDurationSeconds)}</span>
                             ) : null}
                             {les.isPreview && (
                               <span className="text-emerald-600 font-bold">• مجاني</span>

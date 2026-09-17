@@ -28,6 +28,7 @@ import {
   Trophy,
   ShieldAlert,
   EyeOff,
+  AlertCircle,
 } from 'lucide-react';
 import { useCourseDetail, useLessonViewer, useLessonStreamAuth } from '@/features/courses/hooks/useCourses';
 import { coursesApi } from '@/features/courses/api/courses.api';
@@ -1418,6 +1419,21 @@ export function StudentCourseLearningRoom({ courseId, initialLessonId }: Student
                   }`}
                   style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                 />
+              ) : streamAuth?.videoStatus === 'ERROR' ? (
+                <div className="flex flex-col items-center gap-3 text-white p-6 text-center">
+                  <AlertCircle className="w-10 h-10 text-rose-500 stroke-[1.5]" />
+                  <p className="text-sm font-bold text-rose-400">تعذر تحميل أو تشغيل الفيديو</p>
+                  <p className="text-xs text-slate-400 max-w-sm">
+                    يبدو أن هناك مشكلة في معالجة هذا الفيديو في السيرفر أو لم يكتمل تحويله بنجاح. يرجى تجربة إعادة الرفع من لوحة المعلم أو التواصل مع الدعم الفني.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => refetchStreamAuth()}
+                    className="mt-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-colors border border-slate-700 cursor-pointer"
+                  >
+                    إعادة المحاولة
+                  </button>
+                </div>
               ) : (
                 <div className="flex flex-col items-center gap-3 text-slate-400 p-8 text-center">
                   <Video className="w-12 h-12 text-slate-600 stroke-[1.5]" />

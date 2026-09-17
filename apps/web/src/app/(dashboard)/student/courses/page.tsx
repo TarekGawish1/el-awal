@@ -10,6 +10,7 @@ import {
   useEnrollInCourse,
   useStudentProfile,
 } from '@/features/student-portal/hooks/useStudentPortal';
+import { formatLessonDurationArabic } from '@/features/courses/utils/video-optimizer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -1018,7 +1019,7 @@ function CourseDetailsView({ courseId, onBack, onStartLesson }: { courseId: stri
                                 {lesson.videoDurationSeconds > 0 && (
                                   <>
                                     <span>•</span>
-                                    <span>{Math.round(lesson.videoDurationSeconds / 60)} دقيقة</span>
+                                    <span>{formatLessonDurationArabic(lesson.videoDurationSeconds)}</span>
                                   </>
                                 )}
                                 {lesson.isPreview && (

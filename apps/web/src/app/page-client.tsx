@@ -26,6 +26,7 @@ import { testimonialsApi } from "@/features/testimonials/api/testimonials.api";
 import { GRADE_LEVELS_BY_STAGE } from "@/lib/constants/grades";
 import { CookieConsentSettingsTrigger } from "@/components/analytics/CookieConsentBanner";
 import { resolveAssetUrl } from "@/lib/utils/asset-url";
+import { formatLessonDurationArabic } from "@/features/courses/utils/video-optimizer";
 
 function IntroSequence({ onComplete }: { onComplete: () => void }) {
   useEffect(() => {
@@ -1086,16 +1087,9 @@ function CoursesSection() {
                                                         lessonIndex + 1}
                                                       : {lesson.title}
                                                     </div>
-                                                    {lesson.videoDurationSeconds >
-                                                      0 && (
+                                                    {lesson.videoDurationSeconds > 0 && (
                                                       <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-400">
-                                                        <span>
-                                                          {Math.round(
-                                                            lesson.videoDurationSeconds /
-                                                              60,
-                                                          )}{" "}
-                                                          دقيقة
-                                                        </span>
+                                                        <span>{formatLessonDurationArabic(lesson.videoDurationSeconds)}</span>
                                                       </div>
                                                     )}
                                                   </div>
