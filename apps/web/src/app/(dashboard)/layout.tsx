@@ -76,16 +76,9 @@ export default function DashboardLayout({
   const { setSession } = useAuthStore();
   const isOnline = useOnlineStatus();
   const availableRoles = getAvailableRoles(user);
-  const cleanPhone = (user?.phone || '').replace(/\D/g, '');
-  const isDualRoleUser =
-    cleanPhone.endsWith('01067789574') ||
-    cleanPhone.endsWith('1067789574') ||
-    user?.fullName?.trim().toLowerCase() === 'yara' ||
-    user?.id === '88faab9f-9432-47a2-b8ed-dcbbbd3d0339' ||
-    user?.email === 'assitant@alawal.com' ||
-    availableRoles.length > 1;
-
-  const canSwitchRoles = isDualRoleUser;
+  // Role switching is strictly disabled for students, and only enabled for staff/parents with genuine multiple roles
+  const isStudent = user?.role === 'STUDENT' || (Boolean(pathname) && pathname.startsWith('/student'));
+  const canSwitchRoles = !isStudent && availableRoles.length > 1;
   
   const mainScrollRef = useRef<HTMLDivElement>(null);
 

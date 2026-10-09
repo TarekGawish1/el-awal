@@ -15,6 +15,10 @@ export function LoginContainer() {
   // If already authenticated, redirect to role picker (multi-role) or role dashboard
   useEffect(() => {
     if (isInitialized && isAuthenticated && user) {
+      if (user.role === 'STUDENT') {
+        router.replace('/student/dashboard');
+        return;
+      }
       if (hasMultipleRoles(user)) {
         router.replace('/select-role');
         return;

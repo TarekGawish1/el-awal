@@ -86,7 +86,13 @@ export function useAuth() {
         });
       }
 
-      // 4. If user has multiple profiles, redirect to role selection screen
+      // 4. If user is a student, navigate directly to student dashboard
+      if (data.user.role === 'STUDENT') {
+        router.push('/student/dashboard');
+        return;
+      }
+
+      // If user has multiple profiles, redirect to role selection screen
       if (hasMultipleRoles(data.user)) {
         router.push('/select-role');
         return;

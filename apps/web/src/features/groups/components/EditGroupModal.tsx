@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { X, Loader2, Plus, Trash2, Clock, ChevronDown, MapPin } from 'lucide-react';
+import { X, Loader2, Plus, Trash2, Clock, ChevronDown, MapPin, Users } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Alert } from '@/components/ui/Alert';
@@ -544,17 +544,42 @@ export function EditGroupModal({ isOpen, onClose, group }: EditGroupModalProps) 
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">المصروفات الشهرية</label>
-              <Input
-                type="number"
-                min={0}
-                step={5}
-                placeholder="0"
-                value={formData.monthlyFee === undefined ? '' : formData.monthlyFee}
-                onChange={e => setFormData({ ...formData, monthlyFee: e.target.value ? parseFloat(e.target.value) : undefined })}
-                disabled={updateGroup.isPending}
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1.5">
+                  <Users className="w-4 h-4 text-primary-500" />
+                  الحد الأقصى لعدد الطلاب *
+                </label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={500}
+                  required
+                  placeholder="50"
+                  value={formData.maxCapacity === undefined ? '' : formData.maxCapacity}
+                  onChange={e => setFormData({ ...formData, maxCapacity: e.target.value ? parseInt(e.target.value, 10) : undefined })}
+                  disabled={updateGroup.isPending}
+                />
+                <span className="text-[11px] text-slate-400 mt-0.5 block">
+                  سعة المجموعة (افتراضياً: 50 طالب)
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">المصروفات الشهرية (ج.م)</label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={5}
+                  placeholder="0"
+                  value={formData.monthlyFee === undefined ? '' : formData.monthlyFee}
+                  onChange={e => setFormData({ ...formData, monthlyFee: e.target.value ? parseFloat(e.target.value) : undefined })}
+                  disabled={updateGroup.isPending}
+                />
+                <span className="text-[11px] text-slate-400 mt-0.5 block">
+                  قيمة الاشتراك الشهري (اختياري)
+                </span>
+              </div>
             </div>
           </div>
           </div>
