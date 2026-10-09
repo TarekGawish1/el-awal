@@ -59,10 +59,20 @@ export function RoleSelectionContainer() {
     }
   }, [isInitialized, isAuthenticated, router]);
 
-  // If user has only one role, skip and redirect directly
+  // If user has only one role, or is teacher/student, skip and redirect directly
   useEffect(() => {
-    if (isInitialized && isAuthenticated && user && availableRoles.length <= 1) {
-      router.replace(getRoleLandingRoute(user.role));
+    if (isInitialized && isAuthenticated && user) {
+      if (user.role === 'TEACHER') {
+        router.replace('/teacher/dashboard');
+        return;
+      }
+      if (user.role === 'STUDENT') {
+        router.replace('/student/dashboard');
+        return;
+      }
+      if (availableRoles.length <= 1) {
+        router.replace(getRoleLandingRoute(user.role));
+      }
     }
   }, [isInitialized, isAuthenticated, user, availableRoles.length, router]);
 
@@ -87,7 +97,7 @@ export function RoleSelectionContainer() {
     }
   };
 
-  if (!isInitialized || !isAuthenticated || !user || availableRoles.length <= 1) {
+  if (!isInitialized || !isAuthenticated || !user || user.role === 'TEACHER' || user.role === 'STUDENT' || availableRoles.length <= 1) {
     return (
       <div className="min-h-screen bg-neutral-50 flex items-center justify-center text-sm text-neutral-500">
         جاري التحميل...

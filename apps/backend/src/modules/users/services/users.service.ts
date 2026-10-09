@@ -33,10 +33,12 @@ export class UsersService {
     }
 
     const permissions = user.assistantToTeachers?.[0]?.permissions || [];
-    const secretariatProfileId = user.secretariatProfile?.id || (user.assistantToTeachers?.length ? user.id : undefined);
-    const teacherProfileId = user.teacherProfile?.id;
-    const parentProfileId = user.parentProfile?.id;
-    const studentProfileId = user.studentProfile?.id;
+    const secretariatProfileId = (user.role === 'STUDENT' || user.role === 'TEACHER')
+      ? undefined
+      : (user.secretariatProfile?.id || (user.assistantToTeachers?.length ? user.id : undefined));
+    const teacherProfileId = (user.role === 'TEACHER') ? user.teacherProfile?.id : undefined;
+    const parentProfileId = (user.role === 'TEACHER' || user.role === 'STUDENT') ? undefined : user.parentProfile?.id;
+    const studentProfileId = (user.role === 'STUDENT') ? user.studentProfile?.id : undefined;
 
     return {
       ...user,

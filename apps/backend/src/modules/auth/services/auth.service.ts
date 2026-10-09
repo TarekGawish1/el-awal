@@ -446,6 +446,16 @@ export class AuthService {
       }
     }
 
+    if (effectiveRole === UserRole.TEACHER) {
+      parentProfileId = undefined;
+      studentProfileId = undefined;
+      secretariatProfileId = undefined;
+    } else if (effectiveRole === UserRole.STUDENT) {
+      parentProfileId = undefined;
+      teacherProfileId = undefined;
+      secretariatProfileId = undefined;
+    }
+
     return {
       accessToken,
       refreshToken,
@@ -487,16 +497,19 @@ export class AuthService {
       throw new UnauthorizedException('الحساب غير موجود أو غير مفعل');
     }
 
+    // Role switching is strictly prohibited for teachers and students
+    if (user.role === UserRole.STUDENT || user.role === UserRole.TEACHER || targetRole === UserRole.STUDENT || targetRole === UserRole.TEACHER) {
+      throw new BadRequestException('ليس لديك صلاحية التبديل إلى هذا الدور');
+    }
+
     const hasAssistantLink = Boolean(user.assistantToTeachers && user.assistantToTeachers.length > 0);
     const hasParentLink = await this.prisma.parentStudentLink.findFirst({
       where: { parentId: user.id },
       select: { id: true },
     });
 
-    // Check if user has the required profile for the target role
+    // Check if user has the required profile for the target role (only PARENT and SECRETARIAT are switchable)
     const roleProfileMap: Record<string, boolean> = {
-      [UserRole.TEACHER]: Boolean(user.teacherProfile) || user.role === UserRole.TEACHER,
-      [UserRole.STUDENT]: Boolean(user.studentProfile) || user.role === UserRole.STUDENT,
       [UserRole.PARENT]: Boolean(user.parentProfile) || Boolean(hasParentLink) || user.role === UserRole.PARENT,
       [UserRole.SECRETARIAT]: Boolean(user.secretariatProfile) || hasAssistantLink || user.role === UserRole.SECRETARIAT,
     };

@@ -19,6 +19,10 @@ export function LoginContainer() {
         router.replace('/student/dashboard');
         return;
       }
+      if (user.role === 'TEACHER') {
+        router.replace('/teacher/dashboard');
+        return;
+      }
       if (hasMultipleRoles(user)) {
         router.replace('/select-role');
         return;

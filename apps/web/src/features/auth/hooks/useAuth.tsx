@@ -86,13 +86,17 @@ export function useAuth() {
         });
       }
 
-      // 4. If user is a student, navigate directly to student dashboard
+      // 4. If user is a student or teacher, navigate directly to their dashboard
       if (data.user.role === 'STUDENT') {
         router.push('/student/dashboard');
         return;
       }
+      if (data.user.role === 'TEACHER') {
+        router.push('/teacher/dashboard');
+        return;
+      }
 
-      // If user has multiple profiles, redirect to role selection screen
+      // If user has multiple profiles (assistant who is also parent), redirect to role selection screen
       if (hasMultipleRoles(data.user)) {
         router.push('/select-role');
         return;

@@ -76,9 +76,11 @@ export default function DashboardLayout({
   const { setSession } = useAuthStore();
   const isOnline = useOnlineStatus();
   const availableRoles = getAvailableRoles(user);
-  // Role switching is strictly disabled for students, and only enabled for staff/parents with genuine multiple roles
+  // Role switching is strictly disabled for students and teachers.
+  // It is only enabled for assistants who are also parents (SECRETARIAT and PARENT).
   const isStudent = user?.role === 'STUDENT' || (Boolean(pathname) && pathname.startsWith('/student'));
-  const canSwitchRoles = !isStudent && availableRoles.length > 1;
+  const isTeacher = user?.role === 'TEACHER' || (Boolean(pathname) && pathname.startsWith('/teacher'));
+  const canSwitchRoles = !isStudent && !isTeacher && availableRoles.length > 1;
   
   const mainScrollRef = useRef<HTMLDivElement>(null);
 
@@ -210,7 +212,7 @@ export default function DashboardLayout({
   };
 
   const handleSwitchRole = async (targetRole: UserRole) => {
-    if (isSwitchingRole || user?.role === targetRole) return;
+    if (isSwitchingRole || isStudent || isTeacher || user?.role === targetRole) return;
     setIsSwitchingRole(true);
     setIsProfileMenuOpen(false);
     try {

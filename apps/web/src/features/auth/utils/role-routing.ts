@@ -97,17 +97,28 @@ export function sanitizeRedirectUrl(
 export function getAvailableRoles(user: AuthUser | null | undefined): UserRole[] {
   if (!user) return [];
   
-  // Students are strictly student-only: never multi-role, never see role selection
+  // Students and Teachers are strictly single-role: never multi-role, never see role selection
   if (user.role === 'STUDENT') {
     return ['STUDENT'];
+  }
+  if (user.role === 'TEACHER') {
+    return ['TEACHER'];
   }
 
   const roles = new Set<UserRole>();
   const u = user as any;
 
-  if (u.teacherProfileId || u.teacherProfile?.id || u.role === 'TEACHER') roles.add('TEACHER');
-  if (u.secretariatProfileId || u.secretariatProfile?.id || (u.assistantToTeachers && u.assistantToTeachers.length > 0) || u.role === 'SECRETARIAT') roles.add('SECRETARIAT');
-  if (u.parentProfileId || u.parentProfile?.id || u.role === 'PARENT') roles.add('PARENT');
+  // Dual-role switching is strictly between SECRETARIAT (assistant) and PARENT
+  if (u.secretariatProfileId || u.secretariatProfile?.id || (u.assistantToTeachers && u.assistantToTeachers.length > 0) || u.role === 'SECRETARIAT') {
+    roles.add('SECRETARIAT');
+  }
+  if (u.parentProfileId || u.parentProfile?.id || u.role === 'PARENT') {
+    roles.add('PARENT');
+  }
+
+  if (roles.size === 0 && user.role) {
+    roles.add(user.role);
+  }
 
   return Array.from(roles);
 }
@@ -116,7 +127,7 @@ export function getAvailableRoles(user: AuthUser | null | undefined): UserRole[]
  * Returns true if the user has more than one profile (eligible for role-switching).
  */
 export function hasMultipleRoles(user: AuthUser | null | undefined): boolean {
-  if (!user || user.role === 'STUDENT') return false;
+  if (!user || user.role === 'STUDENT' || user.role === 'TEACHER') return false;
   return getAvailableRoles(user).length > 1;
 }
 
