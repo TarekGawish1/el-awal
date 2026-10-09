@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsUUID,
   IsDateString,
+  IsBoolean,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEgyptianPhone } from '../../../common/decorators/is-egyptian-phone.decorator';
@@ -78,4 +79,9 @@ export class CreateStudentDto {
   @IsOptional()
   @IsUUID()
   initialGroupId?: string;
+
+  @ApiPropertyOptional({ example: true, description: 'Whether to send automated WhatsApp message to parent upon creation' })
+  @IsOptional()
+  @IsBoolean()
+  sendWhatsApp?: boolean;
 }

@@ -26,6 +26,7 @@ import { RealtimeGateway } from '../../../realtime/realtime.gateway';
 import { ResetStudentPasswordDto } from '../dto/reset-student-password.dto';
 import { ResetParentPasswordDto } from '../dto/reset-parent-password.dto';
 import { generateSecurePassword, getTemporaryPinExpiration } from '../../../common/utils/password.util';
+import { formatStudentApprovalMessage } from '../../../utils/spintax';
 
 @Injectable()
 export class StudentsService {
@@ -47,7 +48,7 @@ export class StudentsService {
     const creatorName = currentUser?.fullName || (currentUser?.role === UserRole.SECRETARIAT ? 'المساعد' : 'المعلم');
     const creatorId = currentUser?.id || null;
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // 0. Check if student already exists (Idempotent for offline sync retries)
       if (dto.id) {
         const existingStudent = await tx.studentProfile.findUnique({
@@ -71,6 +72,9 @@ export class StudentsService {
             enrolledGroupId: existingStudent.groupEnrollments[0]?.groupId || null,
             createdByName: existingStudent.createdByName,
             updatedByName: existingStudent.updatedByName,
+            parentUserId: existingStudent.parentLinks[0]?.parentId || null,
+            groupName: null,
+            teacherDisplayName: 'أستاذ أحمد غريب',
           };
         }
       }
@@ -122,6 +126,13 @@ export class StudentsService {
           emergencyPhone: dto.emergencyPhone,
           tempAccessPin: dto.password,
           pinExpiresAt: getTemporaryPinExpiration(48),
+          pendingCredentials: {
+            studentPassword: dto.password,
+            parentPassword: dto.password,
+            studentPhone: dto.phone,
+            parentPhone: dto.parentPhone,
+            createdAt: new Date().toISOString(),
+          },
           createdById: creatorId,
           createdByName: creatorName,
           updatedById: creatorId,
@@ -131,14 +142,15 @@ export class StudentsService {
 
       // 6. Parent Profile & Linkage (if provided)
       let parentLink = null;
+      let parentUser = null;
       if (dto.parentPhone) {
-        let parentUser = await tx.user.findUnique({
+        parentUser = await tx.user.findUnique({
           where: { phone: dto.parentPhone },
           include: { parentProfile: true },
         });
 
         if (!parentUser) {
-          const parentPasswordHash = await bcrypt.hash('Parent123!', 10);
+          const parentPasswordHash = await bcrypt.hash(dto.password, 10);
           parentUser = await tx.user.create({
             data: {
               fullName: dto.parentName || `ولي أمر ${dto.fullName}`,
@@ -173,18 +185,22 @@ export class StudentsService {
 
       // 7. Initial Group Enrollment (if specified)
       let initialEnrollment = null;
+      let groupRecord = null;
       if (dto.initialGroupId) {
-        const group = await tx.academicGroup.findUnique({
+        groupRecord = await tx.academicGroup.findUnique({
           where: { id: dto.initialGroupId },
-          include: { _count: { select: { enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } } } } },
+          include: {
+            teacher: { include: { user: true } },
+            _count: { select: { enrollments: { where: { status: GroupEnrollmentStatus.ACTIVE } } } },
+          },
         });
 
-        if (!group) {
+        if (!groupRecord) {
           throw new NotFoundException(`Target group [${dto.initialGroupId}] not found`);
         }
 
-        if (group._count.enrollments >= group.maxCapacity) {
-          throw new BadRequestException(`Group [${group.name}] has reached its max capacity (${group.maxCapacity})`);
+        if (groupRecord._count.enrollments >= groupRecord.maxCapacity) {
+          throw new BadRequestException(`Group [${groupRecord.name}] has reached its max capacity (${groupRecord.maxCapacity})`);
         }
 
         initialEnrollment = await tx.groupEnrollment.create({
@@ -197,6 +213,9 @@ export class StudentsService {
       }
 
       this.logger.log(`Student created successfully: [${studentCode}] ${dto.fullName}`);
+
+      const teacherDisplayName = groupRecord?.teacher?.user?.fullName ||
+        (currentUser?.role === UserRole.TEACHER ? currentUser.fullName : 'أستاذ أحمد غريب');
 
       return {
         id: studentProfile.id,
@@ -212,8 +231,61 @@ export class StudentsService {
         createdAt: studentProfile.createdAt,
         hasParentLinked: !!parentLink,
         enrolledGroupId: initialEnrollment?.groupId || null,
+        parentUserId: parentUser?.id || null,
+        groupName: groupRecord?.name || null,
+        teacherDisplayName,
       };
     });
+
+    // 8. Automated Parent WhatsApp Delivery on Manual Registration
+    if (dto.sendWhatsApp !== false && (dto.parentPhone || dto.phone)) {
+      try {
+        const whatsappPhone = dto.parentPhone || dto.phone;
+        const parentRecipientId = result.parentUserId || result.id;
+        const teacherName = result.teacherDisplayName || 'أستاذ أحمد غريب';
+        const centerName = `منصة الأول للرياضيات - ${teacherName}`;
+
+        const messageBody = formatStudentApprovalMessage({
+          parentName: dto.parentName || `ولي أمر ${dto.fullName}`,
+          studentName: dto.fullName,
+          studentPhoneOrCode: dto.phone || result.studentCode,
+          studentPassword: dto.password,
+          parentPhoneOrCode: dto.parentPhone || undefined,
+          parentPassword: dto.password,
+          platformUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online',
+          centerName,
+          groupName: result.groupName || undefined,
+        });
+
+        await this.notificationsService.sendNotification({
+          recipientId: parentRecipientId,
+          type: 'STUDENT_APPROVAL_CREDENTIALS',
+          notificationType: NotificationType.STUDENT_APPROVAL_CREDENTIALS,
+          title: `🎉 مرحباً بك! بيانات انضمام الطالب ${dto.fullName}`,
+          body: messageBody,
+          channels: [NotificationChannel.WHATSAPP, NotificationChannel.IN_APP],
+          data: {
+            studentId: result.id,
+            studentName: dto.fullName,
+            studentPhoneOrCode: dto.phone || result.studentCode,
+            studentPassword: dto.password,
+            parentPhone: whatsappPhone,
+            parentPassword: dto.password,
+            parentName: dto.parentName || `ولي أمر ${dto.fullName}`,
+            groupName: result.groupName || undefined,
+            centerName,
+            platformUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online',
+            phone: whatsappPhone,
+          },
+        });
+
+        this.logger.log(`📱 Registration credentials WhatsApp dispatched to parent ${whatsappPhone} for student ${dto.fullName}`);
+      } catch (waErr) {
+        this.logger.warn(`Failed to queue manual registration WhatsApp notification: ${waErr}`);
+      }
+    }
+
+    return result;
   }
 
   /**

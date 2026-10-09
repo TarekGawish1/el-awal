@@ -66,6 +66,7 @@ export interface CreateStudentPayload {
   parentPhone?: string;
   parentRelationship?: string;
   initialGroupId?: string;
+  sendWhatsApp?: boolean;
 }
 
 export interface StudentQrResponse {

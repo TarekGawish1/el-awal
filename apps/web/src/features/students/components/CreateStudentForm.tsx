@@ -25,6 +25,7 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
     educationalStage: '',
     gradeLevel: '',
     initialGroupId: '',
+    sendWhatsApp: true,
   });
 
   const generatePassword = (phone: string, stage: string, grade: string) => {
@@ -135,6 +136,7 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
         parentPhone: formData.parentPhone || undefined,
         parentRelationship: formData.parentRelationship || undefined,
         initialGroupId: formData.initialGroupId || undefined,
+        sendWhatsApp: formData.sendWhatsApp,
       },
       {
         onSuccess: (data) => {
@@ -306,6 +308,26 @@ export function CreateStudentForm({ onSuccess, onCancel }: CreateStudentFormProp
             className="text-left"
             required
           />
+        </div>
+
+        <div className="pt-2">
+          <label className="flex items-start sm:items-center gap-3 p-3.5 bg-emerald-50/80 border border-emerald-200/90 rounded-2xl cursor-pointer hover:bg-emerald-100/60 transition-all select-none">
+            <input
+              type="checkbox"
+              name="sendWhatsApp"
+              checked={formData.sendWhatsApp}
+              onChange={(e) => setFormData((prev) => ({ ...prev, sendWhatsApp: e.target.checked }))}
+              className="w-4 h-4 mt-0.5 sm:mt-0 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer shrink-0"
+            />
+            <div className="space-y-0.5">
+              <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                <span>إرسال رسالة ترحيبية وبيانات الدخول ورابط الدخول المباشر لولي الأمر عبر واتساب تلقائياً 📲</span>
+              </span>
+              <p className="text-[11px] text-emerald-700 leading-relaxed">
+                سيقوم النظام فور حفظ الطالب بإرسال رسالة واتس فورية لرقم ولي الأمر تحتوي على كود الطالب، كلمة المرور، ورابط الدخول المباشر لمتابعة الحضور والدرجات بضغطة واحدة.
+              </p>
+            </div>
+          </label>
         </div>
       </div>
 
