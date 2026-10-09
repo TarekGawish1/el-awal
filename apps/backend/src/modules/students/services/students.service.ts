@@ -24,6 +24,7 @@ import { computeEffectiveDueDate, SessionForDeadline } from '../../assessments/u
 import { NotificationsService } from '../../notifications/services/notifications.service';
 import { RealtimeGateway } from '../../../realtime/realtime.gateway';
 import { ResetStudentPasswordDto } from '../dto/reset-student-password.dto';
+import { ResetParentPasswordDto } from '../dto/reset-parent-password.dto';
 import { generateSecurePassword, getTemporaryPinExpiration } from '../../../common/utils/password.util';
 
 @Injectable()
@@ -1255,6 +1256,195 @@ export class StudentsService {
   }
 
   /**
+   * Reset the password for the parent account linked to the student.
+   * Can automatically dispatch the new parent credentials and direct login link via WhatsApp.
+   */
+  async resetParentPassword(
+    studentId: string,
+    dto: ResetParentPasswordDto,
+    user: AuthenticatedUser,
+  ) {
+    await this.assertStudentAccess(studentId, user, false, false);
+
+    const studentProfile = await this.prisma.studentProfile.findUnique({
+      where: { id: studentId },
+      include: {
+        user: true,
+        parentLinks: {
+          include: {
+            parent: {
+              include: {
+                user: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!studentProfile || !studentProfile.user) {
+      throw new NotFoundException(`Student with ID [${studentId}] not found`);
+    }
+
+    let parentUser = studentProfile.parentLinks?.[0]?.parent?.user;
+    const parentPhone =
+      studentProfile.parentLinks?.[0]?.parent?.user?.phone ||
+      studentProfile.emergencyPhone;
+
+    if (!parentPhone && !parentUser) {
+      throw new BadRequestException('لا يوجد هاتف مسجل لولي الأمر لهذا الطالب لإعداد حسابه');
+    }
+
+    const newPassword = dto.newPassword?.trim() || generateSecurePassword(6);
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    // If parent user exists, update password. If not, create or link parent User
+    if (parentUser) {
+      await this.prisma.$transaction([
+        this.prisma.user.update({
+          where: { id: parentUser.id },
+          data: { passwordHash, isActive: true },
+        }),
+        ...(this.prisma.refreshTokenSession?.updateMany
+          ? [
+              this.prisma.refreshTokenSession.updateMany({
+                where: { userId: parentUser.id, revokedAt: null },
+                data: { revokedAt: new Date() },
+              }),
+            ]
+          : []),
+      ]);
+    } else if (parentPhone) {
+      // Find or create parent user
+      let existingUserWithPhone = await this.prisma.user.findFirst({
+        where: { phone: parentPhone },
+        include: { parentProfile: true },
+      });
+
+      if (existingUserWithPhone) {
+        parentUser = existingUserWithPhone;
+        await this.prisma.user.update({
+          where: { id: parentUser.id },
+          data: { passwordHash, isActive: true },
+        });
+        if (!existingUserWithPhone.parentProfile) {
+          await this.prisma.parentProfile.create({
+            data: {
+              id: parentUser.id,
+              relationshipType: 'Guardian',
+            },
+          });
+        }
+      } else {
+        parentUser = await this.prisma.user.create({
+          data: {
+            fullName: `ولي أمر ${studentProfile.user.fullName}`,
+            phone: parentPhone,
+            passwordHash,
+            role: UserRole.PARENT,
+            isActive: true,
+            parentProfile: {
+              create: {
+                relationshipType: 'Guardian',
+              },
+            },
+          },
+        });
+      }
+
+      await this.prisma.parentStudentLink.create({
+        data: {
+          parentId: parentUser.id,
+          studentId: studentProfile.id,
+        },
+      });
+    }
+
+    // Update pendingCredentials on studentProfile to store the latest parent password
+    const prevPending = (studentProfile.pendingCredentials as Record<string, any>) || {};
+    await this.prisma.studentProfile.update({
+      where: { id: studentProfile.id },
+      data: {
+        pendingCredentials: {
+          ...prevPending,
+          parentPassword: newPassword,
+          parentPhone: parentPhone,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    });
+
+    const studentName = studentProfile.user.fullName;
+    const studentCode = studentProfile.studentCode || '';
+    const parentName = parentUser?.fullName || 'ولي الأمر';
+    const platformUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online';
+    const directLoginUrl = `${platformUrl}/parent-access?phone=${encodeURIComponent(parentPhone || '')}&pass=${encodeURIComponent(newPassword)}`;
+
+    if (dto.sendWhatsApp !== false && parentPhone && parentUser) {
+      try {
+        let teacherName = 'إدارة السنتر';
+        if (user.role === UserRole.TEACHER) {
+          const teacherUser = await this.prisma.user.findUnique({
+            where: { id: user.id },
+            select: { fullName: true },
+          });
+          if (teacherUser?.fullName) {
+            teacherName = teacherUser.fullName;
+          }
+        }
+
+        const message = `🔐 *إشعار تحديث بيانات دخول ولي الأمر - منصة الأوّل*
+
+أهلاً بحضرتك أ/ ${parentName}،
+تم تحديث كلمة المرور الخاصة بحساب ولي الأمر لمتابعة الطالب/ة: *${studentName}* (${studentCode}) مع *${teacherName}*.
+
+━━━━━━━━━━━━━━━━━━━
+📌 *بيانات دخول ولي الأمر:*
+▫️ *رقم الدخول / الهاتف:* ${parentPhone}
+▫️ *أو كود الطالب:* ${studentCode}
+▫️ *كلمة مرور ولي الأمر:* ${newPassword}
+🔗 *رابط الدخول المباشر:* ${directLoginUrl}
+━━━━━━━━━━━━━━━━━━━
+يمكنكم الدخول عبر الرابط المباشر أعلاه دون الحاجة لكتابة البيانات، أو إدخال رقم هاتفك وكلمة المرور في صفحة دخول أولياء الأمور لمتابعة الحضور، الدرجات، والواجبات في أي وقت. بالتوفيق والنجاح! 🌟`.trim();
+
+        await this.notificationsService.sendNotification({
+          recipientId: parentUser.id,
+          type: 'PARENT_PASSWORD_RESET_ALERT',
+          notificationType: NotificationType.STUDENT_APPROVAL_CREDENTIALS,
+          title: `🔐 تم تحديث كلمة المرور لحساب ولي أمر ${studentName}`,
+          body: message,
+          channels: [NotificationChannel.WHATSAPP, NotificationChannel.IN_APP],
+          data: {
+            phone: parentPhone,
+            studentName,
+            studentCode,
+            parentPhone,
+            parentName,
+            parentPassword: newPassword,
+            directLoginUrl,
+            centerName: teacherName,
+            platformUrl,
+          },
+        });
+      } catch (waErr) {
+        this.logger.warn(`Failed to dispatch reset-parent-password WhatsApp alert: ${waErr}`);
+      }
+    }
+
+    return {
+      success: true,
+      studentId: studentProfile.id,
+      studentCode,
+      studentName,
+      parentName,
+      parentPhone,
+      newPassword,
+      directLoginUrl,
+      messageSent: dto.sendWhatsApp !== false,
+    };
+  }
+
+  /**
    * Retrieve student credentials & active temporary PIN.
    */
   async getStudentCredentials(studentId: string, user: AuthenticatedUser) {
@@ -1299,6 +1489,9 @@ export class StudentsService {
       !!studentProfile.tempAccessPin &&
       (!studentProfile.pinExpiresAt || new Date(studentProfile.pinExpiresAt) > new Date());
 
+    const pending = (studentProfile.pendingCredentials as Record<string, any>) || {};
+    const parentPassword = pending.parentPassword || null;
+
     return {
       studentId: studentProfile.id,
       studentName: studentProfile.user.fullName,
@@ -1306,6 +1499,8 @@ export class StudentsService {
       studentPhone: studentProfile.user.phone,
       parentName: parentUser?.fullName || null,
       parentPhone: studentProfile.emergencyPhone || parentUser?.phone || null,
+      parentPassword,
+      hasParentAccount: !!parentUser,
       tempAccessPin: isPinActive ? studentProfile.tempAccessPin : null,
       pinExpiresAt: studentProfile.pinExpiresAt,
       isPinActive,

@@ -66,6 +66,7 @@ export const API_ENDPOINTS = {
     QR_CODE: (id: string) => `/students/${id}/qr-code`,
     REGENERATE_QR: (id: string) => `/students/${id}/regenerate-qr-token`,
     RESET_PASSWORD: (id: string) => `/students/${id}/reset-password`,
+    RESET_PARENT_PASSWORD: (id: string) => `/students/${id}/reset-parent-password`,
     CREDENTIALS: (id: string) => `/students/${id}/credentials`,
   },
   ATTENDANCE: {

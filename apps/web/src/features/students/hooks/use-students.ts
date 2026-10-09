@@ -8,6 +8,8 @@ import {
   fetchStudentCredentials,
   resetStudentPassword,
   ResetStudentPasswordPayload,
+  resetParentPassword,
+  ResetParentPasswordPayload,
 } from '../api/students.api';
 import {
   StudentQuery,
@@ -516,6 +518,31 @@ export function useResetStudentPassword() {
         err?.response?.data?.message ||
           err?.message ||
           'تعذر إعادة تعيين كلمة المرور، يرجى المحاولة مرة أخرى',
+      );
+    },
+  });
+}
+
+export function useResetParentPassword() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ studentId, payload }: { studentId: string; payload: ResetParentPasswordPayload }) =>
+      resetParentPassword(studentId, payload),
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['students', variables.studentId] });
+      queryClient.invalidateQueries({ queryKey: ['students', variables.studentId, 'credentials'] });
+      toast.success(
+        data.messageSent
+          ? 'تم تعيين كلمة مرور ولي الأمر وإرسالها لواتساب بنجاح ✅'
+          : 'تم تحديث كلمة مرور ولي الأمر بنجاح ✅',
+      );
+    },
+    onError: (err: any) => {
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          'تعذر إعادة تعيين كلمة مرور ولي الأمر، يرجى المحاولة مرة أخرى',
       );
     },
   });

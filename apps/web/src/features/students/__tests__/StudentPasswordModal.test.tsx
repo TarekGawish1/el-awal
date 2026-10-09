@@ -23,6 +23,8 @@ let mockCredentials = {
   isPinActive: true,
 };
 
+const resetParentPasswordMock = vi.fn();
+
 vi.mock('../hooks/use-students', () => ({
   useStudentCredentials: () => ({
     data: mockCredentials,
@@ -31,6 +33,10 @@ vi.mock('../hooks/use-students', () => ({
   }),
   useResetStudentPassword: () => ({
     mutate: resetPasswordMock,
+    isPending: false,
+  }),
+  useResetParentPassword: () => ({
+    mutate: resetParentPasswordMock,
     isPending: false,
   }),
 }));
@@ -88,7 +94,7 @@ describe('StudentPasswordModal', () => {
     const input = screen.getByPlaceholderText('مثال: 123456 أو كلمة مخصصة...');
     fireEvent.change(input, { target: { value: 'secret99' } });
 
-    const submitBtn = screen.getByRole('button', { name: /حفظ وتحديث كلمة المرور/i });
+    const submitBtn = screen.getByRole('button', { name: /حفظ وتحديث كلمة مرور/i });
     fireEvent.click(submitBtn);
 
     expect(resetPasswordMock).toHaveBeenCalledWith(
@@ -96,6 +102,41 @@ describe('StudentPasswordModal', () => {
         studentId: 'student-123',
         payload: {
           newPassword: 'secret99',
+          sendWhatsApp: true,
+        },
+      },
+      expect.any(Object),
+    );
+  });
+
+  it('switches to parent tab and resets parent password', () => {
+    render(
+      <StudentPasswordModal
+        studentId="student-123"
+        studentName="محمود أحمد علي"
+        isOpen={true}
+        onClose={vi.fn()}
+      />
+    );
+
+    // Switch to parent tab
+    const parentTabBtn = screen.getByRole('button', { name: /حساب ولي الأمر/i });
+    fireEvent.click(parentTabBtn);
+
+    expect(screen.getByText('اسم ولي الأمر:')).toBeInTheDocument();
+    expect(screen.getByText('أحمد علي')).toBeInTheDocument();
+
+    const parentInput = screen.getByPlaceholderText('مثال: 123456 أو كود خاص...');
+    fireEvent.change(parentInput, { target: { value: 'parentPass77' } });
+
+    const parentSubmitBtn = screen.getByRole('button', { name: /حفظ وتحديث كلمة مرور ولي الأمر/i });
+    fireEvent.click(parentSubmitBtn);
+
+    expect(resetParentPasswordMock).toHaveBeenCalledWith(
+      {
+        studentId: 'student-123',
+        payload: {
+          newPassword: 'parentPass77',
           sendWhatsApp: true,
         },
       },

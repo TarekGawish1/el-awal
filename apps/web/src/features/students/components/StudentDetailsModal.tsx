@@ -40,6 +40,7 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
   
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [passwordModalTab, setPasswordModalTab] = useState<'student' | 'parent'>('student');
   const [isEditing, setIsEditing] = useState(false);
   const [isQrExpanded, setIsQrExpanded] = useState(false);
 
@@ -195,16 +196,33 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
               </div>
 
               {/* QUICK ACTION BAR */}
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setIsPasswordModalOpen(true)}
-                  className="bg-white border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-700 shadow-sm flex-1 sm:flex-none justify-center"
+                  onClick={() => {
+                    setPasswordModalTab('student');
+                    setIsPasswordModalOpen(true);
+                  }}
+                  className="bg-white border-amber-200 hover:bg-amber-50 rounded-xl text-xs font-bold text-amber-800 shadow-xs flex-1 sm:flex-none justify-center"
                 >
                   <KeyRound className="w-4 h-4 rtl:ml-1.5 ltr:mr-1.5 text-amber-600" />
-                  كلمة المرور والدخول
+                  كلمة مرور الطالب
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setPasswordModalTab('parent');
+                    setIsPasswordModalOpen(true);
+                  }}
+                  className="bg-emerald-50 hover:bg-emerald-100 border-emerald-200 rounded-xl text-xs font-bold text-emerald-800 shadow-xs flex-1 sm:flex-none justify-center"
+                >
+                  <Users className="w-4 h-4 rtl:ml-1.5 ltr:mr-1.5 text-emerald-600" />
+                  كلمة مرور ولي الأمر 🔐
                 </Button>
                 
                 {parentPhone && (
@@ -573,6 +591,7 @@ export function StudentDetailsModal({ studentId, isOpen, onClose }: StudentDetai
         studentId={studentId}
         studentName={studentName}
         isOpen={isPasswordModalOpen}
+        initialTab={passwordModalTab}
         onClose={() => setIsPasswordModalOpen(false)}
       />
 

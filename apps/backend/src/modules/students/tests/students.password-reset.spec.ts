@@ -159,4 +159,28 @@ describe('StudentsService — Password Reset & Credentials Access', () => {
       expect(result.newPassword).toBe('654321');
     });
   });
+
+  describe('resetParentPassword', () => {
+    it('resets parent password, updates pendingCredentials and sends WhatsApp notification to parent', async () => {
+      mockPrismaService.groupEnrollment.findFirst.mockResolvedValue({ id: 'enr-1' });
+      mockPrismaService.studentProfile.findUnique.mockResolvedValue(mockStudentProfile);
+      mockPrismaService.studentProfile.update.mockResolvedValue(mockStudentProfile);
+      mockPrismaService.user.findUnique.mockResolvedValue({ fullName: 'أ. أحمد غريب' });
+      mockPrismaService.$transaction.mockResolvedValue([{}, {}]);
+
+      const result = await service.resetParentPassword(
+        'student-prof-1',
+        { newPassword: 'parentPass123', sendWhatsApp: true },
+        mockTeacher,
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.newPassword).toBe('parentPass123');
+      expect(result.parentPhone).toBe('01098765432');
+      expect(result.directLoginUrl).toContain('01098765432');
+      expect(result.directLoginUrl).toContain('parentPass123');
+      expect(mockPrismaService.$transaction).toHaveBeenCalled();
+      expect(mockNotificationsService.sendNotification).toHaveBeenCalled();
+    });
+  });
 });

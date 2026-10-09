@@ -51,21 +51,30 @@ export class PrismaService
 
   async onModuleInit() {
     this.logger.log('Connecting to PostgreSQL Database...');
-    try {
-      await this.$connect();
-      this.logger.log('✅ PostgreSQL connection successfully established.');
-
+    let retries = 5;
+    while (retries > 0) {
       try {
-        await this.$executeRawUnsafe(`
-          ALTER TABLE "lesson_sessions" ADD COLUMN IF NOT EXISTS "end_time" VARCHAR(10);
-        `);
-        this.logger.log('✅ Verified/Updated lesson_sessions schema columns.');
-      } catch (schemaErr: any) {
-        this.logger.warn(`Schema check warning: ${schemaErr?.message || schemaErr}`);
+        await this.$connect();
+        this.logger.log('✅ PostgreSQL connection successfully established.');
+        break;
+      } catch (error) {
+        retries--;
+        this.logger.warn(`Failed to connect to PostgreSQL database (${retries} retries left): ${error}`);
+        if (retries === 0) {
+          this.logger.error('❌ Failed to connect to PostgreSQL database after retries:', error);
+          throw error;
+        }
+        await new Promise((res) => setTimeout(res, 2000));
       }
-    } catch (error) {
-      this.logger.error('❌ Failed to connect to PostgreSQL database:', error);
-      throw error;
+    }
+
+    try {
+      await this.$executeRawUnsafe(`
+        ALTER TABLE "lesson_sessions" ADD COLUMN IF NOT EXISTS "end_time" VARCHAR(10);
+      `);
+      this.logger.log('✅ Verified/Updated lesson_sessions schema columns.');
+    } catch (schemaErr: any) {
+      this.logger.warn(`Schema check warning: ${schemaErr?.message || schemaErr}`);
     }
   }
 

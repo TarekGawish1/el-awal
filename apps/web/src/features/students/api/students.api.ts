@@ -56,6 +56,8 @@ export interface StudentCredentialsResponse {
   studentPhone: string | null;
   parentName: string | null;
   parentPhone: string | null;
+  parentPassword?: string | null;
+  hasParentAccount?: boolean;
   tempAccessPin: string | null;
   pinExpiresAt: string | null;
   isPinActive: boolean;
@@ -77,6 +79,23 @@ export interface ResetStudentPasswordResponse {
   messageSent: boolean;
 }
 
+export interface ResetParentPasswordPayload {
+  newPassword?: string;
+  sendWhatsApp?: boolean;
+}
+
+export interface ResetParentPasswordResponse {
+  success: boolean;
+  studentId: string;
+  studentCode: string;
+  studentName: string;
+  parentName: string;
+  parentPhone: string;
+  newPassword: string;
+  directLoginUrl: string;
+  messageSent: boolean;
+}
+
 export async function fetchStudentCredentials(id: string): Promise<StudentCredentialsResponse> {
   return await apiClient<StudentCredentialsResponse>(API_ENDPOINTS.STUDENTS.CREDENTIALS(id));
 }
@@ -86,6 +105,16 @@ export async function resetStudentPassword(
   payload: ResetStudentPasswordPayload,
 ): Promise<ResetStudentPasswordResponse> {
   return await apiClient<ResetStudentPasswordResponse>(API_ENDPOINTS.STUDENTS.RESET_PASSWORD(id), {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function resetParentPassword(
+  id: string,
+  payload: ResetParentPasswordPayload,
+): Promise<ResetParentPasswordResponse> {
+  return await apiClient<ResetParentPasswordResponse>(API_ENDPOINTS.STUDENTS.RESET_PARENT_PASSWORD(id), {
     method: 'POST',
     body: JSON.stringify(payload),
   });
