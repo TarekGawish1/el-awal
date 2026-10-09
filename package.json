@@ -6,6 +6,8 @@
     "apps/*"
   ],
   "scripts": {
+    "dev": "npm run dev:web",
+    "dev:all": "node -e \"const { spawn } = require('child_process'); const p1 = spawn('npm', ['run', 'dev:backend'], { stdio: 'inherit', shell: true }); const p2 = spawn('npm', ['run', 'dev:web'], { stdio: 'inherit', shell: true }); process.on('SIGINT', () => { p1.kill(); p2.kill(); process.exit(); });\"",
     "dev:web": "npm run dev --workspace=@el-awal/web",
     "dev:backend": "npm run dev --workspace=@el-awal/backend",
     "dev:platform": "npm run dev --workspace=@el-awal/platform",
