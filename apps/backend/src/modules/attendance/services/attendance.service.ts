@@ -13,7 +13,7 @@ import { BatchAttendanceDto } from '../dto/batch-attendance.dto';
 import { CursorPaginationDto } from '../../../common/dto/cursor-pagination.dto';
 import { AttendanceStatus, RecordingMethod, GroupEnrollmentStatus, UserRole } from '@prisma/client';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
-import { isSessionEndedPlusOneHour } from '../utils/attendance.util';
+import { isSessionEndedPlusOneHour, getSessionEndUtcDate } from '../utils/attendance.util';
 import { RealtimeGateway } from '../../../realtime/realtime.gateway';
 
 @Injectable()
@@ -432,11 +432,16 @@ export class AttendanceService {
       session.endTime,
     );
 
-    const sessionDateEnd = new Date(session.sessionDate);
-    sessionDateEnd.setHours(23, 59, 59, 999);
+    const sessionEndTime = getSessionEndUtcDate(
+      session.sessionDate,
+      session.startTime,
+      session.endTime,
+    );
 
+    // Only students who were enrolled BEFORE the session ended are eligible.
+    // Students who enrolled after the session finished are never considered absent.
     const eligibleEnrollments = session.group.enrollments.filter(
-      (e) => !e.enrolledAt || new Date(e.enrolledAt).getTime() <= sessionDateEnd.getTime(),
+      (e) => !e.enrolledAt || (sessionEndTime ? new Date(e.enrolledAt).getTime() <= sessionEndTime.getTime() : true),
     );
 
     if (hasEndedPlusOneHour) {

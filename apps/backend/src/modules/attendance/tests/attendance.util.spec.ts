@@ -1,4 +1,4 @@
-import { parseTimeToMinutes, isSessionEndedPlusOneHour } from '../utils/attendance.util';
+import { parseTimeToMinutes, isSessionEndedPlusOneHour, getSessionEndUtcDate } from '../utils/attendance.util';
 
 describe('Attendance Utilities - Session End & 1-Hour Grace Period', () => {
   describe('parseTimeToMinutes', () => {
@@ -67,6 +67,39 @@ describe('Attendance Utilities - Session End & 1-Hour Grace Period', () => {
       const tomorrowSession = '2026-09-07';
       const today = new Date(2026, 8, 6, 10, 0, 0);
       expect(isSessionEndedPlusOneHour(tomorrowSession, startTime, endTime, today)).toBe(false);
+    });
+  });
+
+  describe('getSessionEndUtcDate', () => {
+    it('should compute exact UTC date corresponding to Cairo session end', () => {
+      const sessionDate = '2026-10-08';
+      const startTime = '17:00';
+      const endTime = '18:00';
+
+      const endUtc = getSessionEndUtcDate(sessionDate, startTime, endTime);
+      expect(endUtc).toBeInstanceOf(Date);
+      expect(endUtc).not.toBeNull();
+
+      // Student enrolled after session ended on same day
+      const enrolledAfterSession = new Date('2026-10-08T21:45:26.487Z');
+      expect(enrolledAfterSession.getTime() <= endUtc!.getTime()).toBe(false);
+
+      // Student enrolled prior to session end
+      const enrolledBeforeSession = new Date('2026-10-08T10:00:00.000Z');
+      expect(enrolledBeforeSession.getTime() <= endUtc!.getTime()).toBe(true);
+    });
+
+    it('should fallback to 2 hours after startTime if endTime is missing', () => {
+      const sessionDate = '2026-10-08';
+      const startTime = '14:00';
+
+      const endUtc = getSessionEndUtcDate(sessionDate, startTime, null);
+      expect(endUtc).not.toBeNull();
+    });
+
+    it('should return null for invalid date input', () => {
+      expect(getSessionEndUtcDate(null, '14:00', '16:00')).toBeNull();
+      expect(getSessionEndUtcDate('invalid-date', '14:00', '16:00')).toBeNull();
     });
   });
 });

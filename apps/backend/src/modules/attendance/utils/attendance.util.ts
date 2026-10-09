@@ -69,3 +69,57 @@ export function isSessionEndedPlusOneHour(
     return false;
   }
 }
+
+/**
+ * Computes the exact UTC Date corresponding to a session's end time in 'Africa/Cairo' timezone.
+ * Used to ensure students who enroll after a session has ended are never marked absent.
+ */
+export function getSessionEndUtcDate(
+  sessionDate?: Date | string | null,
+  startTime?: string | null,
+  endTime?: string | null,
+): Date | null {
+  if (!sessionDate) return null;
+
+  try {
+    const dateStr = sessionDate instanceof Date
+      ? sessionDate.toISOString().split('T')[0]
+      : String(sessionDate).trim().split('T')[0];
+
+    const parts = dateStr.split('-').map(Number);
+    if (parts.length < 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) {
+      return null;
+    }
+    const [y, m, d] = parts;
+
+    let endMinutes = parseTimeToMinutes(endTime);
+    if (endMinutes === null) {
+      const startMinutes = parseTimeToMinutes(startTime);
+      if (startMinutes !== null) {
+        // Default session duration is 2 hours (120 minutes)
+        endMinutes = startMinutes + 120;
+      } else {
+        // Fallback to end of day
+        endMinutes = 23 * 60 + 59;
+      }
+    }
+
+    const endHour = Math.floor(endMinutes / 60);
+    const endMin = endMinutes % 60;
+
+    // Cairo timezone offset calculation (UTC+2 standard or UTC+3 DST)
+    const refDate = new Date(`${dateStr}T12:00:00Z`);
+    const cairoHourStr = refDate.toLocaleTimeString('en-US', {
+      timeZone: 'Africa/Cairo',
+      hour12: false,
+      hour: 'numeric',
+    });
+    const cairoHour = parseInt(cairoHourStr, 10);
+    const diffHours = isNaN(cairoHour) ? 2 : (cairoHour - 12);
+
+    return new Date(Date.UTC(y, m - 1, d, endHour - diffHours, endMin, 0, 0));
+  } catch {
+    return null;
+  }
+}
+

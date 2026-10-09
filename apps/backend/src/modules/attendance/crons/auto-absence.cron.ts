@@ -3,7 +3,7 @@ import { PrismaService } from '../../../core/database/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AttendanceStatus, RecordingMethod, GroupEnrollmentStatus, AssessmentType, HomeworkSubmissionStatus } from '@prisma/client';
 import * as cron from 'node-cron';
-import { isSessionEndedPlusOneHour } from '../utils/attendance.util';
+import { isSessionEndedPlusOneHour, getSessionEndUtcDate } from '../utils/attendance.util';
 
 @Injectable()
 export class AutoAbsenceCron implements OnModuleInit, OnModuleDestroy {
@@ -63,15 +63,17 @@ export class AutoAbsenceCron implements OnModuleInit, OnModuleDestroy {
           continue;
         }
 
-        const sessionDateEnd = new Date(session.sessionDate);
-        sessionDateEnd.setHours(23, 59, 59, 999);
+        const sessionEndTime = getSessionEndUtcDate(session.sessionDate, session.startTime, session.endTime);
+        if (!sessionEndTime) continue;
 
+        // Only enrollments that took place BEFORE the session ended are eligible to be marked absent.
+        // Students who registered/enrolled after the session ended must NEVER be marked absent.
         const activeEnrollments = await this.prisma.groupEnrollment.findMany({
           where: {
             groupId: session.groupId,
             status: GroupEnrollmentStatus.ACTIVE,
             enrolledAt: {
-              lte: sessionDateEnd,
+              lte: sessionEndTime,
             },
           },
           select: { studentId: true },
