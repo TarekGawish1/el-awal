@@ -1,6 +1,7 @@
 import {
   Injectable,
   Logger,
+  NotFoundException,
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
@@ -210,6 +211,127 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
       where: { providerMessageId, status: WhatsAppStatus.SENT },
       data: { status: WhatsAppStatus.DELIVERED, deliveredAt: new Date() },
     });
+  }
+
+  /**
+   * Retrieves active queued and sending WhatsApp messages with pagination.
+   */
+  async getQueue(page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+    const [data, total] = await Promise.all([
+      this.prisma.whatsAppMessageLog.findMany({
+        where: { status: { in: [WhatsAppStatus.QUEUED, WhatsAppStatus.SENDING] } },
+        orderBy: { scheduledFor: 'asc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.whatsAppMessageLog.count({
+        where: { status: { in: [WhatsAppStatus.QUEUED, WhatsAppStatus.SENDING] } },
+      }),
+    ]);
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
+  /**
+   * Retrieves failed WhatsApp messages (both transient FAILED and PERMANENT_FAIL) with pagination.
+   */
+  async getFailed(page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+    const [data, total] = await Promise.all([
+      this.prisma.whatsAppMessageLog.findMany({
+        where: { status: { in: [WhatsAppStatus.FAILED, WhatsAppStatus.PERMANENT_FAIL] } },
+        orderBy: { updatedAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.whatsAppMessageLog.count({
+        where: { status: { in: [WhatsAppStatus.FAILED, WhatsAppStatus.PERMANENT_FAIL] } },
+      }),
+    ]);
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
+  /**
+   * Summary metrics for WhatsApp delivery observability.
+   */
+  async getStats() {
+    const cairoMidnight = this.getCairoMidnight();
+    const [sentToday, queuedCount, failedCount, totalSent, totalDelivered] = await Promise.all([
+      this.prisma.whatsAppMessageLog.count({
+        where: {
+          status: { in: [WhatsAppStatus.SENT, WhatsAppStatus.DELIVERED] },
+          sentAt: { gte: cairoMidnight },
+        },
+      }),
+      this.prisma.whatsAppMessageLog.count({
+        where: { status: { in: [WhatsAppStatus.QUEUED, WhatsAppStatus.SENDING] } },
+      }),
+      this.prisma.whatsAppMessageLog.count({
+        where: { status: { in: [WhatsAppStatus.FAILED, WhatsAppStatus.PERMANENT_FAIL] } },
+      }),
+      this.prisma.whatsAppMessageLog.count({
+        where: { status: { in: [WhatsAppStatus.SENT, WhatsAppStatus.DELIVERED] } },
+      }),
+      this.prisma.whatsAppMessageLog.count({
+        where: { status: WhatsAppStatus.DELIVERED },
+      }),
+    ]);
+
+    return {
+      sentToday,
+      queuedCount,
+      failedCount,
+      totalSent,
+      totalDelivered,
+    };
+  }
+
+  /**
+   * Retries an individual failed message by resetting status to QUEUED and scheduling immediately.
+   */
+  async retryMessage(id: string) {
+    const record = await this.prisma.whatsAppMessageLog.findUnique({ where: { id } });
+    if (!record) {
+      throw new NotFoundException(`WhatsApp message log [${id}] not found`);
+    }
+
+    const updated = await this.prisma.whatsAppMessageLog.update({
+      where: { id },
+      data: {
+        status: WhatsAppStatus.QUEUED,
+        retryCount: 0,
+        failureReason: null,
+        scheduledFor: new Date(),
+      },
+    });
+
+    this.triggerDispatch();
+    return updated;
+  }
+
+  /**
+   * Resets all failed messages to QUEUED and triggers the dispatcher loop.
+   */
+  async retryAllFailed() {
+    const result = await this.prisma.whatsAppMessageLog.updateMany({
+      where: { status: { in: [WhatsAppStatus.FAILED, WhatsAppStatus.PERMANENT_FAIL] } },
+      data: {
+        status: WhatsAppStatus.QUEUED,
+        retryCount: 0,
+        failureReason: null,
+        scheduledFor: new Date(),
+      },
+    });
+
+    this.triggerDispatch();
+    return { count: result.count };
+  }
+
+  triggerDispatch(): void {
+    if (this.pollTimeout) {
+      clearTimeout(this.pollTimeout);
+      this.pollTimeout = setTimeout(() => this.poll(), 500);
+    }
   }
 
   /** Processes exactly one due record. Public for focused worker tests. */

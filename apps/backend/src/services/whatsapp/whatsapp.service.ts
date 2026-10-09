@@ -68,8 +68,13 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     const enabled = this.config.get<string>('WHATSAPP_ENABLED', 'true');
-    if (enabled === 'false') {
-      this.logger.warn('WhatsApp integration is DISABLED (WHATSAPP_ENABLED=false)');
+    const isDev = this.config.get<string>('NODE_ENV') === 'development';
+    const enableLocal = this.config.get<string>('ENABLE_LOCAL_WHATSAPP') === 'true';
+
+    if (enabled === 'false' || (isDev && !enableLocal)) {
+      this.logger.warn(
+        'WhatsApp socket integration disabled in local development to preserve production session. (Set ENABLE_LOCAL_WHATSAPP=true to enable locally)',
+      );
       return;
     }
     await this.loadBanState();
@@ -392,13 +397,20 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
           const { DisconnectReason: DR } = (this.baileys || {}) as { DisconnectReason?: Record<string, unknown> };
           const isLoggedOut =
             (DR && statusCode === (DR.loggedOut as number)) ||
+            statusCode === 401;
+          const isConnectionReplaced =
             (DR && statusCode === (DR.connectionReplaced as number)) ||
-            statusCode === 401 ||
             statusCode === 440;
 
           if (isLoggedOut) {
-            this.logger.warn(`🔐 WhatsApp session expired/replaced (code=${statusCode}). Clearing PG auth and generating fresh QR...`);
+            this.logger.warn(`🔐 WhatsApp session logged out from mobile (code=${statusCode}). Clearing PG auth and generating fresh QR...`);
             await this.clearAuthSession();
+          } else if (isConnectionReplaced) {
+            this.logger.warn(`⚠️ WhatsApp connection replaced by another instance/device (code=${statusCode}). Backing off reconnect for 30s without clearing auth keys.`);
+            if (!this.isDestroyed) {
+              this.reconnectTimeout = setTimeout(() => this.initSocket(), 30_000);
+            }
+            return;
           } else {
             this.logger.warn(`🔄 WhatsApp disconnected (code=${statusCode}). Reconnecting in 5s...`);
           }

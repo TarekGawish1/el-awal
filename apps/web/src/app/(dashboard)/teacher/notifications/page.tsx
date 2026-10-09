@@ -44,10 +44,12 @@ import {
   type Notification,
 } from '@/hooks/useNotifications';
 import { WhatsAppConnectionManager } from '@/components/admin/WhatsAppConnectionManager';
+import { WhatsAppQueueManager } from '@/features/notifications/components/WhatsAppQueueManager';
+import { useWhatsAppStats } from '@/hooks/useWhatsAppQueue';
 import { useAuth } from '@/features/auth';
 
 export default function NotificationCenterPage() {
-  const [activeTab, setActiveTab] = useState<'controls' | 'feed'>('controls');
+  const [activeTab, setActiveTab] = useState<'controls' | 'whatsapp' | 'feed'>('whatsapp');
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [readFilter, setReadFilter] = useState<'ALL' | 'UNREAD' | 'READ'>('ALL');
@@ -127,6 +129,8 @@ export default function NotificationCenterPage() {
   });
 
   const { data: unreadData } = useUnreadCount();
+  const { data: waStats } = useWhatsAppStats();
+  const failedWaCount = waStats?.failedCount ?? 0;
   const markRead = useMarkRead();
   const markAllRead = useMarkAllRead();
   const { user } = useAuth();
@@ -206,10 +210,33 @@ export default function NotificationCenterPage() {
         </div>
 
         {/* Tab Controls */}
-        <div className="flex items-center gap-2 bg-slate-100/80 p-1 rounded-xl self-stretch md:self-auto">
+        <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-100/90 p-1 rounded-xl self-stretch md:self-auto overflow-x-auto">
           <button
+            type="button"
+            onClick={() => setActiveTab('whatsapp')}
+            className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all relative whitespace-nowrap ${
+              activeTab === 'whatsapp'
+                ? 'bg-white text-emerald-700 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Smartphone size={14} className="text-emerald-600" />
+            <span>طابور ورسائل الواتساب</span>
+            {failedWaCount > 0 ? (
+              <span className="px-1.5 py-0.5 text-[10px] font-black bg-red-600 text-white rounded-full animate-pulse">
+                {failedWaCount}
+              </span>
+            ) : waStats?.queuedCount ? (
+              <span className="px-1.5 py-0.5 text-[10px] font-black bg-amber-500 text-white rounded-full">
+                {waStats.queuedCount}
+              </span>
+            ) : null}
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('controls')}
-            className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+            className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
               activeTab === 'controls'
                 ? 'bg-white text-blue-600 shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
@@ -218,9 +245,11 @@ export default function NotificationCenterPage() {
             <Power size={14} />
             <span>قواطع القنوات والفئات</span>
           </button>
+
           <button
+            type="button"
             onClick={() => setActiveTab('feed')}
-            className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all relative ${
+            className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all relative whitespace-nowrap ${
               activeTab === 'feed'
                 ? 'bg-white text-blue-600 shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
@@ -238,7 +267,9 @@ export default function NotificationCenterPage() {
       </div>
 
       {/* Main Tab View */}
-      {activeTab === 'controls' ? (
+      {activeTab === 'whatsapp' ? (
+        <WhatsAppQueueManager />
+      ) : activeTab === 'controls' ? (
         <div className="space-y-6">
           {/* Urgent WhatsApp Status Alert Banner */}
           {isWABanned && (

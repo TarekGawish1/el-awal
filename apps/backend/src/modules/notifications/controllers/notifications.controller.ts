@@ -33,6 +33,7 @@ import { UserRole } from '@prisma/client';
 
 import { NotificationSettingsService, NotificationSystemSettings } from '../services/notification-settings.service';
 import { SchedulersService } from '../../../jobs/schedulers';
+import { WhatsAppDispatcherService } from '../../whatsapp/services/whatsapp-dispatcher.service';
 
 @ApiTags('Notifications')
 @ApiBearerAuth('JWT-auth')
@@ -42,6 +43,7 @@ export class NotificationsController {
     private readonly notificationsService: NotificationsService,
     private readonly webPushService: WebPushService,
     private readonly whatsappService: WhatsAppService,
+    private readonly whatsappDispatcher: WhatsAppDispatcherService,
     private readonly settingsService: NotificationSettingsService,
     private readonly schedulersService: SchedulersService,
   ) {}
@@ -195,5 +197,64 @@ export class NotificationsController {
   @ApiResponse({ status: 200, description: 'Returns dispatch confirmation' })
   async triggerDailySchedule() {
     return this.schedulersService.runTeacherDailySchedule(true);
+  }
+
+  // ─── WhatsApp Queue & Delivery Observability ─────────────────────────────
+
+  @Get('whatsapp-stats')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Get WhatsApp delivery summary statistics (sent today, queued, failed)' })
+  async getWhatsAppStats() {
+    return this.whatsappDispatcher.getStats();
+  }
+
+  @Get('whatsapp-queue')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Get paginated list of pending/queued WhatsApp messages' })
+  async getWhatsAppQueue(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pageNum = Math.max(1, parseInt(page || '1', 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit || '20', 10) || 20));
+    return this.whatsappDispatcher.getQueue(pageNum, limitNum);
+  }
+
+  @Get('whatsapp-failed')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Get paginated list of failed WhatsApp messages with reasons and retry counts' })
+  async getWhatsAppFailed(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pageNum = Math.max(1, parseInt(page || '1', 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit || '20', 10) || 20));
+    return this.whatsappDispatcher.getFailed(pageNum, limitNum);
+  }
+
+  @Post('whatsapp-retry/:id')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Retry a specific failed WhatsApp message' })
+  async retryWhatsAppMessage(@Param('id') id: string) {
+    const updated = await this.whatsappDispatcher.retryMessage(id);
+    return {
+      success: true,
+      message: 'تمت إعادة جدولة الرسالة بنجاح عبر طابور الواتساب',
+      data: updated,
+    };
+  }
+
+  @Post('whatsapp-retry-all')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Retry all failed WhatsApp messages' })
+  async retryAllFailedWhatsApp() {
+    const result = await this.whatsappDispatcher.retryAllFailed();
+    return {
+      success: true,
+      message: `تمت جدولة إعادة إرسال ${result.count} رسالة فاشلة بنجاح عبر طابور الإرسال الآمن`,
+      count: result.count,
+    };
   }
 }
