@@ -158,6 +158,15 @@ export class NotificationsController {
     return this.whatsappService.resetSession();
   }
 
+  @Post('whatsapp-simulate-ban-alert')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Simulate or test WhatsApp ban notification dispatch to verify alerts' })
+  async simulateBanAlert() {
+    await this.whatsappService.handleBanDetected('محاكاة تجريبية: تنبيه لاختبار وصول إشعار حظر رقم الواتساب للمنصة');
+    return { success: true, message: 'تم إرسال إشعار تنبيه حظر الواتساب بنجاح إلى المعلم والمشرفين.' };
+  }
+
   // ─── Global System Notification Controls ──────────────────────────────────
 
   @Get('settings')

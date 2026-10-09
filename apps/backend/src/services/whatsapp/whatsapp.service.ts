@@ -6,11 +6,11 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../core/database/prisma.service';
-import { WhatsAppStatus } from '@prisma/client';
+import { WhatsAppStatus, UserRole, NotificationChannel, NotificationType } from '@prisma/client';
 import { usePgAuthState } from './pg-auth';
 import * as QRCode from 'qrcode';
 
-type ConnectionStatus = 'connecting' | 'open' | 'close' | 'qr';
+type ConnectionStatus = 'connecting' | 'open' | 'close' | 'qr' | 'banned';
 
 type ProtectedSendOutcome = 'sent' | 'not_registered' | 'not_connected' | 'error';
 
@@ -46,6 +46,11 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private isDestroyed = false;
 
+  // Ban tracking and detection
+  private isBanned = false;
+  private banReason: string | null = null;
+  private bannedAt: Date | null = null;
+
   // Baileys modules loaded via dynamic import (it's an ESM package)
   private baileys: {
     makeWASocket: (opts: unknown) => unknown;
@@ -67,6 +72,7 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn('WhatsApp integration is DISABLED (WHATSAPP_ENABLED=false)');
       return;
     }
+    await this.loadBanState();
     await this.initSocket();
   }
 
@@ -79,21 +85,32 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   // ─── Public API ────────────────────────────────────────────────────────────
 
   /**
-   * Returns the current connection status, connected number, and QR code (base64 PNG) if available.
-   * Used by the admin dashboard to display the pairing QR and status.
+   * Returns the current connection status, connected number, QR code (base64 PNG) if available,
+   * and any ban details detected by Baileys.
    */
-  getStatus(): { connected: boolean; status: string; qr?: string | null; connectedNumber?: string | null } {
+  getStatus(): {
+    connected: boolean;
+    status: ConnectionStatus;
+    qr?: string | null;
+    connectedNumber?: string | null;
+    isBanned: boolean;
+    banReason?: string | null;
+    bannedAt?: Date | null;
+  } {
     return {
       connected: this.connectionStatus === 'open',
-      status: this.connectionStatus,
+      status: this.isBanned ? 'banned' : this.connectionStatus,
       qr: this.qrCode,
       connectedNumber: this.connectedNumber,
+      isBanned: this.isBanned,
+      banReason: this.banReason,
+      bannedAt: this.bannedAt,
     };
   }
 
   /**
    * Disconnects existing WhatsApp session, clears PostgreSQL auth credentials,
-   * and reinitializes socket to immediately generate a fresh QR code for pairing a new number.
+   * clears any recorded ban state, and reinitializes socket to immediately generate a fresh QR code.
    */
   async resetSession(): Promise<{ success: boolean; message: string }> {
     this.logger.warn('🔄 Manually resetting WhatsApp session & clearing credentials for new number pairing...');
@@ -104,7 +121,11 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
 
     this.closeSocket();
     await this.clearAuthSession();
+    await this.clearBanState();
 
+    this.isBanned = false;
+    this.banReason = null;
+    this.bannedAt = null;
     this.connectionStatus = 'connecting';
     this.qrCode = null;
     this.connectedNumber = null;
@@ -231,6 +252,13 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       const failureReason = error instanceof Error ? error.message : 'Unknown WhatsApp gateway error';
       this.logger.error(`❌ Failed to send protected WhatsApp message to ${phone}`, error);
+
+      // Check if send failure was caused by an account ban
+      const lower = failureReason.toLowerCase();
+      if (lower.includes('banned') || lower.includes('403') || lower.includes('blocked')) {
+        void this.handleBanDetected(`فشل إرسال الرسالة بسبب حظر الرقم: ${failureReason}`);
+      }
+
       return { outcome: 'error', failureReason };
     }
   }
@@ -297,7 +325,13 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
       sock.ev.on('connection.update', async (update: unknown) => {
         const { connection, lastDisconnect, qr } = update as {
           connection?: string;
-          lastDisconnect?: { error?: { output?: { statusCode?: number } } };
+          lastDisconnect?: {
+            error?: {
+              output?: { statusCode?: number; payload?: { message?: string } };
+              message?: string;
+              data?: { reason?: string };
+            };
+          };
           qr?: string;
         };
 
@@ -315,6 +349,11 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
         if (connection === 'open') {
           this.connectionStatus = 'open';
           this.qrCode = null;
+          this.isBanned = false;
+          this.banReason = null;
+          this.bannedAt = null;
+          await this.clearBanState();
+
           const user = (sock as any)?.user;
           this.connectedNumber = user?.id ? user.id.split(':')[0].replace(/[^0-9]/g, '') : 'Active';
           this.logger.log(`✅ WhatsApp connected and ready (Number: ${this.connectedNumber})`);
@@ -322,9 +361,34 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
 
         if (connection === 'close') {
           this.closeSocket();
-          this.connectionStatus = 'close';
           this.connectedNumber = null;
-          const statusCode = lastDisconnect?.error?.output?.statusCode;
+
+          const err = lastDisconnect?.error as any;
+          const statusCode = err?.output?.statusCode;
+          const errorMessage = String(err?.message || '').toLowerCase();
+          const errorPayloadMsg = String(err?.output?.payload?.message || '').toLowerCase();
+          const errorReason = String(err?.data?.reason || '').toLowerCase();
+
+          // ── Explicit Ban Detection ──
+          const isBanned =
+            statusCode === 403 ||
+            errorMessage.includes('banned') ||
+            errorMessage.includes('blocked') ||
+            errorMessage.includes('account was banned') ||
+            errorPayloadMsg.includes('banned') ||
+            errorPayloadMsg.includes('forbidden') ||
+            errorReason.includes('banned');
+
+          if (isBanned) {
+            const reasonText = statusCode === 403
+              ? 'تم حظر رقم الهاتف من قِبل سيرفرات واتساب (كود 403 Forbidden)'
+              : `تم اكتشاف حظر الحساب: ${err?.message || 'تم الإبلاغ عن الرقم'}`;
+            this.logger.error(`🚨 [WhatsAppService] WhatsApp number is BANNED! (${reasonText})`);
+            await this.handleBanDetected(reasonText);
+            return; // Do not auto-reconnect immediately when banned
+          }
+
+          this.connectionStatus = 'close';
           const { DisconnectReason: DR } = (this.baileys || {}) as { DisconnectReason?: Record<string, unknown> };
           const isLoggedOut =
             (DR && statusCode === (DR.loggedOut as number)) ||
@@ -338,8 +402,6 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
           } else {
             this.logger.warn(`🔄 WhatsApp disconnected (code=${statusCode}). Reconnecting in 5s...`);
           }
-
-          this.closeSocket();
 
           if (!this.isDestroyed) {
             this.reconnectTimeout = setTimeout(() => this.initSocket(), 5_000);
@@ -406,6 +468,138 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
       this.logger.log('🗑️ WhatsApp auth session cleared from PostgreSQL');
     } catch (error) {
       this.logger.error('Failed to clear WhatsApp auth session', error);
+    }
+  }
+
+  // ─── Ban Detection & Storage Helpers ────────────────────────────────────────
+
+  private async loadBanState() {
+    try {
+      const record = await this.prisma.systemSetting.findUnique({
+        where: { key: 'WHATSAPP_BAN_STATE' },
+      });
+      if (record && record.value && typeof record.value === 'object') {
+        const val = record.value as Record<string, unknown>;
+        if (val.isBanned) {
+          this.isBanned = true;
+          this.banReason = typeof val.banReason === 'string' ? val.banReason : 'تم حظر الحساب من قِبل شركة واتساب';
+          this.bannedAt = typeof val.bannedAt === 'string' ? new Date(val.bannedAt) : new Date();
+          this.connectionStatus = 'banned';
+          this.logger.warn(`⚠️ Loaded persisted WhatsApp ban state: ${this.banReason}`);
+        }
+      }
+    } catch (err: any) {
+      this.logger.debug(`Could not load ban state from DB: ${err?.message}`);
+    }
+  }
+
+  private async saveBanState() {
+    try {
+      await this.prisma.systemSetting.upsert({
+        where: { key: 'WHATSAPP_BAN_STATE' },
+        create: {
+          key: 'WHATSAPP_BAN_STATE',
+          value: {
+            isBanned: true,
+            banReason: this.banReason,
+            bannedAt: this.bannedAt?.toISOString(),
+          },
+        },
+        update: {
+          value: {
+            isBanned: true,
+            banReason: this.banReason,
+            bannedAt: this.bannedAt?.toISOString(),
+          },
+        },
+      });
+    } catch (err: any) {
+      this.logger.warn(`Failed to persist ban state: ${err?.message}`);
+    }
+  }
+
+  private async clearBanState() {
+    try {
+      await this.prisma.systemSetting.deleteMany({
+        where: { key: 'WHATSAPP_BAN_STATE' },
+      });
+    } catch (err: any) {
+      this.logger.debug(`Could not clear ban state from DB: ${err?.message}`);
+    }
+  }
+
+  /**
+   * Internal handler called whenever a ban is detected from Baileys socket error or send error.
+   */
+  async handleBanDetected(reason: string) {
+    this.isBanned = true;
+    this.banReason = reason;
+    this.bannedAt = new Date();
+    this.connectionStatus = 'banned';
+
+    await this.saveBanState();
+    await this.notifyTeachersOfBan();
+  }
+
+  /**
+   * Dispatches an in-app system notification to all teachers and administrative staff.
+   */
+  private async notifyTeachersOfBan() {
+    try {
+      // Throttle alerts: only send if no ban alert was dispatched in the last 12 hours
+      const recentAlert = await this.prisma.notification.findFirst({
+        where: {
+          type: 'WHATSAPP_BAN_ALERT',
+          createdAt: { gte: new Date(Date.now() - 12 * 60 * 60 * 1000) },
+        },
+      });
+
+      if (recentAlert) {
+        this.logger.log('Ban alert notification already dispatched recently; skipping duplicate dispatch.');
+        return;
+      }
+
+      const staffUsers = await this.prisma.user.findMany({
+        where: {
+          role: { in: [UserRole.TEACHER, UserRole.SECRETARIAT] },
+          isActive: true,
+        },
+        select: { id: true, fullName: true, role: true },
+      });
+
+      if (!staffUsers.length) return;
+
+      const title = '🚨 تنبيه عاجل: تم حظر رقم الواتساب المرتبط بالمنصة';
+      const message =
+        `نود إحاطتكم بأنه تم حظر رقم الواتساب (${this.connectedNumber || 'المرتبط بالمنصة'}) من قِبل شركة واتساب.\n\n` +
+        `📌 سبب الحظر المحتمل: إرسال عدد كبير من الرسائل التلقائية في وقت متقارب لأرقام غير مسجلة في جهات اتصال الهاتف، أو قيام أحد المستلمين بالإبلاغ عن الرسائل (Spam).\n\n` +
+        `⏳ مدة الحظر المتوقعة: يستمر الحظر المؤقت عادةً من 24 إلى 48 ساعة. في حالة الحظر الدائم، يلزم تقديم طلب مراجعة رسمي.\n\n` +
+        `🛠️ الإجراء الموصى به:\n` +
+        `1. فتح تطبيق واتساب على الهاتف والضغط على "طلب مراجعة" (Request a Review).\n` +
+        `2. أو الدخول إلى "مركز التحكم في الإشعارات" وفك الارتباط وربط رقم هاتف جديد فوراً لضمان استمرار وصول الرسائل لأولياء الأمور.`;
+
+      for (const staff of staffUsers) {
+        await this.prisma.notification.create({
+          data: {
+            recipientId: staff.id,
+            type: 'WHATSAPP_BAN_ALERT',
+            notificationType: NotificationType.GENERAL_ANNOUNCEMENT,
+            title,
+            message,
+            channels: [NotificationChannel.IN_APP],
+            isRead: false,
+            data: {
+              isBanned: true,
+              bannedAt: this.bannedAt?.toISOString(),
+              reason: this.banReason,
+            },
+          },
+        });
+      }
+
+      this.logger.log(`📢 Ban notifications sent to ${staffUsers.length} staff members.`);
+    } catch (err) {
+      this.logger.error('Failed to dispatch ban notifications to teachers', err);
     }
   }
 

@@ -26,6 +26,7 @@ import {
   UserCheck,
   HeartHandshake,
   Send,
+  QrCode,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiClient } from '@/lib/api/client';
@@ -52,6 +53,44 @@ export default function NotificationCenterPage() {
   const [readFilter, setReadFilter] = useState<'ALL' | 'UNREAD' | 'READ'>('ALL');
   const [roleFilter, setRoleFilter] = useState<'ALL' | 'TEACHER' | 'STUDENT' | 'PARENT'>('ALL');
   const [isDispatchingSchedule, setIsDispatchingSchedule] = useState(false);
+
+  // Live WhatsApp Socket & Ban Status State
+  const [whatsAppStatus, setWhatsAppStatus] = useState<{
+    connected: boolean;
+    status: string;
+    qr?: string | null;
+    connectedNumber?: string | null;
+    isBanned?: boolean;
+    banReason?: string | null;
+    bannedAt?: string | null;
+  } | null>(null);
+
+  const fetchWhatsAppStatus = async () => {
+    try {
+      const res = await apiClient<{
+        connected: boolean;
+        status: string;
+        qr?: string | null;
+        connectedNumber?: string | null;
+        isBanned?: boolean;
+        banReason?: string | null;
+        bannedAt?: string | null;
+      }>('/notifications/whatsapp-status');
+      setWhatsAppStatus(res);
+    } catch {
+      // offline or loading
+    }
+  };
+
+  React.useEffect(() => {
+    fetchWhatsAppStatus();
+    const interval = setInterval(fetchWhatsAppStatus, 8000);
+    return () => clearInterval(interval);
+  }, [isWhatsAppModalOpen]);
+
+  const isWABanned = Boolean(whatsAppStatus?.isBanned || whatsAppStatus?.status === 'banned');
+  const isWAConnected = !isWABanned && Boolean(whatsAppStatus?.connected || whatsAppStatus?.status === 'open');
+  const isWAWaitingQR = !isWABanned && !isWAConnected && Boolean(whatsAppStatus?.status === 'qr' || whatsAppStatus?.qr);
 
   const { data: settings, isLoading: isSettingsLoading } = useNotificationSettings();
   const updateSettings = useUpdateNotificationSettings();
@@ -201,6 +240,67 @@ export default function NotificationCenterPage() {
       {/* Main Tab View */}
       {activeTab === 'controls' ? (
         <div className="space-y-6">
+          {/* Urgent WhatsApp Status Alert Banner */}
+          {isWABanned && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-4 rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-red-500"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0">
+                  <AlertTriangle size={22} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black flex items-center gap-2">
+                    <span>🚨 تنبيه هام: تم حظر رقم الواتساب المرتبط بالمنصة من قِبل شركة واتساب</span>
+                  </h3>
+                  <p className="text-xs text-red-100 mt-1 leading-relaxed">
+                    {whatsAppStatus?.banReason || 'تم اكتشاف حظر الحساب لمنع إرسال الرسائل.'}
+                    {' '}| مدة الحظر المؤقت عادة 24 إلى 48 ساعة. لضمان وصول الرسائل لأولياء الأمور يرجى ربط رقم بديل الآن.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsWhatsAppModalOpen(true)}
+                className="px-4 py-2.5 bg-white text-red-700 hover:bg-red-50 text-xs font-black rounded-xl shadow-md transition-all shrink-0 self-stretch md:self-auto text-center cursor-pointer"
+              >
+                فك الارتباط وربط رقم جديد الآن ⚡
+              </button>
+            </motion.div>
+          )}
+
+          {!isWABanned && isWAWaitingQR && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-4 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-amber-400"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0">
+                  <QrCode size={22} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold flex items-center gap-2">
+                    <span>📱 خط الواتساب غير مقترن حالياً (في انتظار مسح رمز الـ QR)</span>
+                  </h3>
+                  <p className="text-xs text-amber-100 mt-1 leading-relaxed">
+                    تم تسجيل الخروج من جلسة الواتساب. لن يتم إرسال أي رسائل تلقائية للطلاب أو أولياء الأمور حتى يتم مسح الرمز.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsWhatsAppModalOpen(true)}
+                className="px-4 py-2.5 bg-white text-amber-900 hover:bg-amber-50 text-xs font-black rounded-xl shadow-sm transition-all shrink-0 self-stretch md:self-auto text-center flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <QrCode size={14} />
+                <span>مسح كود الـ QR لربط الرقم 📲</span>
+              </button>
+            </motion.div>
+          )}
+
           {/* Section 1: Master System Switches */}
           <div className="space-y-3">
             <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
@@ -213,7 +313,9 @@ export default function NotificationCenterPage() {
               <motion.div
                 layout
                 className={`rounded-2xl p-6 border transition-all relative overflow-hidden flex flex-col justify-between ${
-                  settings?.isWhatsAppEnabled
+                  isWABanned
+                    ? 'bg-gradient-to-br from-red-50/90 via-white to-white border-red-300 shadow-sm'
+                    : settings?.isWhatsAppEnabled
                     ? 'bg-gradient-to-br from-emerald-50/70 via-white to-white border-emerald-200/80 shadow-sm'
                     : 'bg-gradient-to-br from-red-50/70 via-white to-white border-red-200/80 shadow-sm'
                 }`}
@@ -222,7 +324,9 @@ export default function NotificationCenterPage() {
                   <div className="flex items-center justify-between mb-4">
                     <div
                       className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                        settings?.isWhatsAppEnabled
+                        isWABanned
+                          ? 'bg-red-600 text-white shadow-md shadow-red-600/30 animate-pulse'
+                          : settings?.isWhatsAppEnabled
                           ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
                           : 'bg-red-500 text-white shadow-md shadow-red-500/20'
                       }`}
@@ -231,21 +335,88 @@ export default function NotificationCenterPage() {
                     </div>
                     <span
                       className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                        settings?.isWhatsAppEnabled
+                        isWABanned
+                          ? 'bg-red-600 text-white shadow-xs'
+                          : settings?.isWhatsAppEnabled
                           ? 'bg-emerald-100 text-emerald-700'
                           : 'bg-red-100 text-red-700'
                       }`}
                     >
-                      {settings?.isWhatsAppEnabled ? 'واتساب مفعّل' : 'واتساب متوقف بالكامل'}
+                      {isWABanned
+                        ? 'محظور من واتساب'
+                        : settings?.isWhatsAppEnabled
+                        ? 'واتساب مفعّل'
+                        : 'واتساب متوقف بالكامل'}
                     </span>
                   </div>
 
                   <h3 className="text-base font-bold text-slate-900 mb-1">
                     قاطع رسائل الواتساب العام
                   </h3>
-                  <p className="text-xs text-slate-500 leading-relaxed mb-4">
+                  <p className="text-xs text-slate-500 leading-relaxed mb-3">
                     إيقاف أو تشغيل جميع رسائل الواتساب الصادرة من النظام بالكامل (الغياب، الفواتير، بيانات الدخول، وغيرها).
                   </p>
+
+                  {/* Live WhatsApp Connection & Ban Status Indicator Box */}
+                  <div
+                    onClick={() => setIsWhatsAppModalOpen(true)}
+                    className={`mb-4 p-3 rounded-xl border cursor-pointer transition-all ${
+                      isWABanned
+                        ? 'bg-red-100/70 border-red-300 text-red-900 ring-2 ring-red-400/50'
+                        : isWAConnected
+                        ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900 hover:bg-emerald-100/60'
+                        : isWAWaitingQR
+                        ? 'bg-amber-50 border-amber-200 text-amber-900 hover:bg-amber-100/60'
+                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[11px] font-bold text-slate-600">حالة خط الواتساب المباشرة:</span>
+                      {isWABanned ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-red-600 text-white">
+                          <AlertTriangle size={11} />
+                          <span>محظور (Banned)</span>
+                        </span>
+                      ) : isWAConnected ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-600 text-white">
+                          <CheckCircle2 size={11} />
+                          <span>شغال ومتصل</span>
+                        </span>
+                      ) : isWAWaitingQR ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500 text-white">
+                          <QrCode size={11} />
+                          <span>بانتظار مسح QR</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-500 text-white">
+                          <span>غير متصل</span>
+                        </span>
+                      )}
+                    </div>
+                    {isWABanned && (
+                      <p className="text-[11px] text-red-700 font-semibold leading-relaxed">
+                        ⚠️ الرقم محظور من واتساب (مدة الحظر 24-48 ساعة). اضغط هنا لفك الارتباط وربط رقم جديد فوراً.
+                      </p>
+                    )}
+                    {isWAConnected && (
+                      <div className="text-[11px] text-emerald-800 font-medium flex items-center justify-between">
+                        <span>الرقم المتصل:</span>
+                        <span className="font-mono font-bold" dir="ltr">
+                          {whatsAppStatus?.connectedNumber ? `+${whatsAppStatus.connectedNumber}` : 'جلسة نشطة'}
+                        </span>
+                      </div>
+                    )}
+                    {isWAWaitingQR && (
+                      <p className="text-[11px] text-amber-800 font-medium leading-relaxed">
+                        📱 الرقم غير مقترن حالياً - اضغط هنا لمسح رمز QR لربط الهاتف واستئناف الرسائل.
+                      </p>
+                    )}
+                    {!isWABanned && !isWAConnected && !isWAWaitingQR && (
+                      <p className="text-[11px] text-slate-600 font-medium">
+                        جاري تهيئة الاتصال بخادم واتساب... اضغط لإدارة الجلسة.
+                      </p>
+                    )}
+                  </div>
 
                   {!settings?.isWhatsAppEnabled && (
                     <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-100 text-red-700 text-xs flex items-start gap-2">

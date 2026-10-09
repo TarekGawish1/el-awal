@@ -21,9 +21,12 @@ import QRCode from 'react-qr-code';
 
 interface WhatsAppStatusResponse {
   connected: boolean;
-  status: 'connecting' | 'open' | 'close' | 'qr' | string;
+  status: 'connecting' | 'open' | 'close' | 'qr' | 'banned' | string;
   qr?: string | null;
   connectedNumber?: string | null;
+  isBanned?: boolean;
+  banReason?: string | null;
+  bannedAt?: string | null;
 }
 
 interface WhatsAppConnectionManagerProps {
@@ -37,6 +40,7 @@ export function WhatsAppConnectionManager({ isOpen, onClose }: WhatsAppConnectio
     status: 'connecting',
     qr: null,
     connectedNumber: null,
+    isBanned: false,
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isRelinking, setIsRelinking] = useState(false);
@@ -77,9 +81,10 @@ export function WhatsAppConnectionManager({ isOpen, onClose }: WhatsAppConnectio
 
   if (!isOpen) return null;
 
-  const isConnected = statusData.connected || statusData.status === 'open';
-  const isQrReady = statusData.status === 'qr' || Boolean(statusData.qr);
-  const isConnecting = statusData.status === 'connecting';
+  const isBanned = Boolean(statusData.isBanned || statusData.status === 'banned');
+  const isConnected = !isBanned && (statusData.connected || statusData.status === 'open');
+  const isQrReady = !isBanned && !isConnected && (statusData.status === 'qr' || Boolean(statusData.qr));
+  const isConnecting = !isBanned && !isConnected && statusData.status === 'connecting';
 
   return (
     <div
@@ -116,21 +121,26 @@ export function WhatsAppConnectionManager({ isOpen, onClose }: WhatsAppConnectio
         {/* Connection Status Card */}
         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <span className="text-xs font-bold text-slate-600">حالة الاتصال الحالية:</span>
-            {isConnected ? (
+            <span className="text-xs font-bold text-slate-600">حالة خط الواتساب:</span>
+            {isBanned ? (
+              <Badge variant="error" className="px-3 py-1 text-xs font-bold gap-1 bg-red-600 text-white border-red-700 animate-pulse">
+                <AlertCircle className="w-3.5 h-3.5" />
+                محظور من واتساب (Banned)
+              </Badge>
+            ) : isConnected ? (
               <Badge variant="success" className="px-3 py-1 text-xs font-bold gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                متصل وجاهز للخدمة
+                شغال ومتصل بالخدمة
               </Badge>
             ) : isQrReady ? (
               <Badge variant="warning" className="px-3 py-1 text-xs font-bold gap-1 bg-amber-100 text-amber-800 border-amber-200">
                 <QrCode className="w-3.5 h-3.5" />
-                بانتظار مسح رمز الـ QR
+                غير مقترن - بانتظار مسح الـ QR
               </Badge>
             ) : (
-              <Badge variant="error" className="px-3 py-1 text-xs font-bold gap-1 bg-red-100 text-red-800 border-red-200">
+              <Badge variant="error" className="px-3 py-1 text-xs font-bold gap-1 bg-slate-200 text-slate-800 border-slate-300">
                 <AlertCircle className="w-3.5 h-3.5" />
-                غير متصل
+                غير متصل بالسيرفر
               </Badge>
             )}
           </div>
@@ -145,6 +155,33 @@ export function WhatsAppConnectionManager({ isOpen, onClose }: WhatsAppConnectio
           </Button>
         </div>
 
+        {/* Ban Alert Details Card */}
+        {isBanned && (
+          <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 space-y-3">
+            <div className="flex items-start gap-2.5 text-red-900">
+              <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <h4 className="text-sm font-extrabold text-red-900">تنبيه: تم حظر هذا الرقم من قِبل شركة واتساب</h4>
+                <p className="text-xs text-red-700 leading-relaxed font-medium">
+                  {statusData.banReason || 'تم اكتشاف حظر الحساب لمنع إرسال الرسائل التلقائية.'}
+                </p>
+              </div>
+            </div>
+            <div className="bg-white/90 rounded-xl p-3 text-xs text-slate-700 space-y-2 border border-red-100">
+              <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                <span className="font-bold text-slate-900">⏳ مدة الحظر المتوقعة:</span>
+                <span className="text-red-700 font-bold bg-red-100/80 px-2 py-0.5 rounded-md">24 إلى 48 ساعة (للحظر المؤقت)</span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                📌 <strong>سبب الحظر:</strong> إرسال عدد كبير من الرسائل التلقائية لأولياء أمور أو طلاب لم يقوموا بحفظ رقمك في جهات الاتصال، أو قيام أحدهم بالضغط على إبلاغ (Report Spam).
+              </p>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                🛠️ <strong>خطوات الحل:</strong> افتح تطبيق واتساب على الهاتف واضغط &quot;طلب مراجعة&quot; (Request a Review) لفك الحظر، أو اضغط زر &quot;فك الارتباط وربط رقم جديد&quot; بالأسفل لربط شريحة أخرى واستئناف الرسائل فوراً.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Connected Number Info */}
         {isConnected && (
           <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-4 space-y-2">
@@ -156,7 +193,7 @@ export function WhatsAppConnectionManager({ isOpen, onClose }: WhatsAppConnectio
               </span>
             </div>
             <p className="text-xs text-emerald-800 leading-relaxed">
-              ✅ جميع الرسائل التلقائية (إيصالات الدفع، بيانات حسابات الطلاب وأولياء الأمور، تنبيهات الغياب والدرجات) يتم إرسالها حالياً من خلال هذا الرقم.
+              ✅ الرقم يعمل بنجاح. جميع الرسائل التلقائية (إيصالات الدفع، بيانات حسابات الطلاب وأولياء الأمور، تنبيهات الغياب والدرجات) يتم إرسالها حالياً من خلال هذا الرقم.
             </p>
           </div>
         )}
