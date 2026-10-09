@@ -60,8 +60,6 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
   private isRunning = false;
   private isProcessing = false;
   private pollTimeout: ReturnType<typeof setTimeout> | null = null;
-  /** In-memory cache holding unredacted message text for immediate dispatch */
-  private readonly pendingOutboundBodies = new Map<string, string>();
 
   /**
    * Sanitizes sensitive credentials (passwords, PINs, auth query params) before
@@ -149,7 +147,6 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
 
     const data = notification.data as Record<string, unknown> | null;
     const rawBody = this.buildMessageBody(notification);
-    const maskedBody = this.maskMessageCredentials(rawBody);
 
     const rawPhone = data?.phone;
     if (typeof rawPhone !== 'string' || !rawPhone.trim()) {
@@ -160,7 +157,7 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
           recipientName: notification.recipient.fullName,
           recipientRole: notification.recipient.role,
           templateType: notification.notificationType ?? notification.type,
-          messageBody: maskedBody,
+          messageBody: rawBody,
           status: WhatsAppStatus.PERMANENT_FAIL,
           failureReason: 'Recipient phone is missing',
           scheduledFor: notification.scheduledFor,
@@ -178,7 +175,7 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
           recipientName: notification.recipient.fullName,
           recipientRole: notification.recipient.role,
           templateType: notification.notificationType ?? notification.type,
-          messageBody: maskedBody,
+          messageBody: rawBody,
           status: WhatsAppStatus.PERMANENT_FAIL,
           failureReason: this.errorMessage(error),
           scheduledFor: notification.scheduledFor,
@@ -192,15 +189,11 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
         recipientName: notification.recipient.fullName,
         recipientRole: notification.recipient.role,
         templateType: notification.notificationType ?? notification.type,
-        messageBody: maskedBody,
+        messageBody: rawBody,
         status: WhatsAppStatus.QUEUED,
         scheduledFor: notification.scheduledFor,
       },
     });
-
-    if (createdRecord && (createdRecord as any).id) {
-      this.pendingOutboundBodies.set((createdRecord as any).id, rawBody);
-    }
 
     return createdRecord;
   }
@@ -363,8 +356,7 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
       if (claim.count !== 1) return false;
 
       try {
-        const outboundBody = this.pendingOutboundBodies.get(candidate.id) || candidate.messageBody;
-        this.pendingOutboundBodies.delete(candidate.id);
+        const outboundBody = candidate.messageBody;
 
         const result = await this.whatsapp.sendTrackedProtectedMessage(
           candidate.recipientPhone,
