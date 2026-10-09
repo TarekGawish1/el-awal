@@ -18,6 +18,8 @@ import {
   Info,
   Calendar,
   Sparkles,
+  Trash2,
+  Play,
 } from 'lucide-react';
 import {
   useWhatsAppStats,
@@ -25,6 +27,10 @@ import {
   useWhatsAppFailed,
   useRetryWhatsAppMessage,
   useRetryAllFailedWhatsApp,
+  useDeleteWhatsAppMessage,
+  useClearAllFailedWhatsApp,
+  useClearWhatsAppQueue,
+  useDispatchWhatsAppQueueNow,
   WhatsAppMessageLog,
 } from '@/hooks/useWhatsAppQueue';
 
@@ -50,6 +56,10 @@ export function WhatsAppQueueManager() {
 
   const retrySingle = useRetryWhatsAppMessage();
   const retryAll = useRetryAllFailedWhatsApp();
+  const deleteSingle = useDeleteWhatsAppMessage();
+  const clearFailed = useClearAllFailedWhatsApp();
+  const clearQueue = useClearWhatsAppQueue();
+  const dispatchNow = useDispatchWhatsAppQueueNow();
 
   const handleRefreshAll = () => {
     refetchStats();
@@ -223,32 +233,86 @@ export function WhatsAppQueueManager() {
         </div>
 
         {/* Global Action Buttons */}
-        <div className="flex items-center gap-2.5 self-end sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
           {activeSubTab === 'failed' && failedCount > 0 && (
-            <button
-              type="button"
-              disabled={retryAll.isPending}
-              onClick={() => retryAll.mutate()}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white text-xs font-black shadow-md shadow-red-600/20 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {retryAll.isPending ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  <span>جاري إعادة الجدولة...</span>
-                </>
-              ) : (
-                <>
-                  <RotateCcw size={14} />
-                  <span>إعادة إرسال جميع الرسائل الفاشلة ({failedCount}) 🔁</span>
-                </>
-              )}
-            </button>
+            <>
+              <button
+                type="button"
+                disabled={retryAll.isPending}
+                onClick={() => retryAll.mutate()}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white text-xs font-black shadow-md shadow-red-600/20 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {retryAll.isPending ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>جاري إعادة الجدولة...</span>
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw size={14} />
+                    <span>إعادة إرسال الكل ({failedCount}) 🔁</span>
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                disabled={clearFailed.isPending}
+                onClick={() => {
+                  if (typeof window !== 'undefined' && window.confirm('هل أنت متأكد من مسح كافة الرسائل الفاشلة من السجل؟')) {
+                    clearFailed.mutate();
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-700 hover:text-red-700 border border-slate-200 hover:border-red-200 text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
+                title="مسح كافة الرسائل الفاشلة"
+              >
+                <Trash2 size={13} />
+                <span>مسح الفاشلة 🗑️</span>
+              </button>
+            </>
+          )}
+
+          {activeSubTab === 'queue' && queuedCount > 0 && (
+            <>
+              <button
+                type="button"
+                disabled={dispatchNow.isPending}
+                onClick={() => dispatchNow.mutate()}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-black shadow-md shadow-emerald-600/20 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
+                title="تجاوز وقت الراحة الليلي وبدء إرسال الرسائل فوراً عبر الواتساب"
+              >
+                {dispatchNow.isPending ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>جاري بدء الإرسال...</span>
+                  </>
+                ) : (
+                  <>
+                    <Play size={14} />
+                    <span>إرسال الطابور الآن فورياً 🚀</span>
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                disabled={clearQueue.isPending}
+                onClick={() => {
+                  if (typeof window !== 'undefined' && window.confirm('هل أنت متأكد من إفراغ طابور الانتظار وحذف كافة الرسائل المعلقة؟')) {
+                    clearQueue.mutate();
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-700 hover:text-red-700 border border-slate-200 hover:border-red-200 text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
+                title="حذف كافة الرسائل الموجودة في الطابور"
+              >
+                <Trash2 size={13} />
+                <span>إفراغ الطابور 🧹</span>
+              </button>
+            </>
           )}
 
           <button
             type="button"
             onClick={handleRefreshAll}
-            className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors shadow-2xs"
+            className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
             title="تحديث البيانات"
           >
             <RefreshCw
@@ -337,16 +401,30 @@ export function WhatsAppQueueManager() {
                         </div>
                       </div>
 
-                      {/* Action Retry button */}
-                      <div className="shrink-0 self-end sm:self-center">
+                      {/* Action Retry & Delete buttons */}
+                      <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
                         <button
                           type="button"
                           disabled={retrySingle.isPending}
                           onClick={() => retrySingle.mutate(msg.id)}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-95 text-white text-xs font-bold transition-all disabled:opacity-50 shadow-xs"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-95 text-white text-xs font-bold transition-all disabled:opacity-50 shadow-xs cursor-pointer"
                         >
                           <RotateCcw size={13} />
                           <span>إعادة الإرسال 🔄</span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={deleteSingle.isPending}
+                          onClick={() => {
+                            if (typeof window !== 'undefined' && window.confirm('هل أنت متأكد من حذف هذه الرسالة نهائياً؟')) {
+                              deleteSingle.mutate(msg.id);
+                            }
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold border border-red-200 transition-colors cursor-pointer"
+                          title="حذف الرسالة من السجل"
+                        >
+                          <Trash2 size={13} />
+                          <span>حذف</span>
                         </button>
                       </div>
                     </div>
@@ -441,6 +519,7 @@ export function WhatsAppQueueManager() {
             <div className="space-y-3">
               {queueData.data.map((msg) => {
                 const tmpl = getTemplateLabel(msg.templateType);
+                const isExpanded = expandedMessageId === msg.id;
 
                 return (
                   <div
@@ -481,12 +560,46 @@ export function WhatsAppQueueManager() {
                           <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
                           <span>في الانتظار (Queued)</span>
                         </span>
+                        <button
+                          type="button"
+                          disabled={deleteSingle.isPending}
+                          onClick={() => {
+                            if (typeof window !== 'undefined' && window.confirm('هل أنت متأكد من إزالة هذه الرسالة من طابور الانتظار؟')) {
+                              deleteSingle.mutate(msg.id);
+                            }
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold border border-red-200 transition-colors cursor-pointer"
+                          title="حذف الرسالة من الطابور"
+                        >
+                          <Trash2 size={13} />
+                          <span>حذف</span>
+                        </button>
                       </div>
                     </div>
 
-                    <p className="text-xs text-slate-500 line-clamp-1 pt-1 border-t border-slate-50">
-                      {msg.messageBody}
-                    </p>
+                    {/* Message Preview Collapsible */}
+                    <div className="pt-2 border-t border-slate-100 text-xs text-slate-600">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-[11px] text-slate-500">نص الرسالة:</span>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedMessageId(isExpanded ? null : msg.id)}
+                          className="text-[11px] text-blue-600 font-bold hover:underline cursor-pointer"
+                        >
+                          {isExpanded ? 'إخفاء النص ▲' : 'عرض نص الرسالة بالكامل ▼'}
+                        </button>
+                      </div>
+
+                      {isExpanded ? (
+                        <div className="mt-2 p-3 rounded-xl bg-slate-50 border border-slate-200/70 text-slate-800 whitespace-pre-wrap font-sans text-xs leading-relaxed max-h-48 overflow-y-auto">
+                          {msg.messageBody}
+                        </div>
+                      ) : (
+                        <p className="mt-1 line-clamp-1 text-slate-500 text-[11px]">
+                          {msg.messageBody}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 );
               })}

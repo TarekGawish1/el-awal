@@ -257,4 +257,56 @@ export class NotificationsController {
       count: result.count,
     };
   }
+
+  @Delete('whatsapp-message/:id')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Delete / remove an individual message from WhatsApp queue or failed log' })
+  async deleteWhatsAppMessage(@Param('id') id: string) {
+    const result = await this.whatsappDispatcher.deleteMessage(id);
+    return {
+      success: true,
+      message: 'تم حذف الرسالة بنجاح',
+      data: result,
+    };
+  }
+
+  @Post('whatsapp-failed/clear')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Clear all failed WhatsApp messages' })
+  async clearAllFailedWhatsApp() {
+    const result = await this.whatsappDispatcher.clearAllFailed();
+    return {
+      success: true,
+      message: `تم مسح ${result.count} رسالة فاشلة بنجاح`,
+      count: result.count,
+    };
+  }
+
+  @Post('whatsapp-queue/clear')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Clear all queued WhatsApp messages' })
+  async clearWhatsAppQueue() {
+    const result = await this.whatsappDispatcher.clearQueue();
+    return {
+      success: true,
+      message: `تم إفراغ طابور الانتظار وحذف ${result.count} رسالة بنجاح`,
+      count: result.count,
+    };
+  }
+
+  @Post('whatsapp-dispatch-now')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({ summary: 'Trigger immediate dispatch of queued WhatsApp messages (bypasses quiet hours)' })
+  async dispatchWhatsAppQueueNow() {
+    const result = await this.whatsappDispatcher.forceDispatchNow();
+    return {
+      success: true,
+      message: 'تم تفعيل الإرسال الفوري لطابور الواتساب بنجاح 🚀',
+      data: result,
+    };
+  }
 }

@@ -123,3 +123,83 @@ export function useRetryAllFailedWhatsApp() {
     },
   });
 }
+
+export function useDeleteWhatsAppMessage() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      return apiClient<{ success: boolean; message: string }>(
+        API_ENDPOINTS.NOTIFICATIONS.WHATSAPP_DELETE_MESSAGE(id),
+        { method: 'DELETE' },
+      );
+    },
+    onSuccess: (res) => {
+      toast.success(res.message || 'تم حذف الرسالة بنجاح 🗑️');
+      queryClient.invalidateQueries({ queryKey: whatsAppQueueKeys.all });
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'فشل حذف الرسالة');
+    },
+  });
+}
+
+export function useClearAllFailedWhatsApp() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      return apiClient<{ success: boolean; message: string; count: number }>(
+        API_ENDPOINTS.NOTIFICATIONS.WHATSAPP_CLEAR_FAILED,
+        { method: 'POST' },
+      );
+    },
+    onSuccess: (res) => {
+      toast.success(res.message || `تم مسح ${res.count} رسالة فاشلة 🧹`);
+      queryClient.invalidateQueries({ queryKey: whatsAppQueueKeys.all });
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'فشل مسح الرسائل الفاشلة');
+    },
+  });
+}
+
+export function useClearWhatsAppQueue() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      return apiClient<{ success: boolean; message: string; count: number }>(
+        API_ENDPOINTS.NOTIFICATIONS.WHATSAPP_CLEAR_QUEUE,
+        { method: 'POST' },
+      );
+    },
+    onSuccess: (res) => {
+      toast.success(res.message || `تم إفراغ الطابور وحذف ${res.count} رسالة 🧹`);
+      queryClient.invalidateQueries({ queryKey: whatsAppQueueKeys.all });
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'فشل إفراغ الطابور');
+    },
+  });
+}
+
+export function useDispatchWhatsAppQueueNow() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      return apiClient<{ success: boolean; message: string }>(
+        API_ENDPOINTS.NOTIFICATIONS.WHATSAPP_DISPATCH_NOW,
+        { method: 'POST' },
+      );
+    },
+    onSuccess: (res) => {
+      toast.success(res.message || 'تم تفعيل الإرسال الفوري لطابور الواتساب بنجاح 🚀');
+      queryClient.invalidateQueries({ queryKey: whatsAppQueueKeys.all });
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'فشل تفعيل الإرسال الفوري');
+    },
+  });
+}

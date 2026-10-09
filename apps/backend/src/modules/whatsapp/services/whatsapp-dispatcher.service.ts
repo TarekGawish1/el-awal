@@ -59,6 +59,7 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
   private readonly dailyLimit: number;
   private isRunning = false;
   private isProcessing = false;
+  private forceImmediateActive = false;
   private pollTimeout: ReturnType<typeof setTimeout> | null = null;
 
   /**
@@ -320,6 +321,52 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
     return { count: result.count };
   }
 
+  /**
+   * Deletes an individual message log record.
+   */
+  async deleteMessage(id: string) {
+    const record = await this.prisma.whatsAppMessageLog.findUnique({ where: { id } });
+    if (!record) {
+      throw new NotFoundException(`WhatsApp message [${id}] not found`);
+    }
+
+    await this.prisma.whatsAppMessageLog.delete({ where: { id } });
+    return { success: true, id };
+  }
+
+  /**
+   * Clears all failed messages (both transient FAILED and PERMANENT_FAIL).
+   */
+  async clearAllFailed() {
+    const result = await this.prisma.whatsAppMessageLog.deleteMany({
+      where: { status: { in: [WhatsAppStatus.FAILED, WhatsAppStatus.PERMANENT_FAIL] } },
+    });
+    return { count: result.count };
+  }
+
+  /**
+   * Clears all queued messages.
+   */
+  async clearQueue() {
+    const result = await this.prisma.whatsAppMessageLog.deleteMany({
+      where: { status: { in: [WhatsAppStatus.QUEUED, WhatsAppStatus.SENDING] } },
+    });
+    return { count: result.count };
+  }
+
+  /**
+   * Manually activates immediate delivery of all queued messages regardless of quiet hours.
+   */
+  async forceDispatchNow() {
+    this.forceImmediateActive = true;
+    await this.prisma.whatsAppMessageLog.updateMany({
+      where: { status: WhatsAppStatus.QUEUED },
+      data: { scheduledFor: new Date() },
+    });
+    this.triggerDispatch();
+    return { success: true };
+  }
+
   triggerDispatch(): void {
     if (this.pollTimeout) {
       clearTimeout(this.pollTimeout);
@@ -399,7 +446,7 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
       const isWaAllowed = await this.settingsService.isChannelAllowed(NotificationChannel.WHATSAPP);
       if (!isWaAllowed) {
         nextDelay = 30_000;
-      } else if (!this.isWithinActiveHours()) {
+      } else if (!this.isWithinActiveHours() && !this.forceImmediateActive) {
         nextDelay = 5 * 60_000;
       } else if (await this.isQuotaExhausted()) {
         if (await this.isDailyQuotaExhausted()) await this.deferQueuedMessagesToTomorrow();
@@ -408,6 +455,7 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
         // processNextQueuedMessage already applied the 4–7 second cooldown.
         nextDelay = 0;
       } else {
+        this.forceImmediateActive = false;
         nextDelay = 12_000;
       }
     } catch (error) {
