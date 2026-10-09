@@ -82,64 +82,13 @@ export class AutoAbsenceCron implements OnModuleInit, OnModuleDestroy {
         if (activeEnrollments.length === 0) continue;
         const studentIds = activeEnrollments.map((e) => e.studentId);
 
-        // --- 1. Handle Attendance for Current Session ---
+        // Attendance is strictly recorded manually by the teacher/secretary.
+        // We load existing attendance solely to evaluate homework for attendees.
         const existingAttendance = await this.prisma.attendanceRecord.findMany({
           where: { sessionId: session.id },
           select: { studentId: true, status: true },
         });
         const attendanceMap = new Map(existingAttendance.map((a) => [a.studentId, a.status]));
-
-        const missingAttendanceIds = studentIds.filter((id) => !attendanceMap.has(id));
-
-        const sessionDateStr =
-          session.sessionDate instanceof Date
-            ? session.sessionDate.toISOString().split('T')[0]
-            : String(session.sessionDate).split('T')[0];
-        const todayStr = now.toISOString().split('T')[0];
-        const isSessionToday = sessionDateStr === todayStr;
-
-        // ONLY emit live WhatsApp notifications for sessions that took place TODAY.
-        // Never send retroactive WhatsApp notifications for historical sessions from previous days!
-        const shouldSendLiveNotification = isSessionToday;
-
-        if (missingAttendanceIds.length > 0) {
-          const attendanceData = missingAttendanceIds.map((studentId) => ({
-            sessionId: session.id,
-            studentId,
-            status: AttendanceStatus.ABSENT,
-            recordingMethod: RecordingMethod.MANUAL,
-            recordedById: session.group.teacherId, // Using the teacher's ID as the system recorder
-            notes: 'غياب تلقائي بعد انتهاء الحصة',
-            recordedAt: new Date(),
-          }));
-
-          await this.prisma.attendanceRecord.createMany({
-            data: attendanceData,
-            skipDuplicates: true,
-          });
-
-          await this.prisma.homeworkRecord.deleteMany({
-            where: {
-              sessionId: session.id,
-              studentId: { in: missingAttendanceIds },
-            },
-          });
-
-          missingAttendanceIds.forEach((studentId) => {
-            if (shouldSendLiveNotification) {
-              this.eventEmitter.emit('student.absence.recorded', {
-                studentId,
-                groupName: session.group?.name || '',
-                date: session.sessionDate,
-              });
-            }
-            attendanceMap.set(studentId, AttendanceStatus.ABSENT);
-          });
-
-          this.logger.log(
-            `AutoAbsence: Marked ${missingAttendanceIds.length} students as ABSENT for session ${session.id}`,
-          );
-        }
 
         // --- 2. Handle Homework Submission (Due in this session from previous session) ---
         // CRITICAL BUSINESS RULES:

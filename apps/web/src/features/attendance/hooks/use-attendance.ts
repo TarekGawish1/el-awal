@@ -13,7 +13,6 @@ import { syncEngine } from '@/lib/offline/sync-engine';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
 import { parseStudentQr } from '@/lib/qr/qr-parser';
 import { useAuthStore } from '@/features/auth/store/auth.store';
-import { isSessionEndedPlusOneHour } from '@/features/schedules/utils/time.utils';
 
 export function useGroupSessions(groupId: string | null) {
   return useQuery({
@@ -192,12 +191,6 @@ export function useSessionReport(sessionId: string | null) {
           }
         }
 
-        // 4.5. Check if session has ended by at least one hour
-        const sessionDateStr =
-          session?.sessionDate || cachedReport?.sessionDate || cachedReport?.session?.sessionDate;
-        const startTime = session?.startTime || cachedReport?.session?.startTime;
-        const endTime = session?.endTime || cachedReport?.session?.endTime;
-        const isEndedPlusOneHour = isSessionEndedPlusOneHour(sessionDateStr, startTime, endTime);
 
         // 5. Build full records list for every enrolled student
         const fullRecords = allRosterStudents.map((st) => {
@@ -209,10 +202,10 @@ export function useSessionReport(sessionId: string | null) {
             studentCode: st.studentCode || '',
             fullName: st.fullName || 'طالب',
             phone: (st as any).phone || (st as any).user?.phone || null,
-            status: rec?.status || (isEndedPlusOneHour ? 'ABSENT' : null),
-            recordingMethod: rec?.recordingMethod || (isEndedPlusOneHour ? 'MANUAL' : null),
+            status: rec?.status || null,
+            recordingMethod: rec?.recordingMethod || null,
             recordedAt: rec?.recordedAt || null,
-            notes: rec?.notes || (isEndedPlusOneHour ? 'غياب تلقائي بعد انتهاء الحصة' : null),
+            notes: rec?.notes || null,
           };
         });
 
@@ -237,11 +230,7 @@ export function useSessionReport(sessionId: string | null) {
         const presentCount = fullRecords.filter((r) => r.status === 'PRESENT').length;
         const excusedCount = fullRecords.filter((r) => r.status === 'EXCUSED').length;
         const explicitAbsentCount = fullRecords.filter((r) => r.status === 'ABSENT').length;
-        const remainingUnrecorded = Math.max(0, totalEnrolled - presentCount - excusedCount - explicitAbsentCount);
-        // Only count unrecorded students as absent if session ended at least 1 hour ago
-        const calculatedAbsent = isEndedPlusOneHour
-          ? explicitAbsentCount + remainingUnrecorded
-          : explicitAbsentCount;
+        const calculatedAbsent = explicitAbsentCount;
         const attendanceRatePercentage =
           totalEnrolled > 0 ? Math.round((presentCount / totalEnrolled) * 100) : 0;
 
@@ -277,7 +266,7 @@ export function useSessionReport(sessionId: string | null) {
             studentName: s.fullName,
             studentCode: s.studentCode,
             qrCodeToken: s.qrCodeToken,
-            attendanceStatus: recordsMap.get(String(s.id).trim())?.status || (isEndedPlusOneHour ? 'ABSENT' : null),
+            attendanceStatus: recordsMap.get(String(s.id).trim())?.status || null,
           })),
           records: fullRecords,
           stats: {

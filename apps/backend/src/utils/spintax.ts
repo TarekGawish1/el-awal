@@ -53,10 +53,9 @@ const CLOSINGS = [
 ];
 
 const SIGNATURES = [
-  '— منصة الأول التعليمية 📚',
-  '— فريق الأول التعليمي ✏️',
-  '— إدارة منصة الأول 🎓',
-  '',  // occasionally no signature (more human)
+  'منصة الأول للرياضيات - أستاذ أحمد غريب 📐',
+  '— منصة الأول للرياضيات - أستاذ أحمد غريب 📐',
+  'منصة الأول للرياضيات - أستاذ أحمد غريب ✨',
 ];
 
 export interface StudentApprovalCredentialsData {
@@ -96,7 +95,7 @@ export function formatStudentRegistrationMessage(data: StudentApprovalCredential
     parentPhoneOrCode,
     parentPassword,
     platformUrl = 'https://al-awal.online/login',
-    centerName = 'منصة الأوّل التعليمية',
+    centerName = 'منصة الأول للرياضيات - أستاذ أحمد غريب',
     groupName,
   } = data;
 
@@ -187,7 +186,7 @@ export function formatStudentApprovalMessage(data: StudentApprovalCredentialsDat
     parentPhoneOrCode,
     parentPassword,
     platformUrl = 'https://al-awal.online/login',
-    centerName = 'منصة الأوّل التعليمية',
+    centerName = 'منصة الأول للرياضيات - أستاذ أحمد غريب',
     groupName,
   } = data;
 
@@ -278,7 +277,7 @@ export function formatGroupReservationPendingMessage(data: {
     parentName = 'ولي الأمر المحترم',
     studentName,
     groupName = 'المجموعة',
-    centerName = 'منصة الأوّل التعليمية',
+    centerName = 'منصة الأول للرياضيات - أستاذ أحمد غريب',
   } = data;
 
   const greetings = [
@@ -316,19 +315,42 @@ export function formatAbsenceMessage(
 ): string {
   const greeting = pickRandom(GREETINGS);
   const closing = pickRandom(CLOSINGS);
-  const sig = pickRandom(SIGNATURES);
+  const sig = 'منصة الأول للرياضيات - أستاذ أحمد غريب 📐';
   const date = dateStr || arabicDate();
 
   const bodies = [
-    `نود إحاطتكم علماً بغياب الطالب/ة *${studentName}* عن حصة *${groupName}* بتاريخ ${date}.`,
-    `نُعلمكم بأن الطالب/ة *${studentName}* لم يحضر حصة *${groupName}* يوم ${date}.`,
-    `تنبيه: سُجِّل غياب الطالب/ة *${studentName}* عن مجموعة *${groupName}* اليوم ${date}.`,
+    `نود إحاطتكم علماً بغياب الطالب/ة *${studentName}* عن حصة الرياضيات مع *أستاذ أحمد غريب* في مجموعة (*${groupName}*) بتاريخ ${date}.`,
+    `نُعلمكم بأن الطالب/ة *${studentName}* لم يحضر حصة الرياضيات مع *أستاذ أحمد غريب* لمجموعة (*${groupName}*) يوم ${date}.`,
+    `تنبيه: سُجِّل غياب الطالب/ة *${studentName}* عن مجموعة (*${groupName}*) في مادة الرياضيات مع *أستاذ أحمد غريب* اليوم ${date}.`,
   ];
 
   const body = pickRandom(bodies);
-  const parts = [greeting, '', body, '', closing];
-  if (sig) parts.push(sig);
+  const parts = [greeting, '', body, '', closing, '', sig];
   return parts.join('\n');
+}
+
+/**
+ * Generates an apology and correction message for a parent when a student's
+ * absence was marked by mistake and subsequently corrected to present/attended.
+ */
+export function formatAbsenceCorrectionMessage(
+  studentName: string,
+  groupName: string,
+  dateStr?: string,
+): string {
+  const greeting = pickRandom(GREETINGS);
+  const sig = 'منصة الأول للرياضيات - أستاذ أحمد غريب 📐';
+  const date = dateStr || arabicDate();
+
+  const bodies = [
+    `🌸 *تصحيح واعتذار:*\nنعتذر لحضرتكم عن الإشعار السابق بالغياب؛ نود إحاطتكم بأن الطالب/ة: *${studentName}* قد حضر بالفعل حصة الرياضيات مع *أستاذ أحمد غريب* في مجموعة (*${groupName}*) بتاريخ ${date} وتم رصد حضوره بنجاح.`,
+    `🌸 *تنويه وتصحيح:*\nنعتذر عن وصول رسالة الغياب السابقة بالخطأ؛ نؤكد لحضرتكم حضور الطالب/ة: *${studentName}* لحصة الرياضيات مع *أستاذ أحمد غريب* لمجموعة (*${groupName}*) اليوم ${date} وتسجيل حضوره رسمياً.`,
+    `🌸 *تصحيح تسجيل الحضور:*\nنعتذر لحضرتكم عن أي إشعار سابق بالغياب صدر عن طريق السهو؛ نود إفادتكم بأن الطالب/ة: *${studentName}* متواجد بالحصة وحاضر مع *أستاذ أحمد غريب* في مجموعة (*${groupName}*) بتاريخ ${date}.`,
+  ];
+
+  const body = pickRandom(bodies);
+  const closing = 'نسعد دائماً بوجود أبنائنا معنا، ونتمنى له دوام التوفيق والتفوق! 🌟';
+  return [greeting, '', body, '', closing, '', sig].join('\n');
 }
 
 /**
@@ -371,7 +393,7 @@ export function formatExamFailedMessage(
   const bodies = [
     `نود إعلامكم بأن الطالب/ة *${studentName}* حصل على درجة *${score}/${total}* في اختبار *${examTitle}*، وهي أقل من درجة النجاح (${passing}). يُرجى المتابعة.`,
     `تنبيه هام: نتيجة الطالب/ة *${studentName}* في *${examTitle}* كانت *${score}/${total}* ولم تبلغ حد النجاح البالغ ${passing} درجة. نوصي بالمراجعة.`,
-    `إشعار تقييم: سجّل الطالب/ة *${studentName}* درجة *${score} من ${total}* في اختبار *${examTitle}*. درجة النجاح ${passing}. نرجو المتابعة مع المدرس.`,
+    `إشعار تقييم: سجّل الطالب/ة *${studentName}* درجة *${score} من ${total}* في اختبار *${examTitle}* في مادة الرياضيات مع *أستاذ أحمد غريب*. درجة النجاح ${passing}. نرجو المتابعة.`,
   ];
 
   const body = pickRandom(bodies);
@@ -405,7 +427,7 @@ export function formatPaymentReceivedMessage(data: PaymentNotificationData): str
     invoiceNumber,
     paymentMethod = 'نقدي / السنتر',
     remainingBalance = 0,
-    centerName = 'منصة الأوّل التعليمية',
+    centerName = 'منصة الأول للرياضيات - أستاذ أحمد غريب',
   } = data;
 
   const dateStr = new Date().toLocaleDateString('ar-EG', {
@@ -466,9 +488,9 @@ export function formatPaymentMessage(
   const time = arabicTime();
 
   const bodies = [
-    `✅ تم استلام مبلغ *${amount} ج.م* مصروفات شهر *${month}/${year}* للطالب/ة *${studentName}* بنجاح — ${time}.`,
-    `إشعار دفع: تأكيد استلام رسوم *${studentName}* عن شهر *${month}/${year}* بقيمة *${amount} جنيه* — ${time}.`,
-    `تم التسجيل ✔️ — مصروفات الطالب/ة *${studentName}* لشهر *${month}/${year}* (*${amount} ج.م*) وردت في ${time}.`,
+    `✅ تم استلام مبلغ *${amount} ج.م* مصروفات شهر *${month}/${year}* للطالب/ة *${studentName}* لدى *أستاذ أحمد غريب* بنجاح — ${time}.`,
+    `إشعار دفع: تأكيد استلام رسوم *${studentName}* عن شهر *${month}/${year}* بقيمة *${amount} جنيه* في مادة الرياضيات مع *أستاذ أحمد غريب* — ${time}.`,
+    `تم التسجيل ✔️ — مصروفات الطالب/ة *${studentName}* لشهر *${month}/${year}* (*${amount} ج.م*) لدى *أستاذ أحمد غريب* وردت في ${time}.`,
   ];
 
   const body = pickRandom(bodies);
@@ -562,7 +584,7 @@ export function formatAssistantCredentialsMessage(data: {
     `🔗 رابط تسجيل الدخول: ${url}`,
     '',
     'نتمنى لك التوفيق دائماً 🌟',
-    '— إدارة منصة الأوّل 🎓',
+    '— منصة الأول للرياضيات - أستاذ أحمد غريب 📐',
   ];
 
   return lines.join('\n');

@@ -66,6 +66,7 @@ function TeacherAttendanceContent() {
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>(paramSessionId || '');
+  const [sessionScope, setSessionScope] = useState<'TODAY' | 'WEEK' | 'ALL'>('TODAY');
   const paramTab = searchParams.get('tab') as 'QR' | 'QR_HOMEWORK' | 'LOGBOOK' | null;
   const [activeTab, setActiveTab] = useState<'QR' | 'QR_HOMEWORK' | 'LOGBOOK'>(paramTab || 'QR');
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
@@ -217,6 +218,39 @@ function TeacherAttendanceContent() {
       return matchesStage && matchesGrade && matchesLocation;
     });
   }, [allTeacherSessions, groupMap, selectedStages, selectedGrades, selectedLocations, activeYear, activeTerm]);
+
+  // Filter sessions for the current week (Saturday to Friday)
+  const currentWeekSessions = useMemo(() => {
+    if (!filteredAllSessions || !Array.isArray(filteredAllSessions)) return [];
+    const now = new Date();
+    const currentDay = now.getDay();
+    const daysSinceSaturday = (currentDay + 1) % 7;
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - daysSinceSaturday);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    endOfWeek.setHours(23, 59, 59, 999);
+
+    return filteredAllSessions.filter((s: any) => {
+      if (!s.sessionDate) return false;
+      const sDate = new Date(s.sessionDate);
+      return sDate >= startOfWeek && sDate <= endOfWeek;
+    });
+  }, [filteredAllSessions]);
+
+  const displaySessions = useMemo(() => {
+    if (sessionScope === 'WEEK') return currentWeekSessions;
+    if (sessionScope === 'ALL') return filteredAllSessions;
+    return filteredSessions;
+  }, [sessionScope, currentWeekSessions, filteredAllSessions, filteredSessions]);
+
+  const scopeCountLabel = useMemo(() => {
+    if (sessionScope === 'WEEK') return `${currentWeekSessions.length} حصص هذا الأسبوع`;
+    if (sessionScope === 'ALL') return `${filteredAllSessions.length} حصة مجدولة`;
+    return `${filteredSessions.length} حصص اليوم`;
+  }, [sessionScope, currentWeekSessions.length, filteredAllSessions.length, filteredSessions.length]);
 
   // Auto-select session based on paramSessionId, paramGroupId, or nearest time, and sync with active filters
   useEffect(() => {
@@ -398,47 +432,96 @@ function TeacherAttendanceContent() {
       </div>
 
       {/* 2. Primary Session Selector & Drawer Toggle */}
-      <div className="flex flex-col md:flex-row gap-3">
-        <div className="flex-1">
-          {isErrorSessions ? (
-             <p className="text-red-500 text-xs">فشل تحميل حصص اليوم.</p>
-          ) : (
-            <SearchableSessionCombobox
-              label="الحصة الحالية"
-              countLabel={`${filteredSessions.length} حصص اليوم`}
-              sessions={filteredSessions}
-              selectedSessionId={selectedSessionId}
-              onSelectSession={(id) => setSelectedSessionId(id)}
-              placeholder="-- اختر الحصة --"
-              isLoading={isLoadingSessions}
-              isTodayPicker={true}
-              groupMap={groupMap}
-              className="w-full"
-            />
-          )}
+      <div>
+        <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold text-slate-600 mb-2.5 w-fit">
+          <button
+            type="button"
+            onClick={() => setSessionScope('TODAY')}
+            className={`px-3 py-1.5 rounded-lg transition-all ${
+              sessionScope === 'TODAY'
+                ? 'bg-white text-primary-700 shadow-sm border border-slate-200'
+                : 'hover:text-slate-900'
+            }`}
+          >
+            حصص اليوم
+          </button>
+          <button
+            type="button"
+            onClick={() => setSessionScope('WEEK')}
+            className={`px-3 py-1.5 rounded-lg transition-all ${
+              sessionScope === 'WEEK'
+                ? 'bg-white text-primary-700 shadow-sm border border-slate-200'
+                : 'hover:text-slate-900'
+            }`}
+          >
+            مجاميع هذا الأسبوع ({currentWeekSessions.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setSessionScope('ALL')}
+            className={`px-3 py-1.5 rounded-lg transition-all ${
+              sessionScope === 'ALL'
+                ? 'bg-white text-primary-700 shadow-sm border border-slate-200'
+                : 'hover:text-slate-900'
+            }`}
+          >
+            جميع حصص الترم
+          </button>
         </div>
-        
-        <div className="md:pt-6 flex-shrink-0 flex items-center gap-2">
-          <Button 
-            onClick={() => setIsCreateModalOpen(true)}
-            className="w-full md:w-auto h-11 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-sm"
-          >
-            <Plus className="w-4 h-4 ml-1.5" />
-            إضافة حصة اليوم
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => setIsFilterDrawerOpen(true)}
-            className="w-full md:w-auto h-11 rounded-xl bg-white border-slate-200 text-slate-700 hover:bg-slate-50 relative"
-          >
-            <SlidersHorizontal className="w-4 h-4 ml-2" />
-            فلاتر متقدمة
-            {activeFiltersCount > 0 && (
-              <span className="absolute -top-2 -right-2 bg-primary-500 text-white w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold shadow-sm">
-                {activeFiltersCount}
-              </span>
+
+        <div className="flex flex-col md:flex-row gap-3 items-end">
+          <div className="flex-1 w-full">
+            {isErrorSessions ? (
+              <p className="text-red-500 text-xs">فشل تحميل الحصص.</p>
+            ) : (
+              <SearchableSessionCombobox
+                label={sessionScope === 'WEEK' ? 'حصص الأسبوع الحالي (مفتوحة للتسجيل والتعديل طوال الأسبوع)' : 'الحصة المحددة'}
+                countLabel={scopeCountLabel}
+                sessions={displaySessions}
+                selectedSessionId={selectedSessionId}
+                onSelectSession={(id) => {
+                  setSelectedSessionId(id);
+                  const targetSession = (filteredAllSessions || []).find((s: any) => s.id === id);
+                  if (targetSession) {
+                    const dateStr = targetSession.sessionDate?.includes('T') ? targetSession.sessionDate.split('T')[0] : targetSession.sessionDate;
+                    const timePart = targetSession.endTime?.split(':').length === 2 ? `${targetSession.endTime}:00` : targetSession.endTime || '23:59:00';
+                    const endDt = new Date(`${dateStr}T${timePart}`);
+                    if (!isNaN(endDt.getTime()) && endDt < new Date()) {
+                      setActiveTab('LOGBOOK');
+                    }
+                  }
+                }}
+                placeholder="-- اختر الحصة --"
+                isLoading={sessionScope === 'TODAY' ? isLoadingSessions : isLoadingAllSessions}
+                isTodayPicker={sessionScope === 'TODAY'}
+                groupMap={groupMap}
+                className="w-full"
+              />
             )}
-          </Button>
+          </div>
+          
+          <div className="flex-shrink-0 flex items-center gap-2 w-full md:w-auto">
+            <Button 
+              onClick={() => setIsCreateModalOpen(true)}
+              className="w-full md:w-auto h-11 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-sm"
+            >
+              <Plus className="w-4 h-4 ml-1.5" />
+              إضافة حصة اليوم
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsFilterDrawerOpen(true)}
+              className="w-full md:w-auto h-11 rounded-xl bg-white border-slate-200 text-slate-700 hover:bg-slate-50 relative"
+            >
+              <SlidersHorizontal className="w-4 h-4 ml-2" />
+              فلاتر متقدمة
+              {activeFiltersCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-primary-500 text-white w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold shadow-sm">
+                  {activeFiltersCount}
+                </span>
+              )}
+            </Button>
+          </div>
         </div>
       </div>
 

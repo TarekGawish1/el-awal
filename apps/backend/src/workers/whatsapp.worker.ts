@@ -10,6 +10,7 @@ import { WhatsAppService } from '../services/whatsapp/whatsapp.service';
 import { NotificationStatus, NotificationType } from '@prisma/client';
 import {
   formatAbsenceMessage,
+  formatAbsenceCorrectionMessage,
   formatSessionReminderMessage,
   formatExamFailedMessage,
   formatPaymentMessage,
@@ -182,7 +183,10 @@ export class WhatsAppWorker implements OnModuleInit, OnModuleDestroy {
     }
 
     // ── Build varied message text via spintax ───────────────────────────────
-    const messageText = this.buildSpintaxMessage(notification, data);
+    let messageText = this.buildSpintaxMessage(notification, data);
+    if (!messageText.includes('أحمد غريب')) {
+      messageText = `${messageText}\n\nمنصة الأول للرياضيات - أستاذ أحمد غريب 📐`;
+    }
 
     // ── Dispatch via protected send (typing simulation + contact check) ─────
     const result = await this.whatsapp.sendProtectedMessage(phone, messageText);
@@ -250,6 +254,13 @@ export class WhatsAppWorker implements OnModuleInit, OnModuleDestroy {
         });
 
       case NotificationType.ABSENCE_ALERT_PARENT:
+        if (notification.type === 'ABSENCE_CORRECTION_PARENT') {
+          return formatAbsenceCorrectionMessage(
+            (data?.studentName as string) || 'الطالب',
+            (data?.groupName as string) || 'الحصة',
+            data?.date as string | undefined,
+          );
+        }
         return formatAbsenceMessage(
           (data?.studentName as string) || 'الطالب',
           (data?.groupName as string) || 'الحصة',
@@ -280,7 +291,10 @@ export class WhatsAppWorker implements OnModuleInit, OnModuleDestroy {
         );
 
       default: {
-        if (notification.type === 'ASSISTANT_CREDENTIALS') {
+        if (
+          notification.type === 'ASSISTANT_CREDENTIALS' ||
+          notification.type === 'PARENT_PASSWORD_RESET_ALERT'
+        ) {
           return notification.message;
         }
 

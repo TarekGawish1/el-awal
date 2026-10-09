@@ -29,6 +29,8 @@ describe('AttendanceService', () => {
       count: jest.fn(),
       upsert: jest.fn(),
       deleteMany: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
+      findFirst: jest.fn().mockResolvedValue(null),
     },
     homeworkRecord: {
       deleteMany: jest.fn(),

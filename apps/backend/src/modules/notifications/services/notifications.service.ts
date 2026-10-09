@@ -335,7 +335,7 @@ export class NotificationsService {
     const studentName = student.user.fullName;
     const dateStr = (payload.date || new Date()).toISOString().split('T')[0];
     const groupText = payload.groupName ? `في مجموعة (${payload.groupName})` : '';
-    const body = `نود إحاطتكم بغياب الطالب (${studentName}) ${groupText} بتاريخ ${dateStr}. يرجى المتابعة مع المدرس.`;
+    const body = `نود إحاطتكم بغياب الطالب/ة (${studentName}) ${groupText} عن حصة الرياضيات مع أستاذ أحمد غريب بتاريخ ${dateStr}. يرجى المتابعة مع المدرس.\n\nمنصة الأول للرياضيات - أستاذ أحمد غريب 📐`;
 
     for (const link of student.parentLinks) {
       const parentUserId = link.parent.user.id;
@@ -355,9 +355,96 @@ export class NotificationsService {
         channels,
         data: {
           studentId: payload.studentId,
+          studentName,
           phone: parentPhone,
           groupName: payload.groupName,
           date: dateStr,
+          sessionId: (payload as any).sessionId,
+        },
+        referenceEntityId: payload.studentId,
+      });
+    }
+  }
+
+  /**
+   * Handles student absence correction/apology alerts when a student was previously
+   * marked absent and is now updated to present or attended.
+   */
+  @OnEvent('student.absence.corrected', { async: true })
+  async handleAbsenceCorrectedEvent(payload: {
+    studentId: string;
+    groupName?: string;
+    date?: Date;
+    sessionId?: string;
+  }) {
+    this.logger.log(
+      `Processing absence correction event for student [${payload.studentId}]`,
+    );
+
+    const student = await this.prisma.studentProfile.findUnique({
+      where: { id: payload.studentId },
+      include: {
+        user: { select: { fullName: true } },
+        parentLinks: {
+          include: {
+            parent: {
+              include: { user: { select: { id: true, phone: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    if (!student || student.parentLinks.length === 0) return;
+
+    const studentName = student.user.fullName;
+    const dateStr = (payload.date || new Date()).toISOString().split('T')[0];
+    const groupName = payload.groupName || 'الحصة';
+    const body = `نعتذر لحضرتكم عن إشعار الغياب السابق؛ نود إحاطتكم بأن الطالب/ة: (${studentName}) قد حضر بالفعل حصة الرياضيات مع أستاذ أحمد غريب في مجموعة (${groupName}) وتم رصد حضوره بنجاح.\n\nمنصة الأول للرياضيات - أستاذ أحمد غريب 📐`;
+
+    for (const link of student.parentLinks) {
+      const parentUserId = link.parent.user.id;
+      const parentPhone = link.parent.user.phone;
+
+      // Only send apology if the most recent absence-related notification was an uncorrected ABSENCE_ALERT_PARENT
+      const latestAbsenceRelatedNotif = await this.prisma.notification.findFirst({
+        where: {
+          recipientId: parentUserId,
+          type: { in: ['ABSENCE_ALERT_PARENT', 'ABSENCE_CORRECTION_PARENT'] },
+          referenceEntityId: payload.studentId,
+          createdAt: {
+            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Within last 7 days
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (!latestAbsenceRelatedNotif || latestAbsenceRelatedNotif.type !== 'ABSENCE_ALERT_PARENT') {
+        this.logger.debug(
+          `Skipping absence apology: no uncorrected absence alert found for student [${payload.studentId}] to parent [${parentUserId}]`,
+        );
+        continue;
+      }
+
+      const channels: NotificationChannel[] = [NotificationChannel.IN_APP];
+      if (parentPhone) {
+        channels.push(NotificationChannel.WHATSAPP);
+      }
+
+      await this.sendNotification({
+        recipientId: parentUserId,
+        notificationType: NotificationType.ABSENCE_ALERT_PARENT,
+        type: 'ABSENCE_CORRECTION_PARENT',
+        title: '🌸 تصحيح واعتذار - تأكيد حضور الطالب',
+        body,
+        channels,
+        data: {
+          studentId: payload.studentId,
+          studentName,
+          phone: parentPhone,
+          groupName,
+          date: dateStr,
+          sessionId: payload.sessionId,
         },
         referenceEntityId: payload.studentId,
       });

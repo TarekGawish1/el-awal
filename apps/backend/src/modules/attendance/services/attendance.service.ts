@@ -13,7 +13,7 @@ import { BatchAttendanceDto } from '../dto/batch-attendance.dto';
 import { CursorPaginationDto } from '../../../common/dto/cursor-pagination.dto';
 import { AttendanceStatus, RecordingMethod, GroupEnrollmentStatus, UserRole } from '@prisma/client';
 import { AuthenticatedUser } from '../../../core/security/decorators/current-user.decorator';
-import { isSessionEndedPlusOneHour, getSessionEndUtcDate } from '../utils/attendance.util';
+import { getSessionEndUtcDate } from '../utils/attendance.util';
 import { RealtimeGateway } from '../../../realtime/realtime.gateway';
 
 @Injectable()
@@ -273,6 +273,22 @@ export class AttendanceService {
       );
     }
 
+    const targetStudentIds = Array.from(
+      new Set([...studentIds, ...(dto.removedStudentIds || [])]),
+    );
+
+    const existingRecords = await this.prisma.attendanceRecord.findMany({
+      where: {
+        sessionId,
+        studentId: { in: targetStudentIds },
+      },
+      select: {
+        studentId: true,
+        status: true,
+      },
+    });
+    const previousStatusMap = new Map(existingRecords.map((r) => [r.studentId, r.status]));
+
     const updatedRecords = [];
 
     await this.prisma.$transaction(async (tx) => {
@@ -303,7 +319,9 @@ export class AttendanceService {
 
         updatedRecords.push(record);
 
-        // If marked absent, remove any homework record for this session and emit event for guardian notification
+        const prevStatus = previousStatusMap.get(item.studentId);
+
+        // If marked absent, remove any homework record for this session
         if (item.status === AttendanceStatus.ABSENT) {
           if (typeof tx.homeworkRecord?.deleteMany === 'function') {
             await tx.homeworkRecord.deleteMany({
@@ -314,10 +332,22 @@ export class AttendanceService {
             });
           }
 
-          this.eventEmitter.emit('student.absence.recorded', {
+          // Emit live WhatsApp notification only if student is newly marked ABSENT
+          if (prevStatus !== AttendanceStatus.ABSENT) {
+            this.eventEmitter.emit('student.absence.recorded', {
+              studentId: item.studentId,
+              groupName: session.group.name,
+              date: session.sessionDate,
+              sessionId,
+            });
+          }
+        } else if (prevStatus === AttendanceStatus.ABSENT) {
+          // If previously marked absent and now corrected to present/excused, emit apology & correction alert
+          this.eventEmitter.emit('student.absence.corrected', {
             studentId: item.studentId,
             groupName: session.group.name,
             date: session.sessionDate,
+            sessionId,
           });
         }
       }
@@ -338,6 +368,18 @@ export class AttendanceService {
               studentId: { in: dto.removedStudentIds },
             },
           });
+        }
+
+        // If any removed student was previously ABSENT, emit absence correction alert
+        for (const removedId of dto.removedStudentIds) {
+          if (previousStatusMap.get(removedId) === AttendanceStatus.ABSENT) {
+            this.eventEmitter.emit('student.absence.corrected', {
+              studentId: removedId,
+              groupName: session.group.name,
+              date: session.sessionDate,
+              sessionId,
+            });
+          }
         }
       }
     });
@@ -425,13 +467,6 @@ export class AttendanceService {
       }
     }
 
-    // Auto-mark missing enrolled students as ABSENT only if the session ended by at least 1 hour
-    const hasEndedPlusOneHour = isSessionEndedPlusOneHour(
-      session.sessionDate,
-      session.startTime,
-      session.endTime,
-    );
-
     const sessionEndTime = getSessionEndUtcDate(
       session.sessionDate,
       session.startTime,
@@ -443,43 +478,6 @@ export class AttendanceService {
     const eligibleEnrollments = session.group.enrollments.filter(
       (e) => !e.enrolledAt || (sessionEndTime ? new Date(e.enrolledAt).getTime() <= sessionEndTime.getTime() : true),
     );
-
-    if (hasEndedPlusOneHour) {
-      const existingStudentIds = new Set(session.attendanceRecords.map((r) => r.studentId));
-      const missingEnrollments = eligibleEnrollments.filter(
-        (e) => !existingStudentIds.has(e.studentId),
-      );
-
-      if (missingEnrollments.length > 0) {
-        const autoAbsenceData = missingEnrollments.map((e) => ({
-          sessionId: session.id,
-          studentId: e.studentId,
-          status: AttendanceStatus.ABSENT,
-          recordingMethod: RecordingMethod.MANUAL,
-          recordedById: session.group.teacherId,
-          notes: 'غياب تلقائي بعد انتهاء الحصة',
-          recordedAt: new Date(),
-        }));
-
-        await this.prisma.attendanceRecord.createMany({
-          data: autoAbsenceData,
-          skipDuplicates: true,
-        });
-
-        for (const ad of autoAbsenceData) {
-          session.attendanceRecords.push({
-            id: `auto-${session.id}-${ad.studentId}`,
-            sessionId: session.id,
-            studentId: ad.studentId,
-            status: AttendanceStatus.ABSENT,
-            recordingMethod: RecordingMethod.MANUAL,
-            notes: 'غياب تلقائي بعد انتهاء الحصة',
-            recordedAt: ad.recordedAt,
-            recordedBy: null,
-          } as any);
-        }
-      }
-    }
 
     const totalEnrolled = eligibleEnrollments.length;
     const presentCount = session.attendanceRecords.filter((r) => r.status === AttendanceStatus.PRESENT).length;
@@ -594,6 +592,16 @@ export class AttendanceService {
       }
     }
 
+    const existingRecord = await this.prisma.attendanceRecord.findFirst({
+      where: {
+        sessionId,
+        studentId,
+      },
+      select: {
+        status: true,
+      },
+    });
+
     await this.prisma.attendanceRecord.deleteMany({
       where: {
         sessionId,
@@ -607,6 +615,16 @@ export class AttendanceService {
           sessionId,
           studentId,
         },
+      });
+    }
+
+    // If the removed record was marked ABSENT, emit absence correction alert
+    if (existingRecord?.status === AttendanceStatus.ABSENT) {
+      this.eventEmitter.emit('student.absence.corrected', {
+        studentId,
+        groupName: session.group?.name,
+        date: session.sessionDate,
+        sessionId,
       });
     }
 

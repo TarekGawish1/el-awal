@@ -16,6 +16,7 @@ import { PrismaService } from '../../../core/database/prisma.service';
 import { WhatsAppService } from '../../../services/whatsapp/whatsapp.service';
 import {
   formatAbsenceMessage,
+  formatAbsenceCorrectionMessage,
   formatAssistantCredentialsMessage,
   formatExamFailedMessage,
   formatGenericMessage,
@@ -404,6 +405,8 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
         groupName: data?.groupName as string | undefined,
         centerName: (data?.centerName as string) || 'منصة الأوّل التعليمية',
       });
+    } else if (notification.type === 'PARENT_PASSWORD_RESET_ALERT') {
+      message = notification.message || (notification as any).body || (data?.body as string) || '';
     } else if (notification.type === 'ASSISTANT_CREDENTIALS') {
       message = formatAssistantCredentialsMessage({
         assistantName: (data?.assistantName as string) || notification.recipient?.fullName || '',
@@ -423,12 +426,24 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
             parentPhoneOrCode: (data?.parentPhoneOrCode as string) || (data?.parentPhone as string) || undefined,
             parentPassword: data?.parentPassword as string | undefined,
             platformUrl: (data?.platformUrl as string) || process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online/login',
-            centerName: (data?.centerName as string) || 'منصة الأوّل التعليمية',
+            centerName: (data?.centerName as string) || 'منصة الأول للرياضيات - أستاذ أحمد غريب',
             groupName: data?.groupName as string | undefined,
           });
           break;
         case NotificationType.ABSENCE_ALERT_PARENT:
-          message = formatAbsenceMessage((data?.studentName as string) || 'الطالب', (data?.groupName as string) || 'الحصة', data?.date as string | undefined);
+          if (notification.type === 'ABSENCE_CORRECTION_PARENT') {
+            message = formatAbsenceCorrectionMessage(
+              (data?.studentName as string) || 'الطالب',
+              (data?.groupName as string) || 'الحصة',
+              data?.date as string | undefined,
+            );
+          } else {
+            message = formatAbsenceMessage(
+              (data?.studentName as string) || 'الطالب',
+              (data?.groupName as string) || 'الحصة',
+              data?.date as string | undefined,
+            );
+          }
           break;
         case NotificationType.SESSION_REMINDER_STUDENT:
           message = formatSessionReminderMessage((data?.studentName as string) || 'الطالب', (data?.groupName as string) || 'الحصة', (data?.startTime as string) || '');
@@ -448,6 +463,11 @@ export class WhatsAppDispatcherService implements OnModuleInit, OnModuleDestroy 
             ? formatPaymentMessage((data.studentName as string) || 'الطالب', Number(data.amount), Number(data.month ?? new Date().getMonth() + 1), Number(data.year ?? new Date().getFullYear()))
             : formatGenericMessage(notification.title, notification.message);
       }
+    }
+
+    // Ensure teacher name is always present in all outgoing messages
+    if (!message.includes('أحمد غريب')) {
+      message = `${message}\n\nمنصة الأول للرياضيات - أستاذ أحمد غريب 📐`;
     }
 
     const reference = randomUUID().slice(0, 8).toUpperCase();

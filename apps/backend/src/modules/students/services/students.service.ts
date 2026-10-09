@@ -1382,7 +1382,7 @@ export class StudentsService {
 
     if (dto.sendWhatsApp !== false && parentPhone && parentUser) {
       try {
-        let teacherName = 'إدارة السنتر';
+        let teacherName = 'أستاذ أحمد غريب';
         if (user.role === UserRole.TEACHER) {
           const teacherUser = await this.prisma.user.findUnique({
             where: { id: user.id },
@@ -1393,7 +1393,7 @@ export class StudentsService {
           }
         }
 
-        const message = `🔐 *إشعار تحديث بيانات دخول ولي الأمر - منصة الأوّل*
+        const message = `🔐 *إشعار تحديث بيانات دخول ولي الأمر - منصة الأول للرياضيات*
 
 أهلاً بحضرتك أ/ ${parentName}،
 تم تحديث كلمة المرور الخاصة بحساب ولي الأمر لمتابعة الطالب/ة: *${studentName}* (${studentCode}) مع *${teacherName}*.
@@ -1405,7 +1405,9 @@ export class StudentsService {
 ▫️ *كلمة مرور ولي الأمر:* ${newPassword}
 🔗 *رابط الدخول المباشر:* ${directLoginUrl}
 ━━━━━━━━━━━━━━━━━━━
-يمكنكم الدخول عبر الرابط المباشر أعلاه دون الحاجة لكتابة البيانات، أو إدخال رقم هاتفك وكلمة المرور في صفحة دخول أولياء الأمور لمتابعة الحضور، الدرجات، والواجبات في أي وقت. بالتوفيق والنجاح! 🌟`.trim();
+يمكنكم الدخول عبر الرابط المباشر أعلاه دون الحاجة لكتابة البيانات، أو إدخال رقم هاتفك وكلمة المرور في صفحة دخول أولياء الأمور لمتابعة الحضور، الدرجات، والواجبات في أي وقت. بالتوفيق والنجاح! 🌟
+
+منصة الأول للرياضيات - أستاذ أحمد غريب 📐`.trim();
 
         await this.notificationsService.sendNotification({
           recipientId: parentUser.id,
