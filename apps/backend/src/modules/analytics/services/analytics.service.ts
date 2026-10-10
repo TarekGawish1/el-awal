@@ -1,5 +1,5 @@
-import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
-import { UserRole } from "@prisma/client";
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
+import { UserRole, Prisma } from "@prisma/client";
 import { PrismaService } from "../../../core/database/prisma.service";
 import { GeoLocationService } from "./geo-location.service";
 import {
@@ -150,18 +150,90 @@ export interface VisitorListResponse {
 }
 
 @Injectable()
-export class AnalyticsService implements OnModuleInit {
+export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AnalyticsService.name);
   private readonly HASH_SALT =
     process.env.ANALYTICS_SALT || "el-awal-analytics-salt-2026";
+
+  private pageViewBuffer: Prisma.PageViewCreateManyInput[] = [];
+  private landingVisitBuffer: Prisma.LandingVisitCreateManyInput[] = [];
+  private flushTimer: NodeJS.Timeout | null = null;
+  private isFlushing = false;
+  private readonly FLUSH_INTERVAL_MS = 20_000; // 20 seconds buffer flush
+  private readonly MAX_BUFFER_SIZE = 50; // trigger immediate async flush at 50 items
+
+  // In-memory cache for user roles to avoid DB lookup on every page view
+  private readonly userRoleCache = new Map<string, { role: UserRole; expiresAt: number }>();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly geoLocationService: GeoLocationService,
   ) {}
 
-  async onModuleInit() {
-    // Non-blocking initialization
+  onModuleInit() {
+    this.flushTimer = setInterval(() => {
+      void this.flushBuffers();
+    }, this.FLUSH_INTERVAL_MS);
+    if (this.flushTimer && typeof this.flushTimer.unref === 'function') {
+      this.flushTimer.unref();
+    }
+  }
+
+  async onModuleDestroy() {
+    if (this.flushTimer) {
+      clearInterval(this.flushTimer);
+      this.flushTimer = null;
+    }
+    await this.flushBuffers();
+  }
+
+  /**
+   * Flushes buffered page views and landing visits in a single batch operation.
+   */
+  public async flushBuffers(): Promise<void> {
+    if (this.isFlushing) return;
+    if (this.pageViewBuffer.length === 0 && this.landingVisitBuffer.length === 0) return;
+
+    this.isFlushing = true;
+    const pageViewsToInsert = [...this.pageViewBuffer];
+    const landingVisitsToInsert = [...this.landingVisitBuffer];
+    this.pageViewBuffer = [];
+    this.landingVisitBuffer = [];
+
+    try {
+      const promises: Promise<any>[] = [];
+      if (pageViewsToInsert.length > 0) {
+        promises.push(
+          this.prisma.pageView.createMany({
+            data: pageViewsToInsert,
+            skipDuplicates: true,
+          }),
+        );
+      }
+      if (landingVisitsToInsert.length > 0) {
+        promises.push(
+          this.prisma.landingVisit.createMany({
+            data: landingVisitsToInsert,
+            skipDuplicates: true,
+          }),
+        );
+      }
+      await Promise.all(promises);
+      this.logger.debug(
+        `[Analytics] Flushed batch: ${pageViewsToInsert.length} pageViews, ${landingVisitsToInsert.length} landingVisits`,
+      );
+    } catch (err: any) {
+      this.logger.warn(`Failed to flush analytics batch: ${err?.message}`);
+      // Re-queue items if memory limit permits
+      if (this.pageViewBuffer.length < 500) {
+        this.pageViewBuffer.unshift(...pageViewsToInsert);
+      }
+      if (this.landingVisitBuffer.length < 500) {
+        this.landingVisitBuffer.unshift(...landingVisitsToInsert);
+      }
+    } finally {
+      this.isFlushing = false;
+    }
   }
 
   /**
@@ -187,7 +259,7 @@ export class AnalyticsService implements OnModuleInit {
   }
 
   /**
-   * Non-blocking fire-and-forget page view persistence.
+   * Non-blocking fire-and-forget page view persistence with in-memory batch buffer.
    */
   public async recordPageView(params: RecordPageViewParams): Promise<void> {
     try {
@@ -202,13 +274,27 @@ export class AnalyticsService implements OnModuleInit {
       }
 
       if (params.userId) {
-        const user = await this.prisma.user.findUnique({
-          where: { id: params.userId },
-          select: { role: true },
-        });
+        const now = Date.now();
+        const cached = this.userRoleCache.get(params.userId);
+        let role = cached && cached.expiresAt > now ? cached.role : null;
+
+        if (!role) {
+          const user = await this.prisma.user.findUnique({
+            where: { id: params.userId },
+            select: { role: true },
+          });
+          if (user?.role) {
+            role = user.role;
+            this.userRoleCache.set(params.userId, {
+              role,
+              expiresAt: now + 5 * 60 * 1000,
+            });
+          }
+        }
+
         if (
-          user?.role === UserRole.TEACHER ||
-          user?.role === UserRole.SECRETARIAT
+          role === UserRole.TEACHER ||
+          role === UserRole.SECRETARIAT
         ) {
           return;
         }
@@ -234,40 +320,38 @@ export class AnalyticsService implements OnModuleInit {
         },
       );
 
-      // If landing page, also record in dedicated LandingVisit table with resolved geo
+      // Buffer landing visits
       if (isLanding) {
-        void this.prisma.landingVisit
-          .create({
-            data: {
-              visitorHash,
-              path: (params.path || "/").slice(0, 500),
-              country: geo.country,
-              city: geo.city,
-            },
-          })
-          .catch(() => {});
+        this.landingVisitBuffer.push({
+          visitorHash,
+          path: (params.path || "/").slice(0, 500),
+          country: geo.country,
+          city: geo.city,
+        });
       }
 
-      await this.prisma.pageView.create({
-        data: {
-          path: (params.path || "/").slice(0, 500),
-          referrer: params.referrer ? params.referrer.slice(0, 500) : null,
-          userAgent: params.userAgent ? params.userAgent.slice(0, 500) : null,
-          visitorHash,
-          isLandingPage: isLanding,
-          tenantId: params.tenantId || null,
-          userId: params.userId || null,
-          metadata: {
-            ...(params.metadata || {}),
-            country: geo.country,
-            city: geo.city,
-          },
+      // Buffer page views
+      this.pageViewBuffer.push({
+        path: (params.path || "/").slice(0, 500),
+        referrer: params.referrer ? params.referrer.slice(0, 500) : null,
+        userAgent: params.userAgent ? params.userAgent.slice(0, 500) : null,
+        visitorHash,
+        isLandingPage: isLanding,
+        tenantId: params.tenantId || null,
+        userId: params.userId || null,
+        metadata: {
+          ...(params.metadata || {}),
+          country: geo.country,
+          city: geo.city,
         },
       });
 
-      this.logger.debug(
-        `[Analytics] Tracked: ${params.path} (landing: ${isLanding}, hash: ${visitorHash.slice(0, 8)})`,
-      );
+      // If buffer exceeds threshold, trigger immediate asynchronous flush
+      if (this.pageViewBuffer.length >= this.MAX_BUFFER_SIZE) {
+        setImmediate(() => {
+          void this.flushBuffers();
+        });
+      }
     } catch (err: any) {
       this.logger.warn(`Failed to record page view telemetry: ${err?.message}`);
     }

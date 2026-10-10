@@ -402,53 +402,55 @@ export class NotificationsService {
     const groupName = payload.groupName || 'الحصة';
     const body = `نعتذر لحضرتكم عن إشعار الغياب السابق؛ نود إحاطتكم بأن الطالب/ة: (${studentName}) قد حضر بالفعل حصة الرياضيات مع أستاذ أحمد غريب في مجموعة (${groupName}) وتم رصد حضوره بنجاح.\n\nمنصة الأول للرياضيات - أستاذ أحمد غريب 📐`;
 
-    for (const link of student.parentLinks) {
-      const parentUserId = link.parent.user.id;
-      const parentPhone = link.parent.user.phone;
+    await Promise.all(
+      student.parentLinks.map(async (link) => {
+        const parentUserId = link.parent.user.id;
+        const parentPhone = link.parent.user.phone;
 
-      // Only send apology if the most recent absence-related notification was an uncorrected ABSENCE_ALERT_PARENT
-      const latestAbsenceRelatedNotif = await this.prisma.notification.findFirst({
-        where: {
-          recipientId: parentUserId,
-          type: { in: ['ABSENCE_ALERT_PARENT', 'ABSENCE_CORRECTION_PARENT'] },
-          referenceEntityId: payload.studentId,
-          createdAt: {
-            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Within last 7 days
+        // Only send apology if the most recent absence-related notification was an uncorrected ABSENCE_ALERT_PARENT
+        const latestAbsenceRelatedNotif = await this.prisma.notification.findFirst({
+          where: {
+            recipientId: parentUserId,
+            type: { in: ['ABSENCE_ALERT_PARENT', 'ABSENCE_CORRECTION_PARENT'] },
+            referenceEntityId: payload.studentId,
+            createdAt: {
+              gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Within last 7 days
+            },
           },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
+          orderBy: { createdAt: 'desc' },
+        });
 
-      if (!latestAbsenceRelatedNotif || latestAbsenceRelatedNotif.type !== 'ABSENCE_ALERT_PARENT') {
-        this.logger.debug(
-          `Skipping absence apology: no uncorrected absence alert found for student [${payload.studentId}] to parent [${parentUserId}]`,
-        );
-        continue;
-      }
+        if (!latestAbsenceRelatedNotif || latestAbsenceRelatedNotif.type !== 'ABSENCE_ALERT_PARENT') {
+          this.logger.debug(
+            `Skipping absence apology: no uncorrected absence alert found for student [${payload.studentId}] to parent [${parentUserId}]`,
+          );
+          return;
+        }
 
-      const channels: NotificationChannel[] = [NotificationChannel.IN_APP];
-      if (parentPhone) {
-        channels.push(NotificationChannel.WHATSAPP);
-      }
+        const channels: NotificationChannel[] = [NotificationChannel.IN_APP];
+        if (parentPhone) {
+          channels.push(NotificationChannel.WHATSAPP);
+        }
 
-      await this.sendNotification({
-        recipientId: parentUserId,
-        notificationType: NotificationType.ABSENCE_ALERT_PARENT,
-        type: 'ABSENCE_CORRECTION_PARENT',
-        title: '🌸 تصحيح واعتذار - تأكيد حضور الطالب',
-        body,
-        channels,
-        data: {
-          studentId: payload.studentId,
-          studentName,
-          phone: parentPhone,
-          groupName,
-          date: dateStr,
-          sessionId: payload.sessionId,
-        },
-        referenceEntityId: payload.studentId,
-      });
-    }
+        return this.sendNotification({
+          recipientId: parentUserId,
+          notificationType: NotificationType.ABSENCE_ALERT_PARENT,
+          type: 'ABSENCE_CORRECTION_PARENT',
+          title: '🌸 تصحيح واعتذار - تأكيد حضور الطالب',
+          body,
+          channels,
+          data: {
+            studentId: payload.studentId,
+            studentName,
+            phone: parentPhone,
+            groupName,
+            date: dateStr,
+            sessionId: payload.sessionId,
+          },
+          referenceEntityId: payload.studentId,
+        });
+      }),
+    );
   }
 
   /**
@@ -484,29 +486,31 @@ export class NotificationsService {
     const groupText = payload.groupName ? `في مجموعة (${payload.groupName})` : '';
     const body = `نود إحاطتكم بأن الطالب (${studentName}) لم يقم بتسليم الواجب (${payload.assessmentTitle}) ${groupText} بتاريخ ${dateStr}. يرجى المتابعة والحرص على أداء الواجبات.`;
 
-    for (const link of student.parentLinks) {
-      const parentUserId = link.parent.user.id;
-      const parentPhone = link.parent.user.phone;
+    await Promise.all(
+      student.parentLinks.map(async (link) => {
+        const parentUserId = link.parent.user.id;
+        const parentPhone = link.parent.user.phone;
 
-      const channels: NotificationChannel[] = [NotificationChannel.IN_APP];
-      if (parentPhone) {
-        channels.push(NotificationChannel.WHATSAPP);
-      }
+        const channels: NotificationChannel[] = [NotificationChannel.IN_APP];
+        if (parentPhone) {
+          channels.push(NotificationChannel.WHATSAPP);
+        }
 
-      await this.sendNotification({
-        recipientId: parentUserId,
-        notificationType: NotificationType.HOMEWORK_MISSING_PARENT,
-        type: 'HOMEWORK_MISSING_PARENT',
-        title: '⚠️ تنبيه عدم حل الواجب',
-        body,
-        channels,
-        data: {
-          studentId: payload.studentId,
-          phone: parentPhone,
-        },
-        referenceEntityId: payload.studentId,
-      });
-    }
+        return this.sendNotification({
+          recipientId: parentUserId,
+          notificationType: NotificationType.HOMEWORK_MISSING_PARENT,
+          type: 'HOMEWORK_MISSING_PARENT',
+          title: '⚠️ تنبيه عدم حل الواجب',
+          body,
+          channels,
+          data: {
+            studentId: payload.studentId,
+            phone: parentPhone,
+          },
+          referenceEntityId: payload.studentId,
+        });
+      }),
+    );
   }
 
   /**
@@ -620,35 +624,37 @@ export class NotificationsService {
       referenceEntityId: payload.assessmentId,
     });
 
-    // Notify guardians
-    for (const link of student.parentLinks) {
-      const parentUserId = link.parent.user.id;
-      const parentPhone = link.parent.user.phone;
+    // Notify guardians in parallel
+    await Promise.all(
+      student.parentLinks.map(async (link) => {
+        const parentUserId = link.parent.user.id;
+        const parentPhone = link.parent.user.phone;
 
-      const channels: NotificationChannel[] = [NotificationChannel.IN_APP];
-      // WhatsApp alert for all exams
-      if (parentPhone) {
-        channels.push(NotificationChannel.WHATSAPP);
-      }
+        const channels: NotificationChannel[] = [NotificationChannel.IN_APP];
+        // WhatsApp alert for all exams
+        if (parentPhone) {
+          channels.push(NotificationChannel.WHATSAPP);
+        }
 
-      await this.sendNotification({
-        recipientId: parentUserId,
-        notificationType: isFailed
-          ? NotificationType.EXAM_FAILED_ALERT_PARENT
-          : NotificationType.GENERAL_ANNOUNCEMENT,
-        type: isFailed ? 'EXAM_FAILED_ALERT_PARENT' : 'EXAM_PASSED_ALERT_PARENT',
-        title: isFailed ? '❌ تنبيه: درجات الاختبار' : '📊 نتيجة الاختبار',
-        body,
-        channels,
-        data: {
-          studentId: payload.studentId,
-          assessmentId: payload.assessmentId,
-          phone: parentPhone,
-          score: payload.scoreObtained,
-        },
-        referenceEntityId: payload.assessmentId,
-      });
-    }
+        await this.sendNotification({
+          recipientId: parentUserId,
+          notificationType: isFailed
+            ? NotificationType.EXAM_FAILED_ALERT_PARENT
+            : NotificationType.GENERAL_ANNOUNCEMENT,
+          type: isFailed ? 'EXAM_FAILED_ALERT_PARENT' : 'EXAM_PASSED_ALERT_PARENT',
+          title: isFailed ? '❌ تنبيه: درجات الاختبار' : '📊 نتيجة الاختبار',
+          body,
+          channels,
+          data: {
+            studentId: payload.studentId,
+            assessmentId: payload.assessmentId,
+            phone: parentPhone,
+            score: payload.scoreObtained,
+          },
+          referenceEntityId: payload.assessmentId,
+        });
+      }),
+    );
   }
 
   /**

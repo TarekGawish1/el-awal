@@ -20,6 +20,8 @@ export interface GroupPdfStudentData {
 @Injectable()
 export class GroupPdfService {
   private cairoFontPath: string | null = null;
+  private readonly pdfCache = new Map<string, { buffer: Buffer; expiresAt: number; studentCount: number }>();
+  private readonly qrCache = new Map<string, Buffer>();
 
   constructor(private readonly prisma: PrismaService) {
     this.resolveFontPath();
@@ -169,6 +171,12 @@ export class GroupPdfService {
       },
     });
 
+    const cacheKey = `${groupId}:${enrollments.length}`;
+    const cached = this.pdfCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.buffer;
+    }
+
     const students: GroupPdfStudentData[] = (enrollments as any[]).map((e) => {
       const parentPhone = e.student?.parentLinks?.[0]?.parent?.user?.phone || e.student?.emergencyPhone;
       return {
@@ -181,12 +189,23 @@ export class GroupPdfService {
       };
     });
 
-    return this.buildPdfDocument({
+    const pdfBuffer = await this.buildPdfDocument({
       groupName: group.name,
       gradeLevel: group.gradeLevel,
       teacherName: group.teacher?.user?.fullName || 'الأستاذ',
       students,
     });
+
+    if (this.pdfCache.size > 50) {
+      this.pdfCache.clear();
+    }
+    this.pdfCache.set(cacheKey, {
+      buffer: pdfBuffer,
+      expiresAt: Date.now() + 3 * 60 * 1000, // 3 minutes TTL
+      studentCount: enrollments.length,
+    });
+
+    return pdfBuffer;
   }
 
   /**
@@ -248,11 +267,14 @@ export class GroupPdfService {
           return;
         }
 
-        // Pre-generate all QR buffers in parallel for ultra-fast PDF generation
+        // Pre-generate all QR buffers in parallel with memory cache
         const qrBuffers = await Promise.all(
-          data.students.map((student) => {
+          data.students.map(async (student) => {
             const qrPayload = student.studentCode || student.qrCodeToken || student.id;
-            return QRCode.toBuffer(qrPayload, {
+            const cached = this.qrCache.get(qrPayload);
+            if (cached) return cached;
+
+            const buf = await QRCode.toBuffer(qrPayload, {
               type: 'png',
               errorCorrectionLevel: 'H',
               margin: 1,
@@ -262,6 +284,10 @@ export class GroupPdfService {
                 light: '#ffffff',
               },
             });
+            if (this.qrCache.size < 1000) {
+              this.qrCache.set(qrPayload, buf);
+            }
+            return buf;
           }),
         );
 

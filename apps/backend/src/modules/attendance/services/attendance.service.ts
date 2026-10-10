@@ -289,18 +289,23 @@ export class AttendanceService {
     });
     const previousStatusMap = new Map(existingRecords.map((r) => [r.studentId, r.status]));
 
-    const updatedRecords = [];
+    const absentStudentIds = dto.records
+      .filter((r) => r.status === AttendanceStatus.ABSENT)
+      .map((r) => r.studentId);
 
     await this.prisma.$transaction(async (tx) => {
-      for (const item of dto.records) {
-        const record = await tx.attendanceRecord.upsert({
+      // 1. Bulk delete existing records for the targeted students
+      if (studentIds.length > 0) {
+        await tx.attendanceRecord.deleteMany({
           where: {
-            sessionId_studentId: {
-              sessionId,
-              studentId: item.studentId,
-            },
+            sessionId,
+            studentId: { in: studentIds },
           },
-          create: {
+        });
+
+        // 2. Bulk insert all new attendance records in a single query
+        await tx.attendanceRecord.createMany({
+          data: dto.records.map((item) => ({
             sessionId,
             studentId: item.studentId,
             status: item.status,
@@ -308,51 +313,21 @@ export class AttendanceService {
             recordedById: user.id,
             notes: item.notes,
             recordedAt: new Date(),
-          },
-          update: {
-            status: item.status,
-            recordingMethod: RecordingMethod.MANUAL,
-            recordedById: user.id,
-            notes: item.notes,
-          },
+          })),
         });
-
-        updatedRecords.push(record);
-
-        const prevStatus = previousStatusMap.get(item.studentId);
-
-        // If marked absent, remove any homework record for this session
-        if (item.status === AttendanceStatus.ABSENT) {
-          if (typeof tx.homeworkRecord?.deleteMany === 'function') {
-            await tx.homeworkRecord.deleteMany({
-              where: {
-                sessionId,
-                studentId: item.studentId,
-              },
-            });
-          }
-
-          // Emit live WhatsApp notification only if student is newly marked ABSENT
-          if (prevStatus !== AttendanceStatus.ABSENT) {
-            this.eventEmitter.emit('student.absence.recorded', {
-              studentId: item.studentId,
-              groupName: session.group.name,
-              date: session.sessionDate,
-              sessionId,
-            });
-          }
-        } else if (prevStatus === AttendanceStatus.ABSENT) {
-          // If previously marked absent and now corrected to present/excused, emit apology & correction alert
-          this.eventEmitter.emit('student.absence.corrected', {
-            studentId: item.studentId,
-            groupName: session.group.name,
-            date: session.sessionDate,
-            sessionId,
-          });
-        }
       }
 
-      // If removedStudentIds are provided, delete attendance and homework records for those students
+      // 3. Bulk remove homework records for newly absent students
+      if (absentStudentIds.length > 0 && typeof tx.homeworkRecord?.deleteMany === 'function') {
+        await tx.homeworkRecord.deleteMany({
+          where: {
+            sessionId,
+            studentId: { in: absentStudentIds },
+          },
+        });
+      }
+
+      // 4. Bulk delete for removedStudentIds if specified
       if (dto.removedStudentIds && dto.removedStudentIds.length > 0) {
         await tx.attendanceRecord.deleteMany({
           where: {
@@ -369,20 +344,41 @@ export class AttendanceService {
             },
           });
         }
-
-        // If any removed student was previously ABSENT, emit absence correction alert
-        for (const removedId of dto.removedStudentIds) {
-          if (previousStatusMap.get(removedId) === AttendanceStatus.ABSENT) {
-            this.eventEmitter.emit('student.absence.corrected', {
-              studentId: removedId,
-              groupName: session.group.name,
-              date: session.sessionDate,
-              sessionId,
-            });
-          }
-        }
       }
     });
+
+    // 5. Emit domain notification events asynchronously without holding the DB transaction
+    for (const item of dto.records) {
+      const prevStatus = previousStatusMap.get(item.studentId);
+      if (item.status === AttendanceStatus.ABSENT && prevStatus !== AttendanceStatus.ABSENT) {
+        this.eventEmitter.emit('student.absence.recorded', {
+          studentId: item.studentId,
+          groupName: session.group.name,
+          date: session.sessionDate,
+          sessionId,
+        });
+      } else if (item.status !== AttendanceStatus.ABSENT && prevStatus === AttendanceStatus.ABSENT) {
+        this.eventEmitter.emit('student.absence.corrected', {
+          studentId: item.studentId,
+          groupName: session.group.name,
+          date: session.sessionDate,
+          sessionId,
+        });
+      }
+    }
+
+    if (dto.removedStudentIds && dto.removedStudentIds.length > 0) {
+      for (const removedId of dto.removedStudentIds) {
+        if (previousStatusMap.get(removedId) === AttendanceStatus.ABSENT) {
+          this.eventEmitter.emit('student.absence.corrected', {
+            studentId: removedId,
+            groupName: session.group.name,
+            date: session.sessionDate,
+            sessionId,
+          });
+        }
+      }
+    }
 
     const [presentCount, absentCount, excusedCount, totalEnrolled] = await Promise.all([
       this.prisma.attendanceRecord.count({ where: { sessionId, status: AttendanceStatus.PRESENT } }),
@@ -397,7 +393,7 @@ export class AttendanceService {
 
     return {
       sessionId,
-      updatedCount: updatedRecords.length,
+      updatedCount: dto.records.length,
       sessionStats: {
         totalPresent: presentCount,
         totalAbsent: absentCount,

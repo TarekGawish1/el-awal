@@ -387,9 +387,9 @@ export class StudentsService {
         const isAlreadyInGroup = currentActiveEnrollments.some(e => e.groupId === dto.initialGroupId);
         
         if (!isAlreadyInGroup) {
-          for (const enrollment of currentActiveEnrollments) {
-            await tx.groupEnrollment.update({
-              where: { id: enrollment.id },
+          if (currentActiveEnrollments.length > 0) {
+            await tx.groupEnrollment.updateMany({
+              where: { id: { in: currentActiveEnrollments.map((e) => e.id) } },
               data: { status: 'DROPPED' as GroupEnrollmentStatus },
             });
           }
@@ -1204,12 +1204,16 @@ export class StudentsService {
       // 1. Parent linkages & orphaned parent account cleanup
       const parentLinks = await tx.parentStudentLink.findMany({ where: { studentId: id } });
       await tx.parentStudentLink.deleteMany({ where: { studentId: id } });
-      for (const link of parentLinks) {
-        const remainingLinks = await tx.parentStudentLink.count({ where: { parentId: link.parentId } });
-        if (remainingLinks === 0) {
-          await tx.parentProfile.deleteMany({ where: { id: link.parentId } });
-          await tx.user.deleteMany({ where: { id: link.parentId, role: UserRole.PARENT } });
-        }
+      if (parentLinks.length > 0) {
+        await Promise.all(
+          parentLinks.map(async (link) => {
+            const remainingLinks = await tx.parentStudentLink.count({ where: { parentId: link.parentId } });
+            if (remainingLinks === 0) {
+              await tx.parentProfile.deleteMany({ where: { id: link.parentId } });
+              await tx.user.deleteMany({ where: { id: link.parentId, role: UserRole.PARENT } });
+            }
+          }),
+        );
       }
 
       // 2. Academic Group enrollments

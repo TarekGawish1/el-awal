@@ -1790,36 +1790,38 @@ export class CoursesService {
           select: { studentId: true },
         });
 
-        // Provision CourseEnrollment and CourseAccess for all students in group
-        for (const ge of groupEnrollments) {
-          const enrollment = await tx.courseEnrollment.upsert({
-            where: {
-              courseId_studentId: { courseId, studentId: ge.studentId },
-            },
-            create: {
-              courseId,
-              studentId: ge.studentId,
-              status: CourseEnrollmentStatus.ACTIVE,
-            },
-            update: {
-              status: CourseEnrollmentStatus.ACTIVE,
-            },
-          });
+        // Provision CourseEnrollment and CourseAccess concurrently for all students in group
+        await Promise.all(
+          groupEnrollments.map(async (ge) => {
+            const enrollment = await tx.courseEnrollment.upsert({
+              where: {
+                courseId_studentId: { courseId, studentId: ge.studentId },
+              },
+              create: {
+                courseId,
+                studentId: ge.studentId,
+                status: CourseEnrollmentStatus.ACTIVE,
+              },
+              update: {
+                status: CourseEnrollmentStatus.ACTIVE,
+              },
+            });
 
-          await tx.courseAccess.upsert({
-            where: { enrollmentId: enrollment.id },
-            create: {
-              enrollmentId: enrollment.id,
-              studentId: ge.studentId,
-              courseId,
-              accessStatus: CourseAccessStatus.ACTIVE,
-              validFrom: new Date(),
-            },
-            update: {
-              accessStatus: CourseAccessStatus.ACTIVE,
-            },
-          });
-        }
+            return tx.courseAccess.upsert({
+              where: { enrollmentId: enrollment.id },
+              create: {
+                enrollmentId: enrollment.id,
+                studentId: ge.studentId,
+                courseId,
+                accessStatus: CourseAccessStatus.ACTIVE,
+                validFrom: new Date(),
+              },
+              update: {
+                accessStatus: CourseAccessStatus.ACTIVE,
+              },
+            });
+          }),
+        );
       }
 
       return {
@@ -3403,38 +3405,39 @@ export class CoursesService {
     }
 
     const results = await this.prisma.$transaction(async (tx) => {
-      const createdEnrollments = [];
-      for (const studentId of studentIds) {
-        const enrollment = await tx.courseEnrollment.upsert({
-          where: {
-            courseId_studentId: {
+      const createdEnrollments = await Promise.all(
+        studentIds.map(async (studentId) => {
+          const enrollment = await tx.courseEnrollment.upsert({
+            where: {
+              courseId_studentId: {
+                courseId,
+                studentId,
+              },
+            },
+            update: {
+              status: CourseEnrollmentStatus.ACTIVE,
+            },
+            create: {
               courseId,
               studentId,
+              status: CourseEnrollmentStatus.ACTIVE,
             },
-          },
-          update: {
-            status: CourseEnrollmentStatus.ACTIVE,
-          },
-          create: {
-            courseId,
-            studentId,
-            status: CourseEnrollmentStatus.ACTIVE,
-          },
-        });
+          });
 
-        await tx.courseAccess.upsert({
-          where: { enrollmentId: enrollment.id },
-          update: { accessStatus: CourseAccessStatus.ACTIVE },
-          create: {
-            enrollmentId: enrollment.id,
-            studentId,
-            courseId,
-            accessStatus: CourseAccessStatus.ACTIVE,
-          },
-        });
+          await tx.courseAccess.upsert({
+            where: { enrollmentId: enrollment.id },
+            update: { accessStatus: CourseAccessStatus.ACTIVE },
+            create: {
+              enrollmentId: enrollment.id,
+              studentId,
+              courseId,
+              accessStatus: CourseAccessStatus.ACTIVE,
+            },
+          });
 
-        createdEnrollments.push(enrollment);
-      }
+          return enrollment;
+        }),
+      );
       return createdEnrollments;
     });
 

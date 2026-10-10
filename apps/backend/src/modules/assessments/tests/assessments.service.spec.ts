@@ -48,6 +48,7 @@ describe('AssessmentsService', () => {
     studentAnswer: {
       findFirst: jest.fn(),
       create: jest.fn(),
+      createMany: jest.fn().mockResolvedValue({ count: 1 }),
       update: jest.fn(),
       updateMany: jest.fn(),
       findMany: jest.fn(),
@@ -259,6 +260,7 @@ describe('AssessmentsService', () => {
 
       mockPrismaService.$transaction.mockImplementation(async (callback) => {
         return callback({
+          studentAnswer: { createMany: jest.fn().mockResolvedValue({ count: 1 }) },
           assessmentSubmission: {
             create: jest.fn().mockResolvedValue({
               id: 'submission-uuid-1',
@@ -320,6 +322,7 @@ describe('AssessmentsService', () => {
 
       mockPrismaService.$transaction.mockImplementation(async (callback) => {
         return callback({
+          studentAnswer: { createMany: jest.fn().mockResolvedValue({ count: 1 }) },
           assessmentSubmission: {
             create: jest.fn().mockResolvedValue({
               id: 'submission-uuid-2',
@@ -392,7 +395,10 @@ describe('AssessmentsService', () => {
         gradedAt: new Date(),
       });
       mockPrismaService.$transaction.mockImplementation(async (callback) => {
-        return callback({ assessmentSubmission: { create: createSpy } });
+        return callback({
+          assessmentSubmission: { create: createSpy },
+          studentAnswer: { createMany: jest.fn().mockResolvedValue({ count: 1 }) },
+        });
       });
 
       const result = await service.submitAssessment(assessmentId, studentUser, {

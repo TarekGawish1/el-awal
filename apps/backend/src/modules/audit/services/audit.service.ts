@@ -43,17 +43,23 @@ export class AuditService implements OnModuleInit {
         where: { userName: 'المعلم' },
         select: { id: true, userId: true },
       });
-      for (const log of genericLogs) {
-        const user = await this.prisma.user.findUnique({
-          where: { id: log.userId },
-          select: { fullName: true },
+      if (genericLogs.length > 0) {
+        const userIds = [...new Set(genericLogs.map((l) => l.userId))];
+        const users = await this.prisma.user.findMany({
+          where: { id: { in: userIds } },
+          select: { id: true, fullName: true },
         });
-        if (user?.fullName) {
-          await this.prisma.auditLog.update({
-            where: { id: log.id },
-            data: { userName: user.fullName },
-          });
-        }
+        const userMap = new Map(users.map((u) => [u.id, u.fullName]));
+        await Promise.all(
+          genericLogs.map((log) => {
+            const name = userMap.get(log.userId);
+            if (!name) return Promise.resolve();
+            return this.prisma.auditLog.update({
+              where: { id: log.id },
+              data: { userName: name },
+            });
+          }),
+        );
       }
     } catch {}
   }

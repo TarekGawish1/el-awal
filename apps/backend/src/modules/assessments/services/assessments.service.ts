@@ -1237,11 +1237,22 @@ export class AssessmentsService {
           gradedAt,
           attachmentUrl: dto.attachmentUrl,
           operationId: dto.idempotencyKey || undefined,
-          answers: {
-            create: answersToCreate,
-          },
         },
       });
+
+      // Bulk insert all student answers in a single database roundtrip
+      if (answersToCreate.length > 0) {
+        await tx.studentAnswer.createMany({
+          data: answersToCreate.map((ans) => ({
+            submissionId: submission.id,
+            questionId: ans.questionId,
+            selectedAnswer: ans.selectedAnswer,
+            isCorrect: ans.isCorrect,
+            pointsEarned: ans.pointsEarned,
+            maxPointsSnapshot: ans.maxPointsSnapshot,
+          })),
+        });
+      }
 
       // Auto-mark associated course lesson as completed if linked
       if (tx.courseLesson?.findFirst && tx.courseProgress?.upsert) {
@@ -1448,39 +1459,50 @@ export class AssessmentsService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      // 1. Update or create grades for specified questions
-      for (const grade of dto.manualGrades) {
-        const existingAnswer = await tx.studentAnswer.findFirst({
-          where: {
-            submissionId,
-            questionId: grade.questionId,
-          },
-        });
+      // 1. Fetch all existing answers for specified questions in a single query
+      const questionIds = dto.manualGrades.map((g) => g.questionId);
+      const existingAnswers = await tx.studentAnswer.findMany({
+        where: {
+          submissionId,
+          questionId: { in: questionIds },
+        },
+      });
+      const existingMap = new Map(existingAnswers.map((a) => [a.questionId, a]));
 
+      const updates: Promise<any>[] = [];
+      const creates: any[] = [];
+
+      for (const grade of dto.manualGrades) {
+        const existingAnswer = existingMap.get(grade.questionId);
         if (existingAnswer) {
-          await tx.studentAnswer.update({
-            where: { id: existingAnswer.id },
-            data: {
-              pointsEarned: grade.pointsEarned,
-              teacherFeedback: grade.teacherFeedback,
-              isCorrect: grade.pointsEarned > 0,
-            },
-          });
+          updates.push(
+            tx.studentAnswer.update({
+              where: { id: existingAnswer.id },
+              data: {
+                pointsEarned: grade.pointsEarned,
+                teacherFeedback: grade.teacherFeedback,
+                isCorrect: grade.pointsEarned > 0,
+              },
+            }),
+          );
         } else {
           const q = questionMap.get(grade.questionId);
-          await tx.studentAnswer.create({
-            data: {
-              submissionId,
-              questionId: grade.questionId,
-              selectedAnswer: '',
-              pointsEarned: grade.pointsEarned,
-              maxPointsSnapshot: q?.points ?? 1,
-              teacherFeedback: grade.teacherFeedback,
-              isCorrect: grade.pointsEarned > 0,
-            },
+          creates.push({
+            submissionId,
+            questionId: grade.questionId,
+            selectedAnswer: '',
+            pointsEarned: grade.pointsEarned,
+            maxPointsSnapshot: q?.points ?? 1,
+            teacherFeedback: grade.teacherFeedback,
+            isCorrect: grade.pointsEarned > 0,
           });
         }
       }
+
+      if (creates.length > 0) {
+        updates.push(tx.studentAnswer.createMany({ data: creates }));
+      }
+      await Promise.all(updates);
 
       // 2. Recompute total score across all answers
       const allAnswers = await tx.studentAnswer.findMany({
@@ -1925,6 +1947,10 @@ export class AssessmentsService {
     let updatedSubmissionsCount = 0;
 
     await this.prisma.$transaction(async (tx) => {
+      const answersToCreate: any[] = [];
+      const answerUpdates: Promise<any>[] = [];
+      const submissionUpdates: Promise<any>[] = [];
+
       for (const submission of assessment.submissions) {
         let totalScore = 0;
         let hasPendingManualEssay = false;
@@ -1946,24 +1972,24 @@ export class AssessmentsService {
             totalScore += pointsEarned;
 
             if (ans) {
-              await tx.studentAnswer.update({
-                where: { id: ans.id },
-                data: {
-                  isCorrect,
-                  pointsEarned,
-                  maxPointsSnapshot: question.points,
-                },
-              });
+              answerUpdates.push(
+                tx.studentAnswer.update({
+                  where: { id: ans.id },
+                  data: {
+                    isCorrect,
+                    pointsEarned,
+                    maxPointsSnapshot: question.points,
+                  },
+                }),
+              );
             } else {
-              await tx.studentAnswer.create({
-                data: {
-                  submissionId: submission.id,
-                  questionId: question.id,
-                  selectedAnswer: '',
-                  isCorrect,
-                  pointsEarned,
-                  maxPointsSnapshot: question.points,
-                },
+              answersToCreate.push({
+                submissionId: submission.id,
+                questionId: question.id,
+                selectedAnswer: '',
+                isCorrect,
+                pointsEarned,
+                maxPointsSnapshot: question.points,
               });
             }
           } else if (question.questionType === QuestionType.ESSAY) {
@@ -1977,24 +2003,31 @@ export class AssessmentsService {
 
         const isFullyGraded = !hasPendingManualEssay;
 
-        await tx.assessmentSubmission.update({
-          where: { id: submission.id },
-          data: {
-            ...(isFullyGraded
-              ? {
-                  status: SubmissionStatus.GRADED,
-                  scoreObtained: totalScore,
-                  isAutoGraded: !hasEssayQuestions,
-                  gradedAt: submission.gradedAt || new Date(),
-                }
-              : {
-                  status: submission.status,
-                }),
-          },
-        });
+        submissionUpdates.push(
+          tx.assessmentSubmission.update({
+            where: { id: submission.id },
+            data: {
+              ...(isFullyGraded
+                ? {
+                    status: SubmissionStatus.GRADED,
+                    scoreObtained: totalScore,
+                    isAutoGraded: !hasEssayQuestions,
+                    gradedAt: submission.gradedAt || new Date(),
+                  }
+                : {
+                    status: submission.status,
+                  }),
+            },
+          }),
+        );
 
         updatedSubmissionsCount++;
       }
+
+      if (answersToCreate.length > 0) {
+        await tx.studentAnswer.createMany({ data: answersToCreate });
+      }
+      await Promise.all([...answerUpdates, ...submissionUpdates]);
     });
 
     this.logger.log(

@@ -28,7 +28,8 @@ describe('AttendanceService', () => {
     attendanceRecord: {
       count: jest.fn(),
       upsert: jest.fn(),
-      deleteMany: jest.fn(),
+      deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+      createMany: jest.fn().mockResolvedValue({ count: 1 }),
       findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn().mockResolvedValue(null),
     },
@@ -282,6 +283,8 @@ describe('AttendanceService', () => {
       const mockTx = {
         attendanceRecord: {
           upsert: jest.fn().mockResolvedValue({ id: 'rec-1', status: AttendanceStatus.ABSENT }),
+          deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+          createMany: jest.fn().mockResolvedValue({ count: 1 }),
         },
         homeworkRecord: {
           deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
@@ -305,7 +308,7 @@ describe('AttendanceService', () => {
       expect(mockTx.homeworkRecord.deleteMany).toHaveBeenCalledWith({
         where: {
           sessionId,
-          studentId,
+          studentId: { in: [studentId] },
         },
       });
       expect(mockEventEmitter.emit).toHaveBeenCalledWith(
@@ -339,6 +342,7 @@ describe('AttendanceService', () => {
         attendanceRecord: {
           upsert: jest.fn().mockResolvedValue({ id: 'rec-1', status: AttendanceStatus.PRESENT }),
           deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+          createMany: jest.fn().mockResolvedValue({ count: 1 }),
         },
         homeworkRecord: {
           deleteMany: jest.fn().mockResolvedValue({ count: 1 }),

@@ -42,6 +42,9 @@ describe('SyncService - Bootstrap Hydration Engine', () => {
     parentProfile: {
       findUnique: jest.fn(),
     },
+    studentProfile: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
   };
 
   beforeEach(async () => {

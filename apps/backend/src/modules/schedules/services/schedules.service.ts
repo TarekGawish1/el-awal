@@ -230,44 +230,68 @@ export class SchedulesService {
     const createdSessions = [];
 
     await this.prisma.$transaction(async (tx) => {
+      const existingSessions = await tx.lessonSession.findMany({
+        where: {
+          groupId,
+          sessionDate: {
+            gte: new Date(Date.UTC(start.getFullYear(), start.getMonth(), start.getDate())),
+            lte: new Date(Date.UTC(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59)),
+          },
+        },
+        select: { sessionDate: true, startTime: true },
+      });
+
+      const existingSet = new Set(
+        existingSessions.map(
+          (s) => `${s.sessionDate.toISOString().split('T')[0]}_${s.startTime}`,
+        ),
+      );
+
+      const sessionsToCreate: any[] = [];
       const current = new Date(start);
+
       while (current <= end) {
-        const dayOfWeek = current.getDay(); // 0 = Sunday .. 6 = Saturday
+        const dayOfWeek = current.getDay();
         const matchingSchedules = groupWithSchedules.schedules.filter((s) => s.dayOfWeek === dayOfWeek);
 
         for (const schedule of matchingSchedules) {
           const sessionDateOnly = new Date(
             Date.UTC(current.getFullYear(), current.getMonth(), current.getDate()),
           );
+          const dateStr = sessionDateOnly.toISOString().split('T')[0];
+          const key = `${dateStr}_${schedule.startTime}`;
 
-          // Check if session already exists for this group, date, and start time
-          const existing = await tx.lessonSession.findFirst({
-            where: {
+          if (!existingSet.has(key)) {
+            existingSet.add(key);
+            const topic = `${dto.topicPrefix || 'حصة'} - ${dateStr}`;
+            sessionsToCreate.push({
               groupId,
+              scheduleId: schedule.id,
               sessionDate: sessionDateOnly,
               startTime: schedule.startTime,
-            },
-          });
-
-          if (!existing) {
-            const dateStr = sessionDateOnly.toISOString().split('T')[0];
-            const topic = `${dto.topicPrefix || 'حصة'} - ${dateStr}`;
-
-            const session = await tx.lessonSession.create({
-              data: {
-                groupId,
-                scheduleId: schedule.id,
-                sessionDate: sessionDateOnly,
-                startTime: schedule.startTime,
-                endTime: schedule.endTime || null,
-                topic,
-              },
+              endTime: schedule.endTime || null,
+              topic,
             });
-            createdSessions.push(session);
           }
         }
-
         current.setDate(current.getDate() + 1);
+      }
+
+      if (sessionsToCreate.length > 0) {
+        await tx.lessonSession.createMany({
+          data: sessionsToCreate,
+        });
+        const newlyCreated = await tx.lessonSession.findMany({
+          where: {
+            groupId,
+            sessionDate: {
+              gte: new Date(Date.UTC(start.getFullYear(), start.getMonth(), start.getDate())),
+              lte: new Date(Date.UTC(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59)),
+            },
+          },
+          orderBy: { sessionDate: 'asc' },
+        });
+        createdSessions.push(...newlyCreated);
       }
     });
 
@@ -963,32 +987,44 @@ export class SchedulesService {
 
     if (groupsWithSchedules.length > 0) {
       await this.prisma.$transaction(async (tx) => {
+        const groupIds = groupsWithSchedules.map((g) => g.id);
+        const existingSessions = await tx.lessonSession.findMany({
+          where: {
+            groupId: { in: groupIds },
+            sessionDate: sessionDateOnly,
+          },
+          select: { groupId: true, startTime: true },
+        });
+
+        const existingSet = new Set(
+          existingSessions.map((s) => `${s.groupId}_${s.startTime}`),
+        );
+
+        const sessionsToCreate: any[] = [];
+        const dateStr = sessionDateOnly.toISOString().split('T')[0];
+        const topic = `حصة ${dateStr}`;
+
         for (const group of groupsWithSchedules) {
           for (const schedule of group.schedules) {
-            const existing = await tx.lessonSession.findFirst({
-              where: {
+            const key = `${group.id}_${schedule.startTime}`;
+            if (!existingSet.has(key)) {
+              existingSet.add(key);
+              sessionsToCreate.push({
                 groupId: group.id,
+                scheduleId: schedule.id,
                 sessionDate: sessionDateOnly,
                 startTime: schedule.startTime,
-              },
-            });
-
-            if (!existing) {
-              const dateStr = sessionDateOnly.toISOString().split('T')[0];
-              const topic = `حصة ${dateStr}`;
-
-              await tx.lessonSession.create({
-                data: {
-                  groupId: group.id,
-                  scheduleId: schedule.id,
-                  sessionDate: sessionDateOnly,
-                  startTime: schedule.startTime,
-                  endTime: schedule.endTime,
-                  topic,
-                },
+                endTime: schedule.endTime,
+                topic,
               });
             }
           }
+        }
+
+        if (sessionsToCreate.length > 0) {
+          await tx.lessonSession.createMany({
+            data: sessionsToCreate,
+          });
         }
       });
     }
