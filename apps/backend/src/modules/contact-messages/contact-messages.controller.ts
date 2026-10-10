@@ -14,6 +14,12 @@ export class ContactMessagesController {
 
   // We should ideally protect this with JwtAuthGuard and RolesGuard, but for speed we'll just allow it or rely on existing middleware if present.
   @Public()
+  @Get('unread-count')
+  getUnreadCount() {
+    return this.contactMessagesService.getUnreadCount();
+  }
+
+  @Public()
   @Get()
   findAll() {
     return this.contactMessagesService.findAll();

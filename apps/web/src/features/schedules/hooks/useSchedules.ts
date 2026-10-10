@@ -28,7 +28,7 @@ export const scheduleKeys = {
   topics: (gradeLevel?: string, groupId?: string) => [...scheduleKeys.all, 'topics', { gradeLevel, groupId }] as const,
 };
 
-export function useTeacherSessions(query?: TeacherCalendarQuery) {
+export function useTeacherSessions(query?: TeacherCalendarQuery, options?: { enabled?: boolean }) {
   return useQuery<LessonSessionItem[]>({
     queryKey: scheduleKeys.teacherCalendar(query),
     queryFn: async (): Promise<LessonSessionItem[]> => {
@@ -60,6 +60,7 @@ export function useTeacherSessions(query?: TeacherCalendarQuery) {
         return sessions as unknown as LessonSessionItem[];
       }
     },
+    enabled: options?.enabled ?? true,
   });
 }
 

@@ -46,22 +46,7 @@ export class TeachersService {
         schedules: { orderBy: { dayOfWeek: 'asc' } },
         enrollments: {
           where: { status: GroupEnrollmentStatus.ACTIVE },
-          include: {
-            student: {
-              include: {
-                user: { select: { id: true, fullName: true, phone: true } },
-                parentLinks: {
-                  include: {
-                    parent: {
-                      include: {
-                        user: { select: { phone: true, fullName: true } },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
+          select: { id: true, studentId: true },
         },
       },
     });

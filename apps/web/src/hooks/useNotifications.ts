@@ -59,7 +59,10 @@ export const notificationKeys = {
 /**
  * Fetches the paginated notification feed for the current user or platform-wide for staff.
  */
-export function useNotifications(options?: NotificationFeedOptions | string) {
+export function useNotifications(
+  options?: NotificationFeedOptions | string,
+  queryOptions?: { enabled?: boolean },
+) {
   const queryParams =
     typeof options === 'string'
       ? { cursor: options }
@@ -75,6 +78,7 @@ export function useNotifications(options?: NotificationFeedOptions | string) {
       return res;
     },
     staleTime: 20_000,
+    enabled: queryOptions?.enabled ?? true,
   });
 }
 

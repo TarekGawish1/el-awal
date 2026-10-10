@@ -18,6 +18,7 @@ import { MemoryCache } from '../../../common/utils/memory-cache.util';
 export class SchedulesService {
   private readonly logger = new Logger(SchedulesService.name);
   private readonly publicSchedulesCache = new MemoryCache(120, 10);
+  private readonly autoEnsureCache = new MemoryCache<boolean>(300, 50);
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -162,6 +163,7 @@ export class SchedulesService {
     }
 
     this.publicSchedulesCache.clear();
+    this.autoEnsureCache.clear();
     return this.prisma.lessonSchedule.create({
       data: {
         groupId: dto.groupId,
@@ -200,6 +202,7 @@ export class SchedulesService {
     await this.assertGroupAccess(schedule.groupId, user, true);
 
     this.publicSchedulesCache.clear();
+    this.autoEnsureCache.clear();
     return this.prisma.lessonSchedule.delete({
       where: { id: scheduleId },
     });
@@ -405,40 +408,46 @@ export class SchedulesService {
     const eligibleGroups = groupsWithSchedules.filter((g) => g.schedules && g.schedules.length > 0);
     if (eligibleGroups.length === 0) return;
 
+    // 1. Batch find all existing sessions across all eligible groups in a single query
+    const groupIds = eligibleGroups.map((g) => g.id);
+    const existingSessions = await this.prisma.lessonSession.findMany({
+      where: {
+        groupId: { in: groupIds },
+      },
+      select: {
+        groupId: true,
+        sessionDate: true,
+        startTime: true,
+      },
+    });
+
+    const existingSessionsByGroup = new Map<string, Set<string>>();
+    for (const s of existingSessions) {
+      let set = existingSessionsByGroup.get(s.groupId);
+      if (!set) {
+        set = new Set<string>();
+        existingSessionsByGroup.set(s.groupId, set);
+      }
+      const dStr = s.sessionDate.toISOString().split('T')[0];
+      set.add(`${dStr}_${s.startTime || ''}`);
+    }
+
+    const allSessionsToCreate: Array<{
+      groupId: string;
+      scheduleId: string;
+      sessionDate: Date;
+      startTime: string;
+      endTime: string | null;
+      topic: string;
+    }> = [];
+
+    // 2. Generate missing sessions in memory
     for (const group of eligibleGroups) {
       const year = group.academicYear || targetYear || '2026-2027';
       const term = group.academicTerm || targetTerm || 'FIRST_TERM';
       const { startDate, endDate } = this.getSemesterDateWindow(year, term);
 
-      // Find existing sessions for this group in the date window
-      const existingSessions = await this.prisma.lessonSession.findMany({
-        where: {
-          groupId: group.id,
-          sessionDate: {
-            gte: startDate,
-            lte: endDate,
-          },
-        },
-        select: {
-          sessionDate: true,
-          startTime: true,
-        },
-      });
-
-      const existingSet = new Set<string>();
-      existingSessions.forEach((s) => {
-        const dStr = s.sessionDate.toISOString().split('T')[0];
-        existingSet.add(`${dStr}_${s.startTime || ''}`);
-      });
-
-      const sessionsToCreate: Array<{
-        groupId: string;
-        scheduleId: string;
-        sessionDate: Date;
-        startTime: string;
-        endTime: string | null;
-        topic: string;
-      }> = [];
+      const existingSet = existingSessionsByGroup.get(group.id) || new Set<string>();
 
       const current = new Date(startDate);
       while (current <= endDate) {
@@ -454,7 +463,7 @@ export class SchedulesService {
 
           if (!existingSet.has(key)) {
             existingSet.add(key);
-            sessionsToCreate.push({
+            allSessionsToCreate.push({
               groupId: group.id,
               scheduleId: schedule.id,
               sessionDate: sessionDateOnly,
@@ -467,16 +476,17 @@ export class SchedulesService {
 
         current.setUTCDate(current.getUTCDate() + 1);
       }
+    }
 
-      if (sessionsToCreate.length > 0) {
-        await this.prisma.lessonSession.createMany({
-          data: sessionsToCreate,
-          skipDuplicates: true,
-        });
-        this.logger.log(
-          `Auto-populated ${sessionsToCreate.length} semester sessions for group [${group.name}] (${year} - ${term})`,
-        );
-      }
+    // 3. Single batch insert
+    if (allSessionsToCreate.length > 0) {
+      await this.prisma.lessonSession.createMany({
+        data: allSessionsToCreate,
+        skipDuplicates: true,
+      });
+      this.logger.log(
+        `Auto-populated ${allSessionsToCreate.length} semester sessions for ${eligibleGroups.length} groups`,
+      );
     }
   }
 
@@ -528,27 +538,31 @@ export class SchedulesService {
       search,
     } = params || {};
 
-    // Auto-ensure semester sessions are created for teacher's active groups
-    try {
-      const teacherGroups = await this.prisma.academicGroup.findMany({
-        where: {
-          isActive: true,
-          ...teacherWhereCondition,
-          ...(groupId && groupId !== 'ALL' ? { id: groupId } : {}),
-          ...(gradeLevel && gradeLevel !== 'ALL' ? { gradeLevel } : {}),
-          ...(academicYear && academicYear !== 'ALL' ? { academicYear } : {}),
-          ...(academicTerm && academicTerm !== 'ALL' ? { academicTerm } : {}),
-        },
-        include: {
-          schedules: true,
-        },
-      });
+    // Auto-ensure semester sessions are created for teacher's active groups (throttled to 5 mins via in-memory cache)
+    const ensureCacheKey = `ensure_${effectiveTeacherProfileId || user.id}_${groupId || 'ALL'}_${academicYear || 'ALL'}_${academicTerm || 'ALL'}`;
+    if (!this.autoEnsureCache.get(ensureCacheKey)) {
+      try {
+        const teacherGroups = await this.prisma.academicGroup.findMany({
+          where: {
+            isActive: true,
+            ...teacherWhereCondition,
+            ...(groupId && groupId !== 'ALL' ? { id: groupId } : {}),
+            ...(gradeLevel && gradeLevel !== 'ALL' ? { gradeLevel } : {}),
+            ...(academicYear && academicYear !== 'ALL' ? { academicYear } : {}),
+            ...(academicTerm && academicTerm !== 'ALL' ? { academicTerm } : {}),
+          },
+          include: {
+            schedules: true,
+          },
+        });
 
-      if (teacherGroups.length > 0) {
-        await this.autoEnsureSemesterSessionsForGroups(teacherGroups, academicYear, academicTerm);
+        if (teacherGroups.length > 0) {
+          await this.autoEnsureSemesterSessionsForGroups(teacherGroups, academicYear, academicTerm);
+        }
+        this.autoEnsureCache.set(ensureCacheKey, true);
+      } catch (err: any) {
+        this.logger.warn(`Could not auto-ensure semester sessions: ${err?.message}`);
       }
-    } catch (err: any) {
-      this.logger.warn(`Could not auto-ensure semester sessions: ${err?.message}`);
     }
 
     const where: any = {

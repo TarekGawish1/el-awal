@@ -54,11 +54,12 @@ export function CourseManagementContainer() {
   const { data: courses = [], isLoading } = useTeacherCourses();
   const deleteMutation = useDeleteCourse();
 
-  // Real-time subscriptions polling
+  // Real-time subscriptions updates via WebSocket + background safety poll
+  useRealtimeCourseSubscriptions();
   const { data: subsData } = useQuery({
     queryKey: ['teacher-subscriptions'],
     queryFn: coursesApi.getTeacherSubscriptions,
-    refetchInterval: 5000,
+    refetchInterval: 60000,
   });
   const pendingCount = subsData?.counts?.pending ?? 0;
 

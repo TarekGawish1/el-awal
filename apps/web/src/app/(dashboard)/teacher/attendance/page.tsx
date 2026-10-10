@@ -85,11 +85,16 @@ function TeacherAttendanceContent() {
     activeTerm,
   );
 
-  const { data: allTeacherSessions = [], isLoading: isLoadingAllSessions } = useTeacherSessions({
-    academicYear: activeYear,
-    academicTerm: activeTerm,
-    timeframe: 'ALL',
-  });
+  const { data: allTeacherSessions = [], isLoading: isLoadingAllSessions } = useTeacherSessions(
+    {
+      academicYear: activeYear,
+      academicTerm: activeTerm,
+      timeframe: 'ALL',
+    },
+    {
+      enabled: sessionScope !== 'TODAY',
+    },
+  );
 
   // Create a fast lookup map from groupId to group (with schedules and locations)
   const groupMap = useMemo(() => {

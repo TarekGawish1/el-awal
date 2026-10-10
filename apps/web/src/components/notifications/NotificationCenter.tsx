@@ -353,7 +353,7 @@ export function NotificationCenter() {
   const { user } = useAuth();
 
   const { data: unreadData } = useUnreadCount();
-  const { data: feedData, isLoading } = useNotifications();
+  const { data: feedData, isLoading } = useNotifications(undefined, { enabled: isOpen });
   const markRead = useMarkRead();
   const markAllRead = useMarkAllRead();
 

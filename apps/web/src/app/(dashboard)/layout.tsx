@@ -250,16 +250,15 @@ export default function DashboardLayout({
     queryKey: ['contact-messages-unread-count'],
     queryFn: async () => {
       try {
-        const res = await apiClient<any>(API_ENDPOINTS.CONTACT_MESSAGES.LIST);
-        const items: any[] = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
-        return items.filter((m: any) => !m.isRead).length;
+        const res = await apiClient<{ unreadCount: number }>(API_ENDPOINTS.CONTACT_MESSAGES.UNREAD_COUNT);
+        return res?.unreadCount ?? 0;
       } catch {
         return 0;
       }
     },
     enabled: isReservationsRole && isOnline,
-    staleTime: 15000,
-    refetchInterval: 30000, // Background poll as safety net alongside realtime socket
+    staleTime: 30000,
+    refetchInterval: 60000, // Background poll as safety net alongside realtime socket
   });
   useRealtimeInquiries(isReservationsRole);
 

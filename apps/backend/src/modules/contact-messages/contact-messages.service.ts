@@ -76,6 +76,13 @@ export class ContactMessagesService {
     });
   }
 
+  async getUnreadCount(): Promise<{ unreadCount: number }> {
+    const unreadCount = await this.prisma.contactMessage.count({
+      where: { isRead: false },
+    });
+    return { unreadCount };
+  }
+
   async markAsRead(id: string) {
     const updated = await this.prisma.contactMessage.update({
       where: { id },

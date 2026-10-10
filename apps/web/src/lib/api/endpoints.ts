@@ -152,6 +152,7 @@ export const API_ENDPOINTS = {
   },
   CONTACT_MESSAGES: {
     LIST: "/contact-messages",
+    UNREAD_COUNT: "/contact-messages/unread-count",
     MARK_READ: (id: string) => `/contact-messages/${id}/read`,
     DELETE: (id: string) => `/contact-messages/${id}`,
   },
