@@ -37,10 +37,13 @@ import {
   SessionForDeadline,
 } from '../utils/effective-due-date.util';
 import { NotificationsService } from '../../notifications/services/notifications.service';
+import { MemoryCache } from '../../../common/utils/memory-cache.util';
 
 @Injectable()
 export class AssessmentsService {
   private readonly logger = new Logger(AssessmentsService.name);
+  private readonly assessmentsListCache = new MemoryCache(25, 200);
+  private readonly groupSessionsCache = new MemoryCache(60, 50);
 
   constructor(
     private readonly prisma: PrismaService,
@@ -264,6 +267,7 @@ export class AssessmentsService {
       await this.notifyAssessmentPublished(assessment);
     }
 
+    this.assessmentsListCache.clear();
     return assessment;
   }
 
@@ -271,7 +275,10 @@ export class AssessmentsService {
    * Keyset cursor-paginated list of assessments with course, group, and publication status filters.
    */
   async getAssessments(query: AssessmentQueryDto, user: AuthenticatedUser) {
-    const limit = CursorPaginationHelper.sanitizeLimit(query.limit);
+    const userKey = user.studentProfileId || user.parentProfileId || user.teacherProfileId || user.id;
+    const cacheKey = `assessments:${user.role}:${userKey}:${JSON.stringify(query)}`;
+    return this.assessmentsListCache.getOrSet(cacheKey, async () => {
+      const limit = CursorPaginationHelper.sanitizeLimit(query.limit);
     const decodedCursor = query.cursor
       ? CursorPaginationHelper.decodeCursor(query.cursor)
       : null;
@@ -384,7 +391,7 @@ export class AssessmentsService {
       take: limit + 1,
       include: {
         teacher: {
-          include: { user: { select: { fullName: true } } },
+          select: { id: true, user: { select: { fullName: true } } },
         },
         group: { select: { id: true, name: true, academicYear: true, academicTerm: true } },
         targetGroups: { select: { id: true, name: true, academicYear: true, academicTerm: true } },
@@ -408,11 +415,12 @@ export class AssessmentsService {
 
     // Students and parents see session-linked homework at its effective deadline (next
     // session), so expired-by-record homework stays visible while actionable.
-    if (user.role === UserRole.STUDENT || user.role === UserRole.PARENT) {
-      await this.maybeApplyEffectiveDueDates(assessments as any[]);
-    }
+      if (user.role === UserRole.STUDENT || user.role === UserRole.PARENT) {
+        await this.maybeApplyEffectiveDueDates(assessments as any[]);
+      }
 
-    return CursorPaginationHelper.formatResponse(assessments, limit);
+      return CursorPaginationHelper.formatResponse(assessments, limit);
+    }, 25);
   }
 
   /**
@@ -429,17 +437,20 @@ export class AssessmentsService {
     ];
     if (groupIds.length === 0) return;
 
-    const sessions = await this.prisma.lessonSession.findMany({
-      where: { groupId: { in: groupIds } },
-      select: {
-        groupId: true,
-        sessionDate: true,
-        startTime: true,
-        endTime: true,
-        isCancelled: true,
-      },
-      orderBy: [{ sessionDate: 'asc' }, { startTime: 'asc' }],
-    });
+    const cacheKey = `sessions:${groupIds.sort().join(',')}`;
+    const sessions = await this.groupSessionsCache.getOrSet(cacheKey, async () => {
+      return this.prisma.lessonSession.findMany({
+        where: { groupId: { in: groupIds } },
+        select: {
+          groupId: true,
+          sessionDate: true,
+          startTime: true,
+          endTime: true,
+          isCancelled: true,
+        },
+        orderBy: [{ sessionDate: 'asc' }, { startTime: 'asc' }],
+      });
+    }, 60);
 
     for (const a of assessments) {
       const gId = a?.groupId || a?.targetGroups?.[0]?.id;
@@ -1302,6 +1313,7 @@ export class AssessmentsService {
       `Assessment [${assessmentId}] submitted by student [${studentId}]. Status: ${status}, Score: ${finalScore}/${assessment.totalScore}`,
     );
 
+    this.assessmentsListCache.clear();
     return {
       submissionId: result.id,
       assessmentId,
@@ -1403,6 +1415,7 @@ export class AssessmentsService {
       `Homework [${assessmentId}] submitted by student [${studentId}] for session [${dto.sessionId}]`,
     );
 
+    this.assessmentsListCache.clear();
     return {
       submissionId: submission.id,
       assessmentId,
@@ -1555,6 +1568,7 @@ export class AssessmentsService {
         `Submission [${submissionId}] manually graded. Score: ${totalScore}/${maxTotal}`,
       );
 
+      this.assessmentsListCache.clear();
       return {
         id: updatedSubmission.id,
         assessmentId: updatedSubmission.assessmentId,
@@ -1823,6 +1837,7 @@ export class AssessmentsService {
 
     this.logger.log(`Assessment [${assessmentId}] updated`);
 
+    this.assessmentsListCache.clear();
     return updated;
   }
 
@@ -2034,6 +2049,7 @@ export class AssessmentsService {
       `Re-evaluated ${updatedSubmissionsCount} submissions for assessment [${assessmentId}]`,
     );
 
+    this.assessmentsListCache.clear();
     return {
       success: true,
       assessmentId,
@@ -2097,6 +2113,7 @@ export class AssessmentsService {
     });
 
     // 4. Delete assessment
+    this.assessmentsListCache.clear();
     await this.prisma.assessment.delete({
       where: { id: assessmentId },
     });
