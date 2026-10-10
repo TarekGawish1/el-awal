@@ -6,7 +6,7 @@ import {
 
 // Matches Egyptian mobile phone formats:
 // 010xxxxxxxx, 011xxxxxxxx, 012xxxxxxxx, 015xxxxxxxx, +2010xxxxxxxx, +2011xxxxxxxx, +2012xxxxxxxx, +2015xxxxxxxx
-const EGYPTIAN_PHONE_REGEX = /^(?:\+20|0020|0)?1[0125]\d{8}$/;
+const EGYPTIAN_PHONE_REGEX = /^(?:\+20|0020|20|0)?1[0125]\d{8}$/;
 
 export function IsEgyptianPhone(validationOptions?: ValidationOptions) {
   return function (object: object, propertyName: string) {

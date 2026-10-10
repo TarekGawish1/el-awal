@@ -5,7 +5,7 @@ import { Settings as SettingsIcon, Save, Phone, User } from 'lucide-react';
 import { useTeacherProfile } from '@/features/teachers/hooks/useTeacherProfile';
 import toast from 'react-hot-toast';
 
-const EGYPTIAN_PHONE_REGEX = /^(?:\+20|0020|0)?1[0125]\d{8}$/;
+const EGYPTIAN_PHONE_REGEX = /^(?:\+20|0020|20|0)?1[0125]\d{8}$/;
 
 export default function TeacherSettingsPage() {
   const { profile, isLoading, updateProfile, isUpdating } = useTeacherProfile();

@@ -4,7 +4,7 @@
  * use the same canonical E.164-ish form (`+20XXXXXXXXXX`).
  */
 
-const EGYPTIAN_PHONE_REGEX = /^(?:\+20|0020|0)?1[0125]\d{8}$/;
+const EGYPTIAN_PHONE_REGEX = /^(?:\+20|0020|20|0)?1[0125]\d{8}$/;
 
 /** Validates an Egyptian mobile number in any accepted input format. */
 export function isEgyptianPhone(value: string): boolean {
@@ -13,7 +13,7 @@ export function isEgyptianPhone(value: string): boolean {
 
 /**
  * Normalizes an Egyptian mobile number to the canonical form `+20XXXXXXXXXX`.
- * Accepts `01012345678`, `+201012345678`, `00201012345678`, and variants with
+ * Accepts `01012345678`, `+201012345678`, `00201012345678`, `201012345678`, and variants with
  * spaces/dashes.
  */
 export function normalizeEgyptianPhone(value: string): string {
@@ -23,15 +23,17 @@ export function normalizeEgyptianPhone(value: string): string {
     ? normalized.slice(3)
     : normalized.startsWith('0020')
       ? normalized.slice(4)
-      : normalized.startsWith('0')
-        ? normalized.slice(1)
-        : normalized;
+      : normalized.startsWith('20') && (normalized.length === 12 || normalized.startsWith('201'))
+        ? normalized.slice(2)
+        : normalized.startsWith('0')
+          ? normalized.slice(1)
+          : normalized;
 
   return `+20${nationalNumber}`;
 }
 
 /**
- * Returns phone variants used for tolerant lookups (exact, national, +20, 0020),
+ * Returns phone variants used for tolerant lookups (exact, national, +20, 0020, 20),
  * matching the existing auth lookup behavior.
  */
 export function getPhoneVariants(value: string): string[] {
@@ -40,15 +42,19 @@ export function getPhoneVariants(value: string): string[] {
     ? normalized.slice(3)
     : normalized.startsWith('0020')
       ? normalized.slice(4)
-      : normalized.startsWith('0')
-        ? normalized.slice(1)
-        : normalized;
+      : normalized.startsWith('20') && (normalized.length === 12 || normalized.startsWith('201'))
+        ? normalized.slice(2)
+        : normalized.startsWith('0')
+          ? normalized.slice(1)
+          : normalized;
 
   return [...new Set([
     normalized,
     `0${nationalNumber}`,
     `+20${nationalNumber}`,
     `0020${nationalNumber}`,
+    `20${nationalNumber}`,
+    nationalNumber,
   ])];
 }
 

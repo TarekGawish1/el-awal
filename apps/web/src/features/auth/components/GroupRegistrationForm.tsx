@@ -18,7 +18,7 @@ import {
 import { Alert, AlertDescription, AlertTitle, Button, Input } from '@/components/ui';
 import { useGroupInvite, useGroupRegistration } from '../hooks/useGroupRegistration';
 
-const EGYPTIAN_PHONE_REGEX = /^(?:\+20|0020|0)?1[0125]\d{8}$/;
+const EGYPTIAN_PHONE_REGEX = /^(?:\+20|0020|20|0)?1[0125]\d{8}$/;
 
 interface FieldErrors {
   fullName?: string;

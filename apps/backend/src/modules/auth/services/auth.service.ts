@@ -43,15 +43,19 @@ function getPhoneVariants(phone: string): string[] {
     ? normalized.slice(3)
     : normalized.startsWith('0020')
       ? normalized.slice(4)
-      : normalized.startsWith('0')
-        ? normalized.slice(1)
-        : normalized;
+      : normalized.startsWith('20') && (normalized.length === 12 || normalized.startsWith('201'))
+        ? normalized.slice(2)
+        : normalized.startsWith('0')
+          ? normalized.slice(1)
+          : normalized;
 
   return [...new Set([
     normalized,
     `0${nationalNumber}`,
     `+20${nationalNumber}`,
     `0020${nationalNumber}`,
+    `20${nationalNumber}`,
+    nationalNumber,
   ])];
 }
 

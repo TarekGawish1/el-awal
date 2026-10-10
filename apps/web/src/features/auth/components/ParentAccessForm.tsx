@@ -8,7 +8,7 @@ import { Alert, AlertDescription, AlertTitle, Button, Input } from '@/components
 import { useParentAccess } from '../hooks/useParentAccess';
 import { useAuthStore } from '../store/auth.store';
 
-const EGYPTIAN_PHONE_REGEX = /^(?:\+20|0020|0)?1[0125]\d{8}$/;
+const EGYPTIAN_PHONE_REGEX = /^(?:\+20|0020|20|0)?1[0125]\d{8}$/;
 
 function normalizePhone(value: string): string {
   return value.replace(/[\s-]/g, '').trim();
