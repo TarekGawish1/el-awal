@@ -5,7 +5,6 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { AppLogger } from './core/logger/app-logger.service';
 import helmet from 'helmet';
-import compression from 'compression';
 
 async function bootstrap() {
   const appLogger = new AppLogger();
@@ -15,8 +14,16 @@ async function bootstrap() {
   });
   const configService = app.get(ConfigService);
 
-  // High-performance gzip/deflate response compression to shrink JSON payloads
-  app.use(compression());
+// High-performance gzip/deflate response compression to shrink JSON payloads
+  try {
+    const compression = require('compression');
+    const compressFn = typeof compression === 'function' ? compression : compression.default;
+    if (typeof compressFn === 'function') {
+      app.use(compressFn());
+    }
+  } catch (compErr) {
+    logger.warn('Compression middleware skipped:', compErr);
+  }
 
   // Security Headers via Helmet (allow cross-origin asset loading)
   app.use(
