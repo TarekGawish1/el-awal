@@ -19,6 +19,9 @@ export interface PaginatedResult<T> {
     nextCursor: string | null;
     prevCursor: string | null;
     hasMore: boolean;
+    hasNextPage: boolean;
+    total?: number;
+    totalPages?: number;
     limit: number;
   };
 }
@@ -106,6 +109,7 @@ export class CursorPaginationHelper {
   public static formatResponse<T extends { id: string; createdAt: Date }>(
     items: T[],
     requestedLimit: number,
+    totalCount?: number,
   ): PaginatedResult<T> {
     const hasMore = items.length > requestedLimit;
     const data = hasMore ? items.slice(0, requestedLimit) : items;
@@ -129,6 +133,13 @@ export class CursorPaginationHelper {
         nextCursor,
         prevCursor,
         hasMore,
+        hasNextPage: hasMore,
+        ...(totalCount !== undefined
+          ? {
+              total: totalCount,
+              totalPages: Math.ceil(totalCount / requestedLimit),
+            }
+          : {}),
         limit: requestedLimit,
       },
     };

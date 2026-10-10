@@ -573,13 +573,28 @@ export function NotificationCenter() {
               </div>
 
               {/* Footer */}
-              {notifications.length > 0 && (
-                <div className="border-t border-slate-100 px-4 py-3 text-center">
-                  <p className="text-xs text-slate-400">
-                    عرض آخر {notifications.length} إشعار
-                  </p>
-                </div>
-              )}
+              <div className="border-t border-slate-100 p-2.5 bg-slate-50/80 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    const targetRoute =
+                      user?.role === 'TEACHER' || user?.role === 'SECRETARIAT'
+                        ? '/teacher/notifications'
+                        : '/student/dashboard';
+                    router.push(targetRoute);
+                  }}
+                  className="w-full py-2 px-3 rounded-xl bg-white hover:bg-blue-50 text-blue-600 hover:text-blue-700 font-bold text-xs border border-slate-200/80 hover:border-blue-200 shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Bell size={13} className="text-blue-500" />
+                  <span>
+                    {notifications.length > 0
+                      ? `عرض جميع الإشعارات (${notifications.length}) في مركز التحكم`
+                      : 'الانتقال إلى مركز الإشعارات'}
+                  </span>
+                  <span>←</span>
+                </button>
+              </div>
             </motion.div>
           </>
         )}

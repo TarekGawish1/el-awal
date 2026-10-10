@@ -233,33 +233,40 @@ export class NotificationsService {
     const isStaff = user.role === UserRole.TEACHER || user.role === UserRole.SECRETARIAT;
     const targetRole = query.role && query.role !== 'ALL' ? (query.role as UserRole) : undefined;
 
-    const whereClause: any = {
-      ...(cursorFilter || {}),
-    };
-
+    const baseWhereClause: any = {};
     if (isStaff && query.scope === 'all') {
       if (targetRole) {
-        whereClause.recipient = { role: targetRole };
+        baseWhereClause.recipient = { role: targetRole };
       }
     } else {
-      whereClause.recipientId = user.id;
+      baseWhereClause.recipientId = user.id;
       if (targetRole) {
-        whereClause.recipient = { role: targetRole };
+        baseWhereClause.recipient = { role: targetRole };
       }
     }
 
-    const notifications = await this.prisma.notification.findMany({
-      where: whereClause,
-      include: {
-        recipient: {
-          select: { id: true, fullName: true, role: true },
-        },
-      },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: limit + 1,
-    });
+    const whereClause: any = {
+      ...baseWhereClause,
+      ...(cursorFilter || {}),
+    };
 
-    return CursorPaginationHelper.formatResponse(notifications, limit);
+    const [notifications, totalCount] = await Promise.all([
+      this.prisma.notification.findMany({
+        where: whereClause,
+        include: {
+          recipient: {
+            select: { id: true, fullName: true, role: true },
+          },
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: limit + 1,
+      }),
+      this.prisma.notification.count({
+        where: baseWhereClause,
+      }),
+    ]);
+
+    return CursorPaginationHelper.formatResponse(notifications, limit, totalCount);
   }
 
   /**

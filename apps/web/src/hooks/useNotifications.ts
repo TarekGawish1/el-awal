@@ -29,9 +29,12 @@ export interface Notification {
 export interface NotificationFeedResponse {
   data: Notification[];
   meta: {
-    nextCursor?: string;
-    hasNextPage: boolean;
+    nextCursor?: string | null;
+    prevCursor?: string | null;
+    hasNextPage?: boolean;
+    hasMore?: boolean;
     total?: number;
+    totalPages?: number;
     limit?: number;
   };
 }
@@ -102,8 +105,13 @@ export function useInfiniteNotifications(options?: Omit<NotificationFeedOptions,
       return res;
     },
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage) =>
-      lastPage.meta?.hasNextPage ? lastPage.meta.nextCursor : undefined,
+    getNextPageParam: (lastPage) => {
+      const hasNext =
+        lastPage?.meta?.hasNextPage ??
+        lastPage?.meta?.hasMore ??
+        Boolean(lastPage?.meta?.nextCursor);
+      return hasNext && lastPage?.meta?.nextCursor ? lastPage.meta.nextCursor : undefined;
+    },
     staleTime: 20_000,
   });
 }

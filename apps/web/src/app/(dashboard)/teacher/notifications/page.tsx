@@ -27,6 +27,7 @@ import {
   HeartHandshake,
   Send,
   QrCode,
+  ChevronDown,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiClient } from '@/lib/api/client';
@@ -54,6 +55,7 @@ export default function NotificationCenterPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [readFilter, setReadFilter] = useState<'ALL' | 'UNREAD' | 'READ'>('ALL');
   const [roleFilter, setRoleFilter] = useState<'ALL' | 'TEACHER' | 'STUDENT' | 'PARENT'>('ALL');
+  const [pageSize, setPageSize] = useState<number>(15);
   const [isDispatchingSchedule, setIsDispatchingSchedule] = useState(false);
 
   // Live WhatsApp Socket & Ban Status State
@@ -126,6 +128,7 @@ export default function NotificationCenterPage() {
   } = useInfiniteNotifications({
     scope: 'all',
     role: roleFilter !== 'ALL' ? roleFilter : undefined,
+    limit: pageSize,
   });
 
   const { data: unreadData } = useUnreadCount();
@@ -137,6 +140,7 @@ export default function NotificationCenterPage() {
 
   const unreadCount = unreadData?.unreadCount ?? 0;
   const notifications = infiniteFeedData?.pages.flatMap((page) => page.data) ?? [];
+  const totalCount = infiniteFeedData?.pages[0]?.meta?.total ?? notifications.length;
 
   const filteredNotifications = notifications.filter((item) => {
     if (readFilter === 'UNREAD' && item.isRead) return false;
@@ -1150,33 +1154,65 @@ export default function NotificationCenterPage() {
 
           {/* Pagination Controls */}
           {notifications.length > 0 && (
-            <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
-              <div className="flex items-center gap-2">
-                <span>تم عرض {filteredNotifications.length} إشعار</span>
+            <div className="pt-4 mt-2 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium text-slate-700">
+                  تم عرض <span className="font-bold text-blue-600">{filteredNotifications.length}</span>
+                  {totalCount > filteredNotifications.length && (
+                    <> من أصل <span className="font-bold text-slate-900">{totalCount}</span></>
+                  )} إشعار
+                </span>
                 {hasNextPage && (
-                  <span className="text-blue-600 font-medium">• يتوفر المزيد</span>
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-600 border border-blue-100">
+                    • يتوفر المزيد من الصفحات
+                  </span>
                 )}
+                {/* Page Size Selector */}
+                <div className="flex items-center gap-1 mr-2 text-[11px] text-slate-500">
+                  <span>عرض:</span>
+                  {[15, 30, 50].map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => setPageSize(size)}
+                      className={`px-2 py-0.5 rounded-md font-bold transition-colors cursor-pointer ${
+                        pageSize === size
+                          ? 'bg-blue-600 text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {hasNextPage ? (
-                <button
-                  type="button"
-                  disabled={isFetchingNextPage}
-                  onClick={() => fetchNextPage()}
-                  className="w-full sm:w-auto px-5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold transition-all flex items-center justify-center gap-2"
-                >
-                  {isFetchingNextPage ? (
-                    <>
-                      <Loader2 size={14} className="animate-spin" />
-                      <span>جاري تحميل المزيد...</span>
-                    </>
-                  ) : (
-                    <span>تحميل المزيد من الإشعارات السابقة</span>
-                  )}
-                </button>
-              ) : (
-                <span className="text-slate-400">تم تحميل جميع الإشعارات المتاحة</span>
-              )}
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {hasNextPage ? (
+                  <button
+                    type="button"
+                    disabled={isFetchingNextPage}
+                    onClick={() => fetchNextPage()}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer disabled:opacity-50"
+                  >
+                    {isFetchingNextPage ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" />
+                        <span>جاري تحميل الإشعارات السابقة...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>تحميل المزيد من الإشعارات السابقة</span>
+                        <ChevronDown size={14} />
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <span className="text-slate-500 font-medium bg-slate-50 border border-slate-200/80 px-3 py-1.5 rounded-lg text-center w-full sm:w-auto">
+                    ✓ تم تحميل جميع الإشعارات المتاحة ({totalCount})
+                  </span>
+                )}
+              </div>
             </div>
           )}
         </div>
