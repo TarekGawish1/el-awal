@@ -59,6 +59,7 @@ import { RealtimeGateway } from '../../../realtime/realtime.gateway';
 import { createHash, randomUUID } from 'crypto';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
+import { MemoryCache } from '../../../common/utils/memory-cache.util';
 
 export function generateBunnyEmbedTicket(
   libraryId: string,
@@ -78,6 +79,7 @@ export function generateBunnyEmbedTicket(
 @Injectable()
 export class CoursesService {
   private readonly logger = new Logger(CoursesService.name);
+  private readonly catalogCache = new MemoryCache(90, 100);
 
   constructor(
     private readonly prisma: PrismaService,
@@ -213,7 +215,7 @@ export class CoursesService {
       if (pid) previewVideoUrl = `bunny:${pid}`;
     }
     try {
-      return await this.prisma.course.create({
+      const created = await this.prisma.course.create({
         data: {
           title: dto.title,
           description: dto.description,
@@ -233,6 +235,8 @@ export class CoursesService {
           status: CourseStatus.DRAFT,
         },
       });
+      this.catalogCache.clear();
+      return created;
     } catch (error) {
       if (dto.coverImageUrl) {
         await this.storageService.deleteObject(dto.coverImageUrl).catch(() => {});
@@ -304,7 +308,9 @@ export class CoursesService {
    * Keyset cursor-paginated catalog of published courses with multi-criteria filtering.
    */
   async getPublishedCatalog(query: CourseQueryDto) {
-    const limit = CursorPaginationHelper.sanitizeLimit(query.limit);
+    const cacheKey = `catalog:${JSON.stringify(query)}`;
+    return this.catalogCache.getOrSet(cacheKey, async () => {
+      const limit = CursorPaginationHelper.sanitizeLimit(query.limit);
     const decodedCursor = query.cursor ? CursorPaginationHelper.decodeCursor(query.cursor) : null;
     const cursorFilter = CursorPaginationHelper.buildPrismaWhereClause(decodedCursor, 'DESC');
 
@@ -440,13 +446,16 @@ export class CoursesService {
     });
 
     return CursorPaginationHelper.formatResponse(mappedCourses, limit);
+    });
   }
 
   /**
    * Retrieves public course details and syllabus for unauthenticated guests.
    */
   async getPublicCourseDetails(courseId: string) {
-    const course = await this.prisma.course.findUnique({
+    const cacheKey = `course_public:${courseId}`;
+    return this.catalogCache.getOrSet(cacheKey, async () => {
+      const course = await this.prisma.course.findUnique({
       where: { id: courseId },
       include: {
         teacher: {
@@ -543,6 +552,7 @@ export class CoursesService {
       freeVideoLessonId: previewLesson?.id || null,
       freeVideoUrl: previewLesson?.freeVideoUrl || null,
     };
+    });
   }
 
   /**
@@ -778,6 +788,7 @@ export class CoursesService {
       if (pid) previewVideoUrl = `bunny:${pid}` as any;
     }
 
+    this.catalogCache.clear();
     return this.prisma.course.update({
       where: { id: courseId },
       data: {
@@ -851,6 +862,7 @@ export class CoursesService {
       await this.storageService.deleteObject(course.coverImageUrl).catch(() => {});
     }
 
+    this.catalogCache.clear();
     return this.prisma.course.delete({ where: { id: courseId } });
   }
 
@@ -878,6 +890,7 @@ export class CoursesService {
       orderIndex = moduleCount + 1;
     }
 
+    this.catalogCache.clear();
     return this.prisma.courseModule.create({
       data: {
         courseId,
@@ -912,6 +925,7 @@ export class CoursesService {
       throw new ForbiddenException('You do not have permission to modify this module');
     }
 
+    this.catalogCache.clear();
     return this.prisma.courseModule.update({
       where: { id: moduleId },
       data: {
@@ -975,6 +989,7 @@ export class CoursesService {
       }
     }
 
+    this.catalogCache.clear();
     return this.prisma.courseModule.delete({ where: { id: moduleId } });
   }
 
@@ -1002,6 +1017,7 @@ export class CoursesService {
     // parks every module at a distinct negative index — never used at rest, so it
     // can't collide — then phase 2 assigns the final positive indexes into the
     // now-free slots.
+    this.catalogCache.clear();
     return this.prisma.$transaction([
       ...dto.moduleOrders.map((item, i) =>
         this.prisma.courseModule.update({
@@ -1072,6 +1088,7 @@ export class CoursesService {
     // every lesson at a distinct negative index AND moves it to its target module,
     // so the destination unit's final slots are freed before we fill them. Phase 2
     // then assigns the final positive order indexes with no collision.
+    this.catalogCache.clear();
     return this.prisma.$transaction([
       ...dto.lessonOrders.map((item, i) =>
         this.prisma.courseLesson.update({
@@ -1150,7 +1167,7 @@ export class CoursesService {
     }
 
     try {
-      return await this.prisma.courseLesson.create({
+      const lesson = await this.prisma.courseLesson.create({
         data: {
           moduleId,
           title: dto.title,
@@ -1180,6 +1197,8 @@ export class CoursesService {
           lessonQuiz: { select: { id: true, title: true, type: true } },
         },
       });
+      this.catalogCache.clear();
+      return lesson;
     } catch (error) {
       // ⚠️ ROLLBACK CLEANUP: Purge newly created Bunny video(s) and attachments if database creation failed
       const bunnyIdsToCleanup = new Set<string>();
@@ -1314,6 +1333,7 @@ export class CoursesService {
       }
     }
 
+    this.catalogCache.clear();
     return updatedLesson;
   }
 
@@ -1359,6 +1379,7 @@ export class CoursesService {
       }
     }
 
+    this.catalogCache.clear();
     return this.prisma.courseLesson.delete({ where: { id: lessonId } });
   }
 

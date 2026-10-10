@@ -5,12 +5,16 @@ import { AuthenticatedUser } from '../../../core/security/decorators/current-use
 import { CreateTestimonialDto } from '../dto/create-testimonial.dto';
 import { CreateManualTestimonialDto } from '../dto/create-manual-testimonial.dto';
 import { UpdateTestimonialDto } from '../dto/update-testimonial.dto';
+import { MemoryCache } from '../../../common/utils/memory-cache.util';
 
 @Injectable()
 export class TestimonialsService {
+  private readonly publicCache = new MemoryCache(120, 10);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async saveForStudent(user: AuthenticatedUser, dto: CreateTestimonialDto) {
+    this.publicCache.clear();
     const studentId = this.getStudentProfileId(user);
 
     return this.prisma.testimonial.upsert({
@@ -31,6 +35,7 @@ export class TestimonialsService {
   }
 
   async createManual(dto: CreateManualTestimonialDto) {
+    this.publicCache.clear();
     return this.prisma.testimonial.create({
       data: {
         displayName: dto.displayName.trim(),
@@ -52,29 +57,31 @@ export class TestimonialsService {
   }
 
   async findPublic() {
-    const testimonials = await this.prisma.testimonial.findMany({
-      where: { status: TestimonialStatus.APPROVED },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        content: true,
-        rating: true,
-        displayName: true,
-        gradeLevel: true,
-        student: {
-          select: {
-            gradeLevel: true,
-            user: { select: { fullName: true } },
+    return this.publicCache.getOrSet('public_testimonials', async () => {
+      const testimonials = await this.prisma.testimonial.findMany({
+        where: { status: TestimonialStatus.APPROVED },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          content: true,
+          rating: true,
+          displayName: true,
+          gradeLevel: true,
+          student: {
+            select: {
+              gradeLevel: true,
+              user: { select: { fullName: true } },
+            },
           },
         },
-      },
-    });
+      });
 
-    return testimonials.map(({ student, ...testimonial }) => ({
-      ...testimonial,
-      firstName: testimonial.displayName || this.getFirstName(student?.user.fullName || ''),
-      gradeLevel: testimonial.gradeLevel || student?.gradeLevel || null,
-    }));
+      return testimonials.map(({ student, ...testimonial }) => ({
+        ...testimonial,
+        firstName: testimonial.displayName || this.getFirstName(student?.user.fullName || ''),
+        gradeLevel: testimonial.gradeLevel || student?.gradeLevel || null,
+      }));
+    });
   }
 
   async findAll() {
@@ -99,6 +106,7 @@ export class TestimonialsService {
   }
 
   async update(id: string, dto: UpdateTestimonialDto) {
+    this.publicCache.clear();
     return this.prisma.testimonial.update({
       where: { id },
       data: {

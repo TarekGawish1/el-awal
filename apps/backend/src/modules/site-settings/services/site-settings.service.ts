@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "../../../core/database/prisma.service";
+import { MemoryCache } from "../../../common/utils/memory-cache.util";
 
 const VISIBLE_YEARS_KEY = "certificates.visibleYears";
 const VISIBLE_STAGES_KEY = "certificates.visibleStages";
@@ -18,6 +19,7 @@ const MANAGEABLE_KEYS = [
 @Injectable()
 export class SiteSettingsService {
   private readonly logger = new Logger(SiteSettingsService.name);
+  private readonly publicCache = new MemoryCache(120, 10);
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -35,17 +37,19 @@ export class SiteSettingsService {
 
   /** Public landing-page settings (fail-open: null means "show all"). */
   async getPublicSettings() {
-    const rows = await this.prisma.siteSetting.findMany({
-      where: { key: { in: MANAGEABLE_KEYS } },
+    return this.publicCache.getOrSet("public_settings", async () => {
+      const rows = await this.prisma.siteSetting.findMany({
+        where: { key: { in: MANAGEABLE_KEYS } },
+      });
+      const valueFor = (key: string) =>
+        this.parseYears(rows.find((row) => row.key === key)?.value);
+      return {
+        certificatesVisibleYears: valueFor(VISIBLE_YEARS_KEY),
+        certificatesVisibleStages: valueFor(VISIBLE_STAGES_KEY),
+        certificatesVisibleGrades: valueFor(VISIBLE_GRADES_KEY),
+        certificatesVisibleGroups: valueFor(VISIBLE_GROUPS_KEY),
+      };
     });
-    const valueFor = (key: string) =>
-      this.parseYears(rows.find((row) => row.key === key)?.value);
-    return {
-      certificatesVisibleYears: valueFor(VISIBLE_YEARS_KEY),
-      certificatesVisibleStages: valueFor(VISIBLE_STAGES_KEY),
-      certificatesVisibleGrades: valueFor(VISIBLE_GRADES_KEY),
-      certificatesVisibleGroups: valueFor(VISIBLE_GROUPS_KEY),
-    };
   }
 
   /** All manageable settings with parsed values (dashboard). */
@@ -63,6 +67,7 @@ export class SiteSettingsService {
   }
 
   async updateSetting(key: string, value: string[]) {
+    this.publicCache.clear();
     if (!MANAGEABLE_KEYS.includes(key)) {
       throw new BadRequestException("إعداد غير مدعوم");
     }

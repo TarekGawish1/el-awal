@@ -3,10 +3,12 @@ import { PrismaService } from '../../../core/database/prisma.service';
 import { DashboardOverviewQueryDto } from '../dto/dashboard-overview-query.dto';
 import { AttendanceStatus, GroupEnrollmentStatus, SubmissionStatus } from '@prisma/client';
 import { normalizeEgyptianPhone } from '../../../common/utils/phone.util';
+import { MemoryCache } from '../../../common/utils/memory-cache.util';
 
 @Injectable()
 export class TeachersService {
   private readonly logger = new Logger(TeachersService.name);
+  private readonly academicPeriodCache = new MemoryCache(120, 10);
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -345,36 +347,40 @@ export class TeachersService {
   }
 
   async getAcademicPeriod(teacherId?: string) {
-    let profile = null;
-    if (teacherId) {
-      profile = await this.prisma.teacherProfile.findUnique({
-        where: { id: teacherId },
-        select: {
-          activeAcademicYear: true,
-          activeAcademicTerm: true,
-        },
-      });
-    }
+    const cacheKey = `academic_period:${teacherId || 'default'}`;
+    return this.academicPeriodCache.getOrSet(cacheKey, async () => {
+      let profile = null;
+      if (teacherId) {
+        profile = await this.prisma.teacherProfile.findUnique({
+          where: { id: teacherId },
+          select: {
+            activeAcademicYear: true,
+            activeAcademicTerm: true,
+          },
+        });
+      }
 
-    if (!profile) {
-      profile = await this.prisma.teacherProfile.findFirst({
-        select: {
-          activeAcademicYear: true,
-          activeAcademicTerm: true,
-        },
-      });
-    }
+      if (!profile) {
+        profile = await this.prisma.teacherProfile.findFirst({
+          select: {
+            activeAcademicYear: true,
+            activeAcademicTerm: true,
+          },
+        });
+      }
 
-    return {
-      activeAcademicYear: profile?.activeAcademicYear || '2026-2027',
-      activeAcademicTerm: profile?.activeAcademicTerm || 'FIRST_TERM',
-    };
+      return {
+        activeAcademicYear: profile?.activeAcademicYear || '2026-2027',
+        activeAcademicTerm: profile?.activeAcademicTerm || 'FIRST_TERM',
+      };
+    });
   }
 
   async updateAcademicPeriod(
     teacherId: string,
     dto: { activeAcademicYear: string; activeAcademicTerm: string },
   ) {
+    this.academicPeriodCache.clear();
     // 1. Globally update all teacher profiles in the database so all teachers and assistants stay synchronized
     await this.prisma.teacherProfile.updateMany({
       data: {
