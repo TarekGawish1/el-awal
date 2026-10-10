@@ -135,10 +135,10 @@ export function StudentList() {
     []
   );
 
-  // Fetch students (fetch larger page for seamless client-side multi-filtering)
+  // Fetch students (fetch comprehensive list for seamless client-side multi-filtering)
   const { data, isLoading, isError } = useStudents({
     cursor,
-    limit: 50,
+    limit: 500,
   });
 
   // Calculate available grade options dynamically based on selected stages

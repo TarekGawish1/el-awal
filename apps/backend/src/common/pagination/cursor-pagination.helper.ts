@@ -25,7 +25,7 @@ export interface PaginatedResult<T> {
 
 export class CursorPaginationHelper {
   private static readonly DEFAULT_LIMIT = 20;
-  private static readonly MAX_LIMIT = 100;
+  private static readonly MAX_LIMIT = 500;
 
   /**
    * Encodes createdAt timestamp and record ID into an opaque URL-safe base64 string.
