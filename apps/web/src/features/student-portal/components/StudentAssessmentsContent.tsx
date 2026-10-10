@@ -413,6 +413,33 @@ function AssessmentWrapper({
   const [answerUploadProgress, setAnswerUploadProgress] = useState(0);
   const answerFileInputRef = useRef<HTMLInputElement>(null);
 
+  // LocalStorage draft recovery key
+  const draftStorageKey = `el_awal_exam_draft_${assessmentId}_${progressScopeId}`;
+
+  // Restore draft from localStorage on initial open
+  useEffect(() => {
+    if (typeof window !== 'undefined' && assessmentId && !localSubmission && !assessment?.mySubmission) {
+      try {
+        const saved = localStorage.getItem(draftStorageKey);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+            setAnswers((prev) => ({ ...parsed, ...prev }));
+          }
+        }
+      } catch {}
+    }
+  }, [assessmentId, draftStorageKey, localSubmission, assessment?.mySubmission]);
+
+  // Auto-save answers draft to localStorage on change
+  useEffect(() => {
+    if (typeof window !== 'undefined' && assessmentId && Object.keys(answers).length > 0 && !localSubmission) {
+      try {
+        localStorage.setItem(draftStorageKey, JSON.stringify(answers));
+      } catch {}
+    }
+  }, [answers, assessmentId, draftStorageKey, localSubmission]);
+
   useEffect(() => {
     if (assessment && !assessment.allowMultipleAttempts) {
       setRetakeMode(false);
@@ -494,6 +521,11 @@ function AssessmentWrapper({
   };
 
   const startRetake = () => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem(draftStorageKey);
+      } catch {}
+    }
     setLocalSubmission(null);
     setAnswers({});
     setEssayImages({});
@@ -598,6 +630,11 @@ function AssessmentWrapper({
           toast.success('تم تسليم إجاباتك بنجاح.');
           setTimeLeft(null);
           setRetakeMode(false);
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.removeItem(draftStorageKey);
+            } catch {}
+          }
           const subData = result?.data || result;
           const preview = Boolean(subData?.isPreview) || subData?.id === 'preview-submission';
           setLocalSubmission(subData);
@@ -622,6 +659,11 @@ function AssessmentWrapper({
       { id: assessmentId, payload },
       {
         onSuccess: (result: any) => {
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.removeItem(draftStorageKey);
+            } catch {}
+          }
           const subData = result?.data || result;
           const preview = Boolean(subData?.isPreview) || subData?.id === 'preview-submission';
           toast.success(

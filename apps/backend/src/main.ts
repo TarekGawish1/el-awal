@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { AppLogger } from './core/logger/app-logger.service';
 import helmet from 'helmet';
+import compression from 'compression';
 
 async function bootstrap() {
   const appLogger = new AppLogger();
@@ -13,6 +14,9 @@ async function bootstrap() {
     logger: appLogger,
   });
   const configService = app.get(ConfigService);
+
+  // High-performance gzip/deflate response compression to shrink JSON payloads
+  app.use(compression());
 
   // Security Headers via Helmet (allow cross-origin asset loading)
   app.use(

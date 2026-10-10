@@ -27,7 +27,7 @@ import { AppLogger } from './logger/app-logger.service';
       {
         name: 'default',
         ttl: 60000,
-        limit: 120,
+        limit: 300,
       },
     ]),
     DatabaseModule,

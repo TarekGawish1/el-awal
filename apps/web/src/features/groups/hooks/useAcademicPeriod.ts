@@ -134,13 +134,13 @@ export function getDefaultAcademicTerm(): string {
 export function useStoredAcademicPeriod(groups?: Group[]) {
   const queryClient = useQueryClient();
 
-  // 1. Fetch persistent preference directly from database with automatic periodic background synchronization & focus refetch
+  // 1. Fetch persistent preference directly from database (cached for 10 minutes without polling)
   const { data: dbPeriod, isLoading: isLoadingDb } = useQuery({
     queryKey: ['teacher', 'academic-period'],
     queryFn: fetchAcademicPeriod,
-    staleTime: 10000,
-    refetchInterval: () => (typeof navigator !== 'undefined' && !navigator.onLine ? false : 30000),
-    refetchOnWindowFocus: typeof navigator !== 'undefined' ? navigator.onLine : true,
+    staleTime: 10 * 60 * 1000, // 10 minutes cache
+    refetchInterval: false,     // Disabled: mutations already invalidate this query
+    refetchOnWindowFocus: false,
     retry: 1,
     networkMode: 'offlineFirst',
   });

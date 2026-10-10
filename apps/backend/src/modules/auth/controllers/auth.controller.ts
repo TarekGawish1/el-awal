@@ -22,7 +22,7 @@ export class AuthController {
   ) {}
 
   @Public()
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Throttle({ default: { limit: 180, ttl: 60000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Authenticate user with phone or email credentials and password' })
@@ -33,7 +33,7 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Throttle({ default: { limit: 180, ttl: 60000 } })
   @Post('parent-access')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Authenticate as the linked parent using a registered student phone number' })
@@ -91,7 +91,7 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @Throttle({ default: { limit: 300, ttl: 60000 } })
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh access token using long-lived refresh token' })
@@ -102,7 +102,7 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @Throttle({ default: { limit: 300, ttl: 60000 } })
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Revoke refresh token session on client logout' })

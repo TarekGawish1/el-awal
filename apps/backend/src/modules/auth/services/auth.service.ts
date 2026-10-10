@@ -77,6 +77,7 @@ function parseDurationToMs(duration: string): number {
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private readonly failedAttempts = new Map<string, { count: number; lockedUntil?: number; lastAttemptAt: number }>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -89,12 +90,73 @@ export class AuthService {
     return createHash('sha256').update(token).digest('hex');
   }
 
+  private checkAccountLockout(identifier: string): void {
+    const key = identifier.trim().toLowerCase();
+    const record = this.failedAttempts.get(key);
+    if (!record) return;
+
+    const now = Date.now();
+    if (record.lockedUntil) {
+      if (now < record.lockedUntil) {
+        const remainingMinutes = Math.ceil((record.lockedUntil - now) / 60000);
+        throw new UnauthorizedException(
+          `تم قفل الحساب مؤقتاً بسبب تكرار المحاولات الخاطئة. يرجى المحاولة بعد ${remainingMinutes} دقيقة.`,
+        );
+      } else {
+        this.failedAttempts.delete(key);
+      }
+    }
+  }
+
+  private recordFailedAttempt(identifier: string): never {
+    const key = identifier.trim().toLowerCase();
+    const now = Date.now();
+    const record = this.failedAttempts.get(key) || { count: 0, lastAttemptAt: now };
+
+    if (now - record.lastAttemptAt > 15 * 60 * 1000) {
+      record.count = 0;
+    }
+
+    record.count += 1;
+    record.lastAttemptAt = now;
+
+    if (record.count >= 5) {
+      record.lockedUntil = now + 5 * 60 * 1000;
+      this.failedAttempts.set(key, record);
+      this.logger.warn(`Account [${key}] locked for 5 minutes due to 5 consecutive failed login attempts.`);
+      throw new UnauthorizedException(
+        'تم قفل الحساب مؤقتاً لمدة 5 دقائق بسبب تكرار المحاولات الخاطئة (5 محاولات).',
+      );
+    }
+
+    this.failedAttempts.set(key, record);
+    const remainingAttempts = 5 - record.count;
+    throw new UnauthorizedException(
+      `بيانات الدخول غير صحيحة أو الحساب غير مفعل. (متبقي ${remainingAttempts} محاولات قبل القفل المؤقت)`,
+    );
+  }
+
+  private clearFailedAttempts(identifier: string): void {
+    const key = identifier.trim().toLowerCase();
+    this.failedAttempts.delete(key);
+
+    if (this.failedAttempts.size > 5000) {
+      const now = Date.now();
+      for (const [k, v] of this.failedAttempts.entries()) {
+        if ((v.lockedUntil && now >= v.lockedUntil) || now - v.lastAttemptAt > 30 * 60 * 1000) {
+          this.failedAttempts.delete(k);
+        }
+      }
+    }
+  }
+
   /**
    * Authenticates user using email or phone and password.
    * Compares password with stored bcrypt hash and generates access & refresh tokens.
    */
   async login(dto: LoginDto): Promise<AuthTokensResponseDto> {
     const rawIdentifier = dto.identifier.trim();
+    this.checkAccountLockout(rawIdentifier);
     const phoneVariants = getPhoneVariants(rawIdentifier);
 
     const user = await this.prisma.user.findFirst({
@@ -130,7 +192,7 @@ export class AuthService {
 
     if (!user) {
       this.logger.warn(`Authentication failed: User [${dto.identifier}] not found or inactive`);
-      throw new UnauthorizedException('بيانات الدخول غير صحيحة أو الحساب غير مفعل');
+      this.recordFailedAttempt(rawIdentifier);
     }
 
     if (!dto.password) {
@@ -177,7 +239,7 @@ export class AuthService {
 
     if (!isPasswordValid) {
       this.logger.warn(`Authentication failed: Invalid password for user [${dto.identifier}]`);
-      throw new UnauthorizedException('بيانات الدخول غير صحيحة أو الحساب غير مفعل');
+      this.recordFailedAttempt(rawIdentifier);
     }
 
     // Clear tempAccessPin and pendingCredentials upon verified login with real password
@@ -202,6 +264,7 @@ export class AuthService {
       }
     }
 
+    this.clearFailedAttempts(rawIdentifier);
     const overrideRole = authenticatedAsParentViaStudentPin ? UserRole.PARENT : undefined;
     return this.issueTokens(user, overrideRole);
   }
@@ -212,6 +275,7 @@ export class AuthService {
    */
   async parentAccess(dto: ParentAccessDto): Promise<AuthTokensResponseDto> {
     const rawIdentifier = (dto.studentPhone || '').trim();
+    this.checkAccountLockout(rawIdentifier);
     const password = (dto.password || '').trim();
     const phoneVariants = getPhoneVariants(rawIdentifier);
 
@@ -303,7 +367,7 @@ export class AuthService {
     const hasParentCapability = parentUser?.role === UserRole.PARENT || Boolean(parentUser?.parentProfile);
     if (!parentUser || !hasParentCapability || !parentUser.isActive || parentUser.deletedAt) {
       this.logger.warn(`Parent access failed for identifier [${dto.studentPhone}]`);
-      throw new UnauthorizedException('رقم الهاتف أو كود الطالب غير مسجل أو لا يوجد حساب ولي أمر مرتبط به');
+      this.recordFailedAttempt(rawIdentifier);
     }
 
     // 3. Authenticate with password verification:
@@ -355,9 +419,10 @@ export class AuthService {
 
     if (!isPasswordValid) {
       this.logger.warn(`Parent access failed: invalid password for identifier [${rawIdentifier}]`);
-      throw new UnauthorizedException('كلمة المرور غير صحيحة، يرجى التأكد من كلمة المرور أو استخدام رابط الدخول الآمن');
+      this.recordFailedAttempt(rawIdentifier);
     }
 
+    this.clearFailedAttempts(rawIdentifier);
     return this.issueTokens(parentUser, UserRole.PARENT);
   }
 

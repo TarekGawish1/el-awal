@@ -10,7 +10,25 @@ export class PrismaService
   private readonly logger = new Logger(PrismaService.name);
 
   constructor(configService: ConfigService) {
-    const databaseUrl = configService.get<string>('DATABASE_URL');
+    let databaseUrl = configService.get<string>('DATABASE_URL') || '';
+
+    // If using Supabase transaction pooler (port 6543 / pooler.supabase.com / pgbouncer),
+    // ensure pgbouncer=true is appended so Prisma disables prepared statements
+    if (databaseUrl.includes(':6543') || databaseUrl.includes('pooler.supabase.com')) {
+      if (!databaseUrl.includes('pgbouncer=true')) {
+        const separator = databaseUrl.includes('?') ? '&' : '?';
+        databaseUrl = `${databaseUrl}${separator}pgbouncer=true`;
+      }
+      if (!databaseUrl.includes('connection_limit=')) {
+        const separator = databaseUrl.includes('?') ? '&' : '?';
+        databaseUrl = `${databaseUrl}${separator}connection_limit=15`;
+      }
+      if (!databaseUrl.includes('pool_timeout=')) {
+        const separator = databaseUrl.includes('?') ? '&' : '?';
+        databaseUrl = `${databaseUrl}${separator}pool_timeout=20`;
+      }
+    }
+
     super({
       datasources: {
         db: {
@@ -34,14 +52,16 @@ export class PrismaService
     });
 
     this.$on('error', (e) => {
-      // Filter out benign Neon/PgBouncer idle connection drops
+      // Filter out benign Supabase/PgBouncer/Neon idle connection drops
       if (
         e.message?.includes('kind: Closed') ||
         e.message?.includes('Connection closed') ||
-        e.message?.includes('Server closed the connection')
+        e.message?.includes('Server closed the connection') ||
+        e.message?.includes('Connection reset by peer') ||
+        e.message?.includes('terminating connection due to administrator command')
       ) {
         this.logger.debug(
-          `[Neon Serverless] Inactive idle connection closed by pooler. Prisma will auto-reconnect on demand.`,
+          `[Database Pooler] Inactive idle connection closed by pooler. Prisma will auto-reconnect on demand.`,
         );
         return;
       }

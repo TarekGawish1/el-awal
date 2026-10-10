@@ -117,8 +117,8 @@ export function useUnreadCount() {
       );
       return res;
     },
-    staleTime: 30_000,
-    refetchInterval: 30_000, // Poll every 30 seconds
+    staleTime: 60_000,
+    refetchInterval: 90_000, // Poll every 90 seconds to avoid flooding the backend
     refetchIntervalInBackground: false,
   });
 }

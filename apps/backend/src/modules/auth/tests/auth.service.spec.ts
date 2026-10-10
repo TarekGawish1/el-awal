@@ -127,6 +127,68 @@ describe('AuthService', () => {
       ).rejects.toThrow(UnauthorizedException);
     });
 
+    it('locks account after 5 consecutive failed login attempts and prevents further attempts', async () => {
+      const passwordHash = await bcrypt.hash('CorrectPassword!', 10);
+      mockPrismaService.user.findFirst.mockResolvedValue({
+        id: 'user-lockout-test',
+        passwordHash,
+        isActive: true,
+      });
+
+      const identifier = 'locked_user@elawal.com';
+
+      // 4 failed attempts: each throws UnauthorizedException with remaining count
+      for (let i = 1; i <= 4; i++) {
+        await expect(
+          service.login({ identifier, password: `WrongAttempt_${i}` }),
+        ).rejects.toThrow(/بيانات الدخول غير صحيحة/);
+      }
+
+      // 5th failed attempt triggers 5-minute lockout
+      await expect(
+        service.login({ identifier, password: 'WrongAttempt_5' }),
+      ).rejects.toThrow(/تم قفل الحساب مؤقتاً لمدة 5 دقائق/);
+
+      // 6th attempt is blocked immediately by checkAccountLockout even before reaching DB/bcrypt
+      await expect(
+        service.login({ identifier, password: 'AnyPassword' }),
+      ).rejects.toThrow(/تم قفل الحساب مؤقتاً بسبب تكرار المحاولات الخاطئة/);
+    });
+
+    it('clears failed attempts upon successful login', async () => {
+      const plainPassword = 'CorrectPassword123!';
+      const passwordHash = await bcrypt.hash(plainPassword, 10);
+      mockPrismaService.user.findFirst.mockResolvedValue({
+        id: 'user-reset-test',
+        passwordHash,
+        role: UserRole.STUDENT,
+        isActive: true,
+        deletedAt: null,
+      });
+      mockJwtService.signAsync
+        .mockResolvedValueOnce('mocked-access')
+        .mockResolvedValueOnce('mocked-refresh');
+
+      const identifier = 'reset_user@elawal.com';
+
+      // 2 failed attempts
+      await expect(
+        service.login({ identifier, password: 'WrongPassword_1' }),
+      ).rejects.toThrow(UnauthorizedException);
+      await expect(
+        service.login({ identifier, password: 'WrongPassword_2' }),
+      ).rejects.toThrow(UnauthorizedException);
+
+      // Successful login
+      const result = await service.login({ identifier, password: plainPassword });
+      expect(result.accessToken).toBe('mocked-access');
+
+      // The count should have reset, so next failed attempt is attempt #1 (4 remaining)
+      await expect(
+        service.login({ identifier, password: 'WrongPassword_Again' }),
+      ).rejects.toThrow(/متبقي 4 محاولات/);
+    });
+
     it('requires and verifies the generated password for normal parent login', async () => {
       const plainPassword = 'ParentGenerated9!';
       const passwordHash = await bcrypt.hash(plainPassword, 10);

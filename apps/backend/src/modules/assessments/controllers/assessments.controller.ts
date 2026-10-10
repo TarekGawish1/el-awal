@@ -19,6 +19,7 @@ import { GradeSubmissionDto } from '../dto/grade-submission.dto';
 import { AssessmentQueryDto } from '../dto/assessment-query.dto';
 import { UpdateAssessmentDto } from '../dto/update-assessment.dto';
 import { Roles } from '../../../core/security/decorators/roles.decorator';
+import { SkipThrottle } from '@nestjs/throttler';
 import {
   CurrentUser,
   AuthenticatedUser,
@@ -79,6 +80,7 @@ export class AssessmentsController {
     return this.assessmentsService.getMyAssessmentStatus(id, user);
   }
 
+  @SkipThrottle()
   @Post(':id/submit')
   @HttpCode(HttpStatus.OK)
   @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.SECRETARIAT)
@@ -97,6 +99,7 @@ export class AssessmentsController {
     );
   }
 
+  @SkipThrottle()
   @Post(':id/submit-homework')
   @HttpCode(HttpStatus.OK)
   @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.SECRETARIAT)
