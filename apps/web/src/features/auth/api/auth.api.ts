@@ -72,11 +72,12 @@ export async function registerStudent(
     method: 'POST',
     body: JSON.stringify({
       fullName: payload.fullName.trim(),
-      studentPhone: payload.studentPhone.trim(),
-      parentPhone: payload.parentPhone?.trim(),
+      studentPhone: payload.studentPhone?.trim() || undefined,
+      parentPhone: payload.parentPhone.trim(),
       academicStage: payload.academicStage,
       gradeLevel: payload.gradeLevel,
       attendanceMode: payload.attendanceMode,
+      groupId: payload.groupId,
     }),
   });
 }
@@ -100,7 +101,7 @@ export async function registerByGroup(payload: GroupRegistrationPayload): Promis
     body: JSON.stringify({
       token: payload.token,
       fullName: payload.fullName.trim(),
-      phone: payload.phone.trim(),
+      phone: payload.phone?.trim() || undefined,
       parentName: payload.parentName.trim(),
       parentPhone: payload.parentPhone.trim(),
       password: payload.password,

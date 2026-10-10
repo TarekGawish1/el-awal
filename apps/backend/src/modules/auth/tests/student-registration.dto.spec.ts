@@ -11,7 +11,7 @@ describe('RegisterStudentDto (server-side validation)', () => {
 
   const valid = {
     fullName: 'محمود أحمد علي',
-    studentPhone: '01012345678',
+    studentPhone: '01023456789',
     parentPhone: '01098765432',
     academicStage: 'SECONDARY',
     gradeLevel: 'الصف الثالث الثانوي',
@@ -21,6 +21,13 @@ describe('RegisterStudentDto (server-side validation)', () => {
   it('accepts a well-formed registration request', async () => {
     const result = await pipe.transform(valid, { type: 'body', metatype: RegisterStudentDto });
     expect(result.fullName).toBe('محمود أحمد علي');
+  });
+
+  it('accepts registration when studentPhone is omitted (optional student phone)', async () => {
+    const { studentPhone, ...withoutStudentPhone } = valid;
+    const result = await pipe.transform(withoutStudentPhone, { type: 'body', metatype: RegisterStudentDto });
+    expect(result.fullName).toBe('محمود أحمد علي');
+    expect(result.studentPhone).toBeUndefined();
   });
 
   it('rejects an empty or too-short full name', async () => {
@@ -39,11 +46,7 @@ describe('RegisterStudentDto (server-side validation)', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
-  it('rejects a missing or invalid student phone', async () => {
-    await expect(
-      pipe.transform({ ...valid, studentPhone: '' }, { type: 'body', metatype: RegisterStudentDto }),
-    ).rejects.toThrow(BadRequestException);
-
+  it('rejects an invalid student phone when provided', async () => {
     await expect(
       pipe.transform({ ...valid, studentPhone: '12345' }, { type: 'body', metatype: RegisterStudentDto }),
     ).rejects.toThrow(BadRequestException);

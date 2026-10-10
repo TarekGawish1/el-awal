@@ -29,7 +29,41 @@ import {
   AcademicStageKey,
 } from '@/lib/constants/academic-levels';
 
-const EGYPTIAN_PHONE_REGEX = /^(?:\+20|0020|20|0)?1[0125]\d{8}$/;
+const STRICT_EGYPTIAN_PHONE_REGEX = /^(?:\+20|0020|20|0)?1(0\d|1[01245]|2[01278]|5[05])\d{7}$/;
+
+function isEgyptianPhone(value: string): boolean {
+  if (typeof value !== 'string') return false;
+  const normalized = value
+    .replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString())
+    .replace(/[\s-]/g, '')
+    .trim();
+
+  if (!STRICT_EGYPTIAN_PHONE_REGEX.test(normalized)) {
+    return false;
+  }
+
+  let local = normalized;
+  if (local.startsWith('+20')) local = '0' + local.slice(3);
+  else if (local.startsWith('0020')) local = '0' + local.slice(4);
+  else if (local.startsWith('20') && local.length === 12) local = '0' + local.slice(2);
+
+  // Reject dummy repeated numbers (e.g. 01000000000)
+  if (/^01[0125](\d)\1{7}$/.test(local)) {
+    return false;
+  }
+  if (local === '01234567890' || local === '01012345678' || local === '01000000000') {
+    return false;
+  }
+  return true;
+}
+
+function arePhonesTooSimilar(phoneA?: string, phoneB?: string): boolean {
+  if (!phoneA || !phoneB) return false;
+  const digitsA = phoneA.replace(/\D/g, '');
+  const digitsB = phoneB.replace(/\D/g, '');
+  if (digitsA.length < 8 || digitsB.length < 8) return false;
+  return digitsA.slice(-8) === digitsB.slice(-8);
+}
 
 type Step = 'mode' | 'info' | 'review';
 
@@ -75,21 +109,21 @@ export function StudentRegistrationForm() {
     }
 
     const sPhone = normalizePhone(studentPhone);
-    if (!sPhone) {
-      errors.studentPhone = 'يرجى إدخال رقم هاتف الطالب';
-    } else if (!EGYPTIAN_PHONE_REGEX.test(sPhone)) {
-      errors.studentPhone = 'رقم الهاتف غير صحيح';
+    if (sPhone) {
+      if (!isEgyptianPhone(sPhone)) {
+        errors.studentPhone = 'رقم هاتف الطالب غير صحيح، يرجى كتابة رقم محمول مصري صحيح';
+      }
     }
 
     const pPhone = normalizePhone(parentPhone);
-    if (attendanceMode === 'CENTER') {
-      if (!pPhone) {
-        errors.parentPhone = 'يرجى إدخال رقم هاتف ولي الأمر';
-      } else if (!EGYPTIAN_PHONE_REGEX.test(pPhone)) {
-        errors.parentPhone = 'رقم الهاتف غير صحيح';
-      } else if (sPhone && pPhone && sPhone === pPhone) {
-        errors.parentPhone = 'رقم هاتف ولي الأمر يجب أن يختلف عن رقم هاتف الطالب';
-      }
+    if (!pPhone) {
+      errors.parentPhone = 'رقم هاتف ولي الأمر مطلوب للتواصل والمتابعة';
+    } else if (!isEgyptianPhone(pPhone)) {
+      errors.parentPhone = 'رقم هاتف ولي الأمر غير صحيح، يرجى كتابة رقم محمول مصري صحيح';
+    } else if (sPhone && pPhone && sPhone === pPhone) {
+      errors.parentPhone = 'رقم هاتف ولي الأمر يجب أن يختلف عن رقم هاتف الطالب';
+    } else if (sPhone && pPhone && arePhonesTooSimilar(sPhone, pPhone)) {
+      errors.parentPhone = 'رقم ولي الأمر متشابه جداً مع رقم الطالب (لا يمكن تكرار نفس الرقم)';
     }
 
     if (!academicStage) {
@@ -116,10 +150,12 @@ export function StudentRegistrationForm() {
 
   const handleRegister = () => {
     if (!isAcademicStageKey(academicStage)) return;
+    const sPhone = normalizePhone(studentPhone);
+    const pPhone = normalizePhone(parentPhone);
     registerStudent({
-      fullName,
-      studentPhone: normalizePhone(studentPhone),
-      parentPhone: attendanceMode === 'CENTER' ? normalizePhone(parentPhone) : undefined,
+      fullName: fullName.trim(),
+      studentPhone: sPhone ? sPhone : undefined,
+      parentPhone: pPhone,
       academicStage,
       gradeLevel,
       attendanceMode: attendanceMode as 'CENTER' | 'ONLINE',
@@ -184,10 +220,12 @@ export function StudentRegistrationForm() {
           <p className="text-xs font-semibold text-neutral-500">تأكد من صحة البيانات قبل إنشاء الحساب</p>
           <dl className="space-y-2 text-sm">
             <Row label="الاسم بالكامل" value={fullName.trim()} />
-            <Row label="رقم هاتف الطالب" value={normalizePhone(studentPhone)} ltr />
-            {attendanceMode === 'CENTER' && (
-              <Row label="رقم هاتف ولي الأمر" value={normalizePhone(parentPhone)} ltr />
+            {normalizePhone(studentPhone) ? (
+              <Row label="رقم هاتف الطالب" value={normalizePhone(studentPhone)} ltr />
+            ) : (
+              <Row label="رقم هاتف الطالب" value="غير مسجل (سيتم الدخول بكود الطالب)" />
             )}
+            <Row label="رقم هاتف ولي الأمر" value={normalizePhone(parentPhone)} ltr />
             <Row label="المرحلة الدراسية" value={stageLabel} />
             <Row label="الصف الدراسي" value={gradeLevel} />
             <Row label="نظام الحضور" value={attendanceModeLabel} />
@@ -311,44 +349,42 @@ export function StudentRegistrationForm() {
         id="reg-student-phone"
         name="studentPhone"
         type="tel"
-        label="رقم هاتف الطالب"
-        placeholder="01xxxxxxxxx"
+        label="رقم هاتف الطالب (اختياري)"
+        placeholder="01xxxxxxxxx (يمكن تركه فارغاً)"
         value={studentPhone}
         onChange={(e) => {
           setStudentPhone(e.target.value);
           if (fieldErrors.studentPhone) setFieldErrors((prev) => ({ ...prev, studentPhone: undefined }));
         }}
         error={fieldErrors.studentPhone}
+        helperText="إذا لم يكن لدى الطالب هاتف خاص، يمكن تركه فارغاً وسيتم الدخول بكود الطالب"
         disabled={isRegistering}
-        required
         autoComplete="tel"
         inputMode="tel"
         dir="ltr"
         startIcon={<Phone className="h-4 w-4" />}
       />
 
-      {attendanceMode === 'CENTER' && (
-        <Input
-          id="reg-parent-phone"
-          name="parentPhone"
-          type="tel"
-          label="رقم هاتف ولي الأمر"
-          placeholder="01xxxxxxxxx"
-          value={parentPhone}
-          onChange={(e) => {
-            setParentPhone(e.target.value);
-            if (fieldErrors.parentPhone) setFieldErrors((prev) => ({ ...prev, parentPhone: undefined }));
-          }}
-          error={fieldErrors.parentPhone}
-          helperText="سيتم إنشاء حساب لولي الأمر بهذا الرقم"
-          disabled={isRegistering}
-          required
-          autoComplete="tel"
-          inputMode="tel"
-          dir="ltr"
-          startIcon={<UserRound className="h-4 w-4" />}
-        />
-      )}
+      <Input
+        id="reg-parent-phone"
+        name="parentPhone"
+        type="tel"
+        label="رقم هاتف ولي الأمر (مطلوب)"
+        placeholder="01xxxxxxxxx"
+        value={parentPhone}
+        onChange={(e) => {
+          setParentPhone(e.target.value);
+          if (fieldErrors.parentPhone) setFieldErrors((prev) => ({ ...prev, parentPhone: undefined }));
+        }}
+        error={fieldErrors.parentPhone}
+        helperText="ضروري للتواصل، وإرسال تقارير الحضور والغياب والدرجات عبر واتساب"
+        disabled={isRegistering}
+        required
+        autoComplete="tel"
+        inputMode="tel"
+        dir="ltr"
+        startIcon={<UserRound className="h-4 w-4" />}
+      />
 
       <Select
         id="reg-stage"
@@ -513,8 +549,11 @@ function CredentialsScreen({
     const text = [
       '🎓 بيانات حساب الطالب:',
       `• كود الطالب (ID): ${credentials.studentCode}`,
-      `• اسم المستخدم/الهاتف: ${credentials.studentPhone}`,
+      credentials.studentPhone
+        ? `• اسم المستخدم / الهاتف: ${credentials.studentPhone}`
+        : `• اسم المستخدم للدخول: ${credentials.studentCode}`,
       `• كلمة المرور: ${credentials.studentPassword}`,
+      `• رقم هاتف ولي الأمر: ${credentials.parentPhone || '-'}`,
     ].join('\n');
 
     handleCopy(text, 'all');
@@ -567,22 +606,26 @@ function CredentialsScreen({
                 </button>
               </div>
 
-              {/* Student Phone */}
+              {/* Student Phone or Code */}
               <div className="flex items-center justify-between bg-white rounded-xl p-3 border border-primary-100 shadow-2xs">
                 <div className="space-y-0.5">
-                  <span className="text-[11px] font-semibold text-neutral-500 block">رقم هاتف الطالب</span>
+                  <span className="text-[11px] font-semibold text-neutral-500 block">
+                    {credentials.studentPhone ? 'رقم هاتف الطالب' : 'اسم المستخدم للدخول'}
+                  </span>
                   <span className="font-mono text-sm font-bold text-neutral-900" dir="ltr">
-                    {credentials.studentPhone}
+                    {credentials.studentPhone || credentials.studentCode}
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleCopy(credentials.studentPhone, 'studentPhone')}
-                  className="flex items-center gap-1 text-xs font-bold text-primary-600 hover:text-primary-800 bg-primary-50 hover:bg-primary-100 px-2.5 py-1.5 rounded-lg transition-colors"
-                >
-                  {copied === 'studentPhone' ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
-                  <span>{copied === 'studentPhone' ? 'تم النسخ' : 'نسخ'}</span>
-                </button>
+                {credentials.studentPhone ? (
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(credentials.studentPhone!, 'studentPhone')}
+                    className="flex items-center gap-1 text-xs font-bold text-primary-600 hover:text-primary-800 bg-primary-50 hover:bg-primary-100 px-2.5 py-1.5 rounded-lg transition-colors"
+                  >
+                    {copied === 'studentPhone' ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                    <span>{copied === 'studentPhone' ? 'تم النسخ' : 'نسخ'}</span>
+                  </button>
+                ) : null}
               </div>
 
               {/* Student Password */}
@@ -618,19 +661,17 @@ function CredentialsScreen({
           </Button>
 
           {/* WhatsApp Notice reminder */}
-          {attendanceMode !== 'ONLINE' && (
-            <div className="rounded-xl bg-emerald-50 border border-emerald-200/80 p-3.5 flex items-start gap-3 text-xs text-emerald-900 leading-relaxed">
-              <svg className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.888-.788-1.489-1.761-1.663-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
-              </svg>
-              <div>
-                <p className="font-bold text-emerald-950">إشعار ولي الأمر عبر واتساب:</p>
-                <p className="text-emerald-800 text-[11px] mt-0.5">
-                  سيتم إرسال بيانات الدخول الخاصة بولي الأمر والطالب تلقائياً في رسالة واتساب لرقم ولي الأمر فور قبول المعلم للحجز. 📲
-                </p>
-              </div>
+          <div className="rounded-xl bg-emerald-50 border border-emerald-200/80 p-3.5 flex items-start gap-3 text-xs text-emerald-900 leading-relaxed">
+            <svg className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.888-.788-1.489-1.761-1.663-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
+            </svg>
+            <div>
+              <p className="font-bold text-emerald-950">إشعار ولي الأمر عبر واتساب:</p>
+              <p className="text-emerald-800 text-[11px] mt-0.5">
+                سيتم إرسال بيانات الدخول الخاصة بولي الأمر والطالب تلقائياً في رسالة واتساب لرقم ولي الأمر فور قبول المعلم للحجز. 📲
+              </p>
             </div>
-          )}
+          </div>
         </div>
       )}
 

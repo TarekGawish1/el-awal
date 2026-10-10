@@ -46,7 +46,7 @@ function selectOption(labelText: RegExp, optionText: string) {
 function fillValidInfo() {
   selectCenterMode();
   fireEvent.change(screen.getByLabelText(/الاسم بالكامل/i), { target: { value: 'محمود أحمد علي' } });
-  fireEvent.change(screen.getByLabelText(/رقم هاتف الطالب/i), { target: { value: '01012345678' } });
+  fireEvent.change(screen.getByLabelText(/رقم هاتف الطالب/i), { target: { value: '01023456789' } });
   fireEvent.change(screen.getByLabelText(/رقم هاتف ولي الأمر/i), { target: { value: '01098765432' } });
   selectOption(/المرحلة الدراسية/i, 'المرحلة الثانوية');
   selectOption(/الصف الدراسي/i, 'الصف الثالث الثانوي');
@@ -69,7 +69,7 @@ describe('StudentRegistrationForm Component', () => {
     expect(screen.getByText(/العودة إلى تسجيل الدخول/i)).toBeInTheDocument();
   });
 
-  it('renders the student information step with all required fields after selecting mode', () => {
+  it('renders the student information step with all fields after selecting mode', () => {
     mockHook();
 
     render(<StudentRegistrationForm />);
@@ -84,7 +84,7 @@ describe('StudentRegistrationForm Component', () => {
     expect(screen.getByRole('button', { name: /متابعة/i })).toBeInTheDocument();
   });
 
-  it('validates empty fields and shows client-side errors without submitting', async () => {
+  it('validates required fields and shows client-side errors without submitting', async () => {
     const base = mockHook();
 
     render(<StudentRegistrationForm />);
@@ -93,12 +93,23 @@ describe('StudentRegistrationForm Component', () => {
     fireEvent.click(screen.getByRole('button', { name: /متابعة/i }));
 
     expect(await screen.findByText('يرجى إدخال الاسم بالكامل (3 أحرف على الأقل)')).toBeInTheDocument();
-    expect(await screen.findByText('يرجى إدخال رقم هاتف الطالب')).toBeInTheDocument();
-    expect(await screen.findByText('يرجى إدخال رقم هاتف ولي الأمر')).toBeInTheDocument();
+    expect(await screen.findByText('رقم هاتف ولي الأمر مطلوب للتواصل والمتابعة')).toBeInTheDocument();
     expect(await screen.findByText('يرجى اختيار المرحلة الدراسية')).toBeInTheDocument();
     expect(await screen.findByText('يرجى اختيار الصف الدراسي')).toBeInTheDocument();
     expect(await screen.findByText('يرجى الموافقة على شروط الاستخدام وسياسة الخصوصية للمتابعة')).toBeInTheDocument();
     expect(base.registerStudent).not.toHaveBeenCalled();
+  });
+
+  it('allows registration when student phone is omitted (optional student phone)', async () => {
+    mockHook();
+
+    render(<StudentRegistrationForm />);
+    fillValidInfo();
+    // Clear student phone
+    fireEvent.change(screen.getByLabelText(/رقم هاتف الطالب/i), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: /متابعة/i }));
+
+    expect(await screen.findByText('تأكد من صحة البيانات قبل إنشاء الحساب')).toBeInTheDocument();
   });
 
   it('rejects an invalid student phone number', async () => {
@@ -110,7 +121,7 @@ describe('StudentRegistrationForm Component', () => {
     fireEvent.change(screen.getByLabelText(/رقم هاتف الطالب/i), { target: { value: '12345' } });
     fireEvent.click(screen.getByRole('button', { name: /متابعة/i }));
 
-    expect(await screen.findByText('رقم الهاتف غير صحيح')).toBeInTheDocument();
+    expect(await screen.findByText('رقم هاتف الطالب غير صحيح، يرجى كتابة رقم محمول مصري صحيح')).toBeInTheDocument();
     expect(base.registerStudent).not.toHaveBeenCalled();
   });
 
@@ -120,7 +131,7 @@ describe('StudentRegistrationForm Component', () => {
     render(<StudentRegistrationForm />);
 
     fillValidInfo();
-    fireEvent.change(screen.getByLabelText(/رقم هاتف ولي الأمر/i), { target: { value: '01012345678' } });
+    fireEvent.change(screen.getByLabelText(/رقم هاتف ولي الأمر/i), { target: { value: '01023456789' } });
     fireEvent.click(screen.getByRole('button', { name: /متابعة/i }));
 
     expect(
@@ -155,7 +166,7 @@ describe('StudentRegistrationForm Component', () => {
     await waitFor(() => {
       expect(base.registerStudent).toHaveBeenCalledWith({
         fullName: 'محمود أحمد علي',
-        studentPhone: '01012345678',
+        studentPhone: '01023456789',
         parentPhone: '01098765432',
         academicStage: 'SECONDARY',
         gradeLevel: 'الصف الثالث الثانوي',

@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEgyptianPhone } from '../../../common/decorators/is-egyptian-phone.decorator';
 
@@ -16,11 +16,10 @@ export class RegisterByGroupDto {
   @MaxLength(200, { message: 'اسم الطالب يجب ألا يتجاوز 200 حرف' })
   fullName: string;
 
-  @ApiProperty({ example: '01012345678', description: 'Student mobile number (verified as unique)' })
-  @IsString()
-  @IsNotEmpty({ message: 'رقم هاتف الطالب مطلوب' })
+  @ApiProperty({ example: '01012345678', description: 'Student mobile number (optional)', required: false })
+  @IsOptional()
   @IsEgyptianPhone({ message: 'رقم هاتف الطالب يجب أن يكون رقم موبايل مصري صحيح' })
-  phone: string;
+  phone?: string;
 
   @ApiProperty({ example: 'محمد أحمد علي', maxLength: 200 })
   @IsString()

@@ -5,7 +5,8 @@ import { Prisma, GroupEnrollmentStatus, UserRole, NotificationChannel, Notificat
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AuthService } from './auth.service';
 import { RegisterStudentDto } from '../dto/student-registration.dto';
-import { normalizeEgyptianPhone, getPhoneVariants } from '../../../common/utils/phone.util';
+import { normalizeEgyptianPhone, getPhoneVariants, arePhonesTooSimilar } from '../../../common/utils/phone.util';
+import { isSimilarStudentName } from '../../../common/utils/name.util';
 import { generateSecurePassword, getTemporaryPinExpiration } from '../../../common/utils/password.util';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
 import { NotificationsService } from '../../notifications/services/notifications.service';
@@ -20,13 +21,13 @@ export interface StudentRegistrationResult {
     id: string;
     fullName: string;
     email?: string;
-    phone?: string;
+    phone?: string | null;
     role: UserRole;
     studentProfileId?: string;
   };
   credentials: {
     studentCode: string;
-    studentPhone: string;
+    studentPhone: string | null;
     studentPassword: string;
     parentPhone: string;
     parentPassword: string | null;
@@ -54,20 +55,28 @@ export class StudentRegistrationService {
    * persisted. The student is auto-authenticated with the STUDENT role — the
    * role is never accepted from the client.
    *
-   * Identity/duplicate strategy: `users.phone` is the unique identifier (names
-   * are never treated as unique). Both student and parent phones are
-   * normalized to a canonical form before uniqueness checks so that the same
-   * number submitted in different formats cannot slip through.
+   * Identity/duplicate strategy:
+   * - Student phone is optional (can be null for students without mobile).
+   * - Parent phone is strictly required and validated against NTRA allocations.
+   * - Anti-mimic check prevents student from copying parent phone with slight prefix variation.
+   * - Duplicate detection prevents registering the same student twice under the same parent.
    */
   async registerStudent(dto: RegisterStudentDto): Promise<StudentRegistrationResult> {
-    const studentPhone = normalizeEgyptianPhone(dto.studentPhone);
-    const parentPhone = dto.parentPhone ? normalizeEgyptianPhone(dto.parentPhone) : null;
+    const studentPhone = dto.studentPhone?.trim() ? normalizeEgyptianPhone(dto.studentPhone) : null;
+    const parentPhone = normalizeEgyptianPhone(dto.parentPhone);
     const fullName = dto.fullName.trim();
 
-    if (parentPhone && studentPhone === parentPhone) {
+    if (studentPhone && studentPhone === parentPhone) {
       throw new ConflictException({
         code: 'PHONES_MUST_DIFFER',
         message: 'رقم هاتف ولي الأمر يجب أن يختلف عن رقم هاتف الطالب',
+      });
+    }
+
+    if (studentPhone && arePhonesTooSimilar(studentPhone, parentPhone)) {
+      throw new ConflictException({
+        code: 'PHONES_TOO_SIMILAR',
+        message: 'رقم هاتف الطالب ورقم هاتف ولي الأمر متشابهان جداً. يرجى إدخال رقم شخصي مستقل أو ترك هاتف الطالب فارغاً.',
       });
     }
 
@@ -78,19 +87,22 @@ export class StudentRegistrationService {
     let parentIsNew = false;
     let studentCode = '';
     let studentUser;
+    let parentUserId: string;
 
     try {
       const txResult = await this.prisma.$transaction(async (tx) => {
-        // 1. Student phone must not already belong to any account (anti-duplicate)
-        const existingStudent = await tx.user.findFirst({
-          where: { phone: { in: getPhoneVariants(studentPhone) } },
-          select: { id: true, role: true },
-        });
-        if (existingStudent) {
-          throw new ConflictException({
-            code: 'PHONE_ALREADY_REGISTERED',
-            message: 'رقم هاتف الطالب مسجل بالفعل، يمكنك تسجيل الدخول مباشرة',
+        // 1. If student phone is provided, it must not already belong to any account (anti-duplicate)
+        if (studentPhone) {
+          const existingStudent = await tx.user.findFirst({
+            where: { phone: { in: getPhoneVariants(studentPhone) } },
+            select: { id: true, role: true },
           });
+          if (existingStudent) {
+            throw new ConflictException({
+              code: 'PHONE_ALREADY_REGISTERED',
+              message: 'رقم هاتف الطالب مسجل بالفعل، يمكنك تسجيل الدخول مباشرة باستخدام رقم الهاتف أو كود الطالب',
+            });
+          }
         }
 
         // 2. Generate unique student code and QR credential
@@ -122,59 +134,82 @@ export class StudentRegistrationService {
         });
 
         // 4. Resolve parent: reuse an existing parent by phone or create one
-        let parentUserId: string | null = null;
-        
-        if (parentPhone) {
-          const existingParent = await tx.user.findFirst({
-            where: { phone: { in: getPhoneVariants(parentPhone) } },
-            select: { id: true, role: true, deletedAt: true },
-          });
+        let resolvedParentId: string;
+        const existingParent = await tx.user.findFirst({
+          where: { phone: { in: getPhoneVariants(parentPhone) } },
+          select: { id: true, role: true, deletedAt: true },
+        });
 
-          if (existingParent) {
-            if (existingParent.deletedAt) {
-              await tx.user.update({
-                where: { id: existingParent.id },
-                data: { deletedAt: null, isActive: true },
-              });
-            }
-            parentUserId = existingParent.id;
-
-            const parentProfile = await tx.parentProfile.findUnique({
+        if (existingParent) {
+          if (existingParent.deletedAt) {
+            await tx.user.update({
               where: { id: existingParent.id },
-              select: { id: true },
+              data: { deletedAt: null, isActive: true },
             });
-            if (!parentProfile) {
-              await tx.parentProfile.create({
-                data: { id: existingParent.id, relationshipType: 'ولي أمر' },
-              });
-            }
-          } else {
-            parentPassword = generateSecurePassword();
-            const parentPasswordHash = await bcrypt.hash(parentPassword, 10);
-            const newParentUser = await tx.user.create({
-              data: {
-                fullName: `ولي أمر ${fullName}`,
-                phone: parentPhone,
-                passwordHash: parentPasswordHash,
-                role: UserRole.PARENT,
-                isActive: true,
-                parentProfile: {
-                  create: { relationshipType: 'ولي أمر' },
-                },
-              },
+          }
+          resolvedParentId = existingParent.id;
+
+          const parentProfile = await tx.parentProfile.findUnique({
+            where: { id: existingParent.id },
+            select: { id: true },
+          });
+          if (!parentProfile) {
+            await tx.parentProfile.create({
+              data: { id: existingParent.id, relationshipType: 'ولي أمر' },
             });
-            parentUserId = newParentUser.id;
-            parentIsNew = true;
           }
 
-          // 5. Link parent ↔ student
-          await tx.parentStudentLink.create({
-            data: {
-              parentId: parentUserId,
-              studentId: createdStudentUser.id,
+          // Anti-duplicate check: verify if the parent already has a student registered with similar name
+          const existingLinks = await tx.parentStudentLink.findMany({
+            where: { parentId: resolvedParentId },
+            include: {
+              student: {
+                select: {
+                  studentCode: true,
+                  user: { select: { fullName: true } },
+                },
+              },
             },
           });
+
+          const duplicateStudent = existingLinks.find((link) =>
+            link.student?.user?.fullName && isSimilarStudentName(link.student.user.fullName, fullName),
+          );
+
+          if (duplicateStudent && duplicateStudent.student?.user) {
+            const existingCode = duplicateStudent.student.studentCode || '';
+            const existingName = duplicateStudent.student.user.fullName;
+            throw new ConflictException({
+              code: 'DUPLICATE_STUDENT_ACCOUNT',
+              message: `يوجد بالفعل حساب مسجل للطالب "${existingName}" برقم كود (${existingCode}) تحت نفس رقم ولي الأمر. يمكنك تسجيل الدخول مباشرة بالكود أو رقم ولي الأمر دون الحاجة لإنشاء حساب جديد.`,
+            });
+          }
+        } else {
+          parentPassword = generateSecurePassword();
+          const parentPasswordHash = await bcrypt.hash(parentPassword, 10);
+          const newParentUser = await tx.user.create({
+            data: {
+              fullName: `ولي أمر ${fullName}`,
+              phone: parentPhone,
+              passwordHash: parentPasswordHash,
+              role: UserRole.PARENT,
+              isActive: true,
+              parentProfile: {
+                create: { relationshipType: 'ولي أمر' },
+              },
+            },
+          });
+          resolvedParentId = newParentUser.id;
+          parentIsNew = true;
         }
+
+        // 5. Link parent ↔ student
+        await tx.parentStudentLink.create({
+          data: {
+            parentId: resolvedParentId,
+            studentId: createdStudentUser.id,
+          },
+        });
 
         // Save pendingCredentials so they can be sent to the parent via WhatsApp when accepted
         await tx.studentProfile.update({
@@ -183,16 +218,17 @@ export class StudentRegistrationService {
             pendingCredentials: {
               studentPassword,
               parentPassword: parentIsNew ? parentPassword : null,
-              studentPhone,
-              parentPhone: parentPhone || null,
+              studentPhone: studentPhone || null,
+              parentPhone,
             },
           },
         });
 
-        return { studentUser: createdStudentUser };
+        return { studentUser: createdStudentUser, parentUserId: resolvedParentId };
       });
 
       studentUser = txResult.studentUser;
+      parentUserId = txResult.parentUserId;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         this.logger.warn('Student registration collided on a unique constraint');
@@ -288,26 +324,20 @@ export class StudentRegistrationService {
     //    - If direct group link: Send Group Acceptance Message directly to parent!
     //    - If general registration: Send Account Credentials message.
     try {
-      const whatsappPhone = parentPhone || studentPhone;
-
-      // Resolve the recipient (parent user ID if linked, else student ID)
-      const recipientId = parentPhone
-        ? ((await this.prisma.user.findFirst({
-            where: { phone: { in: getPhoneVariants(parentPhone) } },
-            select: { id: true },
-          }))?.id ?? studentUser.id)
-        : studentUser.id;
+      const whatsappPhone = parentPhone;
+      const studentPhoneOrCode = studentPhone || studentCode;
+      const recipientId = parentUserId || studentUser.id;
 
       if (groupRecord) {
         // Direct Group Link Registration: Direct acceptance message!
         const teacherName = groupRecord.teacher?.user?.fullName;
         const centerName = teacherName ? `مجموعة الأستاذ ${teacherName}` : 'منصة الأوّل التعليمية';
         const messageBody = formatStudentApprovalMessage({
-          parentName: parentPhone ? `ولي أمر ${fullName}` : fullName,
+          parentName: `ولي أمر ${fullName}`,
           studentName: fullName,
-          studentPhoneOrCode: studentPhone,
+          studentPhoneOrCode,
           studentPassword,
-          parentPhoneOrCode: parentPhone || undefined,
+          parentPhoneOrCode: parentPhone,
           parentPassword: parentIsNew ? parentPassword : undefined,
           platformUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online',
           centerName,
@@ -324,11 +354,11 @@ export class StudentRegistrationService {
           data: {
             studentId: studentUser.id,
             studentName: fullName,
-            studentPhoneOrCode: studentPhone,
+            studentPhoneOrCode,
             studentPassword,
-            parentPhone: parentPhone || undefined,
+            parentPhone,
             parentPassword: parentIsNew ? parentPassword : undefined,
-            parentName: parentPhone ? `ولي أمر ${fullName}` : fullName,
+            parentName: `ولي أمر ${fullName}`,
             groupName: groupRecord.name,
             centerName,
             platformUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online',
@@ -352,11 +382,11 @@ export class StudentRegistrationService {
           data: {
             studentId: studentUser.id,
             studentName: fullName,
-            studentPhoneOrCode: studentPhone,
+            studentPhoneOrCode,
             studentPassword,
-            parentPhone: parentPhone || undefined,
+            parentPhone,
             parentPassword: parentIsNew ? parentPassword : undefined,
-            parentName: parentPhone ? `ولي أمر ${fullName}` : fullName,
+            parentName: `ولي أمر ${fullName}`,
             centerName: 'منصة الأوّل التعليمية',
             platformUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://al-awal.online',
             phone: whatsappPhone,
@@ -372,9 +402,9 @@ export class StudentRegistrationService {
       ...tokens,
       credentials: {
         studentCode,
-        studentPhone,
+        studentPhone: studentPhone ?? null,
         studentPassword,
-        parentPhone: parentPhone || '',
+        parentPhone,
         parentPassword: parentIsNew ? parentPassword : null,
         parentIsNew,
       },

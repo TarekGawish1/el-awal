@@ -57,6 +57,7 @@ describe('AuthService — registerByGroup', () => {
     },
     parentStudentLink: {
       create: jest.fn().mockResolvedValue({}),
+      findMany: jest.fn().mockResolvedValue([]),
     },
     groupEnrollment: {
       upsert: jest.fn().mockResolvedValue({}),

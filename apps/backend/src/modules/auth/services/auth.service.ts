@@ -10,7 +10,8 @@ import { ParentAccessDto } from '../dto/parent-access.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { AuthTokensResponseDto } from '../dto/auth-response.dto';
 import { RegisterByGroupDto } from '../dto/register-by-group.dto';
-import { normalizeEgyptianPhone } from '../../../common/utils/phone.util';
+import { normalizeEgyptianPhone, arePhonesTooSimilar } from '../../../common/utils/phone.util';
+import { isSimilarStudentName } from '../../../common/utils/name.util';
 import { generateSecurePassword, getTemporaryPinExpiration } from '../../../common/utils/password.util';
 import { generateUniqueStudentCode } from '../../../common/utils/student-code.util';
 import { NotificationsService } from '../../notifications/services/notifications.service';
@@ -830,15 +831,22 @@ export class AuthService {
    * single Prisma transaction. Returns JWT tokens for immediate sign-in.
    */
   async registerByGroup(dto: RegisterByGroupDto): Promise<AuthTokensResponseDto> {
-    const phone = normalizeEgyptianPhone(dto.phone);
+    const phone = dto.phone?.trim() ? normalizeEgyptianPhone(dto.phone) : null;
     const parentPhone = normalizeEgyptianPhone(dto.parentPhone);
     const fullName = dto.fullName.trim();
     const parentName = dto.parentName.trim();
 
-    if (phone === parentPhone) {
+    if (phone && phone === parentPhone) {
       throw new ConflictException({
         code: 'PHONES_MUST_DIFFER',
         message: 'رقم هاتف ولي الأمر يجب أن يختلف عن رقم هاتف الطالب',
+      });
+    }
+
+    if (phone && arePhonesTooSimilar(phone, parentPhone)) {
+      throw new ConflictException({
+        code: 'PHONES_TOO_SIMILAR',
+        message: 'رقم هاتف الطالب ورقم هاتف ولي الأمر متشابهان جداً. يرجى إدخال رقم شخصي مستقل أو ترك هاتف الطالب فارغاً.',
       });
     }
 
@@ -870,16 +878,18 @@ export class AuthService {
     let studentUser;
     try {
       studentUser = await this.prisma.$transaction(async (tx) => {
-        // 1. Student phone must not already belong to any account (anti-duplicate)
-        const existingStudent = await tx.user.findFirst({
-          where: { phone: { in: getPhoneVariants(phone) } },
-          select: { id: true, role: true },
-        });
-        if (existingStudent) {
-          throw new ConflictException({
-            code: 'PHONE_ALREADY_REGISTERED',
-            message: 'رقم هاتف الطالب مسجل بالفعل، يمكنك تسجيل الدخول مباشرة',
+        // 1. If student phone is provided, it must not already belong to any account (anti-duplicate)
+        if (phone) {
+          const existingStudent = await tx.user.findFirst({
+            where: { phone: { in: getPhoneVariants(phone) } },
+            select: { id: true, role: true },
           });
+          if (existingStudent) {
+            throw new ConflictException({
+              code: 'PHONE_ALREADY_REGISTERED',
+              message: 'رقم هاتف الطالب مسجل بالفعل، يمكنك تسجيل الدخول مباشرة',
+            });
+          }
         }
 
         // 2. Generate unique student code and QR credential
@@ -935,6 +945,32 @@ export class AuthService {
               data: { id: parentUserId, relationshipType: 'ولي أمر' },
             });
           }
+
+          // Anti-duplicate check: verify if the parent already has a student registered with similar name
+          const existingLinks = await tx.parentStudentLink.findMany({
+            where: { parentId: parentUserId },
+            include: {
+              student: {
+                select: {
+                  studentCode: true,
+                  user: { select: { fullName: true } },
+                },
+              },
+            },
+          });
+
+          const duplicateStudent = existingLinks.find((link) =>
+            link.student?.user?.fullName && isSimilarStudentName(link.student.user.fullName, fullName),
+          );
+
+          if (duplicateStudent && duplicateStudent.student?.user) {
+            const existingCode = duplicateStudent.student.studentCode || '';
+            const existingName = duplicateStudent.student.user.fullName;
+            throw new ConflictException({
+              code: 'DUPLICATE_STUDENT_ACCOUNT',
+              message: `يوجد بالفعل حساب مسجل للطالب "${existingName}" برقم كود (${existingCode}) تحت نفس رقم ولي الأمر. يمكنك تسجيل الدخول مباشرة بالكود أو رقم ولي الأمر دون الحاجة لإنشاء حساب جديد.`,
+            });
+          }
         } else {
           const parentPassword = generateSecurePassword();
           generatedParentPassword = parentPassword;
@@ -961,7 +997,7 @@ export class AuthService {
               pendingCredentials: {
                 studentPassword: null,
                 parentPassword,
-                studentPhone: phone,
+                studentPhone: phone || null,
                 parentPhone,
               },
             },

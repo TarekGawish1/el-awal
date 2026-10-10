@@ -21,6 +21,7 @@ describe('StudentRegistrationService', () => {
     studentCode: 'STU-2026-00001',
     failParentLink: false,
     failParentCreate: false,
+    existingLinks: [] as any[],
   };
 
   function buildTx() {
@@ -29,7 +30,7 @@ describe('StudentRegistrationService', () => {
         findFirst: jest.fn(async (args: any) => {
           // Determine which lookup this is by the `in` values
           const phones: string[] = args?.where?.phone?.in ?? [];
-          if (phones.some((p) => p.includes('+201011111111'))) {
+          if (phones.some((p) => p.includes('+201023456789'))) {
             return state.studentPhoneExists ? { id: 'other-student', role: UserRole.STUDENT } : null;
           }
           return state.parent;
@@ -76,6 +77,7 @@ describe('StudentRegistrationService', () => {
         create: jest.fn(async () => ({ id: PARENT_ID, relationshipType: 'ولي أمر' })),
       },
       parentStudentLink: {
+        findMany: jest.fn(async () => state.existingLinks),
         findUnique: jest.fn(async () => null),
         create: jest.fn(async () => {
           if (state.failParentLink) {
@@ -103,8 +105,8 @@ describe('StudentRegistrationService', () => {
 
   const validDto = {
     fullName: 'محمود أحمد علي',
-    studentPhone: '01011111111',
-    parentPhone: '01099999999',
+    studentPhone: '01023456789',
+    parentPhone: '01098765432',
     academicStage: 'SECONDARY',
     gradeLevel: 'الصف الثالث الثانوي',
     attendanceMode: 'CENTER',
@@ -116,6 +118,7 @@ describe('StudentRegistrationService', () => {
     state.failParentLink = false;
     state.failParentCreate = false;
     state.studentCode = 'STU-2026-00001';
+    state.existingLinks = [];
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -153,13 +156,13 @@ describe('StudentRegistrationService', () => {
     // Student user created with normalized phone + hashed password + STUDENT role
     const studentCreateCall = tx.user.create.mock.calls.find((c: any) => c[0].data.role === UserRole.STUDENT);
     expect(studentCreateCall[0].data.role).toBe(UserRole.STUDENT);
-    expect(studentCreateCall[0].data.phone).toBe('+201011111111');
+    expect(studentCreateCall[0].data.phone).toBe('+201023456789');
     expect(studentCreateCall[0].data.fullName).toBe('محمود أحمد علي');
 
     // Parent user created with PARENT role + normalized phone + hashed password
     const parentCreateCall = tx.user.create.mock.calls.find((c: any) => c[0].data.role === UserRole.PARENT);
     expect(parentCreateCall[0].data.role).toBe(UserRole.PARENT);
-    expect(parentCreateCall[0].data.phone).toBe('+201099999999');
+    expect(parentCreateCall[0].data.phone).toBe('+201098765432');
 
     // Link created
     expect(tx.parentStudentLink.create).toHaveBeenCalledTimes(1);
@@ -178,11 +181,37 @@ describe('StudentRegistrationService', () => {
     expect(await bcrypt.compare(result.credentials.parentPassword!, parentHash)).toBe(true);
   });
 
+  it('allows registration when studentPhone is omitted (student has no phone)', async () => {
+    const tx = buildTx();
+    mockPrismaService.$transaction.mockImplementation((fn: any) => fn(tx));
+
+    const { studentPhone, ...dtoWithoutStudentPhone } = validDto;
+    const result = await service.registerStudent(dtoWithoutStudentPhone as any);
+
+    expect(result.credentials.studentPhone).toBeNull();
+    const studentCreateCall = tx.user.create.mock.calls.find((c: any) => c[0].data.role === UserRole.STUDENT);
+    expect(studentCreateCall[0].data.phone).toBeNull();
+  });
+
   it('rejects when student and parent phones are identical', async () => {
     mockPrismaService.$transaction.mockImplementation((fn: any) => fn(buildTx()));
 
     await expect(
       service.registerStudent({ ...validDto, parentPhone: validDto.studentPhone }),
+    ).rejects.toThrow(ConflictException);
+    expect(authService.issueTokens).not.toHaveBeenCalled();
+  });
+
+  it('rejects when student phone mimics parent phone (anti-mimic)', async () => {
+    mockPrismaService.$transaction.mockImplementation((fn: any) => fn(buildTx()));
+
+    // Same subscriber number with different carrier prefix
+    await expect(
+      service.registerStudent({
+        ...validDto,
+        studentPhone: '01123456789',
+        parentPhone: '01023456789',
+      }),
     ).rejects.toThrow(ConflictException);
     expect(authService.issueTokens).not.toHaveBeenCalled();
   });
@@ -193,6 +222,39 @@ describe('StudentRegistrationService', () => {
 
     await expect(service.registerStudent(validDto)).rejects.toThrow(ConflictException);
     expect(authService.issueTokens).not.toHaveBeenCalled();
+  });
+
+  it('rejects when a duplicate student with similar name already exists under the parent', async () => {
+    state.parent = { id: PARENT_ID, role: UserRole.PARENT, deletedAt: null };
+    state.existingLinks = [
+      {
+        student: {
+          studentCode: 'STU202600010',
+          user: { fullName: 'محمود أحمد علي حسن' },
+        },
+      },
+    ];
+    mockPrismaService.$transaction.mockImplementation((fn: any) => fn(buildTx()));
+
+    await expect(service.registerStudent(validDto)).rejects.toThrow(ConflictException);
+  });
+
+  it('allows registering a sibling with a different first name under the same parent', async () => {
+    state.parent = { id: PARENT_ID, role: UserRole.PARENT, deletedAt: null };
+    state.existingLinks = [
+      {
+        student: {
+          studentCode: 'STU202600010',
+          user: { fullName: 'سارة أحمد علي حسن' },
+        },
+      },
+    ];
+    const tx = buildTx();
+    mockPrismaService.$transaction.mockImplementation((fn: any) => fn(tx));
+
+    const result = await service.registerStudent(validDto);
+    expect(result.credentials.parentIsNew).toBe(false);
+    expect(tx.parentStudentLink.create).toHaveBeenCalled();
   });
 
   it('links an existing PARENT account instead of duplicating it and returns no parent password', async () => {
@@ -210,16 +272,6 @@ describe('StudentRegistrationService', () => {
     expect(parentCreateCall).toBeUndefined();
     // Link still created to the existing parent
     expect(tx.parentStudentLink.create).toHaveBeenCalledTimes(1);
-  });
-
-  it('links multiple students to the same parent phone successfully', async () => {
-    state.parent = { id: PARENT_ID, role: UserRole.PARENT, deletedAt: null };
-    const tx = buildTx();
-    mockPrismaService.$transaction.mockImplementation((fn: any) => fn(tx));
-
-    const result = await service.registerStudent(validDto);
-    expect(result.credentials.parentIsNew).toBe(false);
-    expect(tx.parentStudentLink.create).toHaveBeenCalled();
   });
 
   it('rolls back (no tokens issued) when parent link creation fails', async () => {

@@ -21,18 +21,16 @@ export class RegisterStudentDto {
   @MaxLength(200, { message: 'Full name must not exceed 200 characters' })
   fullName: string;
 
-  @ApiProperty({ example: '01012345678', description: 'Student mobile number (verified as unique)' })
-  @IsString()
-  @IsNotEmpty({ message: 'Student phone is required' })
+  @ApiProperty({ example: '01012345678', description: 'Student mobile number (optional)', required: false })
+  @IsOptional()
   @IsEgyptianPhone({ message: 'Student phone must be a valid Egyptian mobile number' })
-  studentPhone: string;
+  studentPhone?: string;
 
-  @ApiProperty({ example: '01098765432', description: 'Parent/guardian mobile number', required: false })
-  @ValidateIf(o => o.attendanceMode === 'CENTER')
+  @ApiProperty({ example: '01098765432', description: 'Parent/guardian mobile number', required: true })
   @IsString()
-  @IsNotEmpty({ message: 'Parent phone is required' })
+  @IsNotEmpty({ message: 'رقم هاتف ولي الأمر مطلوب لجميع الطلاب للتواصل والمتابعة' })
   @IsEgyptianPhone({ message: 'Parent phone must be a valid Egyptian mobile number' })
-  parentPhone?: string;
+  parentPhone: string;
 
   @ApiProperty({ example: 'SECONDARY', enum: ACADEMIC_STAGES })
   @IsIn(ACADEMIC_STAGES, { message: 'Academic stage must be one of PRIMARY, MIDDLE, PREPARATORY, SECONDARY' })
@@ -58,8 +56,9 @@ export class StudentRegistrationCredentialsDto {
   @ApiProperty({ example: 'STU-2026-00482' })
   studentCode: string;
 
-  @ApiProperty({ example: '01012345678' })
-  studentPhone: string;
+  @ApiProperty({ example: '01012345678', required: false })
+  @IsOptional()
+  studentPhone?: string | null;
 
   @ApiProperty({ description: 'Temporary student password, shown only once' })
   studentPassword: string;

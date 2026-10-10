@@ -14,16 +14,17 @@ export type AcademicStage = 'PRIMARY' | 'MIDDLE' | 'SECONDARY';
 
 export interface StudentRegistrationPayload {
   fullName: string;
-  studentPhone: string;
-  parentPhone?: string;
+  studentPhone?: string;
+  parentPhone: string;
   academicStage: AcademicStage;
   gradeLevel: string;
   attendanceMode: 'CENTER' | 'ONLINE';
+  groupId?: string;
 }
 
 export interface StudentRegistrationCredentials {
   studentCode: string;
-  studentPhone: string;
+  studentPhone?: string | null;
   studentPassword: string;
   parentPhone: string;
   parentPassword: string | null;
@@ -47,7 +48,7 @@ export interface GroupInviteInfo {
 export interface GroupRegistrationPayload {
   token: string;
   fullName: string;
-  phone: string;
+  phone?: string;
   parentName: string;
   parentPhone: string;
   password: string;

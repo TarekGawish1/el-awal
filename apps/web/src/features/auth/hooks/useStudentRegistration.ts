@@ -25,6 +25,17 @@ export function normalizeStudentRegistrationError(error: unknown): { message: st
       return { message: 'رقم هاتف ولي الأمر يجب أن يختلف عن رقم هاتف الطالب', code: error.code };
     }
 
+    if (error.code === 'PHONES_TOO_SIMILAR') {
+      return {
+        message: error.message || 'رقم هاتف الطالب ورقم هاتف ولي الأمر متشابهان جداً. يرجى إدخال رقم شخصي مستقل أو ترك هاتف الطالب فارغاً.',
+        code: error.code,
+      };
+    }
+
+    if (error.code === 'DUPLICATE_STUDENT_ACCOUNT') {
+      return { message: error.message, code: error.code };
+    }
+
     if (error.code === 'PHONE_ALREADY_REGISTERED') {
       return {
         message: 'رقم هاتف الطالب مسجل بالفعل، يمكنك تسجيل الدخول مباشرة',
