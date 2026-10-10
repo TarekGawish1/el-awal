@@ -474,7 +474,12 @@ export function useDeleteStudent() {
   return useMutation({
     mutationFn: (id: string) =>
       import('../api/students.api').then((m) => m.deleteStudent(id)),
-    onSuccess: (_data, id) => {
+    onSuccess: async (_data, id) => {
+      try {
+        await offlineDb.removeStudent(id);
+      } catch (e) {
+        // ignore offline cache removal errors
+      }
       queryClient.removeQueries({ queryKey: ['students', id] });
       queryClient.invalidateQueries({ queryKey: ['students'] });
       toast.success('تم حذف الطالب من النظام بنجاح 🗑️');

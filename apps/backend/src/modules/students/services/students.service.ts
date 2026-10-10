@@ -490,6 +490,8 @@ export class StudentsService {
 
     if (user.role === UserRole.TEACHER) {
       const teacherId = user.teacherProfileId || user.id;
+
+      // 1. Check if student is enrolled in one of this teacher's groups
       const enrolledInTeacherGroup = await this.prisma.groupEnrollment.findFirst({
         where: {
           studentId,
@@ -503,10 +505,56 @@ export class StudentsService {
         },
       });
 
-      if (!enrolledInTeacherGroup) {
-        throw new ForbiddenException('Student is not enrolled in any of your academic groups');
+      if (enrolledInTeacherGroup) {
+        return;
       }
-      return;
+
+      // 2. Check if student is enrolled in one of this teacher's online courses
+      if (this.prisma.courseEnrollment?.findFirst) {
+        const enrolledInTeacherCourse = await this.prisma.courseEnrollment.findFirst({
+          where: {
+            studentId,
+            course: {
+              OR: [
+                { teacherId },
+                { teacher: { id: teacherId } },
+              ],
+            },
+          },
+        });
+
+        if (enrolledInTeacherCourse) {
+          return;
+        }
+      }
+
+      // 3. Check if student was created by this teacher or is unassigned (no active group enrollments)
+      if (this.prisma.studentProfile?.findUnique) {
+        const studentProfile = await this.prisma.studentProfile.findUnique({
+          where: { id: studentId },
+          include: {
+            groupEnrollments: {
+              where: { status: GroupEnrollmentStatus.ACTIVE },
+            },
+          },
+        });
+
+        if (studentProfile) {
+          const isCreatedByTeacher =
+            !!studentProfile.createdById &&
+            (studentProfile.createdById === teacherId || studentProfile.createdById === user.id);
+
+          const isUnassignedAndSelfRegistered =
+            studentProfile.createdById === null &&
+            (!studentProfile.groupEnrollments || studentProfile.groupEnrollments.length === 0);
+
+          if (isCreatedByTeacher || isUnassignedAndSelfRegistered) {
+            return;
+          }
+        }
+      }
+
+      throw new ForbiddenException('Student is not enrolled in any of your academic groups');
     }
 
     throw new ForbiddenException('Unauthorized access');
@@ -1153,8 +1201,16 @@ export class StudentsService {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      // 1. Parent linkages
+      // 1. Parent linkages & orphaned parent account cleanup
+      const parentLinks = await tx.parentStudentLink.findMany({ where: { studentId: id } });
       await tx.parentStudentLink.deleteMany({ where: { studentId: id } });
+      for (const link of parentLinks) {
+        const remainingLinks = await tx.parentStudentLink.count({ where: { parentId: link.parentId } });
+        if (remainingLinks === 0) {
+          await tx.parentProfile.deleteMany({ where: { id: link.parentId } });
+          await tx.user.deleteMany({ where: { id: link.parentId, role: UserRole.PARENT } });
+        }
+      }
 
       // 2. Academic Group enrollments
       await tx.groupEnrollment.deleteMany({ where: { studentId: id } });
@@ -1163,6 +1219,7 @@ export class StudentsService {
       await tx.attendanceRecord.deleteMany({ where: { studentId: id } });
 
       // 4. Online Courses, progress & questions
+      await tx.courseAccess.deleteMany({ where: { studentId: id } });
       await tx.lessonQuestion.deleteMany({ where: { studentId: id } });
       await tx.contentProgress.deleteMany({ where: { studentId: id } });
       await tx.courseProgress.deleteMany({ where: { studentId: id } });
