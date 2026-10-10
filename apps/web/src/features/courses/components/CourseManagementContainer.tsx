@@ -32,6 +32,8 @@ import {
   Loader2,
   Copy,
   UserMinus,
+  UserX,
+  MessageCircle,
   Filter,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -402,7 +404,17 @@ function resolveReceiptUrl(url?: string | null): string {
 
 function CourseEnrollmentsView() {
   const queryClient = useQueryClient();
-  const [filter, setFilter] = useState<'PENDING' | 'ACTIVE'>('PENDING');
+  const [filter, setFilter] = useState<'PENDING' | 'ACTIVE' | 'UNSUBSCRIBED'>('PENDING');
+
+  // Direct Enroll Modal State for Unsubscribed Students
+  const { data: teacherCourses = [] } = useTeacherCourses();
+  const [directEnrollTarget, setDirectEnrollTarget] = useState<{
+    studentId: string;
+    studentName: string;
+    studentCode: string;
+    gradeLevel: string;
+  } | null>(null);
+  const [directEnrollCourseId, setDirectEnrollCourseId] = useState('');
 
   // Receipt Modal State
   const [selectedReceipt, setSelectedReceipt] = useState<{
@@ -444,6 +456,7 @@ function CourseEnrollmentsView() {
 
   const pendingRequests = data?.pendingRequests ?? [];
   const activeStudents = data?.activeStudents ?? [];
+  const unsubscribedStudents = data?.unsubscribedStudents ?? [];
 
   // Distinct courses for filter dropdown
   const distinctCourses = useMemo(() => {
@@ -478,6 +491,35 @@ function CourseEnrollmentsView() {
       return matchesCourse && matchesSearch;
     });
   }, [activeStudents, courseFilter, studentSearch]);
+
+  const filteredUnsubscribed = useMemo(() => {
+    return unsubscribedStudents.filter((s) => {
+      const q = studentSearch.trim().toLowerCase();
+      if (!q) return true;
+      return (
+        s.studentName.toLowerCase().includes(q) ||
+        s.studentCode.toLowerCase().includes(q) ||
+        (s.studentPhone && s.studentPhone.includes(q)) ||
+        (s.parentPhone && s.parentPhone.includes(q)) ||
+        (s.gradeLevel && s.gradeLevel.toLowerCase().includes(q))
+      );
+    });
+  }, [unsubscribedStudents, studentSearch]);
+
+  const directEnrollMutation = useMutation({
+    mutationFn: ({ courseId, studentId }: { courseId: string; studentId: string }) =>
+      coursesApi.enrollStudentsBatch(courseId, [studentId]),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teacher-subscriptions'] });
+      queryClient.invalidateQueries({ queryKey: ['teacher-courses'] });
+      toast.success('تم تسجيل الطالب وتفعيل اشتراكه في الكورس بنجاح! 🎉');
+      setDirectEnrollTarget(null);
+      setDirectEnrollCourseId('');
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || 'تعذر تسجيل الطالب في الكورس');
+    },
+  });
 
   const approveMutation = useMutation({
     mutationFn: (enrollmentId: string) => coursesApi.approveEnrollment(enrollmentId),
@@ -565,6 +607,25 @@ function CourseEnrollmentsView() {
               }`}
             >
               {activeStudents.length}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter('UNSUBSCRIBED')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm ${
+              filter === 'UNSUBSCRIBED'
+                ? 'bg-sky-600 text-white border border-sky-700'
+                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            <UserX className="w-4 h-4" />
+            <span>طلاب مسجلون (غير مشتركين)</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-xs font-black ${
+                filter === 'UNSUBSCRIBED' ? 'bg-sky-700 text-white' : 'bg-sky-100 text-sky-800'
+              }`}
+            >
+              {unsubscribedStudents.length}
             </span>
           </button>
         </div>
@@ -781,7 +842,8 @@ function CourseEnrollmentsView() {
               </table>
             </div>
           )
-        ) : filteredActive.length === 0 ? (
+        ) : filter === 'ACTIVE' ? (
+          filteredActive.length === 0 ? (
           <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-2">
             <Users className="w-10 h-10 text-slate-300 mb-1" />
             <p className="text-sm font-bold text-slate-700">
@@ -909,6 +971,130 @@ function CourseEnrollmentsView() {
                           <UserMinus className="w-3.5 h-3.5" />
                           <span>إلغاء الاشتراك</span>
                         </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      ) : filteredUnsubscribed.length === 0 ? (
+          <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-2">
+            <UserX className="w-10 h-10 text-slate-300 mb-1" />
+            <p className="text-sm font-bold text-slate-700">
+              {unsubscribedStudents.length === 0
+                ? 'لا يوجد طلاب مسجلون أونلاين غير مشتركين'
+                : 'لا يوجد طلاب مطابقون لخيارات البحث'}
+            </p>
+            <p className="text-xs text-slate-400">
+              جميع الطلاب المسجلين بنظام الأونلاين لديهم اشتراكات فعالة أو طلبات معلقة.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-right">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs font-semibold">
+                <tr>
+                  <th className="px-6 py-4">اسم الطالب وبياناته</th>
+                  <th className="px-6 py-4">الصف الدراسي</th>
+                  <th className="px-6 py-4">بيانات ولي الأمر</th>
+                  <th className="px-6 py-4">تاريخ التسجيل</th>
+                  <th className="px-6 py-4">حالة الحساب</th>
+                  <th className="px-6 py-4 text-left">إجراءات</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredUnsubscribed.map((student) => {
+                  const studentPhoneClean = (student.studentPhone || '').replace(/\D/g, '');
+                  const waStudentPhone = studentPhoneClean.startsWith('20')
+                    ? studentPhoneClean
+                    : studentPhoneClean.startsWith('0')
+                    ? `2${studentPhoneClean}`
+                    : `20${studentPhoneClean}`;
+
+                  return (
+                    <tr key={student.studentId} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-slate-900 text-sm">{student.studentName}</div>
+                        <div className="flex items-center gap-2 mt-1">
+                          {student.studentCode && (
+                            <span className="font-mono text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200">
+                              {student.studentCode}
+                            </span>
+                          )}
+                          {student.studentPhone && (
+                            <span className="text-xs text-slate-500 font-mono flex items-center gap-1">
+                              <Phone className="w-3 h-3 text-slate-400" />
+                              {student.studentPhone}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="px-6 py-4">
+                        <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                          {student.gradeLevel || 'غير محدد'}
+                        </span>
+                      </td>
+
+                      <td className="px-6 py-4">
+                        {student.parentPhone ? (
+                          <div>
+                            <div className="text-xs font-mono text-slate-700 font-semibold" dir="ltr">
+                              {student.parentPhone}
+                            </div>
+                            {student.parentName && (
+                              <div className="text-[11px] text-slate-400 mt-0.5">
+                                {student.parentName}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">—</span>
+                        )}
+                      </td>
+
+                      <td className="px-6 py-4 text-xs text-slate-500 font-mono">
+                        {student.date}
+                      </td>
+
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                          <Globe className="w-3 h-3" />
+                          <span>مسجل أونلاين (غير مشترك)</span>
+                        </span>
+                      </td>
+
+                      <td className="px-6 py-4 text-left">
+                        <div className="flex items-center justify-end gap-2">
+                          {student.studentPhone && (
+                            <a
+                              href={`https://wa.me/${waStudentPhone}?text=${encodeURIComponent(
+                                `مرحباً ${student.studentName}، نتواصل معك من منصة الأول للرياضيات (أستاذ أحمد غريب) بخصوص تفعيل اشتراكك في الكورسات الأونلاين.`,
+                              )}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold transition-colors shadow-2xs"
+                              title="تواصل مع الطالب عبر واتساب"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5" />
+                              <span>واتساب</span>
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDirectEnrollTarget(student);
+                              setDirectEnrollCourseId(teacherCourses[0]?.id || '');
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm cursor-pointer"
+                            title="تسجيل وتفعيل الاشتراك في كورس أونلاين مباشرة"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>تسجيل في كورس</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1157,6 +1343,86 @@ function CourseEnrollmentsView() {
               >
                 {cancelMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 <span>تأكيد إلغاء الاشتراك</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Direct Enroll Modal for Unsubscribed Student */}
+      {directEnrollTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div
+            dir="rtl"
+            className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden p-6 space-y-4"
+          >
+            <div className="flex items-center gap-3 text-primary-600">
+              <div className="w-10 h-10 rounded-2xl bg-primary-50 border border-primary-100 flex items-center justify-center">
+                <BookOpen className="w-5 h-5 text-primary-600" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-slate-900">تسجيل الطالب في كورس أونلاين</h4>
+                <p className="text-xs text-slate-500 line-clamp-1">
+                  {directEnrollTarget.studentName} ({directEnrollTarget.studentCode})
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-slate-500">الصف الدراسي:</span>
+                <span className="font-bold text-slate-800">{directEnrollTarget.gradeLevel || 'غير محدد'}</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                اختر الكورس المطلوب تفعيل الاشتراك به:
+              </label>
+              {teacherCourses.length === 0 ? (
+                <p className="text-xs text-amber-600 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+                  لا توجد كورسات متاحة حالياً، يرجى إنشاء كورس أولاً.
+                </p>
+              ) : (
+                <select
+                  value={directEnrollCourseId}
+                  onChange={(e) => setDirectEnrollCourseId(e.target.value)}
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all cursor-pointer"
+                >
+                  <option value="" disabled>-- اختر الكورس --</option>
+                  {teacherCourses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.title} ({c.gradeLevel}) - {c.price} ج.م
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDirectEnrollTarget(null);
+                  setDirectEnrollCourseId('');
+                }}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                disabled={directEnrollMutation.isPending || !directEnrollCourseId}
+                onClick={() =>
+                  directEnrollMutation.mutate({
+                    courseId: directEnrollCourseId,
+                    studentId: directEnrollTarget.studentId,
+                  })
+                }
+                className="px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+              >
+                {directEnrollMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>تأكيد التسجيل والتفعيل</span>
               </button>
             </div>
           </div>

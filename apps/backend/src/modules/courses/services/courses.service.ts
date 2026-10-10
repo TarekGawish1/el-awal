@@ -49,6 +49,7 @@ import {
   UserRole,
   NotificationType,
   NotificationChannel,
+  AttendanceMode,
 } from '@prisma/client';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
 import { resolveOfficialSubmission } from '../../assessments/utils/submission-grade.util';
@@ -2198,12 +2199,54 @@ export class CoursesService {
         status: e.status,
       }));
 
+    const enrolledStudentIds = new Set(
+      enrollments
+        .filter((e) => e.status === CourseEnrollmentStatus.ACTIVE || e.status === CourseEnrollmentStatus.PENDING)
+        .map((e) => e.studentId),
+    );
+
+    const unsubscribedOnlineProfiles = await this.prisma.studentProfile.findMany({
+      where: {
+        attendanceMode: AttendanceMode.ONLINE,
+        academicStatus: 'ACTIVE',
+        user: { isActive: true },
+        ...(enrolledStudentIds.size > 0 ? { id: { notIn: Array.from(enrolledStudentIds) } } : {}),
+      },
+      include: {
+        user: { select: { id: true, fullName: true, phone: true, email: true } },
+        parentLinks: {
+          include: {
+            parent: {
+              include: {
+                user: { select: { id: true, fullName: true, phone: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const unsubscribedStudents = unsubscribedOnlineProfiles.map((s) => ({
+      studentId: s.id,
+      studentName: s.user?.fullName || 'طالب',
+      studentCode: s.studentCode || '',
+      studentPhone: s.user?.phone || '',
+      parentPhone: s.parentLinks?.[0]?.parent?.user?.phone || s.emergencyPhone || '',
+      parentName: s.parentLinks?.[0]?.parent?.user?.fullName || '',
+      gradeLevel: s.gradeLevel || '',
+      date: s.createdAt ? new Date(s.createdAt).toISOString().split('T')[0] : '',
+      createdAt: s.createdAt,
+    }));
+
     return {
       pendingRequests,
       activeStudents,
+      unsubscribedStudents,
       counts: {
         pending: pendingRequests.length,
         active: activeStudents.length,
+        unsubscribed: unsubscribedStudents.length,
       },
     };
   }

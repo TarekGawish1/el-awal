@@ -474,9 +474,21 @@ export const coursesApi = {
       enrolledAt: string;
       status: string;
     }>;
+    unsubscribedStudents: Array<{
+      studentId: string;
+      studentName: string;
+      studentCode: string;
+      studentPhone: string;
+      parentPhone: string;
+      parentName: string;
+      gradeLevel: string;
+      date: string;
+      createdAt: string;
+    }>;
     counts: {
       pending: number;
       active: number;
+      unsubscribed: number;
     };
   }> => {
     return apiClient('/courses/teacher/subscriptions');

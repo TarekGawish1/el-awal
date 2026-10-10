@@ -32,6 +32,7 @@ import {
   HomeworkSubmissionStatus,
   HomeworkDeliveryType,
   AssessmentType,
+  AttendanceMode,
 } from '@prisma/client';
 
 export interface DomainSyncResult {
@@ -443,6 +444,50 @@ export class SyncService {
             }
           }
         }
+        // Also include unassigned CENTER students (created by the teacher or unassigned in the system)
+        const unassignedCenterStudents = await this.prisma.studentProfile.findMany({
+          where: {
+            attendanceMode: AttendanceMode.CENTER,
+            academicStatus: 'ACTIVE',
+            user: { isActive: true },
+            groupEnrollments: { none: {} },
+            OR: [
+              { createdById: effectiveTeacherId },
+              { createdById: null },
+            ],
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                phone: true,
+                email: true,
+                isActive: true,
+              },
+            },
+          },
+        });
+
+        for (const s of unassignedCenterStudents) {
+          if (!studentMap.has(s.id)) {
+            studentMap.set(s.id, {
+              id: s.id,
+              fullName: s.user?.fullName || '',
+              phone: s.user?.phone,
+              email: s.user?.email,
+              studentCode: s.studentCode || '',
+              qrCodeToken: s.qrCodeToken,
+              gradeLevel: s.gradeLevel,
+              emergencyPhone: s.emergencyPhone,
+              academicStatus: s.academicStatus || 'ACTIVE',
+              groupId: null,
+              groupIds: [],
+              updatedAt: s.updatedAt,
+            });
+          }
+        }
+
         students = Array.from(studentMap.values());
       }
     } catch (err) {

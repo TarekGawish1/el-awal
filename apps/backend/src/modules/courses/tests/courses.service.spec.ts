@@ -96,6 +96,7 @@ describe('CoursesService', () => {
     studentProfile: {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn(),
     },
     $transaction: jest.fn((callbackOrArray) => {
@@ -1101,6 +1102,17 @@ describe('CoursesService', () => {
         },
       ]);
 
+      mockPrismaService.studentProfile.findMany.mockResolvedValue([
+        {
+          id: 's-unsub-1',
+          studentCode: 'STU-102',
+          gradeLevel: 'الصف الثالث الثانوي',
+          createdAt: new Date('2026-09-02'),
+          user: { id: 'u-3', fullName: 'فهد محمد', phone: '01080778652', email: 'fahd@test.com' },
+          parentLinks: [],
+        },
+      ]);
+
       const res = await service.getTeacherSubscriptions({
         id: 'teacher-uuid-1',
         role: UserRole.TEACHER,
@@ -1109,9 +1121,11 @@ describe('CoursesService', () => {
 
       expect(res.counts.pending).toBe(1);
       expect(res.counts.active).toBe(1);
+      expect(res.counts.unsubscribed).toBe(1);
       expect(res.pendingRequests[0].studentName).toBe('أحمد محمود');
       expect(res.pendingRequests[0].receiptImageUrl).toBe('/uploads/payment-receipts/rec1.jpg');
       expect(res.activeStudents[0].studentName).toBe('سارة خالد');
+      expect(res.unsubscribedStudents[0].studentName).toBe('فهد محمد');
     });
 
     it('should cancel active student subscription and suspend course access', async () => {

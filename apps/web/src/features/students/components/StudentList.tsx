@@ -196,7 +196,7 @@ export function StudentList() {
   // Available groups for filter dropdown filtered by chosen academic year, semester, stage & grade
   const availableGroupOptions = useMemo(() => {
     if (!groups || !Array.isArray(groups)) return [];
-    return groups
+    const groupOpts = groups
       .filter((g) => {
         // 1. Stage filter
         const groupStage = getStageName(g.gradeLevel);
@@ -222,6 +222,15 @@ export function StudentList() {
         value: g.id,
         icon: <Users className="w-3.5 h-3.5 text-primary-600" />,
       }));
+
+    return [
+      {
+        label: 'غير معين (بدون مجموعة)',
+        value: 'UNASSIGNED',
+        icon: <Users className="w-3.5 h-3.5 text-amber-500" />,
+      },
+      ...groupOpts,
+    ];
   }, [groups, selectedStages, selectedGrades, selectedYears, selectedTerms]);
 
   // Fast group lookup map
@@ -266,14 +275,17 @@ export function StudentList() {
         (student.gradeLevel && selectedGrades.includes(student.gradeLevel));
 
       // 4. Group filter
+      const isUnassigned = !student.groupEnrollments || student.groupEnrollments.length === 0;
       const matchesGroup =
         selectedGroups.length === 0 ||
+        (selectedGroups.includes('UNASSIGNED') && isUnassigned) ||
         (student.groupEnrollments &&
           student.groupEnrollments.some((e) => selectedGroups.includes(e.group.id)));
 
       // 5. Academic Year filter
       const matchesYear =
         selectedYears.length === 0 ||
+        isUnassigned ||
         (student.groupEnrollments &&
           student.groupEnrollments.some((e) => {
             const groupInfo = groupMap.get(e.group.id);
@@ -283,6 +295,7 @@ export function StudentList() {
       // 6. Academic Term filter
       const matchesTerm =
         selectedTerms.length === 0 ||
+        isUnassigned ||
         (student.groupEnrollments &&
           student.groupEnrollments.some((e) => {
             const groupInfo = groupMap.get(e.group.id);
@@ -586,12 +599,14 @@ export function StudentList() {
                       {student.gradeLevel || <span className="text-slate-400 italic">-</span>}
                     </td>
                     <td className="px-4 py-2.5 font-medium text-slate-600 text-xs">
-                      {student.groupEnrollments[0]?.group.name ? (
+                      {student.groupEnrollments?.[0]?.group?.name ? (
                         <span title={student.groupEnrollments[0].group.name}>
                           {student.groupEnrollments[0].group.name.split('(')[0].trim()}
                         </span>
                       ) : (
-                        <span className="text-slate-400 italic">غير معين</span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/60">
+                          غير معين
+                        </span>
                       )}
                     </td>
                     <td className="px-4 py-2.5">
@@ -687,9 +702,15 @@ export function StudentList() {
                   <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50/80 p-2.5 rounded-xl border border-slate-100 group-hover:bg-white group-hover:border-primary-100 transition-colors">
                     <div>
                       <span className="text-slate-400 block text-[10px]">المجموعة:</span>
-                      <span className="font-bold text-slate-700 truncate block">
-                        {student.groupEnrollments[0]?.group.name ? student.groupEnrollments[0].group.name.split('(')[0].trim() : 'غير معين'}
-                      </span>
+                      {student.groupEnrollments?.[0]?.group?.name ? (
+                        <span className="font-bold text-slate-700 truncate block">
+                          {student.groupEnrollments[0].group.name.split('(')[0].trim()}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/60">
+                          غير معين
+                        </span>
+                      )}
                     </div>
                     <div>
                       <span className="text-slate-400 block text-[10px]">ولي الأمر:</span>
