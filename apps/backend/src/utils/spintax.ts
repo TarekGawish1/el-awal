@@ -82,6 +82,17 @@ export function formatLocalEgyptianPhone(phone: string): string {
   return phone;
 }
 
+function sanitizePassword(password?: string): string {
+  if (!password || typeof password !== 'string') return '';
+  const trimmed = password.trim();
+  if (!trimmed) return '';
+  // Reject placeholder phrases with whitespace or explicit placeholder keywords
+  if (/\s/.test(trimmed) || /كلمة\s*المرور|placeholder|undefined|null/i.test(trimmed)) {
+    return '';
+  }
+  return trimmed;
+}
+
 /**
  * Generates an automated welcome message with login credentials for parent and student
  * sent via WhatsApp when student registers a new account on the platform.
@@ -123,8 +134,8 @@ export function formatStudentRegistrationMessage(data: StudentApprovalCredential
     .replace(/\/(login|parent-access)$/, '');
 
   const directPhone = displayParentPhone || displayStudentPhone || studentPhoneOrCode;
-  const cleanParentPass = parentPassword && !/[\s\u0600-\u06FF]/.test(parentPassword) ? parentPassword : '';
-  const cleanStudentPass = studentPassword && !/[\s\u0600-\u06FF]/.test(studentPassword) ? studentPassword : '';
+  const cleanParentPass = sanitizePassword(parentPassword);
+  const cleanStudentPass = sanitizePassword(studentPassword);
   const directPass = cleanParentPass || cleanStudentPass || '';
   const parentDirectAccessUrl = directPass
     ? `${baseUrl}/parent-access?phone=${encodeURIComponent(directPhone)}&pass=${encodeURIComponent(directPass)}`
@@ -212,8 +223,8 @@ export function formatStudentApprovalMessage(data: StudentApprovalCredentialsDat
     .replace(/\/(login|parent-access)$/, '');
 
   const directPhone = displayParentPhone || displayStudentPhone || studentPhoneOrCode;
-  const cleanParentPass = parentPassword && !/[\s\u0600-\u06FF]/.test(parentPassword) ? parentPassword : '';
-  const cleanStudentPass = studentPassword && !/[\s\u0600-\u06FF]/.test(studentPassword) ? studentPassword : '';
+  const cleanParentPass = sanitizePassword(parentPassword);
+  const cleanStudentPass = sanitizePassword(studentPassword);
   const directPass = cleanParentPass || cleanStudentPass || '';
   const parentDirectAccessUrl = directPass
     ? `${baseUrl}/parent-access?phone=${encodeURIComponent(directPhone)}&pass=${encodeURIComponent(directPass)}`

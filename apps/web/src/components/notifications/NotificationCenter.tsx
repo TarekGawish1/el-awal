@@ -17,6 +17,9 @@ import {
   BellOff,
   Loader2,
   Sliders,
+  ChevronDown,
+  ChevronUp,
+  Maximize2,
 } from 'lucide-react';
 import {
   useNotifications,
@@ -28,6 +31,7 @@ import {
 import { useWebPush } from '@/hooks/useWebPush';
 import { useAuth } from '@/features/auth';
 import toast from 'react-hot-toast';
+import { NotificationDetailModal } from './NotificationDetailModal';
 
 // ─── Type Icons Map ───────────────────────────────────────────────────────────
 
@@ -143,11 +147,15 @@ function formatRelativeTime(dateStr: string): string {
 function NotificationItem({
   notification,
   onClick,
+  onOpenDetails,
 }: {
   notification: Notification;
   onClick: () => void;
+  onOpenDetails: () => void;
 }) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const config = getTypeConfig(notification.notificationType || notification.type);
+  const isLongMessage = (notification.message?.length ?? 0) > 80 || notification.message?.includes('\n');
 
   return (
     <motion.div
@@ -156,21 +164,21 @@ function NotificationItem({
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -16 }}
       className={`
-        relative flex items-start gap-3 p-4 cursor-pointer rounded-xl transition-all duration-200
-        ${notification.isRead ? 'bg-white hover:bg-slate-50' : 'bg-blue-50/60 hover:bg-blue-50'}
-        border border-transparent hover:border-slate-100
+        relative flex items-start gap-3 p-3.5 sm:p-4 cursor-pointer rounded-2xl transition-all duration-200
+        ${notification.isRead ? 'bg-white hover:bg-slate-50' : 'bg-blue-50/60 hover:bg-blue-50/90'}
+        border border-transparent hover:border-slate-100 shadow-sm
       `}
       onClick={onClick}
     >
       {/* Unread dot */}
       {!notification.isRead && (
-        <span className="absolute top-3 right-3 w-2 h-2 rounded-full bg-blue-500 ring-2 ring-white" />
+        <span className="absolute top-3.5 right-3.5 w-2 h-2 rounded-full bg-blue-500 ring-2 ring-white" />
       )}
 
       {/* Type Icon */}
       <div
         className={`
-          flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center
+          flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center shadow-xs
           ${config.bg} ${config.color}
         `}
       >
@@ -180,18 +188,69 @@ function NotificationItem({
       {/* Content */}
       <div className="flex-1 min-w-0">
         <p
-          className={`text-sm font-semibold leading-snug mb-0.5 ${
+          className={`text-sm font-semibold leading-snug mb-1 ${
             notification.isRead ? 'text-slate-700' : 'text-slate-900'
           }`}
         >
           {notification.title}
         </p>
-        <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">
-          {notification.message}
-        </p>
-        <p className="text-[11px] text-slate-400 mt-1.5">
-          {formatRelativeTime(notification.createdAt)}
-        </p>
+
+        {/* Message preview or expanded text */}
+        <div className="text-xs text-slate-500 leading-relaxed">
+          {isExpanded ? (
+            <p className="whitespace-pre-line text-slate-700 break-words mt-1 select-text">
+              {notification.message}
+            </p>
+          ) : (
+            <p className="line-clamp-2">
+              {notification.message}
+            </p>
+          )}
+        </div>
+
+        {/* Card footer controls */}
+        <div className="flex items-center justify-between gap-2 mt-2 pt-1 border-t border-slate-100/60 text-[11px]">
+          <span className="text-slate-400">
+            {formatRelativeTime(notification.createdAt)}
+          </span>
+
+          <div className="flex items-center gap-1.5">
+            {isLongMessage && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsExpanded((prev) => !prev);
+                }}
+                className="
+                  inline-flex items-center gap-0.5 px-2 py-0.5 rounded-lg
+                  text-blue-600 hover:text-blue-800 hover:bg-blue-50/80
+                  font-medium transition-colors
+                "
+              >
+                <span>{isExpanded ? 'عرض أقل' : 'عرض المزيد'}</span>
+                {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenDetails();
+              }}
+              className="
+                inline-flex items-center gap-1 px-2 py-0.5 rounded-lg
+                text-slate-500 hover:text-slate-800 hover:bg-slate-100
+                font-medium transition-colors
+              "
+              title="عرض التفاصيل في نافذة كاملة"
+            >
+              <span>التفاصيل</span>
+              <Maximize2 size={11} />
+            </button>
+          </div>
+        </div>
       </div>
     </motion.div>
   );
@@ -287,6 +346,7 @@ function EmptyState() {
 
 export function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
@@ -355,7 +415,14 @@ export function NotificationCenter() {
     if (route) {
       setIsOpen(false);
       router.push(route);
+    } else {
+      setSelectedNotification(notification);
     }
+  };
+
+  const handleOpenDetails = (notification: Notification) => {
+    if (!notification.isRead) markRead.mutate(notification.id);
+    setSelectedNotification(notification);
   };
 
   return (
@@ -498,6 +565,7 @@ export function NotificationCenter() {
                         key={n.id}
                         notification={n}
                         onClick={() => handleNotificationClick(n)}
+                        onOpenDetails={() => handleOpenDetails(n)}
                       />
                     ))}
                   </AnimatePresence>
@@ -516,6 +584,18 @@ export function NotificationCenter() {
           </>
         )}
       </AnimatePresence>
+
+      {/* Notification Full Content Modal */}
+      <NotificationDetailModal
+        notification={selectedNotification}
+        isOpen={!!selectedNotification}
+        onClose={() => setSelectedNotification(null)}
+        onNavigate={(route) => {
+          setSelectedNotification(null);
+          setIsOpen(false);
+          router.push(route);
+        }}
+      />
     </div>
   );
 }
