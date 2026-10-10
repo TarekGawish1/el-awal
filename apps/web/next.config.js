@@ -11,6 +11,33 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
 
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [
+          {
+            type: 'host',
+            value: 'www.al-awal.online',
+          },
+        ],
+        destination: 'https://al-awal.online/:path*',
+        permanent: true,
+      },
+      {
+        source: '/:path*',
+        has: [
+          {
+            type: 'host',
+            value: '.*\\.herokuapp\\.com',
+          },
+        ],
+        destination: 'https://al-awal.online/:path*',
+        permanent: true,
+      },
+    ];
+  },
+
   async rewrites() {
     const rawBackendUrl =
       process.env.BACKEND_INTERNAL_URL ||

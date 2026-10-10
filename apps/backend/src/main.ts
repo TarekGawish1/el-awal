@@ -35,11 +35,25 @@ async function bootstrap() {
   // Image storage is R2-only: no local ./uploads directory is created or served.
   // Any legacy /uploads/* URL means an old local file that must be re-uploaded to R2.
 
-  // Trust upstream reverse proxy (e.g. Nginx, Cloudflare) if configured
-  if (configService.get<boolean>('TRUST_PROXY', false)) {
-    const expressApp = app.getHttpAdapter().getInstance();
+  // Trust upstream reverse proxy (e.g. Nginx, Cloudflare, Heroku router)
+  const expressApp = app.getHttpAdapter().getInstance();
+  if (configService.get<boolean>('TRUST_PROXY', true)) {
     expressApp.set('trust proxy', 1);
   }
+
+  // Canonical Platform Redirection:
+  // If an external user or browser accesses the raw Heroku backend URL directly
+  // (e.g. '/', '/login', '/courses'), immediately redirect them to the official platform.
+  expressApp.use((req: any, res: any, next: any) => {
+    if (
+      req.method === 'GET' &&
+      !req.path.startsWith('/api') &&
+      !req.path.startsWith('/socket.io')
+    ) {
+      return res.redirect(301, `https://al-awal.online${req.originalUrl || '/'}`);
+    }
+    next();
+  });
 
   // Global REST API prefix
   app.setGlobalPrefix('api/v1');
