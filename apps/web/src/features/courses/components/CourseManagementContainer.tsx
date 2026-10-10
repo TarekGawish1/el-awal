@@ -37,9 +37,11 @@ import {
   Filter,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useTeacherCourses, useDeleteCourse } from '../hooks/useCourses';
+import { useTeacherCourses, useDeleteCourse, useTeacherSubscriptions } from '../hooks/useCourses';
 import { coursesApi } from '../api/courses.api';
 import { API_BASE_URL } from '@/lib/api/endpoints';
+import { QUERY_KEYS } from '@/lib/api/query-keys';
+import { getRealtimeSocket } from '@/lib/realtime/socket';
 import { resolveCoverUrl } from '@/lib/utils/asset-url';
 import { CourseDetail } from '../types/courses.types';
 import { CreateCourseModal } from './CreateCourseModal';
@@ -54,12 +56,13 @@ export function CourseManagementContainer() {
   const { data: courses = [], isLoading } = useTeacherCourses();
   const deleteMutation = useDeleteCourse();
 
-  // Real-time subscriptions updates via WebSocket + background safety poll
+  // Real-time subscriptions updates via WebSocket + throttled background safety poll (120s when connected)
   useRealtimeCourseSubscriptions();
-  const { data: subsData } = useQuery({
-    queryKey: ['teacher-subscriptions'],
-    queryFn: coursesApi.getTeacherSubscriptions,
-    refetchInterval: 60000,
+  const { data: subsData } = useTeacherSubscriptions({
+    refetchInterval: () => {
+      const socket = getRealtimeSocket();
+      return socket?.connected ? 120000 : 30000;
+    },
   });
   const pendingCount = subsData?.counts?.pending ?? 0;
 
@@ -447,10 +450,7 @@ function CourseEnrollmentsView() {
   // Real-time WebSocket live updates (zero polling delay)
   useRealtimeCourseSubscriptions();
 
-  const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['teacher-subscriptions'],
-    queryFn: coursesApi.getTeacherSubscriptions,
-  });
+  const { data, isLoading, isFetching, refetch } = useTeacherSubscriptions();
 
   const [courseFilter, setCourseFilter] = useState('ALL');
   const [studentSearch, setStudentSearch] = useState('');
@@ -511,6 +511,7 @@ function CourseEnrollmentsView() {
     mutationFn: ({ courseId, studentId }: { courseId: string; studentId: string }) =>
       coursesApi.enrollStudentsBatch(courseId, [studentId]),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.courses.teacherSubscriptions() });
       queryClient.invalidateQueries({ queryKey: ['teacher-subscriptions'] });
       queryClient.invalidateQueries({ queryKey: ['teacher-courses'] });
       toast.success('تم تسجيل الطالب وتفعيل اشتراكه في الكورس بنجاح! 🎉');
@@ -525,6 +526,7 @@ function CourseEnrollmentsView() {
   const approveMutation = useMutation({
     mutationFn: (enrollmentId: string) => coursesApi.approveEnrollment(enrollmentId),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.courses.teacherSubscriptions() });
       queryClient.invalidateQueries({ queryKey: ['teacher-subscriptions'] });
       queryClient.invalidateQueries({ queryKey: ['teacher-courses'] });
       toast.success('تمت الموافقة وتفعيل اشتراك الطالب بنجاح! 🎉');
@@ -539,6 +541,7 @@ function CourseEnrollmentsView() {
     mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
       coursesApi.rejectEnrollment(id, reason),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.courses.teacherSubscriptions() });
       queryClient.invalidateQueries({ queryKey: ['teacher-subscriptions'] });
       queryClient.invalidateQueries({ queryKey: ['teacher-courses'] });
       toast.success('تم رفض طلب الاشتراك.');
@@ -555,6 +558,7 @@ function CourseEnrollmentsView() {
     mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
       coursesApi.cancelEnrollment(id, reason),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.courses.teacherSubscriptions() });
       queryClient.invalidateQueries({ queryKey: ['teacher-subscriptions'] });
       queryClient.invalidateQueries({ queryKey: ['teacher-courses'] });
       toast.success('تم إلغاء اشتراك الطالب وتعليق وصوله للكورس بنجاح.');

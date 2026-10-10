@@ -22,6 +22,20 @@ function getArabicReorderError(err: any): string {
 }
 
 
+import { QUERY_KEYS } from '@/lib/api/query-keys';
+
+export function useTeacherSubscriptions(options?: {
+  refetchInterval?: number | false | ((query: any) => number | false);
+  enabled?: boolean;
+}) {
+  return useQuery({
+    queryKey: QUERY_KEYS.courses.teacherSubscriptions(),
+    queryFn: coursesApi.getTeacherSubscriptions,
+    refetchInterval: options?.refetchInterval,
+    enabled: options?.enabled,
+  });
+}
+
 export function useTeacherCourses() {
   return useQuery({
     queryKey: ['teacher-courses'],

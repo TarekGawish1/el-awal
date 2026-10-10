@@ -2,13 +2,14 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { loginUser, logoutUser } from '../api/auth.api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { loginUser, logoutUser, fetchCurrentUser } from '../api/auth.api';
 import { useAuthStore } from '../store/auth.store';
-import { LoginCredentials, AuthTokensResponse } from '../types/auth.types';
+import { LoginCredentials, AuthTokensResponse, AuthUser } from '../types/auth.types';
 import { getRoleLandingRoute, sanitizeRedirectUrl, hasMultipleRoles } from '../utils/role-routing';
 import { ApiError } from '@/lib/api/errors';
 import { offlineDb } from '@/lib/offline/db';
+import { QUERY_KEYS } from '@/lib/api/query-keys';
 import toast from 'react-hot-toast';
 import { LogoutConfirmationModal } from '@/components/auth/LogoutConfirmationModal';
 
@@ -56,6 +57,22 @@ export function normalizeAuthErrorMessage(error: unknown): string {
 import { bootstrapManager } from '@/lib/offline/bootstrap-manager';
 
 /**
+ * Hook to fetch authenticated current user profile with client-side caching
+ * GET /users/me
+ */
+export function useCurrentUser(options?: { enabled?: boolean }) {
+  return useQuery<AuthUser>({
+    queryKey: QUERY_KEYS.users.me(),
+    queryFn: fetchCurrentUser,
+    staleTime: 15 * 60 * 1000, // 15 minutes
+    gcTime: 60 * 60 * 1000,    // 60 minutes
+    networkMode: 'offlineFirst',
+    enabled: options?.enabled ?? true,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/**
  * Primary Authentication Hook
  */
 export function useAuth() {
@@ -69,6 +86,18 @@ export function useAuth() {
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  // Session profile query cached with 15-minute staleTime to prevent redundant GET /users/me calls
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  useQuery({
+    queryKey: QUERY_KEYS.users.me(),
+    queryFn: fetchCurrentUser,
+    staleTime: 15 * 60 * 1000, // 15 minutes
+    gcTime: 60 * 60 * 1000,    // 60 minutes
+    networkMode: 'offlineFirst',
+    enabled: isAuthenticated && isOnline,
+    refetchOnWindowFocus: false,
+  });
 
   const loginMutation = useMutation({
     mutationFn: (credentials: LoginCredentials) => loginUser(credentials),

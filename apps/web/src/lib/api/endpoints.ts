@@ -173,4 +173,8 @@ export const API_ENDPOINTS = {
     LIST: "/testimonials",
     UPDATE: (id: string) => `/testimonials/${id}`,
   },
+  SITE_SETTINGS: {
+    PUBLIC: "/site-settings/public",
+    LIST: "/site-settings",
+  },
 } as const;

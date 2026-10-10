@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
+import { QUERY_KEYS } from '@/lib/api/query-keys';
 import { APP_CONFIG } from '@/config/app.config';
 import { Group } from '../types/groups.types';
 
@@ -131,14 +132,32 @@ export function getDefaultAcademicTerm(): string {
  * Primary Hook to read, persist, and synchronize the active academic year & semester in the Database.
  * The database (teacher_profiles table) is the authoritative source of truth.
  */
+/**
+ * Hook to fetch active academic period with client-side caching
+ * GET /academic-periods/active (or /teachers/academic-period)
+ */
+export function useActiveAcademicPeriod() {
+  return useQuery({
+    queryKey: QUERY_KEYS.academicPeriods.active(),
+    queryFn: fetchAcademicPeriod,
+    staleTime: 30 * 60 * 1000, // 30 minutes
+    gcTime: 60 * 60 * 1000,    // 60 minutes
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    retry: 1,
+    networkMode: 'offlineFirst',
+  });
+}
+
 export function useStoredAcademicPeriod(groups?: Group[]) {
   const queryClient = useQueryClient();
 
-  // 1. Fetch persistent preference directly from database (cached for 10 minutes without polling)
+  // 1. Fetch persistent preference directly from database (cached for 30 minutes without polling)
   const { data: dbPeriod, isLoading: isLoadingDb } = useQuery({
     queryKey: ['teacher', 'academic-period'],
     queryFn: fetchAcademicPeriod,
-    staleTime: 10 * 60 * 1000, // 10 minutes cache
+    staleTime: 30 * 60 * 1000, // 30 minutes cache
+    gcTime: 60 * 60 * 1000,    // 60 minutes cache
     refetchInterval: false,     // Disabled: mutations already invalidate this query
     refetchOnWindowFocus: false,
     retry: 1,

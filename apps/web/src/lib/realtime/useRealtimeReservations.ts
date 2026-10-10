@@ -5,6 +5,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/features/auth';
 import { getRealtimeSocket } from './socket';
 
+import { QUERY_KEYS } from '@/lib/api/query-keys';
+
 /**
  * Subscribes to the backend realtime channel and invalidates the
  * `pending-reservations` query whenever the server pushes a
@@ -22,6 +24,7 @@ export function useRealtimeReservations(enabled = true) {
     if (!socket) return;
 
     const handler = () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.courses.teacherSubscriptions() });
       queryClient.invalidateQueries({ queryKey: ['pending-reservations'] });
     };
 

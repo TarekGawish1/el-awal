@@ -5,6 +5,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/features/auth';
 import { getRealtimeSocket } from './socket';
 
+import { QUERY_KEYS } from '@/lib/api/query-keys';
+
 /**
  * Subscribes to the backend realtime WebSocket channel and invalidates
  * `teacher-subscriptions`, `teacher-courses`, and student course queries
@@ -22,6 +24,7 @@ export function useRealtimeCourseSubscriptions(enabled = true) {
     if (!socket) return;
 
     const handler = () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.courses.teacherSubscriptions() });
       queryClient.invalidateQueries({ queryKey: ['teacher-subscriptions'] });
       queryClient.invalidateQueries({ queryKey: ['teacher-courses'] });
       queryClient.invalidateQueries({ queryKey: ['course-detail'] });

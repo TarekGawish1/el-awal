@@ -5,7 +5,7 @@ export { ParentAccessForm } from './components/ParentAccessForm';
 export { StudentRegistrationForm } from './components/StudentRegistrationForm';
 export { GroupRegistrationForm } from './components/GroupRegistrationForm';
 export { GroupInviteRegistrationView } from './components/GroupInviteRegistrationView';
-export { useAuth, normalizeAuthErrorMessage } from './hooks/useAuth';
+export { useAuth, useCurrentUser, normalizeAuthErrorMessage } from './hooks/useAuth';
 export { useParentAccess, normalizeParentAccessError } from './hooks/useParentAccess';
 export { useStudentRegistration, normalizeStudentRegistrationError } from './hooks/useStudentRegistration';
 export { useGroupInvite, useGroupRegistration, normalizeGroupRegistrationError } from './hooks/useGroupRegistration';

@@ -6,3 +6,4 @@ export * from './components/GroupDetailsModal';
 export * from './components/GroupCard';
 export * from './components/GroupLinkGeneratorModal';
 export * from './components/GroupQrPrintModal';
+export * from './hooks/useAcademicPeriod';

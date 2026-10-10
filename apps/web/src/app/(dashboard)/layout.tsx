@@ -27,7 +27,9 @@ import {
   AlertCircle,
   ArrowLeftRight,
 } from 'lucide-react';
-import { useAuth } from '@/features/auth';
+import { useAuth, useCurrentUser } from '@/features/auth';
+import { QUERY_KEYS } from '@/lib/api/query-keys';
+import { getRealtimeSocket } from '@/lib/realtime/socket';
 import { DashboardBreadcrumbs } from '@/features/dashboard/components/DashboardBreadcrumbs';
 import { AcademicPeriodSwitcher } from '@/features/groups/components/AcademicPeriodSwitcher';
 import { PwaInstallButton } from '@/components/pwa';
@@ -146,27 +148,25 @@ export default function DashboardLayout({
     return () => unsubscribe();
   }, []);
 
-  // Silently re-hydrate user profile to ensure multiple profiles and secretariatProfileId are synced
-  useEffect(() => {
-    if (!isMounted || !isAuthenticated || !isOnline) return;
+  // Silently re-hydrate user profile to ensure multiple profiles and secretariatProfileId are synced (15-min cache)
+  const { data: freshUser } = useCurrentUser({
+    enabled: isMounted && isAuthenticated && isOnline,
+  });
 
-    fetchCurrentUser()
-      .then((freshUser) => {
-        if (freshUser && freshUser.id) {
-          const freshAny = freshUser as any;
-          const mergedUser: AuthUser = {
-            ...(user as AuthUser),
-            ...freshUser,
-            secretariatProfileId: freshUser.secretariatProfileId || freshAny.secretariatProfile?.id || (freshAny.assistantToTeachers?.length ? freshUser.id : undefined),
-            teacherProfileId: freshUser.teacherProfileId || freshAny.teacherProfile?.id,
-            parentProfileId: freshUser.parentProfileId || freshAny.parentProfile?.id,
-            studentProfileId: freshUser.studentProfileId || freshAny.studentProfile?.id,
-          };
-          useAuthStore.getState().setUser(mergedUser);
-        }
-      })
-      .catch(() => {});
-  }, [isMounted, isAuthenticated, isOnline]);
+  useEffect(() => {
+    if (freshUser && freshUser.id) {
+      const freshAny = freshUser as any;
+      const mergedUser: AuthUser = {
+        ...(user as AuthUser),
+        ...freshUser,
+        secretariatProfileId: freshUser.secretariatProfileId || freshAny.secretariatProfile?.id || (freshAny.assistantToTeachers?.length ? freshUser.id : undefined),
+        teacherProfileId: freshUser.teacherProfileId || freshAny.teacherProfile?.id,
+        parentProfileId: freshUser.parentProfileId || freshAny.parentProfile?.id,
+        studentProfileId: freshUser.studentProfileId || freshAny.studentProfile?.id,
+      };
+      useAuthStore.getState().setUser(mergedUser);
+    }
+  }, [freshUser, user]);
 
   // Authentication Route Protection
   useEffect(() => {
@@ -247,7 +247,7 @@ export default function DashboardLayout({
 
   // Unread website contact inquiries count badge (teacher/secretariat only) — pushed live via WebSocket
   const { data: unreadInquiriesCount = 0 } = useQuery({
-    queryKey: ['contact-messages-unread-count'],
+    queryKey: QUERY_KEYS.contactMessages.unreadCount(),
     queryFn: async () => {
       try {
         const res = await apiClient<{ unreadCount: number }>(API_ENDPOINTS.CONTACT_MESSAGES.UNREAD_COUNT);
@@ -258,7 +258,10 @@ export default function DashboardLayout({
     },
     enabled: isReservationsRole && isOnline,
     staleTime: 30000,
-    refetchInterval: 60000, // Background poll as safety net alongside realtime socket
+    refetchInterval: () => {
+      const socket = getRealtimeSocket();
+      return socket?.connected ? 120000 : 30000;
+    },
   });
   useRealtimeInquiries(isReservationsRole);
 

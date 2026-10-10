@@ -16,6 +16,8 @@ import { offlineDb, getGroupDetailsOffline, GroupEntity } from '@/lib/offline/db
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { generateUUIDv7 } from '@/lib/offline/uuid';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
+import { QUERY_KEYS } from '@/lib/api/query-keys';
+import { coursesApi } from '@/features/courses/api/courses.api';
 import toast from 'react-hot-toast';
 
 export function useGroups(filters?: {
@@ -42,7 +44,8 @@ export function useGroups(filters?: {
       }
     },
     networkMode: 'offlineFirst',
-    staleTime: 60 * 1000,
+    staleTime: 15 * 60 * 1000, // 15 minutes
+    gcTime: 60 * 60 * 1000,    // 60 minutes
   });
 }
 
@@ -558,9 +561,32 @@ export function useGenerateRegistrationLink() {
 }
 
 export function usePendingReservations(enabled = true) {
-  return useQuery<any[]>({
-    queryKey: ['pending-reservations'],
-    queryFn: () => import('../api/groups.api').then(m => m.fetchPendingReservations()),
+  return useQuery<any, Error, any[]>({
+    queryKey: QUERY_KEYS.courses.teacherSubscriptions(),
+    queryFn: () => coursesApi.getTeacherSubscriptions(),
+    select: (data: any) => {
+      if (Array.isArray(data)) return data;
+      const requests = data?.pendingRequests ?? [];
+      return requests.map((r: any) => ({
+        ...r,
+        id: r.enrollmentId || r.id,
+        enrollmentId: r.enrollmentId || r.id,
+        student: {
+          id: r.studentId,
+          studentCode: r.studentCode,
+          qrCodeToken: r.studentCode,
+          user: {
+            fullName: r.studentName || r.student?.user?.fullName,
+            phone: r.studentPhone || r.senderPhone || r.student?.user?.phone,
+          },
+          ...r.student,
+        },
+        group: {
+          name: r.courseName || r.group?.name || 'طلب انضمام',
+          ...r.group,
+        },
+      }));
+    },
     enabled,
   });
 }
@@ -570,6 +596,7 @@ export function useAcceptReservation() {
   return useMutation({
     mutationFn: ({ enrollmentId, paymentStatus }: { enrollmentId: string, paymentStatus?: 'PAID' | 'LATER' }) => import('../api/groups.api').then(m => m.acceptReservation(enrollmentId, { paymentStatus })),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.courses.teacherSubscriptions() });
       queryClient.invalidateQueries({ queryKey: ['pending-reservations'] });
       queryClient.invalidateQueries({ queryKey: ['groups'] });
     },
@@ -581,6 +608,7 @@ export function useRejectReservation() {
   return useMutation({
     mutationFn: (enrollmentId: string) => import('../api/groups.api').then(m => m.rejectReservation(enrollmentId)),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.courses.teacherSubscriptions() });
       queryClient.invalidateQueries({ queryKey: ['pending-reservations'] });
       queryClient.invalidateQueries({ queryKey: ['groups'] });
     },
@@ -592,6 +620,7 @@ export function useChangeReservationGroup() {
   return useMutation({
     mutationFn: ({ enrollmentId, groupId }: { enrollmentId: string, groupId: string }) => import('../api/groups.api').then(m => m.changeReservationGroup(enrollmentId, groupId)),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.courses.teacherSubscriptions() });
       queryClient.invalidateQueries({ queryKey: ['pending-reservations'] });
       queryClient.invalidateQueries({ queryKey: ['groups'] });
       toast.success('تم تغيير المجموعة بنجاح');

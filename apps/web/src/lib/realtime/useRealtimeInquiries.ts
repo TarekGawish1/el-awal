@@ -5,6 +5,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/features/auth';
 import { getRealtimeSocket } from './socket';
 
+import { QUERY_KEYS } from '@/lib/api/query-keys';
+
 /**
  * Subscribes to the backend realtime channel and invalidates the
  * `contact-messages` and `contact-messages-unread-count` queries whenever
@@ -22,7 +24,8 @@ export function useRealtimeInquiries(enabled = true) {
     if (!socket) return;
 
     const handler = () => {
-      queryClient.invalidateQueries({ queryKey: ['contact-messages'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.contactMessages.all });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.contactMessages.unreadCount() });
       queryClient.invalidateQueries({ queryKey: ['contact-messages-unread-count'] });
     };
 

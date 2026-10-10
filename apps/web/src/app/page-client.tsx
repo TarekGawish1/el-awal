@@ -23,6 +23,12 @@ import { getRoleLandingRoute } from "@/features/auth/utils/role-routing";
 import { submitContactMessage } from "./actions";
 import { useQuery } from "@tanstack/react-query";
 import { testimonialsApi } from "@/features/testimonials/api/testimonials.api";
+import {
+  usePublicCenters,
+  usePublicTestimonials,
+  usePublicCatalog,
+  useSiteSettings,
+} from "@/hooks/usePublicContent";
 import { GRADE_LEVELS_BY_STAGE } from "@/lib/constants/grades";
 import { CookieConsentSettingsTrigger } from "@/components/analytics/CookieConsentBanner";
 import { resolveAssetUrl } from "@/lib/utils/asset-url";
@@ -701,8 +707,6 @@ const GRADES: Record<string, string[]> = {
 };
 
 function CoursesSection() {
-  const [courses, setCourses] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState<any | null>(null);
   const [activePreviewLesson, setActivePreviewLesson] = useState<{
     id: string;
@@ -714,6 +718,47 @@ function CoursesSection() {
   const [expandedModule, setExpandedModule] = useState<string | number | null>(
     null,
   );
+
+  const { data: rawCatalog = [], isLoading } = usePublicCatalog({
+    academicStage: selectedStage,
+    gradeLevel: selectedGrade,
+    limit: 20,
+  });
+
+  const courses: any[] = React.useMemo(() => {
+    const list = Array.isArray(rawCatalog) ? rawCatalog : (rawCatalog as any)?.data || [];
+    return list.map((c: any, index: number) => ({
+      id: c.id,
+      title: c.title,
+      description:
+        c.description ||
+        "شرح مبسط ومفصل للمنهج مع تدريبات مكثفة وتطبيقات على أحدث نظام.",
+      badge:
+        c.academicTerm === "FIRST_TERM"
+          ? "ترم أول"
+          : c.academicTerm === "SECOND_TERM"
+            ? "ترم ثاني"
+            : "شامل",
+      gradeLevel: c.gradeLevel,
+      academicStage: c.academicStage,
+      subject: c.subject || "الرياضيات",
+      price: c.price !== undefined ? c.price : 150,
+      coverImageUrl: c.coverImageUrl,
+      teacherName: c.teacher?.user?.fullName || "أستاذ المادة",
+      color:
+        index % 3 === 0
+          ? "from-blue-600 to-cyan-600"
+          : index % 3 === 1
+            ? "from-indigo-600 to-purple-600"
+            : "from-emerald-600 to-teal-600",
+      totalLessons: c.totalLessons || 0,
+      totalModules: c.totalModules || c.modules?.length || 0,
+      hasFreeVideo: c.hasFreeVideo,
+      freeVideoLessonId: c.freeVideoLessonId,
+      freeVideoUrl: c.freeVideoUrl,
+      modules: c.modules || [],
+    }));
+  }, [rawCatalog]);
 
   const handleOpenCourseModal = (course: any) => {
     setSelectedCourse(course);
@@ -743,65 +788,6 @@ function CoursesSection() {
     setActivePreviewLesson(freeLesson);
     setExpandedModule(course.modules?.[0]?.id ?? 0);
   };
-
-  useEffect(() => {
-    async function fetchCourses() {
-      setIsLoading(true);
-      try {
-        const baseUrl =
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
-        let url = `${baseUrl}/courses/catalog?limit=20`;
-        if (selectedStage !== "ALL")
-          url += `&academicStage=${encodeURIComponent(selectedStage)}`;
-        if (selectedGrade !== "ALL")
-          url += `&gradeLevel=${encodeURIComponent(selectedGrade)}`;
-
-        const res = await fetch(url);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.data) {
-            const mapped = data.data.map((c: any, index: number) => ({
-              id: c.id,
-              title: c.title,
-              description:
-                c.description ||
-                "شرح مبسط ومفصل للمنهج مع تدريبات مكثفة وتطبيقات على أحدث نظام.",
-              badge:
-                c.academicTerm === "FIRST_TERM"
-                  ? "ترم أول"
-                  : c.academicTerm === "SECOND_TERM"
-                    ? "ترم ثاني"
-                    : "شامل",
-              gradeLevel: c.gradeLevel,
-              academicStage: c.academicStage,
-              subject: c.subject || "الرياضيات",
-              price: c.price !== undefined ? c.price : 150,
-              coverImageUrl: c.coverImageUrl,
-              teacherName: c.teacher?.user?.fullName || "أستاذ المادة",
-              color:
-                index % 3 === 0
-                  ? "from-blue-600 to-cyan-600"
-                  : index % 3 === 1
-                    ? "from-indigo-600 to-purple-600"
-                    : "from-emerald-600 to-teal-600",
-              totalLessons: c.totalLessons || 0,
-              totalModules: c.totalModules || c.modules?.length || 0,
-              hasFreeVideo: c.hasFreeVideo,
-              freeVideoLessonId: c.freeVideoLessonId,
-              freeVideoUrl: c.freeVideoUrl,
-              modules: c.modules || [],
-            }));
-            setCourses(mapped);
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch courses:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    fetchCourses();
-  }, [selectedStage, selectedGrade]);
 
   return (
     <section
@@ -1259,7 +1245,7 @@ function CoursesSection() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {courses.map((course, index) => (
+            {courses.map((course: any, index: number) => (
               <motion.div
                 key={course.id}
                 initial={{ opacity: 0, y: 30 }}
@@ -1374,10 +1360,8 @@ function CoursesSection() {
 function CenterScheduleSection() {
   const [selectedStage, setSelectedStage] = useState("secondary");
   const [selectedGrade, setSelectedGrade] = useState("الصف الأول الثانوي");
-  const [schedulesMap, setSchedulesMap] = useState<
-    Record<string, { center: string; days: string; time: string }[]>
-  >({});
-  const [isLoading, setIsLoading] = useState(true);
+
+  const { data: rawCentersData = [], isLoading } = usePublicCenters();
 
   const STAGES = [
     { id: "primary", name: "المرحلة الابتدائية" },
@@ -1402,35 +1386,21 @@ function CenterScheduleSection() {
     ],
   };
 
-  useEffect(() => {
-    async function fetchSchedules() {
-      try {
-        setIsLoading(true);
-        const baseUrl =
-          process.env.NEXT_PUBLIC_API_URL ||
-          "https://api.al-awal.online/api/v1";
-        const res = await fetch(`${baseUrl}/schedules/public/centers`);
-        if (res.ok) {
-          const json = await res.json();
-          const actualData = json?.data || json || [];
-          const newMap: Record<string, any[]> = {};
-          actualData.forEach((item: any) => {
-            // map by gradeLevel and accumulate schedules
-            if (!newMap[item.gradeLevel]) {
-              newMap[item.gradeLevel] = [];
-            }
-            newMap[item.gradeLevel].push(...item.schedules);
-          });
-          setSchedulesMap(newMap);
-        }
-      } catch (err) {
-        console.error("Failed to fetch schedules:", err);
-      } finally {
-        setIsLoading(false);
+  const schedulesMap = React.useMemo(() => {
+    const actualData = Array.isArray(rawCentersData)
+      ? rawCentersData
+      : (rawCentersData as any)?.data || [];
+    const newMap: Record<string, { center: string; days: string; time: string }[]> = {};
+    actualData.forEach((item: any) => {
+      if (!newMap[item.gradeLevel]) {
+        newMap[item.gradeLevel] = [];
       }
-    }
-    fetchSchedules();
-  }, []);
+      if (Array.isArray(item.schedules)) {
+        newMap[item.gradeLevel].push(...item.schedules);
+      }
+    });
+    return newMap;
+  }, [rawCentersData]);
 
   const handleStageChange = (stageId: string) => {
     setSelectedStage(stageId);
@@ -1682,11 +1652,7 @@ function CenterScheduleSection() {
 }
 
 function TestimonialsSection() {
-  const { data: testimonials = [] } = useQuery({
-    queryKey: ["public-testimonials"],
-    queryFn: testimonialsApi.getPublic,
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: testimonials = [] } = usePublicTestimonials();
 
   if (testimonials.length === 0) return null;
 
@@ -2154,12 +2120,37 @@ function StageCertificateRow({ certificates }: { certificates: any[] }) {
 
 function CertificatesSection() {
   const [stagesData, setStagesData] = useState(CERTIFICATES_BY_STAGE);
+  const { data: siteSettings } = useSiteSettings();
+
   // Owner control: academic years allowed on the landing page (null = all).
-  // Managed from the teacher dashboard (سنوات الظهور على الموقع).
-  const [allowedYears, setAllowedYears] = useState<string[] | null>(null);
-  const [allowedStages, setAllowedStages] = useState<string[] | null>(null);
-  const [allowedGrades, setAllowedGrades] = useState<string[] | null>(null);
-  const [allowedGroups, setAllowedGroups] = useState<string[] | null>(null);
+  // Managed from the teacher dashboard (سنوات الظهور على الموقع), cached via TanStack Query.
+  const allowedYears = React.useMemo(() => {
+    const raw = siteSettings?.certificatesVisibleYears;
+    return Array.isArray(raw)
+      ? raw.map((v: any) => String(v).trim()).filter(Boolean)
+      : null;
+  }, [siteSettings]);
+
+  const allowedStages = React.useMemo(() => {
+    const raw = siteSettings?.certificatesVisibleStages;
+    return Array.isArray(raw)
+      ? raw.map((v: any) => String(v).trim()).filter(Boolean)
+      : null;
+  }, [siteSettings]);
+
+  const allowedGrades = React.useMemo(() => {
+    const raw = siteSettings?.certificatesVisibleGrades;
+    return Array.isArray(raw)
+      ? raw.map((v: any) => String(v).trim()).filter(Boolean)
+      : null;
+  }, [siteSettings]);
+
+  const allowedGroups = React.useMemo(() => {
+    const raw = siteSettings?.certificatesVisibleGroups;
+    return Array.isArray(raw)
+      ? raw.map((v: any) => String(v).trim()).filter(Boolean)
+      : null;
+  }, [siteSettings]);
 
   const normalizeCertificateGrade = (grade: unknown, stage: unknown) => {
     const value = String(grade || "").trim();
@@ -2374,40 +2365,6 @@ function CertificatesSection() {
         }
       } catch (e) {
         console.error("Failed to sync/fetch certificates:", e);
-      }
-
-      // Owner control: which academic years may appear on the landing page.
-      // Fail-open (all years) if the setting is missing or unreachable.
-      try {
-        const baseUrl =
-          process.env.NEXT_PUBLIC_API_URL ||
-          "https://api.al-awal.online/api/v1";
-        const settingsRes = await fetch(`${baseUrl}/site-settings/public`);
-        if (settingsRes.ok) {
-          const settingsJson = await settingsRes.json();
-          const raw =
-            settingsJson?.data?.certificatesVisibleYears ??
-            settingsJson?.certificatesVisibleYears;
-          if (Array.isArray(raw)) {
-            setAllowedYears(
-              raw.map((v: any) => String(v).trim()).filter(Boolean),
-            );
-          }
-          const readSetting = (key: string) => {
-            const value = settingsJson?.data?.[key] ?? settingsJson?.[key];
-            return Array.isArray(value)
-              ? value.map((v: any) => String(v).trim()).filter(Boolean)
-              : null;
-          };
-          setAllowedStages(readSetting("certificatesVisibleStages"));
-          setAllowedGrades(readSetting("certificatesVisibleGrades"));
-          setAllowedGroups(readSetting("certificatesVisibleGroups"));
-        }
-      } catch (settingsError) {
-        console.warn(
-          "Could not fetch site settings, showing all years",
-          settingsError,
-        );
       }
     };
 
