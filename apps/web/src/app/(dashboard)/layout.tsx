@@ -148,22 +148,39 @@ export default function DashboardLayout({
     return () => unsubscribe();
   }, []);
 
-  // Warm Service Worker offline caches for core teacher pages upon login/mount
+  // Warm Service Worker offline caches and prefetch client chunks for offline pages
   useEffect(() => {
-    if (
-      isMounted &&
-      isOnline &&
-      isAuthenticated &&
-      (user?.role === 'TEACHER' || user?.role === 'SECRETARIAT') &&
-      typeof navigator !== 'undefined' &&
-      'serviceWorker' in navigator &&
-      navigator.serviceWorker.controller
-    ) {
-      try {
-        navigator.serviceWorker.controller.postMessage({ type: 'WARM_OFFLINE_SHELL' });
-      } catch {}
+    if (isMounted && isOnline && isAuthenticated) {
+      if (
+        typeof navigator !== 'undefined' &&
+        'serviceWorker' in navigator &&
+        navigator.serviceWorker.controller
+      ) {
+        try {
+          navigator.serviceWorker.controller.postMessage({ type: 'WARM_OFFLINE_SHELL' });
+        } catch {}
+      }
+
+      const offlineRoutes =
+        user?.role === 'STUDENT'
+          ? ['/student/dashboard', '/student/group', '/student/attendance', '/student/payments']
+          : user?.role === 'PARENT'
+          ? ['/parent/dashboard']
+          : [
+              '/teacher/dashboard',
+              '/teacher/groups',
+              '/teacher/schedules',
+              '/teacher/attendance',
+              '/teacher/students',
+              '/teacher/finance',
+            ];
+      offlineRoutes.forEach((route) => {
+        try {
+          router.prefetch(route);
+        } catch {}
+      });
     }
-  }, [isMounted, isOnline, isAuthenticated, user?.role]);
+  }, [isMounted, isOnline, isAuthenticated, user?.role, router]);
 
   // Silently re-hydrate user profile to ensure multiple profiles and secretariatProfileId are synced (15-min cache)
   const { data: freshUser } = useCurrentUser({
@@ -437,6 +454,7 @@ export default function DashboardLayout({
                         <Link
                           key={item.href}
                           href={item.href}
+                          prefetch={true}
                           onClick={() => setIsMobileSidebarOpen(false)}
                           className={`flex items-center gap-3 px-3.5 py-2.5 rounded-md text-sm font-medium transition-all ${
                             isActive

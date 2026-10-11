@@ -30,14 +30,20 @@ export default function DashboardErrorBoundary({
           </h2>
           <p className="text-xs text-neutral-500 leading-relaxed">
             {isChunkError
-              ? 'يمكنك إعادة المحاولة أو العودة للرئيسية لمتابعة العمل على البيانات المحفوظة محلياً.'
+              ? 'لم تكن ملفات هذه الصفحة محملة مسبقاً على هذا الجهاز أثناء الاتصال بالإنترنت. يمكنك العودة للرئيسية لمتابعة العمل، وسيتم حفظها تلقائياً بمجرد توفر الاتصال.'
               : error?.message || 'يرجى المحاولة مرة أخرى أو العودة إلى لوحة التحكم الرئيسية.'}
           </p>
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
           <button
-            onClick={() => reset()}
+            onClick={() => {
+              if (typeof window !== 'undefined' && navigator.onLine) {
+                window.location.reload();
+              } else {
+                reset();
+              }
+            }}
             className="w-full sm:w-auto flex-1 inline-flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white font-semibold text-xs py-2.5 px-4 rounded-xl shadow-xs transition-all cursor-pointer"
           >
             <RefreshCw className="w-4 h-4" />

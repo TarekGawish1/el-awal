@@ -9,24 +9,29 @@
  * - Zero-redirect offline subpage navigation
  */
 
-const CACHE_NAME = 'el-awal-core-v9';
-const RUNTIME_CACHE = 'el-awal-runtime-v9';
-const RSC_CACHE = 'el-awal-rsc-v9';
+const CACHE_NAME = 'el-awal-core-v10';
+const RUNTIME_CACHE = 'el-awal-runtime-v10';
+const RSC_CACHE = 'el-awal-rsc-v10';
 
 // Maximum entries allowed in dynamic caches to prevent device storage bloating
-const MAX_RUNTIME_ITEMS = 80;
-const MAX_RSC_ITEMS = 50;
-const MAX_CACHABLE_SIZE_BYTES = 3 * 1024 * 1024; // 3 MB guard
+const MAX_RUNTIME_ITEMS = 300;
+const MAX_RSC_ITEMS = 100;
+const MAX_CACHABLE_SIZE_BYTES = 4 * 1024 * 1024; // 4 MB guard
 
 /**
- * Trim cache to maxItems using FIFO eviction
+ * Trim cache to maxItems using FIFO eviction while protecting JS code chunks
  */
 async function trimCache(cacheName, maxItems) {
   try {
     const cache = await caches.open(cacheName);
     const keys = await cache.keys();
     if (keys.length > maxItems) {
-      const itemsToDelete = keys.slice(0, keys.length - maxItems);
+      // Prioritize preserving JS chunks and core assets over ad-hoc queries
+      const deletableKeys = keys.filter((req) => {
+        const url = new URL(req.url);
+        return !url.pathname.startsWith('/_next/static/chunks/');
+      });
+      const itemsToDelete = (deletableKeys.length > 0 ? deletableKeys : keys).slice(0, keys.length - maxItems);
       await Promise.all(itemsToDelete.map((key) => cache.delete(key)));
     }
   } catch (err) {
@@ -453,20 +458,12 @@ self.addEventListener('fetch', (event) => {
             const cachedIcon = (await caches.match('/favicon.svg')) || (await caches.match('/icons/icon.svg')) || (await caches.match('/icon.svg'));
             if (cachedIcon) return cachedIcon;
           }
-          // For JavaScript / CSS files requested offline that aren't cached yet, return a safe fallback rather than fatal error
-          if (url.pathname.endsWith('.js')) {
-            return new Response('/* offline chunk placeholder */', {
-              status: 200,
-              headers: { 'Content-Type': 'application/javascript; charset=utf-8' },
-            });
-          }
-          if (url.pathname.endsWith('.css')) {
-            return new Response('/* offline css placeholder */', {
-              status: 200,
-              headers: { 'Content-Type': 'text/css; charset=utf-8' },
-            });
-          }
-          return new Response('', { status: 503, statusText: 'Offline' });
+          // For static assets requested offline that aren't cached yet, return 503 so Webpack / browser handles cleanly
+          return new Response('Offline asset unavailable', {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+          });
         }
       })(),
     );
@@ -529,6 +526,11 @@ self.addEventListener('message', (event) => {
       '/teacher/students',
       '/teacher/groups',
       '/teacher/schedules',
+      '/student/dashboard',
+      '/student/group',
+      '/student/attendance',
+      '/student/payments',
+      '/parent/dashboard',
     ];
     event.waitUntil(
       (async () => {
@@ -543,7 +545,29 @@ self.addEventListener('message', (event) => {
             const docRes = await fetch(docReq);
             if (docRes && docRes.status === 200 && !docRes.redirected) {
               await runtimeCache.put(docReq, docRes.clone());
-              await coreCache.put(path, docRes);
+              await coreCache.put(path, docRes.clone());
+
+              // Extract and cache all JS chunks and CSS files referenced in the HTML document shell
+              try {
+                const htmlText = await docRes.text();
+                const staticMatches = htmlText.matchAll(/(?:src|href)=["'](\/_next\/static\/[^"']+)["']/g);
+                for (const match of staticMatches) {
+                  const assetUrl = match[1];
+                  const alreadyCached = (await runtimeCache.match(assetUrl)) || (await coreCache.match(assetUrl));
+                  if (!alreadyCached) {
+                    try {
+                      const assetRes = await fetch(assetUrl);
+                      if (assetRes && assetRes.status === 200) {
+                        await runtimeCache.put(assetUrl, assetRes);
+                      }
+                    } catch (assetErr) {
+                      console.debug('[SW] Warm asset skip:', assetUrl, assetErr);
+                    }
+                  }
+                }
+              } catch (htmlErr) {
+                console.debug('[SW] Warm HTML parse skip:', path, htmlErr);
+              }
             }
 
             // 2. Warm RSC flight payload for seamless client-side Next.js navigation
@@ -555,7 +579,32 @@ self.addEventListener('message', (event) => {
             if (rscRes && rscRes.status === 200 && !rscRes.redirected) {
               await rscCache.put(rscReq, rscRes.clone());
               const normalizedReq = new Request(path, { headers: { RSC: '1' } });
-              await rscCache.put(normalizedReq, rscRes);
+              await rscCache.put(normalizedReq, rscRes.clone());
+
+              // Extract and cache any JS chunks referenced in the RSC flight payload
+              try {
+                const rscText = await rscRes.text();
+                const rscMatches = rscText.matchAll(/(?:\/_next\/static\/chunks\/|static\/chunks\/)[a-zA-Z0-9_\-\.\/]+\.js/g);
+                for (const match of rscMatches) {
+                  let chunkUrl = match[0];
+                  if (!chunkUrl.startsWith('/_next/')) {
+                    chunkUrl = '/_next/' + chunkUrl;
+                  }
+                  const alreadyCached = (await runtimeCache.match(chunkUrl)) || (await coreCache.match(chunkUrl));
+                  if (!alreadyCached) {
+                    try {
+                      const chunkRes = await fetch(chunkUrl);
+                      if (chunkRes && chunkRes.status === 200) {
+                        await runtimeCache.put(chunkUrl, chunkRes);
+                      }
+                    } catch (chunkErr) {
+                      console.debug('[SW] Warm RSC chunk skip:', chunkUrl, chunkErr);
+                    }
+                  }
+                }
+              } catch (rscErr) {
+                console.debug('[SW] Warm RSC parse skip:', path, rscErr);
+              }
             }
           } catch (err) {
             console.debug('[SW] Warm offline shell skip:', path, err);
