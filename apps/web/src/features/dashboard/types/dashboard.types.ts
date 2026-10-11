@@ -99,6 +99,7 @@ export interface GroupOption {
 }
 
 export interface TeacherDashboardInitData extends TeacherDashboardData {
+  pendingReservations?: any[];
   menus?: {
     groups: GroupOption[];
     academicPeriod: {

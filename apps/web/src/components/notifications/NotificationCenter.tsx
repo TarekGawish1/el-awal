@@ -344,7 +344,7 @@ function EmptyState() {
 
 // ─── Main NotificationCenter Component ───────────────────────────────────────
 
-export function NotificationCenter() {
+export function NotificationCenter({ unreadCount: propUnreadCount }: { unreadCount?: number } = {}) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -352,12 +352,12 @@ export function NotificationCenter() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const { data: unreadData } = useUnreadCount();
+  const { data: unreadData } = useUnreadCount({ enabled: propUnreadCount === undefined });
   const { data: feedData, isLoading } = useNotifications(undefined, { enabled: isOpen });
   const markRead = useMarkRead();
   const markAllRead = useMarkAllRead();
 
-  const unreadCount = (unreadData as { unreadCount?: number } | undefined)?.unreadCount ?? 0;
+  const unreadCount = propUnreadCount ?? (unreadData as { unreadCount?: number } | undefined)?.unreadCount ?? 0;
   const notifications: Notification[] = feedData?.data ?? [];
 
   // Close drawer on outside click

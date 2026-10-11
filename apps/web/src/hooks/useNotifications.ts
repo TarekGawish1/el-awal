@@ -129,7 +129,7 @@ import { getRealtimeSocket } from '@/lib/realtime/socket';
  * Fetches the unread notification count.
  * Relies on real-time WebSockets to push changes; only falls back to a long 2-minute interval if disconnected.
  */
-export function useUnreadCount() {
+export function useUnreadCount(options?: { enabled?: boolean }) {
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
   return useQuery({
@@ -142,15 +142,14 @@ export function useUnreadCount() {
       return res;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes cache
+    enabled: (options?.enabled ?? true) && isOnline,
     refetchInterval: () => {
       if (!isOnline) return false;
       const socket = getRealtimeSocket();
       return socket?.connected ? false : 120_000; // Zero polling when realtime socket is active
     },
     refetchIntervalInBackground: false,
-    refetchOnWindowFocus: false,
     networkMode: 'online',
-    enabled: isOnline,
   });
 }
 

@@ -642,7 +642,7 @@ export default function DashboardLayout({
             {/* Notification Bell Center */}
             {isOnline && (
               <div className="shrink-0">
-                <NotificationBell />
+                <NotificationBell unreadCount={shellBadges?.unreadNotifications} />
               </div>
             )}
 

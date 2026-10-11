@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchTeacherGroups, fetchTeacherDashboardOverview, fetchTeacherDashboardInit } from '../api/dashboard.api';
 import { DashboardFilterState } from '../types/dashboard.types';
 import { offlineDb } from '@/lib/offline/db';
+import { QUERY_KEYS } from '@/lib/api/query-keys';
 
 export const DEFAULT_DASHBOARD_FILTERS: DashboardFilterState = {
   academicYear: '2026-2027',
@@ -62,6 +63,20 @@ export function useTeacherDashboard(filters: DashboardFilterState = DEFAULT_DASH
         if (data.menus.academicPeriod) {
           queryClient.setQueryData(['teacher', 'academic-period'], data.menus.academicPeriod);
         }
+      }
+
+      // Seed pending reservations into courses subscriptions cache
+      if (data?.pendingReservations) {
+        queryClient.setQueryData(QUERY_KEYS.courses.teacherSubscriptions(), {
+          pendingRequests: data.pendingReservations,
+          activeStudents: [],
+          unsubscribedStudents: [],
+          counts: {
+            pending: data.pendingReservations.length,
+            active: 0,
+            unsubscribed: 0,
+          },
+        });
       }
 
       return data;

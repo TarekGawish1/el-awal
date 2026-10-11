@@ -133,6 +133,7 @@ async function bootstrap() {
       'Origin',
     ],
     exposedHeaders: ['x-correlation-id'],
+    maxAge: 86400, // Cache preflight OPTIONS responses in browsers for 24 hours
   });
 
   // OpenAPI / Swagger Documentation Setup (gated in production unless ENABLE_SWAGGER=true)
