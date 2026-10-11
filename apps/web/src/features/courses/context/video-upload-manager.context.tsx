@@ -105,7 +105,6 @@ export function VideoUploadManagerProvider({
 }) {
   const [tasks, setTasks] = useState<Record<string, VideoUploadTask>>({});
   const activeXhrsRef = useRef<Record<string, XMLHttpRequest>>({});
-  const stallTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
   const tasksRef = useRef<Record<string, VideoUploadTask>>({});
   tasksRef.current = tasks;
   const taskOptionsRef = useRef<Record<string, StartUploadOptions>>({});
@@ -135,10 +134,6 @@ export function VideoUploadManagerProvider({
 
   const cancelUpload = useCallback(
     (taskId: string) => {
-      if (stallTimersRef.current[taskId]) {
-        clearTimeout(stallTimersRef.current[taskId]);
-        delete stallTimersRef.current[taskId];
-      }
       const xhr = activeXhrsRef.current[taskId];
       const task = tasksRef.current[taskId];
 
@@ -383,42 +378,11 @@ export function VideoUploadManagerProvider({
           }
         };
 
-        // Fallback: upload directly to Bunny Stream via secure server proxy
-        const executeServerFallback = async (reason?: string) => {
-          if (stallTimersRef.current[taskId]) {
-            clearTimeout(stallTimersRef.current[taskId]);
-            delete stallTimersRef.current[taskId];
-          }
+        let lastLoaded = 0;
+        let lastTime = Date.now();
 
-          if (activeXhrsRef.current[taskId]) {
-            try {
-              activeXhrsRef.current[taskId].abort();
-            } catch {}
-            delete activeXhrsRef.current[taskId];
-          }
-
-          console.warn(
-            `Direct browser Bunny upload bypassed/interrupted (${reason || 'network/cors'}). Switching to secure server upload to Bunny Stream for: ${lessonTitle || file.name}`,
-          );
-
-          updateTask(taskId, {
-            status: 'uploading',
-            progress: 20,
-            uploadedBytes: 0,
-            speedMbps: 0,
-            etaSeconds: 0,
-            provider: 'bunny',
-          });
-
-          toast(
-            `جاري استكمال رفع "${lessonTitle || file.name}" إلى سيرفر البث (Bunny Stream)...`,
-            { icon: '🔄', duration: 4000 },
-          );
-
-          let lastLoaded = 0;
-          let lastTime = Date.now();
-
-          const fallbackResult = await coursesApi.uploadVideoDirectToServer(
+        try {
+          const result = await coursesApi.uploadVideoDirectToServer(
             file,
             lessonTitle.trim() || file.name,
             (percent, loaded, total) => {
@@ -439,7 +403,7 @@ export function VideoUploadManagerProvider({
               const patch: Partial<VideoUploadTask> = {
                 uploadedBytes: loaded,
                 totalBytes: total,
-                progress: Math.min(Math.round((percent / 100) * 75) + 20, 98),
+                progress: Math.min(Math.round((percent / 100) * 88) + 10, 98),
               };
               if (currentSpeed > 0) {
                 patch.speedMbps = parseFloat(currentSpeed.toFixed(2));
@@ -449,162 +413,30 @@ export function VideoUploadManagerProvider({
               }
               updateTask(taskId, patch);
             },
-            undefined, // Always pass undefined so server provisions a pristine, fresh Bunny Stream video object
-            (fallbackXhr) => {
-              activeXhrsRef.current[taskId] = fallbackXhr;
+            undefined,
+            (xhr) => {
+              activeXhrsRef.current[taskId] = xhr;
             },
           );
+
+          delete activeXhrsRef.current[taskId];
 
           await finalizeSuccess({
-            videoId: fallbackResult.videoId,
-            embedUrl: fallbackResult.embedUrl,
+            videoId: result.videoId,
+            embedUrl: result.embedUrl,
             provider: 'bunny',
           });
-        };
-
-        try {
-          if (await isBraveBrowser()) {
-            await executeServerFallback('brave_browser_shields_protection');
-            return;
-          }
-
-          const creds = await coursesApi.getVideoUploadCredentials(
-            lessonTitle.trim() || file.name,
-          );
-
-          updateTask(taskId, {
-            progress: 15,
-            provider: creds.provider,
-            videoId: creds.videoId,
-            embedUrl: creds.embedUrl,
-          });
-
-          const xhr = new XMLHttpRequest();
-          activeXhrsRef.current[taskId] = xhr;
-          xhr.open('PUT', creds.uploadUrl);
-
-          // Bunny simple direct upload: AccessKey + octet-stream body only.
-          if (creds.accessKey) xhr.setRequestHeader('AccessKey', creds.accessKey);
-          xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-
-          let lastLoaded = 0;
-          let lastTime = Date.now();
-          let hasTransferredBytes = false;
-          let fallbackTriggered = false;
-
-          const triggerFallback = async (reason: string) => {
-            if (fallbackTriggered) return;
-            fallbackTriggered = true;
-            if (stallTimersRef.current[taskId]) {
-              clearTimeout(stallTimersRef.current[taskId]);
-              delete stallTimersRef.current[taskId];
-            }
-            try {
-              await executeServerFallback(reason);
-            } catch (fallbackErr: any) {
-              updateTask(taskId, {
-                status: 'error',
-                error: fallbackErr?.message || 'حدث خطأ أثناء رفع الفيديو إلى سيرفر البث',
-              });
-              toast.error(
-                `فشل رفع الفيديو "${lessonTitle || file.name}"`,
-              );
-            }
-          };
-
-          // Proactive stall detection: if 5s elapse and 0 bytes transferred, fall back to server proxy immediately
-          stallTimersRef.current[taskId] = setTimeout(() => {
-            if (!hasTransferredBytes) {
-              console.warn(
-                `Direct upload stalled at 0 bytes for 5s: ${lessonTitle || file.name}. Switching to server proxy...`,
-              );
-              triggerFallback('stall_at_0_bytes');
-            }
-          }, 5000);
-
-          xhr.timeout = 25000;
-          xhr.ontimeout = () => {
-            triggerFallback('xhr_timeout');
-          };
-
-          xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable) {
-              if (event.loaded > 0) {
-                hasTransferredBytes = true;
-                if (stallTimersRef.current[taskId]) {
-                  clearTimeout(stallTimersRef.current[taskId]);
-                  delete stallTimersRef.current[taskId];
-                }
-              }
-
-              const now = Date.now();
-              const timeDiff = (now - lastTime) / 1000;
-              let currentSpeed = 0;
-              let eta = 0;
-
-              if (timeDiff >= 0.5) {
-                const bytesDiff = event.loaded - lastLoaded;
-                currentSpeed = bytesDiff / timeDiff / (1024 * 1024); // MB/s
-                const remainingBytes = event.total - event.loaded;
-                eta =
-                  currentSpeed > 0
-                    ? remainingBytes / (1024 * 1024) / currentSpeed
-                    : 0;
-                lastLoaded = event.loaded;
-                lastTime = now;
-              }
-
-              const percent = Math.round((event.loaded / event.total) * 80) + 15;
-
-              const patch: Partial<VideoUploadTask> = {
-                uploadedBytes: event.loaded,
-                totalBytes: event.total,
-                progress: Math.min(percent, 98),
-              };
-              if (currentSpeed > 0) {
-                patch.speedMbps = parseFloat(currentSpeed.toFixed(2));
-              }
-              if (eta > 0) {
-                patch.etaSeconds = Math.ceil(eta);
-              }
-              updateTask(taskId, patch);
-            }
-          };
-
-          xhr.onload = async () => {
-            if (stallTimersRef.current[taskId]) {
-              clearTimeout(stallTimersRef.current[taskId]);
-              delete stallTimersRef.current[taskId];
-            }
-            delete activeXhrsRef.current[taskId];
-            if (xhr.status >= 200 && xhr.status < 300) {
-              await finalizeSuccess({
-                videoId: creds.videoId,
-                embedUrl: creds.embedUrl,
-                provider: creds.provider,
-              });
-            } else {
-              await triggerFallback(`HTTP status ${xhr.status}`);
-            }
-          };
-
-          xhr.onerror = async () => {
-            delete activeXhrsRef.current[taskId];
-            await triggerFallback('network_error_or_cors_block');
-          };
-
-          xhr.send(file);
         } catch (err: any) {
-          try {
-            await executeServerFallback(err?.message || 'credential_generation_error');
-          } catch (fallbackErr: any) {
-            delete activeXhrsRef.current[taskId];
-            updateTask(taskId, {
-              status: 'error',
-              error: fallbackErr?.message || err?.message || 'تعذر الحصول على تصريح رفع الفيديو',
-            });
-            toast.error(fallbackErr?.message || err?.message || 'تعذر الحصول على تصريح رفع الفيديو');
-          }
+          delete activeXhrsRef.current[taskId];
+          const errorMsg =
+            err?.message || 'حدث خطأ أثناء رفع الفيديو إلى سيرفر البث السحابي';
+          updateTask(taskId, {
+            status: 'error',
+            error: errorMsg,
+          });
+          toast.error(
+            `فشل رفع الفيديو "${lessonTitle || file.name}": ${errorMsg}`,
+          );
         }
       })();
 

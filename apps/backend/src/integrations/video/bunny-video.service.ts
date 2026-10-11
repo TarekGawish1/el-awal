@@ -197,18 +197,6 @@ export class BunnyVideoService {
         throw new Error(`Failed to upload video to Bunny Stream (status ${response.status})`);
       }
 
-      // Best-effort confirmation poll: give Bunny a few seconds to register
-      // the bytes. Never throws - the 2xx above is the source of truth.
-      for (let attempt = 0; attempt < 4; attempt++) {
-        try {
-          const details = await this.getVideoDetails(videoId);
-          if (details.storageSize > 0 || details.status >= 1) break;
-        } catch {
-          // ignore and retry
-        }
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-      }
-
       this.logger.log(`✅ Video [${videoId}] buffer successfully uploaded to Bunny Stream`);
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
