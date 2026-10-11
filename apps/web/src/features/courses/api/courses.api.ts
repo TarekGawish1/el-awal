@@ -166,6 +166,7 @@ export const coursesApi = {
     title?: string,
     onProgress?: (percent: number, loaded: number, total: number) => void,
     videoId?: string,
+    onXhrCreated?: (xhr: XMLHttpRequest) => void,
   ): Promise<{
     videoId: string;
     embedUrl: string;
@@ -181,6 +182,10 @@ export const coursesApi = {
       const xhr = new XMLHttpRequest();
       const url = `${API_BASE_URL}/courses/lessons/upload-video-stream`;
       xhr.open('POST', url);
+
+      if (onXhrCreated) {
+        onXhrCreated(xhr);
+      }
 
       const token = getStoredAccessToken();
       if (token) {

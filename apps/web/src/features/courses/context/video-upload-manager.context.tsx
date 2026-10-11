@@ -78,6 +78,22 @@ interface VideoUploadManagerContextType {
   attachLessonIdToTask: (taskId: string, lessonId: string) => void;
 }
 
+export async function isBraveBrowser(): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  if ((navigator as any).brave) {
+    if (typeof (navigator as any).brave.isBrave === 'function') {
+      try {
+        const isBrave = await (navigator as any).brave.isBrave();
+        return Boolean(isBrave);
+      } catch {
+        return true;
+      }
+    }
+    return true;
+  }
+  return navigator.userAgent.includes('Brave');
+}
+
 const VideoUploadManagerContext = createContext<
   VideoUploadManagerContextType | undefined
 >(undefined);
@@ -89,6 +105,7 @@ export function VideoUploadManagerProvider({
 }) {
   const [tasks, setTasks] = useState<Record<string, VideoUploadTask>>({});
   const activeXhrsRef = useRef<Record<string, XMLHttpRequest>>({});
+  const stallTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
   const tasksRef = useRef<Record<string, VideoUploadTask>>({});
   tasksRef.current = tasks;
   const taskOptionsRef = useRef<Record<string, StartUploadOptions>>({});
@@ -118,6 +135,10 @@ export function VideoUploadManagerProvider({
 
   const cancelUpload = useCallback(
     (taskId: string) => {
+      if (stallTimersRef.current[taskId]) {
+        clearTimeout(stallTimersRef.current[taskId]);
+        delete stallTimersRef.current[taskId];
+      }
       const xhr = activeXhrsRef.current[taskId];
       const task = tasksRef.current[taskId];
 
@@ -364,6 +385,11 @@ export function VideoUploadManagerProvider({
 
         // Fallback: upload directly to Bunny Stream via secure server proxy
         const executeServerFallback = async (reason?: string) => {
+          if (stallTimersRef.current[taskId]) {
+            clearTimeout(stallTimersRef.current[taskId]);
+            delete stallTimersRef.current[taskId];
+          }
+
           if (activeXhrsRef.current[taskId]) {
             try {
               activeXhrsRef.current[taskId].abort();
@@ -372,7 +398,7 @@ export function VideoUploadManagerProvider({
           }
 
           console.warn(
-            `Direct browser Bunny upload interrupted (${reason || 'network/cors'}). Switching to secure server upload to Bunny Stream for: ${lessonTitle || file.name}`,
+            `Direct browser Bunny upload bypassed/interrupted (${reason || 'network/cors'}). Switching to secure server upload to Bunny Stream for: ${lessonTitle || file.name}`,
           );
 
           updateTask(taskId, {
@@ -411,15 +437,23 @@ export function VideoUploadManagerProvider({
                 lastTime = now;
               }
 
-              updateTask(taskId, {
+              const patch: Partial<VideoUploadTask> = {
                 uploadedBytes: loaded,
                 totalBytes: total,
                 progress: Math.min(Math.round((percent / 100) * 75) + 20, 98),
-                speedMbps: currentSpeed > 0 ? parseFloat(currentSpeed.toFixed(2)) : undefined,
-                etaSeconds: eta > 0 ? Math.ceil(eta) : undefined,
-              });
+              };
+              if (currentSpeed > 0) {
+                patch.speedMbps = parseFloat(currentSpeed.toFixed(2));
+              }
+              if (eta > 0) {
+                patch.etaSeconds = Math.ceil(eta);
+              }
+              updateTask(taskId, patch);
             },
             currentVideoId,
+            (fallbackXhr) => {
+              activeXhrsRef.current[taskId] = fallbackXhr;
+            },
           );
 
           await finalizeSuccess({
@@ -430,6 +464,11 @@ export function VideoUploadManagerProvider({
         };
 
         try {
+          if (await isBraveBrowser()) {
+            await executeServerFallback('brave_browser_shields_protection');
+            return;
+          }
+
           const creds = await coursesApi.getVideoUploadCredentials(
             lessonTitle.trim() || file.name,
           );
@@ -446,18 +485,59 @@ export function VideoUploadManagerProvider({
           xhr.open('PUT', creds.uploadUrl);
 
           // Bunny simple direct upload: AccessKey + octet-stream body only.
-          // Do NOT attach the TUS-style signature headers (AuthorizationSignature
-          // / AuthorizationExpire / LibraryId / VideoId) here - Bunny answers
-          // those PUTs with 2xx while silently discarding the body, which is
-          // how every upload landed as 0 Bytes / stuck-Processing forever.
           if (creds.accessKey) xhr.setRequestHeader('AccessKey', creds.accessKey);
           xhr.setRequestHeader('Content-Type', 'application/octet-stream');
 
           let lastLoaded = 0;
           let lastTime = Date.now();
+          let hasTransferredBytes = false;
+          let fallbackTriggered = false;
+
+          const triggerFallback = async (reason: string) => {
+            if (fallbackTriggered) return;
+            fallbackTriggered = true;
+            if (stallTimersRef.current[taskId]) {
+              clearTimeout(stallTimersRef.current[taskId]);
+              delete stallTimersRef.current[taskId];
+            }
+            try {
+              await executeServerFallback(reason);
+            } catch (fallbackErr: any) {
+              updateTask(taskId, {
+                status: 'error',
+                error: fallbackErr?.message || 'حدث خطأ أثناء رفع الفيديو إلى سيرفر البث',
+              });
+              toast.error(
+                `فشل رفع الفيديو "${lessonTitle || file.name}"`,
+              );
+            }
+          };
+
+          // Proactive stall detection: if 5s elapse and 0 bytes transferred, fall back to server proxy immediately
+          stallTimersRef.current[taskId] = setTimeout(() => {
+            if (!hasTransferredBytes) {
+              console.warn(
+                `Direct upload stalled at 0 bytes for 5s: ${lessonTitle || file.name}. Switching to server proxy...`,
+              );
+              triggerFallback('stall_at_0_bytes');
+            }
+          }, 5000);
+
+          xhr.timeout = 25000;
+          xhr.ontimeout = () => {
+            triggerFallback('xhr_timeout');
+          };
 
           xhr.upload.onprogress = (event) => {
             if (event.lengthComputable) {
+              if (event.loaded > 0) {
+                hasTransferredBytes = true;
+                if (stallTimersRef.current[taskId]) {
+                  clearTimeout(stallTimersRef.current[taskId]);
+                  delete stallTimersRef.current[taskId];
+                }
+              }
+
               const now = Date.now();
               const timeDiff = (now - lastTime) / 1000;
               let currentSpeed = 0;
@@ -477,20 +557,26 @@ export function VideoUploadManagerProvider({
 
               const percent = Math.round((event.loaded / event.total) * 80) + 15;
 
-              updateTask(taskId, {
+              const patch: Partial<VideoUploadTask> = {
                 uploadedBytes: event.loaded,
                 totalBytes: event.total,
                 progress: Math.min(percent, 98),
-                speedMbps:
-                  currentSpeed > 0
-                    ? parseFloat(currentSpeed.toFixed(2))
-                    : undefined,
-                etaSeconds: eta > 0 ? Math.ceil(eta) : undefined,
-              });
+              };
+              if (currentSpeed > 0) {
+                patch.speedMbps = parseFloat(currentSpeed.toFixed(2));
+              }
+              if (eta > 0) {
+                patch.etaSeconds = Math.ceil(eta);
+              }
+              updateTask(taskId, patch);
             }
           };
 
           xhr.onload = async () => {
+            if (stallTimersRef.current[taskId]) {
+              clearTimeout(stallTimersRef.current[taskId]);
+              delete stallTimersRef.current[taskId];
+            }
             delete activeXhrsRef.current[taskId];
             if (xhr.status >= 200 && xhr.status < 300) {
               await finalizeSuccess({
@@ -499,35 +585,13 @@ export function VideoUploadManagerProvider({
                 provider: creds.provider,
               });
             } else {
-              // Direct PUT returned non-2xx -> attempt server fallback
-              try {
-                await executeServerFallback(`HTTP status ${xhr.status}`);
-              } catch (fallbackErr: any) {
-                updateTask(taskId, {
-                  status: 'error',
-                  error: fallbackErr?.message || `تعذر رفع الفيديو إلى سيرفر البث السحابي (كود: ${xhr.status})`,
-                });
-                toast.error(
-                  `فشل رفع الفيديو "${lessonTitle || file.name}"`,
-                );
-              }
+              await triggerFallback(`HTTP status ${xhr.status}`);
             }
           };
 
           xhr.onerror = async () => {
             delete activeXhrsRef.current[taskId];
-            // Network/CORS/Brave Shields block -> attempt server fallback to Bunny Stream
-            try {
-              await executeServerFallback('network_error_or_cors_block');
-            } catch (fallbackErr: any) {
-              updateTask(taskId, {
-                status: 'error',
-                error: fallbackErr?.message || 'حدث خطأ في الاتصال أثناء رفع الفيديو',
-              });
-              toast.error(
-                `حدث خطأ في الاتصال أثناء رفع فيديو "${lessonTitle || file.name}"`,
-              );
-            }
+            await triggerFallback('network_error_or_cors_block');
           };
 
           xhr.send(file);
