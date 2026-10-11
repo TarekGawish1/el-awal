@@ -138,7 +138,7 @@ export function getDefaultAcademicTerm(): string {
  */
 export function useActiveAcademicPeriod() {
   return useQuery({
-    queryKey: QUERY_KEYS.academicPeriods.active(),
+    queryKey: ['teacher', 'academic-period'],
     queryFn: fetchAcademicPeriod,
     staleTime: 30 * 60 * 1000, // 30 minutes
     gcTime: 60 * 60 * 1000,    // 60 minutes

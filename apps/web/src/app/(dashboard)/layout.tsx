@@ -311,11 +311,11 @@ export default function DashboardLayout({
     },
     enabled: isReservationsRole && isOnline,
     networkMode: 'online',
-    staleTime: 30000,
+    staleTime: 60000,
     refetchInterval: () => {
       if (!isOnline) return false;
       const socket = getRealtimeSocket();
-      return socket?.connected ? 120000 : 30000;
+      return socket?.connected ? false : 120000;
     },
   });
   useRealtimeInquiries(isReservationsRole && isOnline);
