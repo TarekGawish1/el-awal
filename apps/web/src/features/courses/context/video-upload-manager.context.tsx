@@ -15,6 +15,10 @@ import {
   validateVideoFile,
   VideoMetadata,
 } from '../utils/video-optimizer';
+import {
+  createBunnyTusUpload,
+  BunnyTusUploadInstance,
+} from '../utils/bunny-tus-uploader';
 
 export interface VideoUploadTask {
   id: string;
@@ -89,6 +93,7 @@ export function VideoUploadManagerProvider({
 }) {
   const [tasks, setTasks] = useState<Record<string, VideoUploadTask>>({});
   const activeXhrsRef = useRef<Record<string, XMLHttpRequest>>({});
+  const activeTusUploadsRef = useRef<Record<string, BunnyTusUploadInstance>>({});
   const tasksRef = useRef<Record<string, VideoUploadTask>>({});
   tasksRef.current = tasks;
   const taskOptionsRef = useRef<Record<string, StartUploadOptions>>({});
@@ -118,12 +123,18 @@ export function VideoUploadManagerProvider({
 
   const cancelUpload = useCallback(
     (taskId: string) => {
+      const tusUpload = activeTusUploadsRef.current[taskId];
       const xhr = activeXhrsRef.current[taskId];
       const task = tasksRef.current[taskId];
 
-      // If there is no active XHR and no tracked task (or task is already finished/aborted), ignore
-      if (!xhr && (!task || task.status === 'aborted' || task.status === 'completed')) {
+      // If there is no active TUS upload, no active XHR and no tracked task (or already finished/aborted), ignore
+      if (!tusUpload && !xhr && (!task || task.status === 'aborted' || task.status === 'completed')) {
         return;
+      }
+
+      if (tusUpload) {
+        tusUpload.abort();
+        delete activeTusUploadsRef.current[taskId];
       }
 
       if (xhr) {
@@ -420,7 +431,12 @@ export function VideoUploadManagerProvider({
               });
             },
             currentVideoId,
+            (xhr) => {
+              activeXhrsRef.current[taskId] = xhr;
+            },
           );
+
+          delete activeXhrsRef.current[taskId];
 
           await finalizeSuccess({
             videoId: fallbackResult.videoId,
@@ -441,100 +457,60 @@ export function VideoUploadManagerProvider({
             embedUrl: creds.embedUrl,
           });
 
-          const xhr = new XMLHttpRequest();
-          activeXhrsRef.current[taskId] = xhr;
-          xhr.open('PUT', creds.uploadUrl);
-
-          // Bunny simple direct upload: AccessKey + octet-stream body only.
-          // Do NOT attach the TUS-style signature headers (AuthorizationSignature
-          // / AuthorizationExpire / LibraryId / VideoId) here - Bunny answers
-          // those PUTs with 2xx while silently discarding the body, which is
-          // how every upload landed as 0 Bytes / stuck-Processing forever.
-          if (creds.accessKey) xhr.setRequestHeader('AccessKey', creds.accessKey);
-          xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-
-          let lastLoaded = 0;
-          let lastTime = Date.now();
-
-          xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable) {
-              const now = Date.now();
-              const timeDiff = (now - lastTime) / 1000;
-              let currentSpeed = 0;
-              let eta = 0;
-
-              if (timeDiff >= 0.5) {
-                const bytesDiff = event.loaded - lastLoaded;
-                currentSpeed = bytesDiff / timeDiff / (1024 * 1024); // MB/s
-                const remainingBytes = event.total - event.loaded;
-                eta =
-                  currentSpeed > 0
-                    ? remainingBytes / (1024 * 1024) / currentSpeed
-                    : 0;
-                lastLoaded = event.loaded;
-                lastTime = now;
-              }
-
-              const percent = Math.round((event.loaded / event.total) * 80) + 15;
-
+          // Upload directly to Bunny Stream using official TUS resumable protocol
+          const tusUpload = createBunnyTusUpload({
+            file,
+            videoId: creds.videoId,
+            libraryId: creds.libraryId,
+            authorizationSignature: creds.authorizationSignature,
+            authorizationExpire: creds.authorizationExpire,
+            title: lessonTitle.trim() || file.name,
+            onProgress: (percent, loaded, total, speed, eta) => {
               updateTask(taskId, {
-                uploadedBytes: event.loaded,
-                totalBytes: event.total,
-                progress: Math.min(percent, 98),
-                speedMbps:
-                  currentSpeed > 0
-                    ? parseFloat(currentSpeed.toFixed(2))
-                    : undefined,
-                etaSeconds: eta > 0 ? Math.ceil(eta) : undefined,
+                uploadedBytes: loaded,
+                totalBytes: total,
+                progress: percent,
+                speedMbps: speed > 0 ? speed : undefined,
+                etaSeconds: eta > 0 ? eta : undefined,
               });
-            }
-          };
-
-          xhr.onload = async () => {
-            delete activeXhrsRef.current[taskId];
-            if (xhr.status >= 200 && xhr.status < 300) {
+            },
+            onSuccess: async () => {
+              delete activeTusUploadsRef.current[taskId];
               await finalizeSuccess({
                 videoId: creds.videoId,
                 embedUrl: creds.embedUrl,
                 provider: creds.provider,
               });
-            } else {
-              // Direct PUT returned non-2xx -> attempt server fallback
+            },
+            onError: async (error) => {
+              delete activeTusUploadsRef.current[taskId];
+              console.warn(
+                '[VideoUploadManager] Bunny TUS direct upload interrupted, falling back to server upload:',
+                error,
+              );
               try {
-                await executeServerFallback(`HTTP status ${xhr.status}`);
+                await executeServerFallback(error?.message || 'tus_error');
               } catch (fallbackErr: any) {
+                delete activeXhrsRef.current[taskId];
                 updateTask(taskId, {
                   status: 'error',
-                  error: fallbackErr?.message || `تعذر رفع الفيديو إلى سيرفر البث السحابي (كود: ${xhr.status})`,
+                  error: fallbackErr?.message || 'حدث خطأ في الاتصال أثناء رفع الفيديو',
                 });
                 toast.error(
-                  `فشل رفع الفيديو "${lessonTitle || file.name}"`,
+                  `حدث خطأ في الاتصال أثناء رفع فيديو "${lessonTitle || file.name}"`,
                 );
               }
-            }
-          };
+            },
+          });
 
-          xhr.onerror = async () => {
-            delete activeXhrsRef.current[taskId];
-            // Network/CORS/Brave Shields block -> attempt server fallback to Bunny Stream
-            try {
-              await executeServerFallback('network_error_or_cors_block');
-            } catch (fallbackErr: any) {
-              updateTask(taskId, {
-                status: 'error',
-                error: fallbackErr?.message || 'حدث خطأ في الاتصال أثناء رفع الفيديو',
-              });
-              toast.error(
-                `حدث خطأ في الاتصال أثناء رفع فيديو "${lessonTitle || file.name}"`,
-              );
-            }
-          };
-
-          xhr.send(file);
+          activeTusUploadsRef.current[taskId] = tusUpload;
+          tusUpload.start();
         } catch (err: any) {
+          console.warn('[VideoUploadManager] Credential generation failed, falling back to server upload:', err);
           try {
             await executeServerFallback(err?.message || 'credential_generation_error');
           } catch (fallbackErr: any) {
+            delete activeTusUploadsRef.current[taskId];
             delete activeXhrsRef.current[taskId];
             updateTask(taskId, {
               status: 'error',

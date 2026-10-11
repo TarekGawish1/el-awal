@@ -166,6 +166,7 @@ export const coursesApi = {
     title?: string,
     onProgress?: (percent: number, loaded: number, total: number) => void,
     videoId?: string,
+    onXhrCreated?: (xhr: XMLHttpRequest) => void,
   ): Promise<{
     videoId: string;
     embedUrl: string;
@@ -179,6 +180,9 @@ export const coursesApi = {
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
+      if (onXhrCreated) {
+        onXhrCreated(xhr);
+      }
       const url = `${API_BASE_URL}/courses/lessons/upload-video-stream`;
       xhr.open('POST', url);
 
@@ -213,6 +217,11 @@ export const coursesApi = {
           }
         } else {
           let errorMsg = `تعذر رفع الفيديو إلى سيرفر البث السحابي (كود: ${xhr.status})`;
+          if (xhr.status === 413) {
+            errorMsg = 'حجم ملف الفيديو يتجاوز الحد الأقصى المسموح به لخادم الرفع (500 ميجابايت). يرجى تقليل حجم الفيديو أو الرفع المباشر.';
+          } else if (xhr.status === 499 || xhr.status === 504) {
+            errorMsg = 'استغرق رفع الفيديو وقتاً طويلاً وتوقف اتصال السيرفر. يرجى استخدام الرفع المباشر السحابي أو التأكد من سرعة الإنترنت.';
+          }
           try {
             const errObj = JSON.parse(xhr.responseText);
             if (errObj?.message) errorMsg = errObj.message;
@@ -222,7 +231,7 @@ export const coursesApi = {
       };
 
       xhr.onerror = () => {
-        reject(new Error('تعذر الاتصال بالسيرفر أثناء رفع الفيديو إلى Bunny Stream.'));
+        reject(new Error('تعذر الاتصال بالسيرفر أثناء رفع الفيديو إلى Bunny Stream. يرجى التحقق من اتصال الإنترنت وإعادة المحاولة.'));
       };
       xhr.onabort = () => reject(new Error('تم إلغاء رفع الفيديو'));
 

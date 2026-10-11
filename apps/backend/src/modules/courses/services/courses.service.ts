@@ -1878,23 +1878,23 @@ export class CoursesService {
     }
     const videoTitle = title?.trim() || file.originalname || 'Course Video';
 
-    // Reuse the browser's video object when available (direct PUT failed midway).
+    // Reuse the browser's video object when available (direct TUS/PUT failed midway).
     if (videoId && videoId.trim() !== '') {
       const targetId = videoId.trim();
       try {
         await this.bunnyVideoService.uploadVideoBuffer(targetId, file.buffer);
-      } catch (error: any) {
-        throw new BadRequestException(
-          `فشل رفع الفيديو إلى Bunny Stream: ${error?.message || 'خطأ غير متوقع'}. احذف الفيديو العالق وأعد الرفع.`,
+        return {
+          provider: 'bunny' as const,
+          videoId: targetId,
+          embedUrl: this.bunnyVideoService.getEmbedUrl(targetId),
+          playbackUrl: this.bunnyVideoService.generateSecurePlaybackUrl(targetId),
+          contentUrl: this.bunnyVideoService.getEmbedUrl(targetId),
+        };
+      } catch (reuseErr: any) {
+        this.logger.warn(
+          `Failed to reuse client videoId [${targetId}], creating a fresh video object: ${reuseErr?.message}`,
         );
       }
-      return {
-        provider: 'bunny' as const,
-        videoId: targetId,
-        embedUrl: this.bunnyVideoService.getEmbedUrl(targetId),
-        playbackUrl: this.bunnyVideoService.generateSecurePlaybackUrl(targetId),
-        contentUrl: this.bunnyVideoService.getEmbedUrl(targetId),
-      };
     }
 
     try {

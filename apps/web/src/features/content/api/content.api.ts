@@ -10,6 +10,7 @@ import {
   UpdateContentPayload,
   GroupSessionOption,
 } from '../types/content.types';
+import { createBunnyTusUpload } from '@/features/courses/utils/bunny-tus-uploader';
 
 export type UploadProgressCallback = (progress: number, loadedBytes: number, totalBytes: number) => void;
 
@@ -107,6 +108,7 @@ export async function generatePresignedVideoUpload(title: string): Promise<Presi
 
 /**
  * Direct browser-to-Bunny Stream upload with upload progress tracking
+ * Uses TUS resumable upload protocol when credentials are provided
  */
 export function uploadVideoToBunny(
   uploadUrl: string,
@@ -114,44 +116,75 @@ export function uploadVideoToBunny(
   credentials: Partial<PresignedVideoUploadResponse>,
   onProgress?: UploadProgressCallback,
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('PUT', uploadUrl);
+  if (
+    credentials.authorizationSignature &&
+    credentials.libraryId &&
+    credentials.videoId &&
+    credentials.authorizationExpire
+  ) {
+    return new Promise((resolve, reject) => {
+      const tusUpload = createBunnyTusUpload({
+        file,
+        videoId: credentials.videoId!,
+        libraryId: credentials.libraryId!,
+        authorizationSignature: credentials.authorizationSignature!,
+        authorizationExpire: credentials.authorizationExpire!,
+        title: file.name,
+        onProgress: (percent, loaded, total) => {
+          onProgress?.(percent, loaded, total);
+        },
+        onSuccess: () => {
+          resolve();
+        },
+        onError: (err) => {
+          console.warn('[ContentAPI] TUS upload failed, attempting direct fallback:', err);
+          fallbackUpload().then(resolve).catch(reject);
+        },
+      });
+      tusUpload.start();
+    });
+  }
 
-    // AccessKey + body only (see video-upload-manager: extra signature
-    // headers make Bunny reply 2xx while storing 0 bytes).
-    if (credentials.accessKey) {
-      xhr.setRequestHeader('AccessKey', credentials.accessKey);
-    }
-    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+  return fallbackUpload();
 
-    if (xhr.upload && onProgress) {
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable && event.total > 0) {
-          const percent = Math.min(Math.round((event.loaded / event.total) * 100), 100);
-          onProgress(percent, event.loaded, event.total);
+  function fallbackUpload(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', uploadUrl);
+
+      if (credentials.accessKey) {
+        xhr.setRequestHeader('AccessKey', credentials.accessKey);
+      }
+      xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+
+      if (xhr.upload && onProgress) {
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable && event.total > 0) {
+            const percent = Math.min(Math.round((event.loaded / event.total) * 100), 100);
+            onProgress(percent, event.loaded, event.total);
+          }
+        };
+      }
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve();
+        } else {
+          reject(new Error(`فشل رفع الفيديو إلى Bunny Stream (كود: ${xhr.status})`));
         }
       };
-    }
 
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve();
-      } else {
-        reject(new Error(`فشل رفع الفيديو إلى Bunny Stream (كود: ${xhr.status})`));
-      }
-    };
+      xhr.onerror = () => {
+        reject(new Error('تعذر الاتصال بسحابة Bunny Stream أثناء رفع الفيديو. يرجى التحقق من اتصال الإنترنت.'));
+      };
 
-    xhr.onerror = () => {
-      reject(new Error('تعذر الاتصال بسحابة Bunny Stream أثناء رفع الفيديو. يرجى التحقق من اتصال الإنترنت.'));
-    };
+      xhr.onabort = () => {
+        reject(new Error('تم إلغاء رفع الفيديو'));
+      };
 
-    xhr.onabort = () => {
-      reject(new Error('تم إلغاء رفع الفيديو'));
-    };
-
-    xhr.send(file);
-  });
+      xhr.send(file);
+    });
+  }
 }
 
 export function uploadFileToR2(
