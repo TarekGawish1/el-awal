@@ -331,6 +331,55 @@ export class TeachersService {
     };
   }
 
+  async getDashboardInit(teacherId: string, query: DashboardOverviewQueryDto) {
+    const [overview, academicPeriod] = await Promise.all([
+      this.getDashboardOverview(teacherId, query),
+      this.getAcademicPeriod(teacherId),
+    ]);
+
+    const teacherProfile = await this.prisma.teacherProfile.findUnique({
+      where: { id: teacherId },
+    });
+    let effectiveTeacherId = teacherId;
+    if (!teacherProfile) {
+      const primaryTeacher = await this.prisma.teacherProfile.findFirst();
+      if (primaryTeacher) {
+        effectiveTeacherId = primaryTeacher.id;
+      }
+    }
+
+    const rawGroups = await this.prisma.academicGroup.findMany({
+      where: { teacherId: effectiveTeacherId, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        gradeLevel: true,
+        monthlyFee: true,
+        academicYear: true,
+        academicTerm: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const groups = rawGroups.map((g) => ({
+      ...g,
+      monthlyFee: Number(g.monthlyFee),
+      stage: g.gradeLevel.includes('ابتدائي')
+        ? 'PRIMARY'
+        : g.gradeLevel.includes('إعدادي') || g.gradeLevel.includes('اعدادي')
+        ? 'PREPARATORY'
+        : 'SECONDARY',
+    }));
+
+    return {
+      ...overview,
+      menus: {
+        groups,
+        academicPeriod,
+      },
+    };
+  }
+
   async getAcademicPeriod(teacherId?: string) {
     const cacheKey = `academic_period:${teacherId || 'default'}`;
     return this.academicPeriodCache.getOrSet(cacheKey, async () => {

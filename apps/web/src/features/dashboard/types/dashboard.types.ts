@@ -95,4 +95,16 @@ export interface GroupOption {
   gradeLevel: string;
   academicYear?: string;
   academicTerm?: string;
+  stage?: string;
 }
+
+export interface TeacherDashboardInitData extends TeacherDashboardData {
+  menus?: {
+    groups: GroupOption[];
+    academicPeriod: {
+      activeAcademicYear: string;
+      activeAcademicTerm: string;
+    };
+  };
+}
+

@@ -20,8 +20,10 @@ export const API_ENDPOINTS = {
   },
   USERS: {
     ME: "/users/me",
+    BADGES: "/users/me/badges",
   },
   TEACHER: {
+    DASHBOARD_INIT: "/teachers/dashboard/init",
     DASHBOARD_OVERVIEW: "/teachers/dashboard/overview", // Recommended server aggregation contract
     ACADEMIC_PERIOD: "/teachers/academic-period",
     PROFILE: "/teachers/profile",
@@ -107,6 +109,13 @@ export const API_ENDPOINTS = {
     SCAN_QR: "/subscriptions/scan-qr",
     DELETE_PAYMENT: (paymentId: string) => `/subscriptions/${paymentId}`,
     REFUND_PAYMENT: (paymentId: string) => `/subscriptions/${paymentId}/refund`,
+  },
+  PAYMENTS: {
+    INIT: "/payments/init",
+    DASHBOARD_ANALYTICS: "/payments/dashboard-analytics",
+    ANALYTICS: "/payments/analytics",
+    MATRIX_LEDGER: "/payments/matrix-ledger",
+    BILLING_CONFIG: "/payments/billing-config",
   },
   BOOKLETS: {
     LIST: "/booklets",

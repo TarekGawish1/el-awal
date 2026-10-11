@@ -267,3 +267,35 @@ export interface FinanceDashboardResponse {
   groups: FinanceDashboardGroup[];
   onlineCourses: FinanceDashboardOnlineCourse[];
 }
+
+export interface FinanceInitMenuData {
+  groups: Array<{
+    id: string;
+    name: string;
+    gradeLevel: string;
+    stage: string;
+    monthlyFee: number;
+    academicYear: string;
+    academicTerm: string;
+  }>;
+  booklets: Array<{
+    id: string;
+    title: string;
+    price: number;
+    gradeLevel: string;
+    groupId: string | null;
+    academicYear: string;
+    academicTerm: string;
+  }>;
+  academicPeriod: {
+    activeAcademicYear: string;
+    activeAcademicTerm: string;
+  };
+  stages?: Record<string, string[]>;
+}
+
+export interface FinanceInitResponse {
+  analytics: FinanceDashboardResponse;
+  menus: FinanceInitMenuData;
+}
+

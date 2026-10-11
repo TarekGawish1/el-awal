@@ -37,7 +37,7 @@ import { BootstrapProgressIndicator } from '@/components/pwa/BootstrapProgressIn
 import { MobileBottomNav } from '@/components/navigation';
 import { SyncReviewModal, SyncConfirmationModal, OfflineActivityDrawer } from '@/components/sync';
 import { getNavigationSectionsForRole } from '@/config/navigation';
-import { usePendingReservations } from '@/features/groups';
+import { useShellBadges } from '@/core/hooks/useShellBadges';
 import { useRealtimeReservations } from '@/lib/realtime/useRealtimeReservations';
 import { useRealtimeInquiries } from '@/lib/realtime/useRealtimeInquiries';
 import { useRealtimeAttendance } from '@/lib/realtime/useRealtimeAttendance';
@@ -292,33 +292,14 @@ export default function DashboardLayout({
     permissions
   );
 
-  // Pending join-request count badge (teacher/secretariat only) — pushed live via WebSocket
+  // Unified layout shell badges (notifications, inquiries, reservations) in 1 consolidated request
   const isReservationsRole = user?.role === 'TEACHER' || user?.role === 'SECRETARIAT';
-  const { data: pendingReservations } = usePendingReservations(isReservationsRole && isOnline);
-  const pendingReservationsCount = pendingReservations?.length ?? 0;
+  const { data: shellBadges } = useShellBadges(isAuthenticated && isOnline);
+  const pendingReservationsCount = shellBadges?.pendingReservations ?? 0;
+  const unreadInquiriesCount = shellBadges?.unreadInquiries ?? 0;
+
   useRealtimeReservations(isReservationsRole && isOnline);
   useRealtimeAttendance(isReservationsRole && isOnline);
-
-  // Unread website contact inquiries count badge (teacher/secretariat only) — pushed live via WebSocket
-  const { data: unreadInquiriesCount = 0 } = useQuery({
-    queryKey: QUERY_KEYS.contactMessages.unreadCount(),
-    queryFn: async () => {
-      try {
-        const res = await apiClient<{ unreadCount: number }>(API_ENDPOINTS.CONTACT_MESSAGES.UNREAD_COUNT);
-        return res?.unreadCount ?? 0;
-      } catch {
-        return 0;
-      }
-    },
-    enabled: isReservationsRole && isOnline,
-    networkMode: 'online',
-    staleTime: 60000,
-    refetchInterval: () => {
-      if (!isOnline) return false;
-      const socket = getRealtimeSocket();
-      return socket?.connected ? false : 120000;
-    },
-  });
   useRealtimeInquiries(isReservationsRole && isOnline);
   useRealtimeNotifications(isOnline);
 

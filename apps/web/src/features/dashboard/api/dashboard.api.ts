@@ -1,6 +1,6 @@
 import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
-import { DashboardFilterState, TeacherDashboardData, GroupOption } from '../types/dashboard.types';
+import { DashboardFilterState, TeacherDashboardData, TeacherDashboardInitData, GroupOption } from '../types/dashboard.types';
 import { offlineDb } from '@/lib/offline/db';
 
 /**
@@ -129,11 +129,11 @@ async function buildOfflineDashboardData(filters: DashboardFilterState): Promise
 }
 
 /**
- * Fetches primary teacher dashboard aggregated metrics & activities
+ * Fetches primary teacher dashboard aggregated metrics, activities, and filter menus in 1 request
  */
-export async function fetchTeacherDashboardOverview(
+export async function fetchTeacherDashboardInit(
   filters: DashboardFilterState,
-): Promise<TeacherDashboardData> {
+): Promise<TeacherDashboardInitData> {
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
   if (!isOnline) {
     return buildOfflineDashboardData(filters);
@@ -160,10 +160,26 @@ export async function fetchTeacherDashboardOverview(
   if (filters.layout) queryParams.layout = filters.layout;
 
   try {
-    return await apiClient<TeacherDashboardData>(API_ENDPOINTS.TEACHER.DASHBOARD_OVERVIEW, {
+    return await apiClient<TeacherDashboardInitData>(API_ENDPOINTS.TEACHER.DASHBOARD_INIT, {
       params: queryParams,
     });
-  } catch (error) {
-    return buildOfflineDashboardData(filters);
+  } catch {
+    try {
+      return await apiClient<TeacherDashboardData>(API_ENDPOINTS.TEACHER.DASHBOARD_OVERVIEW, {
+        params: queryParams,
+      });
+    } catch {
+      return buildOfflineDashboardData(filters);
+    }
   }
 }
+
+/**
+ * Fetches primary teacher dashboard aggregated metrics & activities
+ */
+export async function fetchTeacherDashboardOverview(
+  filters: DashboardFilterState,
+): Promise<TeacherDashboardData> {
+  return fetchTeacherDashboardInit(filters);
+}
+

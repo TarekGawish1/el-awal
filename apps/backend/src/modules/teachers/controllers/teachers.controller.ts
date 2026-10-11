@@ -22,6 +22,20 @@ export class TeachersController {
     private readonly studentsService: StudentsService,
   ) {}
 
+  @Get('dashboard/init')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({
+    summary: 'Consolidated teacher dashboard init endpoint returning overview metrics and filter menus (groups & academic period)',
+  })
+  @ApiResponse({ status: 200, description: 'Teacher dashboard init data with menus' })
+  async getDashboardInit(
+    @Query() query: DashboardOverviewQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const teacherId = user.teacherProfileId || user.id;
+    return this.teachersService.getDashboardInit(teacherId, query);
+  }
+
   @Get('dashboard/overview')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({
