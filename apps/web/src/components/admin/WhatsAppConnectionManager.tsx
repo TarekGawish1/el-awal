@@ -47,6 +47,7 @@ export function WhatsAppConnectionManager({ isOpen, onClose }: WhatsAppConnectio
   const [isConfirmingRelink, setIsConfirmingRelink] = useState(false);
 
   const fetchStatus = async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
     try {
       const data = await apiClient<WhatsAppStatusResponse>('/notifications/whatsapp-status');
       setStatusData(data);
@@ -56,10 +57,13 @@ export function WhatsAppConnectionManager({ isOpen, onClose }: WhatsAppConnectio
   };
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
 
     fetchStatus();
-    const interval = setInterval(fetchStatus, 3000);
+    const interval = setInterval(() => {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+      fetchStatus();
+    }, 3000);
     return () => clearInterval(interval);
   }, [isOpen]);
 

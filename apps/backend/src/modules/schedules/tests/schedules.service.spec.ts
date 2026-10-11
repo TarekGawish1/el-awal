@@ -36,6 +36,7 @@ describe('SchedulesService', () => {
     educationalContent: {
       findMany: jest.fn(),
     },
+    $queryRaw: jest.fn(),
     $transaction: jest.fn((cb) => cb(mockPrismaService)),
   };
 
@@ -83,7 +84,8 @@ describe('SchedulesService', () => {
   });
 
   describe('autoEnsureSemesterSessionsForGroups', () => {
-    it('generates missing semester sessions in bulk', async () => {
+    it('generates missing semester sessions in bulk with skipDuplicates: true', async () => {
+      mockPrismaService.$queryRaw.mockResolvedValue([{ locked: true }]);
       mockPrismaService.lessonSession.findMany.mockResolvedValue([]);
       mockPrismaService.lessonSession.createMany.mockResolvedValue({ count: 26 });
 
@@ -103,9 +105,31 @@ describe('SchedulesService', () => {
 
       expect(mockPrismaService.lessonSession.createMany).toHaveBeenCalledTimes(1);
       const callData = mockPrismaService.lessonSession.createMany.mock.calls[0][0];
+      expect(callData.skipDuplicates).toBe(true);
       expect(callData.data.length).toBeGreaterThan(20);
       expect(callData.data[0].groupId).toBe('group-1');
       expect(callData.data[0].startTime).toBe('16:00');
+    });
+
+    it('skips session generation sweep when PostgreSQL advisory lock is held by another process', async () => {
+      mockPrismaService.$queryRaw.mockResolvedValue([{ locked: false }]);
+
+      const mockGroups = [
+        {
+          id: 'group-1',
+          name: 'الصف الثالث الثانوي',
+          academicYear: '2026-2027',
+          academicTerm: 'FIRST_TERM',
+          schedules: [
+            { id: 'sched-1', dayOfWeek: 0, startTime: '16:00', endTime: '18:00' },
+          ],
+        },
+      ];
+
+      await service.autoEnsureSemesterSessionsForGroups(mockGroups, '2026-2027', 'FIRST_TERM');
+
+      expect(mockPrismaService.lessonSession.findMany).not.toHaveBeenCalled();
+      expect(mockPrismaService.lessonSession.createMany).not.toHaveBeenCalled();
     });
   });
 

@@ -84,11 +84,30 @@ async function buildOfflineDashboardData(filters: DashboardFilterState): Promise
     };
   });
 
+  // Accurately compute active students enrolled in teacher's active groups (mirroring backend logic)
+  const activeStudentIds = new Set<string>();
+  const rosters = await Promise.all(
+    filteredGroups.map((g) => offlineDb.getRoster(g.id).catch(() => null))
+  );
+  rosters.forEach((r) => {
+    if (r?.students && Array.isArray(r.students)) {
+      r.students.forEach((st) => {
+        if (st.id) activeStudentIds.add(st.id);
+      });
+    }
+  });
+
+  let totalActiveStudentsCount = activeStudentIds.size;
+  if (totalActiveStudentsCount === 0 && filteredGroups.length > 0) {
+    const sumEnrollments = filteredGroups.reduce((acc, g) => acc + Number(g._count?.enrollments ?? 0), 0);
+    totalActiveStudentsCount = sumEnrollments > 0 ? sumEnrollments : safeStudents.length;
+  }
+
   return {
     kpis: {
       todaySessionsCount: todaySessions.length,
       activeSessionsCount: todaySessions.length,
-      totalActiveStudents: safeStudents.length,
+      totalActiveStudents: totalActiveStudentsCount,
       totalActiveGroups: filteredGroups.length,
       weeklyAttendanceRate: 92.5,
       attendanceRateDelta: 1.2,

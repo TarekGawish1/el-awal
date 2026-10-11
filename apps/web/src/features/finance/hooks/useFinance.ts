@@ -46,10 +46,13 @@ export function useFinanceDashboardAnalytics(
   },
   options?: { enabled?: boolean }
 ) {
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
   return useQuery<FinanceDashboardResponse>({
     queryKey: financeKeys.dashboardAnalytics(query),
     queryFn: () => fetchFinanceDashboardAnalytics(query),
-    enabled: options?.enabled ?? true,
+    enabled: (options?.enabled ?? true) && isOnline,
+    networkMode: 'online',
     staleTime: 30_000,
   });
 }
@@ -86,10 +89,13 @@ export function useFinanceAnalytics(
   },
   options?: { enabled?: boolean }
 ) {
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
   return useQuery<FinanceAnalyticsResponse>({
     queryKey: financeKeys.financeAnalytics(query),
     queryFn: () => fetchFinanceAnalytics(query),
-    enabled: options?.enabled ?? true,
+    enabled: (options?.enabled ?? true) && isOnline,
+    networkMode: 'online',
     staleTime: 30_000,
   });
 }

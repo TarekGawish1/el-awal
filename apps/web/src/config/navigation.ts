@@ -62,14 +62,14 @@ export const TEACHER_NAVIGATION_SECTIONS: NavSectionConfig[] = [
     title: 'الطلاب',
     items: [
       { label: 'سجل الطلاب', href: '/teacher/students', icon: GraduationCap, onlineOnly: false },
-      { label: 'طلبات الانضمام', href: '/teacher/reservations', icon: ClipboardList, onlineOnly: false, badgeKey: 'reservations' },
+      { label: 'طلبات الانضمام', href: '/teacher/reservations', icon: ClipboardList, onlineOnly: true, badgeKey: 'reservations' },
     ],
   },
   {
     id: 'communication',
     title: 'التواصل',
     items: [
-      { label: 'مركز الإشعارات', href: '/teacher/notifications', icon: Bell, onlineOnly: false },
+      { label: 'مركز الإشعارات', href: '/teacher/notifications', icon: Bell, onlineOnly: true },
       { label: 'رسائل الموقع', href: '/teacher/inquiries', icon: MessageSquareShare, onlineOnly: true, badgeKey: 'inquiries' },
       { label: 'آراء الطلاب', href: '/teacher/testimonials', icon: MessageSquareHeart, onlineOnly: true },
     ],
@@ -88,7 +88,7 @@ export const TEACHER_NAVIGATION_SECTIONS: NavSectionConfig[] = [
         label: 'ربط وإدارة الواتساب',
         href: '#whatsapp-manager',
         icon: MessageSquareShare,
-        onlineOnly: false,
+        onlineOnly: true,
         isAction: true,
         actionId: 'whatsapp-manager',
       },

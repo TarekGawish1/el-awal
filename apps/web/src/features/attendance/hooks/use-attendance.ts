@@ -229,8 +229,18 @@ export function useSessionReport(sessionId: string | null) {
         const totalEnrolled = Math.max(allRosterStudents.length, cachedReport?.metrics?.totalEnrolled || 0);
         const presentCount = fullRecords.filter((r) => r.status === 'PRESENT').length;
         const excusedCount = fullRecords.filter((r) => r.status === 'EXCUSED').length;
+
+        const sessionDateStr = session?.sessionDate ? session.sessionDate.split('T')[0] : '';
+        const todayDateStr = new Date().toISOString().split('T')[0];
+        const isPastSession = Boolean(sessionDateStr && sessionDateStr < todayDateStr);
+
         const explicitAbsentCount = fullRecords.filter((r) => r.status === 'ABSENT').length;
-        const calculatedAbsent = explicitAbsentCount;
+        const calculatedAbsent =
+          explicitAbsentCount > 0
+            ? explicitAbsentCount
+            : isPastSession
+            ? Math.max(0, totalEnrolled - presentCount - excusedCount)
+            : 0;
         const attendanceRatePercentage =
           totalEnrolled > 0 ? Math.round((presentCount / totalEnrolled) * 100) : 0;
 

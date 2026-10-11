@@ -148,6 +148,23 @@ export default function DashboardLayout({
     return () => unsubscribe();
   }, []);
 
+  // Warm Service Worker offline caches for core teacher pages upon login/mount
+  useEffect(() => {
+    if (
+      isMounted &&
+      isOnline &&
+      isAuthenticated &&
+      (user?.role === 'TEACHER' || user?.role === 'SECRETARIAT') &&
+      typeof navigator !== 'undefined' &&
+      'serviceWorker' in navigator &&
+      navigator.serviceWorker.controller
+    ) {
+      try {
+        navigator.serviceWorker.controller.postMessage({ type: 'WARM_OFFLINE_SHELL' });
+      } catch {}
+    }
+  }, [isMounted, isOnline, isAuthenticated, user?.role]);
+
   // Silently re-hydrate user profile to ensure multiple profiles and secretariatProfileId are synced (15-min cache)
   const { data: freshUser } = useCurrentUser({
     enabled: isMounted && isAuthenticated && isOnline,
@@ -155,18 +172,37 @@ export default function DashboardLayout({
 
   useEffect(() => {
     if (freshUser && freshUser.id) {
+      const currentUser = useAuthStore.getState().user;
+      if (!currentUser) return;
+
       const freshAny = freshUser as any;
-      const mergedUser: AuthUser = {
-        ...(user as AuthUser),
-        ...freshUser,
-        secretariatProfileId: freshUser.secretariatProfileId || freshAny.secretariatProfile?.id || (freshAny.assistantToTeachers?.length ? freshUser.id : undefined),
-        teacherProfileId: freshUser.teacherProfileId || freshAny.teacherProfile?.id,
-        parentProfileId: freshUser.parentProfileId || freshAny.parentProfile?.id,
-        studentProfileId: freshUser.studentProfileId || freshAny.studentProfile?.id,
-      };
-      useAuthStore.getState().setUser(mergedUser);
+      const secId = freshUser.secretariatProfileId || freshAny.secretariatProfile?.id || (freshAny.assistantToTeachers?.length ? freshUser.id : undefined);
+      const teachId = freshUser.teacherProfileId || freshAny.teacherProfile?.id;
+      const parId = freshUser.parentProfileId || freshAny.parentProfile?.id;
+      const studId = freshUser.studentProfileId || freshAny.studentProfile?.id;
+
+      // Only update if any field actually changed to prevent infinite re-render loops (Minified React error #185)
+      const hasChanged =
+        currentUser.id !== freshUser.id ||
+        currentUser.secretariatProfileId !== secId ||
+        currentUser.teacherProfileId !== teachId ||
+        currentUser.parentProfileId !== parId ||
+        currentUser.studentProfileId !== studId ||
+        currentUser.fullName !== (freshUser.fullName || freshAny.name) ||
+        currentUser.phone !== (freshUser.phone || freshAny.phoneNumber);
+
+      if (hasChanged) {
+        useAuthStore.getState().setUser({
+          ...currentUser,
+          ...freshUser,
+          secretariatProfileId: secId,
+          teacherProfileId: teachId,
+          parentProfileId: parId,
+          studentProfileId: studId,
+        });
+      }
     }
-  }, [freshUser, user]);
+  }, [freshUser]);
 
   // Authentication Route Protection
   useEffect(() => {
@@ -240,10 +276,10 @@ export default function DashboardLayout({
 
   // Pending join-request count badge (teacher/secretariat only) — pushed live via WebSocket
   const isReservationsRole = user?.role === 'TEACHER' || user?.role === 'SECRETARIAT';
-  const { data: pendingReservations } = usePendingReservations(isReservationsRole);
+  const { data: pendingReservations } = usePendingReservations(isReservationsRole && isOnline);
   const pendingReservationsCount = pendingReservations?.length ?? 0;
-  useRealtimeReservations(isReservationsRole);
-  useRealtimeAttendance(isReservationsRole);
+  useRealtimeReservations(isReservationsRole && isOnline);
+  useRealtimeAttendance(isReservationsRole && isOnline);
 
   // Unread website contact inquiries count badge (teacher/secretariat only) — pushed live via WebSocket
   const { data: unreadInquiriesCount = 0 } = useQuery({
@@ -257,13 +293,15 @@ export default function DashboardLayout({
       }
     },
     enabled: isReservationsRole && isOnline,
+    networkMode: 'online',
     staleTime: 30000,
     refetchInterval: () => {
+      if (!isOnline) return false;
       const socket = getRealtimeSocket();
       return socket?.connected ? 120000 : 30000;
     },
   });
-  useRealtimeInquiries(isReservationsRole);
+  useRealtimeInquiries(isReservationsRole && isOnline);
 
   // Hydration-safe initial loading screen before auth initialization & client mount
   if (!isMounted || !isInitialized) {
@@ -601,9 +639,11 @@ export default function DashboardLayout({
             )}
 
             {/* Notification Bell Center */}
-            <div className="shrink-0">
-              <NotificationBell />
-            </div>
+            {isOnline && (
+              <div className="shrink-0">
+                <NotificationBell />
+              </div>
+            )}
 
             {/* Quick Role Switch Button */}
             {canSwitchRoles && (

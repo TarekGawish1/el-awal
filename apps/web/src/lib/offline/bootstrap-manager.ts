@@ -336,6 +336,13 @@ class BootstrapManager {
         forceFull: isExplicitForceFull,
       });
 
+      // Warm Service Worker App Shell & RSC caches for instant zero-redirect offline subpage navigation
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        try {
+          navigator.serviceWorker.controller.postMessage({ type: 'WARM_OFFLINE_SHELL' });
+        } catch {}
+      }
+
       return {
         success: true,
         isDelta: isDeltaResponse,

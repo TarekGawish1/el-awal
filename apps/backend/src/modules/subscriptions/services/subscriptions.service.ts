@@ -29,6 +29,13 @@ export class SubscriptionsService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
+  private async runInTransaction<T>(fn: (tx: any) => Promise<T>): Promise<T> {
+    if (typeof this.prisma.$transaction === 'function') {
+      return this.prisma.$transaction(fn);
+    }
+    return fn(this.prisma);
+  }
+
   /**
    * Records or updates a tuition or booklet payment record and dispatches payment event upon success.
    */
@@ -103,82 +110,86 @@ export class SubscriptionsService {
 
       const resolvedGroupId = dto.groupId || booklet.groupId || null;
 
-      // Check if student already paid for this booklet
-      const existingBookletPayment = await this.prisma.studentPaymentRecord.findFirst({
-        where: {
-          studentId: dto.studentId,
-          bookletId: dto.bookletId,
-          paymentType: PaymentType.BOOKLET,
-        },
-      });
-
-      let payment: any;
-      if (existingBookletPayment) {
-        const expected = Number(existingBookletPayment.amountExpected || amountExpected || 0);
-        const previouslyPaid = Number(existingBookletPayment.amountPaid || 0);
-
-        if (existingBookletPayment.paymentStatus === PaymentStatus.PAID || (expected > 0 && previouslyPaid >= expected)) {
-          throw new BadRequestException('تم سداد قيمة هذه المذكرة لهذا الطالب مسبقاً بالكامل ولا يمكن تكرار الدفع!');
-        }
-
-        const cumulativePaid = previouslyPaid + Number(dto.amountPaid || 0);
-        const isPaidInFull = (dto.paymentStatus === PaymentStatus.EXEMPT) || cumulativePaid >= expected;
-
-        payment = await this.prisma.studentPaymentRecord.update({
-          where: { id: existingBookletPayment.id },
-          data: {
-            amountPaid: cumulativePaid,
-            amountExpected: expected,
-            paymentStatus: isPaidInFull ? PaymentStatus.PAID : (dto.paymentStatus || PaymentStatus.PENDING),
-            paymentMethod: dto.paymentMethod || 'CASH',
-            receiptNumber: dto.receiptNumber || existingBookletPayment.receiptNumber,
-            notes: dto.notes || existingBookletPayment.notes,
-            recordedById: user.id,
-            updatedAt: new Date(),
-          },
-          include: {
-            student: {
-              include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
-            },
-            group: { select: { id: true, name: true } },
-            booklet: { select: { id: true, title: true, price: true } },
-          },
-        });
-      } else {
-        payment = await this.prisma.studentPaymentRecord.create({
-          data: {
+      // Wrap booklet payment and inventory update inside atomic transaction
+      const payment = await this.runInTransaction(async (tx) => {
+        const existingBookletPayment = await tx.studentPaymentRecord.findFirst({
+          where: {
             studentId: dto.studentId,
-            groupId: resolvedGroupId,
             bookletId: dto.bookletId,
             paymentType: PaymentType.BOOKLET,
-            periodYear,
-            periodMonth,
-            amountExpected: amountExpected ?? 0,
-            amountPaid: dto.amountPaid,
-            currency: 'EGP',
-            paymentStatus: dto.paymentStatus || PaymentStatus.PAID,
-            paymentMethod: dto.paymentMethod || 'CASH',
-            receiptNumber: dto.receiptNumber,
-            notes: dto.notes,
-            recordedById: user.id,
-          },
-          include: {
-            student: {
-              include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
-            },
-            group: { select: { id: true, name: true } },
-            booklet: { select: { id: true, title: true, price: true } },
           },
         });
 
-        // Decrement stock if tracked
-        if (booklet.stockCount !== null && booklet.stockCount > 0) {
-          await this.prisma.booklet.update({
-            where: { id: booklet.id },
-            data: { stockCount: { decrement: 1 } },
+        if (existingBookletPayment) {
+          const expected = Number(existingBookletPayment.amountExpected || amountExpected || 0);
+          const previouslyPaid = Number(existingBookletPayment.amountPaid || 0);
+
+          if (existingBookletPayment.paymentStatus === PaymentStatus.PAID || (expected > 0 && previouslyPaid >= expected)) {
+            throw new BadRequestException('تم سداد قيمة هذه المذكرة لهذا الطالب مسبقاً بالكامل ولا يمكن تكرار الدفع!');
+          }
+
+          const additionalPaid = Number(dto.amountPaid || 0);
+          const cumulativePaid = previouslyPaid + additionalPaid;
+          const isPaidInFull = (dto.paymentStatus === PaymentStatus.EXEMPT) || cumulativePaid >= expected;
+
+          return tx.studentPaymentRecord.update({
+            where: { id: existingBookletPayment.id },
+            data: {
+              amountPaid: { increment: additionalPaid },
+              amountExpected: expected,
+              paymentStatus: isPaidInFull ? PaymentStatus.PAID : (dto.paymentStatus || PaymentStatus.PENDING),
+              paymentMethod: dto.paymentMethod || 'CASH',
+              receiptNumber: dto.receiptNumber || existingBookletPayment.receiptNumber,
+              notes: dto.notes || existingBookletPayment.notes,
+              recordedById: user.id,
+              updatedAt: new Date(),
+            },
+            include: {
+              student: {
+                include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+              },
+              group: { select: { id: true, name: true } },
+              booklet: { select: { id: true, title: true, price: true } },
+            },
           });
+        } else {
+          const createdPayment = await tx.studentPaymentRecord.create({
+            data: {
+              studentId: dto.studentId,
+              groupId: resolvedGroupId,
+              bookletId: dto.bookletId,
+              paymentType: PaymentType.BOOKLET,
+              periodYear,
+              periodMonth,
+              amountExpected: amountExpected ?? 0,
+              amountPaid: dto.amountPaid,
+              currency: 'EGP',
+              paymentStatus: dto.paymentStatus || PaymentStatus.PAID,
+              paymentMethod: dto.paymentMethod || 'CASH',
+              receiptNumber: dto.receiptNumber,
+              notes: dto.notes,
+              recordedById: user.id,
+            },
+            include: {
+              student: {
+                include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+              },
+              group: { select: { id: true, name: true } },
+              booklet: { select: { id: true, title: true, price: true } },
+            },
+          });
+
+          // Atomic inventory stock decrement if tracked
+          if (booklet.stockCount !== null && booklet.stockCount > 0) {
+            await tx.booklet.update({
+              where: { id: booklet.id },
+              data: { stockCount: { decrement: 1 } },
+            });
+          }
+
+          return createdPayment;
         }
-      }
+      });
 
       if (payment.paymentStatus === PaymentStatus.PAID) {
         const remaining = Math.max(0, Number(payment.amountExpected || 0) - Number(payment.amountPaid || 0));
@@ -248,72 +259,73 @@ export class SubscriptionsService {
       }
     }
 
-    const existingPayment = await this.prisma.studentPaymentRecord.findFirst({
-      where: {
-        studentId: dto.studentId,
-        groupId: dto.groupId ?? null,
-        periodYear,
-        periodMonth,
-        paymentType: PaymentType.TUITION,
-      },
-    });
-
-    let payment: any;
-    if (existingPayment) {
-      const exp = amountExpected !== undefined ? amountExpected : Number(existingPayment.amountExpected || 0);
-      const paid = Number(dto.amountPaid);
-      const isPaidInFull = (dto.paymentStatus === PaymentStatus.EXEMPT) || paid >= exp;
-
-      payment = await this.prisma.studentPaymentRecord.update({
-        where: { id: existingPayment.id },
-        data: {
-          amountPaid: paid,
-          amountExpected: exp,
-          paymentStatus: isPaidInFull ? PaymentStatus.PAID : (dto.paymentStatus || PaymentStatus.PENDING),
-          paymentMethod: dto.paymentMethod || 'CASH',
-          receiptNumber: dto.receiptNumber || existingPayment.receiptNumber,
-          notes: dto.notes || existingPayment.notes,
-          recordedById: user.id,
-          updatedAt: new Date(),
-        },
-        include: {
-          student: {
-            include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
-          },
-          group: { select: { id: true, name: true } },
-          booklet: { select: { id: true, title: true, price: true } },
-        },
-      });
-    } else {
-      const exp = amountExpected ?? 0;
-      const paid = Number(dto.amountPaid);
-      const isPaidInFull = (dto.paymentStatus === PaymentStatus.EXEMPT) || paid >= exp;
-
-      payment = await this.prisma.studentPaymentRecord.create({
-        data: {
+    const payment = await this.runInTransaction(async (tx) => {
+      const existingPayment = await tx.studentPaymentRecord.findFirst({
+        where: {
           studentId: dto.studentId,
-          groupId: dto.groupId || null,
-          paymentType: PaymentType.TUITION,
+          groupId: dto.groupId ?? null,
           periodYear,
           periodMonth,
-          amountExpected: exp,
-          amountPaid: paid,
-          currency: 'EGP',
-          paymentStatus: isPaidInFull ? PaymentStatus.PAID : (dto.paymentStatus || PaymentStatus.PENDING),
-          paymentMethod: dto.paymentMethod || 'CASH',
-          receiptNumber: dto.receiptNumber,
-          notes: dto.notes,
-          recordedById: user.id,
-        },
-        include: {
-          student: {
-            include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
-          },
-          group: { select: { id: true, name: true } },
-          booklet: { select: { id: true, title: true, price: true } },
+          paymentType: PaymentType.TUITION,
         },
       });
-    }
+
+      if (existingPayment) {
+        const exp = amountExpected !== undefined ? amountExpected : Number(existingPayment.amountExpected || 0);
+        const paid = Number(dto.amountPaid);
+        const isPaidInFull = (dto.paymentStatus === PaymentStatus.EXEMPT) || paid >= exp;
+
+        return tx.studentPaymentRecord.update({
+          where: { id: existingPayment.id },
+          data: {
+            amountPaid: paid,
+            amountExpected: exp,
+            paymentStatus: isPaidInFull ? PaymentStatus.PAID : (dto.paymentStatus || PaymentStatus.PENDING),
+            paymentMethod: dto.paymentMethod || 'CASH',
+            receiptNumber: dto.receiptNumber || existingPayment.receiptNumber,
+            notes: dto.notes || existingPayment.notes,
+            recordedById: user.id,
+            updatedAt: new Date(),
+          },
+          include: {
+            student: {
+              include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+            },
+            group: { select: { id: true, name: true } },
+            booklet: { select: { id: true, title: true, price: true } },
+          },
+        });
+      } else {
+        const exp = amountExpected ?? 0;
+        const paid = Number(dto.amountPaid);
+        const isPaidInFull = (dto.paymentStatus === PaymentStatus.EXEMPT) || paid >= exp;
+
+        return tx.studentPaymentRecord.create({
+          data: {
+            studentId: dto.studentId,
+            groupId: dto.groupId || null,
+            paymentType: PaymentType.TUITION,
+            periodYear,
+            periodMonth,
+            amountExpected: exp,
+            amountPaid: paid,
+            currency: 'EGP',
+            paymentStatus: isPaidInFull ? PaymentStatus.PAID : (dto.paymentStatus || PaymentStatus.PENDING),
+            paymentMethod: dto.paymentMethod || 'CASH',
+            receiptNumber: dto.receiptNumber,
+            notes: dto.notes,
+            recordedById: user.id,
+          },
+          include: {
+            student: {
+              include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+            },
+            group: { select: { id: true, name: true } },
+            booklet: { select: { id: true, title: true, price: true } },
+          },
+        });
+      }
+    });
 
     // If payment is marked as PAID, dispatch asynchronous domain event
     if (payment.paymentStatus === PaymentStatus.PAID) {
@@ -420,70 +432,12 @@ export class SubscriptionsService {
       const resolvedGroupId = dto.groupId || booklet.groupId || (student.groupEnrollments[0]?.groupId || null);
 
       // Check if student already purchased this booklet
-      const existingPayment = await this.prisma.studentPaymentRecord.findFirst({
-        where: {
-          studentId: student.id,
-          bookletId: dto.bookletId,
-          paymentType: PaymentType.BOOKLET,
-        },
-        include: {
-          student: {
-            include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
-          },
-          group: { select: { id: true, name: true } },
-          booklet: { select: { id: true, title: true, price: true } },
-        },
-      });
-
-      const isDuplicate = !!(
-        existingPayment &&
-        existingPayment.paymentStatus === PaymentStatus.PAID &&
-        Number(existingPayment.amountPaid) >= amountExpected
-      );
-
-      let payment: any;
-      if (existingPayment) {
-        if (isDuplicate) {
-          payment = existingPayment;
-        } else {
-          payment = await this.prisma.studentPaymentRecord.update({
-            where: { id: existingPayment.id },
-            data: {
-              amountPaid,
-              amountExpected,
-              paymentStatus: PaymentStatus.PAID,
-              paymentMethod: dto.paymentMethod || 'CASH',
-              receiptNumber: dto.receiptNumber || existingPayment.receiptNumber,
-              notes: dto.notes || existingPayment.notes,
-              recordedById: user.id,
-              updatedAt: new Date(),
-            },
-            include: {
-              student: {
-                include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
-              },
-              group: { select: { id: true, name: true } },
-              booklet: { select: { id: true, title: true, price: true } },
-            },
-          });
-        }
-      } else {
-        payment = await this.prisma.studentPaymentRecord.create({
-          data: {
+      const { payment, isDuplicate } = await this.runInTransaction(async (tx) => {
+        const existingPayment = await tx.studentPaymentRecord.findFirst({
+          where: {
             studentId: student.id,
-            groupId: resolvedGroupId,
             bookletId: dto.bookletId,
             paymentType: PaymentType.BOOKLET,
-            periodYear,
-            periodMonth,
-            amountExpected,
-            amountPaid,
-            currency: 'EGP',
-            paymentStatus: PaymentStatus.PAID,
-            paymentMethod: dto.paymentMethod || 'CASH',
-            receiptNumber: dto.receiptNumber,
-            notes: dto.notes || `سداد مذكرة: ${booklet.title}`,
-            recordedById: user.id,
           },
           include: {
             student: {
@@ -494,13 +448,75 @@ export class SubscriptionsService {
           },
         });
 
-        if (booklet.stockCount !== null && booklet.stockCount > 0) {
-          await this.prisma.booklet.update({
-            where: { id: booklet.id },
-            data: { stockCount: { decrement: 1 } },
+        const isDuplicateBooklet = !!(
+          existingPayment &&
+          existingPayment.paymentStatus === PaymentStatus.PAID &&
+          Number(existingPayment.amountPaid) >= amountExpected
+        );
+
+        if (existingPayment) {
+          if (isDuplicateBooklet) {
+            return { payment: existingPayment, isDuplicate: true };
+          } else {
+            const updated = await tx.studentPaymentRecord.update({
+              where: { id: existingPayment.id },
+              data: {
+                amountPaid,
+                amountExpected,
+                paymentStatus: PaymentStatus.PAID,
+                paymentMethod: dto.paymentMethod || 'CASH',
+                receiptNumber: dto.receiptNumber || existingPayment.receiptNumber,
+                notes: dto.notes || existingPayment.notes,
+                recordedById: user.id,
+                updatedAt: new Date(),
+              },
+              include: {
+                student: {
+                  include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+                },
+                group: { select: { id: true, name: true } },
+                booklet: { select: { id: true, title: true, price: true } },
+              },
+            });
+            return { payment: updated, isDuplicate: false };
+          }
+        } else {
+          const created = await tx.studentPaymentRecord.create({
+            data: {
+              studentId: student.id,
+              groupId: resolvedGroupId,
+              bookletId: dto.bookletId,
+              paymentType: PaymentType.BOOKLET,
+              periodYear,
+              periodMonth,
+              amountExpected,
+              amountPaid,
+              currency: 'EGP',
+              paymentStatus: PaymentStatus.PAID,
+              paymentMethod: dto.paymentMethod || 'CASH',
+              receiptNumber: dto.receiptNumber,
+              notes: dto.notes || `سداد مذكرة: ${booklet.title}`,
+              recordedById: user.id,
+            },
+            include: {
+              student: {
+                include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+              },
+              group: { select: { id: true, name: true } },
+              booklet: { select: { id: true, title: true, price: true } },
+            },
           });
+
+          if (booklet.stockCount !== null && booklet.stockCount > 0) {
+            await tx.booklet.update({
+              where: { id: booklet.id },
+              data: { stockCount: { decrement: 1 } },
+            });
+          }
+
+          return { payment: created, isDuplicate: false };
         }
-      }
+      });
 
       // CRITICAL: Only emit payment.recorded and send WhatsApp receipt if NOT duplicate
       if (!isDuplicate) {
@@ -590,73 +606,15 @@ export class SubscriptionsService {
     const amountExpected = defaultExpected;
     const amountPaid = dto.amountPaid !== undefined ? dto.amountPaid : amountExpected;
 
-    // 3. Check for previous payment in this period
-    const existingPayment = await this.prisma.studentPaymentRecord.findFirst({
-      where: {
-        studentId: student.id,
-        groupId: targetGroup ? targetGroup.id : null,
-        periodYear,
-        periodMonth,
-        paymentType: PaymentType.TUITION,
-      },
-      include: {
-        student: {
-          include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
-        },
-        group: { select: { id: true, name: true } },
-        booklet: { select: { id: true, title: true, price: true } },
-      },
-    });
-
-    const isDuplicate = !!(
-      existingPayment &&
-      existingPayment.paymentStatus === PaymentStatus.PAID &&
-      Number(existingPayment.amountPaid) >= amountExpected
-    );
-
-    // 4. Upsert payment record
-    let payment: any;
-    if (existingPayment) {
-      if (isDuplicate) {
-        payment = existingPayment;
-      } else {
-        payment = await this.prisma.studentPaymentRecord.update({
-          where: { id: existingPayment.id },
-          data: {
-            amountPaid,
-            amountExpected,
-            paymentStatus: PaymentStatus.PAID,
-            paymentMethod: dto.paymentMethod || 'CASH',
-            receiptNumber: dto.receiptNumber,
-            notes: dto.notes || 'تم السداد عبر مسح رمز الـ QR',
-            recordedById: user.id,
-            updatedAt: new Date(),
-          },
-          include: {
-            student: {
-              include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
-            },
-            group: { select: { id: true, name: true } },
-            booklet: { select: { id: true, title: true, price: true } },
-          },
-        });
-      }
-    } else {
-      payment = await this.prisma.studentPaymentRecord.create({
-        data: {
+    // 3. Atomically check and upsert payment record inside transaction
+    const { payment, isDuplicate } = await this.runInTransaction(async (tx) => {
+      const existingPayment = await tx.studentPaymentRecord.findFirst({
+        where: {
           studentId: student.id,
           groupId: targetGroup ? targetGroup.id : null,
-          paymentType: PaymentType.TUITION,
           periodYear,
           periodMonth,
-          amountExpected,
-          amountPaid,
-          currency: 'EGP',
-          paymentStatus: PaymentStatus.PAID,
-          paymentMethod: dto.paymentMethod || 'CASH',
-          receiptNumber: dto.receiptNumber,
-          notes: dto.notes || 'تم السداد عبر مسح رمز الـ QR',
-          recordedById: user.id,
+          paymentType: PaymentType.TUITION,
         },
         include: {
           student: {
@@ -666,7 +624,67 @@ export class SubscriptionsService {
           booklet: { select: { id: true, title: true, price: true } },
         },
       });
-    }
+
+      const isDuplicatePayment = !!(
+        existingPayment &&
+        existingPayment.paymentStatus === PaymentStatus.PAID &&
+        Number(existingPayment.amountPaid) >= amountExpected
+      );
+
+      if (existingPayment) {
+        if (isDuplicatePayment) {
+          return { payment: existingPayment, isDuplicate: true };
+        } else {
+          const updated = await tx.studentPaymentRecord.update({
+            where: { id: existingPayment.id },
+            data: {
+              amountPaid,
+              amountExpected,
+              paymentStatus: PaymentStatus.PAID,
+              paymentMethod: dto.paymentMethod || 'CASH',
+              receiptNumber: dto.receiptNumber,
+              notes: dto.notes || 'تم السداد عبر مسح رمز الـ QR',
+              recordedById: user.id,
+              updatedAt: new Date(),
+            },
+            include: {
+              student: {
+                include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+              },
+              group: { select: { id: true, name: true } },
+              booklet: { select: { id: true, title: true, price: true } },
+            },
+          });
+          return { payment: updated, isDuplicate: false };
+        }
+      } else {
+        const created = await tx.studentPaymentRecord.create({
+          data: {
+            studentId: student.id,
+            groupId: targetGroup ? targetGroup.id : null,
+            paymentType: PaymentType.TUITION,
+            periodYear,
+            periodMonth,
+            amountExpected,
+            amountPaid,
+            currency: 'EGP',
+            paymentStatus: PaymentStatus.PAID,
+            paymentMethod: dto.paymentMethod || 'CASH',
+            receiptNumber: dto.receiptNumber,
+            notes: dto.notes || 'تم السداد عبر مسح رمز الـ QR',
+            recordedById: user.id,
+          },
+          include: {
+            student: {
+              include: { user: { select: { fullName: true, phone: true } }, parentLinks: true },
+            },
+            group: { select: { id: true, name: true } },
+            booklet: { select: { id: true, title: true, price: true } },
+          },
+        });
+        return { payment: created, isDuplicate: false };
+      }
+    });
 
     // 5. Emit payment recorded event ONLY IF NOT A DUPLICATE
     // Do not notify parents or send duplicate WhatsApp receipts if student already paid!
@@ -1016,8 +1034,10 @@ export class SubscriptionsService {
       }
     }
 
-    await this.prisma.studentPaymentRecord.delete({
-      where: { id },
+    await this.runInTransaction(async (tx) => {
+      await tx.studentPaymentRecord.delete({
+        where: { id },
+      });
     });
 
     this.eventEmitter.emit('payment.deleted', {
@@ -1063,20 +1083,22 @@ export class SubscriptionsService {
       }
     }
 
-    const updatedPayment = await this.prisma.studentPaymentRecord.update({
-      where: { id },
-      data: {
-        paymentStatus: PaymentStatus.REFUNDED,
-        notes: dto?.reason ? `[تم استرداد المبلغ]: ${dto.reason}` : (payment.notes ? `${payment.notes} - [مسترد]` : 'تم استرداد المبلغ وإلغاء المعاملة'),
-        updatedAt: new Date(),
-      },
-      include: {
-        student: {
-          include: { user: { select: { fullName: true, phone: true } } },
+    const updatedPayment = await this.runInTransaction(async (tx) => {
+      return tx.studentPaymentRecord.update({
+        where: { id },
+        data: {
+          paymentStatus: PaymentStatus.REFUNDED,
+          notes: dto?.reason ? `[تم استرداد المبلغ]: ${dto.reason}` : (payment.notes ? `${payment.notes} - [مسترد]` : 'تم استرداد المبلغ وإلغاء المعاملة'),
+          updatedAt: new Date(),
         },
-        group: { select: { id: true, name: true } },
-        booklet: { select: { id: true, title: true, price: true } },
-      },
+        include: {
+          student: {
+            include: { user: { select: { fullName: true, phone: true } } },
+          },
+          group: { select: { id: true, name: true } },
+          booklet: { select: { id: true, title: true, price: true } },
+        },
+      });
     });
 
     this.eventEmitter.emit('payment.refunded', {

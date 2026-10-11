@@ -587,7 +587,8 @@ export function usePendingReservations(enabled = true) {
         },
       }));
     },
-    enabled,
+    enabled: enabled && (typeof navigator !== 'undefined' ? navigator.onLine : true),
+    networkMode: 'online',
   });
 }
 

@@ -12,6 +12,9 @@ import {
   RefreshCw,
   AlertCircle,
   GraduationCap,
+  CloudOff,
+  CreditCard,
+  QrCode,
 } from 'lucide-react';
 import { useFinanceDashboardAnalytics } from '../hooks/useFinance';
 import { GroupFinancialCard } from './GroupFinancialCard';
@@ -19,6 +22,7 @@ import { OnlineCourseFinancialCard } from './OnlineCourseFinancialCard';
 import { GRADE_LEVELS_BY_STAGE, inferStageFromGrade } from '@/lib/constants/grades';
 import { FinanceDashboardMetric } from '../types/finance.types';
 import { matchesSearch } from '@/lib/utils/search';
+import { useOnlineStatus } from '@/lib/offline/use-online-status';
 
 export const TERM_MONTHS: Record<'FIRST_TERM' | 'SECOND_TERM', number[]> = {
   FIRST_TERM: [8, 9, 10, 11, 12, 1],
@@ -154,6 +158,8 @@ interface FinanceOverviewTabProps {
   onTermChange: (term: 'FIRST_TERM' | 'SECOND_TERM') => void;
   onMonthChange: (month: number) => void;
   onOpenGroupMatrix: (groupId: string) => void;
+  onOpenManualPayment?: () => void;
+  onOpenQrScanner?: () => void;
   groupsList?: Array<{ id: string; name: string; gradeLevel: string }>;
 }
 
@@ -164,8 +170,11 @@ export function FinanceOverviewTab({
   onTermChange,
   onMonthChange,
   onOpenGroupMatrix,
+  onOpenManualPayment,
+  onOpenQrScanner,
   groupsList = [],
 }: FinanceOverviewTabProps) {
+  const isOnline = useOnlineStatus();
   const [selectedStage, setSelectedStage] = useState<string>('');
   const [selectedGrade, setSelectedGrade] = useState<string>('');
   const [selectedGroupId, setSelectedGroupId] = useState<string>('');
@@ -324,8 +333,46 @@ export function FinanceOverviewTab({
         </div>
       </div>
 
-      {/* Loading & Error States */}
-      {isLoading && (
+      {/* Offline Guidance Alert */}
+      {!isOnline && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-5 text-center shadow-xs space-y-3.5 animate-in fade-in">
+          <div className="inline-flex items-center justify-center p-2.5 bg-amber-100 text-amber-800 rounded-full">
+            <CloudOff className="h-6 w-6 text-amber-700" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-base font-bold text-amber-900">أنت تعمل في وضع عدم الاتصال (Offline)</h3>
+            <p className="text-xs text-amber-800/90 max-w-xl mx-auto leading-relaxed">
+              التحليلات المالية والرسوم البيانية التراكمية تتطلب اتصالاً بالإنترنت. 
+              أما <strong>رصد وتحصيل المصروفات والاشتراكات</strong> فهو يعمل <strong>بنسبة 100% بدون إنترنت</strong> عبر الماسح السريع (QR) أو التسجيل اليدوي، وسيتم حفظ كافة العمليات في قاعدة البيانات المحلية ومزامنتها تلقائياً عند عودة الاتصال.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+            {onOpenManualPayment && (
+              <button
+                type="button"
+                onClick={onOpenManualPayment}
+                className="inline-flex items-center gap-2 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold px-4 py-2.5 shadow-xs transition-colors cursor-pointer"
+              >
+                <CreditCard className="h-4 w-4" />
+                <span>+ تسجيل مصروف يدوي</span>
+              </button>
+            )}
+            {onOpenQrScanner && (
+              <button
+                type="button"
+                onClick={onOpenQrScanner}
+                className="inline-flex items-center gap-2 rounded-xl bg-white hover:bg-amber-100/60 border border-amber-300 text-amber-900 text-xs font-bold px-4 py-2.5 shadow-xs transition-colors cursor-pointer"
+              >
+                <QrCode className="h-4 w-4 text-amber-700" />
+                <span>الماسح السريع (QR)</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Loading & Error States (Online Only) */}
+      {isOnline && isLoading && (
         <div className="flex items-center justify-center py-12">
           <div className="flex items-center gap-3 text-slate-500 font-medium text-sm">
             <RefreshCw className="h-5 w-5 animate-spin text-indigo-600" />
@@ -334,7 +381,7 @@ export function FinanceOverviewTab({
         </div>
       )}
 
-      {isError && (
+      {isOnline && isError && (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-center">
           <AlertCircle className="h-6 w-6 text-rose-500 mx-auto mb-2" />
           <p className="text-sm font-bold text-rose-700">تعذر تحميل بيانات لوحة التحكم المالية</p>

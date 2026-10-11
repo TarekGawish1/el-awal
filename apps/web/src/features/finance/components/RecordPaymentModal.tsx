@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { X, DollarSign, BookOpen, CreditCard, Users, Filter, Loader2, Search, CheckCircle, AlertCircle } from 'lucide-react';
+import { X, DollarSign, BookOpen, CreditCard, Users, Filter, Loader2, Search, CheckCircle, AlertCircle, QrCode } from 'lucide-react';
 import { useRecordPayment, useGroupDefaulters, useMatrixLedger } from '../hooks/useFinance';
 import { useBooklets } from '@/features/booklets/hooks/useBooklets';
 import { useGroups, useGroupStudents } from '@/features/groups/hooks/useGroups';
@@ -35,6 +35,7 @@ type PaymentFormData = z.infer<typeof paymentSchema>;
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  onSwitchToQr?: () => void;
   groupId?: string;
   periodYear: number;
   periodMonth: number;
@@ -52,6 +53,7 @@ interface Props {
 export function RecordPaymentModal({
   isOpen,
   onClose,
+  onSwitchToQr,
   groupId: initialGroupId = '',
   periodYear: initialPeriodYear,
   periodMonth: initialPeriodMonth,
@@ -515,13 +517,28 @@ export function RecordPaymentModal({
             )}
             تسجيل مصروف / سداد
           </h2>
-          <button
-            onClick={onClose}
-            disabled={isPending}
-            className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {onSwitchToQr && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onSwitchToQr();
+                }}
+                className="text-xs font-bold text-primary-700 bg-primary-50 hover:bg-primary-100 px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                <span>الماسح السريع (QR)</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              disabled={isPending}
+              className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="p-5 overflow-y-auto space-y-4">

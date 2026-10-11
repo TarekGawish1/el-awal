@@ -9,14 +9,14 @@
  * - Zero-redirect offline subpage navigation
  */
 
-const CACHE_NAME = 'el-awal-core-v8';
-const RUNTIME_CACHE = 'el-awal-runtime-v8';
-const RSC_CACHE = 'el-awal-rsc-v8';
+const CACHE_NAME = 'el-awal-core-v9';
+const RUNTIME_CACHE = 'el-awal-runtime-v9';
+const RSC_CACHE = 'el-awal-rsc-v9';
 
 // Maximum entries allowed in dynamic caches to prevent device storage bloating
-const MAX_RUNTIME_ITEMS = 60;
-const MAX_RSC_ITEMS = 30;
-const MAX_CACHABLE_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB guard
+const MAX_RUNTIME_ITEMS = 80;
+const MAX_RSC_ITEMS = 50;
+const MAX_CACHABLE_SIZE_BYTES = 3 * 1024 * 1024; // 3 MB guard
 
 /**
  * Trim cache to maxItems using FIFO eviction
@@ -101,10 +101,13 @@ self.addEventListener('install', (event) => {
       const coreCache = await caches.open(CACHE_NAME);
       const rscCache = await caches.open(RSC_CACHE);
 
-      // Pre-cache static shell URLs
+      // Pre-cache static shell URLs (ignoring redirects to avoid caching login screens under dashboard URLs)
       for (const url of PRECACHE_URLS) {
         try {
-          await coreCache.add(url);
+          const response = await fetch(url);
+          if (response && response.status === 200 && !response.redirected) {
+            await coreCache.put(url, response);
+          }
         } catch (err) {
           console.debug('[SW] Precache notice:', url, err);
         }
@@ -117,7 +120,7 @@ self.addEventListener('install', (event) => {
             headers: { RSC: '1', 'Next-Router-Prefetch': '1' },
           });
           const response = await fetch(rscRequest);
-          if (response && response.ok) {
+          if (response && response.ok && !response.redirected) {
             await rscCache.put(rscRequest, response.clone());
             // Also store under normalized route key
             const normalizedReq = new Request(route, { headers: { RSC: '1' } });
@@ -255,10 +258,12 @@ self.addEventListener('fetch', (event) => {
           if (assessRsc) return assessRsc;
         }
 
-        // 5. Fall back to root dashboard RSC if available
-        const dashboardRsc = await rscCache.match(new Request('/teacher/dashboard', { headers: { RSC: '1' } }));
-        if (dashboardRsc) {
-          return dashboardRsc;
+        // 5. Fall back to root dashboard RSC ONLY if requested route is the root dashboard
+        if (url.pathname === '/teacher/dashboard' || url.pathname === '/student/dashboard' || url.pathname === '/parent/dashboard') {
+          const dashboardRsc = await rscCache.match(new Request(url.pathname, { headers: { RSC: '1' } }));
+          if (dashboardRsc) {
+            return dashboardRsc;
+          }
         }
 
         // 6. Return safe non-error empty response with text/x-component header
@@ -288,8 +293,10 @@ self.addEventListener('fetch', (event) => {
         if (navigator.onLine) {
           try {
             const networkResponse = await fetch(request);
-            if (isCachableResponse(networkResponse)) {
+            if (isCachableResponse(networkResponse) && !networkResponse.redirected) {
               await runtimeCache.put(request, networkResponse.clone());
+              const cleanUrl = url.origin + url.pathname;
+              await runtimeCache.put(cleanUrl, networkResponse.clone());
               trimCache(RUNTIME_CACHE, MAX_RUNTIME_ITEMS);
             }
             return networkResponse;
@@ -325,13 +332,42 @@ self.addEventListener('fetch', (event) => {
           if (parentDoc) return parentDoc;
         }
 
-        // 5. Fall back to cached App Shell document
-        const appShell =
-          (await coreCache.match('/teacher/dashboard')) ||
-          (await coreCache.match('/')) ||
-          (await coreCache.match('/login'));
-        if (appShell) {
-          return appShell;
+        // 5. Scoped Role App Shell Fallback (CRITICAL: ZERO REDIRECT TO ROOT '/' FOR DASHBOARD ROUTES)
+        if (url.pathname.startsWith('/teacher')) {
+          const teacherShell =
+            (await coreCache.match(url.pathname)) ||
+            (await runtimeCache.match(url.pathname)) ||
+            (await coreCache.match('/teacher/dashboard')) ||
+            (await runtimeCache.match('/teacher/dashboard')) ||
+            (await coreCache.match('/teacher/attendance')) ||
+            (await coreCache.match('/teacher/finance'));
+          if (teacherShell) {
+            return teacherShell;
+          }
+        } else if (url.pathname.startsWith('/student')) {
+          const studentShell =
+            (await coreCache.match(url.pathname)) ||
+            (await runtimeCache.match(url.pathname)) ||
+            (await coreCache.match('/student/dashboard')) ||
+            (await runtimeCache.match('/student/dashboard'));
+          if (studentShell) {
+            return studentShell;
+          }
+        } else if (url.pathname.startsWith('/parent')) {
+          const parentShell =
+            (await coreCache.match(url.pathname)) ||
+            (await runtimeCache.match(url.pathname)) ||
+            (await coreCache.match('/parent/dashboard')) ||
+            (await runtimeCache.match('/parent/dashboard'));
+          if (parentShell) {
+            return parentShell;
+          }
+        } else if (url.pathname === '/' || url.pathname === '/login') {
+          const publicShell =
+            (await coreCache.match(url.pathname)) ||
+            (await coreCache.match('/login')) ||
+            (await coreCache.match('/'));
+          if (publicShell) return publicShell;
         }
 
         // 6. Final fallback: standalone offline page
@@ -473,7 +509,7 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Listen for message from clients (skip waiting, clear caches)
+// Listen for message from clients (skip waiting, clear caches, warm offline shell)
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
@@ -483,6 +519,49 @@ self.addEventListener('message', (event) => {
       caches.keys().then((cacheNames) => {
         return Promise.all(cacheNames.map((name) => caches.delete(name)));
       })
+    );
+  }
+  if (event.data && event.data.type === 'WARM_OFFLINE_SHELL') {
+    const urlsToWarm = [
+      '/teacher/dashboard',
+      '/teacher/attendance',
+      '/teacher/finance',
+      '/teacher/students',
+      '/teacher/groups',
+      '/teacher/schedules',
+    ];
+    event.waitUntil(
+      (async () => {
+        const coreCache = await caches.open(CACHE_NAME);
+        const rscCache = await caches.open(RSC_CACHE);
+        const runtimeCache = await caches.open(RUNTIME_CACHE);
+
+        for (const path of urlsToWarm) {
+          try {
+            // 1. Warm full HTML document shell
+            const docReq = new Request(path, { credentials: 'same-origin' });
+            const docRes = await fetch(docReq);
+            if (docRes && docRes.status === 200 && !docRes.redirected) {
+              await runtimeCache.put(docReq, docRes.clone());
+              await coreCache.put(path, docRes);
+            }
+
+            // 2. Warm RSC flight payload for seamless client-side Next.js navigation
+            const rscReq = new Request(`${path}?_rsc=init`, {
+              headers: { RSC: '1', 'Next-Router-Prefetch': '1' },
+              credentials: 'same-origin',
+            });
+            const rscRes = await fetch(rscReq);
+            if (rscRes && rscRes.status === 200 && !rscRes.redirected) {
+              await rscCache.put(rscReq, rscRes.clone());
+              const normalizedReq = new Request(path, { headers: { RSC: '1' } });
+              await rscCache.put(normalizedReq, rscRes);
+            }
+          } catch (err) {
+            console.debug('[SW] Warm offline shell skip:', path, err);
+          }
+        }
+      })(),
     );
   }
 });

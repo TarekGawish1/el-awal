@@ -254,20 +254,32 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
   // When database data arrives or updates from background sync, prioritize database over local cache
   useEffect(() => {
     if (dbPeriod?.activeAcademicYear) {
-      setSelectedYearsState([dbPeriod.activeAcademicYear]);
+      setSelectedYearsState((prev) => {
+        if (prev.length === 1 && prev[0] === dbPeriod.activeAcademicYear) return prev;
+        return [dbPeriod.activeAcademicYear];
+      });
       if (typeof window !== 'undefined') {
         try {
-          localStorage.setItem(STORAGE_YEAR_KEY, JSON.stringify([dbPeriod.activeAcademicYear]));
-          window.dispatchEvent(new Event('el_awal_academic_period_changed'));
+          const currentStored = localStorage.getItem(STORAGE_YEAR_KEY);
+          const nextVal = JSON.stringify([dbPeriod.activeAcademicYear]);
+          if (currentStored !== nextVal) {
+            localStorage.setItem(STORAGE_YEAR_KEY, nextVal);
+          }
         } catch {}
       }
     }
     if (dbPeriod?.activeAcademicTerm) {
-      setSelectedTermsState([dbPeriod.activeAcademicTerm]);
+      setSelectedTermsState((prev) => {
+        if (prev.length === 1 && prev[0] === dbPeriod.activeAcademicTerm) return prev;
+        return [dbPeriod.activeAcademicTerm];
+      });
       if (typeof window !== 'undefined') {
         try {
-          localStorage.setItem(STORAGE_TERM_KEY, JSON.stringify([dbPeriod.activeAcademicTerm]));
-          window.dispatchEvent(new Event('el_awal_academic_period_changed'));
+          const currentStored = localStorage.getItem(STORAGE_TERM_KEY);
+          const nextVal = JSON.stringify([dbPeriod.activeAcademicTerm]);
+          if (currentStored !== nextVal) {
+            localStorage.setItem(STORAGE_TERM_KEY, nextVal);
+          }
         } catch {}
       }
     }

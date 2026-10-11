@@ -141,6 +141,8 @@ export function FinanceDashboard() {
             setSelectedGroupId(groupId);
             setActiveTab('MATRIX');
           }}
+          onOpenManualPayment={() => setIsRecordModalOpen(true)}
+          onOpenQrScanner={() => setIsQrModalOpen(true)}
           groupsList={groups}
         />
       )}
@@ -160,6 +162,7 @@ export function FinanceDashboard() {
         <RecordPaymentModal 
           isOpen 
           onClose={() => setIsRecordModalOpen(false)} 
+          onSwitchToQr={() => setIsQrModalOpen(true)}
           groupId={selectedGroupId} 
           periodYear={periodYear} 
           periodMonth={periodMonth} 

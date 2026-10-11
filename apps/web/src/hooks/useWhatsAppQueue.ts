@@ -47,6 +47,8 @@ export const whatsAppQueueKeys = {
 };
 
 export function useWhatsAppStats() {
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
   return useQuery({
     queryKey: whatsAppQueueKeys.stats(),
     queryFn: async (): Promise<WhatsAppStats> => {
@@ -54,11 +56,15 @@ export function useWhatsAppStats() {
         method: 'GET',
       });
     },
-    refetchInterval: 10_000,
+    refetchInterval: isOnline ? 10_000 : false,
+    networkMode: 'online',
+    enabled: isOnline,
   });
 }
 
 export function useWhatsAppQueue(page = 1, limit = 20) {
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
   return useQuery({
     queryKey: whatsAppQueueKeys.queue(page),
     queryFn: async (): Promise<PaginatedWhatsAppMessages> => {
@@ -67,11 +73,15 @@ export function useWhatsAppQueue(page = 1, limit = 20) {
         { method: 'GET' },
       );
     },
-    refetchInterval: 12_000,
+    refetchInterval: isOnline ? 12_000 : false,
+    networkMode: 'online',
+    enabled: isOnline,
   });
 }
 
 export function useWhatsAppFailed(page = 1, limit = 20) {
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
   return useQuery({
     queryKey: whatsAppQueueKeys.failed(page),
     queryFn: async (): Promise<PaginatedWhatsAppMessages> => {
@@ -80,7 +90,9 @@ export function useWhatsAppFailed(page = 1, limit = 20) {
         { method: 'GET' },
       );
     },
-    refetchInterval: 15_000,
+    refetchInterval: isOnline ? 15_000 : false,
+    networkMode: 'online',
+    enabled: isOnline,
   });
 }
 

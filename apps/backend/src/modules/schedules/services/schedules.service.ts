@@ -130,6 +130,16 @@ export class SchedulesService {
     return sA < eB && sB < eA;
   }
 
+  private hashKeyToBigInt(key: string): bigint {
+    let hash = 0x811c9dc5n;
+    const prime = 0x01000193n;
+    for (let i = 0; i < key.length; i++) {
+      hash ^= BigInt(key.charCodeAt(i));
+      hash = (hash * prime) & 0x7fffffffffffffffn;
+    }
+    return hash;
+  }
+
   /**
    * Creates a recurring weekly timetable rule for an academic group with collision validation.
    */
@@ -287,6 +297,7 @@ export class SchedulesService {
       if (sessionsToCreate.length > 0) {
         await tx.lessonSession.createMany({
           data: sessionsToCreate,
+          skipDuplicates: true,
         });
         const newlyCreated = await tx.lessonSession.findMany({
           where: {
@@ -408,85 +419,113 @@ export class SchedulesService {
     const eligibleGroups = groupsWithSchedules.filter((g) => g.schedules && g.schedules.length > 0);
     if (eligibleGroups.length === 0) return;
 
-    // 1. Batch find all existing sessions across all eligible groups in a single query
     const groupIds = eligibleGroups.map((g) => g.id);
-    const existingSessions = await this.prisma.lessonSession.findMany({
-      where: {
-        groupId: { in: groupIds },
-      },
-      select: {
-        groupId: true,
-        sessionDate: true,
-        startTime: true,
-      },
-    });
+    const lockKeyStr = 'auto_ensure_' + groupIds.slice().sort().join(':');
+    const lockKey = this.hashKeyToBigInt(lockKeyStr);
 
-    const existingSessionsByGroup = new Map<string, Set<string>>();
-    for (const s of existingSessions) {
-      let set = existingSessionsByGroup.get(s.groupId);
-      if (!set) {
-        set = new Set<string>();
-        existingSessionsByGroup.set(s.groupId, set);
-      }
-      const dStr = s.sessionDate.toISOString().split('T')[0];
-      set.add(`${dStr}_${s.startTime || ''}`);
-    }
-
-    const allSessionsToCreate: Array<{
-      groupId: string;
-      scheduleId: string;
-      sessionDate: Date;
-      startTime: string;
-      endTime: string | null;
-      topic: string;
-    }> = [];
-
-    // 2. Generate missing sessions in memory
-    for (const group of eligibleGroups) {
-      const year = group.academicYear || targetYear || '2026-2027';
-      const term = group.academicTerm || targetTerm || 'FIRST_TERM';
-      const { startDate, endDate } = this.getSemesterDateWindow(year, term);
-
-      const existingSet = existingSessionsByGroup.get(group.id) || new Set<string>();
-
-      const current = new Date(startDate);
-      while (current <= endDate) {
-        const dayOfWeek = current.getUTCDay(); // 0 = Sunday .. 6 = Saturday
-        const matchingSchedules = group.schedules.filter((s) => s.dayOfWeek === dayOfWeek);
-
-        for (const schedule of matchingSchedules) {
-          const sessionDateOnly = new Date(
-            Date.UTC(current.getUTCFullYear(), current.getUTCMonth(), current.getUTCDate()),
-          );
-          const dateStr = sessionDateOnly.toISOString().split('T')[0];
-          const key = `${dateStr}_${schedule.startTime || ''}`;
-
-          if (!existingSet.has(key)) {
-            existingSet.add(key);
-            allSessionsToCreate.push({
-              groupId: group.id,
-              scheduleId: schedule.id,
-              sessionDate: sessionDateOnly,
-              startTime: schedule.startTime,
-              endTime: schedule.endTime || null,
-              topic: `حصة - ${dateStr}`,
-            });
+    const executeSweep = async (tx: any) => {
+      // Horizontal Scaling Protection: Try transaction-level PostgreSQL advisory lock
+      if (typeof tx.$queryRaw === 'function') {
+        try {
+          const lockResult = await tx.$queryRaw<Array<{ locked: boolean }>>`
+            SELECT pg_try_advisory_xact_lock(${lockKey}) AS locked
+          `;
+          if (lockResult && lockResult.length > 0 && lockResult[0].locked === false) {
+            this.logger.debug(
+              `Concurrent auto-ensure sweep skipped for groups [${groupIds.join(', ')}] - advisory lock held by another process`,
+            );
+            return;
           }
+        } catch (lockErr: any) {
+          this.logger.warn(`Advisory lock check bypassed: ${lockErr?.message}`);
         }
-
-        current.setUTCDate(current.getUTCDate() + 1);
       }
-    }
 
-    // 3. Single batch insert
-    if (allSessionsToCreate.length > 0) {
-      await this.prisma.lessonSession.createMany({
-        data: allSessionsToCreate,
-        skipDuplicates: true,
+      // 1. Batch find all existing sessions across all eligible groups in a single query
+      const existingSessions = await tx.lessonSession.findMany({
+        where: {
+          groupId: { in: groupIds },
+        },
+        select: {
+          groupId: true,
+          sessionDate: true,
+          startTime: true,
+        },
       });
-      this.logger.log(
-        `Auto-populated ${allSessionsToCreate.length} semester sessions for ${eligibleGroups.length} groups`,
-      );
+
+      const existingSessionsByGroup = new Map<string, Set<string>>();
+      for (const s of existingSessions) {
+        let set = existingSessionsByGroup.get(s.groupId);
+        if (!set) {
+          set = new Set<string>();
+          existingSessionsByGroup.set(s.groupId, set);
+        }
+        const dStr = s.sessionDate.toISOString().split('T')[0];
+        set.add(`${dStr}_${s.startTime || ''}`);
+      }
+
+      const allSessionsToCreate: Array<{
+        groupId: string;
+        scheduleId: string;
+        sessionDate: Date;
+        startTime: string;
+        endTime: string | null;
+        topic: string;
+      }> = [];
+
+      // 2. Generate missing sessions in memory
+      for (const group of eligibleGroups) {
+        const year = group.academicYear || targetYear || '2026-2027';
+        const term = group.academicTerm || targetTerm || 'FIRST_TERM';
+        const { startDate, endDate } = this.getSemesterDateWindow(year, term);
+
+        const existingSet = existingSessionsByGroup.get(group.id) || new Set<string>();
+
+        const current = new Date(startDate);
+        while (current <= endDate) {
+          const dayOfWeek = current.getUTCDay(); // 0 = Sunday .. 6 = Saturday
+          const matchingSchedules = group.schedules.filter((s) => s.dayOfWeek === dayOfWeek);
+
+          for (const schedule of matchingSchedules) {
+            const sessionDateOnly = new Date(
+              Date.UTC(current.getUTCFullYear(), current.getUTCMonth(), current.getUTCDate()),
+            );
+            const dateStr = sessionDateOnly.toISOString().split('T')[0];
+            const key = `${dateStr}_${schedule.startTime || ''}`;
+
+            if (!existingSet.has(key)) {
+              existingSet.add(key);
+              allSessionsToCreate.push({
+                groupId: group.id,
+                scheduleId: schedule.id,
+                sessionDate: sessionDateOnly,
+                startTime: schedule.startTime,
+                endTime: schedule.endTime || null,
+                topic: `حصة - ${dateStr}`,
+              });
+            }
+          }
+
+          current.setUTCDate(current.getUTCDate() + 1);
+        }
+      }
+
+      // 3. Single batch insert with skipDuplicates
+      if (allSessionsToCreate.length > 0) {
+        await tx.lessonSession.createMany({
+          data: allSessionsToCreate,
+          skipDuplicates: true,
+        });
+        this.logger.log(
+          `Auto-populated ${allSessionsToCreate.length} semester sessions for ${eligibleGroups.length} groups`,
+        );
+      }
+    };
+
+    if (typeof this.prisma.$transaction === 'function') {
+      await this.prisma.$transaction(executeSweep);
+    } else {
+      await executeSweep(this.prisma);
     }
   }
 
@@ -1042,6 +1081,7 @@ export class SchedulesService {
         if (sessionsToCreate.length > 0) {
           await tx.lessonSession.createMany({
             data: sessionsToCreate,
+            skipDuplicates: true,
           });
         }
       });

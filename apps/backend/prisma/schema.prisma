@@ -555,8 +555,9 @@ model LessonSession {
   assessmentSubmissions AssessmentSubmission[]
   homeworkRecords       HomeworkRecord[]
 
-  @@index([groupId, sessionDate, startTime], map: "idx_group_session_datetime")
+  @@unique([groupId, sessionDate, startTime], map: "uq_group_session_datetime")
   @@index([groupId, sessionDate], map: "idx_sessions_group_date")
+  @@index([sessionDate, isCancelled], map: "idx_sessions_date_cancelled")
   @@index([scheduleId], map: "idx_sessions_schedule")
   @@map("lesson_sessions")
 }

@@ -71,6 +71,8 @@ export function useNotifications(
       ? { cursor: options }
       : options || {};
 
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
   return useQuery({
     queryKey: notificationKeys.feed(options),
     queryFn: async (): Promise<NotificationFeedResponse> => {
@@ -81,7 +83,8 @@ export function useNotifications(
       return res;
     },
     staleTime: 20_000,
-    enabled: queryOptions?.enabled ?? true,
+    networkMode: 'online',
+    enabled: (queryOptions?.enabled ?? true) && isOnline,
   });
 }
 
@@ -89,6 +92,8 @@ export function useNotifications(
  * Fetches cursor-paginated infinite notification feed with load-more capabilities.
  */
 export function useInfiniteNotifications(options?: Omit<NotificationFeedOptions, 'cursor'>) {
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
   return useInfiniteQuery({
     queryKey: notificationKeys.infinite(options),
     queryFn: async ({ pageParam }: { pageParam?: string }): Promise<NotificationFeedResponse> => {
@@ -113,13 +118,17 @@ export function useInfiniteNotifications(options?: Omit<NotificationFeedOptions,
       return hasNext && lastPage?.meta?.nextCursor ? lastPage.meta.nextCursor : undefined;
     },
     staleTime: 20_000,
+    networkMode: 'online',
+    enabled: isOnline,
   });
 }
 
 /**
- * Polls the unread notification count every 30 seconds for badge display.
+ * Polls the unread notification count every 90 seconds for badge display.
  */
 export function useUnreadCount() {
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
   return useQuery({
     queryKey: notificationKeys.unreadCount(),
     queryFn: async (): Promise<{ unreadCount: number }> => {
@@ -130,8 +139,10 @@ export function useUnreadCount() {
       return res;
     },
     staleTime: 60_000,
-    refetchInterval: 90_000, // Poll every 90 seconds to avoid flooding the backend
+    refetchInterval: isOnline ? 90_000 : false, // Disable interval entirely when offline
     refetchIntervalInBackground: false,
+    networkMode: 'online',
+    enabled: isOnline,
   });
 }
 
