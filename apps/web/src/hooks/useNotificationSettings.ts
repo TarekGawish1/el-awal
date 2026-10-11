@@ -32,7 +32,7 @@ export const notificationSettingsKeys = {
 /**
  * Fetches current system-wide notification settings (WhatsApp, Push, In-App).
  */
-export function useNotificationSettings() {
+export function useNotificationSettings(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: notificationSettingsKeys.current(),
     queryFn: async (): Promise<NotificationSystemSettings> => {
@@ -42,7 +42,8 @@ export function useNotificationSettings() {
       );
       return res;
     },
-    staleTime: 10_000,
+    staleTime: 60_000,
+    enabled: options?.enabled ?? true,
   });
 }
 

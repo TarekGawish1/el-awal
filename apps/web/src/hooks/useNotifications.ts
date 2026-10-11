@@ -91,7 +91,7 @@ export function useNotifications(
 /**
  * Fetches cursor-paginated infinite notification feed with load-more capabilities.
  */
-export function useInfiniteNotifications(options?: Omit<NotificationFeedOptions, 'cursor'>) {
+export function useInfiniteNotifications(options?: Omit<NotificationFeedOptions, 'cursor'> & { enabled?: boolean }) {
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
   return useInfiniteQuery({
@@ -119,7 +119,7 @@ export function useInfiniteNotifications(options?: Omit<NotificationFeedOptions,
     },
     staleTime: 20_000,
     networkMode: 'online',
-    enabled: isOnline,
+    enabled: (options?.enabled ?? true) && isOnline,
   });
 }
 

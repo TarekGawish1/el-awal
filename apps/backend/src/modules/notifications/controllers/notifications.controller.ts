@@ -201,6 +201,27 @@ export class NotificationsController {
 
   // ─── WhatsApp Queue & Delivery Observability ─────────────────────────────
 
+  @Get('whatsapp-overview')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({
+    summary: 'Consolidated WhatsApp overview returning connection status, delivery statistics, initial failed queue, and unread notifications count in a single roundtrip',
+  })
+  async getWhatsAppOverview(@CurrentUser() user: AuthenticatedUser) {
+    const [stats, failed, unreadCount] = await Promise.all([
+      this.whatsappDispatcher.getStats(),
+      this.whatsappDispatcher.getFailed(1, 15),
+      this.notificationsService.getUnreadCount(user.id),
+    ]);
+    const status = this.whatsappService.getStatus();
+
+    return {
+      status,
+      stats,
+      initialFailed: failed,
+      unreadCount: unreadCount.unreadCount,
+    };
+  }
+
   @Get('whatsapp-stats')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Get WhatsApp delivery summary statistics (sent today, queued, failed)' })

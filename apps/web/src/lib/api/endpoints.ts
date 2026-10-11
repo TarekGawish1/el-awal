@@ -133,6 +133,7 @@ export const API_ENDPOINTS = {
     PUSH_SUBSCRIBE: "/notifications/push-subscribe",
     PUSH_UNSUBSCRIBE: "/notifications/push-unsubscribe",
     WHATSAPP_STATUS: "/notifications/whatsapp-status",
+    WHATSAPP_OVERVIEW: "/notifications/whatsapp-overview",
     WHATSAPP_STATS: "/notifications/whatsapp-stats",
     WHATSAPP_QUEUE: "/notifications/whatsapp-queue",
     WHATSAPP_FAILED: "/notifications/whatsapp-failed",

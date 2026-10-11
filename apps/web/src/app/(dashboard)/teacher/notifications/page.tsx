@@ -46,7 +46,7 @@ import {
 } from '@/hooks/useNotifications';
 import { WhatsAppConnectionManager } from '@/components/admin/WhatsAppConnectionManager';
 import { WhatsAppQueueManager } from '@/features/notifications/components/WhatsAppQueueManager';
-import { useWhatsAppStats } from '@/hooks/useWhatsAppQueue';
+import { useWhatsAppStats, useWhatsAppOverview } from '@/hooks/useWhatsAppQueue';
 import { useAuth } from '@/features/auth';
 
 export default function NotificationCenterPage() {
@@ -58,45 +58,21 @@ export default function NotificationCenterPage() {
   const [pageSize, setPageSize] = useState<number>(15);
   const [isDispatchingSchedule, setIsDispatchingSchedule] = useState(false);
 
-  // Live WhatsApp Socket & Ban Status State
-  const [whatsAppStatus, setWhatsAppStatus] = useState<{
-    connected: boolean;
-    status: string;
-    qr?: string | null;
-    connectedNumber?: string | null;
-    isBanned?: boolean;
-    banReason?: string | null;
-    bannedAt?: string | null;
-  } | null>(null);
+  // Consolidated WhatsApp Overview (status + stats + initial failed) in 1 request
+  const { data: overviewData } = useWhatsAppOverview({
+    enabled: activeTab === 'whatsapp',
+    pollQr: isWhatsAppModalOpen,
+  });
 
-  const fetchWhatsAppStatus = async () => {
-    try {
-      const res = await apiClient<{
-        connected: boolean;
-        status: string;
-        qr?: string | null;
-        connectedNumber?: string | null;
-        isBanned?: boolean;
-        banReason?: string | null;
-        bannedAt?: string | null;
-      }>('/notifications/whatsapp-status');
-      setWhatsAppStatus(res);
-    } catch {
-      // offline or loading
-    }
-  };
-
-  React.useEffect(() => {
-    fetchWhatsAppStatus();
-    const interval = setInterval(fetchWhatsAppStatus, 8000);
-    return () => clearInterval(interval);
-  }, [isWhatsAppModalOpen]);
-
+  const whatsAppStatus = overviewData?.status || null;
   const isWABanned = Boolean(whatsAppStatus?.isBanned || whatsAppStatus?.status === 'banned');
   const isWAConnected = !isWABanned && Boolean(whatsAppStatus?.connected || whatsAppStatus?.status === 'open');
   const isWAWaitingQR = !isWABanned && !isWAConnected && Boolean(whatsAppStatus?.status === 'qr' || whatsAppStatus?.qr);
 
-  const { data: settings, isLoading: isSettingsLoading } = useNotificationSettings();
+  // Lazy-load settings only when controls tab is active
+  const { data: settings, isLoading: isSettingsLoading } = useNotificationSettings({
+    enabled: activeTab === 'controls',
+  });
   const updateSettings = useUpdateNotificationSettings();
 
   const handleTestDailySchedule = async () => {
@@ -118,6 +94,7 @@ export default function NotificationCenterPage() {
     }
   };
 
+  // Lazy-load in-app notification feed only when feed tab is active
   const {
     data: infiniteFeedData,
     isLoading: isFeedLoading,
@@ -129,10 +106,11 @@ export default function NotificationCenterPage() {
     scope: 'all',
     role: roleFilter !== 'ALL' ? roleFilter : undefined,
     limit: pageSize,
+    enabled: activeTab === 'feed',
   });
 
   const { data: unreadData } = useUnreadCount();
-  const { data: waStats } = useWhatsAppStats();
+  const waStats = overviewData?.stats;
   const failedWaCount = waStats?.failedCount ?? 0;
   const markRead = useMarkRead();
   const markAllRead = useMarkAllRead();
