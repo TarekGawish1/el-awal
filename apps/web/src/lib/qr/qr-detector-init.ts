@@ -28,5 +28,7 @@ export function initQrDetector() {
   }
 }
 
-// QR detector is initialized on-demand by scanner components that call initQrDetector()
-// to avoid eagerly loading the 1MB+ ZXing WASM module on every page.
+// Auto-initialize proactively in browser environment so WASM locateFile override is ready before any scanner mounts
+if (typeof window !== 'undefined') {
+  initQrDetector();
+}

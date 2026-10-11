@@ -73,6 +73,62 @@ export function FinanceQrScanner({
   const [showPermissionGuide, setShowPermissionGuide] = useState(false);
   const [isDecodingImage, setIsDecodingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const scannerContainerRef = useRef<HTMLDivElement>(null);
+
+  // Eagerly ensure QR detector wasm locator is ready
+  useEffect(() => {
+    initQrDetector();
+  }, []);
+
+  // Hardware-accelerated continuous frame scanner loop using native BarcodeDetector
+  // (Instant detection on Android Chrome and WebCodecs-compatible mobile browsers)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    let isScanning = true;
+    let animationId: number;
+    let nativeDetector: any = null;
+
+    if ('BarcodeDetector' in window) {
+      try {
+        nativeDetector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
+      } catch (err) {
+        console.warn('Native BarcodeDetector initialization:', err);
+      }
+    }
+
+    if (!nativeDetector) return;
+
+    let lastScanTime = 0;
+    const scanFrame = async () => {
+      if (!isScanning) return;
+
+      const now = Date.now();
+      if (now - lastScanTime >= 120 && !locked && !isPending && scannerContainerRef.current) {
+        lastScanTime = now;
+        const video = scannerContainerRef.current.querySelector('video');
+        if (video && video.readyState >= 2 && !video.paused) {
+          try {
+            const detected = await nativeDetector.detect(video);
+            if (detected && detected.length > 0 && detected[0]?.rawValue) {
+              handleScan([{ rawValue: detected[0].rawValue }]);
+            }
+          } catch (e) {
+            // Frame busy or transient error, continue
+          }
+        }
+      }
+
+      animationId = requestAnimationFrame(scanFrame);
+    };
+
+    animationId = requestAnimationFrame(scanFrame);
+
+    return () => {
+      isScanning = false;
+      cancelAnimationFrame(animationId);
+    };
+  }, [locked, isPending, cameraKey]);
 
   // Auto-detect single-camera devices (e.g. desktop/laptop webcam) and default to 'user'
   useEffect(() => {
@@ -334,8 +390,16 @@ export function FinanceQrScanner({
   const handleError = (error: any) => {
     console.error('Finance QR Scanner Error:', error);
     const msg = error?.message || '';
-    if (msg.includes('Barcode detection service unavailable') || msg.includes('detect')) {
+    if (msg.includes('Barcode detection service unavailable') || msg.includes('detect') || msg.includes('wasm')) {
       initQrDetector();
+      // If native hardware detector is active, do not interrupt the camera stream
+      if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+        return;
+      }
+      // Re-trigger scanner with initialized detector after brief pause
+      setTimeout(() => {
+        setCameraKey((prev) => prev + 1);
+      }, 400);
       return;
     }
     if (msg.includes('timed out') || msg.includes('timeout')) {
@@ -477,6 +541,7 @@ export function FinanceQrScanner({
 
       {/* Camera Viewport (Constrained to a sleek 250px) */}
       <div
+        ref={scannerContainerRef}
         className={`w-full max-w-[250px] aspect-square bg-slate-900 rounded-2xl overflow-hidden border border-slate-200/80 shadow-md relative transition-all duration-300 ring-4 mx-auto ${
           flashType === 'success'
             ? 'ring-emerald-500 shadow-lg shadow-emerald-500/20'

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useScanPaymentQr } from '../hooks/useFinance';
 
@@ -77,6 +77,61 @@ export function PaymentQrScannerModal({
   const [cameraKey, setCameraKey] = useState(0);
   const [isRequestingPermission, setIsRequestingPermission] = useState(false);
   const [showPermissionGuide, setShowPermissionGuide] = useState(false);
+  const scannerContainerRef = useRef<HTMLDivElement>(null);
+
+  // Eagerly ensure QR detector wasm locator is ready
+  useEffect(() => {
+    initQrDetector();
+  }, []);
+
+  // Hardware-accelerated continuous frame scanner loop using native BarcodeDetector
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isOpen) return;
+
+    let isScanning = true;
+    let animationId: number;
+    let nativeDetector: any = null;
+
+    if ('BarcodeDetector' in window) {
+      try {
+        nativeDetector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
+      } catch (err) {
+        console.warn('Native BarcodeDetector initialization:', err);
+      }
+    }
+
+    if (!nativeDetector) return;
+
+    let lastScanTime = 0;
+    const scanFrame = async () => {
+      if (!isScanning) return;
+
+      const now = Date.now();
+      if (now - lastScanTime >= 120 && !locked && scannerContainerRef.current) {
+        lastScanTime = now;
+        const video = scannerContainerRef.current.querySelector('video');
+        if (video && video.readyState >= 2 && !video.paused) {
+          try {
+            const detected = await nativeDetector.detect(video);
+            if (detected && detected.length > 0 && detected[0]?.rawValue) {
+              handleScan([{ rawValue: detected[0].rawValue }]);
+            }
+          } catch (e) {
+            // Frame error or busy, ignore and continue next tick
+          }
+        }
+      }
+
+      animationId = requestAnimationFrame(scanFrame);
+    };
+
+    animationId = requestAnimationFrame(scanFrame);
+
+    return () => {
+      isScanning = false;
+      cancelAnimationFrame(animationId);
+    };
+  }, [locked, isOpen, cameraKey]);
 
   const requestCameraPermission = async () => {
     setIsRequestingPermission(true);
@@ -335,9 +390,15 @@ export function PaymentQrScannerModal({
   const handleCameraError = (error: any) => {
     console.error('QR Scanner Camera Error:', error);
     const msg = error?.message || '';
-    if (msg.includes('Barcode detection service unavailable') || msg.includes('detect')) {
+    if (msg.includes('Barcode detection service unavailable') || msg.includes('detect') || msg.includes('wasm')) {
       // Re-initialize local WASM engine silently
       initQrDetector();
+      if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+        return;
+      }
+      setTimeout(() => {
+        setCameraKey((prev) => prev + 1);
+      }, 400);
       return;
     }
     if (msg.includes('timed out') || msg.includes('timeout')) {
@@ -538,6 +599,7 @@ export function PaymentQrScannerModal({
           {/* Scanner Viewport */}
           <div className="flex flex-col items-center">
             <div
+              ref={scannerContainerRef}
               className={`w-full max-w-xs aspect-square bg-slate-950 rounded-3xl overflow-hidden border-2 border-slate-800 shadow-xl relative ring-4 transition-all duration-300 ${
                 paymentType === 'BOOKLET' ? 'ring-purple-100' : 'ring-primary-100'
               }`}

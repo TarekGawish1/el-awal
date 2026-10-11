@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 
 const Scanner = dynamic(
@@ -64,6 +64,61 @@ export function QrScanner({ sessionId }: QrScannerProps) {
   const [flashType, setFlashType] = useState<'success' | 'duplicate' | 'external' | 'unknown' | 'error' | null>(null);
   const [isRequestingPermission, setIsRequestingPermission] = useState(false);
   const [showPermissionGuide, setShowPermissionGuide] = useState(false);
+  const scannerContainerRef = useRef<HTMLDivElement>(null);
+
+  // Eagerly ensure QR detector wasm locator is ready
+  useEffect(() => {
+    initQrDetector();
+  }, []);
+
+  // Hardware-accelerated continuous frame scanner loop using native BarcodeDetector
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    let isScanning = true;
+    let animationId: number;
+    let nativeDetector: any = null;
+
+    if ('BarcodeDetector' in window) {
+      try {
+        nativeDetector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
+      } catch (err) {
+        console.warn('Native BarcodeDetector initialization:', err);
+      }
+    }
+
+    if (!nativeDetector) return;
+
+    let lastScanTime = 0;
+    const scanFrame = async () => {
+      if (!isScanning) return;
+
+      const now = Date.now();
+      if (now - lastScanTime >= 120 && !locked && !isPending && !crossGroupPrompt && scannerContainerRef.current) {
+        lastScanTime = now;
+        const video = scannerContainerRef.current.querySelector('video');
+        if (video && video.readyState >= 2 && !video.paused) {
+          try {
+            const detected = await nativeDetector.detect(video);
+            if (detected && detected.length > 0 && detected[0]?.rawValue) {
+              handleScan([{ rawValue: detected[0].rawValue }]);
+            }
+          } catch (e) {
+            // Frame error or busy, ignore and continue next tick
+          }
+        }
+      }
+
+      animationId = requestAnimationFrame(scanFrame);
+    };
+
+    animationId = requestAnimationFrame(scanFrame);
+
+    return () => {
+      isScanning = false;
+      cancelAnimationFrame(animationId);
+    };
+  }, [locked, isPending, crossGroupPrompt, cameraKey]);
 
   const requestCameraPermission = async () => {
     setIsRequestingPermission(true);
@@ -348,9 +403,15 @@ export function QrScanner({ sessionId }: QrScannerProps) {
   const handleError = (error: any) => {
     console.error('QR Scanner Error:', error);
     const msg = error?.message || '';
-    if (msg.includes('Barcode detection service unavailable') || msg.includes('detect')) {
+    if (msg.includes('Barcode detection service unavailable') || msg.includes('detect') || msg.includes('wasm')) {
       // Re-initialize local WASM engine silently
       initQrDetector();
+      if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+        return;
+      }
+      setTimeout(() => {
+        setCameraKey((prev) => prev + 1);
+      }, 400);
       return;
     }
     if (msg.includes('timed out') || msg.includes('timeout')) {
@@ -370,6 +431,7 @@ export function QrScanner({ sessionId }: QrScannerProps) {
     <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start py-4">
       <div className="md:col-span-6 flex flex-col items-center">
         <div
+          ref={scannerContainerRef}
           className={`w-full max-w-sm aspect-square bg-slate-900 rounded-3xl overflow-hidden border border-slate-100 shadow-sm relative transition-all duration-300 ring-4 ${
           flashType === 'success'
             ? 'ring-emerald-500 shadow-lg shadow-emerald-500/20'
