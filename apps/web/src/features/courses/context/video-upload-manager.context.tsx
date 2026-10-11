@@ -389,11 +389,38 @@ export function VideoUploadManagerProvider({
           }
         };
 
-        let lastLoaded = 0;
-        let lastTime = Date.now();
+        // Fallback: upload directly to Bunny Stream via secure server proxy
+        const executeServerFallback = async (reason?: string) => {
+          if (activeXhrsRef.current[taskId]) {
+            try {
+              activeXhrsRef.current[taskId].abort();
+            } catch {}
+            delete activeXhrsRef.current[taskId];
+          }
 
-        try {
-          const result = await coursesApi.uploadVideoDirectToServer(
+          console.warn(
+            `Direct browser Bunny upload interrupted (${reason || 'network/cors'}). Switching to secure server upload to Bunny Stream for: ${lessonTitle || file.name}`,
+          );
+
+          updateTask(taskId, {
+            status: 'uploading',
+            progress: 20,
+            uploadedBytes: 0,
+            speedMbps: 0,
+            etaSeconds: 0,
+            provider: 'bunny',
+          });
+
+          toast(
+            `جاري استكمال رفع "${lessonTitle || file.name}" إلى سيرفر البث (Bunny Stream)...`,
+            { icon: '🔄', duration: 4000 },
+          );
+
+          let lastLoaded = 0;
+          let lastTime = Date.now();
+
+          const currentVideoId = tasksRef.current[taskId]?.videoId;
+          const fallbackResult = await coursesApi.uploadVideoDirectToServer(
             file,
             lessonTitle.trim() || file.name,
             (percent, loaded, total) => {
@@ -411,40 +438,27 @@ export function VideoUploadManagerProvider({
                 lastTime = now;
               }
 
-              const patch: Partial<VideoUploadTask> = {
+              updateTask(taskId, {
                 uploadedBytes: loaded,
                 totalBytes: total,
-                progress: Math.min(Math.round((percent / 100) * 88) + 10, 98),
-              };
-              if (currentSpeed > 0) {
-                patch.speedMbps = parseFloat(currentSpeed.toFixed(2));
-              }
-              if (eta > 0) {
-                patch.etaSeconds = Math.ceil(eta);
-              }
-              updateTask(taskId, patch);
+                progress: Math.min(Math.round((percent / 100) * 75) + 20, 98),
+                speedMbps: currentSpeed > 0 ? parseFloat(currentSpeed.toFixed(2)) : undefined,
+                etaSeconds: eta > 0 ? Math.ceil(eta) : undefined,
+              });
             },
-            undefined,
-            (xhr) => {
-              activeXhrsRef.current[taskId] = xhr;
-            },
-<<<<<<< HEAD
             currentVideoId,
             (xhr) => {
               activeXhrsRef.current[taskId] = xhr;
             },
-=======
->>>>>>> b91cee0ab5309663e63548f44f19c423db734e34
           );
 
           delete activeXhrsRef.current[taskId];
 
           await finalizeSuccess({
-            videoId: result.videoId,
-            embedUrl: result.embedUrl,
+            videoId: fallbackResult.videoId,
+            embedUrl: fallbackResult.embedUrl,
             provider: 'bunny',
           });
-<<<<<<< HEAD
         };
 
         try {
@@ -520,19 +534,6 @@ export function VideoUploadManagerProvider({
             });
             toast.error(fallbackErr?.message || err?.message || 'تعذر الحصول على تصريح رفع الفيديو');
           }
-=======
-        } catch (err: any) {
-          delete activeXhrsRef.current[taskId];
-          const errorMsg =
-            err?.message || 'حدث خطأ أثناء رفع الفيديو إلى سيرفر البث السحابي';
-          updateTask(taskId, {
-            status: 'error',
-            error: errorMsg,
-          });
-          toast.error(
-            `فشل رفع الفيديو "${lessonTitle || file.name}": ${errorMsg}`,
-          );
->>>>>>> b91cee0ab5309663e63548f44f19c423db734e34
         }
       })();
 

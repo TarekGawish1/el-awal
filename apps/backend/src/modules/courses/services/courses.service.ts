@@ -1890,15 +1890,9 @@ export class CoursesService {
           playbackUrl: this.bunnyVideoService.generateSecurePlaybackUrl(targetId),
           contentUrl: this.bunnyVideoService.getEmbedUrl(targetId),
         };
-<<<<<<< HEAD
-      } catch (reuseErr: any) {
-        this.logger.warn(
-          `Failed to reuse client videoId [${targetId}], creating a fresh video object: ${reuseErr?.message}`,
-=======
       } catch (reuseError: any) {
         this.logger.warn(
           `Failed to reuse existing video object [${targetId}] for direct upload: ${reuseError?.message || 'status error'}. Deleting orphan and creating fresh Bunny video...`,
->>>>>>> b91cee0ab5309663e63548f44f19c423db734e34
         );
         await this.bunnyVideoService.deleteVideo(targetId).catch(() => {});
         // Fall through to fresh upload below
