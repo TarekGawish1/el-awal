@@ -115,8 +115,8 @@ export class OfflineSyncEngine {
       const hasSession = Boolean(getStoredAccessToken() || getStoredRefreshToken());
       if (!hasSession) return;
       setTimeout(() => {
-        this.checkAndSync({ skipCooldown: true });
-      }, 1000);
+        this.checkAndSync({ skipCooldown: false });
+      }, 3000);
     }
   }
 

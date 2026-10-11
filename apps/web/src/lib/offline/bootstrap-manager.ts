@@ -65,7 +65,35 @@ class BootstrapManager {
    *   syncs where we always want a fresh pull, but still use delta).
    * @param options.queryClient  React Query client to update in-memory caches.
    */
+  private activeBootstrapPromise: Promise<{
+    success: boolean;
+    isDelta: boolean;
+    counts?: Record<string, number>;
+  }> | null = null;
+
   public async performBootstrap(options?: {
+    forceFull?: boolean;
+    skipCooldown?: boolean;
+    queryClient?: QueryClient;
+  }): Promise<{ success: boolean; isDelta: boolean; counts?: Record<string, number> }> {
+    // 1. In-flight promise deduplication: Reuse active request if one is currently in progress
+    if (this.activeBootstrapPromise) {
+      return this.activeBootstrapPromise;
+    }
+
+    const run = async () => {
+      try {
+        return await this.executeBootstrap(options);
+      } finally {
+        this.activeBootstrapPromise = null;
+      }
+    };
+
+    this.activeBootstrapPromise = run();
+    return this.activeBootstrapPromise;
+  }
+
+  private async executeBootstrap(options?: {
     forceFull?: boolean;
     skipCooldown?: boolean;
     queryClient?: QueryClient;
@@ -173,7 +201,14 @@ class BootstrapManager {
       // If it's a delta, only upsert. If it's full, sync snapshot (pruning missing).
       if (payload.students.length > 0) {
         if (isDeltaResponse) {
-          await offlineDb.bulkPutStudents(payload.students);
+          const chunkSize = 250;
+          for (let i = 0; i < payload.students.length; i += chunkSize) {
+            const chunk = payload.students.slice(i, i + chunkSize);
+            await offlineDb.bulkPutStudents(chunk);
+            if (i + chunkSize < payload.students.length) {
+              await new Promise((resolve) => setTimeout(resolve, 0));
+            }
+          }
         } else {
           await offlineDb.syncStudentsSnapshot(payload.students);
         }

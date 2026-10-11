@@ -387,15 +387,25 @@ export class SyncService {
     try {
       const targetGroupIds = allTeacherGroupIds.length > 0 ? allTeacherGroupIds : groupIds;
       if (targetGroupIds.length > 0) {
-        const enrollments = await this.prisma.groupEnrollment.findMany({
-          where: {
-            groupId: { in: targetGroupIds },
-            status: GroupEnrollmentStatus.ACTIVE,
-            student: {
-              academicStatus: 'ACTIVE',
-              user: { isActive: true },
-            },
+        const enrollmentWhere: any = {
+          groupId: { in: targetGroupIds },
+          status: GroupEnrollmentStatus.ACTIVE,
+          student: {
+            academicStatus: 'ACTIVE',
+            user: { isActive: true },
           },
+        };
+
+        if (isDelta && sinceDate) {
+          enrollmentWhere.OR = [
+            { updatedAt: { gte: sinceDate } },
+            { student: { updatedAt: { gte: sinceDate } } },
+          ];
+        }
+
+        const enrollments = await this.prisma.groupEnrollment.findMany({
+          where: enrollmentWhere,
+          ...(!isDelta ? { take: 2000 } : {}),
           include: {
             student: {
               include: {
@@ -445,17 +455,24 @@ export class SyncService {
           }
         }
         // Also include unassigned CENTER students (created by the teacher or unassigned in the system)
+        const unassignedWhere: any = {
+          attendanceMode: AttendanceMode.CENTER,
+          academicStatus: 'ACTIVE',
+          user: { isActive: true },
+          groupEnrollments: { none: {} },
+          OR: [
+            { createdById: effectiveTeacherId },
+            { createdById: null },
+          ],
+        };
+
+        if (isDelta && sinceDate) {
+          unassignedWhere.updatedAt = { gte: sinceDate };
+        }
+
         const unassignedCenterStudents = await this.prisma.studentProfile.findMany({
-          where: {
-            attendanceMode: AttendanceMode.CENTER,
-            academicStatus: 'ACTIVE',
-            user: { isActive: true },
-            groupEnrollments: { none: {} },
-            OR: [
-              { createdById: effectiveTeacherId },
-              { createdById: null },
-            ],
-          },
+          where: unassignedWhere,
+          ...(!isDelta ? { take: 500 } : {}),
           include: {
             user: {
               select: {
