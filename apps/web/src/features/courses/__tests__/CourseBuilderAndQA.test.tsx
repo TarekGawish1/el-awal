@@ -54,6 +54,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
   usePathname: () => '/',
   useSearchParams: () => new URLSearchParams(),
+  useParams: () => ({ id: 'course-1' }),
 }));
 
 vi.mock('@/lib/offline/use-online-status', () => ({

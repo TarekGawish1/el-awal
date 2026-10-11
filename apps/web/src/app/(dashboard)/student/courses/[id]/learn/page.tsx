@@ -7,23 +7,29 @@ export const metadata: Metadata = {
 };
 
 interface StudentCourseLearnPageProps {
-  params: {
+  params: Promise<{
+    id: string;
+  }> | {
     id: string;
   };
-  searchParams?: {
+  searchParams?: Promise<{
+    lessonId?: string;
+  }> | {
     lessonId?: string;
   };
 }
 
-export default function StudentCourseLearnPage({
+export default async function StudentCourseLearnPage({
   params,
   searchParams,
 }: StudentCourseLearnPageProps) {
+  const resolvedParams = await params;
+  const resolvedSearchParams = await searchParams;
   return (
     <div className="max-w-7xl mx-auto">
       <StudentCourseLearningRoom
-        courseId={params.id}
-        initialLessonId={searchParams?.lessonId}
+        courseId={resolvedParams?.id}
+        initialLessonId={resolvedSearchParams?.lessonId}
       />
     </div>
   );

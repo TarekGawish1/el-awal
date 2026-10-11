@@ -259,59 +259,83 @@ function NotificationItem({
 // ─── Push Permission Toggle ───────────────────────────────────────────────────
 
 function PushToggle() {
-  const { isSupported, isSubscribed, isLoading, permission, subscribe, unsubscribe } =
+  const { isSupported, isSubscribed, isLoading, permission, isBrave, subscribe, unsubscribe } =
     useWebPush();
+  const [isToggling, setIsToggling] = useState(false);
 
   if (!isSupported) return null;
 
-  const handleToggle = async () => {
+  const isBusy = isLoading || isToggling;
+
+  const handleToggle = async (e?: React.MouseEvent | React.KeyboardEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
     if (permission === 'denied') {
       toast.error('تم حظر الإشعارات من إعدادات المتصفح. يرجى تفعيلها من إعدادات المتصفح.');
       return;
     }
-    if (isLoading) return;
-    if (isSubscribed) {
-      await unsubscribe();
-    } else {
-      await subscribe();
+    if (isBusy) return;
+
+    setIsToggling(true);
+    try {
+      if (isSubscribed) {
+        await unsubscribe();
+      } else {
+        await subscribe();
+      }
+    } finally {
+      setIsToggling(false);
     }
   };
 
   return (
     <div
       onClick={handleToggle}
-      role="button"
+      role="switch"
+      aria-checked={isSubscribed}
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          handleToggle();
+          handleToggle(e);
         }
       }}
       className={`
         flex items-center gap-3 px-4 py-3 bg-slate-50 rounded-xl transition-all duration-150 select-none
-        ${isLoading || permission === 'denied' ? 'cursor-not-allowed opacity-75' : 'cursor-pointer hover:bg-slate-100/80 active:scale-[0.99]'}
+        ${isBusy || permission === 'denied' ? 'cursor-not-allowed opacity-80' : 'cursor-pointer hover:bg-slate-100/80 active:scale-[0.99]'}
       `}
     >
       <div className="flex-1">
         <p className="text-xs font-medium text-slate-700">الإشعارات الفورية</p>
-        <p className="text-[11px] text-slate-400 mt-0.5">
-          {permission === 'denied'
-            ? 'محظورة في إعدادات المتصفح'
-            : isSubscribed
-            ? 'مفعّلة على هذا الجهاز'
-            : 'اضغط لتفعيل الإشعارات'}
-        </p>
+        <div className="text-[11px] mt-0.5">
+          {permission === 'denied' ? (
+            <span className="text-rose-500 font-medium">محظورة في إعدادات المتصفح</span>
+          ) : isSubscribed ? (
+            <span className="text-emerald-600 font-semibold inline-flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
+              شغالة ونشطة على هذا الجهاز
+            </span>
+          ) : isBusy ? (
+            <span className="text-blue-500 font-medium">جارٍ تحديث حالة الإشعارات...</span>
+          ) : (
+            <span className="text-slate-400">اضغط لتفعيل الإشعارات</span>
+          )}
+        </div>
+        {isBrave && !isSubscribed && permission === 'granted' && (
+          <p className="text-[10px] text-amber-700 bg-amber-50/80 rounded px-1.5 py-0.5 mt-1.5 leading-normal font-medium border border-amber-200/60">
+            تنبيه Brave: فعّل &quot;Use Google services for push messaging&quot; من إعدادات الخصوصية بالمتصفح.
+          </p>
+        )}
       </div>
       <div
         className={`
-          relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 pointer-events-none
+          relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 pointer-events-none shrink-0
           ${isSubscribed ? 'bg-blue-500' : 'bg-slate-300'}
         `}
         id="push-toggle"
         aria-label="تفعيل إشعارات المتصفح"
       >
-        {isLoading ? (
+        {isBusy ? (
           <Loader2 size={12} className="text-white animate-spin mx-auto" />
         ) : (
           <span
@@ -344,7 +368,7 @@ function EmptyState() {
 
 // ─── Main NotificationCenter Component ───────────────────────────────────────
 
-export function NotificationCenter() {
+export function NotificationCenter({ unreadCount: propUnreadCount }: { unreadCount?: number } = {}) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -352,12 +376,12 @@ export function NotificationCenter() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const { data: unreadData } = useUnreadCount();
+  const { data: unreadData } = useUnreadCount({ enabled: propUnreadCount === undefined });
   const { data: feedData, isLoading } = useNotifications(undefined, { enabled: isOpen });
   const markRead = useMarkRead();
   const markAllRead = useMarkAllRead();
 
-  const unreadCount = (unreadData as { unreadCount?: number } | undefined)?.unreadCount ?? 0;
+  const unreadCount = propUnreadCount ?? (unreadData as { unreadCount?: number } | undefined)?.unreadCount ?? 0;
   const notifications: Notification[] = feedData?.data ?? [];
 
   // Close drawer on outside click

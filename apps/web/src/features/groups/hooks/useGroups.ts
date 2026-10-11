@@ -589,6 +589,8 @@ export function usePendingReservations(enabled = true) {
     },
     enabled: enabled && (typeof navigator !== 'undefined' ? navigator.onLine : true),
     networkMode: 'online',
+    staleTime: 60 * 1000, // 1 minute cache sharing across layout and dashboard
+    refetchOnWindowFocus: false,
   });
 }
 

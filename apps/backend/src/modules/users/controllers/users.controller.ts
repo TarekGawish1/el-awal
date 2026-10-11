@@ -14,4 +14,11 @@ export class UsersController {
   async getMyProfile(@CurrentUser() user: AuthenticatedUser) {
     return this.usersService.getProfile(user.id);
   }
+
+  @Get('me/badges')
+  @ApiOperation({ summary: 'Get aggregated layout shell notification, inquiry, and reservation counter badges' })
+  async getMyBadges(@CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.getBadges(user);
+  }
 }
+

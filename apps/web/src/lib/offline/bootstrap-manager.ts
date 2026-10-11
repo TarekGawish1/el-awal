@@ -28,7 +28,7 @@ class BootstrapManager {
   private lastBootstrapAt: number = 0;
   /** Minimum milliseconds between two delta bootstrap calls. Full bootstrap
    *  (forceFull) and explicit skipCooldown calls always bypass this. */
-  private readonly MIN_DELTA_INTERVAL_MS = 15 * 1000; // 15 seconds for rapid cross-device sync
+  private readonly MIN_DELTA_INTERVAL_MS = 60 * 1000; // 60 seconds for sensible background delta sync
 
   public isBootstrapping(): boolean {
     return this.isBootstrappingState;
@@ -65,7 +65,35 @@ class BootstrapManager {
    *   syncs where we always want a fresh pull, but still use delta).
    * @param options.queryClient  React Query client to update in-memory caches.
    */
+  private activeBootstrapPromise: Promise<{
+    success: boolean;
+    isDelta: boolean;
+    counts?: Record<string, number>;
+  }> | null = null;
+
   public async performBootstrap(options?: {
+    forceFull?: boolean;
+    skipCooldown?: boolean;
+    queryClient?: QueryClient;
+  }): Promise<{ success: boolean; isDelta: boolean; counts?: Record<string, number> }> {
+    // 1. In-flight promise deduplication: Reuse active request if one is currently in progress
+    if (this.activeBootstrapPromise) {
+      return this.activeBootstrapPromise;
+    }
+
+    const run = async () => {
+      try {
+        return await this.executeBootstrap(options);
+      } finally {
+        this.activeBootstrapPromise = null;
+      }
+    };
+
+    this.activeBootstrapPromise = run();
+    return this.activeBootstrapPromise;
+  }
+
+  private async executeBootstrap(options?: {
     forceFull?: boolean;
     skipCooldown?: boolean;
     queryClient?: QueryClient;
@@ -173,7 +201,14 @@ class BootstrapManager {
       // If it's a delta, only upsert. If it's full, sync snapshot (pruning missing).
       if (payload.students.length > 0) {
         if (isDeltaResponse) {
-          await offlineDb.bulkPutStudents(payload.students);
+          const chunkSize = 250;
+          for (let i = 0; i < payload.students.length; i += chunkSize) {
+            const chunk = payload.students.slice(i, i + chunkSize);
+            await offlineDb.bulkPutStudents(chunk);
+            if (i + chunkSize < payload.students.length) {
+              await new Promise((resolve) => setTimeout(resolve, 0));
+            }
+          }
         } else {
           await offlineDb.syncStudentsSnapshot(payload.students);
         }
@@ -306,10 +341,6 @@ class BootstrapManager {
         if (payload.payments.length > 0) qc.invalidateQueries({ queryKey: ['payments'] });
         if (payload.booklets.length > 0) qc.invalidateQueries({ queryKey: ['booklets'] });
         if (payload.assessments.length > 0) qc.invalidateQueries({ queryKey: ['assessments'] });
-
-        if (typeof qc.refetchQueries === 'function') {
-          qc.refetchQueries({ type: 'active' });
-        }
       }
 
       const syncTimestamp = response.timestamp || rootData.timestamp || Date.now();

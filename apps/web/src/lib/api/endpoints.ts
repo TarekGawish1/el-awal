@@ -20,8 +20,10 @@ export const API_ENDPOINTS = {
   },
   USERS: {
     ME: "/users/me",
+    BADGES: "/users/me/badges",
   },
   TEACHER: {
+    DASHBOARD_INIT: "/teachers/dashboard/init",
     DASHBOARD_OVERVIEW: "/teachers/dashboard/overview", // Recommended server aggregation contract
     ACADEMIC_PERIOD: "/teachers/academic-period",
     PROFILE: "/teachers/profile",
@@ -108,6 +110,13 @@ export const API_ENDPOINTS = {
     DELETE_PAYMENT: (paymentId: string) => `/subscriptions/${paymentId}`,
     REFUND_PAYMENT: (paymentId: string) => `/subscriptions/${paymentId}/refund`,
   },
+  PAYMENTS: {
+    INIT: "/payments/init",
+    DASHBOARD_ANALYTICS: "/payments/dashboard-analytics",
+    ANALYTICS: "/payments/analytics",
+    MATRIX_LEDGER: "/payments/matrix-ledger",
+    BILLING_CONFIG: "/payments/billing-config",
+  },
   BOOKLETS: {
     LIST: "/booklets",
     CREATE: "/booklets",
@@ -124,6 +133,7 @@ export const API_ENDPOINTS = {
     PUSH_SUBSCRIBE: "/notifications/push-subscribe",
     PUSH_UNSUBSCRIBE: "/notifications/push-unsubscribe",
     WHATSAPP_STATUS: "/notifications/whatsapp-status",
+    WHATSAPP_OVERVIEW: "/notifications/whatsapp-overview",
     WHATSAPP_STATS: "/notifications/whatsapp-stats",
     WHATSAPP_QUEUE: "/notifications/whatsapp-queue",
     WHATSAPP_FAILED: "/notifications/whatsapp-failed",
@@ -157,6 +167,7 @@ export const API_ENDPOINTS = {
     DELETE: (id: string) => `/contact-messages/${id}`,
   },
   ANALYTICS: {
+    OVERVIEW: "/analytics/overview",
     TRACK: "/analytics/track",
     STATS: "/analytics/stats",
     LANDING: "/analytics/landing",
@@ -166,6 +177,12 @@ export const API_ENDPOINTS = {
     SESSION_START: "/analytics/session/start",
     SESSION_PING: "/analytics/session/ping",
     PAGE_PING: "/analytics/ping-page",
+  },
+  AUDIT_LOGS: {
+    LIST: "/audit-logs",
+    OVERVIEW: "/audit-logs/overview",
+    STATS: "/audit-logs/stats",
+    PERFORMERS: "/audit-logs/performers",
   },
   TESTIMONIALS: {
     PUBLIC: "/testimonials/public",

@@ -2,7 +2,7 @@
  
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useParams } from 'next/navigation';
 import {
   ArrowRight,
   ArrowLeft,
@@ -60,7 +60,9 @@ function getPausedEmbedUrl(embedUrl: string): string {
 export function StudentCourseLearningRoom({ courseId, initialLessonId }: StudentCourseLearningRoomProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { data: course, isLoading: isCourseLoading, refetch: refetchCourse } = useCourseDetail(courseId);
+  const routeParams = useParams();
+  const effectiveCourseId = (courseId || routeParams?.id) as string;
+  const { data: course, isLoading: isCourseLoading, refetch: refetchCourse } = useCourseDetail(effectiveCourseId);
   const { user } = useAuth();
   const isTeacherOrAdmin = user?.role === 'TEACHER' || user?.role === 'SECRETARIAT';
   const isPreviewMode = isTeacherOrAdmin && (pathname?.includes('/preview') ?? false);

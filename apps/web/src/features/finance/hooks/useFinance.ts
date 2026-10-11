@@ -12,8 +12,9 @@ import {
   updateBillingConfiguration,
   fetchFinanceAnalytics,
   fetchFinanceDashboardAnalytics,
+  fetchFinanceInit,
 } from '../api/finance.api';
-import { PaymentQuery, RecordPaymentPayload, ScanPaymentQrPayload, DefaultersResponse, ScanPaymentQrResponse, StudentPaymentRecord, FinanceAnalyticsResponse, FinanceDashboardResponse } from '../types/finance.types';
+import { PaymentQuery, RecordPaymentPayload, ScanPaymentQrPayload, DefaultersResponse, ScanPaymentQrResponse, StudentPaymentRecord, FinanceAnalyticsResponse, FinanceDashboardResponse, FinanceInitResponse } from '../types/finance.types';
 import { offlineDb } from '@/lib/offline/db';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { API_ENDPOINTS } from '@/lib/api/endpoints';
@@ -32,7 +33,53 @@ export const financeKeys = {
   billingConfiguration: (academicYear: string, academicTerm: string) => [...financeKeys.all, 'billing-configuration', academicYear, academicTerm] as const,
   financeAnalytics: (query: Record<string, unknown>) => [...financeKeys.all, 'finance-analytics', query] as const,
   dashboardAnalytics: (query: Record<string, unknown>) => [...financeKeys.all, 'dashboard-analytics', query] as const,
+  init: (query: Record<string, unknown>) => [...financeKeys.all, 'init', query] as const,
 };
+
+export function useFinanceInit(
+  query: {
+    academicPeriodId?: string;
+    academicYear?: string;
+    academicTerm?: string;
+    stage?: string;
+    gradeLevel?: string;
+    groupId?: string;
+    month?: number;
+  },
+  options?: { enabled?: boolean }
+) {
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  const queryClient = useQueryClient();
+
+  return useQuery<FinanceInitResponse>({
+    queryKey: financeKeys.init(query),
+    queryFn: async () => {
+      const initData = await fetchFinanceInit(query);
+
+      if (initData?.menus) {
+        if (initData.menus.groups?.length) {
+          queryClient.setQueryData(['groups', undefined], initData.menus.groups);
+          offlineDb.bulkPutGroups(initData.menus.groups as any).catch(() => {});
+        }
+        if (initData.menus.booklets?.length) {
+          queryClient.setQueryData(['booklets', undefined], initData.menus.booklets);
+          offlineDb.bulkPutBooklets(initData.menus.booklets as any).catch(() => {});
+        }
+        if (initData.menus.academicPeriod) {
+          queryClient.setQueryData(['teacher', 'academic-period'], initData.menus.academicPeriod);
+        }
+        if (initData.analytics) {
+          queryClient.setQueryData(financeKeys.dashboardAnalytics(query), initData.analytics);
+        }
+      }
+
+      return initData;
+    },
+    enabled: (options?.enabled ?? true) && isOnline,
+    networkMode: 'online',
+    staleTime: 30_000,
+  });
+}
 
 export function useFinanceDashboardAnalytics(
   query: {
@@ -47,10 +94,31 @@ export function useFinanceDashboardAnalytics(
   options?: { enabled?: boolean }
 ) {
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  const queryClient = useQueryClient();
 
   return useQuery<FinanceDashboardResponse>({
     queryKey: financeKeys.dashboardAnalytics(query),
-    queryFn: () => fetchFinanceDashboardAnalytics(query),
+    queryFn: async () => {
+      try {
+        const initData = await fetchFinanceInit(query);
+        if (initData?.menus) {
+          if (initData.menus.groups?.length) {
+            queryClient.setQueryData(['groups', undefined], initData.menus.groups);
+            offlineDb.bulkPutGroups(initData.menus.groups as any).catch(() => {});
+          }
+          if (initData.menus.booklets?.length) {
+            queryClient.setQueryData(['booklets', undefined], initData.menus.booklets);
+            offlineDb.bulkPutBooklets(initData.menus.booklets as any).catch(() => {});
+          }
+          if (initData.menus.academicPeriod) {
+            queryClient.setQueryData(['teacher', 'academic-period'], initData.menus.academicPeriod);
+          }
+        }
+        return initData.analytics;
+      } catch {
+        return fetchFinanceDashboardAnalytics(query);
+      }
+    },
     enabled: (options?.enabled ?? true) && isOnline,
     networkMode: 'online',
     staleTime: 30_000,

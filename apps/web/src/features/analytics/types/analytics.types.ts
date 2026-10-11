@@ -198,3 +198,18 @@ export interface VisitorListParams {
   sortBy?: 'recent' | 'visits';
 }
 
+export interface AnalyticsOverviewResponse {
+  stats: AnalyticsStatsData;
+  geoRanking: GeoRankingResponse;
+  leaderboard: StudentLeaderboardResponse;
+  visitors: VisitorListResponse;
+}
+
+export interface AnalyticsOverviewParams extends AnalyticsQueryParams {
+  geoGroupBy?: GeoGroupBy;
+  leaderboardSortBy?: StudentLeaderboardSort;
+  leaderboardLimit?: number;
+  visitorPage?: number;
+  visitorLimit?: number;
+}
+

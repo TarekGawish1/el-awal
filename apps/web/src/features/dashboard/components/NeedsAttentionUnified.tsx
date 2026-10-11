@@ -14,20 +14,25 @@ import { StudentDetailsModal } from '@/features/students/components/StudentDetai
 export interface NeedsAttentionUnifiedProps {
   atRiskStudents?: AtRiskStudentAlert[];
   pendingGrading?: PendingGradingAlert[];
+  initialReservations?: any[];
   isLoading?: boolean;
 }
 
 export function NeedsAttentionUnified({
   atRiskStudents = [],
   pendingGrading = [],
+  initialReservations,
   isLoading = false,
 }: NeedsAttentionUnifiedProps) {
-  const { data: reservations = [], isLoading: isReservationsLoading } = usePendingReservations();
+  const { data: queryReservations = [], isLoading: isReservationsLoading } = usePendingReservations(
+    initialReservations === undefined,
+  );
+  const reservations = initialReservations ?? queryReservations;
   
   const [acceptModalData, setAcceptModalData] = useState<{ id: string; studentName: string } | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
-  const isAllLoading = isLoading || isReservationsLoading;
+  const isAllLoading = isLoading || (initialReservations === undefined && isReservationsLoading);
 
   if (isAllLoading) {
     return (

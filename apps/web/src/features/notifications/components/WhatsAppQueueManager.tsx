@@ -46,13 +46,13 @@ export function WhatsAppQueueManager() {
     isLoading: isQueueLoading,
     isFetching: isQueueFetching,
     refetch: refetchQueue,
-  } = useWhatsAppQueue(queuePage, 15);
+  } = useWhatsAppQueue(queuePage, 15, { enabled: activeSubTab === 'queue' });
   const {
     data: failedData,
     isLoading: isFailedLoading,
     isFetching: isFailedFetching,
     refetch: refetchFailed,
-  } = useWhatsAppFailed(failedPage, 15);
+  } = useWhatsAppFailed(failedPage, 15, { enabled: activeSubTab === 'failed' });
 
   const retrySingle = useRetryWhatsAppMessage();
   const retryAll = useRetryAllFailedWhatsApp();

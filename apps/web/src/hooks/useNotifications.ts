@@ -91,7 +91,7 @@ export function useNotifications(
 /**
  * Fetches cursor-paginated infinite notification feed with load-more capabilities.
  */
-export function useInfiniteNotifications(options?: Omit<NotificationFeedOptions, 'cursor'>) {
+export function useInfiniteNotifications(options?: Omit<NotificationFeedOptions, 'cursor'> & { enabled?: boolean }) {
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
   return useInfiniteQuery({
@@ -119,14 +119,17 @@ export function useInfiniteNotifications(options?: Omit<NotificationFeedOptions,
     },
     staleTime: 20_000,
     networkMode: 'online',
-    enabled: isOnline,
+    enabled: (options?.enabled ?? true) && isOnline,
   });
 }
 
+import { getRealtimeSocket } from '@/lib/realtime/socket';
+
 /**
- * Polls the unread notification count every 90 seconds for badge display.
+ * Fetches the unread notification count.
+ * Relies on real-time WebSockets to push changes; only falls back to a long 2-minute interval if disconnected.
  */
-export function useUnreadCount() {
+export function useUnreadCount(options?: { enabled?: boolean }) {
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
   return useQuery({
@@ -138,11 +141,15 @@ export function useUnreadCount() {
       );
       return res;
     },
-    staleTime: 60_000,
-    refetchInterval: isOnline ? 90_000 : false, // Disable interval entirely when offline
+    staleTime: 5 * 60 * 1000, // 5 minutes cache
+    enabled: (options?.enabled ?? true) && isOnline,
+    refetchInterval: () => {
+      if (!isOnline) return false;
+      const socket = getRealtimeSocket();
+      return socket?.connected ? false : 120_000; // Zero polling when realtime socket is active
+    },
     refetchIntervalInBackground: false,
     networkMode: 'online',
-    enabled: isOnline,
   });
 }
 
@@ -160,8 +167,35 @@ export function useMarkRead() {
         body: JSON.stringify({}),
       });
     },
-    onSuccess: () => {
+    onMutate: async (notificationId: string) => {
+      await queryClient.cancelQueries({ queryKey: notificationKeys.unreadCount() });
+      await queryClient.cancelQueries({ queryKey: ['shell', 'badges'] });
+
+      queryClient.setQueryData(notificationKeys.unreadCount(), (old: any) => ({
+        unreadCount: Math.max(0, (old?.unreadCount ?? 1) - 1),
+      }));
+
+      queryClient.setQueryData(['shell', 'badges'], (old: any) =>
+        old ? { ...old, unreadNotifications: Math.max(0, (old.unreadNotifications ?? 1) - 1) } : old
+      );
+
+      // Optimistically mark notification as read in feed
+      queryClient.setQueriesData({ queryKey: notificationKeys.all }, (oldData: any) => {
+        if (!oldData) return oldData;
+        if (Array.isArray(oldData?.data)) {
+          return {
+            ...oldData,
+            data: oldData.data.map((n: any) =>
+              n.id === notificationId ? { ...n, isRead: true, readAt: new Date().toISOString() } : n
+            ),
+          };
+        }
+        return oldData;
+      });
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['shell', 'badges'] });
     },
   });
 }
@@ -181,19 +215,43 @@ export function useMarkAllRead() {
       });
     },
     onMutate: async () => {
-      // Optimistic update: zero out unread count immediately
+      // Optimistic update: zero out unread count and shell badges immediately
       await queryClient.cancelQueries({ queryKey: notificationKeys.unreadCount() });
-      const prev = queryClient.getQueryData(notificationKeys.unreadCount());
+      await queryClient.cancelQueries({ queryKey: ['shell', 'badges'] });
+
+      const prevUnread = queryClient.getQueryData(notificationKeys.unreadCount());
+      const prevShell = queryClient.getQueryData(['shell', 'badges']);
+
       queryClient.setQueryData(notificationKeys.unreadCount(), { unreadCount: 0 });
-      return { prev };
+      queryClient.setQueryData(['shell', 'badges'], (old: any) =>
+        old ? { ...old, unreadNotifications: 0 } : old
+      );
+
+      // Optimistically mark all cached notifications as read
+      queryClient.setQueriesData({ queryKey: notificationKeys.all }, (oldData: any) => {
+        if (!oldData) return oldData;
+        if (Array.isArray(oldData?.data)) {
+          return {
+            ...oldData,
+            data: oldData.data.map((n: any) => ({ ...n, isRead: true, readAt: new Date().toISOString() })),
+          };
+        }
+        return oldData;
+      });
+
+      return { prevUnread, prevShell };
     },
     onError: (_, __, context) => {
-      if (context?.prev) {
-        queryClient.setQueryData(notificationKeys.unreadCount(), context.prev);
+      if (context?.prevUnread) {
+        queryClient.setQueryData(notificationKeys.unreadCount(), context.prevUnread);
+      }
+      if (context?.prevShell) {
+        queryClient.setQueryData(['shell', 'badges'], context.prevShell);
       }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['shell', 'badges'] });
     },
   });
 }

@@ -7,15 +7,18 @@ export const metadata: Metadata = {
 };
 
 interface TeacherCourseBuilderPageProps {
-  params: {
+  params: Promise<{
+    id: string;
+  }> | {
     id: string;
   };
 }
 
-export default function TeacherCourseBuilderPage({ params }: TeacherCourseBuilderPageProps) {
+export default async function TeacherCourseBuilderPage({ params }: TeacherCourseBuilderPageProps) {
+  const resolvedParams = await params;
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
-      <CourseBuilderView courseId={params.id} />
+      <CourseBuilderView courseId={resolvedParams?.id} />
     </div>
   );
 }

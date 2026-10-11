@@ -338,4 +338,22 @@ export class AuditService implements OnModuleInit {
 
     return Array.from(performersMap.values());
   }
+
+  /**
+   * Get composite audit overview: logs + stats + performers in 1 concurrent roundtrip
+   */
+  async getOverview(teacherId: string, query: AuditQueryDto) {
+    const [logsResult, stats, performers] = await Promise.all([
+      this.getLogs(teacherId, query),
+      this.getStats(teacherId),
+      this.getPerformers(teacherId),
+    ]);
+
+    return {
+      data: logsResult.data,
+      meta: logsResult.meta,
+      stats,
+      performers,
+    };
+  }
 }

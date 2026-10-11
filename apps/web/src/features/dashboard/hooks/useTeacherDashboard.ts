@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchTeacherGroups, fetchTeacherDashboardOverview } from '../api/dashboard.api';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { fetchTeacherGroups, fetchTeacherDashboardOverview, fetchTeacherDashboardInit } from '../api/dashboard.api';
 import { DashboardFilterState } from '../types/dashboard.types';
+import { offlineDb } from '@/lib/offline/db';
+import { QUERY_KEYS } from '@/lib/api/query-keys';
 
 export const DEFAULT_DASHBOARD_FILTERS: DashboardFilterState = {
   academicYear: '2026-2027',
@@ -29,6 +31,7 @@ export function useTeacherGroups() {
  */
 export function useTeacherDashboard(filters: DashboardFilterState = DEFAULT_DASHBOARD_FILTERS) {
   const [isOnline, setIsOnline] = useState<boolean>(true);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     setIsOnline(typeof navigator !== 'undefined' ? navigator.onLine : true);
@@ -47,7 +50,37 @@ export function useTeacherDashboard(filters: DashboardFilterState = DEFAULT_DASH
 
   const query = useQuery({
     queryKey: ['teacher', 'dashboard', 'overview', filters],
-    queryFn: () => fetchTeacherDashboardOverview(filters),
+    queryFn: async () => {
+      const data = await fetchTeacherDashboardInit(filters);
+
+      // Seed menus and offline stores
+      if (data?.menus) {
+        if (data.menus.groups?.length) {
+          queryClient.setQueryData(['teacher', 'groups'], data.menus.groups);
+          queryClient.setQueryData(['groups', undefined], data.menus.groups);
+          offlineDb.bulkPutGroups(data.menus.groups as any).catch(() => {});
+        }
+        if (data.menus.academicPeriod) {
+          queryClient.setQueryData(['teacher', 'academic-period'], data.menus.academicPeriod);
+        }
+      }
+
+      // Seed pending reservations into courses subscriptions cache
+      if (data?.pendingReservations) {
+        queryClient.setQueryData(QUERY_KEYS.courses.teacherSubscriptions(), {
+          pendingRequests: data.pendingReservations,
+          activeStudents: [],
+          unsubscribedStudents: [],
+          counts: {
+            pending: data.pendingReservations.length,
+            active: 0,
+            unsubscribed: 0,
+          },
+        });
+      }
+
+      return data;
+    },
     staleTime: 3 * 60 * 1000, // 3 minutes
     gcTime: 24 * 60 * 60 * 1000, // 24 hours in cache for offline viewing
     retry: 1,
@@ -58,3 +91,4 @@ export function useTeacherDashboard(filters: DashboardFilterState = DEFAULT_DASH
     isOffline: !isOnline,
   };
 }
+

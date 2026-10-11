@@ -24,7 +24,7 @@ import {
   Chrome,
   Clock,
 } from 'lucide-react';
-import { useAnalyticsStats } from '../hooks/useAnalytics';
+import { useAnalyticsOverview } from '../hooks/useAnalytics';
 import { AnalyticsScope, AnalyticsRange } from '../types/analytics.types';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import { GeoRankingCard } from './GeoRankingCard';
@@ -52,13 +52,15 @@ export function AnalyticsDashboard() {
   // Hovered time series bar tooltip
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
-  // Fetch aggregated stats
-  const { data, isLoading, isFetching, refetch, error } = useAnalyticsStats({
+  // Fetch aggregated overview (consolidates stats, geo-ranking, student leaderboard, and visitors into 1 single roundtrip)
+  const { data: overviewData, isLoading, isFetching, refetch, error } = useAnalyticsOverview({
     scope,
     range,
     from: range === 'custom' ? appliedCustomFrom : undefined,
     to: range === 'custom' ? appliedCustomTo : undefined,
   });
+
+  const data = overviewData?.stats;
 
   const handleRangeChange = (newRange: AnalyticsRange) => {
     setRange(newRange);

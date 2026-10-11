@@ -7,13 +7,60 @@ import { API_ENDPOINTS } from '@/lib/api/endpoints';
 
 export type PushPermissionState = 'default' | 'granted' | 'denied';
 
-interface UseWebPushReturn {
+export interface UseWebPushReturn {
   isSupported: boolean;
   permission: PushPermissionState;
   isSubscribed: boolean;
   isLoading: boolean;
+  isBrave: boolean;
   subscribe: () => Promise<boolean>;
   unsubscribe: () => Promise<boolean>;
+}
+
+const PUSH_STORAGE_KEY = 'elawal_web_push_subscribed';
+
+let globalSubscribedState: boolean | null = null;
+const stateListeners = new Set<(subscribed: boolean) => void>();
+
+export function isBraveBrowser(): boolean {
+  if (typeof window === 'undefined') return false;
+  return Boolean(
+    (navigator as any).brave ||
+    navigator.userAgent.includes('Brave')
+  );
+}
+
+function setGlobalSubscribed(subscribed: boolean) {
+  globalSubscribedState = subscribed;
+  if (typeof window !== 'undefined') {
+    try {
+      if (subscribed) {
+        localStorage.setItem(PUSH_STORAGE_KEY, 'true');
+      } else {
+        localStorage.removeItem(PUSH_STORAGE_KEY);
+      }
+    } catch {
+      // Ignore storage errors in private browsing modes
+    }
+  }
+  stateListeners.forEach((listener) => listener(subscribed));
+}
+
+function getInitialSubscribed(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+      return false;
+    }
+    if (globalSubscribedState !== null) {
+      return globalSubscribedState;
+    }
+    const cached = localStorage.getItem(PUSH_STORAGE_KEY) === 'true';
+    globalSubscribedState = cached;
+    return cached;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -106,12 +153,23 @@ async function deleteSubscription(endpoint: string): Promise<void> {
  * - Permission state tracking
  * - Subscribe: requests permission → SW registration → VAPID key → PushManager → backend sync
  * - Unsubscribe: removes from browser + backend
+ * - Persistent caching: avoids visual flicker/reset when drawer opens
  */
 export function useWebPush(): UseWebPushReturn {
   const [isSupported, setIsSupported] = useState(false);
   const [permission, setPermission] = useState<PushPermissionState>('default');
-  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState<boolean>(getInitialSubscribed);
   const [isLoading, setIsLoading] = useState(false);
+  const [isBrave, setIsBrave] = useState(false);
+
+  // Synchronize state across multiple hook instances
+  useEffect(() => {
+    const listener = (val: boolean) => setIsSubscribed(val);
+    stateListeners.add(listener);
+    return () => {
+      stateListeners.delete(listener);
+    };
+  }, []);
 
   // Check initial state on mount
   useEffect(() => {
@@ -122,9 +180,17 @@ export function useWebPush(): UseWebPushReturn {
       'Notification' in window;
 
     setIsSupported(supported);
+    setIsBrave(isBraveBrowser());
     if (!supported) return;
 
-    setPermission(Notification.permission as PushPermissionState);
+    const currentPerm = Notification.permission as PushPermissionState;
+    setPermission(currentPerm);
+
+    if (currentPerm === 'denied') {
+      setGlobalSubscribed(false);
+      setIsSubscribed(false);
+      return;
+    }
 
     let cancelled = false;
 
@@ -147,14 +213,19 @@ export function useWebPush(): UseWebPushReturn {
         const subscription = await registration.pushManager.getSubscription();
         if (cancelled) return;
 
-        setIsSubscribed(!!subscription);
+        const hasSub = Boolean(subscription);
+        setGlobalSubscribed(hasSub);
+        setIsSubscribed(hasSub);
 
         // Keep the backend record alive if the browser retained the subscription.
         if (subscription) {
           await postSubscription(subscription.toJSON()).catch(() => undefined);
         }
       } catch {
-        if (!cancelled) setIsSubscribed(false);
+        if (!cancelled && Notification.permission !== 'granted') {
+          setGlobalSubscribed(false);
+          setIsSubscribed(false);
+        }
       }
     };
 
@@ -207,6 +278,7 @@ export function useWebPush(): UseWebPushReturn {
 
       // 5. Sync subscription with backend
       await postSubscription(subscription.toJSON());
+      setGlobalSubscribed(true);
       setIsSubscribed(true);
       toast.success('تم تفعيل الإشعارات الفورية بنجاح');
       return true;
@@ -214,16 +286,15 @@ export function useWebPush(): UseWebPushReturn {
       console.error('[useWebPush] Subscribe failed:', error);
       let msg = error?.message || 'تعذر تفعيل الإشعارات';
 
-      const isBrave =
-        typeof window !== 'undefined' &&
-        (Boolean((navigator as any).brave) ||
-          navigator.userAgent.includes('Brave'));
+      const isBraveUser = isBraveBrowser();
 
       if (
         msg.includes('push service error') ||
-        msg.includes('Registration failed')
+        msg.includes('Registration failed') ||
+        msg.includes('AbortError') ||
+        isBraveUser
       ) {
-        if (isBrave) {
+        if (isBraveUser) {
           msg =
             'في متصفح Brave: يرجى تفعيل "Use Google services for push messaging" من إعدادات الخصوصية (brave://settings/privacy) ثم إعادة تشغيل المتصفح.';
         } else {
@@ -232,7 +303,7 @@ export function useWebPush(): UseWebPushReturn {
         }
       }
 
-      toast.error(msg, { duration: 6000 });
+      toast.error(msg, { duration: 7000 });
       return false;
     } finally {
       setIsLoading(false);
@@ -258,6 +329,7 @@ export function useWebPush(): UseWebPushReturn {
         }
       }
 
+      setGlobalSubscribed(false);
       setIsSubscribed(false);
       toast.success('تم إيقاف الإشعارات الفورية');
       return true;
@@ -275,6 +347,7 @@ export function useWebPush(): UseWebPushReturn {
     permission,
     isSubscribed,
     isLoading,
+    isBrave,
     subscribe,
     unsubscribe,
   };

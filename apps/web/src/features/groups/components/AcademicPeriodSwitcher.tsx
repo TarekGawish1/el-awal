@@ -16,7 +16,6 @@ import {
   ShieldCheck,
   WifiOff,
 } from 'lucide-react';
-import { useGroups } from '../hooks/useGroups';
 import { useStoredAcademicPeriod } from '../hooks/useAcademicPeriod';
 import { useAuth } from '@/features/auth';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
@@ -49,13 +48,12 @@ export function AcademicPeriodSwitcher() {
   // Only TEACHER and SECRETARIAT (assistant with permission) can change the academic year & semester
   const canChangePeriod = user?.role === 'TEACHER' || user?.role === 'SECRETARIAT';
 
-  const { data: groups } = useGroups();
   const {
     activeYear,
     activeTerm,
     switchPeriod,
     isSwitching,
-  } = useStoredAcademicPeriod(groups);
+  } = useStoredAcademicPeriod();
 
   // Staged / Pending selections before confirming
   const [pendingYear, setPendingYear] = useState<string>(activeYear);
@@ -105,15 +103,8 @@ export function AcademicPeriodSwitcher() {
     DEFAULT_YEARS.forEach((y) => yearsSet.add(y));
     customYears.forEach((y) => yearsSet.add(y));
     if (activeYear) yearsSet.add(activeYear);
-    if (groups && Array.isArray(groups)) {
-      groups.forEach((g) => {
-        if (g.academicYear && g.academicYear.trim()) {
-          yearsSet.add(g.academicYear.trim());
-        }
-      });
-    }
     return Array.from(yearsSet).sort().reverse();
-  }, [customYears, activeYear, groups]);
+  }, [customYears, activeYear]);
 
   // Controls are inert when the user can't edit, we're offline, or a switch is in flight
   const controlsDisabled = !canChangePeriod || !isOnline || isSwitching;

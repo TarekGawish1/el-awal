@@ -56,16 +56,20 @@ export function normalizeAuthErrorMessage(error: unknown): string {
 
 import { bootstrapManager } from '@/lib/offline/bootstrap-manager';
 
+import { getStoredUser } from '../utils/auth-tokens';
+
 /**
- * Hook to fetch authenticated current user profile with client-side caching
+ * Hook to fetch authenticated current user profile with client-side caching.
+ * Uses persistent initialData from localStorage and 24h cache to eliminate redundant /users/me calls.
  * GET /users/me
  */
 export function useCurrentUser(options?: { enabled?: boolean }) {
   return useQuery<AuthUser>({
     queryKey: QUERY_KEYS.users.me(),
     queryFn: fetchCurrentUser,
-    staleTime: 15 * 60 * 1000, // 15 minutes
-    gcTime: 60 * 60 * 1000,    // 60 minutes
+    initialData: () => getStoredUser() ?? undefined,
+    staleTime: 24 * 60 * 60 * 1000, // 24 hours
+    gcTime: 7 * 24 * 60 * 60 * 1000,
     networkMode: 'offlineFirst',
     enabled: options?.enabled ?? true,
     refetchOnWindowFocus: false,
@@ -87,13 +91,14 @@ export function useAuth() {
     initialize();
   }, [initialize]);
 
-  // Session profile query cached with 15-minute staleTime to prevent redundant GET /users/me calls
+  // Session profile query cached with 24-hour staleTime to prevent redundant GET /users/me calls
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
   useQuery({
     queryKey: QUERY_KEYS.users.me(),
     queryFn: fetchCurrentUser,
-    staleTime: 15 * 60 * 1000, // 15 minutes
-    gcTime: 60 * 60 * 1000,    // 60 minutes
+    initialData: () => getStoredUser() ?? undefined,
+    staleTime: 24 * 60 * 60 * 1000, // 24 hours
+    gcTime: 7 * 24 * 60 * 60 * 1000,
     networkMode: 'offlineFirst',
     enabled: isAuthenticated && isOnline,
     refetchOnWindowFocus: false,

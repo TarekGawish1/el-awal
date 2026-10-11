@@ -93,6 +93,7 @@ export function TeacherDashboardContainer() {
           <NeedsAttentionUnified 
             atRiskStudents={dashboardData?.atRiskStudents}
             pendingGrading={dashboardData?.pendingGradingList}
+            initialReservations={dashboardData?.pendingReservations}
             isLoading={isLoading}
           />
         </div>

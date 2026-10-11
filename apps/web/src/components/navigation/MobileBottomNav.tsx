@@ -76,6 +76,7 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
               <Link
                 key={tab.href}
                 href={tab.href}
+                prefetch={true}
                 className="flex flex-col items-center justify-center -mt-5 group"
                 aria-label={tab.label}
               >
@@ -99,6 +100,7 @@ export function MobileBottomNav({ userRole, onOpenMobileMenu }: MobileBottomNavP
             <Link
               key={tab.href}
               href={tab.href}
+              prefetch={true}
               className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all active:scale-95 ${
                 isActive
                   ? 'text-primary-600 font-bold'

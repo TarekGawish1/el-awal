@@ -82,6 +82,22 @@ interface VideoUploadManagerContextType {
   attachLessonIdToTask: (taskId: string, lessonId: string) => void;
 }
 
+export async function isBraveBrowser(): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  if ((navigator as any).brave) {
+    if (typeof (navigator as any).brave.isBrave === 'function') {
+      try {
+        const isBrave = await (navigator as any).brave.isBrave();
+        return Boolean(isBrave);
+      } catch {
+        return true;
+      }
+    }
+    return true;
+  }
+  return navigator.userAgent.includes('Brave');
+}
+
 const VideoUploadManagerContext = createContext<
   VideoUploadManagerContextType | undefined
 >(undefined);
@@ -373,38 +389,11 @@ export function VideoUploadManagerProvider({
           }
         };
 
-        // Fallback: upload directly to Bunny Stream via secure server proxy
-        const executeServerFallback = async (reason?: string) => {
-          if (activeXhrsRef.current[taskId]) {
-            try {
-              activeXhrsRef.current[taskId].abort();
-            } catch {}
-            delete activeXhrsRef.current[taskId];
-          }
+        let lastLoaded = 0;
+        let lastTime = Date.now();
 
-          console.warn(
-            `Direct browser Bunny upload interrupted (${reason || 'network/cors'}). Switching to secure server upload to Bunny Stream for: ${lessonTitle || file.name}`,
-          );
-
-          updateTask(taskId, {
-            status: 'uploading',
-            progress: 20,
-            uploadedBytes: 0,
-            speedMbps: 0,
-            etaSeconds: 0,
-            provider: 'bunny',
-          });
-
-          toast(
-            `جاري استكمال رفع "${lessonTitle || file.name}" إلى سيرفر البث (Bunny Stream)...`,
-            { icon: '🔄', duration: 4000 },
-          );
-
-          let lastLoaded = 0;
-          let lastTime = Date.now();
-
-          const currentVideoId = tasksRef.current[taskId]?.videoId;
-          const fallbackResult = await coursesApi.uploadVideoDirectToServer(
+        try {
+          const result = await coursesApi.uploadVideoDirectToServer(
             file,
             lessonTitle.trim() || file.name,
             (percent, loaded, total) => {
@@ -422,27 +411,40 @@ export function VideoUploadManagerProvider({
                 lastTime = now;
               }
 
-              updateTask(taskId, {
+              const patch: Partial<VideoUploadTask> = {
                 uploadedBytes: loaded,
                 totalBytes: total,
-                progress: Math.min(Math.round((percent / 100) * 75) + 20, 98),
-                speedMbps: currentSpeed > 0 ? parseFloat(currentSpeed.toFixed(2)) : undefined,
-                etaSeconds: eta > 0 ? Math.ceil(eta) : undefined,
-              });
+                progress: Math.min(Math.round((percent / 100) * 88) + 10, 98),
+              };
+              if (currentSpeed > 0) {
+                patch.speedMbps = parseFloat(currentSpeed.toFixed(2));
+              }
+              if (eta > 0) {
+                patch.etaSeconds = Math.ceil(eta);
+              }
+              updateTask(taskId, patch);
             },
+            undefined,
+            (xhr) => {
+              activeXhrsRef.current[taskId] = xhr;
+            },
+<<<<<<< HEAD
             currentVideoId,
             (xhr) => {
               activeXhrsRef.current[taskId] = xhr;
             },
+=======
+>>>>>>> b91cee0ab5309663e63548f44f19c423db734e34
           );
 
           delete activeXhrsRef.current[taskId];
 
           await finalizeSuccess({
-            videoId: fallbackResult.videoId,
-            embedUrl: fallbackResult.embedUrl,
+            videoId: result.videoId,
+            embedUrl: result.embedUrl,
             provider: 'bunny',
           });
+<<<<<<< HEAD
         };
 
         try {
@@ -518,6 +520,19 @@ export function VideoUploadManagerProvider({
             });
             toast.error(fallbackErr?.message || err?.message || 'تعذر الحصول على تصريح رفع الفيديو');
           }
+=======
+        } catch (err: any) {
+          delete activeXhrsRef.current[taskId];
+          const errorMsg =
+            err?.message || 'حدث خطأ أثناء رفع الفيديو إلى سيرفر البث السحابي';
+          updateTask(taskId, {
+            status: 'error',
+            error: errorMsg,
+          });
+          toast.error(
+            `فشل رفع الفيديو "${lessonTitle || file.name}": ${errorMsg}`,
+          );
+>>>>>>> b91cee0ab5309663e63548f44f19c423db734e34
         }
       })();
 

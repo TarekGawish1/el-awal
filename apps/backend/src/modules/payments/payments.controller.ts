@@ -15,6 +15,17 @@ import { PaymentsService } from './payments.service';
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
+  @Get('init')
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @RequirePermissions(AssistantPermission.VIEW_FINANCE)
+  @ApiOperation({ summary: 'Consolidated finance page init endpoint returning dashboard analytics and all filter/modal dropdown menus' })
+  async getFinanceInit(
+    @Query() query: FinanceAnalyticsQueryDto & { month?: number | string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.paymentsService.getFinanceInit(user, query);
+  }
+
   @Get('dashboard-analytics')
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @RequirePermissions(AssistantPermission.VIEW_FINANCE)

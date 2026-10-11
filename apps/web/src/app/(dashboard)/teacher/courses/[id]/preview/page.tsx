@@ -7,23 +7,29 @@ export const metadata: Metadata = {
 };
 
 interface TeacherCoursePreviewPageProps {
-  params: {
+  params: Promise<{
+    id: string;
+  }> | {
     id: string;
   };
-  searchParams?: {
+  searchParams?: Promise<{
+    lessonId?: string;
+  }> | {
     lessonId?: string;
   };
 }
 
-export default function TeacherCoursePreviewPage({
+export default async function TeacherCoursePreviewPage({
   params,
   searchParams,
 }: TeacherCoursePreviewPageProps) {
+  const resolvedParams = await params;
+  const resolvedSearchParams = await searchParams;
   return (
     <div className="max-w-7xl mx-auto">
       <StudentCourseLearningRoom
-        courseId={params.id}
-        initialLessonId={searchParams?.lessonId}
+        courseId={resolvedParams?.id}
+        initialLessonId={resolvedSearchParams?.lessonId}
       />
     </div>
   );

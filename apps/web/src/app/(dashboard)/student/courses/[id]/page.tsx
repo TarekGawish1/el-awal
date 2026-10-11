@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import {
   BookOpen,
   Video,
@@ -39,7 +39,8 @@ interface StudentCoursePageProps {
 
 export default function StudentCourseDetailsPage({ params }: StudentCoursePageProps) {
   const router = useRouter();
-  const courseId = params.id;
+  const routeParams = useParams();
+  const courseId = (params?.id || routeParams?.id) as string;
   const { data: myCourses = [], isLoading: isMyCoursesLoading } = useStudentCourses();
   const enrollMutation = useEnrollInCourse();
 

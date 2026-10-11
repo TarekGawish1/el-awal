@@ -4,12 +4,8 @@ const isDev = process.env.NODE_ENV !== 'production';
 const nextConfig = {
   output: 'standalone',
 
-  // Lint in CI (`pnpm lint`), never block Heroku production builds on lint.
-  // (A lint-config mismatch previously failed deploys with
-  // "ESLint: Invalid Options: Unknown options: useEslintrc, extensions".)
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  // Reduce server bundle size by externalizing large native packages
+  serverExternalPackages: ['sharp'],
 
   async redirects() {
     return [
@@ -64,8 +60,6 @@ const nextConfig = {
       'react-hook-form',
       '@hookform/resolvers',
     ],
-    // Reduce server bundle size by externalizing large native packages
-    serverComponentsExternalPackages: ['sharp'],
   },
 
   images: {
@@ -103,7 +97,7 @@ const nextConfig = {
       },
       {
         key: 'Permissions-Policy',
-        value: 'camera=(), microphone=(), geolocation=()',
+        value: 'camera=(self), microphone=(), geolocation=()',
       },
       {
         // Keep permissive enough for Next.js hydration, Google Fonts,
@@ -111,13 +105,15 @@ const nextConfig = {
         key: 'Content-Security-Policy',
         value: [
           "default-src 'self'",
-          `script-src 'self' 'unsafe-inline' ${isDev ? "'unsafe-eval'" : ''} https://www.youtube.com https://s.ytimg.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com https://assets.mediadelivery.net https://*.mediadelivery.net`,
+          `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' ${isDev ? "'unsafe-eval'" : ''} https://fastly.jsdelivr.net https://*.jsdelivr.net https://www.youtube.com https://s.ytimg.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com https://assets.mediadelivery.net https://*.mediadelivery.net`,
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
           "img-src 'self' data: blob: https: https://c.clarity.ms https://*.clarity.ms",
           "font-src 'self' data: https://fonts.gstatic.com",
-          "connect-src 'self' http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:* https://api.al-awal.online wss://api.al-awal.online https://al-awal-cbe2188d9efa.herokuapp.com wss://al-awal-cbe2188d9efa.herokuapp.com https://pub-e729d46cf5fd4798932ccae48f7361ef.r2.dev https://*.r2.dev https://www.clarity.ms https://*.clarity.ms https://ipwho.is https://static.cloudflareinsights.com https://cloudflareinsights.com https://video.bunnycdn.com https://*.mediadelivery.net https://*.b-cdn.net",
+          "connect-src 'self' http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:* https://api.al-awal.online wss://api.al-awal.online https://al-awal-cbe2188d9efa.herokuapp.com wss://al-awal-cbe2188d9efa.herokuapp.com https://pub-e729d46cf5fd4798932ccae48f7361ef.r2.dev https://*.r2.dev https://fastly.jsdelivr.net https://*.jsdelivr.net https://www.clarity.ms https://*.clarity.ms https://ipwho.is https://static.cloudflareinsights.com https://cloudflareinsights.com https://video.bunnycdn.com https://*.mediadelivery.net https://*.b-cdn.net",
           "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://iframe.mediadelivery.net https://*.mediadelivery.net https://video.bunnycdn.com https://*.b-cdn.net",
           "media-src 'self' blob: data: https: https://*.b-cdn.net https://*.mediadelivery.net",
+          "worker-src 'self' blob:",
+          "child-src 'self' blob:",
           "object-src 'none'",
           "base-uri 'self'",
           "form-action 'self'",

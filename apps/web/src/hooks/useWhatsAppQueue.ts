@@ -39,12 +39,53 @@ export interface PaginatedWhatsAppMessages {
   totalPages: number;
 }
 
+export interface WhatsAppOverviewData {
+  status: {
+    connected: boolean;
+    status: string;
+    qr?: string | null;
+    connectedNumber?: string | null;
+    isBanned?: boolean;
+    banReason?: string | null;
+    bannedAt?: string | null;
+  };
+  stats: WhatsAppStats;
+  initialFailed: PaginatedWhatsAppMessages;
+  unreadCount: number;
+}
+
 export const whatsAppQueueKeys = {
   all: ['whatsapp-queue'] as const,
+  overview: () => [...whatsAppQueueKeys.all, 'overview'] as const,
   stats: () => [...whatsAppQueueKeys.all, 'stats'] as const,
   queue: (page: number) => [...whatsAppQueueKeys.all, 'list', page] as const,
   failed: (page: number) => [...whatsAppQueueKeys.all, 'failed', page] as const,
 };
+
+export function useWhatsAppOverview(options?: { enabled?: boolean; pollQr?: boolean }) {
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  const queryClient = useQueryClient();
+
+  return useQuery({
+    queryKey: whatsAppQueueKeys.overview(),
+    queryFn: async (): Promise<WhatsAppOverviewData> => {
+      const data = await apiClient<WhatsAppOverviewData>(API_ENDPOINTS.NOTIFICATIONS.WHATSAPP_OVERVIEW, {
+        method: 'GET',
+      });
+      if (data?.stats) {
+        queryClient.setQueryData(whatsAppQueueKeys.stats(), data.stats);
+      }
+      if (data?.initialFailed) {
+        queryClient.setQueryData(whatsAppQueueKeys.failed(1), data.initialFailed);
+      }
+      return data;
+    },
+    staleTime: 30_000,
+    networkMode: 'online',
+    enabled: (options?.enabled ?? true) && isOnline,
+    refetchInterval: options?.pollQr ? 6_000 : false,
+  });
+}
 
 export function useWhatsAppStats() {
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
@@ -56,13 +97,14 @@ export function useWhatsAppStats() {
         method: 'GET',
       });
     },
-    refetchInterval: isOnline ? 10_000 : false,
+    staleTime: 30_000,
+    refetchInterval: false,
     networkMode: 'online',
     enabled: isOnline,
   });
 }
 
-export function useWhatsAppQueue(page = 1, limit = 20) {
+export function useWhatsAppQueue(page = 1, limit = 20, options?: { enabled?: boolean }) {
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
   return useQuery({
@@ -73,13 +115,14 @@ export function useWhatsAppQueue(page = 1, limit = 20) {
         { method: 'GET' },
       );
     },
-    refetchInterval: isOnline ? 12_000 : false,
+    staleTime: 30_000,
+    refetchInterval: false,
     networkMode: 'online',
-    enabled: isOnline,
+    enabled: (options?.enabled ?? true) && isOnline,
   });
 }
 
-export function useWhatsAppFailed(page = 1, limit = 20) {
+export function useWhatsAppFailed(page = 1, limit = 20, options?: { enabled?: boolean }) {
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
   return useQuery({
@@ -90,9 +133,10 @@ export function useWhatsAppFailed(page = 1, limit = 20) {
         { method: 'GET' },
       );
     },
-    refetchInterval: isOnline ? 15_000 : false,
+    staleTime: 30_000,
+    refetchInterval: false,
     networkMode: 'online',
-    enabled: isOnline,
+    enabled: (options?.enabled ?? true) && isOnline,
   });
 }
 

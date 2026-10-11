@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api/client';
+import { API_ENDPOINTS } from '@/lib/api/endpoints';
 import {
   StudentPaymentRecord,
   DefaultersResponse,
@@ -11,6 +12,7 @@ import {
   BillingConfigurationResponse,
   FinanceAnalyticsResponse,
   FinanceDashboardResponse,
+  FinanceInitResponse,
 } from '../types/finance.types';
 
 export async function fetchPayments(query: PaymentQuery = {}): Promise<CursorPaginatedResponse<StudentPaymentRecord>> {
@@ -113,8 +115,23 @@ export async function fetchFinanceDashboardAnalytics(query: {
   groupId?: string;
   month?: number;
 }): Promise<FinanceDashboardResponse> {
-  return apiClient<FinanceDashboardResponse>('/payments/dashboard-analytics', {
+  return apiClient<FinanceDashboardResponse>(API_ENDPOINTS.PAYMENTS.DASHBOARD_ANALYTICS, {
     params: query as Record<string, string | number | boolean | undefined>,
   });
 }
+
+export async function fetchFinanceInit(query: {
+  academicPeriodId?: string;
+  academicYear?: string;
+  academicTerm?: string;
+  stage?: string;
+  gradeLevel?: string;
+  groupId?: string;
+  month?: number;
+}): Promise<FinanceInitResponse> {
+  return apiClient<FinanceInitResponse>(API_ENDPOINTS.PAYMENTS.INIT, {
+    params: query as Record<string, string | number | boolean | undefined>,
+  });
+}
+
 

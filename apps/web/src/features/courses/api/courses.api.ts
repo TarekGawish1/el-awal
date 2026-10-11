@@ -186,6 +186,10 @@ export const coursesApi = {
       const url = `${API_BASE_URL}/courses/lessons/upload-video-stream`;
       xhr.open('POST', url);
 
+      if (onXhrCreated) {
+        onXhrCreated(xhr);
+      }
+
       const token = getStoredAccessToken();
       if (token) {
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);

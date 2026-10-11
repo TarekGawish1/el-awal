@@ -1,8 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
+import { API_ENDPOINTS } from '@/lib/api/endpoints';
 import { AuditLogItem, AuditStats, PerformerItem, AuditQueryParams } from '../types/audit.types';
 
 export function useAuditLogs(params: AuditQueryParams) {
+  const queryClient = useQueryClient();
   const queryParams = new URLSearchParams();
 
   if (params.page) queryParams.set('page', String(params.page));
@@ -15,46 +17,40 @@ export function useAuditLogs(params: AuditQueryParams) {
   if (params.startDate) queryParams.set('startDate', params.startDate);
   if (params.endDate) queryParams.set('endDate', params.endDate);
 
-  const logsQuery = useQuery({
-    queryKey: ['audit-logs', params],
+  const overviewQuery = useQuery({
+    queryKey: ['audit-logs-overview', params],
     queryFn: async () => {
-      const url = `/audit-logs?${queryParams.toString()}`;
+      const url = `${API_ENDPOINTS.AUDIT_LOGS.OVERVIEW}?${queryParams.toString()}`;
       const res = await apiClient<{
         data: AuditLogItem[];
         meta: { total: number; page: number; limit: number; totalPages: number };
+        stats: AuditStats;
+        performers: PerformerItem[];
       }>(url);
+
+      // Seed individual sub-caches for compatibility
+      queryClient.setQueryData(['audit-logs', params], {
+        data: res.data,
+        meta: res.meta,
+      });
+      queryClient.setQueryData(['audit-logs-stats'], res.stats);
+      queryClient.setQueryData(['audit-performers'], res.performers);
+
       return res;
     },
     placeholderData: (prev) => prev,
-  });
-
-  const statsQuery = useQuery({
-    queryKey: ['audit-logs-stats'],
-    queryFn: async () => {
-      const res = await apiClient<AuditStats>('/audit-logs/stats');
-      return res;
-    },
-    staleTime: 60 * 1000,
-  });
-
-  const performersQuery = useQuery({
-    queryKey: ['audit-performers'],
-    queryFn: async () => {
-      const res = await apiClient<PerformerItem[]>('/audit-logs/performers');
-      return res;
-    },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000,
   });
 
   return {
-    logs: logsQuery.data?.data || [],
-    meta: logsQuery.data?.meta || { total: 0, page: 1, limit: 20, totalPages: 1 },
-    isLoadingLogs: logsQuery.isLoading,
-    isFetchingLogs: logsQuery.isFetching,
-    stats: statsQuery.data,
-    isLoadingStats: statsQuery.isLoading,
-    performers: performersQuery.data || [],
-    isLoadingPerformers: performersQuery.isLoading,
-    refetchLogs: logsQuery.refetch,
+    logs: overviewQuery.data?.data || [],
+    meta: overviewQuery.data?.meta || { total: 0, page: 1, limit: 20, totalPages: 1 },
+    isLoadingLogs: overviewQuery.isLoading,
+    isFetchingLogs: overviewQuery.isFetching,
+    stats: overviewQuery.data?.stats,
+    isLoadingStats: overviewQuery.isLoading,
+    performers: overviewQuery.data?.performers || [],
+    isLoadingPerformers: overviewQuery.isLoading,
+    refetchLogs: overviewQuery.refetch,
   };
 }

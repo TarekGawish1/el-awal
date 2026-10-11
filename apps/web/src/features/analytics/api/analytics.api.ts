@@ -10,6 +10,8 @@ import {
   LandingStatsResponse,
   VisitorListParams,
   VisitorListResponse,
+  AnalyticsOverviewParams,
+  AnalyticsOverviewResponse,
 } from '../types/analytics.types';
 
 /**
@@ -23,6 +25,17 @@ function cleanParams(obj: Record<string, any>): Record<string, string> {
     }
   }
   return result;
+}
+
+/**
+ * Fetches consolidated analytics dashboard overview (stats, geo-ranking, leaderboard, visitors).
+ */
+export async function fetchAnalyticsOverview(
+  params: AnalyticsOverviewParams,
+): Promise<AnalyticsOverviewResponse> {
+  return apiClient<AnalyticsOverviewResponse>(API_ENDPOINTS.ANALYTICS.OVERVIEW, {
+    params: cleanParams(params),
+  });
 }
 
 /**

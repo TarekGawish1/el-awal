@@ -11,6 +11,7 @@ import {
   LandingStatsQueryDto,
   StudentRankingQueryDto,
   VisitorListQueryDto,
+  AnalyticsOverviewQueryDto,
 } from "../dto/analytics.dto";
 import * as crypto from "crypto";
 
@@ -147,6 +148,20 @@ export interface VisitorListResponse {
   page: number;
   limit: number;
   totalPages: number;
+}
+
+export interface AnalyticsOverviewResponse {
+  stats: AnalyticsStatsResponse;
+  geoRanking: {
+    items: GeoRankingItem[];
+    totalVisits: number;
+    groupBy: "country" | "city";
+  };
+  leaderboard: {
+    students: StudentLeaderboardItem[];
+    sortBy: "duration" | "visits";
+  };
+  visitors: VisitorListResponse;
 }
 
 @Injectable()
@@ -568,6 +583,71 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
     });
 
     return teacherPageViews.map((pv) => pv.visitorHash);
+  }
+
+  /**
+   * Retrieves unified dashboard overview combining stats, geo-ranking, student leaderboard, and visitor list.
+   */
+  public async getOverview(
+    query: AnalyticsOverviewQueryDto,
+    userTenantId?: string,
+  ): Promise<AnalyticsOverviewResponse> {
+    const geoScope = query.scope === "system" ? "platform" : (query.scope as any);
+
+    const [stats, geoRanking, leaderboard, visitors] = await Promise.all([
+      this.getStats(
+        {
+          scope: query.scope,
+          range: query.range,
+          from: query.from,
+          to: query.to,
+          tenantId: query.tenantId,
+        },
+        userTenantId,
+      ),
+      this.getGeoRanking(
+        {
+          scope: geoScope,
+          groupBy: query.geoGroupBy || "city",
+          range: query.range,
+          from: query.from,
+          to: query.to,
+          tenantId: query.tenantId,
+        },
+        userTenantId,
+      ),
+      this.getStudentEngagementLeaderboard(
+        {
+          sortBy: query.leaderboardSortBy || "duration",
+          range: query.range,
+          from: query.from,
+          to: query.to,
+          limit: query.leaderboardLimit || 15,
+          tenantId: query.tenantId,
+        },
+        userTenantId,
+      ),
+      this.getVisitorsList(
+        {
+          scope: query.scope,
+          range: query.range,
+          from: query.from,
+          to: query.to,
+          page: query.visitorPage || 1,
+          limit: query.visitorLimit || 10,
+          sortBy: "recent",
+          tenantId: query.tenantId,
+        },
+        userTenantId,
+      ),
+    ]);
+
+    return {
+      stats,
+      geoRanking,
+      leaderboard,
+      visitors,
+    };
   }
 
   /**

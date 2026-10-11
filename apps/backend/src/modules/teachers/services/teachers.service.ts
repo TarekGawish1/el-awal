@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { DashboardOverviewQueryDto } from '../dto/dashboard-overview-query.dto';
-import { AttendanceStatus, GroupEnrollmentStatus, SubmissionStatus } from '@prisma/client';
+import { AttendanceStatus, GroupEnrollmentStatus, SubmissionStatus, CourseEnrollmentStatus } from '@prisma/client';
 import { normalizeEgyptianPhone } from '../../../common/utils/phone.util';
 import { MemoryCache } from '../../../common/utils/memory-cache.util';
 
@@ -328,6 +328,105 @@ export class TeachersService {
       pendingGradingList,
       groupPerformance,
       lastUpdatedTimestamp: new Date().toISOString(),
+    };
+  }
+
+  async getDashboardInit(teacherId: string, query: DashboardOverviewQueryDto) {
+    const [overview, academicPeriod] = await Promise.all([
+      this.getDashboardOverview(teacherId, query),
+      this.getAcademicPeriod(teacherId),
+    ]);
+
+    const teacherProfile = await this.prisma.teacherProfile.findUnique({
+      where: { id: teacherId },
+    });
+    let effectiveTeacherId = teacherId;
+    if (!teacherProfile) {
+      const primaryTeacher = await this.prisma.teacherProfile.findFirst();
+      if (primaryTeacher) {
+        effectiveTeacherId = primaryTeacher.id;
+      }
+    }
+
+    const [rawGroups, pendingEnrollments] = await Promise.all([
+      this.prisma.academicGroup.findMany({
+        where: { teacherId: effectiveTeacherId, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          gradeLevel: true,
+          monthlyFee: true,
+          academicYear: true,
+          academicTerm: true,
+        },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.courseEnrollment.findMany({
+        where: {
+          course: { teacherId: effectiveTeacherId },
+          status: CourseEnrollmentStatus.PENDING,
+        },
+        include: {
+          course: { select: { id: true, title: true, price: true, gradeLevel: true, subject: true } },
+          student: {
+            include: {
+              user: { select: { id: true, fullName: true, phone: true, email: true } },
+            },
+          },
+        },
+        orderBy: { enrolledAt: 'desc' },
+        take: 20,
+      }),
+    ]);
+
+    const groups = rawGroups.map((g) => ({
+      ...g,
+      monthlyFee: Number(g.monthlyFee),
+      stage: g.gradeLevel.includes('ابتدائي')
+        ? 'PRIMARY'
+        : g.gradeLevel.includes('إعدادي') || g.gradeLevel.includes('اعدادي')
+        ? 'PREPARATORY'
+        : 'SECONDARY',
+    }));
+
+    const pendingReservations = pendingEnrollments.map((e) => ({
+      enrollmentId: e.id,
+      courseId: e.courseId,
+      courseName: e.course.title,
+      coursePrice: Number(e.course.price),
+      studentId: e.studentId,
+      studentName: e.student?.user?.fullName || 'طالب',
+      studentCode: e.student?.studentCode || '',
+      studentPhone: e.student?.user?.phone || '',
+      senderPhone: e.senderPhone || e.student?.user?.phone || '',
+      transferAmount: e.transferAmount ? Number(e.transferAmount) : Number(e.course.price),
+      receiptImageUrl: e.receiptImageUrl || null,
+      paymentMethod: e.paymentMethod,
+      date: e.enrolledAt ? new Date(e.enrolledAt).toISOString().split('T')[0] : '',
+      enrolledAt: e.enrolledAt?.toISOString() || '',
+      status: e.status,
+      student: {
+        id: e.studentId,
+        studentCode: e.student?.studentCode,
+        qrCodeToken: e.student?.studentCode,
+        user: {
+          fullName: e.student?.user?.fullName,
+          phone: e.student?.user?.phone,
+        },
+        ...e.student,
+      },
+      group: {
+        name: e.course.title,
+      },
+    }));
+
+    return {
+      ...overview,
+      pendingReservations,
+      menus: {
+        groups,
+        academicPeriod,
+      },
     };
   }
 

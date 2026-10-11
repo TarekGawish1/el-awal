@@ -1007,4 +1007,76 @@ export class PaymentsService {
       onlineCourses: courseRows,
     };
   }
+
+  async getFinanceInit(user: AuthenticatedUser, query: FinanceAnalyticsQueryDto & { month?: number | string }) {
+    if (user.role !== UserRole.TEACHER && user.role !== UserRole.SECRETARIAT) {
+      throw new ForbiddenException('Only teachers and secretariat can view the financial analytics');
+    }
+
+    const { academicYear, academicTerm } = this.parsePeriod(query as MatrixLedgerQueryDto);
+    const teacherId = await this.resolveTeacherId(user);
+
+    // Concurrently fetch primary analytics and all filter menu dropdown entities
+    const [analytics, rawGroups, booklets] = await Promise.all([
+      this.getDashboardAnalytics(user, query),
+      this.prisma.academicGroup.findMany({
+        where: {
+          isActive: true,
+          academicYear,
+          academicTerm,
+          ...(teacherId ? { teacherId } : {}),
+        },
+        select: {
+          id: true,
+          name: true,
+          gradeLevel: true,
+          monthlyFee: true,
+          academicYear: true,
+          academicTerm: true,
+        },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.booklet.findMany({
+        where: {
+          isActive: true,
+          academicYear,
+          academicTerm,
+          ...(teacherId ? { teacherProfileId: teacherId } : {}),
+        },
+        select: {
+          id: true,
+          title: true,
+          price: true,
+          gradeLevel: true,
+          groupId: true,
+          academicYear: true,
+          academicTerm: true,
+        },
+        orderBy: { title: 'asc' },
+      }),
+    ]);
+
+    const groups = rawGroups.map((g) => ({
+      ...g,
+      stage: this.inferStage(g.gradeLevel),
+      monthlyFee: Number(g.monthlyFee),
+    }));
+
+    return {
+      analytics,
+      menus: {
+        groups,
+        booklets: booklets.map((b) => ({
+          ...b,
+          price: Number(b.price),
+        })),
+        academicPeriod: {
+          activeAcademicYear: academicYear,
+          activeAcademicTerm: academicTerm,
+        },
+        stages: STAGE_GRADE_LEVELS,
+      },
+    };
+  }
 }
+
