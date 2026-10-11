@@ -17,14 +17,28 @@ interface StudentEditFormProps {
   onCancel: () => void;
 }
 
+const normalizeStage = (stage?: string, gradeLevel?: string): string => {
+  if (stage === 'PRIMARY' || stage === 'المرحلة الابتدائية') return 'PRIMARY';
+  if (stage === 'MIDDLE' || stage === 'PREPARATORY' || stage === 'المرحلة الإعدادية') return 'MIDDLE';
+  if (stage === 'SECONDARY' || stage === 'المرحلة الثانوية') return 'SECONDARY';
+  
+  if (gradeLevel) {
+    if (gradeLevel.includes('الابتدائي')) return 'PRIMARY';
+    if (gradeLevel.includes('الإعدادي')) return 'MIDDLE';
+    if (gradeLevel.includes('الثانوي')) return 'SECONDARY';
+  }
+  return '';
+};
+
 export function StudentEditForm({ student, onSuccess, onCancel }: StudentEditFormProps) {
   const parentLink = student.parentLinks?.[0]?.parent;
   const initialGroupId = student.groupEnrollments?.[0]?.group?.id || '';
+  const initialStage = normalizeStage(student.academicStage, student.gradeLevel);
 
   const [formData, setFormData] = useState({
     fullName: student.user?.fullName || '',
     phone: student.user?.phone || '',
-    educationalStage: student.academicStage || '',
+    educationalStage: initialStage,
     gradeLevel: student.gradeLevel || '',
     initialGroupId: initialGroupId,
     parentName: parentLink?.user?.fullName || '',
@@ -56,6 +70,29 @@ export function StudentEditForm({ student, onSuccess, onCancel }: StudentEditFor
       { label: 'الصف الثالث الإعدادي', value: 'الصف الثالث الإعدادي' },
     ],
     SECONDARY: [
+      { label: 'الصف الأول الثانوي', value: 'الصف الأول الثانوي' },
+      { label: 'الصف الثاني الثانوي', value: 'الصف الثاني الثانوي' },
+      { label: 'الصف الثالث الثانوي', value: 'الصف الثالث الثانوي' },
+    ],
+    'المرحلة الابتدائية': [
+      { label: 'الصف الأول الابتدائي', value: 'الصف الأول الابتدائي' },
+      { label: 'الصف الثاني الابتدائي', value: 'الصف الثاني الابتدائي' },
+      { label: 'الصف الثالث الابتدائي', value: 'الصف الثالث الابتدائي' },
+      { label: 'الصف الرابع الابتدائي', value: 'الصف الرابع الابتدائي' },
+      { label: 'الصف الخامس الابتدائي', value: 'الصف الخامس الابتدائي' },
+      { label: 'الصف السادس الابتدائي', value: 'الصف السادس الابتدائي' },
+    ],
+    'المرحلة الإعدادية': [
+      { label: 'الصف الأول الإعدادي', value: 'الصف الأول الإعدادي' },
+      { label: 'الصف الثاني الإعدادي', value: 'الصف الثاني الإعدادي' },
+      { label: 'الصف الثالث الإعدادي', value: 'الصف الثالث الإعدادي' },
+    ],
+    PREPARATORY: [
+      { label: 'الصف الأول الإعدادي', value: 'الصف الأول الإعدادي' },
+      { label: 'الصف الثاني الإعدادي', value: 'الصف الثاني الإعدادي' },
+      { label: 'الصف الثالث الإعدادي', value: 'الصف الثالث الإعدادي' },
+    ],
+    'المرحلة الثانوية': [
       { label: 'الصف الأول الثانوي', value: 'الصف الأول الثانوي' },
       { label: 'الصف الثاني الثانوي', value: 'الصف الثاني الثانوي' },
       { label: 'الصف الثالث الثانوي', value: 'الصف الثالث الثانوي' },
@@ -184,7 +221,7 @@ export function StudentEditForm({ student, onSuccess, onCancel }: StudentEditFor
                 onChange={handleChange}
                 options={[
                   { label: '-- اختر الصف --', value: '' },
-                  ...(formData.educationalStage ? gradeOptions[formData.educationalStage] : []),
+                  ...((formData.educationalStage && gradeOptions[formData.educationalStage]) || []),
                 ]}
               />
               <div className="sm:col-span-2">
@@ -196,7 +233,7 @@ export function StudentEditForm({ student, onSuccess, onCancel }: StudentEditFor
                   disabled={!formData.gradeLevel}
                   options={[
                     { label: '-- اختر المجموعة --', value: '' },
-                    ...filteredGroups.map((g) => ({
+                    ...(Array.isArray(filteredGroups) ? filteredGroups : []).map((g) => ({
                       label: g.name,
                       value: g.id,
                     })),
