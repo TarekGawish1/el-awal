@@ -1883,18 +1883,20 @@ export class CoursesService {
       const targetId = videoId.trim();
       try {
         await this.bunnyVideoService.uploadVideoBuffer(targetId, file.buffer);
-      } catch (error: any) {
-        throw new BadRequestException(
-          `فشل رفع الفيديو إلى Bunny Stream: ${error?.message || 'خطأ غير متوقع'}. احذف الفيديو العالق وأعد الرفع.`,
+        return {
+          provider: 'bunny' as const,
+          videoId: targetId,
+          embedUrl: this.bunnyVideoService.getEmbedUrl(targetId),
+          playbackUrl: this.bunnyVideoService.generateSecurePlaybackUrl(targetId),
+          contentUrl: this.bunnyVideoService.getEmbedUrl(targetId),
+        };
+      } catch (reuseError: any) {
+        this.logger.warn(
+          `Failed to reuse existing video object [${targetId}] for direct upload: ${reuseError?.message || 'status error'}. Deleting orphan and creating fresh Bunny video...`,
         );
+        await this.bunnyVideoService.deleteVideo(targetId).catch(() => {});
+        // Fall through to fresh upload below
       }
-      return {
-        provider: 'bunny' as const,
-        videoId: targetId,
-        embedUrl: this.bunnyVideoService.getEmbedUrl(targetId),
-        playbackUrl: this.bunnyVideoService.generateSecurePlaybackUrl(targetId),
-        contentUrl: this.bunnyVideoService.getEmbedUrl(targetId),
-      };
     }
 
     try {

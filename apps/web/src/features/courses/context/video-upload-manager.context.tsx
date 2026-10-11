@@ -418,7 +418,6 @@ export function VideoUploadManagerProvider({
           let lastLoaded = 0;
           let lastTime = Date.now();
 
-          const currentVideoId = tasksRef.current[taskId]?.videoId;
           const fallbackResult = await coursesApi.uploadVideoDirectToServer(
             file,
             lessonTitle.trim() || file.name,
@@ -450,7 +449,7 @@ export function VideoUploadManagerProvider({
               }
               updateTask(taskId, patch);
             },
-            currentVideoId,
+            undefined, // Always pass undefined so server provisions a pristine, fresh Bunny Stream video object
             (fallbackXhr) => {
               activeXhrsRef.current[taskId] = fallbackXhr;
             },
