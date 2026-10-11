@@ -9,8 +9,9 @@ const Scanner = dynamic(
 );
 import { useScanQrAttendance } from '../hooks/use-attendance';
 import { Alert } from '@/components/ui/Alert';
-import { RefreshCcw, AlertTriangle, CheckCircle2, XCircle, Users } from 'lucide-react';
+import { RefreshCcw, AlertTriangle, CheckCircle2, XCircle, Users, Camera, HelpCircle } from 'lucide-react';
 import { ExternalStudentModal } from './ExternalStudentModal';
+import { CameraPermissionModal, CameraPermissionOverlay } from '@/components/camera';
 import { parseStudentQr } from '@/lib/qr/qr-parser';
 import { initQrDetector } from '@/lib/qr/qr-detector-init';
 import toast from 'react-hot-toast';
@@ -61,6 +62,42 @@ export function QrScanner({ sessionId }: QrScannerProps) {
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [cameraKey, setCameraKey] = useState(0);
   const [flashType, setFlashType] = useState<'success' | 'duplicate' | 'external' | 'unknown' | 'error' | null>(null);
+  const [isRequestingPermission, setIsRequestingPermission] = useState(false);
+  const [showPermissionGuide, setShowPermissionGuide] = useState(false);
+
+  const requestCameraPermission = async () => {
+    setIsRequestingPermission(true);
+    try {
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        toast.error('المتصفح لا يدعم الوصول للكاميرا، أو يتطلب اتصال HTTPS آمن.');
+        setCameraError('لا يمكن الوصول للكاميرا. تأكد من استخدام اتصال آمن (HTTPS) أو أنك تستخدم localhost.');
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: facingMode } },
+        audio: false,
+      });
+
+      stream.getTracks().forEach((track) => track.stop());
+      setCameraError(null);
+      setCameraKey((prev) => prev + 1);
+      toast.success('تم منح صلاحية الكاميرا بنجاح! جاري تشغيل الماسح...');
+    } catch (err: any) {
+      console.warn('Manual camera permission request failed:', err);
+      const msg = err?.message || '';
+      if (err?.name === 'NotAllowedError' || msg.includes('Permission') || msg.includes('denied')) {
+        setCameraError('تم رفض صلاحية استخدام الكاميرا. يرجى تفعيلها من إعدادات المتصفح.');
+        setShowPermissionGuide(true);
+      } else if (err?.name === 'NotSupportedError' || msg.includes('secure context')) {
+        setCameraError('لا يمكن الوصول للكاميرا. تأكد من استخدام اتصال آمن (HTTPS) أو أنك تستخدم localhost.');
+      } else {
+        toast.error('تعذر تشغيل الكاميرا: ' + (msg || 'خطأ غير معروف'));
+      }
+    } finally {
+      setIsRequestingPermission(false);
+    }
+  };
 
   // Web Audio API Synthesizer (Crystal Clear Audio Feedback)
   const playBeep = (type: 'success' | 'duplicate' | 'external' | 'error') => {
@@ -408,6 +445,18 @@ export function QrScanner({ sessionId }: QrScannerProps) {
             <span className="truncate">⚪ رمز غير صالح أو غير مسجل</span>
           </div>
         )}
+
+        {/* Camera Permission & Error Overlay */}
+        <CameraPermissionOverlay
+          error={cameraError}
+          isRequesting={isRequestingPermission}
+          onRequestPermission={requestCameraPermission}
+          onOpenGuide={() => setShowPermissionGuide(true)}
+          onRetry={() => {
+            setCameraError(null);
+            setCameraKey((prev) => prev + 1);
+          }}
+        />
       </div>
 
       {/* External Student Cross-Group Modal */}
@@ -425,9 +474,42 @@ export function QrScanner({ sessionId }: QrScannerProps) {
       <div className="mt-6 w-full max-w-sm min-h-[80px]">
         {cameraError ? (
           <Alert variant="error">
-            <div className="flex flex-col">
-              <span className="font-semibold">خطأ في الكاميرا</span>
-              <span className="text-sm mt-1">{cameraError}</span>
+            <div className="flex flex-col gap-2.5">
+              <div className="flex flex-col">
+                <span className="font-bold flex items-center gap-1.5 text-rose-800">
+                  <Camera className="w-4 h-4 text-rose-600" />
+                  خطأ في الكاميرا
+                </span>
+                <span className="text-xs sm:text-sm mt-1 text-rose-700 leading-relaxed">{cameraError}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-rose-200/60">
+                <button
+                  type="button"
+                  onClick={requestCameraPermission}
+                  disabled={isRequestingPermission}
+                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
+                >
+                  {isRequestingPermission ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>جاري الطلب...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>طلب إذن الكاميرا مجدداً</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPermissionGuide(true)}
+                  className="px-3 py-1.5 bg-white border border-rose-300 text-rose-800 hover:bg-rose-50 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                >
+                  <HelpCircle className="w-3.5 h-3.5 text-rose-600" />
+                  <span>طريقة التفعيل من المتصفح 🔒</span>
+                </button>
+              </div>
             </div>
           </Alert>
         ) : lastScanResult ? (
@@ -463,6 +545,16 @@ export function QrScanner({ sessionId }: QrScannerProps) {
           />
         </div>
       </div>
+
+      {/* Camera Permission Guide Modal */}
+      <CameraPermissionModal
+        isOpen={showPermissionGuide}
+        onClose={() => setShowPermissionGuide(false)}
+        onPermissionGranted={() => {
+          setCameraError(null);
+          setCameraKey((prev) => prev + 1);
+        }}
+      />
     </div>
   );
 }
