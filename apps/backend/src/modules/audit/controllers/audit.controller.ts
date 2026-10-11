@@ -22,6 +22,15 @@ export class AuditController {
     return this.auditService.getLogs(user.id, query);
   }
 
+  @Get('overview')
+  @ApiOperation({ summary: 'Get composite audit logs overview (logs + stats + performers)' })
+  async getOverview(
+    @Query() query: AuditQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.auditService.getOverview(user.id, query);
+  }
+
   @Get('stats')
   @ApiOperation({ summary: 'Get audit activity summary statistics' })
   async getStats(@CurrentUser() user: AuthenticatedUser) {

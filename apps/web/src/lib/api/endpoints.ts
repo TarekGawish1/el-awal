@@ -167,6 +167,7 @@ export const API_ENDPOINTS = {
     DELETE: (id: string) => `/contact-messages/${id}`,
   },
   ANALYTICS: {
+    OVERVIEW: "/analytics/overview",
     TRACK: "/analytics/track",
     STATS: "/analytics/stats",
     LANDING: "/analytics/landing",
@@ -176,6 +177,12 @@ export const API_ENDPOINTS = {
     SESSION_START: "/analytics/session/start",
     SESSION_PING: "/analytics/session/ping",
     PAGE_PING: "/analytics/ping-page",
+  },
+  AUDIT_LOGS: {
+    LIST: "/audit-logs",
+    OVERVIEW: "/audit-logs/overview",
+    STATS: "/audit-logs/stats",
+    PERFORMERS: "/audit-logs/performers",
   },
   TESTIMONIALS: {
     PUBLIC: "/testimonials/public",

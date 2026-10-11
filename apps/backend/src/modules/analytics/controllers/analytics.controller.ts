@@ -27,6 +27,7 @@ import {
   StudentRankingQueryDto,
   VisitorListQueryDto,
   PageEngagementPingDto,
+  AnalyticsOverviewQueryDto,
 } from "../dto/analytics.dto";
 import { Public } from "../../../core/security/decorators/public.decorator";
 import { Roles } from "../../../core/security/decorators/roles.decorator";
@@ -168,6 +169,22 @@ export class AnalyticsController {
       ipAddress,
       userAgent,
     });
+  }
+
+  @Get("overview")
+  @ApiBearerAuth()
+  @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
+  @ApiOperation({
+    summary:
+      "Get consolidated analytics overview (stats + geo-ranking + leaderboard + visitors)",
+  })
+  @ApiResponse({ status: 200, description: "Consolidated analytics overview dataset" })
+  async getOverview(
+    @Query() query: AnalyticsOverviewQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const teacherId = user.teacherProfileId || user.id;
+    return this.analyticsService.getOverview(query, teacherId);
   }
 
   @Get("stats")
