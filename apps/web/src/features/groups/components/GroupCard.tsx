@@ -11,21 +11,39 @@ import { GroupQrPrintModal } from './GroupQrPrintModal';
 
 interface GroupCardProps {
   group: Group;
+  enrollmentCountOverride?: number;
   onClick?: () => void;
 }
 
-export function GroupCard({ group, onClick }: GroupCardProps) {
+export function GroupCard({ group, enrollmentCountOverride, onClick }: GroupCardProps) {
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const isSecondTerm = group.academicTerm === 'SECOND_TERM';
   const termText = isSecondTerm ? 'ترم ثانٍ' : 'ترم أول';
+
+  const isGroupActive =
+    group.status === 'ACTIVE' ||
+    (group as any).isActive === true ||
+    ((group as any).status !== 'ARCHIVED' && (group as any).isActive !== false);
+
+  const rawCount =
+    group._count?.enrollments ??
+    (group as any).studentsCount ??
+    (group as any).enrollmentsCount ??
+    (group as any).studentCount ??
+    (Array.isArray((group as any).enrollments) ? (group as any).enrollments.length : 0);
+
+  const totalStudents =
+    enrollmentCountOverride !== undefined && enrollmentCountOverride > 0
+      ? enrollmentCountOverride
+      : (rawCount || enrollmentCountOverride || 0);
 
   const cardContent = (
     <Card className="hover:border-primary-200 hover:shadow-md transition-all h-full flex flex-col group overflow-hidden bg-white border-slate-200">
       <div className="p-5 flex-1 flex flex-col">
         {/* Top: Status & Print Action */}
         <div className="mb-3 flex items-center justify-between">
-          <Badge variant={group.status === 'ACTIVE' ? 'success' : 'default'} className="font-medium text-[11px] px-2 py-0.5">
-            {group.status === 'ACTIVE' ? 'نشط' : 'غير نشط'}
+          <Badge variant={isGroupActive ? 'success' : 'default'} className="font-medium text-[11px] px-2 py-0.5">
+            {isGroupActive ? 'نشط' : 'غير نشط'}
           </Badge>
 
           <button
@@ -78,7 +96,7 @@ export function GroupCard({ group, onClick }: GroupCardProps) {
         <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-auto">
           <div className="flex items-center text-sm font-medium text-slate-600">
             <Users className="w-4 h-4 ml-1.5 text-slate-400" />
-            <span>{group._count?.enrollments || 0} طالب</span>
+            <span>{totalStudents} طالب</span>
           </div>
           
           <div className="flex items-center text-sm font-bold text-primary-600 group-hover:text-primary-700 transition-colors">
