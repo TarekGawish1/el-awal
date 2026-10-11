@@ -1,0 +1,243 @@
+{
+    "metrics": {
+        "frontend_page_duration_ms": {
+            "min": 0,
+            "med": 994.44885,
+            "max": 60028.7969,
+            "p(90)": 3299.5464,
+            "p(95)": 4388.10595,
+            "avg": 1665.2820113675928
+        },
+        "checks": {
+            "passes": 47054,
+            "fails": 1757,
+            "value": 0.964004015488312
+        },
+        "vus": {
+            "value": 1,
+            "min": 1,
+            "max": 900
+        },
+        "failed_requests_rate": {
+            "passes": 190,
+            "fails": 42094,
+            "thresholds": {
+                "rate<0.15": false
+            },
+            "value": 0.004493425409138208
+        },
+        "iteration_duration": {
+            "p(90)": 10910.402450000001,
+            "p(95)": 13368.754675,
+            "avg": 6822.930959125234,
+            "min": 484.1598,
+            "med": 5741.16295,
+            "max": 86386.5263
+        },
+        "iterations": {
+            "count": 14586,
+            "rate": 49.00627574750242
+        },
+        "http_req_duration{expected_response:true}": {
+            "max": 54083.6153,
+            "p(90)": 2805.74255,
+            "p(95)": 3806.7588349999996,
+            "avg": 1408.286956742051,
+            "min": 77.1901,
+            "med": 865.72505
+        },
+        "group_duration": {
+            "avg": 6822.89110776777,
+            "min": 484.1598,
+            "med": 5741.16295,
+            "max": 86386.5263,
+            "p(90)": 10910.402450000001,
+            "p(95)": 13368.754675
+        },
+        "data_received": {
+            "count": 609392791,
+            "rate": 2047447.6315841293
+        },
+        "http_req_duration": {
+            "min": 0,
+            "med": 865.14055,
+            "max": 60028.7969,
+            "p(90)": 2805.470370000003,
+            "p(95)": 3808.616445,
+            "avg": 1418.4180097034316,
+            "thresholds": {
+                "p(95)<3000": true
+            }
+        },
+        "http_reqs": {
+            "count": 42284,
+            "rate": 142.06645850180942
+        },
+        "data_sent": {
+            "count": 5516926,
+            "rate": 18535.856083543502
+        },
+        "backend_api_duration_ms": {
+            "p(90)": 1862.1075100000016,
+            "p(95)": 2777.084429999999,
+            "avg": 1091.680657022751,
+            "min": 0,
+            "med": 779.7501,
+            "max": 60001.8378
+        },
+        "http_req_connecting": {
+            "avg": 14.50971439315107,
+            "min": 0,
+            "med": 0,
+            "max": 3626.0302,
+            "p(90)": 0,
+            "p(95)": 0
+        },
+        "http_req_failed": {
+            "passes": 190,
+            "fails": 42094,
+            "value": 0.004493425409138208
+        },
+        "http_req_sending": {
+            "avg": 0.08331064232333758,
+            "min": 0,
+            "med": 0,
+            "max": 39.3822,
+            "p(90)": 0.3599700000000004,
+            "p(95)": 0.5282
+        },
+        "vus_max": {
+            "value": 900,
+            "min": 900,
+            "max": 900
+        },
+        "http_req_blocked": {
+            "p(95)": 0,
+            "avg": 38.864291578374804,
+            "min": 0,
+            "med": 0,
+            "max": 46821.3161,
+            "p(90)": 0
+        },
+        "http_429_rate_limited": {
+            "count": 178,
+            "rate": 0.5980472427708372
+        },
+        "http_req_receiving": {
+            "med": 35.42400000000001,
+            "max": 59231.1487,
+            "p(90)": 1780.9412300000006,
+            "p(95)": 2730.2502849999996,
+            "avg": 608.2598705467778,
+            "min": 0
+        },
+        "http_req_waiting": {
+            "p(95)": 1703.289545,
+            "avg": 810.0748285143317,
+            "min": 0,
+            "med": 668.5523499999999,
+            "max": 60001.7674,
+            "p(90)": 1271.74451
+        },
+        "successful_2xx_requests": {
+            "count": 42094,
+            "rate": 141.4280934673911
+        },
+        "http_req_tls_handshaking": {
+            "min": 0,
+            "med": 0,
+            "max": 46010.2266,
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 24.441963326553797
+        }
+    },
+    "root_group": {
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {
+            "Visitor Flow": {
+                "name": "Visitor Flow",
+                "path": "::Visitor Flow",
+                "id": "885c7b401885ed81e945c5bfe810a4e5",
+                "groups": {},
+                "checks": {
+                        "Home status is 200": {
+                            "path": "::Visitor Flow::Home status is 200",
+                            "id": "999564144e79a4130d85d5f58db03d04",
+                            "passes": 8006,
+                            "fails": 7,
+                            "name": "Home status is 200"
+                        },
+                        "Home loads fast (<2s)": {
+                            "fails": 1567,
+                            "name": "Home loads fast (<2s)",
+                            "path": "::Visitor Flow::Home loads fast (<2s)",
+                            "id": "2ce14cdd0319cc243c20c90a6d8d1483",
+                            "passes": 6446
+                        },
+                        "Certificates API 200": {
+                            "id": "6f4a9ded79aea804a37410a7917ed88d",
+                            "passes": 7833,
+                            "fails": 179,
+                            "name": "Certificates API 200",
+                            "path": "::Visitor Flow::Certificates API 200"
+                        },
+                        "Login page status is 200": {
+                            "path": "::Visitor Flow::Login page status is 200",
+                            "id": "b72c6cc00a8aea9e920538e5d1edb2a3",
+                            "passes": 8007,
+                            "fails": 1,
+                            "name": "Login page status is 200"
+                        }
+                    }
+            },
+            "Student Services Flow": {
+                "id": "af2247ae967ba8be8990c102a26e065c",
+                "groups": {},
+                "checks": {
+                        "Catalog API status 200": {
+                            "fails": 1,
+                            "name": "Catalog API status 200",
+                            "path": "::Student Services Flow::Catalog API status 200",
+                            "id": "1250bba60578c6b6a42c78ea44d3c5e3",
+                            "passes": 5092
+                        },
+                        "Parent Access 200": {
+                            "passes": 5092,
+                            "fails": 1,
+                            "name": "Parent Access 200",
+                            "path": "::Student Services Flow::Parent Access 200",
+                            "id": "85fca7d6d01380672597423a7181e4ff"
+                        },
+                        "Health status 200": {
+                            "passes": 5093,
+                            "fails": 0,
+                            "name": "Health status 200",
+                            "path": "::Student Services Flow::Health status 200",
+                            "id": "095afb83624626a3b7181d1ba4392664"
+                        }
+                    },
+                "name": "Student Services Flow",
+                "path": "::Student Services Flow"
+            },
+            "High Frequency Flow": {
+                "name": "High Frequency Flow",
+                "path": "::High Frequency Flow",
+                "id": "8ee7dd892f199a7d9f4f520c4c764a34",
+                "groups": {},
+                "checks": {
+                        "Register student status is 200": {
+                            "fails": 1,
+                            "name": "Register student status is 200",
+                            "path": "::High Frequency Flow::Register student status is 200",
+                            "id": "735f575ed69b2c9969da9bc2dcfce7da",
+                            "passes": 1485
+                        }
+                    }
+            }
+        },
+        "checks": {}
+    }
+}

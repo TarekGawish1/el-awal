@@ -259,38 +259,50 @@ function NotificationItem({
 // ─── Push Permission Toggle ───────────────────────────────────────────────────
 
 function PushToggle() {
-  const { isSupported, isSubscribed, isLoading, permission, subscribe, unsubscribe } =
+  const { isSupported, isSubscribed, isLoading, permission, isBrave, subscribe, unsubscribe } =
     useWebPush();
+  const [isToggling, setIsToggling] = useState(false);
 
   if (!isSupported) return null;
 
-  const handleToggle = async () => {
+  const isBusy = isLoading || isToggling;
+
+  const handleToggle = async (e?: React.MouseEvent | React.KeyboardEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
     if (permission === 'denied') {
       toast.error('تم حظر الإشعارات من إعدادات المتصفح. يرجى تفعيلها من إعدادات المتصفح.');
       return;
     }
-    if (isLoading) return;
-    if (isSubscribed) {
-      await unsubscribe();
-    } else {
-      await subscribe();
+    if (isBusy) return;
+
+    setIsToggling(true);
+    try {
+      if (isSubscribed) {
+        await unsubscribe();
+      } else {
+        await subscribe();
+      }
+    } finally {
+      setIsToggling(false);
     }
   };
 
   return (
     <div
       onClick={handleToggle}
-      role="button"
+      role="switch"
+      aria-checked={isSubscribed}
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          handleToggle();
+          handleToggle(e);
         }
       }}
       className={`
         flex items-center gap-3 px-4 py-3 bg-slate-50 rounded-xl transition-all duration-150 select-none
-        ${isLoading || permission === 'denied' ? 'cursor-not-allowed opacity-75' : 'cursor-pointer hover:bg-slate-100/80 active:scale-[0.99]'}
+        ${isBusy || permission === 'denied' ? 'cursor-not-allowed opacity-80' : 'cursor-pointer hover:bg-slate-100/80 active:scale-[0.99]'}
       `}
     >
       <div className="flex-1">
@@ -300,18 +312,25 @@ function PushToggle() {
             ? 'محظورة في إعدادات المتصفح'
             : isSubscribed
             ? 'مفعّلة على هذا الجهاز'
+            : isBusy
+            ? 'جارٍ تحديث حالة الإشعارات...'
             : 'اضغط لتفعيل الإشعارات'}
         </p>
+        {isBrave && !isSubscribed && permission === 'granted' && (
+          <p className="text-[10px] text-amber-700 bg-amber-50/80 rounded px-1.5 py-0.5 mt-1.5 leading-normal font-medium border border-amber-200/60">
+            تنبيه Brave: فعّل &quot;Use Google services for push messaging&quot; من إعدادات الخصوصية بالمتصفح.
+          </p>
+        )}
       </div>
       <div
         className={`
-          relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 pointer-events-none
+          relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 pointer-events-none shrink-0
           ${isSubscribed ? 'bg-blue-500' : 'bg-slate-300'}
         `}
         id="push-toggle"
         aria-label="تفعيل إشعارات المتصفح"
       >
-        {isLoading ? (
+        {isBusy ? (
           <Loader2 size={12} className="text-white animate-spin mx-auto" />
         ) : (
           <span
