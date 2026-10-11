@@ -23,6 +23,7 @@ export function useRealtimeNotifications(enabled = true) {
 
     const handler = () => {
       queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['shell', 'badges'] });
     };
 
     socket.on('notifications:changed', handler);

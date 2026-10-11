@@ -307,15 +307,20 @@ function PushToggle() {
     >
       <div className="flex-1">
         <p className="text-xs font-medium text-slate-700">الإشعارات الفورية</p>
-        <p className="text-[11px] text-slate-400 mt-0.5">
-          {permission === 'denied'
-            ? 'محظورة في إعدادات المتصفح'
-            : isSubscribed
-            ? 'مفعّلة على هذا الجهاز'
-            : isBusy
-            ? 'جارٍ تحديث حالة الإشعارات...'
-            : 'اضغط لتفعيل الإشعارات'}
-        </p>
+        <div className="text-[11px] mt-0.5">
+          {permission === 'denied' ? (
+            <span className="text-rose-500 font-medium">محظورة في إعدادات المتصفح</span>
+          ) : isSubscribed ? (
+            <span className="text-emerald-600 font-semibold inline-flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
+              شغالة ونشطة على هذا الجهاز
+            </span>
+          ) : isBusy ? (
+            <span className="text-blue-500 font-medium">جارٍ تحديث حالة الإشعارات...</span>
+          ) : (
+            <span className="text-slate-400">اضغط لتفعيل الإشعارات</span>
+          )}
+        </div>
         {isBrave && !isSubscribed && permission === 'granted' && (
           <p className="text-[10px] text-amber-700 bg-amber-50/80 rounded px-1.5 py-0.5 mt-1.5 leading-normal font-medium border border-amber-200/60">
             تنبيه Brave: فعّل &quot;Use Google services for push messaging&quot; من إعدادات الخصوصية بالمتصفح.

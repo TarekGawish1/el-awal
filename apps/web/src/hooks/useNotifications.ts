@@ -167,8 +167,35 @@ export function useMarkRead() {
         body: JSON.stringify({}),
       });
     },
-    onSuccess: () => {
+    onMutate: async (notificationId: string) => {
+      await queryClient.cancelQueries({ queryKey: notificationKeys.unreadCount() });
+      await queryClient.cancelQueries({ queryKey: ['shell', 'badges'] });
+
+      queryClient.setQueryData(notificationKeys.unreadCount(), (old: any) => ({
+        unreadCount: Math.max(0, (old?.unreadCount ?? 1) - 1),
+      }));
+
+      queryClient.setQueryData(['shell', 'badges'], (old: any) =>
+        old ? { ...old, unreadNotifications: Math.max(0, (old.unreadNotifications ?? 1) - 1) } : old
+      );
+
+      // Optimistically mark notification as read in feed
+      queryClient.setQueriesData({ queryKey: notificationKeys.all }, (oldData: any) => {
+        if (!oldData) return oldData;
+        if (Array.isArray(oldData?.data)) {
+          return {
+            ...oldData,
+            data: oldData.data.map((n: any) =>
+              n.id === notificationId ? { ...n, isRead: true, readAt: new Date().toISOString() } : n
+            ),
+          };
+        }
+        return oldData;
+      });
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['shell', 'badges'] });
     },
   });
 }
@@ -188,19 +215,43 @@ export function useMarkAllRead() {
       });
     },
     onMutate: async () => {
-      // Optimistic update: zero out unread count immediately
+      // Optimistic update: zero out unread count and shell badges immediately
       await queryClient.cancelQueries({ queryKey: notificationKeys.unreadCount() });
-      const prev = queryClient.getQueryData(notificationKeys.unreadCount());
+      await queryClient.cancelQueries({ queryKey: ['shell', 'badges'] });
+
+      const prevUnread = queryClient.getQueryData(notificationKeys.unreadCount());
+      const prevShell = queryClient.getQueryData(['shell', 'badges']);
+
       queryClient.setQueryData(notificationKeys.unreadCount(), { unreadCount: 0 });
-      return { prev };
+      queryClient.setQueryData(['shell', 'badges'], (old: any) =>
+        old ? { ...old, unreadNotifications: 0 } : old
+      );
+
+      // Optimistically mark all cached notifications as read
+      queryClient.setQueriesData({ queryKey: notificationKeys.all }, (oldData: any) => {
+        if (!oldData) return oldData;
+        if (Array.isArray(oldData?.data)) {
+          return {
+            ...oldData,
+            data: oldData.data.map((n: any) => ({ ...n, isRead: true, readAt: new Date().toISOString() })),
+          };
+        }
+        return oldData;
+      });
+
+      return { prevUnread, prevShell };
     },
     onError: (_, __, context) => {
-      if (context?.prev) {
-        queryClient.setQueryData(notificationKeys.unreadCount(), context.prev);
+      if (context?.prevUnread) {
+        queryClient.setQueryData(notificationKeys.unreadCount(), context.prevUnread);
+      }
+      if (context?.prevShell) {
+        queryClient.setQueryData(['shell', 'badges'], context.prevShell);
       }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['shell', 'badges'] });
     },
   });
 }

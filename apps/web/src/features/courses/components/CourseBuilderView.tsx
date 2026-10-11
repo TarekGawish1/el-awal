@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useParams } from 'next/navigation';
 import {
   ArrowRight,
   BookOpen,
@@ -56,12 +56,14 @@ import { formatLessonDurationArabic } from '../utils/video-optimizer';
 import toast from 'react-hot-toast';
 
 interface CourseBuilderViewProps {
-  courseId: string;
+  courseId?: string;
 }
 
-export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
+export function CourseBuilderView({ courseId: propCourseId }: CourseBuilderViewProps) {
+  const routeParams = useParams();
+  const courseId = (propCourseId || routeParams?.id) as string;
   const queryClient = useQueryClient();
-  const { data: course, isLoading, refetch: refetchCourse } = useCourseDetail(courseId);
+  const { data: course, isLoading, isError, error, refetch: refetchCourse } = useCourseDetail(courseId);
   const updateCourseMutation = useUpdateCourse(courseId);
   const createModuleMutation = useCreateModule(courseId);
   const updateModuleMutation = useUpdateModule(courseId);
@@ -184,6 +186,22 @@ export function CourseBuilderView({ courseId }: CourseBuilderViewProps) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="p-8 text-center bg-white border border-rose-200 rounded-2xl text-rose-600 shadow-sm space-y-3 max-w-lg mx-auto my-12">
+        <p className="font-bold text-base">تعذر تحميل بيانات الكورس</p>
+        <p className="text-xs text-slate-500">{(error as any)?.message || 'حدث خطأ أثناء جلب تفاصيل الكورس من الخادم.'}</p>
+        <button
+          type="button"
+          onClick={() => refetchCourse()}
+          className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl transition-colors"
+        >
+          إعادة المحاولة
+        </button>
       </div>
     );
   }
