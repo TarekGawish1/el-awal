@@ -103,6 +103,8 @@ export class OfflineSyncEngine {
    * pending explicit user confirmation via <SyncConfirmationModal /> after reconnection.
    */
   private syncConfirmationRequired: boolean = false;
+  private lastPingAt: number = 0;
+  private lastPingOk: boolean = true;
 
   public setQueryClient(client: any): void {
     this.queryClient = client;
@@ -130,24 +132,24 @@ export class OfflineSyncEngine {
       window.addEventListener('online', () => this.handleNetworkChange(true));
       window.addEventListener('offline', () => this.handleNetworkChange(false));
 
-      // Auto-sync on window focus or tab visibility (e.g. returning to app)
+      // Auto-sync on window focus or tab visibility (respects cooldown to prevent request storms)
       window.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible' && navigator.onLine) {
-          this.checkAndSync({ skipCooldown: true });
+          this.checkAndSync();
         }
       });
       window.addEventListener('focus', () => {
         if (navigator.onLine) {
-          this.checkAndSync({ skipCooldown: true });
+          this.checkAndSync();
         }
       });
 
-      // Periodic check and downstream pull every 15 seconds
+      // Periodic check and downstream pull every 60 seconds (safe background check)
       setInterval(() => {
         if (navigator.onLine && !this.isSyncingState && !bootstrapManager.isBootstrapping()) {
           this.checkAndSync();
         }
-      }, 15000);
+      }, 60000);
     }
   }
 
@@ -456,9 +458,14 @@ export class OfflineSyncEngine {
     }
   }
 
-  public async verifyConnection(): Promise<boolean> {
+  public async verifyConnection(force = false): Promise<boolean> {
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       return false;
+    }
+    const now = Date.now();
+    // Cache positive ping for 30s to prevent spamming the /health/ping endpoint
+    if (!force && this.lastPingOk && now - this.lastPingAt < 30000) {
+      return true;
     }
     try {
       const controller = new AbortController();
@@ -469,10 +476,12 @@ export class OfflineSyncEngine {
         cache: 'no-store',
       });
       clearTimeout(timeoutId);
+      this.lastPingAt = now;
+      this.lastPingOk = res.ok;
       return res.ok;
     } catch {
-      // If the ping fails (CORS, DNS, network error), fall back to navigator.onLine
-      // instead of assuming online — prevents false-positive that burns retry counters
+      this.lastPingAt = now;
+      this.lastPingOk = false;
       return typeof navigator !== 'undefined' ? navigator.onLine : false;
     }
   }

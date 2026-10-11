@@ -28,7 +28,7 @@ class BootstrapManager {
   private lastBootstrapAt: number = 0;
   /** Minimum milliseconds between two delta bootstrap calls. Full bootstrap
    *  (forceFull) and explicit skipCooldown calls always bypass this. */
-  private readonly MIN_DELTA_INTERVAL_MS = 15 * 1000; // 15 seconds for rapid cross-device sync
+  private readonly MIN_DELTA_INTERVAL_MS = 60 * 1000; // 60 seconds for sensible background delta sync
 
   public isBootstrapping(): boolean {
     return this.isBootstrappingState;
@@ -306,10 +306,6 @@ class BootstrapManager {
         if (payload.payments.length > 0) qc.invalidateQueries({ queryKey: ['payments'] });
         if (payload.booklets.length > 0) qc.invalidateQueries({ queryKey: ['booklets'] });
         if (payload.assessments.length > 0) qc.invalidateQueries({ queryKey: ['assessments'] });
-
-        if (typeof qc.refetchQueries === 'function') {
-          qc.refetchQueries({ type: 'active' });
-        }
       }
 
       const syncTimestamp = response.timestamp || rootData.timestamp || Date.now();
