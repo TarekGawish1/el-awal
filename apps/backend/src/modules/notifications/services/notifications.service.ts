@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '../../../core/database/prisma.service';
+import { RealtimeGateway } from '../../../realtime/realtime.gateway';
 import { CursorPaginationDto } from '../../../common/dto/cursor-pagination.dto';
 import { CursorPaginationHelper } from '../../../common/pagination/cursor-pagination.helper';
 import {
@@ -74,6 +75,7 @@ export class NotificationsService {
     private readonly webPush: WebPushService,
     private readonly whatsappDispatcher: WhatsAppDispatcherService,
     private readonly settingsService: NotificationSettingsService,
+    @Optional() private readonly realtimeGateway?: RealtimeGateway,
   ) {}
 
   // ─── Core Multi-Channel Dispatcher ─────────────────────────────────────────
@@ -133,6 +135,8 @@ export class NotificationsService {
       },
       include: { recipient: { select: { fullName: true, role: true } } },
     });
+
+    this.realtimeGateway?.notifyNotificationsChanged([dto.recipientId]);
 
     if (activeChannels.includes(NotificationChannel.WHATSAPP)) {
       await this.whatsappDispatcher.enqueueNotification(notification);
@@ -283,10 +287,12 @@ export class NotificationsService {
    * Marks a specific notification as read.
    */
   async markAsRead(notificationId: string, recipientId: string) {
-    return this.prisma.notification.updateMany({
+    const res = await this.prisma.notification.updateMany({
       where: { id: notificationId, recipientId },
       data: { isRead: true, readAt: new Date() },
     });
+    this.realtimeGateway?.notifyNotificationsChanged([recipientId]);
+    return res;
   }
 
   /**
@@ -298,6 +304,7 @@ export class NotificationsService {
       data: { isRead: true, readAt: new Date() },
     });
 
+    this.realtimeGateway?.notifyNotificationsChanged([recipientId]);
     return { markedCount: result.count };
   }
 

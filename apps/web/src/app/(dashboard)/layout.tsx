@@ -41,6 +41,7 @@ import { usePendingReservations } from '@/features/groups';
 import { useRealtimeReservations } from '@/lib/realtime/useRealtimeReservations';
 import { useRealtimeInquiries } from '@/lib/realtime/useRealtimeInquiries';
 import { useRealtimeAttendance } from '@/lib/realtime/useRealtimeAttendance';
+import { useRealtimeNotifications } from '@/lib/realtime/useRealtimeNotifications';
 import { useOnlineStatus } from '@/lib/offline/use-online-status';
 import { syncEngine } from '@/lib/offline/sync-engine';
 import { NotificationBell } from '@/features/notifications/components/NotificationBell';
@@ -319,6 +320,7 @@ export default function DashboardLayout({
     },
   });
   useRealtimeInquiries(isReservationsRole && isOnline);
+  useRealtimeNotifications(isOnline);
 
   // Hydration-safe initial loading screen before auth initialization & client mount
   if (!isMounted || !isInitialized) {

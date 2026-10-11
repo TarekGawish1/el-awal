@@ -123,8 +123,11 @@ export function useInfiniteNotifications(options?: Omit<NotificationFeedOptions,
   });
 }
 
+import { getRealtimeSocket } from '@/lib/realtime/socket';
+
 /**
- * Polls the unread notification count every 90 seconds for badge display.
+ * Fetches the unread notification count.
+ * Relies on real-time WebSockets to push changes; only falls back to a long 2-minute interval if disconnected.
  */
 export function useUnreadCount() {
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
@@ -138,9 +141,14 @@ export function useUnreadCount() {
       );
       return res;
     },
-    staleTime: 60_000,
-    refetchInterval: isOnline ? 90_000 : false, // Disable interval entirely when offline
+    staleTime: 5 * 60 * 1000, // 5 minutes cache
+    refetchInterval: () => {
+      if (!isOnline) return false;
+      const socket = getRealtimeSocket();
+      return socket?.connected ? false : 120_000; // Zero polling when realtime socket is active
+    },
     refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
     networkMode: 'online',
     enabled: isOnline,
   });

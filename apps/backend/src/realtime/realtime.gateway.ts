@@ -168,5 +168,24 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       this.logger.debug(`Emitted 'homework:changed' to user [${userId}]`);
     }
   }
+
+  /**
+   * Broadcasts a lightweight "changed" signal to the given users' private rooms.
+   * Clients listening on `notifications:changed` will invalidate their
+   * notifications queries and unread counts immediately without polling.
+   */
+  notifyNotificationsChanged(userIds: (string | undefined)[]) {
+    if (!this.server) return;
+
+    const payload = { updatedAt: new Date().toISOString() };
+    const seen = new Set<string>();
+
+    for (const userId of userIds) {
+      if (!userId || seen.has(userId)) continue;
+      seen.add(userId);
+      this.server.to(`user:${userId}`).emit('notifications:changed', payload);
+      this.logger.debug(`Emitted 'notifications:changed' to user [${userId}]`);
+    }
+  }
 }
 

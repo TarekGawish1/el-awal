@@ -128,6 +128,39 @@ export function getDefaultAcademicTerm(): string {
   return DEFAULT_ACADEMIC_TERM;
 }
 
+export function getStoredAcademicPeriod(): AcademicPeriodResponse {
+  const defaultYear = getCurrentAcademicYear();
+  const defaultTerm = getCurrentAcademicTerm();
+
+  if (typeof window === 'undefined') {
+    return { activeAcademicYear: defaultYear, activeAcademicTerm: defaultTerm };
+  }
+
+  try {
+    const rawYear = localStorage.getItem(STORAGE_YEAR_KEY);
+    const rawTerm = localStorage.getItem(STORAGE_TERM_KEY);
+
+    let year = defaultYear;
+    if (rawYear) {
+      const parsedYear = JSON.parse(rawYear);
+      year = Array.isArray(parsedYear) ? parsedYear[0] : parsedYear || defaultYear;
+    }
+
+    let term = defaultTerm;
+    if (rawTerm) {
+      const parsedTerm = JSON.parse(rawTerm);
+      term = Array.isArray(parsedTerm) ? parsedTerm[0] : parsedTerm || defaultTerm;
+    }
+
+    return {
+      activeAcademicYear: year || defaultYear,
+      activeAcademicTerm: term || defaultTerm,
+    };
+  } catch {
+    return { activeAcademicYear: defaultYear, activeAcademicTerm: defaultTerm };
+  }
+}
+
 /**
  * Primary Hook to read, persist, and synchronize the active academic year & semester in the Database.
  * The database (teacher_profiles table) is the authoritative source of truth.
@@ -140,8 +173,9 @@ export function useActiveAcademicPeriod() {
   return useQuery({
     queryKey: ['teacher', 'academic-period'],
     queryFn: fetchAcademicPeriod,
-    staleTime: 30 * 60 * 1000, // 30 minutes
-    gcTime: 60 * 60 * 1000,    // 60 minutes
+    initialData: getStoredAcademicPeriod,
+    staleTime: 24 * 60 * 60 * 1000, // 24 hours - academic period changes at most twice a year!
+    gcTime: 7 * 24 * 60 * 60 * 1000,
     refetchInterval: false,
     refetchOnWindowFocus: false,
     retry: 1,
@@ -152,12 +186,13 @@ export function useActiveAcademicPeriod() {
 export function useStoredAcademicPeriod(groups?: Group[]) {
   const queryClient = useQueryClient();
 
-  // 1. Fetch persistent preference directly from database (cached for 30 minutes without polling)
+  // 1. Fetch persistent preference directly from database (cached for 24 hours without polling)
   const { data: dbPeriod, isLoading: isLoadingDb } = useQuery({
     queryKey: ['teacher', 'academic-period'],
     queryFn: fetchAcademicPeriod,
-    staleTime: 30 * 60 * 1000, // 30 minutes cache
-    gcTime: 60 * 60 * 1000,    // 60 minutes cache
+    initialData: getStoredAcademicPeriod,
+    staleTime: 24 * 60 * 60 * 1000, // 24 hours cache
+    gcTime: 7 * 24 * 60 * 60 * 1000,
     refetchInterval: false,     // Disabled: mutations already invalidate this query
     refetchOnWindowFocus: false,
     retry: 1,
@@ -255,30 +290,48 @@ export function useStoredAcademicPeriod(groups?: Group[]) {
   useEffect(() => {
     if (dbPeriod?.activeAcademicYear) {
       setSelectedYearsState((prev) => {
-        if (prev.length === 1 && prev[0] === dbPeriod.activeAcademicYear) return prev;
+        if (prev.includes(dbPeriod.activeAcademicYear)) return prev;
         return [dbPeriod.activeAcademicYear];
       });
       if (typeof window !== 'undefined') {
         try {
           const currentStored = localStorage.getItem(STORAGE_YEAR_KEY);
-          const nextVal = JSON.stringify([dbPeriod.activeAcademicYear]);
-          if (currentStored !== nextVal) {
-            localStorage.setItem(STORAGE_YEAR_KEY, nextVal);
+          let alreadyIncludes = false;
+          if (currentStored) {
+            const parsed = JSON.parse(currentStored);
+            if (Array.isArray(parsed) && parsed.includes(dbPeriod.activeAcademicYear)) {
+              alreadyIncludes = true;
+            }
+          }
+          if (!alreadyIncludes) {
+            const nextVal = JSON.stringify([dbPeriod.activeAcademicYear]);
+            if (currentStored !== nextVal) {
+              localStorage.setItem(STORAGE_YEAR_KEY, nextVal);
+            }
           }
         } catch {}
       }
     }
     if (dbPeriod?.activeAcademicTerm) {
       setSelectedTermsState((prev) => {
-        if (prev.length === 1 && prev[0] === dbPeriod.activeAcademicTerm) return prev;
+        if (prev.includes(dbPeriod.activeAcademicTerm)) return prev;
         return [dbPeriod.activeAcademicTerm];
       });
       if (typeof window !== 'undefined') {
         try {
           const currentStored = localStorage.getItem(STORAGE_TERM_KEY);
-          const nextVal = JSON.stringify([dbPeriod.activeAcademicTerm]);
-          if (currentStored !== nextVal) {
-            localStorage.setItem(STORAGE_TERM_KEY, nextVal);
+          let alreadyIncludes = false;
+          if (currentStored) {
+            const parsed = JSON.parse(currentStored);
+            if (Array.isArray(parsed) && parsed.includes(dbPeriod.activeAcademicTerm)) {
+              alreadyIncludes = true;
+            }
+          }
+          if (!alreadyIncludes) {
+            const nextVal = JSON.stringify([dbPeriod.activeAcademicTerm]);
+            if (currentStored !== nextVal) {
+              localStorage.setItem(STORAGE_TERM_KEY, nextVal);
+            }
           }
         } catch {}
       }
