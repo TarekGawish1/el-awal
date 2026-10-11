@@ -16,8 +16,17 @@ export async function scanQrFromImageFile(file: File | Blob): Promise<string> {
         : null;
 
     if (!DetectorClass) {
-      const ponyfill = await import('barcode-detector/ponyfill');
-      DetectorClass = ponyfill.BarcodeDetector;
+      try {
+        // @ts-ignore
+        const ponyfill: any = await import('barcode-detector/ponyfill');
+        DetectorClass = ponyfill?.BarcodeDetector || ponyfill?.default?.BarcodeDetector;
+      } catch (errPony) {
+        console.warn('BarcodeDetector ponyfill load failed:', errPony);
+      }
+    }
+
+    if (!DetectorClass) {
+      throw new Error('خاصية مسح الرمز من الصور غير مدعومة في هذا المتصفح. يرجى مسح الرمز عبر الكاميرا المباشرة.');
     }
 
     const detector = new DetectorClass({ formats: ['qr_code'] });
