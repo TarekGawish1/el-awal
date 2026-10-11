@@ -4,12 +4,8 @@ const isDev = process.env.NODE_ENV !== 'production';
 const nextConfig = {
   output: 'standalone',
 
-  // Lint in CI (`pnpm lint`), never block Heroku production builds on lint.
-  // (A lint-config mismatch previously failed deploys with
-  // "ESLint: Invalid Options: Unknown options: useEslintrc, extensions".)
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  // Reduce server bundle size by externalizing large native packages
+  serverExternalPackages: ['sharp'],
 
   async redirects() {
     return [
@@ -64,8 +60,6 @@ const nextConfig = {
       'react-hook-form',
       '@hookform/resolvers',
     ],
-    // Reduce server bundle size by externalizing large native packages
-    serverComponentsExternalPackages: ['sharp'],
   },
 
   images: {
@@ -103,7 +97,7 @@ const nextConfig = {
       },
       {
         key: 'Permissions-Policy',
-        value: 'camera=(), microphone=(), geolocation=()',
+        value: 'camera=(self), microphone=(), geolocation=()',
       },
       {
         // Keep permissive enough for Next.js hydration, Google Fonts,
