@@ -87,15 +87,25 @@ export function PaymentQrScannerModal({
         return;
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: facingMode } },
-        audio: false,
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: facingMode } },
+          audio: false,
+        });
+      } catch (err1) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
+      }
 
       stream.getTracks().forEach((track) => track.stop());
+      await new Promise((r) => setTimeout(r, 200));
+
       setCameraError(null);
       setCameraKey((prev) => prev + 1);
-      toast.success('تم منح صلاحية الكاميرا بنجاح! جاري تشغيل الماسح...');
+      toast.success('تم تفعيل صلاحية الكاميرا بنجاح! جاري تشغيل الماسح...');
     } catch (err: any) {
       console.warn('Manual camera permission request failed:', err);
       const msg = err?.message || '';

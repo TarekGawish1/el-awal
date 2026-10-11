@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Camera, HelpCircle, Lock, RefreshCcw, ShieldAlert } from 'lucide-react';
+import { Camera, HelpCircle, Lock, RefreshCcw, Upload } from 'lucide-react';
 
 export interface CameraPermissionOverlayProps {
   error: string | null;
@@ -9,6 +9,7 @@ export interface CameraPermissionOverlayProps {
   onRequestPermission: () => void;
   onOpenGuide: () => void;
   onRetry?: () => void;
+  onUploadImage?: () => void;
 }
 
 export function CameraPermissionOverlay({
@@ -17,6 +18,7 @@ export function CameraPermissionOverlay({
   onRequestPermission,
   onOpenGuide,
   onRetry,
+  onUploadImage,
 }: CameraPermissionOverlayProps) {
   if (!error) return null;
 
@@ -33,18 +35,18 @@ export function CameraPermissionOverlay({
 
   return (
     <div
-      className="absolute inset-0 z-30 bg-slate-900/90 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-center animate-in fade-in duration-200"
+      className="absolute inset-0 z-30 bg-slate-900/90 backdrop-blur-xs flex flex-col items-center justify-center p-3 text-center animate-in fade-in duration-200"
       dir="rtl"
     >
-      <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mb-3">
+      <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mb-2">
         {isHttpsIssue ? (
-          <Lock className="w-6 h-6 text-amber-400" />
+          <Lock className="w-5 h-5 text-amber-400" />
         ) : (
-          <Camera className="w-6 h-6 text-rose-400" />
+          <Camera className="w-5 h-5 text-rose-400" />
         )}
       </div>
 
-      <h3 className="text-white font-bold text-sm mb-1">
+      <h3 className="text-white font-bold text-xs sm:text-sm mb-1">
         {isHttpsIssue
           ? 'مطلوب اتصال آمن (HTTPS)'
           : isPermissionDenied
@@ -52,31 +54,31 @@ export function CameraPermissionOverlay({
           : 'تعذر تشغيل الكاميرا'}
       </h3>
 
-      <p className="text-slate-300 text-xs max-w-xs mb-4 leading-relaxed">
+      <p className="text-slate-300 text-[11px] max-w-[220px] mb-3 leading-relaxed">
         {isHttpsIssue
-          ? 'تتطلب متصفحات الهواتف اتصالاً مشفراً (HTTPS) للسماح بتشغيل الكاميرا.'
+          ? 'تتطلب متصفحات الهواتف اتصالاً مشفراً (HTTPS) لتشغيل الكاميرا.'
           : isPermissionDenied
-          ? 'اضغط على الزر أدناه للسماح للمتصفح بالوصول للكاميرا ومسح الـ QR.'
+          ? 'اضغط لمنح المتصفح إذن الكاميرا ومسح الـ QR.'
           : error}
       </p>
 
-      <div className="flex flex-col gap-2 w-full max-w-xs">
+      <div className="flex flex-col gap-1.5 w-full max-w-[220px]">
         {/* Primary Action: Request Permission */}
         {!isHttpsIssue && (
           <button
             type="button"
             onClick={onRequestPermission}
             disabled={isRequesting}
-            className="w-full py-2.5 px-4 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-600 active:bg-primary-700 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            className="w-full py-2 px-3 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-600 active:bg-primary-700 transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
             {isRequesting ? (
               <>
-                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 <span>جاري طلب الإذن...</span>
               </>
             ) : (
               <>
-                <Camera className="w-4 h-4" />
+                <Camera className="w-3.5 h-3.5" />
                 <span>منح إذن الكاميرا الآن</span>
               </>
             )}
@@ -88,10 +90,22 @@ export function CameraPermissionOverlay({
           <button
             type="button"
             onClick={onOpenGuide}
-            className="w-full py-2 px-3 bg-white/10 hover:bg-white/20 text-white font-semibold text-xs rounded-xl transition-colors border border-white/10 flex items-center justify-center gap-1.5 cursor-pointer"
+            className="w-full py-1.5 px-2 bg-white/10 hover:bg-white/20 text-white font-semibold text-[11px] rounded-xl transition-colors border border-white/10 flex items-center justify-center gap-1.5 cursor-pointer"
           >
-            <HelpCircle className="w-3.5 h-3.5 text-primary-300" />
+            <HelpCircle className="w-3 h-3 text-primary-300" />
             <span>كيف أفعّل الإذن من المتصفح؟</span>
+          </button>
+        )}
+
+        {/* Alternative: Image File Upload */}
+        {onUploadImage && (
+          <button
+            type="button"
+            onClick={onUploadImage}
+            className="w-full py-1.5 px-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 font-semibold text-[11px] rounded-xl transition-colors border border-emerald-500/30 flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <Upload className="w-3 h-3 text-emerald-400" />
+            <span>مسح من صورة QR 🖼️</span>
           </button>
         )}
 
@@ -100,9 +114,9 @@ export function CameraPermissionOverlay({
           <button
             type="button"
             onClick={onRetry}
-            className="w-full py-1.5 text-slate-400 hover:text-white font-medium text-[11px] transition-colors flex items-center justify-center gap-1 cursor-pointer"
+            className="w-full py-1 text-slate-400 hover:text-white font-medium text-[10px] transition-colors flex items-center justify-center gap-1 cursor-pointer"
           >
-            <RefreshCcw className="w-3 h-3" />
+            <RefreshCcw className="w-2.5 h-2.5" />
             <span>إعادة المحاولة</span>
           </button>
         )}

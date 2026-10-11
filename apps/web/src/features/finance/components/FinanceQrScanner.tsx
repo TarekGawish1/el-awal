@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 
 const Scanner = dynamic(
@@ -10,9 +10,10 @@ const Scanner = dynamic(
 import { useScanPaymentQr } from '../hooks/useFinance';
 import { useBooklets } from '@/features/booklets/hooks/useBooklets';
 import { Alert } from '@/components/ui/Alert';
-import { RefreshCcw, CreditCard, BookOpen, Calendar, Camera, HelpCircle } from 'lucide-react';
+import { RefreshCcw, CreditCard, BookOpen, Calendar, Camera, Upload, Image as ImageIcon } from 'lucide-react';
 import { parseStudentQr } from '@/lib/qr/qr-parser';
 import { initQrDetector } from '@/lib/qr/qr-detector-init';
+import { scanQrFromImageFile } from '@/lib/qr/qr-image-scanner';
 import { CameraPermissionModal, CameraPermissionOverlay } from '@/components/camera';
 import toast from 'react-hot-toast';
 
@@ -70,6 +71,20 @@ export function FinanceQrScanner({
   const [flashType, setFlashType] = useState<'success' | 'duplicate' | 'error' | null>(null);
   const [isRequestingPermission, setIsRequestingPermission] = useState(false);
   const [showPermissionGuide, setShowPermissionGuide] = useState(false);
+  const [isDecodingImage, setIsDecodingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-detect single-camera devices (e.g. desktop/laptop webcam) and default to 'user'
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices?.enumerateDevices) {
+      navigator.mediaDevices.enumerateDevices().then((devices) => {
+        const videoInputs = devices.filter((d) => d.kind === 'videoinput');
+        if (videoInputs.length === 1) {
+          setFacingMode('user');
+        }
+      }).catch(() => {});
+    }
+  }, []);
 
   const requestCameraPermission = async () => {
     setIsRequestingPermission(true);
@@ -80,17 +95,29 @@ export function FinanceQrScanner({
         return;
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: facingMode } },
-        audio: false,
-      });
+      // Cascading request with fallback
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: facingMode } },
+          audio: false,
+        });
+      } catch (err1) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
+      }
 
-      // Stream acquired, release tracks so Scanner component can bind
+      // Stream acquired, release tracks cleanly so Scanner component can bind
       stream.getTracks().forEach((track) => track.stop());
+
+      // Small pause to allow camera device hardware to release before Scanner remounts
+      await new Promise((r) => setTimeout(r, 200));
 
       setCameraError(null);
       setCameraKey((prev) => prev + 1);
-      toast.success('تم منح صلاحية الكاميرا بنجاح! جاري تشغيل الماسح...');
+      toast.success('تم تفعيل صلاحية الكاميرا بنجاح! جاري تشغيل الماسح...');
     } catch (err: any) {
       console.warn('Manual camera permission request failed:', err);
       const msg = err?.message || '';
@@ -104,6 +131,24 @@ export function FinanceQrScanner({
       }
     } finally {
       setIsRequestingPermission(false);
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsDecodingImage(true);
+    try {
+      const token = await scanQrFromImageFile(file);
+      handleScan([{ rawValue: token }]);
+    } catch (err: any) {
+      toast.error(err?.message || 'تعذر قراءة رمز QR من الصورة المحددة.');
+    } finally {
+      setIsDecodingImage(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -290,7 +335,6 @@ export function FinanceQrScanner({
     console.error('Finance QR Scanner Error:', error);
     const msg = error?.message || '';
     if (msg.includes('Barcode detection service unavailable') || msg.includes('detect')) {
-      // Re-initialize local WASM engine silently
       initQrDetector();
       return;
     }
@@ -308,53 +352,61 @@ export function FinanceQrScanner({
   };
 
   return (
-    <div className="flex flex-col items-center py-2 space-y-4">
+    <div className="flex flex-col items-center py-1 space-y-3">
+      {/* Hidden File Input for Image QR Scanning */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleImageUpload}
+      />
+
       {/* Mode Selector */}
-      <div className="w-full max-w-sm flex bg-slate-100 p-1 rounded-xl">
+      <div className="w-full max-w-xs flex bg-slate-100 p-1 rounded-xl">
         <button
           type="button"
           onClick={() => setPaymentType('TUITION')}
-          className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+          className={`flex-1 py-1.5 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
             paymentType === 'TUITION'
-              ? 'bg-white text-primary shadow-sm'
+              ? 'bg-white text-primary shadow-2xs'
               : 'text-slate-500 hover:text-slate-800'
           }`}
         >
-          <CreditCard className="w-4 h-4" />
+          <CreditCard className="w-3.5 h-3.5" />
           اشتراك شهري
         </button>
         <button
           type="button"
           onClick={() => setPaymentType('BOOKLET')}
-          className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+          className={`flex-1 py-1.5 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
             paymentType === 'BOOKLET'
-              ? 'bg-purple-600 text-white shadow-sm'
+              ? 'bg-purple-600 text-white shadow-2xs'
               : 'text-slate-500 hover:text-slate-800'
           }`}
         >
-          <BookOpen className="w-4 h-4" />
+          <BookOpen className="w-3.5 h-3.5" />
           سداد قيمة مذكرة
         </button>
       </div>
 
       {/* Month & Year Selector in Tuition Mode */}
       {paymentType === 'TUITION' && (
-        <div className="w-full max-w-sm bg-slate-50 border border-slate-200/80 rounded-2xl p-3 space-y-2 animate-in fade-in duration-200">
+        <div className="w-full max-w-xs bg-slate-50 border border-slate-200/80 rounded-xl p-2.5 space-y-1.5 animate-in fade-in duration-200">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-primary-600" />
-              <span>شهر وسنة الاشتراك المراد تحصيله:</span>
+            <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+              <Calendar className="w-3 h-3 text-primary-600" />
+              <span>شهر وسنة الاشتراك:</span>
             </label>
-            <span className="text-[11px] font-black text-primary-700 bg-primary-50 px-2 py-0.5 rounded-lg border border-primary-100">
+            <span className="text-[10px] font-black text-primary-700 bg-primary-50 px-1.5 py-0.5 rounded border border-primary-100">
               شهر {selectedPeriodMonth} / {selectedPeriodYear}
             </span>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 mb-1">الشهر</label>
               <select
-                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                className="w-full h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-800 focus:ring-1 focus:ring-primary/30 cursor-pointer"
                 value={selectedPeriodMonth}
                 onChange={(e) => setSelectedPeriodMonth(Number(e.target.value))}
               >
@@ -380,9 +432,8 @@ export function FinanceQrScanner({
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 mb-1">السنة</label>
               <select
-                className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                className="w-full h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-800 focus:ring-1 focus:ring-primary/30 cursor-pointer"
                 value={selectedPeriodYear}
                 onChange={(e) => setSelectedPeriodYear(Number(e.target.value))}
               >
@@ -399,13 +450,13 @@ export function FinanceQrScanner({
 
       {/* Booklet Selector in Booklet Mode */}
       {paymentType === 'BOOKLET' && (
-        <div className="w-full max-w-sm animate-in fade-in duration-200">
+        <div className="w-full max-w-xs animate-in fade-in duration-200">
           <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
             <BookOpen className="w-3.5 h-3.5 text-purple-600" />
             المذكرة المراد سدادها للطالب
           </label>
           <select
-            className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-purple-500/20"
+            className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-purple-500/20 cursor-pointer"
             value={selectedBookletId}
             onChange={(e) => setSelectedBookletId(e.target.value)}
           >
@@ -417,16 +468,16 @@ export function FinanceQrScanner({
             ))}
           </select>
           {booklets.length === 0 && (
-            <p className="text-xs text-amber-600 mt-1">
+            <p className="text-[11px] text-amber-600 mt-1">
               لا توجد مذكرات نشطة حالياً. يمكنك إنشاء مذكرات من تبويب "المذكرات والملازم".
             </p>
           )}
         </div>
       )}
 
-      {/* Camera Viewport */}
+      {/* Camera Viewport (Constrained to a sleek 250px) */}
       <div
-        className={`w-full max-w-sm aspect-square bg-slate-900 rounded-3xl overflow-hidden border border-slate-100 shadow-sm relative transition-all duration-300 ring-4 ${
+        className={`w-full max-w-[250px] aspect-square bg-slate-900 rounded-2xl overflow-hidden border border-slate-200/80 shadow-md relative transition-all duration-300 ring-4 mx-auto ${
           flashType === 'success'
             ? 'ring-emerald-500 shadow-lg shadow-emerald-500/20'
             : flashType === 'duplicate'
@@ -448,8 +499,6 @@ export function FinanceQrScanner({
           formats={['qr_code']}
           constraints={{
             facingMode: { ideal: facingMode },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
           }}
           styles={{
             container: { width: '100%', height: '100%', position: 'relative' },
@@ -462,22 +511,37 @@ export function FinanceQrScanner({
           }}
         />
 
-        <button
-          type="button"
-          onClick={() => {
-            setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
-            setCameraKey((prev) => prev + 1);
-          }}
-          className="absolute top-4 right-4 z-20 bg-white/20 hover:bg-white/40 text-white backdrop-blur-md p-2.5 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 shadow-sm cursor-pointer"
-          title="تبديل / إعادة تشغيل الكاميرا"
-        >
-          <RefreshCcw className="w-5 h-5" />
-        </button>
+        {/* Top Viewfinder Controls */}
+        <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
+              setCameraKey((prev) => prev + 1);
+            }}
+            className="bg-black/40 hover:bg-black/60 text-white backdrop-blur-md p-1.5 rounded-full transition-colors focus:outline-none shadow-xs cursor-pointer"
+            title="تبديل الكاميرا (أمامية / خلفية)"
+          >
+            <RefreshCcw className="w-3.5 h-3.5" />
+          </button>
 
-        {(locked || isPending) && (
-          <div className="absolute inset-0 bg-white/60 flex flex-col items-center justify-center z-10 backdrop-blur-sm">
-            <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary-600 border-t-transparent mb-2"></div>
-            <span className="text-xs font-bold text-slate-700">جاري معالجة الـ QR...</span>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isDecodingImage}
+            className="bg-black/40 hover:bg-black/60 text-white backdrop-blur-md p-1.5 rounded-full transition-colors focus:outline-none shadow-xs cursor-pointer"
+            title="مسح رمز QR من صورة أو ملف"
+          >
+            <ImageIcon className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {(locked || isPending || isDecodingImage) && (
+          <div className="absolute inset-0 bg-white/70 flex flex-col items-center justify-center z-10 backdrop-blur-xs">
+            <div className="animate-spin rounded-full h-8 w-8 border-3 border-primary-600 border-t-transparent mb-1.5"></div>
+            <span className="text-[11px] font-bold text-slate-800">
+              {isDecodingImage ? 'جاري قراءة رمز الصورة...' : 'جاري معالجة الـ QR...'}
+            </span>
           </div>
         )}
 
@@ -491,54 +555,13 @@ export function FinanceQrScanner({
             setCameraError(null);
             setCameraKey((prev) => prev + 1);
           }}
+          onUploadImage={() => fileInputRef.current?.click()}
         />
       </div>
 
-      {/* Live Scan Results */}
-      <div className="w-full max-w-sm min-h-[80px]">
-        {cameraError ? (
-          <Alert variant="error">
-            <div className="flex flex-col gap-2.5">
-              <div className="flex flex-col">
-                <span className="font-bold flex items-center gap-1.5 text-rose-800">
-                  <Camera className="w-4 h-4 text-rose-600" />
-                  خطأ في الكاميرا
-                </span>
-                <span className="text-xs sm:text-sm mt-1 text-rose-700 leading-relaxed">
-                  {cameraError}
-                </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-rose-200/60">
-                <button
-                  type="button"
-                  onClick={requestCameraPermission}
-                  disabled={isRequestingPermission}
-                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
-                >
-                  {isRequestingPermission ? (
-                    <>
-                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>جاري الطلب...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Camera className="w-3.5 h-3.5" />
-                      <span>طلب إذن الكاميرا مجدداً</span>
-                    </>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowPermissionGuide(true)}
-                  className="px-3 py-1.5 bg-white border border-rose-300 text-rose-800 hover:bg-rose-50 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                >
-                  <HelpCircle className="w-3.5 h-3.5 text-rose-600" />
-                  <span>طريقة التفعيل من المتصفح 🔒</span>
-                </button>
-              </div>
-            </div>
-          </Alert>
-        ) : lastScanResult ? (
+      {/* Live Scan Results & Clean Action Area */}
+      <div className="w-full max-w-xs min-h-[44px]">
+        {lastScanResult ? (
           <Alert
             variant={
               lastScanResult.success
@@ -548,24 +571,35 @@ export function FinanceQrScanner({
                 : 'error'
             }
           >
-            <div className="flex flex-col">
+            <div className="flex flex-col text-xs">
               {lastScanResult.title && (
-                <span className="font-bold text-sm mb-1">{lastScanResult.title}</span>
+                <span className="font-bold mb-0.5">{lastScanResult.title}</span>
               )}
-              <span className="font-semibold">{lastScanResult.message}</span>
+              <span className="font-medium leading-relaxed">{lastScanResult.message}</span>
               {lastScanResult.studentName && (
-                <span className="text-sm mt-1 font-bold">
+                <span className="mt-1 font-bold">
                   {lastScanResult.studentName}{' '}
                   {lastScanResult.bookletTitle && `(مذكرة: ${lastScanResult.bookletTitle})`}
                 </span>
               )}
             </div>
           </Alert>
+        ) : cameraError ? (
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="text-xs font-bold text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-200 px-3 py-1.5 rounded-xl transition-all inline-flex items-center gap-1.5 shadow-2xs cursor-pointer"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>أو مسح رمز QR من صورة / كاميرا الهاتف</span>
+            </button>
+          </div>
         ) : (
-          <div className="text-center py-3 text-slate-400 text-xs border border-dashed border-slate-200 rounded-2xl">
+          <div className="text-center py-2 text-slate-400 text-xs border border-dashed border-slate-200 rounded-xl">
             {paymentType === 'BOOKLET'
-              ? 'اختر المذكرة ثم وجه الكاميرا نحو بطاقة QR الطالب لتحصيل قيمتها فورياً'
-              : 'وجه كاميرا الجهاز نحو بطاقة الـ QR الخاصة بالطالب لتسجيل السداد فورياً'}
+              ? 'وجه الكاميرا نحو بطاقة QR الطالب لتحصيل المذكرة'
+              : 'وجه الكاميرا نحو بطاقة QR الطالب لتسجيل السداد'}
           </div>
         )}
       </div>

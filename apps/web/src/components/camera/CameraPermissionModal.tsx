@@ -27,14 +27,26 @@ export function CameraPermissionModal({
         return;
       }
 
-      // Explicit user gesture call to request camera stream
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-        audio: false,
-      });
+      // Cascading getUserMedia request:
+      // Try facingMode ideal 'environment' first; if it fails (e.g. desktop webcam / single camera), fallback to generic { video: true }
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+          audio: false,
+        });
+      } catch (err1) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
+      }
 
       // Stream successfully acquired! Release it so the scanner component can capture it
       stream.getTracks().forEach((track) => track.stop());
+
+      // Small pause to allow camera hardware to release before scanner mounts
+      await new Promise((r) => setTimeout(r, 200));
 
       toast.success('تم تفعيل صلاحية الكاميرا بنجاح! 🚀');
       onPermissionGranted?.();
@@ -42,8 +54,8 @@ export function CameraPermissionModal({
     } catch (err: any) {
       console.warn('Manual permission test failed:', err);
       if (err?.name === 'NotAllowedError' || err?.message?.includes('Permission') || err?.message?.includes('denied')) {
-        toast.error('ما زالت صلاحية الكاميرا محظورة في المتصفح. يرجى اتباع الخطوات الموضحة وتفعيلها أولاً.', {
-          duration: 4000,
+        toast.error('ما زالت صلاحية الكاميرا محظورة في المتصفح. إذا قمت بتغيير الإذن للتو، يرجى الضغط على "تحديث الصفحة" لتطبيق التغييرات.', {
+          duration: 5000,
         });
       } else {
         toast.error('تعذر الوصول للكاميرا: ' + (err?.message || 'تأكد من عدم استخدام تطبيق آخر للكاميرا'));
