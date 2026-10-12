@@ -65,8 +65,8 @@ export function AuditStatsOverview({ stats, isLoading }: AuditStatsOverviewProps
               </div>
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-black text-neutral-800 tracking-tight">
-                {card.value.toLocaleString('ar-EG')}
+              <div className="text-2xl font-black text-neutral-800 tracking-tight font-sans">
+                {card.value.toLocaleString('en-US')}
               </div>
               <p className="text-[11px] text-neutral-400 mt-1">{card.description}</p>
             </div>

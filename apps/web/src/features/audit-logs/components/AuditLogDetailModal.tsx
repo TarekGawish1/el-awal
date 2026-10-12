@@ -37,7 +37,7 @@ interface AuditLogDetailModalProps {
 export function AuditLogDetailModal({ log, onClose }: AuditLogDetailModalProps) {
   if (!log) return null;
 
-  const formattedDate = new Date(log.createdAt).toLocaleString('ar-EG', {
+  const formattedDate = new Date(log.createdAt).toLocaleString('ar-EG-u-nu-latn', {
     dateStyle: 'full',
     timeStyle: 'medium',
   });

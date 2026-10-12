@@ -36,11 +36,11 @@ function readStoredValue(key: string, fallback: string) {
 }
 
 function formatAmount(amount: number) {
-  return `${Number(amount || 0).toLocaleString('ar-EG')} ج.م`;
+  return `${Number(amount || 0).toLocaleString('en-US')} ج.م`;
 }
 
 function formatPaidAt(value?: string | Date) {
-  return value ? new Date(value).toLocaleDateString('ar-EG') : 'غير متاح';
+  return value ? new Date(value).toLocaleDateString('ar-EG-u-nu-latn') : 'غير متاح';
 }
 
 function isMonthStarted(

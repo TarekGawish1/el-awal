@@ -131,11 +131,11 @@ export function AuditLogsList({ logs, meta, isLoading, onPageChange }: AuditLogs
                 const isAssistant = log.userRole === 'SECRETARIAT';
                 const entity = getEntityDisplay(log.entityType);
 
-                const timeStr = new Date(log.createdAt).toLocaleTimeString('ar-EG', {
+                const timeStr = new Date(log.createdAt).toLocaleTimeString('ar-EG-u-nu-latn', {
                   hour: '2-digit',
                   minute: '2-digit',
                 });
-                const dateStr = new Date(log.createdAt).toLocaleDateString('ar-EG', {
+                const dateStr = new Date(log.createdAt).toLocaleDateString('ar-EG-u-nu-latn', {
                   month: 'short',
                   day: 'numeric',
                 });

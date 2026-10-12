@@ -27,7 +27,7 @@ export function formatArabicDate(dateInput: string | Date | undefined | null): s
   const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
   if (isNaN(date.getTime())) return '—';
 
-  return new Intl.DateTimeFormat('ar-EG', {
+  return new Intl.DateTimeFormat('ar-EG-u-nu-latn', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -53,7 +53,7 @@ export function formatArabicTime(timeInput: string | Date | undefined | null): s
   const date = typeof timeInput === 'string' ? new Date(timeInput) : timeInput;
   if (isNaN(date.getTime())) return '—';
 
-  return new Intl.DateTimeFormat('ar-EG', {
+  return new Intl.DateTimeFormat('ar-EG-u-nu-latn', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: true,
