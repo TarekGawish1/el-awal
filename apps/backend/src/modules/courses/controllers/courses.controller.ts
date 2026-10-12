@@ -14,7 +14,7 @@ import {
   UploadedFile,
   BadRequestException,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FastifyFileInterceptor } from '../../../core/interceptors/fastify-file.interceptor';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { CoursesService } from '../services/courses.service';
 import { CreateCourseDto } from '../dto/create-course.dto';
@@ -97,7 +97,7 @@ export class CoursesController {
 
   @Post('lessons/upload-video-stream')
   @UseInterceptors(
-    FileInterceptor('file', {
+    FastifyFileInterceptor('file', {
       limits: {
         fileSize: 500 * 1024 * 1024, // 500MB
       },

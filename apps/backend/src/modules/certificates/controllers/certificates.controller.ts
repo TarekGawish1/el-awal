@@ -1,5 +1,5 @@
 import { Controller, Post, Get, Delete, Patch, Param, Body, UploadedFile, UseInterceptors } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FastifyFileInterceptor } from '../../../core/interceptors/fastify-file.interceptor';
 import { SECURE_FILE_UPLOAD_OPTIONS } from '../../../integrations/storage/upload-options';
 import { CertificatesService } from '../services/certificates.service';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBearerAuth } from '@nestjs/swagger';
@@ -26,7 +26,7 @@ export class CertificatesController {
   @Roles(UserRole.TEACHER, UserRole.SECRETARIAT)
   @ApiOperation({ summary: 'Create a new certificate and upload its image' })
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('file', SECURE_FILE_UPLOAD_OPTIONS))
+  @UseInterceptors(FastifyFileInterceptor('file', SECURE_FILE_UPLOAD_OPTIONS))
   async createCertificate(
     @Body() dto: CreateCertificateDto,
     @UploadedFile() file?: Express.Multer.File,

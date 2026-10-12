@@ -37,7 +37,7 @@ async function bootstrap() {
   });
   await app.register(fastifyMultipart, {
     limits: {
-      fileSize: 50 * 1024 * 1024, // 50MB max upload
+      fileSize: 500 * 1024 * 1024, // 500MB max upload (allows lecture videos and document uploads)
     },
   });
 
