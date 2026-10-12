@@ -10,12 +10,13 @@ jobs:
   deploy:
     name: Deploy Backend Subtree to Heroku
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Full history needed for git subtree
+          fetch-depth: 1
 
       - name: Deploy Backend to Heroku via Git Subtree
         env:
@@ -43,9 +44,10 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git remote add heroku "https://_:${HEROKU_API_KEY}@git.heroku.com/${HEROKU_APP_NAME}.git"
 
-          # 4. Extract backend subtree into a dedicated commit
-          echo "Extracting apps/backend subtree commit..."
-          BACKEND_COMMIT=$(git subtree split --prefix=apps/backend HEAD)
+          # 4. Extract backend tree into a deployment commit instantly (avoids slow 1200+ commit subtree scan)
+          echo "Extracting apps/backend tree..."
+          BACKEND_TREE=$(git rev-parse "HEAD:apps/backend")
+          BACKEND_COMMIT=$(git commit-tree "${BACKEND_TREE}" -m "Deploy backend $(git rev-parse --short HEAD)")
 
           if [ -z "$BACKEND_COMMIT" ]; then
             echo "::error::Failed to extract subtree commit for apps/backend"
