@@ -6,13 +6,11 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 dotenv.config({ path: path.resolve(process.cwd(), 'apps/backend/.env') });
 
 import { PrismaClient, AssessmentType, QuestionType } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 
 const connectionUrl = process.env.DATABASE_URL || process.env.DIRECT_URL;
-const prisma = new PrismaClient({
-  datasources: connectionUrl
-    ? { db: { url: connectionUrl } }
-    : undefined,
-});
+const adapter = connectionUrl ? new PrismaPg({ connectionString: connectionUrl }) : undefined;
+const prisma = new PrismaClient(adapter ? { adapter } : undefined);
 
 async function main() {
   console.log('🚀 Seeding homework assignments and exams for all student groups...');

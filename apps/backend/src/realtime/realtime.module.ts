@@ -12,7 +12,7 @@ import { RealtimeGateway } from './realtime.gateway';
       useFactory: (configService: ConfigService) => ({
         secret: configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
         signOptions: {
-          expiresIn: configService.get<string>('JWT_ACCESS_EXPIRES_IN', '15m'),
+          expiresIn: configService.get<string>('JWT_ACCESS_EXPIRES_IN', '15m') as any,
         },
       }),
     }),

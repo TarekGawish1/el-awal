@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
+import { PrismaPg } from '@prisma/adapter-pg';
 
 @Injectable()
 export class PrismaService
@@ -29,12 +30,17 @@ export class PrismaService
       }
     }
 
+    let connectionUrl = databaseUrl;
+    if (connectionUrl.includes('sslmode=require') || connectionUrl.includes('sslmode=prefer')) {
+      connectionUrl = connectionUrl.replace(/sslmode=[a-z\-]+/i, 'sslmode=no-verify');
+    }
+
+    const adapter = connectionUrl
+      ? new PrismaPg({ connectionString: connectionUrl })
+      : undefined;
+
     super({
-      datasources: {
-        db: {
-          url: databaseUrl,
-        },
-      },
+      ...(adapter ? { adapter } : {}),
       log: [
         { emit: 'event', level: 'info' },
         { emit: 'event', level: 'warn' },
