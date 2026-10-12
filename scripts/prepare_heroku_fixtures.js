@@ -58,6 +58,13 @@ async function main() {
   const courses = coursesRes?.data || [];
   console.log('Courses fetched from Heroku:', courses.length);
 
+  // 7. Fetch assessments
+  const assessmentsRes = await fetch(`${HEROKU_BASE}/assessments`, {
+    headers: { Authorization: `Bearer ${studentToken}` },
+  }).then(r => r.json());
+  const assessments = assessmentsRes?.data || [];
+  console.log('Assessments fetched from Heroku:', assessments.length);
+
   const fixture = {
     baseUrl: HEROKU_BASE,
     teacher: {
@@ -89,6 +96,7 @@ async function main() {
     groups: groups.map(g => ({ id: g.id, name: g.name, gradeLevel: g.gradeLevel })),
     sessions: sessions.map(s => ({ id: s.id, topic: s.topic, groupId: s.groupId })),
     courses: courses.map(c => ({ id: c.id, title: c.title })),
+    assessments: assessments.map(a => ({ id: a.id, title: a.title, type: a.type, totalScore: a.totalScore })),
     updatedAt: new Date().toISOString(),
   };
 

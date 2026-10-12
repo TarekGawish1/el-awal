@@ -8,7 +8,10 @@ dotenv.config({ path: path.resolve(process.cwd(), 'apps/backend/.env') });
 import { PrismaClient, AssessmentType, QuestionType } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 
-const connectionUrl = process.env.DATABASE_URL || process.env.DIRECT_URL;
+let connectionUrl = process.env.DATABASE_URL || process.env.DIRECT_URL || '';
+if (connectionUrl.includes('sslmode=require') || connectionUrl.includes('sslmode=prefer')) {
+  connectionUrl = connectionUrl.replace(/sslmode=[a-z\-]+/i, 'sslmode=no-verify');
+}
 const adapter = connectionUrl ? new PrismaPg({ connectionString: connectionUrl }) : undefined;
 const prisma = new PrismaClient(adapter ? { adapter } : undefined);
 

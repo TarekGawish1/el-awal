@@ -5,7 +5,7 @@
     "email": "teacher@elawal.com",
     "phone": "+201021902000",
     "name": "أ. أحمد غريب",
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwYzZmYzdiZS1jNTgyLTRkYzUtOWViNS1mMzdjY2NkOTYzMWEiLCJlbWFpbCI6InRlYWNoZXJAZWxhd2FsLmNvbSIsInBob25lIjoiKzIwMTAyMTkwMjAwMCIsInJvbGUiOiJURUFDSEVSIiwidHlwIjoiYWNjZXNzIiwiaWF0IjoxNzkxODM1Nzg4LCJleHAiOjE3OTE4MzY2ODh9.cqk8aozE41F_5__DxjDM4p8pfICWN52xeS9_IPycgBw"
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwYzZmYzdiZS1jNTgyLTRkYzUtOWViNS1mMzdjY2NkOTYzMWEiLCJlbWFpbCI6InRlYWNoZXJAZWxhd2FsLmNvbSIsInBob25lIjoiKzIwMTAyMTkwMjAwMCIsInJvbGUiOiJURUFDSEVSIiwidHlwIjoiYWNjZXNzIiwiaWF0IjoxNzkxODM5ODM5LCJleHAiOjE3OTE4NDA3Mzl9.N8vs05X0kjsYkOP0E3DKiq6QNeIP20EQfhTTcWSz0d4"
   },
   "students": [
     {
@@ -13,7 +13,7 @@
       "studentProfileId": "0ac17258-7e69-480b-ac0c-62f998ed56ce",
       "name": "طالب فحص تجريبي",
       "studentCode": "STU202600062",
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwYWMxNzI1OC03ZTY5LTQ4MGItYWMwYy02MmY5OThlZDU2Y2UiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsImlhdCI6MTc5MTgzNTc5MCwiZXhwIjoxNzkxODM2NjkwfQ.m68oxx18ObLqKkLY9IvNxGtCpDGeKZc10ms537PtXEM"
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwYWMxNzI1OC03ZTY5LTQ4MGItYWMwYy02MmY5OThlZDU2Y2UiLCJyb2xlIjoiU1RVREVOVCIsInR5cCI6ImFjY2VzcyIsImlhdCI6MTc5MTgzOTg0MCwiZXhwIjoxNzkxODQwNzQwfQ.gwfFgFLCiSX8jZr5IeV7wXGyNTfuHLVTGIiWnP8hZZY"
     }
   ],
   "parents": [
@@ -23,7 +23,7 @@
       "name": "ولي أمر طالب فحص تجريبي",
       "phone": "+201099998811",
       "linkedStudentId": "0ac17258-7e69-480b-ac0c-62f998ed56ce",
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1MDdkMjkwZC05YzI2LTRlNmQtYjAyMC1hY2IzYmMyMmRlMGEiLCJwaG9uZSI6IisyMDEwOTk5OTg4MTEiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwiaWF0IjoxNzkxODM1NzkyLCJleHAiOjE3OTE4MzY2OTJ9.Udrjt5PUkaYXmmhTEnvpRHN77pKw6VTCzAjoIWgJ5Jk"
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1MDdkMjkwZC05YzI2LTRlNmQtYjAyMC1hY2IzYmMyMmRlMGEiLCJwaG9uZSI6IisyMDEwOTk5OTg4MTEiLCJyb2xlIjoiUEFSRU5UIiwidHlwIjoiYWNjZXNzIiwiaWF0IjoxNzkxODM5ODQxLCJleHAiOjE3OTE4NDA3NDF9._3i2UGgDvLLluuU8ezujvzSh8u0qbcgRSpz-ytC_NSI"
     }
   ],
   "groups": [
@@ -96,5 +96,19 @@
     }
   ],
   "courses": [],
-  "updatedAt": "2026-10-12T20:09:55.803Z"
+  "assessments": [
+    {
+      "id": "a6b3afec-911a-4c2a-9443-18399066c745",
+      "title": "اختبار دوري: تقييم مهارات مجموعة السبت و الثلاثاء (الساعة 4:00 م) - الصف الثاني الإعدادي",
+      "type": "EXAM",
+      "totalScore": 30
+    },
+    {
+      "id": "04699567-34ad-4640-bcf2-0a50f62ef4ac",
+      "title": "واجب: حصة - 2026-10-10",
+      "type": "ASSIGNMENT",
+      "totalScore": 20
+    }
+  ],
+  "updatedAt": "2026-10-12T21:17:23.149Z"
 }
