@@ -8,59 +8,115 @@ const STORAGE_KEYS = {
   USER_PROFILE: 'el_awal_user',
 };
 
+// In-Memory RAM Storage (OWASP / OAuth 2.0 Best Practice)
+// The sensitive short-lived JWT Access Token resides in application memory (RAM) ONLY.
+// It is never written to localStorage to protect against XSS exfiltration.
+// The long-lived Refresh Token is stored in an HttpOnly, Secure cookie managed by the browser.
+let inMemoryAccessToken: string | null = null;
+let inMemoryRefreshToken: string | null = null;
+
 /**
- * Persists session tokens and user profile to localStorage safely
+ * Persists user session: stores access token in in-memory RAM only,
+ * keeps non-sensitive user profile in localStorage for layout/UI hydration,
+ * and strips any legacy tokens from localStorage.
  */
 export function setStoredTokens(session: AuthTokensResponse): void {
+  inMemoryAccessToken = session.accessToken;
+  inMemoryRefreshToken = session.refreshToken || null;
+
   if (typeof window === 'undefined') return;
 
   try {
-    localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, session.accessToken);
-    localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, session.refreshToken);
+    // Purge tokens from localStorage to prevent XSS exfiltration
+    localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+
+    // Save non-sensitive user profile for fast optimistic UI rendering
     localStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(session.user));
-    // For backward-compatibility with dashboard layout
     localStorage.setItem(STORAGE_KEYS.USER_SESSION, JSON.stringify(session.user));
   } catch (error) {
-    console.error('Failed to persist authentication tokens to storage:', error);
+    console.error('Failed to persist authentication profile to storage:', error);
   }
 }
 
 /**
- * Updates only the access and refresh tokens without modifying the stored user profile
+ * Updates in-memory access and fallback refresh tokens without modifying the stored user profile
  */
-export function updateStoredTokens(tokens: { accessToken: string; refreshToken: string }): void {
+export function updateStoredTokens(tokens: { accessToken: string; refreshToken?: string }): void {
+  inMemoryAccessToken = tokens.accessToken;
+  if (tokens.refreshToken) {
+    inMemoryRefreshToken = tokens.refreshToken;
+  }
+
   if (typeof window === 'undefined') return;
 
   try {
-    localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, tokens.accessToken);
-    localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, tokens.refreshToken);
+    localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
   } catch (error) {
-    console.error('Failed to update authentication tokens in storage:', error);
+    console.error('Failed to purge tokens from storage:', error);
   }
 }
 
 /**
- * Checks if a session exists (either access token or refresh token is available)
+ * Checks if a session exists (either access token in RAM, in-memory refresh token, or stored user profile)
  */
 export function hasStoredSession(): boolean {
   if (typeof window === 'undefined') return false;
-  return !!(localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN) || localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN));
+  return !!(
+    localStorage.getItem(STORAGE_KEYS.USER_PROFILE) ||
+    localStorage.getItem(STORAGE_KEYS.USER_SESSION) ||
+    localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN) ||
+    localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN)
+  );
 }
 
 /**
- * Retrieves the stored JWT access token
+ * Retrieves the in-memory JWT access token from RAM.
+ * Falls back to legacy localStorage (and immediately migrates it to RAM while wiping storage).
  */
 export function getStoredAccessToken(): string | null {
+  if (typeof window !== 'undefined' && !hasStoredSession()) {
+    inMemoryAccessToken = null;
+    return null;
+  }
+  if (inMemoryAccessToken) return inMemoryAccessToken;
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+
+  // Migration guard: If legacy token exists in localStorage, migrate to RAM and purge from disk
+  const legacyToken = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+  if (legacyToken) {
+    inMemoryAccessToken = legacyToken;
+    try {
+      localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+    } catch {}
+    return inMemoryAccessToken;
+  }
+
+  return null;
 }
 
 /**
- * Retrieves the stored JWT refresh token
+ * Retrieves the in-memory JWT refresh token if present (or legacy localStorage fallback)
  */
 export function getStoredRefreshToken(): string | null {
+  if (typeof window !== 'undefined' && !hasStoredSession()) {
+    inMemoryRefreshToken = null;
+    return null;
+  }
+  if (inMemoryRefreshToken) return inMemoryRefreshToken;
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+
+  const legacyRefreshToken = localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+  if (legacyRefreshToken) {
+    inMemoryRefreshToken = legacyRefreshToken;
+    try {
+      localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+    } catch {}
+    return inMemoryRefreshToken;
+  }
+
+  return null;
 }
 
 /**
@@ -92,9 +148,12 @@ export function setStoredUser(user: AuthUser): void {
 }
 
 /**
- * Clears all authentication tokens and cached profiles from localStorage
+ * Clears all authentication tokens from in-memory RAM and cached profiles from localStorage
  */
 export function clearStoredTokens(): void {
+  inMemoryAccessToken = null;
+  inMemoryRefreshToken = null;
+
   if (typeof window === 'undefined') return;
 
   try {

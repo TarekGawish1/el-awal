@@ -14,7 +14,7 @@ import { disconnectRealtimeSocket } from '@/lib/realtime/socket';
 interface AuthActions {
   setSession: (session: AuthTokensResponse) => void;
   setUser: (user: AuthUser) => void;
-  updateTokens: (tokens: { accessToken: string; refreshToken: string }) => void;
+  updateTokens: (tokens: { accessToken: string; refreshToken?: string }) => void;
   clearSession: () => void;
   initialize: () => void;
 }
@@ -35,7 +35,8 @@ const getInitialState = (): AuthState => {
   const token = getStoredAccessToken();
   const user = getStoredUser();
   const refreshToken = getStoredRefreshToken();
-  const isAuthenticated = !!(user && (token || refreshToken));
+  // An active session is indicated if a user profile is cached or an access token is in RAM
+  const isAuthenticated = !!(user || token);
 
   return {
     user: isAuthenticated ? user : null,
@@ -65,11 +66,11 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     set({ user });
   },
 
-  updateTokens: (tokens: { accessToken: string; refreshToken: string }) => {
+  updateTokens: (tokens: { accessToken: string; refreshToken?: string }) => {
     updateStoredTokens(tokens);
     set({
       accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
+      refreshToken: tokens.refreshToken ?? get().refreshToken,
       isAuthenticated: true,
     });
   },
@@ -92,15 +93,23 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     const user = getStoredUser();
     const refreshToken = getStoredRefreshToken();
 
-    // Authenticated if user profile and either access token or refresh token is available
-    if (user && (token || refreshToken)) {
+    if (user || token) {
       set({
         user,
         accessToken: token,
-        refreshToken,
+        refreshToken: refreshToken || null,
         isAuthenticated: true,
         isInitialized: true,
       });
+
+      // If in-memory access token is missing after page reload, trigger silent refresh in background
+      if (!token && typeof window !== 'undefined' && typeof navigator !== 'undefined' && navigator.onLine) {
+        import('@/lib/api/client').then(({ refreshAccessToken }) => {
+          refreshAccessToken().catch((err) => {
+            console.warn('Silent session bootstrap error:', err);
+          });
+        });
+      }
     } else {
       set({
         user: null,

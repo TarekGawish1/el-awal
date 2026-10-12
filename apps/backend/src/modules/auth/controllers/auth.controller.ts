@@ -1,6 +1,7 @@
-import { Controller, Post, Get, Body, Param, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, HttpCode, HttpStatus, Req, Res, UnauthorizedException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import type { Request, Response } from 'express';
 import { AuthService } from '../services/auth.service';
 import { StudentRegistrationService } from '../services/student-registration.service';
 import { LoginDto } from '../dto/login.dto';
@@ -21,6 +22,37 @@ export class AuthController {
     private readonly studentRegistrationService: StudentRegistrationService,
   ) {}
 
+  /**
+   * Sets the long-lived refresh token in an HttpOnly, Secure, SameSite=Lax cookie.
+   * This protects against XSS token exfiltration (OWASP / OAuth 2.0 Best Practice).
+   */
+  private setRefreshTokenCookie(res: Response, refreshToken: string) {
+    if (!res || typeof res.cookie !== 'function') return;
+    const isProd = process.env.NODE_ENV === 'production';
+    const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: 'lax',
+      path: '/',
+      maxAge,
+    });
+  }
+
+  /**
+   * Clears the HttpOnly refresh token cookie on user logout.
+   */
+  private clearRefreshTokenCookie(res: Response) {
+    if (!res || typeof res.clearCookie !== 'function') return;
+    const isProd = process.env.NODE_ENV === 'production';
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: 'lax',
+      path: '/',
+    });
+  }
+
   @Public()
   @Throttle({ default: { limit: 180, ttl: 60000 } })
   @Post('login')
@@ -28,8 +60,15 @@ export class AuthController {
   @ApiOperation({ summary: 'Authenticate user with phone or email credentials and password' })
   @ApiResponse({ status: 200, description: 'Authentication successful, returns tokens and user object', type: AuthTokensResponseDto })
   @ApiResponse({ status: 401, description: 'Invalid credentials or account is inactive' })
-  async login(@Body() dto: LoginDto): Promise<AuthTokensResponseDto> {
-    return this.authService.login(dto);
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthTokensResponseDto> {
+    const result = await this.authService.login(dto);
+    if (result?.refreshToken) {
+      this.setRefreshTokenCookie(res, result.refreshToken);
+    }
+    return result;
   }
 
   @Public()
@@ -39,8 +78,15 @@ export class AuthController {
   @ApiOperation({ summary: 'Authenticate as the linked parent using a registered student phone number' })
   @ApiResponse({ status: 200, description: 'Parent authentication successful, returns tokens and parent user object', type: AuthTokensResponseDto })
   @ApiResponse({ status: 401, description: 'Student phone is not registered or has no active linked parent' })
-  async parentAccess(@Body() dto: ParentAccessDto): Promise<AuthTokensResponseDto> {
-    return this.authService.parentAccess(dto);
+  async parentAccess(
+    @Body() dto: ParentAccessDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthTokensResponseDto> {
+    const result = await this.authService.parentAccess(dto);
+    if (result?.refreshToken) {
+      this.setRefreshTokenCookie(res, result.refreshToken);
+    }
+    return result;
   }
 
   @Public()
@@ -50,8 +96,15 @@ export class AuthController {
   @ApiOperation({ summary: 'Self-service student registration: creates the student account, the parent account, the parent-student link, and returns one-time credentials' })
   @ApiResponse({ status: 201, description: 'Student and parent accounts created; student auto-authenticated', type: AuthTokensResponseDto })
   @ApiResponse({ status: 409, description: 'Phone number already registered, or student/parent phones conflict' })
-  async registerStudent(@Body() dto: RegisterStudentDto) {
-    return this.studentRegistrationService.registerStudent(dto);
+  async registerStudent(
+    @Body() dto: RegisterStudentDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.studentRegistrationService.registerStudent(dto);
+    if (result?.refreshToken) {
+      this.setRefreshTokenCookie(res, result.refreshToken);
+    }
+    return result;
   }
 
   @Public()
@@ -71,8 +124,15 @@ export class AuthController {
   @ApiResponse({ status: 201, description: 'Student registered, enrolled and auto-authenticated', type: AuthTokensResponseDto })
   @ApiResponse({ status: 400, description: 'Invalid invite token or registration closed' })
   @ApiResponse({ status: 409, description: 'Phone number already registered, or student/parent phones conflict' })
-  async registerByGroup(@Body() dto: RegisterByGroupDto): Promise<AuthTokensResponseDto> {
-    return this.authService.registerByGroup(dto);
+  async registerByGroup(
+    @Body() dto: RegisterByGroupDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthTokensResponseDto> {
+    const result = await this.authService.registerByGroup(dto);
+    if (result?.refreshToken) {
+      this.setRefreshTokenCookie(res, result.refreshToken);
+    }
+    return result;
   }
 
   @Throttle({ default: { limit: 10, ttl: 60000 } })
@@ -86,28 +146,54 @@ export class AuthController {
   async switchRole(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: SwitchRoleDto,
+    @Res({ passthrough: true }) res: Response,
   ): Promise<AuthTokensResponseDto> {
-    return this.authService.switchRole(user.id, dto.targetRole);
+    const result = await this.authService.switchRole(user.id, dto.targetRole);
+    if (result?.refreshToken) {
+      this.setRefreshTokenCookie(res, result.refreshToken);
+    }
+    return result;
   }
 
   @Public()
   @Throttle({ default: { limit: 300, ttl: 60000 } })
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Refresh access token using long-lived refresh token' })
+  @ApiOperation({ summary: 'Refresh access token using long-lived refresh token from HttpOnly cookie or request body' })
   @ApiResponse({ status: 200, description: 'Tokens successfully refreshed' })
   @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
-  async refresh(@Body() dto: RefreshTokenDto) {
-    return this.authService.refreshToken(dto);
+  async refresh(
+    @Req() req: Request,
+    @Body() dto: RefreshTokenDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const token = (req.cookies as any)?.['refreshToken'] || dto?.refreshToken;
+    if (!token) {
+      throw new UnauthorizedException('Refresh token is required');
+    }
+    const result = await this.authService.refreshToken({ refreshToken: token });
+    if (result?.refreshToken) {
+      this.setRefreshTokenCookie(res, result.refreshToken);
+    }
+    return result;
   }
 
   @Public()
   @Throttle({ default: { limit: 300, ttl: 60000 } })
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Revoke refresh token session on client logout' })
+  @ApiOperation({ summary: 'Revoke refresh token session and clear HttpOnly cookie on client logout' })
   @ApiResponse({ status: 200, description: 'Successfully logged out' })
-  async logout(@Body() dto: RefreshTokenDto) {
-    return this.authService.logout(dto);
+  async logout(
+    @Req() req: Request,
+    @Body() dto: RefreshTokenDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const token = (req.cookies as any)?.['refreshToken'] || dto?.refreshToken;
+    this.clearRefreshTokenCookie(res);
+    if (token) {
+      return this.authService.logout({ refreshToken: token });
+    }
+    return { success: true, message: 'Logged out successfully' };
   }
 }

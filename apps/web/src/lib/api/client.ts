@@ -4,6 +4,7 @@ import { ApiError } from './errors';
 import {
   getStoredAccessToken,
   getStoredRefreshToken,
+  getStoredUser,
   updateStoredTokens,
   clearStoredTokens,
 } from '@/features/auth/utils/auth-tokens';
@@ -27,9 +28,6 @@ let refreshPromise: Promise<string | null> | null = null;
 
 async function executeRefreshToken(): Promise<string | null> {
   const currentRefreshToken = getStoredRefreshToken();
-  if (!currentRefreshToken) {
-    return null;
-  }
 
   // Do not attempt token refresh if device is offline
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -38,41 +36,37 @@ async function executeRefreshToken(): Promise<string | null> {
 
   try {
     const refreshUrl = `${API_BASE_URL}${API_ENDPOINTS.AUTH.REFRESH}`;
+    // Always include credentials so the browser passes the HttpOnly 'refreshToken' cookie
     const response = await fetch(refreshUrl, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
-      body: JSON.stringify({ refreshToken: currentRefreshToken }),
+      body: JSON.stringify(currentRefreshToken ? { refreshToken: currentRefreshToken } : {}),
     });
 
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) {
-        // Check if another tab or request already refreshed tokens in localStorage
-        const latestRefreshToken = getStoredRefreshToken();
-        if (latestRefreshToken && latestRefreshToken !== currentRefreshToken) {
-          return getStoredAccessToken();
-        }
-        // Genuine refresh token invalidation from server
         handleAuthFailure(true);
       }
       return null;
     }
 
     const data = await response.json();
-    const tokens = (data && data.data ? data.data : data) as { accessToken: string; refreshToken: string };
+    const tokens = (data && data.data ? data.data : data) as { accessToken: string; refreshToken?: string };
 
-    if (tokens?.accessToken && tokens?.refreshToken) {
+    if (tokens?.accessToken) {
       updateStoredTokens({
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
       });
 
-      // Synchronize in-memory auth store
+      // Synchronize in-memory auth store (RAM)
       useAuthStore.getState().updateTokens({
         accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
+        refreshToken: tokens.refreshToken || '',
       });
 
       return tokens.accessToken;
@@ -187,18 +181,16 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
   if (isInternalApi) {
     let authToken = token || getStoredAccessToken();
 
-    // Proactive silent refresh: If access token is expired or expiring within 60s and we have a stored refresh token
-    if (!isAuthEndpoint && (!authToken || isAccessTokenExpiredOrExpiring(60))) {
-      const hasRefreshToken = getStoredRefreshToken();
-      if (hasRefreshToken) {
-        try {
-          const refreshed = await getRefreshedAccessToken();
-          if (refreshed) {
-            authToken = refreshed;
-          }
-        } catch {
-          // If refresh fails, fall back to existing token or 401 handling
+    // Proactive silent refresh: If access token is expired or expiring within 60s and we have a session hint
+    const hasSessionHint = Boolean(authToken || getStoredRefreshToken() || getStoredUser());
+    if (!isAuthEndpoint && hasSessionHint && (!authToken || isAccessTokenExpiredOrExpiring(60))) {
+      try {
+        const refreshed = await getRefreshedAccessToken();
+        if (refreshed) {
+          authToken = refreshed;
         }
+      } catch {
+        // If refresh fails, fall back to existing token or 401 handling
       }
     }
 
@@ -213,6 +205,7 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
       ...defaultHeaders,
       ...(headers as Record<string, string>),
     },
+    credentials: isInternalApi ? 'include' : customConfig.credentials || 'same-origin',
     ...customConfig,
   };
 
