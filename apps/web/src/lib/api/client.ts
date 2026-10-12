@@ -245,8 +245,13 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
       }
     }
 
-    const contentType = response.headers.get('content-type') || '';
-    const isJson = contentType.includes('application/json');
+    const contentType =
+      (typeof response.headers?.get === 'function'
+        ? response.headers.get('content-type')
+        : (response.headers as any)?.['content-type']) || '';
+    const isJson =
+      contentType.includes('application/json') ||
+      (typeof response.json === 'function' && !contentType);
     const json = isJson ? await response.json().catch(() => null) : null;
 
     if (!response.ok) {
@@ -260,14 +265,18 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
       });
     }
 
+    if (json === null || json === undefined) {
+      return json as T;
+    }
+
     // Unwrap standard API response envelope ({ success: true, data: ... })
     // If the response contains pagination meta, do not unwrap
-    if (json && typeof json === 'object' && 'meta' in json) {
+    if (typeof json === 'object' && 'meta' in json) {
       return json as T;
     }
 
     const apiResponse = json as ApiResponse<T>;
-    return (apiResponse.data !== undefined ? apiResponse.data : json) as T;
+    return (apiResponse?.data !== undefined ? apiResponse.data : json) as T;
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;

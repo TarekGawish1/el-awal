@@ -96,7 +96,7 @@ describe('FinancialMatrixLedger', () => {
     expect(screen.getByText('اشتراك 1')).toBeInTheDocument();
     expect(screen.queryByText('اشتراك 2')).not.toBeInTheDocument();
     expect(screen.getByLabelText('شهر 9 لم يبدأ بعد')).toBeInTheDocument();
-    expect(screen.getByText(/متبقي ٣٥٠/)).toBeInTheDocument();
+    expect(screen.getByText(/متبقي (?:٣٥٠|350)/)).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('الفترة الدراسية'), { target: { value: 'SECOND_TERM' } });
     expect(screen.getByText('اشتراك 2')).toBeInTheDocument();

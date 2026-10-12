@@ -32,6 +32,15 @@ const mockSessions: TodaySessionItem[] = [
 ];
 
 describe('TodaySessionsSection Component', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-12T18:00:00'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('renders empty sessions state when no sessions are scheduled', () => {
     render(<TodaySessionsSection sessions={[]} isLoading={false} />);
     expect(screen.getByText('لا توجد حصص مجدولة لليوم')).toBeInTheDocument();

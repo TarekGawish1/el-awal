@@ -291,7 +291,7 @@ export function CourseCertificateModal({ isOpen, onClose, data }: CourseCertific
         </div>
       </div>
 
-      <style jsx global>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         @keyframes fadeIn {
           from { opacity: 0; }
           to { opacity: 1; }
@@ -304,7 +304,7 @@ export function CourseCertificateModal({ isOpen, onClose, data }: CourseCertific
           0% { opacity: 1; transform: translateY(0) rotate(0deg); }
           100% { opacity: 0; transform: translateY(110vh) rotate(720deg); }
         }
-      `}</style>
+      ` }} />
     </div>
   );
 }
