@@ -438,8 +438,14 @@ export function AssessmentWizard({ type = 'EXAM' }: { type?: 'EXAM' | 'ASSIGNMEN
 
           await uploadFileToR2(presigned.uploadUrl, file, file.type || 'image/jpeg');
           uploadedUrls.push(presigned.publicUrl);
-        } catch {
-          toast.error(`حدث خطأ أثناء رفع الصورة ${file.name}`);
+        } catch (directErr) {
+          console.warn(`Direct R2 upload failed for ${file.name}; falling back to server raw upload:`, directErr);
+          try {
+            const rawRes = await uploadRawFile(file, 'assessments');
+            uploadedUrls.push(rawRes.fileUrl);
+          } catch {
+            toast.error(`حدث خطأ أثناء رفع الصورة ${file.name}`);
+          }
         }
       }
       setBookletImages(uploadedUrls);

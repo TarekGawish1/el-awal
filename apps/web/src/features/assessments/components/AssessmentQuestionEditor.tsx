@@ -79,8 +79,15 @@ export function AssessmentQuestionEditor({ index, onRemove }: AssessmentQuestion
       await uploadFileToR2(presigned.uploadUrl, file, file.type || 'image/jpeg');
       onSuccess(presigned.publicUrl);
       toast.success('تم رفع الصورة بنجاح');
-    } catch (error: any) {
-      toast.error(error?.message || 'حدث خطأ أثناء رفع الصورة');
+    } catch (directErr: any) {
+      console.warn('Direct R2 presigned upload failed; falling back to server raw upload:', directErr);
+      try {
+        const rawRes = await uploadRawFile(file, 'assessments');
+        onSuccess(rawRes.fileUrl);
+        toast.success('تم رفع الصورة بنجاح');
+      } catch (fbError: any) {
+        toast.error(fbError?.message || directErr?.message || 'حدث خطأ أثناء رفع الصورة');
+      }
     } finally {
       setLoading(false);
     }
