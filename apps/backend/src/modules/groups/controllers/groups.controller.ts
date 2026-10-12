@@ -11,7 +11,6 @@ import {
   HttpStatus,
   Res,
 } from '@nestjs/common';
-import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { GroupsService } from '../services/groups.service';
 import { GroupPdfService } from '../services/group-pdf.service';
@@ -71,7 +70,7 @@ export class GroupsController {
   async getGroupQRCodesPdf(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
-    @Res() res: Response,
+    @Res() res: any,
   ) {
     const pdfBuffer = await this.groupPdfService.generateGroupQRCodesPdf(
       id,
@@ -84,12 +83,15 @@ export class GroupsController {
       res.header('Content-Length', pdfBuffer.length.toString());
       return res.send(pdfBuffer);
     }
-    res.set({
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="group-${id}-qrcodes.pdf"`,
-      'Content-Length': pdfBuffer.length.toString(),
-    });
-    res.end(pdfBuffer);
+    if (typeof res.set === 'function') {
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `inline; filename="group-${id}-qrcodes.pdf"`,
+        'Content-Length': pdfBuffer.length.toString(),
+      });
+      return res.end(pdfBuffer);
+    }
+    return res.send ? res.send(pdfBuffer) : res.end(pdfBuffer);
   }
 
   @Get(':id')

@@ -3,7 +3,8 @@ process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/el_awa
 process.env.JWT_SECRET = 'super-secret-jwt-key-for-e2e-testing-minimum-32-chars';
 
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
+import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { JwtService } from '@nestjs/jwt';
 const request = require('supertest');
 import { AppModule } from '../src/app.module';
@@ -13,7 +14,7 @@ import { UserRole, AttendanceStatus, SubmissionStatus, QuestionType } from '@pri
 import * as bcrypt from 'bcryptjs';
 
 describe('El Awal Backend E2E Integration Suite (e2e)', () => {
-  let app: INestApplication;
+  let app: NestFastifyApplication;
   let jwtService: JwtService;
   let teacherJwtToken: string;
   let studentJwtToken: string;
@@ -343,7 +344,9 @@ describe('El Awal Backend E2E Integration Suite (e2e)', () => {
       })
       .compile();
 
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication<NestFastifyApplication>(
+      new FastifyAdapter(),
+    );
     app.setGlobalPrefix('api/v1');
     app.useGlobalPipes(
       new ValidationPipe({
@@ -354,6 +357,7 @@ describe('El Awal Backend E2E Integration Suite (e2e)', () => {
     );
 
     await app.init();
+    await app.getHttpAdapter().getInstance().ready();
     jwtService = app.get(JwtService);
 
     // Issue test tokens for Student and Parent roles

@@ -1,7 +1,6 @@
 import { Controller, Post, Get, Body, Param, HttpCode, HttpStatus, Req, Res, UnauthorizedException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import type { Request, Response } from 'express';
 import { AuthService } from '../services/auth.service';
 import { StudentRegistrationService } from '../services/student-registration.service';
 import { LoginDto } from '../dto/login.dto';
@@ -72,7 +71,7 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Invalid credentials or account is inactive' })
   async login(
     @Body() dto: LoginDto,
-    @Res({ passthrough: true }) res: Response,
+    @Res({ passthrough: true }) res: any,
   ): Promise<AuthTokensResponseDto> {
     const result = await this.authService.login(dto);
     if (result?.refreshToken) {
@@ -90,7 +89,7 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Student phone is not registered or has no active linked parent' })
   async parentAccess(
     @Body() dto: ParentAccessDto,
-    @Res({ passthrough: true }) res: Response,
+    @Res({ passthrough: true }) res: any,
   ): Promise<AuthTokensResponseDto> {
     const result = await this.authService.parentAccess(dto);
     if (result?.refreshToken) {
@@ -108,7 +107,7 @@ export class AuthController {
   @ApiResponse({ status: 409, description: 'Phone number already registered, or student/parent phones conflict' })
   async registerStudent(
     @Body() dto: RegisterStudentDto,
-    @Res({ passthrough: true }) res: Response,
+    @Res({ passthrough: true }) res: any,
   ) {
     const result = await this.studentRegistrationService.registerStudent(dto);
     if (result?.refreshToken) {
@@ -136,7 +135,7 @@ export class AuthController {
   @ApiResponse({ status: 409, description: 'Phone number already registered, or student/parent phones conflict' })
   async registerByGroup(
     @Body() dto: RegisterByGroupDto,
-    @Res({ passthrough: true }) res: Response,
+    @Res({ passthrough: true }) res: any,
   ): Promise<AuthTokensResponseDto> {
     const result = await this.authService.registerByGroup(dto);
     if (result?.refreshToken) {
@@ -156,7 +155,7 @@ export class AuthController {
   async switchRole(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: SwitchRoleDto,
-    @Res({ passthrough: true }) res: Response,
+    @Res({ passthrough: true }) res: any,
   ): Promise<AuthTokensResponseDto> {
     const result = await this.authService.switchRole(user.id, dto.targetRole);
     if (result?.refreshToken) {
@@ -173,9 +172,9 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Tokens successfully refreshed' })
   @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
   async refresh(
-    @Req() req: Request,
+    @Req() req: any,
     @Body() dto: RefreshTokenDto,
-    @Res({ passthrough: true }) res: Response,
+    @Res({ passthrough: true }) res: any,
   ) {
     const token = (req.cookies as any)?.['refreshToken'] || dto?.refreshToken;
     if (!token) {
@@ -195,9 +194,9 @@ export class AuthController {
   @ApiOperation({ summary: 'Revoke refresh token session and clear HttpOnly cookie on client logout' })
   @ApiResponse({ status: 200, description: 'Successfully logged out' })
   async logout(
-    @Req() req: Request,
+    @Req() req: any,
     @Body() dto: RefreshTokenDto,
-    @Res({ passthrough: true }) res: Response,
+    @Res({ passthrough: true }) res: any,
   ) {
     const token = (req.cookies as any)?.['refreshToken'] || dto?.refreshToken;
     this.clearRefreshTokenCookie(res);
